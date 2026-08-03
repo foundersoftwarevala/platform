@@ -59,7 +59,17 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-primary-glow: var(--primary-glow);
+  --color-neon: var(--neon);
+  --color-neon-foreground: var(--neon-foreground);
+  --color-gold: var(--gold);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
+  --color-accent-pink: var(--accent-pink);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-emerald: var(--accent-emerald);
 }
+
 
 :root {
   --radius: 0.625rem;
@@ -98,39 +108,62 @@
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  /* Vala AI — electric blue executive cockpit palette */
+  --background: oklch(0.16 0.05 255);
+  --foreground: oklch(0.985 0.006 240);
+  --card: oklch(0.225 0.062 256);
+  --card-foreground: oklch(0.985 0.006 240);
+  --popover: oklch(0.21 0.058 256);
+  --popover-foreground: oklch(0.985 0.006 240);
+  --primary: oklch(0.62 0.19 253);
+  --primary-foreground: oklch(0.99 0.004 240);
+  --primary-glow: oklch(0.76 0.16 235);
+  --secondary: oklch(0.29 0.075 258);
+  --secondary-foreground: oklch(0.985 0.006 240);
+  --muted: oklch(0.28 0.06 258);
+  --muted-foreground: oklch(0.8 0.04 245);
+  --accent: oklch(0.82 0.15 210);
+  --accent-foreground: oklch(0.18 0.07 255);
+  --neon: oklch(0.82 0.19 160);
+  --neon-foreground: oklch(0.18 0.08 165);
+  --gold: oklch(0.84 0.16 82);
+  --destructive: oklch(0.63 0.23 22);
+  --destructive-foreground: oklch(0.99 0.004 240);
+  --border: oklch(0.5 0.13 250 / 60%);
+  --input: oklch(0.5 0.13 250 / 65%);
+  --ring: oklch(0.72 0.17 240);
+  --chart-1: oklch(0.62 0.19 253);
+  --chart-2: oklch(0.82 0.15 210);
+  --chart-3: oklch(0.82 0.19 160);
+  --chart-4: oklch(0.84 0.16 82);
+  --chart-5: oklch(0.68 0.2 300);
+  --sidebar: oklch(0.195 0.055 256);
+  --sidebar-foreground: oklch(0.985 0.006 240);
+  --sidebar-primary: oklch(0.62 0.19 253);
+  --sidebar-primary-foreground: oklch(0.99 0.004 240);
+  --sidebar-accent: oklch(0.33 0.1 250);
+  --sidebar-accent-foreground: oklch(0.99 0.004 240);
+  --sidebar-border: oklch(0.5 0.13 250 / 60%);
+  --sidebar-ring: oklch(0.72 0.17 240);
+
+  --gradient-primary: linear-gradient(135deg, oklch(0.62 0.19 253), oklch(0.78 0.15 220));
+  --gradient-surface: linear-gradient(160deg, oklch(0.26 0.075 256), oklch(0.19 0.055 256));
+  --gradient-neon: linear-gradient(135deg, oklch(0.82 0.15 210), oklch(0.82 0.19 165));
+  --shadow-glow: 0 18px 48px -18px color-mix(in oklab, var(--primary) 78%, transparent);
+  --shadow-card: 0 10px 34px -16px color-mix(in oklab, var(--primary) 62%, transparent),
+    inset 0 1px 0 0 color-mix(in oklab, var(--primary-glow) 24%, transparent);
 }
+
+@keyframes vala-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.015); }
+}
+
+@keyframes vala-talk {
+  0%, 100% { filter: brightness(1); transform: translateY(0); }
+  50% { filter: brightness(1.18); transform: translateY(-1px); }
+}
+
 
 @layer base {
   * {
@@ -141,4 +174,228 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
+}
+
+@utility surface-rich {
+  background-image: var(--gradient-surface);
+  box-shadow: var(--shadow-card);
+}
+
+@utility glow-primary {
+  box-shadow: var(--shadow-glow);
+}
+
+/* ===== Living Vala AI avatar animations (GPU friendly: transform/opacity only) ===== */
+@keyframes vala-sway {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  33% { transform: translateX(-0.6%) rotate(-0.35deg); }
+  66% { transform: translateX(0.6%) rotate(0.35deg); }
+}
+@keyframes vala-bloom {
+  0%, 100% { opacity: 0.55; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.06); }
+}
+@keyframes vala-blink {
+  0%, 92%, 100% { transform: scaleY(0); opacity: 0; }
+  94%, 96% { transform: scaleY(1); opacity: 1; }
+}
+@keyframes vala-trace {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@keyframes vala-pulse {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: -100; }
+}
+@keyframes vala-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes vala-spin-rev {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+@keyframes vala-core {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.35); opacity: 1; }
+}
+@keyframes vala-ring {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  70%, 100% { transform: scale(4.2); opacity: 0; }
+}
+@keyframes vala-particle {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  15% { opacity: 0.9; }
+  100% { transform: translateY(-260px) scale(1.1); opacity: 0; }
+}
+@keyframes vala-wave {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-state] * { animation-duration: 0.001s !important; }
+}
+
+@keyframes kpi-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes kpi-sweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+/* ===== Premium enterprise button + card system ===== */
+@utility btn-premium {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(140, 185, 255, 0.34);
+  background-image: linear-gradient(180deg, #2f63c4 0%, #1d4291 52%, #14306c 100%);
+  color: #f2f7ff;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  padding: 0.42rem 0.8rem;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.28) inset,
+    0 -1px 0 0 rgba(0, 0, 0, 0.4) inset,
+    0 8px 18px -10px rgba(10, 30, 70, 0.95);
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+@utility btn-premium-hover {
+  &:hover { filter: brightness(1.09); transform: translateY(-1px); }
+  &:active { transform: translateY(1px) scale(0.99); filter: brightness(0.95); }
+  &:disabled { opacity: 0.5; filter: grayscale(0.4); transform: none; }
+}
+@utility btn-graphite {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(150, 175, 210, 0.24);
+  background-image: linear-gradient(180deg, #2a3752 0%, #1c2740 55%, #131b2e 100%);
+  color: #dce8ff;
+  font-weight: 700;
+  padding: 0.42rem 0.8rem;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.16) inset,
+    0 8px 16px -12px rgba(0, 0, 0, 0.9);
+  transition: transform 140ms ease, filter 140ms ease;
+}
+@utility card-premium {
+  border-radius: 0.9rem;
+  border: 1px solid rgba(120, 165, 235, 0.26);
+  background-image: linear-gradient(168deg, #16294c 0%, #0e1c38 52%, #091326 100%);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.09) inset,
+    0 22px 44px -28px rgba(0, 0, 0, 0.95);
+}
+
+@keyframes exec-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes exec-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+@keyframes cc-arrive {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ─────────────── CREATOR MANAGER THEME (Creator's Launchpad palette) ───────────────
+   Scoped to .creator-theme so the Boss cockpit palette stays untouched. */
+.creator-theme {
+  --radius: 1rem;
+
+  --background: oklch(0.16 0.02 285);
+  --color-background: oklch(0.16 0.02 285);
+  --foreground: oklch(0.97 0.01 280);
+  --color-foreground: oklch(0.97 0.01 280);
+
+  --surface: oklch(0.21 0.02 285);
+  --color-surface: oklch(0.21 0.02 285);
+  --surface-foreground: oklch(0.97 0.01 280);
+  --color-surface-foreground: oklch(0.97 0.01 280);
+
+  --card: oklch(0.20 0.02 285);
+  --color-card: oklch(0.20 0.02 285);
+  --card-foreground: oklch(0.97 0.01 280);
+  --color-card-foreground: oklch(0.97 0.01 280);
+
+  --popover: oklch(0.22 0.02 285);
+  --color-popover: oklch(0.22 0.02 285);
+  --popover-foreground: oklch(0.97 0.01 280);
+  --color-popover-foreground: oklch(0.97 0.01 280);
+
+  --primary: oklch(0.62 0.24 295);
+  --color-primary: oklch(0.62 0.24 295);
+  --primary-foreground: oklch(0.99 0.005 285);
+  --color-primary-foreground: oklch(0.99 0.005 285);
+  --primary-glow: oklch(0.72 0.22 305);
+  --color-primary-glow: oklch(0.72 0.22 305);
+
+  --secondary: oklch(0.28 0.03 285);
+  --color-secondary: oklch(0.28 0.03 285);
+  --secondary-foreground: oklch(0.97 0.01 280);
+  --color-secondary-foreground: oklch(0.97 0.01 280);
+
+  --muted: oklch(0.26 0.02 285);
+  --color-muted: oklch(0.26 0.02 285);
+  --muted-foreground: oklch(0.72 0.03 280);
+  --color-muted-foreground: oklch(0.72 0.03 280);
+
+  --accent: oklch(0.32 0.05 295);
+  --color-accent: oklch(0.32 0.05 295);
+  --accent-foreground: oklch(0.98 0.01 280);
+  --color-accent-foreground: oklch(0.98 0.01 280);
+
+  --accent-pink: oklch(0.78 0.16 350);
+  --color-accent-pink: oklch(0.78 0.16 350);
+  --accent-amber: oklch(0.85 0.17 85);
+  --color-accent-amber: oklch(0.85 0.17 85);
+  --accent-emerald: oklch(0.74 0.16 165);
+  --color-accent-emerald: oklch(0.74 0.16 165);
+
+  --destructive: oklch(0.65 0.22 25);
+  --color-destructive: oklch(0.65 0.22 25);
+  --destructive-foreground: oklch(0.99 0.005 280);
+  --color-destructive-foreground: oklch(0.99 0.005 280);
+
+  --border: oklch(1 0 0 / 8%);
+  --color-border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --color-input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.62 0.24 295 / 60%);
+  --color-ring: oklch(0.62 0.24 295 / 60%);
+
+  color: var(--color-foreground);
+  background-color: var(--color-background);
+  background-image:
+    radial-gradient(60% 40% at 20% 0%, oklch(0.62 0.24 295 / 0.18), transparent 60%),
+    radial-gradient(50% 35% at 90% 10%, oklch(0.78 0.16 350 / 0.10), transparent 60%);
+  background-attachment: fixed;
+}
+
+@utility bento-card {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 0 0 oklch(1 0 0 / 0.04) inset, 0 20px 40px -20px oklch(0 0 0 / 0.6);
+}
+
+@utility hero-surface {
+  background-image: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-glow) 100%);
+  color: var(--color-primary-foreground);
+  border-radius: 1.25rem;
+  box-shadow: 0 30px 80px -30px oklch(0.55 0.25 295 / 0.55);
 }
