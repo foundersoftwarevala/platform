@@ -1,24 +1,42 @@
+import { Suspense } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import "@/styles/marketplace-home.css";
+import HomeIndex from "@/components/marketplace-home/HomeIndex";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Software Vala — 147 Software Solutions Marketplace" },
+      {
+        name: "description",
+        content:
+          "Browse 147 ready-to-deploy software solutions across 20 master categories with live demos, full source code and lifetime access.",
+      },
+      { property: "og:title", content: "Software Vala — 147 Software Solutions Marketplace" },
+      {
+        property: "og:description",
+        content:
+          "Live demos, full source code, 1 year free support and lifetime access across 20 master categories.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
+const HomeLoading = () => (
+  <div className="min-h-screen w-full flex items-center justify-center bg-[#0a1526]">
+    <div className="h-10 w-10 rounded-full border-2 border-white/20 border-t-cyan-400 animate-spin" />
+  </div>
+);
+
 function Index() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="mpc-home">
+      <Suspense fallback={<HomeLoading />}>
+        <HomeIndex />
+      </Suspense>
     </div>
   );
 }
