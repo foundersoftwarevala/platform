@@ -24,7 +24,7 @@ function ModulePage({
   features: Feat[];
   count?: number;
 }) {
-  const [active, setActive] = useState(tabs[0]);
+  const [active, setActive] = useState(tabs[0] ?? "");
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
