@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ModuleDashboard } from "@/components/creator/ModuleDashboard";
+import { MarketplaceWorkspace } from "@/components/marketplace-manager/MarketplaceWorkspace";
 import { PageShell } from "@/components/creator/PageShell";
-import { marketplaceConfig } from "@/components/creator/moduleConfigs";
-import { moduleAnalyticsQueryOptions } from "@/lib/creator/analytics.functions";
 
 export const Route = createFileRoute("/marketplace-manager")({
   head: () => ({
@@ -25,8 +23,7 @@ export const Route = createFileRoute("/marketplace-manager")({
     ],
   }),
   loader: ({ context }) =>
-    context.queryClient.ensureQueryData(moduleAnalyticsQueryOptions("marketplace", "7d")),
-  component: () => <ModuleDashboard config={marketplaceConfig} />,
+  component: () => <MarketplaceWorkspace />,
   errorComponent: ({ error }) => (
     <div className="creator-theme min-h-screen">
       <PageShell>
