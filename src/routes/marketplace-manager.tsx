@@ -22,13 +22,12 @@ export const Route = createFileRoute("/marketplace-manager")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  loader: ({ context }) =>
   component: () => <MarketplaceWorkspace />,
   errorComponent: ({ error }) => (
     <div className="creator-theme min-h-screen">
       <PageShell>
         <div className="bento-card py-16 text-center">
-          <h2 className="text-lg font-semibold">Analytics unavailable</h2>
+          <h2 className="text-lg font-semibold">Marketplace Manager unavailable</h2>
           <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
         </div>
       </PageShell>
