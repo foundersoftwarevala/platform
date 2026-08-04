@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ModuleDashboard } from "@/components/creator/ModuleDashboard";
 import { PageShell } from "@/components/creator/PageShell";
-import { franchiseConfig } from "@/components/creator/moduleConfigs";
+import { ManagerWorkspace } from "@/components/manager-suite/ManagerWorkspace";
+import { franchiseGroups, franchisePrimary } from "@/components/franchise/navigation";
+import { franchiseRegistry } from "@/components/franchise/sectionRegistry";
 import { moduleAnalyticsQueryOptions } from "@/lib/creator/analytics.functions";
 
 export const Route = createFileRoute("/franchise-manager")({
@@ -25,7 +26,15 @@ export const Route = createFileRoute("/franchise-manager")({
   }),
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(moduleAnalyticsQueryOptions("franchise", "7d")),
-  component: () => <ModuleDashboard config={franchiseConfig} />,
+  component: () => (
+    <ManagerWorkspace
+      primary={franchisePrimary}
+      groups={franchiseGroups}
+      registry={franchiseRegistry}
+      brand="Franchise Manager"
+      brandMark="FR"
+    />
+  ),
   errorComponent: ({ error }) => (
     <div className="creator-theme min-h-screen">
       <PageShell>

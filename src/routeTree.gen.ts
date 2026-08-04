@@ -16,6 +16,7 @@ import { Route as FranchiseManagerRouteImport } from './routes/franchise-manager
 import { Route as InfluencerManagerRouteImport } from './routes/influencer-manager'
 import { Route as MarketplaceManagerRouteImport } from './routes/marketplace-manager'
 import { Route as ResellerManagerRouteImport } from './routes/reseller-manager'
+import { Route as SeoManagerRouteImport } from './routes/seo-manager'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApplyIndexRouteImport } from './routes/apply.index'
 import { Route as ApplyRoleRouteImport } from './routes/apply.$role'
@@ -55,6 +56,11 @@ const ResellerManagerRoute = ResellerManagerRouteImport.update({
   path: '/reseller-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SeoManagerRoute = SeoManagerRouteImport.update({
+  id: '/seo-manager',
+  path: '/seo-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/influencer-manager': typeof InfluencerManagerRoute
   '/marketplace-manager': typeof MarketplaceManagerRoute
   '/reseller-manager': typeof ResellerManagerRoute
+  '/seo-manager': typeof SeoManagerRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/apply/': typeof ApplyIndexRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/influencer-manager': typeof InfluencerManagerRoute
   '/marketplace-manager': typeof MarketplaceManagerRoute
   '/reseller-manager': typeof ResellerManagerRoute
+  '/seo-manager': typeof SeoManagerRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/apply': typeof ApplyIndexRoute
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/influencer-manager': typeof InfluencerManagerRoute
   '/marketplace-manager': typeof MarketplaceManagerRoute
   '/reseller-manager': typeof ResellerManagerRoute
+  '/seo-manager': typeof SeoManagerRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/apply/': typeof ApplyIndexRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/influencer-manager'
     | '/marketplace-manager'
     | '/reseller-manager'
+    | '/seo-manager'
     | '/api/chat'
     | '/apply/$role'
     | '/apply/'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/influencer-manager'
     | '/marketplace-manager'
     | '/reseller-manager'
+    | '/seo-manager'
     | '/api/chat'
     | '/apply/$role'
     | '/apply'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/influencer-manager'
     | '/marketplace-manager'
     | '/reseller-manager'
+    | '/seo-manager'
     | '/api/chat'
     | '/apply/$role'
     | '/apply/'
@@ -155,6 +167,7 @@ export interface RootRouteChildren {
   InfluencerManagerRoute: typeof InfluencerManagerRoute
   MarketplaceManagerRoute: typeof MarketplaceManagerRoute
   ResellerManagerRoute: typeof ResellerManagerRoute
+  SeoManagerRoute: typeof SeoManagerRoute
   ApiChatRoute: typeof ApiChatRoute
   ApplyRoleRoute: typeof ApplyRoleRoute
   ApplyIndexRoute: typeof ApplyIndexRoute
@@ -211,6 +224,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResellerManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/seo-manager': {
+      id: '/seo-manager'
+      path: '/seo-manager'
+      fullPath: '/seo-manager'
+      preLoaderRoute: typeof SeoManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -243,6 +263,7 @@ const rootRouteChildren: RootRouteChildren = {
   InfluencerManagerRoute: InfluencerManagerRoute,
   MarketplaceManagerRoute: MarketplaceManagerRoute,
   ResellerManagerRoute: ResellerManagerRoute,
+  SeoManagerRoute: SeoManagerRoute,
   ApiChatRoute: ApiChatRoute,
   ApplyRoleRoute: ApplyRoleRoute,
   ApplyIndexRoute: ApplyIndexRoute,
