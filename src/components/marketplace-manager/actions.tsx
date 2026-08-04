@@ -176,7 +176,7 @@ export function TableToolbar({
       <ToolBtn icon={Download} label="Import" />
       <ToolBtn icon={FileDown} label="Export" />
       {extraActions?.map((id) => <ActionButton key={id} action={id} size="sm" />)}
-      <ActionButton action="add" size="sm" onClick={onAdd} />
+      <ActionButton action="add" size="sm" {...(onAdd ? { onClick: onAdd } : {})} />
       <ToolBtn icon={Settings} />
     </div>
   );

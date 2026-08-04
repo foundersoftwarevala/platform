@@ -30,10 +30,10 @@ const EMPTY: Partial<HeroSlideRow> = {
   kicker: "", headline: "", sub: "", cta_label: "Learn more", cta_href: "/marketplace",
   secondary_label: "", secondary_href: "",
   icon: "Sparkles",
-  bg_gradient: GRADIENT_PRESETS[0].value,
-  accent_class: GRADIENT_PRESETS[0].accent,
-  ring_class: GRADIENT_PRESETS[0].ring,
-  badge_class: GRADIENT_PRESETS[0].badge,
+  bg_gradient: (GRADIENT_PRESETS[0]?.value ?? ""),
+  accent_class: (GRADIENT_PRESETS[0]?.accent ?? ""),
+  ring_class: (GRADIENT_PRESETS[0]?.ring ?? ""),
+  badge_class: (GRADIENT_PRESETS[0]?.badge ?? ""),
   status: "draft" as HeroStatus,
   enabled: true, sort_order: 999,
   publish_at: null, unpublish_at: null,
@@ -103,7 +103,10 @@ export function HeroBannerSection() {
     const idx = ids.indexOf(id);
     const j = idx + dir;
     if (idx < 0 || j < 0 || j >= ids.length) return;
-    [ids[idx], ids[j]] = [ids[j], ids[idx]];
+    const a = ids[idx]!;
+    const b = ids[j]!;
+    ids[idx] = b;
+    ids[j] = a;
     reorderMut.mutate(ids);
   };
 
@@ -150,8 +153,8 @@ export function HeroBannerSection() {
               slide={s}
               onEdit={() => setEditing(s)}
               onDelete={() => { if (confirm(`Delete "${s.headline}"?`)) deleteMut.mutate(s.id); }}
-              onMoveUp={i > 0 ? () => move(s.id, -1) : undefined}
-              onMoveDown={i < filtered.length - 1 ? () => move(s.id, 1) : undefined}
+              {...(i > 0 ? { onMoveUp: () => move(s.id, -1) } : {})}
+              {...(i < filtered.length - 1 ? { onMoveDown: () => move(s.id, 1) } : {})}
               onPublish={() => setStatus(s, "published")}
               onDraft={() => setStatus(s, "draft")}
               onArchive={() => setStatus(s, "archived")}

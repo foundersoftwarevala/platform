@@ -1131,9 +1131,9 @@ function analyzeSchema(v: string): {
       typeof parsed?.["@type"] === "string" ? parsed["@type"] : undefined;
     const fields = Object.keys(parsed).filter((k) => !k.startsWith("@")).slice(0, 6);
     if (!parsed["@context"]) {
-      return { tone: "warning", label: "Missing @context", type, fields };
+      return { tone: "warning", label: "Missing @context", ...(type ? { type } : {}), fields };
     }
-    return { tone: "success", label: "Valid", type, fields };
+    return { tone: "success", label: "Valid", ...(type ? { type } : {}), fields };
   } catch {
     return { tone: "destructive", label: "Invalid JSON", fields: [] };
   }
@@ -1242,12 +1242,12 @@ function validateSchema(v: string): Validation[] {
     });
   }
   // Common lightweight lints
-  if (typeStr === "Product" && parsed.offers && typeof parsed.offers === "object" && !Array.isArray(parsed.offers)) {
-    const offers = parsed.offers as Record<string, unknown>;
-    if (!offers.price && !offers.priceSpecification) {
+  if (typeStr === "Product" && parsed["offers"] && typeof parsed["offers"] === "object" && !Array.isArray(parsed["offers"])) {
+    const offers = parsed["offers"] as Record<string, unknown>;
+    if (!offers["price"] && !offers["priceSpecification"]) {
       out.push({ severity: "warning", message: "offers is missing price", hint: "Add offers.price or offers.priceSpecification to be eligible for price rich results." });
     }
-    if (!offers.priceCurrency) {
+    if (!offers["priceCurrency"]) {
       out.push({ severity: "warning", message: "offers is missing priceCurrency", hint: "Set offers.priceCurrency (ISO 4217, e.g. USD / INR)." });
     }
   }

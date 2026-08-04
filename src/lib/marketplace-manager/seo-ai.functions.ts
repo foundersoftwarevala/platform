@@ -51,7 +51,7 @@ function fallback(input: SeoInput): SeoOutput {
 export const generateSeo = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as SeoInput)
   .handler(async ({ data }): Promise<SeoOutput> => {
-    const key = process.env.LOVABLE_API_KEY;
+    const key = process.env["LOVABLE_API_KEY"];
     if (!key) return fallback(data);
 
     const sys = `You are an SEO specialist for a global software marketplace.

@@ -13,7 +13,7 @@ Never invent metrics, revenue, ratings or downloads. If asked for live data you 
 export const chatWithAi = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as ChatInput)
   .handler(async ({ data }): Promise<ChatOutput> => {
-    const key = process.env.LOVABLE_API_KEY;
+    const key = process.env["LOVABLE_API_KEY"];
     if (!key) {
       return {
         reply: "",

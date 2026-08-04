@@ -128,7 +128,7 @@ function logAudit(action: AuditAction, detail?: string) {
   if (typeof window === "undefined") return;
   try {
     const { value } = safeRead<AuditEvent[]>(AUDIT_KEY, isAuditArray, []);
-    value.push({ id: generateId(), ts: Date.now(), action, detail });
+    value.push({ id: generateId(), ts: Date.now(), action, detail: detail ?? "" });
     localStorage.setItem(AUDIT_KEY, JSON.stringify(value.slice(-500)));
   } catch {}
 }
@@ -301,6 +301,7 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
     const map = new Map<string, string>();
     for (let i = 0; i < messages.length; i++) {
       const m = messages[i];
+      if (!m) continue;
       if (m.role === "assistant") {
         const prev = messages[i - 1];
         map.set(m.id, prev?.role === "user" ? prev.content : "");

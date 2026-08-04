@@ -8,6 +8,7 @@ import { PageShell } from "@/components/creator/PageShell";
 
 import { marketplaceGroups, marketplacePrimary } from "./navigation";
 import { navIdToLabel, sectionRegistry } from "./sectionRegistry";
+import { DashboardSection as DashboardFallback } from "./sections/DashboardSection";
 import { AiChatPanel } from "./AiChatPanel";
 
 export function MarketplaceWorkspace() {
@@ -16,7 +17,7 @@ export function MarketplaceWorkspace() {
   const [active, setActive] = useState("Dashboard");
   const [aiOpen, setAiOpen] = useState(false);
 
-  const Section = sectionRegistry[active] ?? sectionRegistry["Dashboard"];
+  const Section = sectionRegistry[active] ?? DashboardFallback;
 
   const select = (label: string) => {
     setActive(label);
@@ -42,7 +43,7 @@ export function MarketplaceWorkspace() {
         <CreatorTopBar onOpenMenu={() => setMobileOpen(true)} />
 
         <PageShell>
-          <Section onNavigate={(id) => select(navIdToLabel[id] ?? id)} />
+          <Section onNavigate={(id: string) => select(navIdToLabel[id] ?? id)} />
         </PageShell>
       </div>
 

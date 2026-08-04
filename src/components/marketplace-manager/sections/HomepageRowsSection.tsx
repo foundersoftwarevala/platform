@@ -345,7 +345,7 @@ function SubmodulesTab({ row, selected, setSelected }: { row: Row; selected: num
       </Card>
 
       <div>
-        <TableToolbar title={row.sub[selected]} count={undefined} extraActions={["publish"]}/>
+        <TableToolbar title={row.sub[selected] ?? ""} extraActions={["publish"]}/>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {["Add Item","Edit Item","View Item","Approve","Reject","Duplicate","Archive","Restore","Pin","Hide","Show","Move Up","Move Down","Sort","Filter","History"].map((a) => (
             <div key={a} className="glass flex items-center justify-between rounded-xl p-3">

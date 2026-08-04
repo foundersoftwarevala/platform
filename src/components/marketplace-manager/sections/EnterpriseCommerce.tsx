@@ -98,7 +98,7 @@ function MiniStat({ label, value, delta, tone = "default", icon: Icon }: {
   tone?: "default" | "success" | "warning" | "premium" | "destructive";
   icon?: ComponentType<{ className?: string }>;
 }) {
-  return <StatCard label={label} value={value} delta={delta} tone={tone} icon={Icon ? <Icon className="h-3.5 w-3.5" /> : undefined} />;
+  return <StatCard label={label} value={value} tone={tone} {...(delta ? { delta } : {})} {...(Icon ? { icon: <Icon className="h-3.5 w-3.5" /> } : {})} />;
 }
 
 /* =============================================================
@@ -584,8 +584,8 @@ function LicenseGeneratorPanel() {
       );
     } else if (format === "UUID-v4") {
       const rnd = crypto.getRandomValues(new Uint8Array(16));
-      rnd[6] = (rnd[6] & 0x0f) | 0x40;
-      rnd[8] = (rnd[8] & 0x3f) | 0x80;
+      rnd[6] = ((rnd[6] ?? 0) & 0x0f) | 0x40;
+      rnd[8] = ((rnd[8] ?? 0) & 0x3f) | 0x80;
       const hex = Array.from(rnd).map((b) => b.toString(16).padStart(2, "0")).join("");
       setPreview(`${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`.toUpperCase());
     } else if (format === "JWT signed") {
@@ -889,7 +889,7 @@ export function DownloadsSection() {
                         <option key={v} value={v}>{v}</option>
                       ))}
                     </select>
-                    <Chip tone={CHANNEL_TONE[f.channel]}>{f.channel}</Chip>
+                    <Chip tone={CHANNEL_TONE[f.channel] ?? "neutral"}>{f.channel}</Chip>
                   </div>
                   <div className="text-muted-foreground">{f.size}</div>
                   <div>

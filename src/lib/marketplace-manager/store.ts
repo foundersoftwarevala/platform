@@ -55,7 +55,7 @@ export function createTable<T extends { id: string }>(key: string, seed: T[]) {
     },
     upsert(row: T): T {
       const i = rows.findIndex((r) => r.id === row.id);
-      if (i >= 0) rows[i] = { ...rows[i], ...row };
+      if (i >= 0) rows[i] = { ...rows[i], ...row } as T;
       else rows = [...rows, row];
       save(key, rows);
       return { ...(rows.find((r) => r.id === row.id) as T) };
@@ -63,7 +63,7 @@ export function createTable<T extends { id: string }>(key: string, seed: T[]) {
     patch(id: string, patch: Partial<T>): T | undefined {
       const i = rows.findIndex((r) => r.id === id);
       if (i < 0) return undefined;
-      rows[i] = { ...rows[i], ...patch };
+      rows[i] = { ...rows[i], ...patch } as T;
       save(key, rows);
       return { ...rows[i] };
     },

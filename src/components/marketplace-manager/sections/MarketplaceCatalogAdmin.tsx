@@ -353,7 +353,10 @@ export function LayoutOrderAdmin() {
     const next = [...data];
     const j = idx + dir;
     if (j < 0 || j >= next.length) return;
-    [next[idx], next[j]] = [next[j], next[idx]];
+    const a = next[idx]!;
+    const b = next[j]!;
+    next[idx] = b;
+    next[j] = a;
     const payload = next.map((s, i) => ({ key: s.key, sort_order: (i + 1) * 10 }));
     reorderMut.mutate(payload);
   };

@@ -42,7 +42,7 @@ function ModulePage({
       />
       <SubNav items={tabs} active={active} onChange={setActive} />
 
-      <TableToolbar title={title} count={count ?? features.length} extraActions={["publish"]} />
+      <TableToolbar title={title ?? ""} count={count ?? features.length} extraActions={["publish"]} />
       <BulkActionBar selectedCount={0} />
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
