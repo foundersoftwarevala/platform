@@ -19,6 +19,7 @@ import { config as license } from "./walls/license";
 import { config as marketing } from "./walls/marketing";
 import { config as onboarding } from "./walls/onboarding";
 import { config as products } from "./walls/products";
+import { config as regions } from "./walls/regions";
 import { config as reports } from "./walls/reports";
 import { config as revenue } from "./walls/revenue";
 import { config as settings } from "./walls/settings";
@@ -40,7 +41,8 @@ const explicit: Record<string, SectionEntry> = {
   License: license,
   Compliance: compliance,
   Countries: countries,
-  Regions: regionsAlias(),
+  Regions: regions,
+  "Territory Map": regions,
   Revenue: revenue,
   Commission: commission,
   Royalty: commission,
@@ -60,16 +62,6 @@ const explicit: Record<string, SectionEntry> = {
   Reports: reports,
   Settings: settings,
 };
-
-function regionsAlias() {
-  return { ...require1() };
-}
-
-function require1() {
-  return regionsConfig;
-}
-
-import { config as regionsConfig } from "./walls/regions";
 
 export const franchiseRegistry: Record<string, SectionEntry> = (() => {
   const out: Record<string, SectionEntry> = { ...explicit };
