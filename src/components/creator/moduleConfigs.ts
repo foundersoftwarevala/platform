@@ -286,3 +286,72 @@ export const franchiseConfig: ModuleConfig = {
     "Compliance gaps block royalty settlement — clear open findings first.",
   ],
 };
+
+export const marketplaceConfig: ModuleConfig = {
+  id: "marketplace",
+  brand: "Marketplace Command",
+  brandMark: "MP",
+  eyebrow: "Software Vala Marketplace",
+  title: "Marketplace Manager",
+  subtitle:
+    "Build the storefront, curate the catalog, run commerce, growth, governance and operations from one marketplace console.",
+  primary: marketplacePrimary,
+  groups: marketplaceGroups,
+  defaultModule: "Dashboard",
+  kpis: [
+    { key: "products", label: "Products", icon: Package, tint: "text-accent-pink" },
+    { key: "views", label: "Views", icon: Eye, tint: "text-primary-glow" },
+    { key: "clicks", label: "Clicks", icon: MousePointerClick, tint: "text-accent-emerald" },
+    { key: "orders", label: "Orders", icon: ShoppingBag, tint: "text-accent-amber" },
+    { key: "leads", label: "Leads", icon: Target, tint: "text-accent-pink" },
+    { key: "vendors", label: "Vendors", icon: Store, tint: "text-primary-glow" },
+    { key: "revenue", label: "Revenue", icon: TrendingUp, tint: "text-accent-emerald" },
+  ],
+  primaryCta: { label: "Open Homepage Builder", target: "Homepage Rows" },
+  secondaryCta: { label: "Ask AI", target: "AI Content" },
+  profile: {
+    title: "Marketplace Profile",
+    caption: "Connect Software Vala login",
+    stats: [
+      ["Products", "—"],
+      ["Vendors", "—"],
+      ["Streak", "0d"],
+    ],
+  },
+  plan: [
+    ["Approve author submissions", "Author Approval", "9:00 AM"],
+    ["Homepage row curation", "Homepage Rows", "12:30 PM"],
+    ["Order & payment review", "Commerce", "6:00 PM"],
+    ["SEO & quality sweep", "Governance", "9:00 PM"],
+  ],
+  balance: {
+    label: "Marketplace revenue",
+    key: "revenue",
+    action: "Open payments",
+    target: "Payments",
+  },
+  walls: [
+    {
+      title: "Homepage Walls",
+      icon: Layout,
+      tint: "text-primary-glow",
+      action: "View all",
+      target: "Walls",
+      empty: "No homepage walls configured yet. Add a wall to feature products.",
+    },
+    {
+      title: "Top Products",
+      icon: Package,
+      tint: "text-accent-pink",
+      action: "View all",
+      target: "Products",
+      empty: "Product ranking appears after the first recorded order.",
+    },
+  ],
+  leaderboardEmpty: "Awaiting products",
+  suggestions: [
+    "Products missing SEO descriptions are excluded from search — run SEO Automation.",
+    "Demo sandbox links older than 30 days should be re-verified before launch.",
+    "Featured homepage rows convert 2.3× better when refreshed weekly.",
+  ],
+};
