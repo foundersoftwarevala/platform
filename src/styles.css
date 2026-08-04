@@ -68,6 +68,12 @@
   --color-accent-pink: var(--accent-pink);
   --color-accent-amber: var(--accent-amber);
   --color-accent-emerald: var(--accent-emerald);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-premium: var(--premium);
+  --color-premium-foreground: var(--premium-foreground);
 }
 
 
@@ -365,6 +371,19 @@
   --accent-emerald: oklch(0.74 0.16 165);
   --color-accent-emerald: oklch(0.74 0.16 165);
 
+  --success: oklch(0.74 0.16 165);
+  --color-success: oklch(0.74 0.16 165);
+  --success-foreground: oklch(0.18 0.02 285);
+  --color-success-foreground: oklch(0.18 0.02 285);
+  --warning: oklch(0.85 0.17 85);
+  --color-warning: oklch(0.85 0.17 85);
+  --warning-foreground: oklch(0.18 0.02 285);
+  --color-warning-foreground: oklch(0.18 0.02 285);
+  --premium: oklch(0.78 0.16 350);
+  --color-premium: oklch(0.78 0.16 350);
+  --premium-foreground: oklch(0.18 0.02 285);
+  --color-premium-foreground: oklch(0.18 0.02 285);
+
   --destructive: oklch(0.65 0.22 25);
   --color-destructive: oklch(0.65 0.22 25);
   --destructive-foreground: oklch(0.99 0.005 280);
@@ -398,4 +417,33 @@
   color: var(--color-primary-foreground);
   border-radius: 1.25rem;
   box-shadow: 0 30px 80px -30px oklch(0.55 0.25 295 / 0.55);
+}
+
+/* ---- Marketplace Manager compatibility scope ---- */
+.mm-scope {
+  /* ported sections use text-accent as a highlight, not a surface */
+  --accent: oklch(0.72 0.22 305);
+  --color-accent: oklch(0.72 0.22 305);
+  --accent-foreground: oklch(0.99 0.005 285);
+  --color-accent-foreground: oklch(0.99 0.005 285);
+}
+
+@utility glass {
+  background: color-mix(in oklab, var(--card) 72%, transparent);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(14px);
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+@utility ring-rim {
+  box-shadow: 0 0 0 1px var(--border) inset;
+}
+
+@utility scroll-row {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
