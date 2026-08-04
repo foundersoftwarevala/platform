@@ -14,6 +14,7 @@ import { Route as ControlPanelRouteImport } from './routes/control-panel'
 import { Route as CreatorManagerRouteImport } from './routes/creator-manager'
 import { Route as FranchiseManagerRouteImport } from './routes/franchise-manager'
 import { Route as InfluencerManagerRouteImport } from './routes/influencer-manager'
+import { Route as MarketplaceManagerRouteImport } from './routes/marketplace-manager'
 import { Route as ResellerManagerRouteImport } from './routes/reseller-manager'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApplyIndexRouteImport } from './routes/apply.index'
@@ -44,6 +45,11 @@ const InfluencerManagerRoute = InfluencerManagerRouteImport.update({
   path: '/influencer-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MarketplaceManagerRoute = MarketplaceManagerRouteImport.update({
+  id: '/marketplace-manager',
+  path: '/marketplace-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResellerManagerRoute = ResellerManagerRouteImport.update({
   id: '/reseller-manager',
   path: '/reseller-manager',
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/creator-manager': typeof CreatorManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
+  '/marketplace-manager': typeof MarketplaceManagerRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/creator-manager': typeof CreatorManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
+  '/marketplace-manager': typeof MarketplaceManagerRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/creator-manager': typeof CreatorManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
+  '/marketplace-manager': typeof MarketplaceManagerRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/creator-manager'
     | '/franchise-manager'
     | '/influencer-manager'
+    | '/marketplace-manager'
     | '/reseller-manager'
     | '/api/chat'
     | '/apply/$role'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/creator-manager'
     | '/franchise-manager'
     | '/influencer-manager'
+    | '/marketplace-manager'
     | '/reseller-manager'
     | '/api/chat'
     | '/apply/$role'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/creator-manager'
     | '/franchise-manager'
     | '/influencer-manager'
+    | '/marketplace-manager'
     | '/reseller-manager'
     | '/api/chat'
     | '/apply/$role'
@@ -141,6 +153,7 @@ export interface RootRouteChildren {
   CreatorManagerRoute: typeof CreatorManagerRoute
   FranchiseManagerRoute: typeof FranchiseManagerRoute
   InfluencerManagerRoute: typeof InfluencerManagerRoute
+  MarketplaceManagerRoute: typeof MarketplaceManagerRoute
   ResellerManagerRoute: typeof ResellerManagerRoute
   ApiChatRoute: typeof ApiChatRoute
   ApplyRoleRoute: typeof ApplyRoleRoute
@@ -184,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InfluencerManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/marketplace-manager': {
+      id: '/marketplace-manager'
+      path: '/marketplace-manager'
+      fullPath: '/marketplace-manager'
+      preLoaderRoute: typeof MarketplaceManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reseller-manager': {
       id: '/reseller-manager'
       path: '/reseller-manager'
@@ -221,6 +241,7 @@ const rootRouteChildren: RootRouteChildren = {
   CreatorManagerRoute: CreatorManagerRoute,
   FranchiseManagerRoute: FranchiseManagerRoute,
   InfluencerManagerRoute: InfluencerManagerRoute,
+  MarketplaceManagerRoute: MarketplaceManagerRoute,
   ResellerManagerRoute: ResellerManagerRoute,
   ApiChatRoute: ApiChatRoute,
   ApplyRoleRoute: ApplyRoleRoute,

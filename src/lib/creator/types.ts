@@ -29,7 +29,10 @@ export type MetricKey =
   | "regions"
   | "licenses"
   | "royalty"
-  | "onboarding";
+  | "onboarding"
+  // marketplace
+  | "products"
+  | "vendors";
 
 export type TimeRange = "1d" | "7d" | "30d" | "90d";
 
@@ -83,6 +86,8 @@ export const METRIC_KEYS: MetricKey[] = [
   "licenses",
   "royalty",
   "onboarding",
+  "products",
+  "vendors",
 ];
 
 const CURRENCY_KEYS = new Set<MetricKey>(["commissions", "revenue", "royalty", "payouts"]);

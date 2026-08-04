@@ -1,5 +1,5 @@
 import {
-  BadgeCheck, BarChart3, Building2, Coins, Eye, Flag, Globe2, Handshake, Heart,
+  BadgeCheck, BarChart3, Building2, Coins, Eye, Flag, Globe2, Handshake, Heart, Layout,
   Megaphone, MousePointerClick, Package, RefreshCcw, ShoppingBag, Store, Target,
   TrendingUp, Trophy, Users, Wallet,
 } from "lucide-react";
@@ -9,6 +9,7 @@ import { groups as creatorGroups, primary as creatorPrimary } from "./navigation
 import { resellerGroups, resellerPrimary } from "@/components/reseller/navigation";
 import { influencerGroups, influencerPrimary } from "@/components/influencer/navigation";
 import { franchiseGroups, franchisePrimary } from "@/components/franchise/navigation";
+import { marketplaceGroups, marketplacePrimary } from "@/components/marketplace-manager/navigation";
 
 export const creatorConfig: ModuleConfig = {
   id: "creator",
