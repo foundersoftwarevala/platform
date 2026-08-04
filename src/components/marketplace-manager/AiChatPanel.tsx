@@ -30,7 +30,7 @@ import {
   Gauge,
   FileSpreadsheet,
 } from "lucide-react";
-import { chatWithAi, type ChatMessage } from "@/lib/chat-ai.functions";
+import { chatWithAi, type ChatMessage } from "@/lib/marketplace-manager/chat-ai.functions";
 
 const STORAGE_KEY = "vala-ai-chat-history-v3";
 const LEGACY_STORAGE_KEY = "vala-ai-chat-history-v2";
