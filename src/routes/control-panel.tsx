@@ -178,7 +178,7 @@ function Index() {
             onRoleSelect={(roleId) => {
               setActiveRole(roleId);
               if (roleId === "marketplace_manager") {
-                void navigate({ to: "/marketplace" });
+                void navigate({ to: "/marketplace-manager" });
                 return;
               }
               if (roleId === "creator_manager") {

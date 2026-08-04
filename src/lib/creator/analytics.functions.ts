@@ -8,13 +8,15 @@ import { z } from "zod";
 
 import type { DashboardAnalytics, TimeRange } from "./types";
 
-export type ModuleId = "creator" | "reseller" | "influencer" | "franchise";
+export type ModuleId = "creator" | "reseller" | "influencer" | "franchise" | "marketplace";
 
 export const getModuleAnalytics = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) =>
     z
       .object({
-        module: z.enum(["creator", "reseller", "influencer", "franchise"]).default("creator"),
+        module: z
+          .enum(["creator", "reseller", "influencer", "franchise", "marketplace"])
+          .default("creator"),
         range: z.enum(["1d", "7d", "30d", "90d"]).default("7d"),
         scopeId: z.string().min(1).optional(),
       })
