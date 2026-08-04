@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ModuleDashboard } from "@/components/creator/ModuleDashboard";
 import { PageShell } from "@/components/creator/PageShell";
-import { resellerConfig } from "@/components/creator/moduleConfigs";
+import { ManagerWorkspace } from "@/components/manager-suite/ManagerWorkspace";
+import { resellerGroups, resellerPrimary } from "@/components/reseller/navigation";
+import { resellerRegistry } from "@/components/reseller/sectionRegistry";
 import { moduleAnalyticsQueryOptions } from "@/lib/creator/analytics.functions";
 
 export const Route = createFileRoute("/reseller-manager")({
@@ -25,7 +26,15 @@ export const Route = createFileRoute("/reseller-manager")({
   }),
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(moduleAnalyticsQueryOptions("reseller", "7d")),
-  component: () => <ModuleDashboard config={resellerConfig} />,
+  component: () => (
+    <ManagerWorkspace
+      primary={resellerPrimary}
+      groups={resellerGroups}
+      registry={resellerRegistry}
+      brand="Reseller Manager"
+      brandMark="RS"
+    />
+  ),
   errorComponent: ({ error }) => (
     <div className="creator-theme min-h-screen">
       <PageShell>

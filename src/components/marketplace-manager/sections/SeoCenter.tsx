@@ -235,7 +235,7 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
 /* =========================================================
    MODULE NAV
    ========================================================= */
-const MODULE_GROUPS: { label: string; items: { id: string; label: string; icon: any }[] }[] = [
+export const SEO_MODULE_GROUPS: { label: string; items: { id: string; label: string; icon: any }[] }[] = [
   {
     label: "Overview",
     items: [
@@ -488,7 +488,7 @@ export function SeoCenter() {
       {/* MODULE NAV — module switching, do not open drawer */}
       <div className="mb-6 rounded-2xl border border-border bg-background/40 p-3" data-skip-drawer>
         <div className="flex flex-wrap gap-x-6 gap-y-3">
-          {MODULE_GROUPS.map((g) => (
+          {SEO_MODULE_GROUPS.map((g) => (
             <div key={g.label} className="min-w-[180px]">
               <div className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{g.label}</div>
               <div className="flex flex-wrap gap-1">
@@ -511,14 +511,14 @@ export function SeoCenter() {
       </div>
 
       {/* MODULE RENDER */}
-      {renderModule(module)}
+      {renderSeoModule(module)}
 
       <ActionDrawer state={drawer} onClose={() => setDrawer((d) => ({ ...d, open: false }))} />
     </div>
   );
 }
 
-function renderModule(id: string) {
+export function renderSeoModule(id: string) {
   switch (id) {
     case "dashboard": return <DashboardModule />;
     case "health": return <HealthModule />;
