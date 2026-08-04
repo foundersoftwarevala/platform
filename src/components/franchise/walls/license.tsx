@@ -1,4 +1,4 @@
-import { BadgeCheck, Activity, Coins, Gauge, ShieldCheck, TrendingUp, Users } from "lucide-react";
+import { Activity, BadgeCheck, CheckCircle2, Coins, Gauge, Pause, ShieldCheck, Trash2, TrendingUp, Users } from "lucide-react";
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
@@ -33,8 +33,15 @@ export const config: WallConfig = {
     { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
   ],
   filters: [{ key: "status", label: "Status", options: STATUSES }],
-  bulkActions: [],
-  rowActions: [],
+  bulkActions: [
+    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
+    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
+    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
+  ],
+  rowActions: [
+    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
+    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
+  ],
   formFields: [
     { key: "license_key", label: "License Key", type: "text", required: true },
     { key: "franchise", label: "Franchise", type: "text" },
