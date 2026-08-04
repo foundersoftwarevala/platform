@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useServerFn } from "@tanstack/react-start";
+import { useServerFn } from "@/lib/marketplace-manager/localFn";
 import {
   Sparkles,
   Globe2,
@@ -30,7 +30,7 @@ import {
   Minus,
 } from "lucide-react";
 import { Card, EmptyHint, PageHeader, PillButton, StatCard, SubNav } from "../ui";
-import { generateSeo } from "@/lib/seo-ai.functions";
+import { generateSeo } from "@/lib/marketplace-manager/seo-ai.functions";
 
 type PageType = "homepage" | "category" | "product" | "collection";
 

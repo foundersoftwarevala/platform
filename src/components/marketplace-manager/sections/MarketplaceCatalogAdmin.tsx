@@ -2,14 +2,14 @@
 // Reads/writes through server functions in @/lib/marketplace.functions.
 import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
+import { useServerFn } from "@/lib/marketplace-manager/localFn";
 import { toast } from "sonner";
 import { Plus, Save, Trash2, X, Loader2, Edit3, Eye, EyeOff } from "lucide-react";
 import {
   listProductsAdmin, upsertProduct, deleteProduct,
   listCategoriesAdmin, upsertCategory, deleteCategory,
   listSectionsAdmin, setSectionEnabled, reorderSections,
-} from "@/lib/marketplace.functions";
+} from "@/lib/marketplace-manager/catalog";
 import { Card, PageHeader, PillButton } from "../ui";
 
 type Category = {

@@ -2,7 +2,7 @@
 // Full CRUD + live health-check backed by product_demo_urls.
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
+import { useServerFn } from "@/lib/marketplace-manager/localFn";
 import { toast } from "sonner";
 import {
   Plus, Save, Trash2, X, Loader2, Edit3, Copy, Play, ExternalLink,
@@ -12,8 +12,8 @@ import {
   listDemoUrls, upsertDemoUrl, deleteDemoUrl, duplicateDemoUrl,
   toggleDemoUrl, testDemoUrl, testAllDemoUrls, listDemoAuditLog,
   type DemoUrl, type DemoAuditEntry,
-} from "@/lib/marketplace-demo.functions";
-import { listProductsAdmin } from "@/lib/marketplace.functions";
+} from "@/lib/marketplace-manager/demo";
+import { listProductsAdmin } from "@/lib/marketplace-manager/catalog";
 
 import { Card, PageHeader, PillButton } from "../ui";
 
