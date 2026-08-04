@@ -297,7 +297,7 @@ export function ManagerWall({ config }: { config: WallConfig }) {
             key={k.label}
             label={k.label}
             value={String(k.compute(filtered))}
-            delta={k.hint}
+            {...(k.hint ? { delta: k.hint } : {})}
             tone={i === 1 ? "success" : i === 2 ? "warning" : i === 3 ? "premium" : "default"}
             icon={<k.icon className="h-3.5 w-3.5" />}
           />

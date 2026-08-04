@@ -1,5 +1,7 @@
 import { FileBarChart, Download, Calendar, Play, Pause, Trash2, CheckCircle2 } from "lucide-react";
 
+import { toast } from "sonner";
+
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
 
@@ -62,7 +64,7 @@ export const config: WallConfig = {
       <p className="mt-2 text-[13px]">Delivered as <span className="font-semibold uppercase">{r.format}</span> to <span className="font-semibold">{r.recipient}</span>.</p>
       <button
         onClick={() => toast.success(`Manual export queued for ${r.name}`)}
-        className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[12px] font-semibold hover:bg-accent"
+        className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background/60 px-3 text-[12px] font-semibold transition hover:border-accent/40 hover:text-accent"
       >
         <Download className="h-3.5 w-3.5" /> Export now
       </button>
