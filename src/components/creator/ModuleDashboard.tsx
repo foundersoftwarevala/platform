@@ -58,7 +58,7 @@ export function ModuleDashboard({
   onNavigate,
 }: {
   config: ModuleConfig;
-  onNavigate?: (label: string) => void;
+  onNavigate?: ((label: string) => void) | undefined;
 }) {
   const { data: analytics } = useSuspenseQuery(moduleAnalyticsQueryOptions(config.id, "7d"));
   const { metrics, connected } = analytics;
