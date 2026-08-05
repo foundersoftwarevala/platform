@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Activity, ArrowUpRight, Award, ChevronRight, Flame, Play, Sparkles, Star,
   Trophy, Zap, type LucideIcon,
@@ -6,12 +5,8 @@ import {
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { Toaster } from "@/components/ui/sonner";
-import { PageShell } from "@/components/creator/PageShell";
 import { KpiCard } from "@/components/creator/KpiCard";
 import { Sparkline } from "@/components/creator/Sparkline";
-import { CreatorSidebar } from "@/components/creator/CreatorSidebar";
-import { CreatorTopBar } from "@/components/creator/CreatorTopBar";
 import type { NavGroup, NavItem } from "@/components/creator/navigation";
 import { moduleAnalyticsQueryOptions, type ModuleId } from "@/lib/creator/analytics.functions";
 import type { MetricKey } from "@/lib/creator/types";
@@ -53,39 +48,29 @@ export interface ModuleConfig {
   suggestions: string[];
 }
 
-export function ModuleDashboard({ config }: { config: ModuleConfig }) {
+/**
+ * Dashboard CONTENT only — the sidebar, top bar, page shell and toaster are
+ * owned by the single workspace shell (ManagerWorkspace). Never render layout
+ * chrome here: that is what caused duplicate sidebars.
+ */
+export function ModuleDashboard({
+  config,
+  onNavigate,
+}: {
+  config: ModuleConfig;
+  onNavigate?: ((label: string) => void) | undefined;
+}) {
   const { data: analytics } = useSuspenseQuery(moduleAnalyticsQueryOptions(config.id, "7d"));
   const { metrics, connected } = analytics;
   const balance = metrics[config.balance.key];
 
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [activeModule, setActiveModule] = useState(config.defaultModule);
-
   const selectModule = (label: string) => {
-    setActiveModule(label);
-    toast.info(`${label} — connect the Software Vala API to stream live data.`);
+    if (onNavigate) onNavigate(label);
+    else toast.info(`${label} — connect the Software Vala API to stream live data.`);
   };
 
   return (
-    <div className="creator-theme flex min-h-screen w-full">
-      <CreatorSidebar
-        collapsed={collapsed}
-        onToggleCollapsed={() => setCollapsed((v) => !v)}
-        mobileOpen={mobileOpen}
-        onCloseMobile={() => setMobileOpen(false)}
-        active={activeModule}
-        onSelect={selectModule}
-        primary={config.primary}
-        groups={config.groups}
-        brand={config.brand}
-        brandMark={config.brandMark}
-      />
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <CreatorTopBar onOpenMenu={() => setMobileOpen(true)} />
-
-        <PageShell>
+    <>
           {/* HERO */}
           <section className="hero-surface relative overflow-hidden p-6 md:p-10">
             <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
@@ -357,9 +342,6 @@ export function ModuleDashboard({ config }: { config: ModuleConfig }) {
               ? `Source: ${analytics.source} · updated ${new Date(analytics.generatedAt).toUTCString()}`
               : "Configure SOFTWARE_VALA_API_URL and SOFTWARE_VALA_API_KEY to stream live data. No mock data is shown."}
           </p>
-        </PageShell>
-      </div>
-      <Toaster />
-    </div>
+    </>
   );
 }

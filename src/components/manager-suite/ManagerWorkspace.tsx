@@ -9,6 +9,8 @@ import { AiChatPanel } from "@/components/marketplace-manager/AiChatPanel";
 import type { NavGroup, NavItem } from "@/components/creator/navigation";
 
 import { ManagerWall, type WallConfig } from "./wall";
+import { ExecutiveBanner } from "./ExecutiveBanner";
+import type { ExecRole } from "./executiveFeed";
 
 export type SectionEntry = WallConfig | ComponentType<{ onNavigate?: (id: string) => void }>;
 
@@ -19,6 +21,7 @@ export function ManagerWorkspace({
   brand,
   brandMark,
   initial = "Dashboard",
+  role,
 }: {
   primary: NavItem[];
   groups: NavGroup[];
@@ -26,6 +29,7 @@ export function ManagerWorkspace({
   brand: string;
   brandMark: string;
   initial?: string;
+  role: ExecRole;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -38,6 +42,7 @@ export function ManagerWorkspace({
   };
 
   const entry = registry[active] ?? registry[initial];
+  const isDashboard = /dashboard|console/i.test(active);
 
   return (
     <div className="creator-theme mm-scope flex min-h-screen w-full">
@@ -57,6 +62,7 @@ export function ManagerWorkspace({
       <div className="flex min-w-0 flex-1 flex-col">
         <CreatorTopBar onOpenMenu={() => setMobileOpen(true)} />
         <PageShell>
+          {isDashboard ? <ExecutiveBanner role={role} onNavigate={select} /> : null}
           {entry && typeof entry === "function" ? (
             (() => {
               const Section = entry as ComponentType<{ onNavigate?: (id: string) => void }>;

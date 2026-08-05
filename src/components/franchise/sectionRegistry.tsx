@@ -28,8 +28,8 @@ import { config as training } from "./walls/training";
 import { config as users } from "./walls/users";
 import { franchiseGroups } from "./navigation";
 
-function FranchiseDashboard() {
-  return <ModuleDashboard config={franchiseConfig} />;
+function FranchiseDashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
+  return <ModuleDashboard config={franchiseConfig} onNavigate={onNavigate} />;
 }
 
 const explicit: Record<string, SectionEntry> = {
