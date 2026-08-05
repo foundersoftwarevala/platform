@@ -33,6 +33,7 @@ export const Route = createFileRoute("/franchise-manager")({
       registry={franchiseRegistry}
       brand="Franchise Manager"
       brandMark="FR"
+      role="franchise"
     />
   ),
   errorComponent: ({ error }) => (
