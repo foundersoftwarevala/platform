@@ -10,6 +10,7 @@ import { marketplaceGroups, marketplacePrimary } from "./navigation";
 import { navIdToLabel, sectionRegistry } from "./sectionRegistry";
 import { DashboardSection as DashboardFallback } from "./sections/DashboardSection";
 import { AiChatPanel } from "./AiChatPanel";
+import { ExecutiveBanner } from "@/components/manager-suite/ExecutiveBanner";
 
 export function MarketplaceWorkspace() {
   const [collapsed, setCollapsed] = useState(false);
@@ -43,6 +44,9 @@ export function MarketplaceWorkspace() {
         <CreatorTopBar onOpenMenu={() => setMobileOpen(true)} />
 
         <PageShell>
+          {/^(dashboard|overview|console)/i.test(active) ? (
+            <ExecutiveBanner role="marketplace" onNavigate={select} />
+          ) : null}
           <Section onNavigate={(id: string) => select(navIdToLabel[id] ?? id)} />
         </PageShell>
       </div>
