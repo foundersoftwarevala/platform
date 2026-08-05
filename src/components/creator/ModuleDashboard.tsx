@@ -342,9 +342,6 @@ export function ModuleDashboard({
               ? `Source: ${analytics.source} · updated ${new Date(analytics.generatedAt).toUTCString()}`
               : "Configure SOFTWARE_VALA_API_URL and SOFTWARE_VALA_API_KEY to stream live data. No mock data is shown."}
           </p>
-        </PageShell>
-      </div>
-      <Toaster />
-    </div>
+    </>
   );
 }
