@@ -1,9 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ModuleDashboard } from "@/components/creator/ModuleDashboard";
 import { PageShell } from "@/components/creator/PageShell";
+import { ManagerWorkspace } from "@/components/manager-suite/ManagerWorkspace";
+import { buildModuleRegistry } from "@/components/creator/registry";
 import { creatorConfig } from "@/components/creator/moduleConfigs";
 import { moduleAnalyticsQueryOptions } from "@/lib/creator/analytics.functions";
+
+const creatorRegistry = buildModuleRegistry(creatorConfig, creatorConfig.groups);
 
 export const Route = createFileRoute("/creator-manager")({
   head: () => ({
@@ -25,7 +28,17 @@ export const Route = createFileRoute("/creator-manager")({
   }),
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(moduleAnalyticsQueryOptions("creator", "7d")),
-  component: () => <ModuleDashboard config={creatorConfig} />,
+  component: () => (
+    <ManagerWorkspace
+      primary={creatorConfig.primary}
+      groups={creatorConfig.groups}
+      registry={creatorRegistry}
+      brand={creatorConfig.brand}
+      brandMark={creatorConfig.brandMark}
+      initial={creatorConfig.defaultModule}
+      role="creator"
+    />
+  ),
   errorComponent: ({ error }) => (
     <div className="creator-theme min-h-screen">
       <PageShell>
