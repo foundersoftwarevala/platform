@@ -1,9 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ModuleDashboard } from "@/components/creator/ModuleDashboard";
 import { PageShell } from "@/components/creator/PageShell";
+import { ManagerWorkspace } from "@/components/manager-suite/ManagerWorkspace";
+import { buildModuleRegistry } from "@/components/creator/registry";
 import { influencerConfig } from "@/components/creator/moduleConfigs";
 import { moduleAnalyticsQueryOptions } from "@/lib/creator/analytics.functions";
+import { influencerGroups, influencerPrimary } from "@/components/influencer/navigation";
+
+const influencerRegistry = buildModuleRegistry(influencerConfig, influencerGroups);
 
 export const Route = createFileRoute("/influencer-manager")({
   head: () => ({
@@ -25,7 +29,17 @@ export const Route = createFileRoute("/influencer-manager")({
   }),
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(moduleAnalyticsQueryOptions("influencer", "7d")),
-  component: () => <ModuleDashboard config={influencerConfig} />,
+  component: () => (
+    <ManagerWorkspace
+      primary={influencerPrimary}
+      groups={influencerGroups}
+      registry={influencerRegistry}
+      brand={influencerConfig.brand}
+      brandMark={influencerConfig.brandMark}
+      initial={influencerConfig.defaultModule}
+      role="influencer"
+    />
+  ),
   errorComponent: ({ error }) => (
     <div className="creator-theme min-h-screen">
       <PageShell>
