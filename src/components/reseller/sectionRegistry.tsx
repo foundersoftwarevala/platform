@@ -17,8 +17,8 @@ import { config as wallet } from "./walls/wallet";
 import { customersConfig, ordersConfig, productsConfig, resellersConfig } from "./walls/core";
 import { resellerGroups } from "./navigation";
 
-function ResellerDashboard() {
-  return <ModuleDashboard config={resellerConfig} />;
+function ResellerDashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
+  return <ModuleDashboard config={resellerConfig} onNavigate={onNavigate} />;
 }
 
 const explicit: Record<string, SectionEntry> = {
