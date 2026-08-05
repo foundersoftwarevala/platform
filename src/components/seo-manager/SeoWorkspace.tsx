@@ -8,6 +8,7 @@ import { PageShell } from "@/components/creator/PageShell";
 import { AiChatPanel } from "@/components/marketplace-manager/AiChatPanel";
 import type { NavGroup, NavItem } from "@/components/creator/navigation";
 import { SEO_MODULE_GROUPS, renderSeoModule } from "@/components/marketplace-manager/sections/SeoCenter";
+import { ExecutiveBanner } from "@/components/manager-suite/ExecutiveBanner";
 
 const seoPrimary: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard },
@@ -54,7 +55,17 @@ export function SeoWorkspace() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <CreatorTopBar onOpenMenu={() => setMobileOpen(true)} />
-        <PageShell>{renderSeoModule(idByLabel[active] ?? "dashboard")}</PageShell>
+        <PageShell>
+          {/^(dashboard|overview|console)/i.test(active) ? (
+            <ExecutiveBanner
+              role="seo"
+              onNavigate={(label) => {
+                if (idByLabel[label]) setActive(label);
+              }}
+            />
+          ) : null}
+          {renderSeoModule(idByLabel[active] ?? "dashboard")}
+        </PageShell>
       </div>
 
       <button
