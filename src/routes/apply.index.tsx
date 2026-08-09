@@ -73,7 +73,7 @@ function ApplyIndex() {
             Back to home
           </Link>
           <Link
-            to="/admin/applications"
+            to="/control-panel"
             className="rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 px-5 py-2.5 text-[13px] font-bold"
           >
             Boss panel
