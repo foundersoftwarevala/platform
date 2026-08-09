@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      announcements: {
+        Row: {
+          badge: string
+          created_at: string
+          ends_at: string | null
+          gradient: string
+          icon_name: string
+          id: string
+          position: number
+          starts_at: string | null
+          text: string
+          title: string
+          updated_at: string
+          visible: boolean
+        }
+        Insert: {
+          badge?: string
+          created_at?: string
+          ends_at?: string | null
+          gradient?: string
+          icon_name?: string
+          id?: string
+          position?: number
+          starts_at?: string | null
+          text?: string
+          title: string
+          updated_at?: string
+          visible?: boolean
+        }
+        Update: {
+          badge?: string
+          created_at?: string
+          ends_at?: string | null
+          gradient?: string
+          icon_name?: string
+          id?: string
+          position?: number
+          starts_at?: string | null
+          text?: string
+          title?: string
+          updated_at?: string
+          visible?: boolean
+        }
+        Relationships: []
+      }
       auth_qr_sessions: {
         Row: {
           approved_email: string | null
@@ -44,6 +89,359 @@ export type Database = {
         }
         Relationships: []
       }
+      demo_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string
+          demo_id: string | null
+          id: string
+          is_resolved: boolean
+          message: string
+          resolved_at: string | null
+          severity: string
+        }
+        Insert: {
+          alert_type?: string
+          created_at?: string
+          demo_id?: string | null
+          id?: string
+          is_resolved?: boolean
+          message: string
+          resolved_at?: string | null
+          severity?: string
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string
+          demo_id?: string | null
+          id?: string
+          is_resolved?: boolean
+          message?: string
+          resolved_at?: string | null
+          severity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_alerts_demo_id_fkey"
+            columns: ["demo_id"]
+            isOneToOne: false
+            referencedRelation: "demos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_analytics: {
+        Row: {
+          avg_duration_seconds: number
+          bounce_rate: number
+          conversion_count: number
+          conversion_rate: number
+          created_at: string
+          date: string
+          demo_id: string
+          device_breakdown: Json
+          id: string
+          region_breakdown: Json
+          top_pages: Json
+          total_views: number
+          unique_views: number
+        }
+        Insert: {
+          avg_duration_seconds?: number
+          bounce_rate?: number
+          conversion_count?: number
+          conversion_rate?: number
+          created_at?: string
+          date?: string
+          demo_id: string
+          device_breakdown?: Json
+          id?: string
+          region_breakdown?: Json
+          top_pages?: Json
+          total_views?: number
+          unique_views?: number
+        }
+        Update: {
+          avg_duration_seconds?: number
+          bounce_rate?: number
+          conversion_count?: number
+          conversion_rate?: number
+          created_at?: string
+          date?: string
+          demo_id?: string
+          device_breakdown?: Json
+          id?: string
+          region_breakdown?: Json
+          top_pages?: Json
+          total_views?: number
+          unique_views?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_analytics_demo_id_fkey"
+            columns: ["demo_id"]
+            isOneToOne: false
+            referencedRelation: "demos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_order: number
+          icon: string | null
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
+      demo_clicks: {
+        Row: {
+          browser: string | null
+          city: string | null
+          clicked_at: string
+          converted: boolean
+          country: string | null
+          demo_id: string
+          device_type: string | null
+          id: string
+          product_id: string | null
+          referrer: string | null
+          region: string | null
+          session_duration: number | null
+          user_id: string | null
+        }
+        Insert: {
+          browser?: string | null
+          city?: string | null
+          clicked_at?: string
+          converted?: boolean
+          country?: string | null
+          demo_id: string
+          device_type?: string | null
+          id?: string
+          product_id?: string | null
+          referrer?: string | null
+          region?: string | null
+          session_duration?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          browser?: string | null
+          city?: string | null
+          clicked_at?: string
+          converted?: boolean
+          country?: string | null
+          demo_id?: string
+          device_type?: string | null
+          id?: string
+          product_id?: string | null
+          referrer?: string | null
+          region?: string | null
+          session_duration?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_clicks_demo_id_fkey"
+            columns: ["demo_id"]
+            isOneToOne: false
+            referencedRelation: "demos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demo_clicks_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_health: {
+        Row: {
+          checked_at: string
+          demo_id: string
+          error_message: string | null
+          http_status: number | null
+          id: string
+          response_time: number | null
+          status: Database["public"]["Enums"]["demo_status"]
+        }
+        Insert: {
+          checked_at?: string
+          demo_id: string
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          response_time?: number | null
+          status?: Database["public"]["Enums"]["demo_status"]
+        }
+        Update: {
+          checked_at?: string
+          demo_id?: string
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          response_time?: number | null
+          status?: Database["public"]["Enums"]["demo_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_health_demo_id_fkey"
+            columns: ["demo_id"]
+            isOneToOne: false
+            referencedRelation: "demos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_login_credentials: {
+        Row: {
+          created_at: string
+          demo_id: string
+          id: string
+          is_active: boolean
+          login_url: string | null
+          notes: string | null
+          password: string
+          role_type: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          demo_id: string
+          id?: string
+          is_active?: boolean
+          login_url?: string | null
+          notes?: string | null
+          password: string
+          role_type?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          demo_id?: string
+          id?: string
+          is_active?: boolean
+          login_url?: string | null
+          notes?: string | null
+          password?: string
+          role_type?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_login_credentials_demo_id_fkey"
+            columns: ["demo_id"]
+            isOneToOne: false
+            referencedRelation: "demos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_requests: {
+        Row: {
+          company: string | null
+          created_at: string
+          demo_id: string | null
+          id: string
+          message: string | null
+          product_id: string | null
+          requester_email: string
+          requester_name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          demo_id?: string | null
+          id?: string
+          message?: string | null
+          product_id?: string | null
+          requester_email: string
+          requester_name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          demo_id?: string | null
+          id?: string
+          message?: string | null
+          product_id?: string | null
+          requester_email?: string
+          requester_name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_requests_demo_id_fkey"
+            columns: ["demo_id"]
+            isOneToOne: false
+            referencedRelation: "demos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demo_requests_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_technologies: {
+        Row: {
+          created_at: string
+          icon: string | null
+          id: string
+          is_active: boolean
+          name: string
+          stack: Database["public"]["Enums"]["demo_tech_stack"]
+        }
+        Insert: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          stack?: Database["public"]["Enums"]["demo_tech_stack"]
+        }
+        Update: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          stack?: Database["public"]["Enums"]["demo_tech_stack"]
+        }
+        Relationships: []
+      }
       demo_url_audit_log: {
         Row: {
           action: string
@@ -71,6 +469,279 @@ export type Database = {
           demo_url_id?: string | null
           id?: string
           metadata?: Json
+        }
+        Relationships: []
+      }
+      demos: {
+        Row: {
+          activated_at: string | null
+          activated_by: string | null
+          ai_category_suggestion: string | null
+          ai_tech_suggestion: string | null
+          backup_url: string | null
+          category: string
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          demo_banner_text: string | null
+          demo_type: string
+          description: string | null
+          disable_destructive: boolean
+          disable_exports: boolean
+          expiry_date: string | null
+          health_check_interval: number
+          health_score: number
+          http_status: number | null
+          id: string
+          is_bulk_created: boolean
+          is_trending: boolean
+          last_health_check: string | null
+          last_verified_at: string | null
+          lifecycle_status: string
+          login_url: string | null
+          masked_url: string | null
+          max_concurrent_logins: number
+          multi_login_enabled: boolean
+          normalized_url: string | null
+          renewal_date: string | null
+          response_time_ms: number | null
+          status: Database["public"]["Enums"]["demo_status"]
+          tech_stack: Database["public"]["Enums"]["demo_tech_stack"]
+          technology_id: string | null
+          title: string
+          total_login_roles: number
+          updated_at: string
+          uptime_percentage: number
+          url: string
+          verification_status: string
+          video_fallback_url: string | null
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
+          ai_category_suggestion?: string | null
+          ai_tech_suggestion?: string | null
+          backup_url?: string | null
+          category?: string
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          demo_banner_text?: string | null
+          demo_type?: string
+          description?: string | null
+          disable_destructive?: boolean
+          disable_exports?: boolean
+          expiry_date?: string | null
+          health_check_interval?: number
+          health_score?: number
+          http_status?: number | null
+          id?: string
+          is_bulk_created?: boolean
+          is_trending?: boolean
+          last_health_check?: string | null
+          last_verified_at?: string | null
+          lifecycle_status?: string
+          login_url?: string | null
+          masked_url?: string | null
+          max_concurrent_logins?: number
+          multi_login_enabled?: boolean
+          normalized_url?: string | null
+          renewal_date?: string | null
+          response_time_ms?: number | null
+          status?: Database["public"]["Enums"]["demo_status"]
+          tech_stack?: Database["public"]["Enums"]["demo_tech_stack"]
+          technology_id?: string | null
+          title: string
+          total_login_roles?: number
+          updated_at?: string
+          uptime_percentage?: number
+          url: string
+          verification_status?: string
+          video_fallback_url?: string | null
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by?: string | null
+          ai_category_suggestion?: string | null
+          ai_tech_suggestion?: string | null
+          backup_url?: string | null
+          category?: string
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          demo_banner_text?: string | null
+          demo_type?: string
+          description?: string | null
+          disable_destructive?: boolean
+          disable_exports?: boolean
+          expiry_date?: string | null
+          health_check_interval?: number
+          health_score?: number
+          http_status?: number | null
+          id?: string
+          is_bulk_created?: boolean
+          is_trending?: boolean
+          last_health_check?: string | null
+          last_verified_at?: string | null
+          lifecycle_status?: string
+          login_url?: string | null
+          masked_url?: string | null
+          max_concurrent_logins?: number
+          multi_login_enabled?: boolean
+          normalized_url?: string | null
+          renewal_date?: string | null
+          response_time_ms?: number | null
+          status?: Database["public"]["Enums"]["demo_status"]
+          tech_stack?: Database["public"]["Enums"]["demo_tech_stack"]
+          technology_id?: string | null
+          title?: string
+          total_login_roles?: number
+          updated_at?: string
+          uptime_percentage?: number
+          url?: string
+          verification_status?: string
+          video_fallback_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demos_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "demo_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demos_technology_id_fkey"
+            columns: ["technology_id"]
+            isOneToOne: false
+            referencedRelation: "demo_technologies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feature_strip_items: {
+        Row: {
+          color_class: string
+          created_at: string
+          icon_name: string
+          id: string
+          label: string
+          position: number
+          updated_at: string
+          visible: boolean
+        }
+        Insert: {
+          color_class?: string
+          created_at?: string
+          icon_name?: string
+          id?: string
+          label: string
+          position?: number
+          updated_at?: string
+          visible?: boolean
+        }
+        Update: {
+          color_class?: string
+          created_at?: string
+          icon_name?: string
+          id?: string
+          label?: string
+          position?: number
+          updated_at?: string
+          visible?: boolean
+        }
+        Relationships: []
+      }
+      home_hero_slides: {
+        Row: {
+          accent: string
+          created_at: string
+          cta_link: string
+          cta_primary: string
+          cta_secondary: string
+          gradient: string
+          highlight: string
+          icon_name: string
+          id: string
+          kicker: string
+          position: number
+          published_at: string | null
+          slug: string
+          subtitle: string
+          title: string
+          unpublish_at: string | null
+          updated_at: string
+          visible: boolean
+        }
+        Insert: {
+          accent: string
+          created_at?: string
+          cta_link?: string
+          cta_primary: string
+          cta_secondary: string
+          gradient: string
+          highlight?: string
+          icon_name: string
+          id?: string
+          kicker: string
+          position?: number
+          published_at?: string | null
+          slug: string
+          subtitle: string
+          title: string
+          unpublish_at?: string | null
+          updated_at?: string
+          visible?: boolean
+        }
+        Update: {
+          accent?: string
+          created_at?: string
+          cta_link?: string
+          cta_primary?: string
+          cta_secondary?: string
+          gradient?: string
+          highlight?: string
+          icon_name?: string
+          id?: string
+          kicker?: string
+          position?: number
+          published_at?: string | null
+          slug?: string
+          subtitle?: string
+          title?: string
+          unpublish_at?: string | null
+          updated_at?: string
+          visible?: boolean
+        }
+        Relationships: []
+      }
+      homepage_sections: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          position: number
+          section_key: string
+          updated_at: string
+          visible: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          position?: number
+          section_key: string
+          updated_at?: string
+          visible?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          position?: number
+          section_key?: string
+          updated_at?: string
+          visible?: boolean
         }
         Relationships: []
       }
@@ -316,6 +987,51 @@ export type Database = {
         }
         Relationships: []
       }
+      product_demo_mappings: {
+        Row: {
+          demo_id: string
+          id: string
+          is_active: boolean
+          is_primary: boolean
+          linked_at: string
+          linked_by: string | null
+          product_id: string
+        }
+        Insert: {
+          demo_id: string
+          id?: string
+          is_active?: boolean
+          is_primary?: boolean
+          linked_at?: string
+          linked_by?: string | null
+          product_id: string
+        }
+        Update: {
+          demo_id?: string
+          id?: string
+          is_active?: boolean
+          is_primary?: boolean
+          linked_at?: string
+          linked_by?: string | null
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_demo_mappings_demo_id_fkey"
+            columns: ["demo_id"]
+            isOneToOne: false
+            referencedRelation: "demos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_demo_mappings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_demo_urls: {
         Row: {
           created_at: string
@@ -417,6 +1133,66 @@ export type Database = {
         }
         Relationships: []
       }
+      site_notifications: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          is_published: boolean
+          kind: string
+          link_url: string | null
+          published_at: string
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          kind?: string
+          link_url?: string | null
+          published_at?: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          kind?: string
+          link_url?: string | null
+          published_at?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          created_at: string
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -471,6 +1247,16 @@ export type Database = {
         | "support"
         | "customer"
         | "marketplace-user"
+      demo_status: "active" | "inactive" | "maintenance" | "down"
+      demo_tech_stack:
+        | "php"
+        | "node"
+        | "java"
+        | "python"
+        | "react"
+        | "angular"
+        | "vue"
+        | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -617,6 +1403,17 @@ export const Constants = {
         "support",
         "customer",
         "marketplace-user",
+      ],
+      demo_status: ["active", "inactive", "maintenance", "down"],
+      demo_tech_stack: [
+        "php",
+        "node",
+        "java",
+        "python",
+        "react",
+        "angular",
+        "vue",
+        "other",
       ],
     },
   },
