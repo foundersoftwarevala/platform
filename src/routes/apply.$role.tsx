@@ -174,7 +174,7 @@ function ApplyRolePage() {
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link
-              to="/admin/applications"
+              to="/control-panel"
               className="rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 px-5 py-2.5 text-[13px] font-bold"
             >
               Open boss panel
