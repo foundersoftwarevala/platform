@@ -3,6 +3,7 @@
 // nav shape so the UI/UX matches Franchise Manager exactly.
 
 import {
+  Video,
   Bell, BellRing, BarChart3, Bookmark, Bot, CheckCheck, ClipboardCheck, Clock,
   Cpu, CreditCard, DollarSign, Download, FileText, Filter, Fingerprint,
   FolderOpen, FolderTree, Globe2, Handshake, HelpCircle, History,
