@@ -15,14 +15,14 @@ const COLORS = [
 ];
 
 const announcements = [
-  { icon: Handshake, title: "🤝 Join as Reseller —", badge: "Upto 40% Margin", text: "Sell 147 products under your own brand." },
+  { icon: Handshake, title: "🤝 Join as Reseller —", badge: "Upto 40% Margin", text: "Sell 12,000+ products under your own brand." },
   { icon: Store, title: "🏪 Franchise Partner —", badge: "City Exclusive", text: "Own your territory with full support." },
   { icon: Share2, title: "🔗 Affiliate Program —", badge: "20% Commission", text: "Earn on every referral, lifetime." },
   { icon: Building2, title: "🏢 Become a Vendor —", badge: "0% Listing Fee", text: "List your software on our marketplace." },
   { icon: Search, title: "📈 SEO Partner —", badge: "Growth Plans", text: "Rank higher with our SEO experts." },
   { icon: Megaphone, title: "🎤 Influencer Program —", badge: "Paid Collabs", text: "Promote and earn with every campaign." },
   { icon: Headphones, title: "🌍 Global Support —", badge: "24×7 Live Help", text: "Human + AI assistance in 12 languages." },
-  { icon: PartyPopper, title: "🎉 Mega Software Sale —", badge: "Flat 40% OFF", text: "Lifetime access on all 147 products!" },
+  { icon: PartyPopper, title: "🎉 Mega Software Sale —", badge: "Flat $249 Lifetime", text: "Every product $249 one-time — lifetime access." },
 ];
 
 const FestiveBanner = () => {

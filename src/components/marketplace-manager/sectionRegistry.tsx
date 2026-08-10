@@ -2,6 +2,7 @@
 import type { ComponentType } from "react";
 
 import { DashboardSection } from "./sections/DashboardSection";
+import { FaqManagerSection, ValaTvSection } from "./sections/ContentStudio";
 import * as S from "./sections";
 
 type SectionComponent = ComponentType<{ onNavigate?: (id: string) => void }>;
@@ -52,6 +53,7 @@ export const sectionRegistry: Record<string, SectionComponent> = {
   "AI Recs": S.AiSection,
   Notifications: S.NotificationsSection,
   Blog: S.BlogSection,
+  "Vala TV": ValaTvSection,
   Partners: S.PartnersSection,
   Affiliate: S.AffiliateSection,
   Influencer: S.InfluencerSection,
@@ -60,7 +62,7 @@ export const sectionRegistry: Record<string, SectionComponent> = {
   Resellers: S.ResellersSection,
   Reviews: S.ReviewsSection,
   Trust: S.TrustSection,
-  FAQ: S.FaqSection,
+  FAQ: FaqManagerSection,
   Contact: S.ContactSection,
   "QR System": S.QrSection,
 

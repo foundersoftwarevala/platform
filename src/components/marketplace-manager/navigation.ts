@@ -3,6 +3,7 @@
 // nav shape so the UI/UX matches Franchise Manager exactly.
 
 import {
+  Video,
   Bell, BellRing, BarChart3, Bookmark, Bot, CheckCheck, ClipboardCheck, Clock,
   Cpu, CreditCard, DollarSign, Download, FileText, Filter, Fingerprint,
   FolderOpen, FolderTree, Globe2, Handshake, HelpCircle, History,
@@ -83,6 +84,7 @@ export const marketplaceGroups: NavGroup[] = [
       { label: "AI Recs", icon: Sparkles },
       { label: "Notifications", icon: Bell },
       { label: "Blog", icon: Newspaper },
+      { label: "Vala TV", icon: Video },
       { label: "Partners", icon: Users2 },
       { label: "Affiliate", icon: Link2 },
       { label: "Influencer", icon: Megaphone },

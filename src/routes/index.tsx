@@ -6,17 +6,17 @@ import HomeIndex from "@/components/marketplace-home/HomeIndex";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Software Vala — 147 Software Solutions Marketplace" },
+      { title: "Software Vala — 12,000+ Software Solutions Marketplace" },
       {
         name: "description",
         content:
-          "Browse 147 ready-to-deploy software solutions across 20 master categories with live demos, full source code and lifetime access.",
+          "Browse 12,000+ ready-to-deploy software solutions across 80+ master categories with live demos, full source code and lifetime access.",
       },
-      { property: "og:title", content: "Software Vala — 147 Software Solutions Marketplace" },
+      { property: "og:title", content: "Software Vala — 12,000+ Software Solutions Marketplace" },
       {
         property: "og:description",
         content:
-          "Live demos, full source code, 1 year free support and lifetime access across 20 master categories.",
+          "One fixed price — $249 one-time for lifetime access. Live demos, full source code and 1 year free support across 80+ categories.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
