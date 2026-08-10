@@ -29,6 +29,9 @@ import {
   ValaTV, Academy as ValaAcademy, PartnerEcosystem, FaqSection, EnterpriseCTA,
 } from "@/components/marketplace-home/RefSections";
 import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
+import { buildRow } from "@/data/rowFill";
+import CategoryRow from "@/components/marketplace-home/CategoryRow";
+import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE, SITE_STATS } from "@/lib/site-content/constants";
 
 interface Demo {
   id: string;
@@ -3422,7 +3425,7 @@ const Index = () => {
               />
             </div>
             <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-              {filteredDemos.length} Products
+              {SITE_STATS.solutions} Software · {SITE_STATS.categories} Categories
             </Badge>
           </div>
         </div>
@@ -3436,41 +3439,38 @@ const Index = () => {
             masterCategories.slice(1).map(masterCat => {
               const categoryDemos = filteredDemos.filter(d => d.masterCategory === masterCat);
               if (categoryDemos.length === 0) return null;
-              
+              const rowDemos = searchQuery
+                ? categoryDemos
+                : (buildRow(masterCat, categoryDemos) as Demo[]);
+
               return (
-                <div key={masterCat} id={masterCat} className="mb-12 scroll-mt-32">
-                  <div className="flex items-center gap-3 mb-6">
-                    <h3 className="text-2xl font-bold text-white">{masterCat}</h3>
-                    <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
-                      {categoryDemos.length} Products
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {categoryDemos.map((demo, index) => (
-                      <DemoCard 
-                        key={demo.id} 
-                        demo={demo} 
+                <CategoryRow key={masterCat} title={masterCat} count={rowDemos.length}>
+                  {rowDemos.map((demo, index) => (
+                    <div key={demo.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
+                      <DemoCard
+                        demo={demo}
                         index={index}
                         isFavorite={favorites.includes(demo.id)}
                         onToggleFavorite={() => toggleFavorite(demo.id)}
                       />
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  ))}
+                </CategoryRow>
               );
             })
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredDemos.map((demo, index) => (
-                <DemoCard 
-                  key={demo.id} 
-                  demo={demo} 
-                  index={index}
-                  isFavorite={favorites.includes(demo.id)}
-                  onToggleFavorite={() => toggleFavorite(demo.id)}
-                />
+            <CategoryRow title={activeCategory} count={filteredDemos.length}>
+              {(searchQuery ? filteredDemos : (buildRow(activeCategory, filteredDemos) as Demo[])).map((demo, index) => (
+                <div key={demo.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
+                  <DemoCard
+                    demo={demo}
+                    index={index}
+                    isFavorite={favorites.includes(demo.id)}
+                    onToggleFavorite={() => toggleFavorite(demo.id)}
+                  />
+                </div>
               ))}
-            </div>
+            </CategoryRow>
           )}
         </div>
       </section>
@@ -3492,7 +3492,7 @@ const Index = () => {
       <footer className="bg-[#0a1628] border-t border-cyan-500/20 py-8 px-4">
         <div className="max-w-7xl mx-auto text-center">
           <p className="text-gray-400">© 2024 Software Vala - The Name of Trust. All rights reserved.</p>
-          <p className="text-cyan-400 mt-2">55 Master Categories • {allDemos.length} Software Solutions • 20 Live Demos Ready</p>
+          <p className="text-cyan-400 mt-2">{SITE_STATS.categories} Master Categories • {SITE_STATS.solutions} Software Solutions • Live Demos Ready</p>
         </div>
       </footer>
     </div>
@@ -3624,15 +3624,20 @@ const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
               </div>
             </div>
 
-            {/* Price with animation */}
-            <div className="flex items-baseline gap-2 mb-4">
-              <span className="text-gray-500 line-through text-[13px]">{demo.price}</span>
-              <span className="sv-price text-emerald-300 font-black text-[22px] tracking-[-0.02em]">
-                {demo.discountPrice}
-              </span>
-              <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-[10px] font-bold">
-                40% OFF
-              </Badge>
+            {/* Price — one fixed lifetime price across the whole ecosystem */}
+            <div className="mb-4">
+              <div className="flex items-baseline gap-2">
+                <span className="text-gray-500 line-through text-[13px]">{LIFETIME_MRP}</span>
+                <span className="sv-price text-emerald-300 font-black text-[22px] tracking-[-0.02em]">
+                  {LIFETIME_PRICE}
+                </span>
+                <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-[10px] font-bold">
+                  {LIFETIME_DISCOUNT}
+                </Badge>
+              </div>
+              <p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-cyan-300/80">
+                One-time payment · Lifetime access
+              </p>
             </div>
 
             {/* Enhanced Actions */}
@@ -3646,7 +3651,7 @@ const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                   </a>
                   <Button 
                     className="sv-btn sv-btn-emerald flex-1"
-                    onClick={() => toast.success("🎉 Redirecting to purchase...", { description: `${demo.name} - ${demo.discountPrice}` })}
+                    onClick={() => toast.success("🎉 Redirecting to purchase...", { description: `${demo.name} — ${LIFETIME_PRICE} lifetime` })}
                   >
                     <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
                   </Button>
