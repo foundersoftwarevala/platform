@@ -1,10 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, GraduationCap, Hospital, Hotel, ShoppingBag, Wrench, Factory,
   Trophy, Award, BookOpen, Handshake, ChevronRight, Star,
   Activity, Download, ShoppingCart, Brain, Bot, Search as SearchIcon,
   Zap, ShieldCheck, Globe2, Building2, ArrowRight, Quote, Play, HelpCircle,
 } from "lucide-react";
+
+import { LIFETIME_PRICE, SITE_STATS } from "@/lib/site-content/constants";
+import { listPublishedFaqs } from "@/lib/site-content/faq";
+import { embedUrl, listPublishedVideos } from "@/lib/site-content/videos";
 
 const sectionTitle = (title: string, href?: string, subtitle?: string) => (
   <div className="mb-5 flex items-end justify-between px-6">
@@ -51,7 +55,7 @@ export const IndustryGrid = () => (
 // AI Zone
 const AI_TOOLS = [
   { name: "AI Product Finder", desc: "Describe your need, get the perfect stack.", icon: SearchIcon, accent: "text-fuchsia-300", ring: "border-fuchsia-400/30" },
-  { name: "AI Recommendation", desc: "Personalised picks from 200+ products.", icon: Sparkles, accent: "text-cyan-300", ring: "border-cyan-400/30" },
+  { name: "AI Recommendation", desc: `Personalised picks from ${SITE_STATS.solutions} products.`, icon: Sparkles, accent: "text-cyan-300", ring: "border-cyan-400/30" },
   { name: "AI Compare", desc: "Side-by-side feature & price intelligence.", icon: Brain, accent: "text-violet-300", ring: "border-violet-400/30" },
   { name: "AI Sales Assistant", desc: "24/7 chat copilot for buyers & vendors.", icon: Bot, accent: "text-emerald-300", ring: "border-emerald-400/30" },
 ];
@@ -166,37 +170,60 @@ export const LiveActivity = () => {
   );
 };
 
-// Vala TV
-const VIDEOS = [
-  { title: "How MediCore 360 powers 42 hospitals", duration: "4:12", views: "12k" },
-  { title: "Inside ShopEngine — multi-vendor at scale", duration: "7:48", views: "8.3k" },
-  { title: "Build a school OS with EduFlow", duration: "5:21", views: "15k" },
-  { title: "FactoryOS predictive maintenance demo", duration: "6:02", views: "4.1k" },
-];
+// Vala TV — videos are managed from Marketplace Manager -> Growth -> Vala TV
+export const ValaTV = () => {
+  const videos = useMemo(() => listPublishedVideos(), []);
+  const [playing, setPlaying] = useState<string | null>(null);
 
-export const ValaTV = () => (
-  <section className="py-10">
-    {sectionTitle("Vala TV", "/demos", "Demos, walkthroughs, customer films")}
-    <div className="grid grid-cols-1 gap-4 px-6 sm:grid-cols-2 lg:grid-cols-4">
-      {VIDEOS.map((v) => (
-        <div key={v.title} className="group relative overflow-hidden rounded-xl border border-white/[0.07] bg-gradient-to-br from-[oklch(0.2_0.06_265)] to-[oklch(0.14_0.05_265)] transition-all hover:border-fuchsia-400/40">
-          <div className="relative aspect-video w-full overflow-hidden bg-gradient-to-br from-fuchsia-500/20 via-cyan-500/10 to-transparent">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-gray-900 shadow-2xl transition-transform group-hover:scale-110">
-                <Play className="h-5 w-5 fill-current" />
+  if (videos.length === 0) return null;
+
+  return (
+    <section className="py-10">
+      {sectionTitle("Vala TV", "/marketplace-manager", "Demos, walkthroughs, customer films")}
+      <div className="grid grid-cols-1 gap-4 px-6 sm:grid-cols-2 lg:grid-cols-4">
+        {videos.map((v) => (
+          <div key={v.id} className="group relative overflow-hidden rounded-xl border border-white/[0.07] bg-gradient-to-br from-[oklch(0.2_0.06_265)] to-[oklch(0.14_0.05_265)] transition-all hover:border-fuchsia-400/40">
+            <div className="relative aspect-video w-full overflow-hidden bg-gradient-to-br from-fuchsia-500/20 via-cyan-500/10 to-transparent">
+              {playing === v.id ? (
+                <iframe
+                  src={embedUrl(v.url)}
+                  title={v.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  className="absolute inset-0 h-full w-full"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPlaying(v.id)}
+                  aria-label={`Play ${v.title}`}
+                  className="absolute inset-0 flex items-center justify-center"
+                >
+                  {v.thumbnail ? (
+                    <img src={v.thumbnail} alt={v.title} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                  ) : null}
+                  <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-gray-900 shadow-2xl transition-transform group-hover:scale-110">
+                    <Play className="h-5 w-5 fill-current" />
+                  </span>
+                </button>
+              )}
+              {v.duration && (
+                <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">{v.duration}</span>
+              )}
+            </div>
+            <div className="p-3">
+              <div className="text-sm font-semibold text-white line-clamp-2">{v.title}</div>
+              <div className="mt-1 flex items-center gap-2 text-[11px] text-white/60">
+                <span>{v.views} views</span>
+                <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-2 py-0.5 font-semibold text-fuchsia-300">{v.category}</span>
               </div>
             </div>
-            <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">{v.duration}</span>
           </div>
-          <div className="p-3">
-            <div className="text-sm font-semibold text-white line-clamp-2">{v.title}</div>
-            <div className="mt-1 text-[11px] text-white/60">{v.views} views</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  </section>
-);
+        ))}
+      </div>
+    </section>
+  );
+};
 
 // Academy
 export const Academy = () => {
@@ -250,31 +277,49 @@ export const PartnerEcosystem = () => (
   </section>
 );
 
-// FAQ
-const FAQS = [
-  { q: "How does 2-hour delivery work?", a: "Once payment is confirmed (or demo approved), provisioning triggers and credentials are emailed within 120 minutes." },
-  { q: "Can I try before paying?", a: "Yes — every product offers an instant live demo and a 14-day trial with no credit card." },
-  { q: "What does the lifetime license include?", a: "One-time payment, unlimited use on a single domain, all major version updates for life, and lifetime support." },
-  { q: "Do you offer white-label and reseller rights?", a: "Yes — pick the Reseller or White-Label plan and launch under your own brand within 24 hours." },
-  { q: "Is the platform enterprise-ready?", a: "ISO-aligned controls, SOC-ready logging, regional data residency and dedicated success engineers for teams of 100+." },
-];
-
+// FAQ — content managed from Marketplace Manager -> Growth -> FAQ
 export const FaqSection = () => {
-  const [open, setOpen] = useState(0);
+  const faqs = useMemo(() => listPublishedFaqs(), []);
+  const categories = useMemo(
+    () => Array.from(new Set(faqs.map((f) => f.category))),
+    [faqs],
+  );
+  const [activeCat, setActiveCat] = useState<string>("All");
+  const [open, setOpen] = useState<string | null>(faqs[0]?.id ?? null);
+
+  const visible = activeCat === "All" ? faqs : faqs.filter((f) => f.category === activeCat);
+  if (faqs.length === 0) return null;
+
   return (
     <section className="py-10">
-      {sectionTitle("Frequently Asked Questions")}
+      {sectionTitle("Frequently Asked Questions", undefined, `Everything about the ${LIFETIME_PRICE} lifetime licence, delivery, demos and partners`)}
+      <div className="mb-4 flex flex-wrap gap-2 px-6">
+        {["All", ...categories].map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => setActiveCat(c)}
+            className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition ${
+              activeCat === c
+                ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-200"
+                : "border-white/10 bg-white/[0.03] text-white/60 hover:border-white/25"
+            }`}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
       <div className="mx-6 max-w-4xl space-y-2">
-        {FAQS.map((f, i) => {
-          const isOpen = open === i;
+        {visible.map((f) => {
+          const isOpen = open === f.id;
           return (
-            <button key={f.q} onClick={() => setOpen(isOpen ? -1 : i)} className={`w-full overflow-hidden rounded-xl border text-left transition-all ${isOpen ? "border-cyan-400/40 bg-cyan-500/[0.04]" : "border-white/[0.07] bg-white/[0.02] hover:border-white/15"}`}>
+            <button key={f.id} onClick={() => setOpen(isOpen ? null : f.id)} className={`w-full overflow-hidden rounded-xl border text-left transition-all ${isOpen ? "border-cyan-400/40 bg-cyan-500/[0.04]" : "border-white/[0.07] bg-white/[0.02] hover:border-white/15"}`}>
               <div className="flex items-center gap-3 px-5 py-4">
                 <HelpCircle className={`h-4 w-4 flex-shrink-0 ${isOpen ? "text-cyan-300" : "text-white/60"}`} />
-                <span className="flex-1 text-sm font-semibold text-white">{f.q}</span>
+                <span className="flex-1 text-sm font-semibold text-white">{f.question}</span>
                 <ChevronRight className={`h-4 w-4 text-white/60 transition-transform ${isOpen ? "rotate-90" : ""}`} />
               </div>
-              {isOpen && <p className="px-5 pb-4 pl-12 text-xs leading-relaxed text-white/70">{f.a}</p>}
+              {isOpen && <p className="px-5 pb-4 pl-12 text-xs leading-relaxed text-white/70">{f.answer}</p>}
             </button>
           );
         })}
