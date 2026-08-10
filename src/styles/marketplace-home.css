@@ -526,3 +526,10 @@
   .mpc-home button:active { transform: none !important; transition: none !important; }
   .sv-fade-swap { animation: none; }
 }
+
+/* Netflix-style category row scroller */
+.sv-row-scroll { scrollbar-width: thin; scrollbar-color: oklch(0.7 0.14 200 / 0.5) transparent; }
+.sv-row-scroll::-webkit-scrollbar { height: 8px; }
+.sv-row-scroll::-webkit-scrollbar-track { background: oklch(1 0 0 / 0.04); border-radius: 999px; }
+.sv-row-scroll::-webkit-scrollbar-thumb { background: oklch(0.7 0.14 200 / 0.45); border-radius: 999px; }
+.sv-row-scroll::-webkit-scrollbar-thumb:hover { background: oklch(0.75 0.16 200 / 0.7); }
