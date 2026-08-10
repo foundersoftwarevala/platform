@@ -83,6 +83,7 @@ export const marketplaceGroups: NavGroup[] = [
       { label: "AI Recs", icon: Sparkles },
       { label: "Notifications", icon: Bell },
       { label: "Blog", icon: Newspaper },
+      { label: "Vala TV", icon: Video },
       { label: "Partners", icon: Users2 },
       { label: "Affiliate", icon: Link2 },
       { label: "Influencer", icon: Megaphone },
