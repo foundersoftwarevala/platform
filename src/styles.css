@@ -74,6 +74,11 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-premium: var(--premium);
   --color-premium-foreground: var(--premium-foreground);
+  /* Dashboard (role console) tokens — values live in src/styles/dashboard.css */
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-red: var(--brand-red);
+  --color-surface-2: var(--surface-2);
 }
 
 
