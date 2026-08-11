@@ -33,6 +33,7 @@ import {
   Delete,
   Heart,
   LogIn,
+  LayoutDashboard,
 
   Globe2,
   Headphones,
@@ -1045,6 +1046,57 @@ function LoginPill({ t }: { t: (s: string) => string }) {
 /* Bar                                                                 */
 /* ------------------------------------------------------------------ */
 
+/* Role dashboards — same names as the dashboard consoles they open. */
+const DASHBOARD_ROLES: { key: string; label: string; blurb: string }[] = [
+  { key: "author", label: "Author Dashboard", blurb: "Products, downloads & royalties" },
+  { key: "vendor", label: "Vendor Dashboard", blurb: "Catalog, orders & payouts" },
+  { key: "reseller", label: "Reseller Dashboard", blurb: "Clients, licenses & pricing" },
+  { key: "affiliate", label: "Affiliate Dashboard", blurb: "Links, clicks & commissions" },
+  { key: "influencer", label: "Influencer Dashboard", blurb: "Campaigns & creatives" },
+  { key: "franchise", label: "Franchise Dashboard", blurb: "Branches, leads & revenue" },
+  { key: "seo", label: "SEO Dashboard", blurb: "Rankings, audits & backlinks" },
+  { key: "admin", label: "Admin Dashboard", blurb: "Platform-wide control" },
+  { key: "developer", label: "Developer Dashboard", blurb: "Tasks, bugs & releases" },
+  { key: "dev-manager", label: "Developer Management", blurb: "Team, sprints & delivery" },
+  { key: "promise-tracker", label: "Promise Tracker", blurb: "Commitments & follow-through" },
+];
+
+function DashboardsMenu({ t }: { t: (s: string) => string }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className={TRIGGER}>
+        <LayoutDashboard className="h-3.5 w-3.5 text-cyan-300 transition-transform duration-300 group-hover:-translate-y-0.5" />
+        {t("Dashboards")}
+        <span className="text-[9px] opacity-70">▼</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="kr-panel max-h-[70vh] w-72 overflow-y-auto border-white/10 bg-[#0b1a30]/95 text-white backdrop-blur-xl"
+      >
+        <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-white/50">
+          {t("Role dashboards")}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator className="bg-white/10" />
+        {DASHBOARD_ROLES.map((r, i) => (
+          <DropdownMenuItem
+            key={r.key}
+            asChild
+            className="kr-item cursor-pointer focus:bg-white/10"
+            style={{ animationDelay: `${i * 24}ms` }}
+          >
+            <Link to="/dashboard/$role" params={{ role: r.key }}>
+              <div className="flex w-full flex-col">
+                <span className="text-[12.5px] font-semibold">{r.label}</span>
+                <span className="text-[10.5px] text-white/50">{r.blurb}</span>
+              </div>
+            </Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number }) {
   const { lang, t, apply, busy } = useBarTranslation();
   const items = useMemo(
@@ -1054,6 +1106,7 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
       <CalendarTool key="cal" t={t} />,
       <CalculatorTool key="calc" t={t} />,
       <LoginPill key="login" t={t} />,
+      <DashboardsMenu key="dashboards" t={t} />,
       <CurrencyPicker key="cur" t={t} />,
       <Notifications key="notif" t={t} />,
       <Favorites key="fav" count={favoritesCount} />,
