@@ -5,11 +5,11 @@ type Props = { children: ReactNode; onReset?: () => void };
 type State = { error: Error | null };
 
 export class ModuleBoundary extends Component<Props, State> {
-  state: State = { error: null };
+  override state: State = { error: null };
   static getDerivedStateFromError(error: Error): State { return { error }; }
-  componentDidCatch(error: Error) { console.error("[ModuleBoundary]", error); }
+  override componentDidCatch(error: Error) { console.error("[ModuleBoundary]", error); }
   reset = () => { this.setState({ error: null }); this.props.onReset?.(); };
-  render() {
+  override render() {
     if (!this.state.error) return this.props.children;
     return (
       <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-8 text-center">
