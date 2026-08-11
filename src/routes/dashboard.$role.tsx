@@ -1,4 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import "@/styles/dashboard.css";
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
@@ -153,7 +154,7 @@ function DashboardPage() {
     : [{ label: "Home" }, { label: cfg.name }];
 
   return (
-    <div className="min-h-dvh flex bg-background text-foreground">
+    <div className="dm-theme min-h-dvh flex bg-background text-foreground">
       <Sidebar role={cfg} activeModule={activeModule} onSelectModule={openModule} />
       <div className="flex-1 min-w-0 flex flex-col">
         <TopBar role={cfg} onSwitchRole={switchRole} onOpenAIChat={() => openModule("ai-chat")} onOpenModule={openModule} allowedRoles={perms.accessibleRoles} />
