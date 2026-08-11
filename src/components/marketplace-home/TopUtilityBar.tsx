@@ -33,6 +33,7 @@ import {
   Delete,
   Heart,
   LogIn,
+  LayoutDashboard,
 
   Globe2,
   Headphones,
