@@ -14,7 +14,8 @@
 .dm-theme h1, .dm-theme h2, .dm-theme h3 { letter-spacing: -0.018em; }
 
 /* Dark first — this is a dashboard product */
-.dm-theme {
+.dm-theme,
+body:has(.dm-theme) {
   --radius: 0.875rem;
 
   --background: oklch(0.18 0.02 270);
@@ -87,7 +88,9 @@
 }
 
 /* Light theme — same brand identity, inverted surfaces */
-html.light .dm-theme, .dm-theme.light {
+html.light .dm-theme,
+html.light body:has(.dm-theme),
+.dm-theme.light {
   --background: oklch(0.98 0.004 270);
   --foreground: oklch(0.22 0.02 270);
 
