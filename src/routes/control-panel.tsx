@@ -177,6 +177,22 @@ function Index() {
             onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
             onRoleSelect={(roleId) => {
               setActiveRole(roleId);
+              // ===== ROLE DASHBOARDS → /dashboard/$role (source-repo UI) =====
+              const ROLE_DASHBOARD_ROUTES: Partial<Record<RoleId, string>> = {
+                rd_author: "author",
+                rd_vendor: "vendor",
+                rd_reseller: "reseller",
+                rd_affiliate: "affiliate",
+                rd_franchise: "franchise",
+                rd_admin: "admin",
+                developer_dashboard: "developer",
+                influencer_dashboard: "influencer",
+              };
+              const dashRole = ROLE_DASHBOARD_ROUTES[roleId];
+              if (dashRole) {
+                void navigate({ to: "/dashboard/$role", params: { role: dashRole } });
+                return;
+              }
               if (roleId === "marketplace_manager") {
                 void navigate({ to: "/marketplace-manager" });
                 return;
@@ -189,7 +205,7 @@ function Index() {
                 void navigate({ to: "/reseller-manager" });
                 return;
               }
-              if (roleId === "influencer_manager" || roleId === "influencer_dashboard") {
+              if (roleId === "influencer_manager") {
                 void navigate({ to: "/influencer-manager" });
                 return;
               }
