@@ -92,14 +92,14 @@ const ROLE_CATEGORIES = [
   { id: 'security', label: 'Security', icon: Shield },
   { id: 'settings', label: 'Settings', icon: Settings },
   // ===== ROLE DASHBOARDS (LAST SECTION — source repo UI, /dashboard/$role) =====
-  { id: 'rd_developer', label: 'Developer Dashboard', icon: Code2 },
+  // Developer Dashboard + Influencer Dashboard already exist above and are wired
+  // to their routes instead of being duplicated here.
   { id: 'rd_pro', label: 'Pro Dashboard', icon: Star },
   { id: 'rd_author', label: 'Author Dashboard', icon: UserCircle },
   { id: 'rd_vendor', label: 'Vendor Dashboard', icon: Store },
   { id: 'rd_reseller', label: 'Reseller Dashboard', icon: Handshake },
   { id: 'rd_affiliate', label: 'Affiliate Dashboard', icon: Target },
   { id: 'rd_franchise', label: 'Franchise Dashboard', icon: Building2 },
-  { id: 'rd_influencer', label: 'Influencer Dashboard', icon: Users },
   { id: 'rd_admin', label: 'Admin Dashboard', icon: Shield },
 ] as const;
 
