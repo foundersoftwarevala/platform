@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ChatRouteImport } from './routes/chat'
 import { Route as ControlPanelRouteImport } from './routes/control-panel'
 import { Route as CreatorManagerRouteImport } from './routes/creator-manager'
 import { Route as FranchiseManagerRouteImport } from './routes/franchise-manager'
@@ -25,6 +27,16 @@ import { Route as DashboardRoleRouteImport } from './routes/dashboard.$role'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ControlPanelRoute = ControlPanelRouteImport.update({
@@ -85,6 +97,8 @@ const DashboardRoleRoute = DashboardRoleRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/chat': typeof ChatRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
@@ -99,6 +113,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/chat': typeof ChatRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
@@ -114,6 +130,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/chat': typeof ChatRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
@@ -130,6 +148,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth'
+    | '/chat'
     | '/control-panel'
     | '/creator-manager'
     | '/franchise-manager'
@@ -144,6 +164,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/auth'
+    | '/chat'
     | '/control-panel'
     | '/creator-manager'
     | '/franchise-manager'
@@ -158,6 +180,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/auth'
+    | '/chat'
     | '/control-panel'
     | '/creator-manager'
     | '/franchise-manager'
@@ -173,6 +197,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthRoute: typeof AuthRoute
+  ChatRoute: typeof ChatRoute
   ControlPanelRoute: typeof ControlPanelRoute
   CreatorManagerRoute: typeof CreatorManagerRoute
   FranchiseManagerRoute: typeof FranchiseManagerRoute
@@ -193,6 +219,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/control-panel': {
@@ -277,6 +317,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthRoute: AuthRoute,
+  ChatRoute: ChatRoute,
   ControlPanelRoute: ControlPanelRoute,
   CreatorManagerRoute: CreatorManagerRoute,
   FranchiseManagerRoute: FranchiseManagerRoute,
