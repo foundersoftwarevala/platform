@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -74,17 +73,6 @@ function AuthPage() {
     }
   };
 
-  const google = async () => {
-    setBusy(true);
-    try {
-      await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Google sign-in failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <main className="grid min-h-[100dvh] place-items-center bg-background px-4">
       <div className="w-full max-w-sm rounded-2xl border border-border/60 bg-card/60 p-6 shadow-lg">
@@ -94,13 +82,6 @@ function AuthPage() {
           </div>
           <h1 className="mt-3 text-lg font-semibold">Software Vala Connect</h1>
           <p className="text-xs text-muted-foreground">Enterprise-grade, immutable team messaging.</p>
-        </div>
-
-        <Button type="button" variant="outline" className="h-9 w-full" onClick={google} disabled={busy}>
-          Continue with Google
-        </Button>
-        <div className="my-4 flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-          <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
         </div>
 
         <form onSubmit={submit} className="space-y-3">
