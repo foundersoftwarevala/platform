@@ -3,11 +3,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /** Server layer for the Chat Manager console. Every call is permission-checked. */
 
-type Ctx = { supabase: ReturnType<typeof unknownClient>; userId: string };
-function unknownClient() {
-  throw new Error("type helper only");
-}
-
 async function assertManager(
   supabase: { rpc: (fn: "has_permission", args: { _user_id: string; _permission: string }) => Promise<{ data: unknown }> },
   userId: string,
@@ -60,10 +55,7 @@ export type ChatOverview = {
 export const getChatOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<ChatOverview> => {
-    const { supabase, userId } = context as unknown as Ctx & typeof context;
     await assertManager(context.supabase as never, context.userId);
-    void supabase;
-    void userId;
 
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const db = context.supabase;
