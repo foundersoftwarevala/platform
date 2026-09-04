@@ -234,11 +234,63 @@ export function ChatWorkspace() {
                 />
                 {connection === "live" ? "Live" : connection}
                 {active ? ` · ${onlineUsers.length} online · ${active.participants.length} members` : ""}
+                {aiThinking ? " · Vala AI is typing…" : ""}
               </p>
             </div>
             <Badge variant="secondary" className="hidden gap-1 text-[10px] sm:flex">
               <ShieldCheck className="size-3" /> Immutable
             </Badge>
+            {active ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={active.ai_enabled ? "default" : "ghost"}
+                      size="icon"
+                      className="size-8"
+                      aria-label="Toggle Vala AI for this conversation"
+                      onClick={async () => {
+                        const result = await toggleAi({
+                          data: { conversationId: active.id, enabled: !active.ai_enabled },
+                        });
+                        if (!result.ok) {
+                          toast.error(result.error);
+                          return;
+                        }
+                        await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+                      }}
+                    >
+                      <Bot className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{active.ai_enabled ? "Vala AI is on" : "Vala AI is off"}</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      aria-label="Talk to a human agent"
+                      onClick={async () => {
+                        const result = await askHuman({
+                          data: { conversationId: active.id, reason: "User asked for a human agent." },
+                        });
+                        if (!result.ok) {
+                          toast.error(result.error);
+                          return;
+                        }
+                        await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+                        toast.success("Sales & Support has been notified.");
+                      }}
+                    >
+                      <LifeBuoy className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Talk to a human</TooltipContent>
+                </Tooltip>
+              </>
+            ) : null}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
