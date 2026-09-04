@@ -1,4 +1,4 @@
-import type { LangCode } from "./chat-data";
+export type LangCode = "en" | "hi" | "es" | "fr" | "de" | "ar" | "ja";
 
 /**
  * Offline demo translator: sentence-level dictionary for the seeded conversation

@@ -127,8 +127,11 @@ export const resolveHandoff = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     await assertManager(context.supabase as never, context.userId, "chat.assign");
-    const patch: Record<string, unknown> = { status: data.status, assigned_to: context.userId };
-    if (data.status !== "accepted") patch["resolved_at"] = new Date().toISOString();
+    const patch: { status: string; assigned_to: string; resolved_at?: string } = {
+      status: data.status,
+      assigned_to: context.userId,
+    };
+    if (data.status !== "accepted") patch.resolved_at = new Date().toISOString();
     const { error } = await context.supabase.from("chat_handoffs").update(patch).eq("id", data.handoffId);
     if (error) return { ok: false as const, error: error.message };
     return { ok: true as const };
@@ -144,11 +147,11 @@ export const updateConversationControls = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertManager(context.supabase as never, context.userId);
-    const patch: Record<string, unknown> = {};
-    if (data.status) patch["status"] = data.status;
-    if (data.priority) patch["priority"] = data.priority;
-    if (typeof data.aiEnabled === "boolean") patch["ai_enabled"] = data.aiEnabled;
-    if (data.department !== undefined) patch["department"] = data.department;
+    const patch: { status?: string; priority?: string; ai_enabled?: boolean; department?: string } = {};
+    if (data.status) patch.status = data.status;
+    if (data.priority) patch.priority = data.priority;
+    if (typeof data.aiEnabled === "boolean") patch.ai_enabled = data.aiEnabled;
+    if (data.department !== undefined) patch.department = data.department;
     if (Object.keys(patch).length === 0) return { ok: true as const };
     const { error } = await context.supabase
       .from("conversations")
