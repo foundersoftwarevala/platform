@@ -30,6 +30,10 @@ export interface ConversationSummary {
   created_by: string;
   created_at: string;
   last_message_at: string;
+  ai_enabled: boolean;
+  status: string;
+  priority: string;
+  department: string | null;
   participants: Participant[];
   membership: Participant | null;
   lastMessage: { id: string; body: string; kind: string; created_at: string; sender_id: string } | null;
