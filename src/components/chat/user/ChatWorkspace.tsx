@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Bot,
   Info,
   Languages,
+  LifeBuoy,
   LogOut,
   Search,
   Settings,
@@ -30,6 +33,11 @@ import {
 import { usePreferences, playCue } from "@/hooks/use-preferences";
 import { fetchProfiles, setFavorite, setMuted, updatePresence } from "@/services/chat/chat-service";
 import type { ChatMessage, Profile } from "@/services/chat/types";
+import {
+  generateAiReply,
+  requestHumanHandoff,
+  setConversationAi,
+} from "@/lib/chat/ai.functions";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
@@ -60,6 +68,7 @@ export function ChatWorkspace() {
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [aiThinking, setAiThinking] = useState(false);
 
   useEffect(() => {
     if (!sessionLoading && !userId) void navigate({ to: "/auth" });
@@ -134,12 +143,39 @@ export function ChatWorkspace() {
     window.setTimeout(() => setHighlightId(null), 2600);
   };
 
+  const askAi = useServerFn(generateAiReply);
+  const toggleAi = useServerFn(setConversationAi);
+  const askHuman = useServerFn(requestHumanHandoff);
+
+  /** Runs the real AI turn on the server; failures never break the sent message. */
+  const runAiTurn = useCallback(
+    async (conversationId: string) => {
+      setAiThinking(true);
+      try {
+        const result = await askAi({ data: { conversationId } });
+        if (!result.ok) {
+          toast.error(result.error);
+        } else {
+          await queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+          await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          if (result.escalated) toast.info("Moved to a human agent — Sales & Support has been notified.");
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "AI is unavailable right now.");
+      } finally {
+        setAiThinking(false);
+      }
+    },
+    [askAi, queryClient],
+  );
+
   const onSend = async (body: string, mentions: string[]) => {
     setSending(true);
     try {
       await send({ body, parentId: replyTo?.id ?? null, mentions });
       setReplyTo(null);
       playCue("sent", prefs.sound);
+      if (activeId && active?.ai_enabled && !replyTo) void runAiTurn(activeId);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Message could not be sent");
     } finally {
@@ -198,11 +234,63 @@ export function ChatWorkspace() {
                 />
                 {connection === "live" ? "Live" : connection}
                 {active ? ` · ${onlineUsers.length} online · ${active.participants.length} members` : ""}
+                {aiThinking ? " · Vala AI is typing…" : ""}
               </p>
             </div>
             <Badge variant="secondary" className="hidden gap-1 text-[10px] sm:flex">
               <ShieldCheck className="size-3" /> Immutable
             </Badge>
+            {active ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={active.ai_enabled ? "default" : "ghost"}
+                      size="icon"
+                      className="size-8"
+                      aria-label="Toggle Vala AI for this conversation"
+                      onClick={async () => {
+                        const result = await toggleAi({
+                          data: { conversationId: active.id, enabled: !active.ai_enabled },
+                        });
+                        if (!result.ok) {
+                          toast.error(result.error);
+                          return;
+                        }
+                        await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+                      }}
+                    >
+                      <Bot className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{active.ai_enabled ? "Vala AI is on" : "Vala AI is off"}</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      aria-label="Talk to a human agent"
+                      onClick={async () => {
+                        const result = await askHuman({
+                          data: { conversationId: active.id, reason: "User asked for a human agent." },
+                        });
+                        if (!result.ok) {
+                          toast.error(result.error);
+                          return;
+                        }
+                        await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+                        toast.success("Sales & Support has been notified.");
+                      }}
+                    >
+                      <LifeBuoy className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Talk to a human</TooltipContent>
+                </Tooltip>
+              </>
+            ) : null}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

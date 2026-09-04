@@ -76,7 +76,9 @@ export async function fetchConversations(userId: string): Promise<ConversationSu
     await Promise.all([
       supabase
         .from("conversations")
-        .select("id, subject, kind, reference_code, created_by, created_at, last_message_at")
+        .select(
+          "id, subject, kind, reference_code, created_by, created_at, last_message_at, ai_enabled, status, priority, department",
+        )
         .in("id", ids)
         .order("last_message_at", { ascending: false }),
       supabase
