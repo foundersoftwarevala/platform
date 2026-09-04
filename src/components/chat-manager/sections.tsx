@@ -64,12 +64,12 @@ export function ChatDashboard() {
       />
       {query.error ? <ErrorState message={query.error.message} /> : null}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label="Conversations" value={k ? String(k.conversations) : "—"} icon={MessagesSquare} />
-        <StatCard label="Open" value={k ? String(k.open) : "—"} icon={CheckCircle2} />
-        <StatCard label="Escalated" value={k ? String(k.escalated) : "—"} icon={AlertTriangle} />
-        <StatCard label="Messages · 24h" value={k ? String(k.messages24h) : "—"} icon={Activity} />
-        <StatCard label="AI replies · 24h" value={k ? String(k.aiReplies24h) : "—"} icon={Bot} />
-        <StatCard label="Pending handoffs" value={k ? String(k.pendingHandoffs) : "—"} icon={Users} />
+        <StatCard label="Conversations" value={k ? String(k.conversations) : "—"} icon={<MessagesSquare className="h-4 w-4" />} />
+        <StatCard label="Open" value={k ? String(k.open) : "—"} icon={<CheckCircle2 className="h-4 w-4" />} />
+        <StatCard label="Escalated" value={k ? String(k.escalated) : "—"} icon={<AlertTriangle className="h-4 w-4" />} />
+        <StatCard label="Messages · 24h" value={k ? String(k.messages24h) : "—"} icon={<Activity className="h-4 w-4" />} />
+        <StatCard label="AI replies · 24h" value={k ? String(k.aiReplies24h) : "—"} icon={<Bot className="h-4 w-4" />} />
+        <StatCard label="Pending handoffs" value={k ? String(k.pendingHandoffs) : "—"} icon={<Users className="h-4 w-4" />} />
       </div>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-2">
@@ -277,9 +277,9 @@ export function AiGovernance() {
       />
       {query.error ? <ErrorState message={query.error.message} /> : null}
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="AI-enabled conversations" value={String(aiOn)} icon={Bot} />
-        <StatCard label="AI replies · 24h" value={k ? String(k.aiReplies24h) : "—"} icon={Activity} />
-        <StatCard label="Escalated to humans" value={k ? String(k.escalated) : "—"} icon={Users} />
+        <StatCard label="AI-enabled conversations" value={String(aiOn)} icon={<Bot className="h-4 w-4" />} />
+        <StatCard label="AI replies · 24h" value={k ? String(k.aiReplies24h) : "—"} icon={<Activity className="h-4 w-4" />} />
+        <StatCard label="Escalated to humans" value={k ? String(k.escalated) : "—"} icon={<Users className="h-4 w-4" />} />
       </div>
       <Card>
         <h3 className="mb-2 text-sm font-semibold">Model routing</h3>
