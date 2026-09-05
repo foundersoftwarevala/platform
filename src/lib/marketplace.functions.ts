@@ -279,6 +279,26 @@ function mapProductRecord(row: any): PublicProduct {
   };
 }
 
+// PostgREST answers with at most a thousand rows, so that is what a page is.
+const PAGE = 1000;
+
+const PUBLIC_PRODUCT_COLUMNS = `
+      id,
+      slug,
+      name,
+      industry_label,
+      icon,
+      price_label,
+      price_period,
+      rating,
+      downloads,
+      downloads_label,
+      badge,
+      visible,
+      category_id,
+      marketplace_categories(name)
+    `;
+
 async function loadPublicProductsFromSupabase(sb: any) {
   const marketplaceResult = await sb
     .from("marketplace_products")
@@ -299,10 +319,31 @@ async function loadPublicProductsFromSupabase(sb: any) {
     `)
     .eq("visible", true)
     .order("sort_order")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(0, PAGE - 1);
 
   if (!marketplaceResult.error && Array.isArray(marketplaceResult.data) && marketplaceResult.data.length > 0) {
-    return { rows: marketplaceResult.data, source: "marketplace_products" as const };
+    const rows = [...marketplaceResult.data];
+
+    // A response is capped at a thousand rows whether or not a limit is asked
+    // for, so a catalogue larger than that was being cut off in silence and
+    // the products past the cap simply did not exist as far as this was
+    // concerned. Keep asking for the next page until one comes back short.
+    while (rows.length % PAGE === 0) {
+      const next = await sb
+        .from("marketplace_products")
+        .select(PUBLIC_PRODUCT_COLUMNS)
+        .eq("visible", true)
+        .order("sort_order")
+        .order("created_at", { ascending: false })
+        .range(rows.length, rows.length + PAGE - 1);
+
+      if (next.error || !Array.isArray(next.data) || next.data.length === 0) break;
+      rows.push(...next.data);
+      if (next.data.length < PAGE) break;
+    }
+
+    return { rows, source: "marketplace_products" as const };
   }
 
   return { rows: [], source: "none" as const };

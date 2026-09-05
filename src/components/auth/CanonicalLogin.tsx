@@ -112,7 +112,12 @@ export function CanonicalLogin({ redirectTo }: Props) {
   const signInWithProvider = async (provider: "google" | "apple" | "azure") => {
     setBusy(true);
     setOwlState("hide");
-    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/auth` } });
+    // Carry the destination across the provider round trip, or the visitor
+    // comes back signed in and lands somewhere they never asked for.
+    const back = redirectTo?.startsWith("/") && !redirectTo.startsWith("//")
+      ? `${window.location.origin}/auth?redirect=${encodeURIComponent(redirectTo)}`
+      : `${window.location.origin}/auth`;
+    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: back } });
     if (error) {
       setBusy(false);
       setOwlState("curious");

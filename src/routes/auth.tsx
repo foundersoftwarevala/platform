@@ -31,6 +31,25 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
+
+  /**
+   * Where to put somebody down once they are signed in.
+   *
+   * A visitor who came from a demo, or any other page that asked them to sign
+   * in first, is returned to it. Everyone else keeps the destination this page
+   * has always used. Only a path on this site is followed.
+   */
+  const landAfterAuth = () => {
+    const asked =
+      typeof window === "undefined"
+        ? ""
+        : (new URLSearchParams(window.location.search).get("redirect") ?? "");
+    if (asked.startsWith("/") && !asked.startsWith("//")) {
+      window.location.assign(asked);
+      return;
+    }
+    void navigate({ to: "/chat" });
+  };
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,10 +58,10 @@ function AuthPage() {
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
-      if (data.session) void navigate({ to: "/chat" });
+      if (data.session) void landAfterAuth();
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session) void navigate({ to: "/chat" });
+      if (session) void landAfterAuth();
     });
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
