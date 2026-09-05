@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { PageHeader, PillButton, SubNav, StatCard, Card, EmptyHint } from "../ui";
 import { TableToolbar, RowActions, BulkActionBar, ActionButton, ColorPicker } from "../actions";
+import { LiveRowsPanel } from "./LiveRowsPanel";
 
 type Row = {
   n: string; title: string; icon: any; status: "live" | "draft" | "hidden";
@@ -69,6 +70,8 @@ export function HomepageRowsSection() {
 
   return (
     <div className="px-4 py-8 md:px-8">
+      {/* The rows the storefront really has, and the controls that change them. */}
+      <LiveRowsPanel />
       <PageHeader
         eyebrow="Homepage Rows · 16 modules"
         title="Homepage Row Manager"

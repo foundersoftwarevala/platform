@@ -129,6 +129,7 @@ import { Route as ApiInternalDbHealthRouteImport } from './routes/api/internal/d
 import { Route as ApiInternalMarketplaceMigrationRouteImport } from './routes/api/internal/marketplace-migration'
 import { Route as ApiMarketplaceActivityRouteImport } from './routes/api/marketplace/activity'
 import { Route as ApiMarketplaceLeadRouteImport } from './routes/api/marketplace/lead'
+import { Route as ApiMarketplaceRowsRouteImport } from './routes/api/marketplace/rows'
 import { Route as ApiMarketplaceSearchRouteImport } from './routes/api/marketplace/search'
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
 import { Route as MarketplaceProductSlugRouteImport } from './routes/marketplace.product.$slug'
@@ -763,6 +764,11 @@ const ApiMarketplaceLeadRoute = ApiMarketplaceLeadRouteImport.update({
   path: '/api/marketplace/lead',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMarketplaceRowsRoute = ApiMarketplaceRowsRouteImport.update({
+  id: '/api/marketplace/rows',
+  path: '/api/marketplace/rows',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMarketplaceSearchRoute = ApiMarketplaceSearchRouteImport.update({
   id: '/api/marketplace/search',
   path: '/api/marketplace/search',
@@ -916,6 +922,7 @@ export interface FileRoutesByFullPath {
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
+  '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -1039,6 +1046,7 @@ export interface FileRoutesByTo {
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
+  '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -1168,6 +1176,7 @@ export interface FileRoutesById {
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
+  '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -1298,6 +1307,7 @@ export interface FileRouteTypes {
     | '/api/internal/marketplace-migration'
     | '/api/marketplace/activity'
     | '/api/marketplace/lead'
+    | '/api/marketplace/rows'
     | '/api/marketplace/search'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
@@ -1421,6 +1431,7 @@ export interface FileRouteTypes {
     | '/api/internal/marketplace-migration'
     | '/api/marketplace/activity'
     | '/api/marketplace/lead'
+    | '/api/marketplace/rows'
     | '/api/marketplace/search'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
@@ -1549,6 +1560,7 @@ export interface FileRouteTypes {
     | '/api/internal/marketplace-migration'
     | '/api/marketplace/activity'
     | '/api/marketplace/lead'
+    | '/api/marketplace/rows'
     | '/api/marketplace/search'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
@@ -1615,6 +1627,7 @@ export interface RootRouteChildren {
   ApiInternalMarketplaceMigrationRoute: typeof ApiInternalMarketplaceMigrationRoute
   ApiMarketplaceActivityRoute: typeof ApiMarketplaceActivityRoute
   ApiMarketplaceLeadRoute: typeof ApiMarketplaceLeadRoute
+  ApiMarketplaceRowsRoute: typeof ApiMarketplaceRowsRoute
   ApiMarketplaceSearchRoute: typeof ApiMarketplaceSearchRoute
   ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
   ApiProxyDemoSplatRoute: typeof ApiProxyDemoSplatRoute
@@ -2462,6 +2475,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMarketplaceLeadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/marketplace/rows': {
+      id: '/api/marketplace/rows'
+      path: '/api/marketplace/rows'
+      fullPath: '/api/marketplace/rows'
+      preLoaderRoute: typeof ApiMarketplaceRowsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/marketplace/search': {
       id: '/api/marketplace/search'
       path: '/api/marketplace/search'
@@ -2765,6 +2785,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInternalMarketplaceMigrationRoute: ApiInternalMarketplaceMigrationRoute,
   ApiMarketplaceActivityRoute: ApiMarketplaceActivityRoute,
   ApiMarketplaceLeadRoute: ApiMarketplaceLeadRoute,
+  ApiMarketplaceRowsRoute: ApiMarketplaceRowsRoute,
   ApiMarketplaceSearchRoute: ApiMarketplaceSearchRoute,
   ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,
   ApiProxyDemoSplatRoute: ApiProxyDemoSplatRoute,
