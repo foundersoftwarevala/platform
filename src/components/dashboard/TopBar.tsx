@@ -65,6 +65,15 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
         <kbd aria-hidden className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted-foreground border border-border">⌘K</kbd>
       </div>
 
+      {/* Connect Chat — same central chat ecosystem for every dashboard role */}
+      <button
+        onClick={() => navigate({ to: "/chat" })}
+        className="hidden md:inline-flex items-center gap-2 rounded-lg bg-surface px-3 py-2 text-xs font-medium text-foreground/90 border border-border hover:bg-surface-2 transition"
+      >
+        <MessageSquare className="h-3.5 w-3.5" />
+        Chat
+      </button>
+
       {/* AI Chat */}
       <button
         onClick={onOpenAIChat}

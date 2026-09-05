@@ -16,6 +16,7 @@ import { Route as AmsManagerRouteImport } from './routes/ams-manager'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BossRouteImport } from './routes/boss'
 import { Route as ChatRouteImport } from './routes/chat'
+import { Route as ChatManagerRouteImport } from './routes/chat-manager'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as ControlPanelRouteImport } from './routes/control-panel'
 import { Route as CreatorManagerRouteImport } from './routes/creator-manager'
@@ -181,6 +182,11 @@ const BossRoute = BossRouteImport.update({
 const ChatRoute = ChatRouteImport.update({
   id: '/chat',
   path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatManagerRoute = ChatManagerRouteImport.update({
+  id: '/chat-manager',
+  path: '/chat-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CheckoutRoute = CheckoutRouteImport.update({
@@ -874,6 +880,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
   '/chat': typeof ChatRoute
+  '/chat-manager': typeof ChatManagerRoute
   '/checkout': typeof CheckoutRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
@@ -1013,6 +1020,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
   '/chat': typeof ChatRoute
+  '/chat-manager': typeof ChatManagerRoute
   '/checkout': typeof CheckoutRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
@@ -1150,6 +1158,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
   '/chat': typeof ChatRoute
+  '/chat-manager': typeof ChatManagerRoute
   '/checkout': typeof CheckoutRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
@@ -1292,6 +1301,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/boss'
     | '/chat'
+    | '/chat-manager'
     | '/checkout'
     | '/control-panel'
     | '/creator-manager'
@@ -1431,6 +1441,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/boss'
     | '/chat'
+    | '/chat-manager'
     | '/checkout'
     | '/control-panel'
     | '/creator-manager'
@@ -1567,6 +1578,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/boss'
     | '/chat'
+    | '/chat-manager'
     | '/checkout'
     | '/control-panel'
     | '/creator-manager'
@@ -1708,6 +1720,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   BossRoute: typeof BossRoute
   ChatRoute: typeof ChatRoute
+  ChatManagerRoute: typeof ChatManagerRoute
   CheckoutRoute: typeof CheckoutRoute
   ControlPanelRoute: typeof ControlPanelRoute
   CreatorManagerRoute: typeof CreatorManagerRoute
@@ -1825,6 +1838,13 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat-manager': {
+      id: '/chat-manager'
+      path: '/chat-manager'
+      fullPath: '/chat-manager'
+      preLoaderRoute: typeof ChatManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/checkout': {
@@ -2954,6 +2974,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   BossRoute: BossRoute,
   ChatRoute: ChatRoute,
+  ChatManagerRoute: ChatManagerRoute,
   CheckoutRoute: CheckoutRoute,
   ControlPanelRoute: ControlPanelRoute,
   CreatorManagerRoute: CreatorManagerRoute,
