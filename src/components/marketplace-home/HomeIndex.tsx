@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { SiteFooter } from "@/components/marketplace-home/SiteFooter";
 
 import { motion } from "framer-motion";
@@ -3436,7 +3436,10 @@ const Index = () => {
       <section className="py-8 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Group by Master Category when "All" is selected */}
-          {activeCategory === "All" ? (
+          {activeCategory === "All" && !searchQuery ? (
+            /* The real catalogue, paged from the database. */
+            <CatalogRows favorites={favorites} onToggleFavorite={toggleFavorite} />
+          ) : activeCategory === "All" ? (
             masterCategories.slice(1).map(masterCat => {
               const categoryDemos = filteredDemos.filter(d => d.masterCategory === masterCat);
               if (categoryDemos.length === 0) return null;
@@ -3494,6 +3497,218 @@ const Index = () => {
     </div>
   );
 };
+
+
+/* ------------------------------------------------------------------ *
+ * Catalogue rows, straight from the database.
+ *
+ * The rows below `allDemos` are the original hand-written ones and are still
+ * used for search and for a single chosen category. This component is what the
+ * page shows by default: real product records, paged, so the browser is never
+ * handed the whole catalogue at once.
+ * ------------------------------------------------------------------ */
+
+type CatalogCard = {
+  id: string; slug: string; name: string; icon: string | null;
+  industry: string | null; price: string | null; period: string | null;
+  rating: number | null; downloads: string | null; badge: string | null;
+  featured: boolean; trending: boolean; bestSeller: boolean; newRelease: boolean;
+  country: string | null; href: string;
+};
+
+type CatalogRow = {
+  id: string; title: string; slug: string; href: string;
+  cards: CatalogCard[]; total: number; hasMore: boolean;
+};
+
+const ROW_PAGE = 8;
+const CARD_PAGE = 12;
+
+/** Card colours cycle through the same palette the hand-written rows use. */
+const CARD_COLORS = [
+  "from-blue-600 to-indigo-600", "from-emerald-600 to-teal-600",
+  "from-fuchsia-600 to-purple-600", "from-amber-500 to-orange-600",
+  "from-rose-600 to-pink-600", "from-cyan-600 to-sky-600",
+];
+
+/** A catalogue row shaped like the cards this page already draws. */
+function toDemo(card: CatalogCard, index: number): Demo {
+  return {
+    id: card.id,
+    name: card.name,
+    category: card.industry ?? "",
+    masterCategory: card.industry ?? "",
+    description: card.industry
+      ? `${card.industry}${card.country ? ` · targeted at ${card.country}` : ""}`
+      : "",
+    url: card.href,
+    icon: Package,
+    status: "ACTIVE",
+    features: [],
+    frontend: [],
+    backend: [],
+    color: CARD_COLORS[index % CARD_COLORS.length]!,
+    price: card.price ?? LIFETIME_MRP,
+    discountPrice: LIFETIME_PRICE,
+  } as unknown as Demo;
+}
+
+function CatalogRowStrip({
+  row, favorites, onToggleFavorite,
+}: {
+  row: CatalogRow;
+  favorites: string[];
+  onToggleFavorite: (id: string) => void;
+}) {
+  const [cards, setCards] = useState<CatalogCard[]>(row.cards);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const loadMore = async () => {
+    if (loading || cards.length >= row.total) return;
+    setLoading(true);
+    setFailed(false);
+    try {
+      const response = await fetch(
+        `/api/marketplace/catalog?category=${encodeURIComponent(row.slug)}` +
+          `&offset=${cards.length}&limit=${CARD_PAGE}`,
+      );
+      if (!response.ok) throw new Error(String(response.status));
+      const data = await response.json();
+      setCards((current) => [...current, ...(data.cards ?? [])]);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <CategoryRow title={row.title} count={row.total}>
+      {cards.map((card, index) => (
+        <div key={card.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
+          <DemoCard
+            demo={toDemo(card, index)}
+            index={index}
+            isFavorite={favorites.includes(card.id)}
+            onToggleFavorite={() => onToggleFavorite(card.id)}
+          />
+        </div>
+      ))}
+      {cards.length < row.total && (
+        <div className="flex w-[220px] flex-none items-center justify-center">
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loading}
+            className="rounded-xl border border-cyan-400/30 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-cyan-200 hover:bg-white/[0.08] disabled:opacity-60"
+          >
+            {loading
+              ? "Loading…"
+              : failed
+                ? "Try again"
+                : `Show more (${row.total - cards.length} left)`}
+          </button>
+        </div>
+      )}
+    </CategoryRow>
+  );
+}
+
+function CatalogRows({
+  favorites, onToggleFavorite,
+}: {
+  favorites: string[];
+  onToggleFavorite: (id: string) => void;
+}) {
+  const [rows, setRows] = useState<CatalogRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [rowOffset, setRowOffset] = useState(0);
+  const [hasMoreRows, setHasMoreRows] = useState(false);
+  const [loadingRows, setLoadingRows] = useState(false);
+  const sentinel = useRef<HTMLDivElement>(null);
+
+  const fetchRows = async (offset: number) => {
+    setLoadingRows(true);
+    try {
+      const response = await fetch(
+        `/api/marketplace/catalog?rows=${ROW_PAGE}&perRow=${CARD_PAGE}&rowOffset=${offset}`,
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error ?? "The catalogue could not be read.");
+      setRows((current) => [...(current ?? []), ...(data.rows ?? [])]);
+      setHasMoreRows(Boolean(data.hasMoreRows));
+      setRowOffset(offset + (data.rowCount ?? 0));
+      setError(null);
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : "The catalogue could not be read.");
+      if (rows === null) setRows([]);
+    } finally {
+      setLoadingRows(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchRows(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Rows arrive as the reader reaches the bottom, not all at once.
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || !hasMoreRows) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !loadingRows) void fetchRows(rowOffset);
+      },
+      { rootMargin: "600px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMoreRows, rowOffset, loadingRows]);
+
+  if (rows === null) {
+    return (
+      <div className="px-6 py-16 text-center text-sm text-white/60">
+        Loading the marketplace…
+      </div>
+    );
+  }
+  if (error && rows.length === 0) {
+    return (
+      <div className="mx-6 rounded-2xl border border-dashed border-white/15 px-6 py-12 text-center">
+        <p className="text-sm text-white/70">{error}</p>
+        <button
+          type="button"
+          onClick={() => void fetchRows(0)}
+          className="mt-4 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-gray-900"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {rows.map((row) => (
+        <CatalogRowStrip
+          key={row.id}
+          row={row}
+          favorites={favorites}
+          onToggleFavorite={onToggleFavorite}
+        />
+      ))}
+      <div ref={sentinel} aria-hidden="true" className="h-px" />
+      {loadingRows && (
+        <p className="py-6 text-center text-xs text-white/50">Loading more categories…</p>
+      )}
+      {error && rows.length > 0 && (
+        <p className="py-4 text-center text-xs text-white/50">{error}</p>
+      )}
+    </>
+  );
+}
 
 // Demo Card Component - Enhanced with interactions
 /** Deterministic pseudo-random so SSR and client render identical numbers. */
