@@ -1,0 +1,12 @@
+export { default as SupportTeamModule } from './SupportTeamModule';
+export { default as SalesTeamModule } from './SalesTeamModule';
+export { default as SupportTicketsModule } from './SupportTicketsModule';
+export { default as SalesLeadsModule } from './SalesLeadsModule';
+export { default as CRMCustomersModule } from './CRMCustomersModule';
+export { default as CallCenterModule } from './CallCenterModule';
+export { default as EmailQueueModule } from './EmailQueueModule';
+export { default as LiveChatModule } from './LiveChatModule';
+export { default as EscalationsModule } from './EscalationsModule';
+export { default as SLAComplianceModule } from './SLAComplianceModule';
+export { default as AIInsightsModule } from './AIInsightsModule';
+export { default as SSMSettingsModule } from './SSMSettingsModule';

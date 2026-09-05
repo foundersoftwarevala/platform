@@ -1,0 +1,427 @@
+import {
+  Activity,
+  AlertCircle,
+  AlertTriangle,
+  BarChart3,
+  Bell,
+  Bot,
+  Brain,
+  Calendar,
+  Copy,
+  Edit,
+  Eye,
+  FileBarChart,
+  FileSearch,
+  FileText,
+  Filter,
+  GitBranch,
+  Globe,
+  LayoutDashboard,
+  Layers,
+  Lightbulb,
+  Link as LinkIcon,
+  Lock,
+  Mail,
+  Megaphone,
+  MessageCircle,
+  MessageSquare,
+  Phone,
+  Plug,
+  Search,
+  Settings,
+  Share2,
+  Shield,
+  Store,
+  Target,
+  TrendingUp,
+  UserCheck,
+  UserCog,
+  Users,
+  XCircle,
+  Zap,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+export interface NavItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  children?: { id: string; label: string }[];
+  badgeKey?: string;
+}
+
+export interface NavSection {
+  id: string;
+  label: string;
+  items: NavItem[];
+}
+
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    id: "overview",
+    label: "1. Lead Overview",
+    items: [
+      { id: "dashboard", label: "Lead Dashboard", icon: LayoutDashboard },
+      { id: "total_leads", label: "Total Leads", icon: Target, badgeKey: "total" },
+      { id: "active_leads", label: "Active / Cold / Hot Leads", icon: TrendingUp },
+      { id: "time_leads", label: "Today / Weekly / Monthly", icon: Calendar },
+      { id: "conversion_rate", label: "Conversion Rate", icon: BarChart3 },
+      { id: "all_leads", label: "All Leads (Master Table)", icon: Users },
+    ],
+  },
+  {
+    id: "sources",
+    label: "2. Lead Sources",
+    items: [
+      {
+        id: "website_leads",
+        label: "Website Leads",
+        icon: Globe,
+        children: [
+          { id: "contact_forms", label: "Contact Forms" },
+          { id: "landing_pages", label: "Landing Pages" },
+          { id: "chat_widget", label: "Chat Widget" },
+          { id: "exit_intent", label: "Exit Intent Forms" },
+        ],
+      },
+      {
+        id: "seo_leads",
+        label: "SEO Leads",
+        icon: Search,
+        children: [
+          { id: "organic_search", label: "Organic Search" },
+          { id: "keyword_leads", label: "Keyword-Based Leads" },
+          { id: "location_seo", label: "Location-Based SEO" },
+        ],
+      },
+      {
+        id: "social_leads",
+        label: "Social Media Leads",
+        icon: Share2,
+        children: [
+          { id: "facebook_leads", label: "Facebook Leads" },
+          { id: "instagram_leads", label: "Instagram Leads" },
+          { id: "linkedin_leads", label: "LinkedIn Leads" },
+          { id: "twitter_leads", label: "Twitter / X Leads" },
+        ],
+      },
+      {
+        id: "ads_leads",
+        label: "Ads Leads",
+        icon: Megaphone,
+        children: [
+          { id: "google_ads", label: "Google Ads" },
+          { id: "facebook_ads", label: "Facebook Ads" },
+          { id: "instagram_ads", label: "Instagram Ads" },
+          { id: "youtube_ads", label: "YouTube Ads" },
+        ],
+      },
+      {
+        id: "marketplace_leads",
+        label: "Marketplace Leads",
+        icon: Store,
+        children: [
+          { id: "justdial", label: "Justdial" },
+          { id: "indiamart", label: "IndiaMart" },
+          { id: "tradeindia", label: "TradeIndia" },
+        ],
+      },
+      { id: "referral_leads", label: "Referral Leads", icon: Users },
+      { id: "manual_entry", label: "Manual Entry", icon: FileText },
+      { id: "api_leads", label: "API Leads", icon: Zap },
+    ],
+  },
+  {
+    id: "capture",
+    label: "3. Lead Capture & Routing",
+    items: [
+      { id: "auto_assignment", label: "Auto Lead Assignment", icon: GitBranch },
+      { id: "rule_distribution", label: "Rule-Based Distribution", icon: Filter },
+      { id: "geo_routing", label: "Country / State / City Routing", icon: Globe },
+      { id: "product_routing", label: "Product-Based Routing", icon: Layers },
+      { id: "load_balancing", label: "Load Balancing (Team Wise)", icon: Activity },
+      { id: "failover", label: "Failover Assignment", icon: AlertCircle },
+    ],
+  },
+  {
+    id: "qualification",
+    label: "4. Lead Qualification",
+    items: [
+      { id: "lead_scoring", label: "Lead Scoring (AI + Manual)", icon: Brain },
+      { id: "budget_detection", label: "Budget Detection", icon: Target },
+      { id: "intent_detection", label: "Intent Detection", icon: Lightbulb },
+      { id: "priority_flag", label: "Priority Flag", icon: AlertTriangle },
+      {
+        id: "duplicate_detection",
+        label: "Duplicate Lead Detection",
+        icon: Copy,
+        badgeKey: "duplicates",
+      },
+      { id: "fraud_filter", label: "Spam / Rejected (Fraud Filter)", icon: Shield },
+    ],
+  },
+  {
+    id: "pipeline",
+    label: "5. Lead Pipeline",
+    items: [
+      { id: "stage_new", label: "New", icon: Target, badgeKey: "new" },
+      { id: "stage_contacted", label: "Contacted", icon: Phone },
+      { id: "stage_interested", label: "Interested", icon: TrendingUp },
+      { id: "stage_followup", label: "Follow-Up", icon: Calendar },
+      { id: "stage_negotiation", label: "Negotiation", icon: MessageSquare },
+      { id: "stage_won", label: "Won", icon: UserCheck },
+      { id: "stage_lost", label: "Lost", icon: XCircle },
+    ],
+  },
+  {
+    id: "actions",
+    label: "6. Lead Actions",
+    items: [
+      { id: "view_lead", label: "View", icon: Eye },
+      { id: "edit_lead", label: "Edit", icon: Edit },
+      { id: "assign_lead", label: "Assign", icon: UserCog },
+      { id: "reassign_lead", label: "Reassign", icon: GitBranch },
+      { id: "call_lead", label: "Call", icon: Phone },
+      { id: "whatsapp_lead", label: "WhatsApp", icon: MessageCircle },
+      { id: "email_lead", label: "Email", icon: Mail },
+      { id: "schedule_followup", label: "Schedule Follow-Up", icon: Calendar },
+      { id: "convert_client", label: "Convert to Client", icon: UserCheck },
+      { id: "mark_lost", label: "Mark Lost", icon: XCircle },
+    ],
+  },
+  {
+    id: "automation",
+    label: "7. Automation & AI",
+    items: [
+      { id: "auto_followup", label: "Auto Follow-Up Suggestions", icon: Bot },
+      { id: "best_time", label: "Best Time to Call", icon: Calendar },
+      { id: "response_prediction", label: "Response Prediction", icon: Brain },
+      {
+        id: "dropoff_alert",
+        label: "Drop-Off Alert",
+        icon: AlertTriangle,
+        badgeKey: "dropoff",
+      },
+      { id: "conversion_probability", label: "Conversion Probability", icon: TrendingUp },
+    ],
+  },
+  {
+    id: "team",
+    label: "8. Team Management",
+    items: [
+      { id: "sales_team", label: "Sales Team List", icon: Users },
+      { id: "availability", label: "Availability Status", icon: Activity },
+      { id: "performance", label: "Performance Tracking", icon: BarChart3 },
+      { id: "lead_load", label: "Lead Load Per Agent", icon: Layers },
+      { id: "escalation_rules", label: "Escalation Rules", icon: AlertCircle },
+    ],
+  },
+  {
+    id: "alerts",
+    label: "9. Alerts & Notifications",
+    items: [
+      { id: "new_lead_alert", label: "New Lead Alert", icon: Bell, badgeKey: "alerts_new" },
+      { id: "idle_alert", label: "Idle Lead Alert", icon: Calendar, badgeKey: "alerts_idle" },
+      { id: "sla_breach", label: "SLA Breach Alert", icon: AlertTriangle, badgeKey: "alerts_sla" },
+      { id: "duplicate_alert", label: "Duplicate Lead Alert", icon: Copy },
+      {
+        id: "high_value_alert",
+        label: "High-Value Lead Alert",
+        icon: Target,
+        badgeKey: "alerts_high",
+      },
+      { id: "escalations", label: "Escalations & Follow-Ups", icon: Activity },
+    ],
+  },
+  {
+    id: "reports",
+    label: "10. Reports & Analytics",
+    items: [
+      { id: "source_report", label: "Source Wise Report", icon: FileBarChart },
+      { id: "agent_performance", label: "Agent Wise Performance", icon: BarChart3 },
+      { id: "conversion_funnel", label: "Conversion Funnel", icon: TrendingUp },
+      { id: "lost_analysis", label: "Lost Reason Analysis", icon: XCircle },
+      { id: "export_reports", label: "Export CSV / PDF", icon: FileText },
+    ],
+  },
+  {
+    id: "integrations",
+    label: "11. Integrations",
+    items: [
+      { id: "crm_sync", label: "CRM Sync", icon: LinkIcon },
+      { id: "whatsapp_api", label: "WhatsApp API", icon: MessageCircle },
+      { id: "email_api", label: "Email API", icon: Mail },
+      { id: "call_api", label: "Call API", icon: Phone },
+      { id: "form_api", label: "Website Form API", icon: Plug },
+    ],
+  },
+  {
+    id: "security",
+    label: "12. Security & Compliance",
+    items: [
+      { id: "access_control", label: "Lead Access Control", icon: Shield },
+      { id: "masked_info", label: "Masked Contact Info", icon: Lock },
+      { id: "export_lock", label: "Export Permission Lock", icon: Lock },
+      { id: "audit_logs", label: "Audit Logs", icon: FileSearch },
+    ],
+  },
+  {
+    id: "settings",
+    label: "13. Settings",
+    items: [
+      { id: "status_rules", label: "Lead Status Rules", icon: Settings },
+      { id: "assignment_rules", label: "Auto Assignment Rules", icon: GitBranch },
+      { id: "notification_settings", label: "Notification Settings", icon: Bell },
+      { id: "working_hours", label: "Working Hours", icon: Calendar },
+      { id: "expiry_policy", label: "Lead Expiry Policy", icon: Calendar },
+    ],
+  },
+];
+
+/** Maps a sidebar section id to the screen that renders it. */
+export const SECTION_SCREEN: Record<string, string> = {};
+const screenMap: Record<string, string[]> = {
+  overview: ["dashboard", "total_leads", "active_leads", "time_leads", "conversion_rate"],
+  allLeads: ["all_leads"],
+  sources: [
+    "website_leads",
+    "seo_leads",
+    "social_leads",
+    "ads_leads",
+    "marketplace_leads",
+    "referral_leads",
+    "manual_entry",
+    "api_leads",
+    "contact_forms",
+    "landing_pages",
+    "chat_widget",
+    "exit_intent",
+    "organic_search",
+    "keyword_leads",
+    "location_seo",
+    "facebook_leads",
+    "instagram_leads",
+    "linkedin_leads",
+    "twitter_leads",
+    "google_ads",
+    "facebook_ads",
+    "instagram_ads",
+    "youtube_ads",
+    "justdial",
+    "indiamart",
+    "tradeindia",
+  ],
+  capture: [
+    "auto_assignment",
+    "rule_distribution",
+    "geo_routing",
+    "product_routing",
+    "load_balancing",
+    "failover",
+  ],
+  qualification: [
+    "lead_scoring",
+    "budget_detection",
+    "intent_detection",
+    "priority_flag",
+    "duplicate_detection",
+  ],
+  spam: ["fraud_filter"],
+  pipeline: [
+    "stage_new",
+    "stage_contacted",
+    "stage_interested",
+    "stage_followup",
+    "stage_negotiation",
+    "stage_won",
+    "stage_lost",
+  ],
+  actions: [
+    "view_lead",
+    "edit_lead",
+    "assign_lead",
+    "reassign_lead",
+    "call_lead",
+    "whatsapp_lead",
+    "email_lead",
+    "schedule_followup",
+    "convert_client",
+    "mark_lost",
+  ],
+  automation: [
+    "auto_followup",
+    "best_time",
+    "response_prediction",
+    "dropoff_alert",
+    "conversion_probability",
+  ],
+  team: ["sales_team", "availability", "performance", "lead_load", "escalation_rules"],
+  alerts: [
+    "new_lead_alert",
+    "idle_alert",
+    "sla_breach",
+    "duplicate_alert",
+    "high_value_alert",
+  ],
+  escalations: ["escalations"],
+  reports: [
+    "source_report",
+    "agent_performance",
+    "conversion_funnel",
+    "lost_analysis",
+    "export_reports",
+  ],
+  integrations: ["crm_sync", "whatsapp_api", "email_api", "call_api", "form_api"],
+  security: ["access_control", "masked_info", "export_lock", "audit_logs"],
+  settings: [
+    "status_rules",
+    "assignment_rules",
+    "notification_settings",
+    "working_hours",
+    "expiry_policy",
+  ],
+};
+for (const [screen, ids] of Object.entries(screenMap)) {
+  for (const id of ids) SECTION_SCREEN[id] = screen;
+}
+
+/** Source sidebar ids mapped to the DB source + sub-source they filter on. */
+export const SOURCE_FILTERS: Record<string, { source?: string; subSource?: string; label: string }> =
+  {
+    website_leads: { source: "website", label: "Website Leads" },
+    contact_forms: { source: "website", subSource: "Contact Forms", label: "Contact Forms" },
+    landing_pages: { source: "website", subSource: "Landing Pages", label: "Landing Pages" },
+    chat_widget: { source: "website", subSource: "Chat Widget", label: "Chat Widget" },
+    exit_intent: { source: "website", subSource: "Exit Intent Forms", label: "Exit Intent Forms" },
+    seo_leads: { source: "seo", label: "SEO Leads" },
+    organic_search: { source: "seo", subSource: "Organic Search", label: "Organic Search" },
+    keyword_leads: { source: "seo", subSource: "Keyword-Based Leads", label: "Keyword-Based Leads" },
+    location_seo: { source: "seo", subSource: "Location-Based SEO", label: "Location-Based SEO" },
+    social_leads: { source: "social", label: "Social Media Leads" },
+    facebook_leads: { source: "social", subSource: "Facebook Leads", label: "Facebook Leads" },
+    instagram_leads: { source: "social", subSource: "Instagram Leads", label: "Instagram Leads" },
+    linkedin_leads: { source: "social", subSource: "LinkedIn Leads", label: "LinkedIn Leads" },
+    twitter_leads: { source: "social", subSource: "Twitter / X Leads", label: "Twitter / X Leads" },
+    ads_leads: { source: "ads", label: "Ads Leads" },
+    google_ads: { source: "ads", subSource: "Google Ads", label: "Google Ads" },
+    facebook_ads: { source: "ads", subSource: "Facebook Ads", label: "Facebook Ads" },
+    instagram_ads: { source: "ads", subSource: "Instagram Ads", label: "Instagram Ads" },
+    youtube_ads: { source: "ads", subSource: "YouTube Ads", label: "YouTube Ads" },
+    marketplace_leads: { source: "marketplace", label: "Marketplace Leads" },
+    justdial: { source: "marketplace", subSource: "Justdial", label: "Justdial" },
+    indiamart: { source: "marketplace", subSource: "IndiaMart", label: "IndiaMart" },
+    tradeindia: { source: "marketplace", subSource: "TradeIndia", label: "TradeIndia" },
+    referral_leads: { source: "referral", label: "Referral Leads" },
+    manual_entry: { source: "manual", label: "Manual Entry" },
+    api_leads: { source: "api", label: "API Leads" },
+  };
+
+export const STAGE_SECTIONS: Record<string, string> = {
+  stage_new: "new",
+  stage_contacted: "contacted",
+  stage_interested: "interested",
+  stage_followup: "follow_up",
+  stage_negotiation: "negotiation",
+  stage_won: "won",
+  stage_lost: "lost",
+};

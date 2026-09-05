@@ -8,7 +8,10 @@ import {
 
 import { LIFETIME_PRICE, SITE_STATS } from "@/lib/site-content/constants";
 import { listPublishedFaqs } from "@/lib/site-content/faq";
-import { embedUrl, listPublishedVideos } from "@/lib/site-content/videos";
+import { embedUrl, hasPlayableVideo, listPublishedVideos } from "@/lib/site-content/videos";
+import { listCourses } from "@/lib/site-content/academy";
+import { listAwards } from "@/lib/site-content/awards";
+import { listStories } from "@/lib/site-content/stories";
 
 const sectionTitle = (title: string, href?: string, subtitle?: string) => (
   <div className="mb-5 flex items-end justify-between px-6">
@@ -28,21 +31,22 @@ const sectionTitle = (title: string, href?: string, subtitle?: string) => (
 );
 
 // Shop by Industry
+// Each tile opens the real category page rather than an in-page anchor.
 const INDUSTRIES = [
-  { name: "Education", href: "#Education", icon: GraduationCap, color: "from-cyan-500/20 to-blue-500/10", text: "text-cyan-300", count: 24 },
-  { name: "Healthcare", href: "#Healthcare", icon: Hospital, color: "from-rose-500/20 to-pink-500/10", text: "text-rose-300", count: 18 },
-  { name: "Hospitality", href: "#Hospitality%20(Hotel,%20Restaurant,%20Travel)", icon: Hotel, color: "from-amber-500/20 to-orange-500/10", text: "text-amber-300", count: 12 },
-  { name: "E-commerce", href: "#E-commerce%20%26%20Online%20Marketplaces", icon: ShoppingBag, color: "from-fuchsia-500/20 to-purple-500/10", text: "text-fuchsia-300", count: 15 },
-  { name: "Services", href: "#Customer%20Support%20%26%20Helpdesk", icon: Wrench, color: "from-emerald-500/20 to-teal-500/10", text: "text-emerald-300", count: 22 },
-  { name: "Manufacturing", href: "#Manufacturing", icon: Factory, color: "from-violet-500/20 to-indigo-500/10", text: "text-violet-300", count: 14 },
+  { name: "Education", href: "/marketplace/category/education", icon: GraduationCap, color: "from-cyan-500/20 to-blue-500/10", text: "text-cyan-300", count: 24 },
+  { name: "Healthcare", href: "/marketplace/category/healthcare", icon: Hospital, color: "from-rose-500/20 to-pink-500/10", text: "text-rose-300", count: 18 },
+  { name: "Hospitality", href: "/marketplace/category/hospitality", icon: Hotel, color: "from-amber-500/20 to-orange-500/10", text: "text-amber-300", count: 12 },
+  { name: "E-commerce", href: "/marketplace/category/ecommerce", icon: ShoppingBag, color: "from-fuchsia-500/20 to-purple-500/10", text: "text-fuchsia-300", count: 15 },
+  { name: "Services", href: "/marketplace/category/customer-support-helpdesk", icon: Wrench, color: "from-emerald-500/20 to-teal-500/10", text: "text-emerald-300", count: 22 },
+  { name: "Manufacturing", href: "/marketplace/category/manufacturing", icon: Factory, color: "from-violet-500/20 to-indigo-500/10", text: "text-violet-300", count: 14 },
 ];
 
 export const IndustryGrid = () => (
   <section className="pt-2 pb-6">
-    {sectionTitle("Shop by Industry", "#All", "Pre-built suites for every sector")}
+    {sectionTitle("Shop by Industry", "/marketplace", "Pre-built suites for every sector")}
     <div className="grid grid-cols-2 gap-4 px-6 sm:grid-cols-3 lg:grid-cols-6">
       {INDUSTRIES.map((i) => (
-        <a key={i.name} href={i.href} className={`group relative overflow-hidden rounded-xl border border-white/[0.07] bg-gradient-to-br ${i.color} p-4 transition-all hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-[0_18px_40px_-18px_rgba(34,211,238,0.5)]`}>
+        <a key={i.name} href={i.href} aria-label={`Browse ${i.name} software`} className={`group relative overflow-hidden rounded-xl border border-white/[0.07] bg-gradient-to-br ${i.color} p-4 transition-colors hover:border-cyan-400/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 motion-safe:transition-all motion-safe:hover:-translate-y-1 motion-safe:hover:shadow-[0_18px_40px_-18px_rgba(34,211,238,0.5)]`}>
           <i.icon className={`h-7 w-7 ${i.text}`} />
           <div className="mt-3 text-sm font-bold text-white">{i.name}</div>
           <div className="mt-0.5 text-[10px] uppercase tracking-wider text-white/60">{i.count}+ products</div>
@@ -53,19 +57,25 @@ export const IndustryGrid = () => (
 );
 
 // AI Zone
+// Each tool opens a real page that searches the live catalogue.
 const AI_TOOLS = [
-  { name: "AI Product Finder", desc: "Describe your need, get the perfect stack.", icon: SearchIcon, accent: "text-fuchsia-300", ring: "border-fuchsia-400/30" },
-  { name: "AI Recommendation", desc: `Personalised picks from ${SITE_STATS.solutions} products.`, icon: Sparkles, accent: "text-cyan-300", ring: "border-cyan-400/30" },
-  { name: "AI Compare", desc: "Side-by-side feature & price intelligence.", icon: Brain, accent: "text-violet-300", ring: "border-violet-400/30" },
-  { name: "AI Sales Assistant", desc: "24/7 chat copilot for buyers & vendors.", icon: Bot, accent: "text-emerald-300", ring: "border-emerald-400/30" },
+  { name: "AI Product Finder", href: "/ai/finder", desc: "Describe your need, get the perfect stack.", icon: SearchIcon, accent: "text-fuchsia-300", ring: "border-fuchsia-400/30" },
+  { name: "AI Recommendation", href: "/ai/recommend", desc: `Personalised picks from ${SITE_STATS.solutions} products.`, icon: Sparkles, accent: "text-cyan-300", ring: "border-cyan-400/30" },
+  { name: "AI Compare", href: "/ai/compare", desc: "Side-by-side feature & price intelligence.", icon: Brain, accent: "text-violet-300", ring: "border-violet-400/30" },
+  { name: "AI Sales Assistant", href: "/ai/assistant", desc: "Answers from the live catalogue for buyers & vendors.", icon: Bot, accent: "text-emerald-300", ring: "border-emerald-400/30" },
 ];
 
 export const AIZone = () => (
   <section className="py-10">
-    {sectionTitle("AI Zone", "#All", "Automation copilots built into the marketplace")}
+    {sectionTitle("AI Zone", "/marketplace", "Automation copilots built into the marketplace")}
     <div className="grid grid-cols-1 gap-4 px-6 sm:grid-cols-2 lg:grid-cols-4">
       {AI_TOOLS.map((t) => (
-        <a key={t.name} href="#AI%20%26%20Automation" className={`group relative overflow-hidden rounded-2xl border ${t.ring} bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-5 transition-all hover:-translate-y-1 hover:shadow-[0_24px_60px_-20px_rgba(217,70,239,0.45)]`}>
+        <a
+          key={t.name}
+          href={t.href}
+          aria-label={`Open ${t.name}`}
+          className={`group relative overflow-hidden rounded-2xl border ${t.ring} bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 motion-safe:transition-all motion-safe:hover:-translate-y-1 motion-safe:hover:shadow-[0_24px_60px_-20px_rgba(217,70,239,0.45)]`}
+        >
           <div className={`mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/5 ${t.accent}`}>
             <t.icon className="h-5 w-5" />
           </div>
@@ -80,25 +90,46 @@ export const AIZone = () => (
   </section>
 );
 
-// Success Stories
-const STORIES = [
-  { name: "Apollo Clinics", quote: "MediCore 360 cut patient onboarding from 12 min to 90 sec across 42 branches.", author: "Dr. Neha R., CIO", metric: "−87% wait time" },
-  { name: "GreenLeaf Schools", quote: "EduFlow Pro replaced 6 tools. Teachers got 9 hours back per week.", author: "Rakesh M., Principal", metric: "9 hrs / week" },
-  { name: "Coastal Stays", quote: "HotelNest pushed our direct bookings from 18% to 54% in one quarter.", author: "Anita V., Owner", metric: "+200% direct" },
-];
-
+// Success Stories — content lives in @/lib/site-content/stories so these can
+// be swapped for real marketplace records without changing this component.
 export const SuccessStories = () => (
   <section className="py-10">
-    {sectionTitle("Success Stories", "#All")}
+    {sectionTitle("Success Stories", "/marketplace", "How businesses are running on Software Vala")}
     <div className="grid grid-cols-1 gap-4 px-6 lg:grid-cols-3">
-      {STORIES.map((s) => (
-        <article key={s.name} className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-white/[0.04] to-transparent p-6">
-          <Quote className="absolute right-4 top-4 h-8 w-8 text-cyan-400/20" />
-          <div className="text-xs font-semibold uppercase tracking-wider text-cyan-300">{s.name}</div>
-          <p className="mt-3 text-sm leading-relaxed text-white/85">"{s.quote}"</p>
-          <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-3">
-            <div className="text-[11px] text-white/60">{s.author}</div>
-            <div className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-300">{s.metric}</div>
+      {listStories().map((s) => (
+        <article
+          key={s.company}
+          className="relative flex flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-white/[0.04] to-transparent p-6"
+        >
+          <Quote className="absolute right-4 top-4 h-8 w-8 text-cyan-400/20" aria-hidden="true" />
+          <div className="text-xs font-semibold uppercase tracking-wider text-cyan-300">{s.company}</div>
+          <blockquote className="mt-3 flex-1 text-sm leading-relaxed text-white/85">
+            &ldquo;{s.quote}&rdquo;
+          </blockquote>
+          <div className="mt-4 border-t border-white/5 pt-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-[11px] font-semibold text-white/80">{s.author}</div>
+                <div className="truncate text-[11px] text-white/50">{s.role}</div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="text-base font-bold text-emerald-300">{s.metric}</div>
+                <div className="text-[10px] uppercase tracking-wider text-white/50">{s.metricLabel}</div>
+              </div>
+            </div>
+            <div className="mt-3 text-[11px] text-white/50">
+              Product:{" "}
+              {s.productSlug ? (
+                <a
+                  href={`/marketplace/product/${s.productSlug}`}
+                  className="font-semibold text-cyan-300 hover:text-cyan-200"
+                >
+                  {s.product}
+                </a>
+              ) : (
+                <span className="font-semibold text-white/70">{s.product}</span>
+              )}
+            </div>
           </div>
         </article>
       ))}
@@ -106,26 +137,48 @@ export const SuccessStories = () => (
   </section>
 );
 
-// Awards & Champions
-const AWARDS = [
-  { title: "Vendor of the Year", who: "MediCore Labs", icon: Trophy, color: "text-amber-300", ring: "border-amber-400/30" },
-  { title: "Fastest Growing App", who: "ShopEngine", icon: Zap, color: "text-cyan-300", ring: "border-cyan-400/30" },
-  { title: "Editor's Choice", who: "EduFlow Pro", icon: Award, color: "text-fuchsia-300", ring: "border-fuchsia-400/30" },
-  { title: "Most Loved by Users", who: "HotelNest", icon: Star, color: "text-rose-300", ring: "border-rose-400/30" },
-];
+// Awards & Champions — the winners live in @/lib/site-content/awards; only the
+// styling for each category stays here.
+const AWARD_STYLE: Record<string, { icon: typeof Trophy; color: string; ring: string }> = {
+  "Vendor of the Year": { icon: Trophy, color: "text-amber-300", ring: "border-amber-400/30" },
+  "Fastest Growing App": { icon: Zap, color: "text-cyan-300", ring: "border-cyan-400/30" },
+  "Editor's Choice": { icon: Award, color: "text-fuchsia-300", ring: "border-fuchsia-400/30" },
+  "Most Loved by Users": { icon: Star, color: "text-rose-300", ring: "border-rose-400/30" },
+};
+const AWARD_FALLBACK = { icon: Trophy, color: "text-amber-300", ring: "border-amber-400/30" };
 
 export const AwardsRow = () => (
   <section className="py-10">
-    {sectionTitle("Awards & Champions", "#All")}
-    <div className="grid grid-cols-2 gap-4 px-6 lg:grid-cols-4">
-      {AWARDS.map((a) => (
-        <div key={a.title} className={`rounded-2xl border ${a.ring} bg-white/[0.03] p-5`}>
-          <a.icon className={`h-7 w-7 ${a.color}`} />
-          <div className="mt-3 text-[11px] uppercase tracking-wider text-white/60">{a.title}</div>
-          <div className="mt-1 text-base font-bold text-white">{a.who}</div>
-        </div>
-      ))}
-    </div>
+    {sectionTitle("Awards & Champions", "/marketplace", "Recognised across the marketplace")}
+    <ul className="grid grid-cols-2 gap-4 px-6 lg:grid-cols-4">
+      {listAwards().map((a) => {
+        const style = AWARD_STYLE[a.category] ?? AWARD_FALLBACK;
+        const Icon = style.icon;
+        // A winner only becomes a link when it is a real listing.
+        const body = (
+          <>
+            <Icon className={`h-7 w-7 ${style.color}`} aria-hidden="true" />
+            <div className="mt-3 text-[11px] uppercase tracking-wider text-white/60">{a.category}</div>
+            <div className="mt-1 text-base font-bold text-white">{a.winner}</div>
+            <div className="mt-1 text-[10px] uppercase tracking-wider text-white/40">{a.year}</div>
+          </>
+        );
+        return (
+          <li key={a.category}>
+            {a.productSlug ? (
+              <a
+                href={`/marketplace/product/${a.productSlug}`}
+                className={`block rounded-2xl border ${style.ring} bg-white/[0.03] p-5 transition-colors hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400`}
+              >
+                {body}
+              </a>
+            ) : (
+              <div className={`rounded-2xl border ${style.ring} bg-white/[0.03] p-5`}>{body}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   </section>
 );
 
@@ -179,12 +232,12 @@ export const ValaTV = () => {
 
   return (
     <section className="py-10">
-      {sectionTitle("Vala TV", "/marketplace-manager", "Demos, walkthroughs, customer films")}
+      {sectionTitle("Vala TV", "/vala-tv", "Demos, walkthroughs, customer films")}
       <div className="grid grid-cols-1 gap-4 px-6 sm:grid-cols-2 lg:grid-cols-4">
         {videos.map((v) => (
           <div key={v.id} className="group relative overflow-hidden rounded-xl border border-white/[0.07] bg-gradient-to-br from-[oklch(0.2_0.06_265)] to-[oklch(0.14_0.05_265)] transition-all hover:border-fuchsia-400/40">
             <div className="relative aspect-video w-full overflow-hidden bg-gradient-to-br from-fuchsia-500/20 via-cyan-500/10 to-transparent">
-              {playing === v.id ? (
+              {playing === v.id && hasPlayableVideo(v.url) ? (
                 <iframe
                   src={embedUrl(v.url)}
                   title={v.title}
@@ -192,20 +245,29 @@ export const ValaTV = () => {
                   allowFullScreen
                   className="absolute inset-0 h-full w-full"
                 />
-              ) : (
+              ) : hasPlayableVideo(v.url) ? (
                 <button
                   type="button"
                   onClick={() => setPlaying(v.id)}
                   aria-label={`Play ${v.title}`}
-                  className="absolute inset-0 flex items-center justify-center"
+                  className="absolute inset-0 flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
                 >
                   {v.thumbnail ? (
-                    <img src={v.thumbnail} alt={v.title} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                    <img src={v.thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
                   ) : null}
-                  <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-gray-900 shadow-2xl transition-transform group-hover:scale-110">
-                    <Play className="h-5 w-5 fill-current" />
+                  <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-gray-900 shadow-2xl motion-safe:transition-transform motion-safe:group-hover:scale-110">
+                    <Play className="h-5 w-5 fill-current" aria-hidden="true" />
                   </span>
                 </button>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  {v.thumbnail ? (
+                    <img src={v.thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                  ) : null}
+                  <span className="relative rounded-full bg-black/70 px-3 py-1 text-[10px] font-semibold text-white/75">
+                    Film not published yet
+                  </span>
+                </div>
               )}
               {v.duration && (
                 <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">{v.duration}</span>
@@ -225,32 +287,43 @@ export const ValaTV = () => {
   );
 };
 
-// Academy
-export const Academy = () => {
-  const tracks = [
-    { title: "Marketplace Foundations", lessons: 24, level: "Beginner", icon: BookOpen },
-    { title: "Vendor Mastery", lessons: 38, level: "Intermediate", icon: GraduationCap },
-    { title: "Enterprise Implementation", lessons: 52, level: "Advanced", icon: Building2 },
-  ];
-  return (
-    <section className="py-10">
-      {sectionTitle("Vala Academy", "#Academy", "Certifications, learning paths, exams")}
-      <div className="grid grid-cols-1 gap-4 px-6 lg:grid-cols-3">
-        {tracks.map((t) => (
-          <a key={t.title} href="#Academy" className="group rounded-2xl border border-white/[0.07] bg-gradient-to-br from-cyan-500/[0.06] to-fuchsia-500/[0.04] p-5 transition-all hover:border-cyan-400/40">
-            <t.icon className="h-7 w-7 text-cyan-300" />
-            <div className="mt-3 text-base font-bold text-white">{t.title}</div>
-            <div className="mt-1 flex items-center gap-3 text-[11px] text-white/60">
-              <span>{t.lessons} lessons</span>
-              <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-2 py-0.5 font-semibold text-fuchsia-300">{t.level}</span>
-            </div>
-            <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-cyan-300">Start learning <ArrowRight className="h-3 w-3" /></div>
-          </a>
-        ))}
-      </div>
-    </section>
-  );
+// Academy — course content lives in @/lib/site-content/academy.
+const COURSE_ICON: Record<string, typeof BookOpen> = {
+  Beginner: BookOpen,
+  Intermediate: GraduationCap,
+  Advanced: Building2,
 };
+
+export const Academy = () => (
+  <section className="py-10">
+    {sectionTitle("Vala Academy", "/academy", "Certifications, learning paths, exams")}
+    <div className="grid grid-cols-1 gap-4 px-6 lg:grid-cols-3">
+      {listCourses().map((course) => {
+        const Icon = COURSE_ICON[course.level] ?? BookOpen;
+        return (
+          <a
+            key={course.slug}
+            href={`/academy/${course.slug}`}
+            aria-label={`Open the ${course.title} learning path`}
+            className="group rounded-2xl border border-white/[0.07] bg-gradient-to-br from-cyan-500/[0.06] to-fuchsia-500/[0.04] p-5 transition-colors hover:border-cyan-400/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+          >
+            <Icon className="h-7 w-7 text-cyan-300" aria-hidden="true" />
+            <div className="mt-3 text-base font-bold text-white">{course.title}</div>
+            <div className="mt-1 flex items-center gap-3 text-[11px] text-white/60">
+              <span>{course.lessons} lessons</span>
+              <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-2 py-0.5 font-semibold text-fuchsia-300">
+                {course.level}
+              </span>
+            </div>
+            <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-cyan-300">
+              Start learning <ArrowRight className="h-3 w-3" aria-hidden="true" />
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  </section>
+);
 
 // Partner Ecosystem
 const PARTNERS = [

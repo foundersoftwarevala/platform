@@ -10,23 +10,149 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AffiliateManagerRouteImport } from './routes/affiliate-manager'
+import { Route as AiApiManagerRouteImport } from './routes/ai-api-manager'
+import { Route as AmsManagerRouteImport } from './routes/ams-manager'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as BossRouteImport } from './routes/boss'
 import { Route as ChatRouteImport } from './routes/chat'
+import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as ControlPanelRouteImport } from './routes/control-panel'
 import { Route as CreatorManagerRouteImport } from './routes/creator-manager'
+import { Route as DemoManagerRouteImport } from './routes/demo-manager'
+import { Route as DemoOpsRouteImport } from './routes/demo-ops'
+import { Route as DemoWorkspaceRouteImport } from './routes/demo-workspace'
 import { Route as FranchiseManagerRouteImport } from './routes/franchise-manager'
 import { Route as InfluencerManagerRouteImport } from './routes/influencer-manager'
+import { Route as InternalSupportAiRouteImport } from './routes/internal-support-ai'
+import { Route as KeywordsRouteImport } from './routes/keywords'
+import { Route as LeadManagerRouteImport } from './routes/lead-manager'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as ManagerRouteImport } from './routes/manager'
+import { Route as MarketingRouteImport } from './routes/marketing'
+import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as MarketplaceManagerRouteImport } from './routes/marketplace-manager'
+import { Route as MarketplaceRecoveryRouteImport } from './routes/marketplace-recovery'
+import { Route as PagesRouteImport } from './routes/pages'
+import { Route as ProductDemoManagerRouteImport } from './routes/product-demo-manager'
 import { Route as ResellerManagerRouteImport } from './routes/reseller-manager'
+import { Route as SalesCrmRouteImport } from './routes/sales-crm'
+import { Route as SalesSupportManagerRouteImport } from './routes/sales-support-manager'
 import { Route as SeoManagerRouteImport } from './routes/seo-manager'
+import { Route as SupportRouteImport } from './routes/support'
+import { Route as SupportAgentRouteImport } from './routes/support-agent'
+import { Route as SupportChatbotRouteImport } from './routes/support-chatbot'
+import { Route as SupportChatbotBlueprintRouteImport } from './routes/support-chatbot-blueprint'
+import { Route as ValaAiRouteImport } from './routes/vala-ai'
+import { Route as ValaTvRouteImport } from './routes/vala-tv'
+import { Route as AcademyIndexRouteImport } from './routes/academy.index'
+import { Route as AcademyCourseRouteImport } from './routes/academy.$course'
+import { Route as AdminImportRouteImport } from './routes/admin.import'
+import { Route as AffiliateManagerIndexRouteImport } from './routes/affiliate-manager.index'
+import { Route as AffiliateManagerAffiliateLinksRouteImport } from './routes/affiliate-manager.affiliate-links'
+import { Route as AffiliateManagerAffiliatesRouteImport } from './routes/affiliate-manager.affiliates'
+import { Route as AffiliateManagerAnalyticsRouteImport } from './routes/affiliate-manager.analytics'
+import { Route as AffiliateManagerApplicationsRouteImport } from './routes/affiliate-manager.applications'
+import { Route as AffiliateManagerAuditLogRouteImport } from './routes/affiliate-manager.audit-log'
+import { Route as AffiliateManagerBulkActionsRouteImport } from './routes/affiliate-manager.bulk-actions'
+import { Route as AffiliateManagerCampaignsRouteImport } from './routes/affiliate-manager.campaigns'
+import { Route as AffiliateManagerCommissionsRouteImport } from './routes/affiliate-manager.commissions'
+import { Route as AffiliateManagerCommunicationRouteImport } from './routes/affiliate-manager.communication'
+import { Route as AffiliateManagerComplianceRouteImport } from './routes/affiliate-manager.compliance'
+import { Route as AffiliateManagerCouponsRouteImport } from './routes/affiliate-manager.coupons'
+import { Route as AffiliateManagerCustomersRouteImport } from './routes/affiliate-manager.customers'
+import { Route as AffiliateManagerDocumentsRouteImport } from './routes/affiliate-manager.documents'
+import { Route as AffiliateManagerExportRouteImport } from './routes/affiliate-manager.export'
+import { Route as AffiliateManagerImportRouteImport } from './routes/affiliate-manager.import'
+import { Route as AffiliateManagerLeadsRouteImport } from './routes/affiliate-manager.leads'
+import { Route as AffiliateManagerMarketingRouteImport } from './routes/affiliate-manager.marketing'
+import { Route as AffiliateManagerMarketplaceRouteImport } from './routes/affiliate-manager.marketplace'
+import { Route as AffiliateManagerOrdersRouteImport } from './routes/affiliate-manager.orders'
+import { Route as AffiliateManagerPayoutsRouteImport } from './routes/affiliate-manager.payouts'
+import { Route as AffiliateManagerPerformanceRouteImport } from './routes/affiliate-manager.performance'
+import { Route as AffiliateManagerProductsRouteImport } from './routes/affiliate-manager.products'
+import { Route as AffiliateManagerRealtimeTestRouteImport } from './routes/affiliate-manager.realtime-test'
+import { Route as AffiliateManagerReferralCodesRouteImport } from './routes/affiliate-manager.referral-codes'
+import { Route as AffiliateManagerReferralNetworkRouteImport } from './routes/affiliate-manager.referral-network'
+import { Route as AffiliateManagerReportsRouteImport } from './routes/affiliate-manager.reports'
+import { Route as AffiliateManagerSalesRouteImport } from './routes/affiliate-manager.sales'
+import { Route as AffiliateManagerSearchRouteImport } from './routes/affiliate-manager.search'
+import { Route as AffiliateManagerSettingsRouteImport } from './routes/affiliate-manager.settings'
+import { Route as AffiliateManagerSupportRouteImport } from './routes/affiliate-manager.support'
+import { Route as AffiliateManagerWalletRouteImport } from './routes/affiliate-manager.wallet'
+import { Route as AiAssistantRouteImport } from './routes/ai.assistant'
+import { Route as AiCompareRouteImport } from './routes/ai.compare'
+import { Route as AiFinderRouteImport } from './routes/ai.finder'
+import { Route as AiRecommendRouteImport } from './routes/ai.recommend'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApplyIndexRouteImport } from './routes/apply.index'
 import { Route as ApplyRoleRouteImport } from './routes/apply.$role'
 import { Route as DashboardRoleRouteImport } from './routes/dashboard.$role'
+import { Route as DemoRouteImport } from './routes/demo.'
+import { Route as DemoSlugRouteImport } from './routes/demo.$slug'
+import { Route as LeadManagerIndexRouteImport } from './routes/lead-manager.index'
+import { Route as ManagerIndexRouteImport } from './routes/manager/index'
+import { Route as ManagerSectionRouteImport } from './routes/manager/$section'
+import { Route as MarketingIndexRouteImport } from './routes/marketing.index'
+import { Route as MarketingAiAutomationRouteImport } from './routes/marketing.ai-automation'
+import { Route as MarketingAnalyticsRouteImport } from './routes/marketing.analytics'
+import { Route as MarketingApprovalsRouteImport } from './routes/marketing.approvals'
+import { Route as MarketingAuditRouteImport } from './routes/marketing.audit'
+import { Route as MarketingCampaignBuilderRouteImport } from './routes/marketing.campaign-builder'
+import { Route as MarketingCampaignsRouteImport } from './routes/marketing.campaigns'
+import { Route as MarketingContentRouteImport } from './routes/marketing.content'
+import { Route as MarketingCreativesRouteImport } from './routes/marketing.creatives'
+import { Route as MarketingHierarchyRouteImport } from './routes/marketing.hierarchy'
+import { Route as MarketingLeadSourcesRouteImport } from './routes/marketing.lead-sources'
+import { Route as MarketingOffersRouteImport } from './routes/marketing.offers'
+import { Route as MarketingPerformanceRouteImport } from './routes/marketing.performance'
+import { Route as MarketingReportsRouteImport } from './routes/marketing.reports'
+import { Route as MarketingSchedulesRouteImport } from './routes/marketing.schedules'
+import { Route as MarketingSeoRouteImport } from './routes/marketing.seo'
+import { Route as MarketingTargetingRouteImport } from './routes/marketing.targeting'
+import { Route as ValaAiIndexRouteImport } from './routes/vala-ai.index'
+import { Route as ValaAiCreditsRouteImport } from './routes/vala-ai.credits'
+import { Route as ValaAiErrorsRouteImport } from './routes/vala-ai.errors'
+import { Route as ValaAiLockRouteImport } from './routes/vala-ai.lock'
+import { Route as ValaAiLogsRouteImport } from './routes/vala-ai.logs'
+import { Route as ValaAiModelsRouteImport } from './routes/vala-ai.models'
+import { Route as ValaAiProjectsRouteImport } from './routes/vala-ai.projects'
+import { Route as ValaAiPromptsRouteImport } from './routes/vala-ai.prompts'
+import { Route as ValaAiRollbackRouteImport } from './routes/vala-ai.rollback'
+import { Route as ValaAiSettingsRouteImport } from './routes/vala-ai.settings'
+import { Route as AffiliateManagerAffiliatesIdRouteImport } from './routes/affiliate-manager.affiliates.$id'
+import { Route as ApiFinanceResellerMembershipRouteImport } from './routes/api/finance/reseller-membership'
+import { Route as ApiInternalApplyMigrationsRouteImport } from './routes/api/internal/apply-migrations'
+import { Route as ApiInternalApplyResellerSchemaRouteImport } from './routes/api/internal/apply-reseller-schema'
+import { Route as ApiInternalCredentialSetupRouteImport } from './routes/api/internal/credential-setup'
+import { Route as ApiInternalDbHealthRouteImport } from './routes/api/internal/db-health'
+import { Route as ApiInternalMarketplaceMigrationRouteImport } from './routes/api/internal/marketplace-migration'
+import { Route as ApiMarketplaceActivityRouteImport } from './routes/api/marketplace/activity'
+import { Route as ApiMarketplaceLeadRouteImport } from './routes/api/marketplace/lead'
+import { Route as ApiMarketplaceSearchRouteImport } from './routes/api/marketplace/search'
+import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
+import { Route as MarketplaceProductSlugRouteImport } from './routes/marketplace.product.$slug'
+import { Route as ProxyDemoRouteImport } from './routes/proxy.demo.'
+import { Route as ApiProxyDemoSplatRouteImport } from './routes/api/proxy/demo.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AffiliateManagerRoute = AffiliateManagerRouteImport.update({
+  id: '/affiliate-manager',
+  path: '/affiliate-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiApiManagerRoute = AiApiManagerRouteImport.update({
+  id: '/ai-api-manager',
+  path: '/ai-api-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AmsManagerRoute = AmsManagerRouteImport.update({
+  id: '/ams-manager',
+  path: '/ams-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -34,9 +160,19 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BossRoute = BossRouteImport.update({
+  id: '/boss',
+  path: '/boss',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChatRoute = ChatRouteImport.update({
   id: '/chat',
   path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutRoute = CheckoutRouteImport.update({
+  id: '/checkout',
+  path: '/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ControlPanelRoute = ControlPanelRouteImport.update({
@@ -49,6 +185,21 @@ const CreatorManagerRoute = CreatorManagerRouteImport.update({
   path: '/creator-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DemoManagerRoute = DemoManagerRouteImport.update({
+  id: '/demo-manager',
+  path: '/demo-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DemoOpsRoute = DemoOpsRouteImport.update({
+  id: '/demo-ops',
+  path: '/demo-ops',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DemoWorkspaceRoute = DemoWorkspaceRouteImport.update({
+  id: '/demo-workspace',
+  path: '/demo-workspace',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FranchiseManagerRoute = FranchiseManagerRouteImport.update({
   id: '/franchise-manager',
   path: '/franchise-manager',
@@ -59,9 +210,59 @@ const InfluencerManagerRoute = InfluencerManagerRouteImport.update({
   path: '/influencer-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InternalSupportAiRoute = InternalSupportAiRouteImport.update({
+  id: '/internal-support-ai',
+  path: '/internal-support-ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KeywordsRoute = KeywordsRouteImport.update({
+  id: '/keywords',
+  path: '/keywords',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeadManagerRoute = LeadManagerRouteImport.update({
+  id: '/lead-manager',
+  path: '/lead-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManagerRoute = ManagerRouteImport.update({
+  id: '/manager',
+  path: '/manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketingRoute = MarketingRouteImport.update({
+  id: '/marketing',
+  path: '/marketing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketplaceRoute = MarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarketplaceManagerRoute = MarketplaceManagerRouteImport.update({
   id: '/marketplace-manager',
   path: '/marketplace-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketplaceRecoveryRoute = MarketplaceRecoveryRouteImport.update({
+  id: '/marketplace-recovery',
+  path: '/marketplace-recovery',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PagesRoute = PagesRouteImport.update({
+  id: '/pages',
+  path: '/pages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductDemoManagerRoute = ProductDemoManagerRouteImport.update({
+  id: '/product-demo-manager',
+  path: '/product-demo-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResellerManagerRoute = ResellerManagerRouteImport.update({
@@ -69,9 +270,264 @@ const ResellerManagerRoute = ResellerManagerRouteImport.update({
   path: '/reseller-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SalesCrmRoute = SalesCrmRouteImport.update({
+  id: '/sales-crm',
+  path: '/sales-crm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SalesSupportManagerRoute = SalesSupportManagerRouteImport.update({
+  id: '/sales-support-manager',
+  path: '/sales-support-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SeoManagerRoute = SeoManagerRouteImport.update({
   id: '/seo-manager',
   path: '/seo-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportAgentRoute = SupportAgentRouteImport.update({
+  id: '/support-agent',
+  path: '/support-agent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportChatbotRoute = SupportChatbotRouteImport.update({
+  id: '/support-chatbot',
+  path: '/support-chatbot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportChatbotBlueprintRoute = SupportChatbotBlueprintRouteImport.update({
+  id: '/support-chatbot-blueprint',
+  path: '/support-chatbot-blueprint',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ValaAiRoute = ValaAiRouteImport.update({
+  id: '/vala-ai',
+  path: '/vala-ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ValaTvRoute = ValaTvRouteImport.update({
+  id: '/vala-tv',
+  path: '/vala-tv',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AcademyIndexRoute = AcademyIndexRouteImport.update({
+  id: '/academy/',
+  path: '/academy/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AcademyCourseRoute = AcademyCourseRouteImport.update({
+  id: '/academy/$course',
+  path: '/academy/$course',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminImportRoute = AdminImportRouteImport.update({
+  id: '/admin/import',
+  path: '/admin/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AffiliateManagerIndexRoute = AffiliateManagerIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AffiliateManagerAffiliateLinksRoute =
+  AffiliateManagerAffiliateLinksRouteImport.update({
+    id: '/affiliate-links',
+    path: '/affiliate-links',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerAffiliatesRoute =
+  AffiliateManagerAffiliatesRouteImport.update({
+    id: '/affiliates',
+    path: '/affiliates',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerAnalyticsRoute =
+  AffiliateManagerAnalyticsRouteImport.update({
+    id: '/analytics',
+    path: '/analytics',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerApplicationsRoute =
+  AffiliateManagerApplicationsRouteImport.update({
+    id: '/applications',
+    path: '/applications',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerAuditLogRoute =
+  AffiliateManagerAuditLogRouteImport.update({
+    id: '/audit-log',
+    path: '/audit-log',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerBulkActionsRoute =
+  AffiliateManagerBulkActionsRouteImport.update({
+    id: '/bulk-actions',
+    path: '/bulk-actions',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerCampaignsRoute =
+  AffiliateManagerCampaignsRouteImport.update({
+    id: '/campaigns',
+    path: '/campaigns',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerCommissionsRoute =
+  AffiliateManagerCommissionsRouteImport.update({
+    id: '/commissions',
+    path: '/commissions',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerCommunicationRoute =
+  AffiliateManagerCommunicationRouteImport.update({
+    id: '/communication',
+    path: '/communication',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerComplianceRoute =
+  AffiliateManagerComplianceRouteImport.update({
+    id: '/compliance',
+    path: '/compliance',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerCouponsRoute = AffiliateManagerCouponsRouteImport.update({
+  id: '/coupons',
+  path: '/coupons',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AffiliateManagerCustomersRoute =
+  AffiliateManagerCustomersRouteImport.update({
+    id: '/customers',
+    path: '/customers',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerDocumentsRoute =
+  AffiliateManagerDocumentsRouteImport.update({
+    id: '/documents',
+    path: '/documents',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerExportRoute = AffiliateManagerExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AffiliateManagerImportRoute = AffiliateManagerImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AffiliateManagerLeadsRoute = AffiliateManagerLeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AffiliateManagerMarketingRoute =
+  AffiliateManagerMarketingRouteImport.update({
+    id: '/marketing',
+    path: '/marketing',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerMarketplaceRoute =
+  AffiliateManagerMarketplaceRouteImport.update({
+    id: '/marketplace',
+    path: '/marketplace',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerOrdersRoute = AffiliateManagerOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AffiliateManagerPayoutsRoute = AffiliateManagerPayoutsRouteImport.update({
+  id: '/payouts',
+  path: '/payouts',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AffiliateManagerPerformanceRoute =
+  AffiliateManagerPerformanceRouteImport.update({
+    id: '/performance',
+    path: '/performance',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerProductsRoute =
+  AffiliateManagerProductsRouteImport.update({
+    id: '/products',
+    path: '/products',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerRealtimeTestRoute =
+  AffiliateManagerRealtimeTestRouteImport.update({
+    id: '/realtime-test',
+    path: '/realtime-test',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerReferralCodesRoute =
+  AffiliateManagerReferralCodesRouteImport.update({
+    id: '/referral-codes',
+    path: '/referral-codes',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerReferralNetworkRoute =
+  AffiliateManagerReferralNetworkRouteImport.update({
+    id: '/referral-network',
+    path: '/referral-network',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerReportsRoute = AffiliateManagerReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AffiliateManagerSalesRoute = AffiliateManagerSalesRouteImport.update({
+  id: '/sales',
+  path: '/sales',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AffiliateManagerSearchRoute = AffiliateManagerSearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AffiliateManagerSettingsRoute =
+  AffiliateManagerSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AffiliateManagerRoute,
+  } as any)
+const AffiliateManagerSupportRoute = AffiliateManagerSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AffiliateManagerWalletRoute = AffiliateManagerWalletRouteImport.update({
+  id: '/wallet',
+  path: '/wallet',
+  getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AiAssistantRoute = AiAssistantRouteImport.update({
+  id: '/ai/assistant',
+  path: '/ai/assistant',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiCompareRoute = AiCompareRouteImport.update({
+  id: '/ai/compare',
+  path: '/ai/compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiFinderRoute = AiFinderRouteImport.update({
+  id: '/ai/finder',
+  path: '/ai/finder',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiRecommendRoute = AiRecommendRouteImport.update({
+  id: '/ai/recommend',
+  path: '/ai/recommend',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -94,122 +550,1061 @@ const DashboardRoleRoute = DashboardRoleRouteImport.update({
   path: '/dashboard/$role',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DemoRoute = DemoRouteImport.update({
+  id: '/demo/',
+  path: '/demo/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DemoSlugRoute = DemoSlugRouteImport.update({
+  id: '/demo/$slug',
+  path: '/demo/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeadManagerIndexRoute = LeadManagerIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LeadManagerRoute,
+} as any)
+const ManagerIndexRoute = ManagerIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ManagerRoute,
+} as any)
+const ManagerSectionRoute = ManagerSectionRouteImport.update({
+  id: '/$section',
+  path: '/$section',
+  getParentRoute: () => ManagerRoute,
+} as any)
+const MarketingIndexRoute = MarketingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingAiAutomationRoute = MarketingAiAutomationRouteImport.update({
+  id: '/ai-automation',
+  path: '/ai-automation',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingAnalyticsRoute = MarketingAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingApprovalsRoute = MarketingApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingAuditRoute = MarketingAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingCampaignBuilderRoute =
+  MarketingCampaignBuilderRouteImport.update({
+    id: '/campaign-builder',
+    path: '/campaign-builder',
+    getParentRoute: () => MarketingRoute,
+  } as any)
+const MarketingCampaignsRoute = MarketingCampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingContentRoute = MarketingContentRouteImport.update({
+  id: '/content',
+  path: '/content',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingCreativesRoute = MarketingCreativesRouteImport.update({
+  id: '/creatives',
+  path: '/creatives',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingHierarchyRoute = MarketingHierarchyRouteImport.update({
+  id: '/hierarchy',
+  path: '/hierarchy',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingLeadSourcesRoute = MarketingLeadSourcesRouteImport.update({
+  id: '/lead-sources',
+  path: '/lead-sources',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingOffersRoute = MarketingOffersRouteImport.update({
+  id: '/offers',
+  path: '/offers',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingPerformanceRoute = MarketingPerformanceRouteImport.update({
+  id: '/performance',
+  path: '/performance',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingReportsRoute = MarketingReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingSchedulesRoute = MarketingSchedulesRouteImport.update({
+  id: '/schedules',
+  path: '/schedules',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingSeoRoute = MarketingSeoRouteImport.update({
+  id: '/seo',
+  path: '/seo',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const MarketingTargetingRoute = MarketingTargetingRouteImport.update({
+  id: '/targeting',
+  path: '/targeting',
+  getParentRoute: () => MarketingRoute,
+} as any)
+const ValaAiIndexRoute = ValaAiIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiCreditsRoute = ValaAiCreditsRouteImport.update({
+  id: '/credits',
+  path: '/credits',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiErrorsRoute = ValaAiErrorsRouteImport.update({
+  id: '/errors',
+  path: '/errors',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiLockRoute = ValaAiLockRouteImport.update({
+  id: '/lock',
+  path: '/lock',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiLogsRoute = ValaAiLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiModelsRoute = ValaAiModelsRouteImport.update({
+  id: '/models',
+  path: '/models',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiProjectsRoute = ValaAiProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiPromptsRoute = ValaAiPromptsRouteImport.update({
+  id: '/prompts',
+  path: '/prompts',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiRollbackRoute = ValaAiRollbackRouteImport.update({
+  id: '/rollback',
+  path: '/rollback',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiSettingsRoute = ValaAiSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const AffiliateManagerAffiliatesIdRoute =
+  AffiliateManagerAffiliatesIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AffiliateManagerAffiliatesRoute,
+  } as any)
+const ApiFinanceResellerMembershipRoute =
+  ApiFinanceResellerMembershipRouteImport.update({
+    id: '/api/finance/reseller-membership',
+    path: '/api/finance/reseller-membership',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalApplyMigrationsRoute =
+  ApiInternalApplyMigrationsRouteImport.update({
+    id: '/api/internal/apply-migrations',
+    path: '/api/internal/apply-migrations',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalApplyResellerSchemaRoute =
+  ApiInternalApplyResellerSchemaRouteImport.update({
+    id: '/api/internal/apply-reseller-schema',
+    path: '/api/internal/apply-reseller-schema',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalCredentialSetupRoute =
+  ApiInternalCredentialSetupRouteImport.update({
+    id: '/api/internal/credential-setup',
+    path: '/api/internal/credential-setup',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalDbHealthRoute = ApiInternalDbHealthRouteImport.update({
+  id: '/api/internal/db-health',
+  path: '/api/internal/db-health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInternalMarketplaceMigrationRoute =
+  ApiInternalMarketplaceMigrationRouteImport.update({
+    id: '/api/internal/marketplace-migration',
+    path: '/api/internal/marketplace-migration',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiMarketplaceActivityRoute = ApiMarketplaceActivityRouteImport.update({
+  id: '/api/marketplace/activity',
+  path: '/api/marketplace/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMarketplaceLeadRoute = ApiMarketplaceLeadRouteImport.update({
+  id: '/api/marketplace/lead',
+  path: '/api/marketplace/lead',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMarketplaceSearchRoute = ApiMarketplaceSearchRouteImport.update({
+  id: '/api/marketplace/search',
+  path: '/api/marketplace/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketplaceCategorySlugRoute = MarketplaceCategorySlugRouteImport.update({
+  id: '/category/$slug',
+  path: '/category/$slug',
+  getParentRoute: () => MarketplaceRoute,
+} as any)
+const MarketplaceProductSlugRoute = MarketplaceProductSlugRouteImport.update({
+  id: '/product/$slug',
+  path: '/product/$slug',
+  getParentRoute: () => MarketplaceRoute,
+} as any)
+const ProxyDemoRoute = ProxyDemoRouteImport.update({
+  id: '/proxy/demo/',
+  path: '/proxy/demo/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProxyDemoSplatRoute = ApiProxyDemoSplatRouteImport.update({
+  id: '/api/proxy/demo/$',
+  path: '/api/proxy/demo/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/affiliate-manager': typeof AffiliateManagerRouteWithChildren
+  '/ai-api-manager': typeof AiApiManagerRoute
+  '/ams-manager': typeof AmsManagerRoute
   '/auth': typeof AuthRoute
+  '/boss': typeof BossRoute
   '/chat': typeof ChatRoute
+  '/checkout': typeof CheckoutRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
+  '/demo-manager': typeof DemoManagerRoute
+  '/demo-ops': typeof DemoOpsRoute
+  '/demo-workspace': typeof DemoWorkspaceRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
+  '/internal-support-ai': typeof InternalSupportAiRoute
+  '/keywords': typeof KeywordsRoute
+  '/lead-manager': typeof LeadManagerRouteWithChildren
+  '/login': typeof LoginRoute
+  '/manager': typeof ManagerRouteWithChildren
+  '/marketing': typeof MarketingRouteWithChildren
+  '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-manager': typeof MarketplaceManagerRoute
+  '/marketplace-recovery': typeof MarketplaceRecoveryRoute
+  '/pages': typeof PagesRoute
+  '/product-demo-manager': typeof ProductDemoManagerRoute
   '/reseller-manager': typeof ResellerManagerRoute
+  '/sales-crm': typeof SalesCrmRoute
+  '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
+  '/support': typeof SupportRoute
+  '/support-agent': typeof SupportAgentRoute
+  '/support-chatbot': typeof SupportChatbotRoute
+  '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
+  '/vala-ai': typeof ValaAiRouteWithChildren
+  '/vala-tv': typeof ValaTvRoute
+  '/demo/': typeof DemoRoute
+  '/academy/$course': typeof AcademyCourseRoute
+  '/admin/import': typeof AdminImportRoute
+  '/affiliate-manager/affiliate-links': typeof AffiliateManagerAffiliateLinksRoute
+  '/affiliate-manager/affiliates': typeof AffiliateManagerAffiliatesRouteWithChildren
+  '/affiliate-manager/analytics': typeof AffiliateManagerAnalyticsRoute
+  '/affiliate-manager/applications': typeof AffiliateManagerApplicationsRoute
+  '/affiliate-manager/audit-log': typeof AffiliateManagerAuditLogRoute
+  '/affiliate-manager/bulk-actions': typeof AffiliateManagerBulkActionsRoute
+  '/affiliate-manager/campaigns': typeof AffiliateManagerCampaignsRoute
+  '/affiliate-manager/commissions': typeof AffiliateManagerCommissionsRoute
+  '/affiliate-manager/communication': typeof AffiliateManagerCommunicationRoute
+  '/affiliate-manager/compliance': typeof AffiliateManagerComplianceRoute
+  '/affiliate-manager/coupons': typeof AffiliateManagerCouponsRoute
+  '/affiliate-manager/customers': typeof AffiliateManagerCustomersRoute
+  '/affiliate-manager/documents': typeof AffiliateManagerDocumentsRoute
+  '/affiliate-manager/export': typeof AffiliateManagerExportRoute
+  '/affiliate-manager/import': typeof AffiliateManagerImportRoute
+  '/affiliate-manager/leads': typeof AffiliateManagerLeadsRoute
+  '/affiliate-manager/marketing': typeof AffiliateManagerMarketingRoute
+  '/affiliate-manager/marketplace': typeof AffiliateManagerMarketplaceRoute
+  '/affiliate-manager/orders': typeof AffiliateManagerOrdersRoute
+  '/affiliate-manager/payouts': typeof AffiliateManagerPayoutsRoute
+  '/affiliate-manager/performance': typeof AffiliateManagerPerformanceRoute
+  '/affiliate-manager/products': typeof AffiliateManagerProductsRoute
+  '/affiliate-manager/realtime-test': typeof AffiliateManagerRealtimeTestRoute
+  '/affiliate-manager/referral-codes': typeof AffiliateManagerReferralCodesRoute
+  '/affiliate-manager/referral-network': typeof AffiliateManagerReferralNetworkRoute
+  '/affiliate-manager/reports': typeof AffiliateManagerReportsRoute
+  '/affiliate-manager/sales': typeof AffiliateManagerSalesRoute
+  '/affiliate-manager/search': typeof AffiliateManagerSearchRoute
+  '/affiliate-manager/settings': typeof AffiliateManagerSettingsRoute
+  '/affiliate-manager/support': typeof AffiliateManagerSupportRoute
+  '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
+  '/ai/assistant': typeof AiAssistantRoute
+  '/ai/compare': typeof AiCompareRoute
+  '/ai/finder': typeof AiFinderRoute
+  '/ai/recommend': typeof AiRecommendRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/demo/$slug': typeof DemoSlugRoute
+  '/manager/$section': typeof ManagerSectionRoute
+  '/marketing/ai-automation': typeof MarketingAiAutomationRoute
+  '/marketing/analytics': typeof MarketingAnalyticsRoute
+  '/marketing/approvals': typeof MarketingApprovalsRoute
+  '/marketing/audit': typeof MarketingAuditRoute
+  '/marketing/campaign-builder': typeof MarketingCampaignBuilderRoute
+  '/marketing/campaigns': typeof MarketingCampaignsRoute
+  '/marketing/content': typeof MarketingContentRoute
+  '/marketing/creatives': typeof MarketingCreativesRoute
+  '/marketing/hierarchy': typeof MarketingHierarchyRoute
+  '/marketing/lead-sources': typeof MarketingLeadSourcesRoute
+  '/marketing/offers': typeof MarketingOffersRoute
+  '/marketing/performance': typeof MarketingPerformanceRoute
+  '/marketing/reports': typeof MarketingReportsRoute
+  '/marketing/schedules': typeof MarketingSchedulesRoute
+  '/marketing/seo': typeof MarketingSeoRoute
+  '/marketing/targeting': typeof MarketingTargetingRoute
+  '/vala-ai/credits': typeof ValaAiCreditsRoute
+  '/vala-ai/errors': typeof ValaAiErrorsRoute
+  '/vala-ai/lock': typeof ValaAiLockRoute
+  '/vala-ai/logs': typeof ValaAiLogsRoute
+  '/vala-ai/models': typeof ValaAiModelsRoute
+  '/vala-ai/projects': typeof ValaAiProjectsRoute
+  '/vala-ai/prompts': typeof ValaAiPromptsRoute
+  '/vala-ai/rollback': typeof ValaAiRollbackRoute
+  '/vala-ai/settings': typeof ValaAiSettingsRoute
+  '/academy/': typeof AcademyIndexRoute
+  '/affiliate-manager/': typeof AffiliateManagerIndexRoute
   '/apply/': typeof ApplyIndexRoute
+  '/lead-manager/': typeof LeadManagerIndexRoute
+  '/manager/': typeof ManagerIndexRoute
+  '/marketing/': typeof MarketingIndexRoute
+  '/vala-ai/': typeof ValaAiIndexRoute
+  '/proxy/demo/': typeof ProxyDemoRoute
+  '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
+  '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
+  '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
+  '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
+  '/api/internal/credential-setup': typeof ApiInternalCredentialSetupRoute
+  '/api/internal/db-health': typeof ApiInternalDbHealthRoute
+  '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
+  '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
+  '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
+  '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ai-api-manager': typeof AiApiManagerRoute
+  '/ams-manager': typeof AmsManagerRoute
   '/auth': typeof AuthRoute
+  '/boss': typeof BossRoute
   '/chat': typeof ChatRoute
+  '/checkout': typeof CheckoutRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
+  '/demo-manager': typeof DemoManagerRoute
+  '/demo-ops': typeof DemoOpsRoute
+  '/demo-workspace': typeof DemoWorkspaceRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
+  '/internal-support-ai': typeof InternalSupportAiRoute
+  '/keywords': typeof KeywordsRoute
+  '/login': typeof LoginRoute
+  '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-manager': typeof MarketplaceManagerRoute
+  '/marketplace-recovery': typeof MarketplaceRecoveryRoute
+  '/pages': typeof PagesRoute
+  '/product-demo-manager': typeof ProductDemoManagerRoute
   '/reseller-manager': typeof ResellerManagerRoute
+  '/sales-crm': typeof SalesCrmRoute
+  '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
+  '/support': typeof SupportRoute
+  '/support-agent': typeof SupportAgentRoute
+  '/support-chatbot': typeof SupportChatbotRoute
+  '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
+  '/vala-tv': typeof ValaTvRoute
+  '/demo': typeof DemoRoute
+  '/academy/$course': typeof AcademyCourseRoute
+  '/admin/import': typeof AdminImportRoute
+  '/affiliate-manager/affiliate-links': typeof AffiliateManagerAffiliateLinksRoute
+  '/affiliate-manager/affiliates': typeof AffiliateManagerAffiliatesRouteWithChildren
+  '/affiliate-manager/analytics': typeof AffiliateManagerAnalyticsRoute
+  '/affiliate-manager/applications': typeof AffiliateManagerApplicationsRoute
+  '/affiliate-manager/audit-log': typeof AffiliateManagerAuditLogRoute
+  '/affiliate-manager/bulk-actions': typeof AffiliateManagerBulkActionsRoute
+  '/affiliate-manager/campaigns': typeof AffiliateManagerCampaignsRoute
+  '/affiliate-manager/commissions': typeof AffiliateManagerCommissionsRoute
+  '/affiliate-manager/communication': typeof AffiliateManagerCommunicationRoute
+  '/affiliate-manager/compliance': typeof AffiliateManagerComplianceRoute
+  '/affiliate-manager/coupons': typeof AffiliateManagerCouponsRoute
+  '/affiliate-manager/customers': typeof AffiliateManagerCustomersRoute
+  '/affiliate-manager/documents': typeof AffiliateManagerDocumentsRoute
+  '/affiliate-manager/export': typeof AffiliateManagerExportRoute
+  '/affiliate-manager/import': typeof AffiliateManagerImportRoute
+  '/affiliate-manager/leads': typeof AffiliateManagerLeadsRoute
+  '/affiliate-manager/marketing': typeof AffiliateManagerMarketingRoute
+  '/affiliate-manager/marketplace': typeof AffiliateManagerMarketplaceRoute
+  '/affiliate-manager/orders': typeof AffiliateManagerOrdersRoute
+  '/affiliate-manager/payouts': typeof AffiliateManagerPayoutsRoute
+  '/affiliate-manager/performance': typeof AffiliateManagerPerformanceRoute
+  '/affiliate-manager/products': typeof AffiliateManagerProductsRoute
+  '/affiliate-manager/realtime-test': typeof AffiliateManagerRealtimeTestRoute
+  '/affiliate-manager/referral-codes': typeof AffiliateManagerReferralCodesRoute
+  '/affiliate-manager/referral-network': typeof AffiliateManagerReferralNetworkRoute
+  '/affiliate-manager/reports': typeof AffiliateManagerReportsRoute
+  '/affiliate-manager/sales': typeof AffiliateManagerSalesRoute
+  '/affiliate-manager/search': typeof AffiliateManagerSearchRoute
+  '/affiliate-manager/settings': typeof AffiliateManagerSettingsRoute
+  '/affiliate-manager/support': typeof AffiliateManagerSupportRoute
+  '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
+  '/ai/assistant': typeof AiAssistantRoute
+  '/ai/compare': typeof AiCompareRoute
+  '/ai/finder': typeof AiFinderRoute
+  '/ai/recommend': typeof AiRecommendRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/demo/$slug': typeof DemoSlugRoute
+  '/manager/$section': typeof ManagerSectionRoute
+  '/marketing/ai-automation': typeof MarketingAiAutomationRoute
+  '/marketing/analytics': typeof MarketingAnalyticsRoute
+  '/marketing/approvals': typeof MarketingApprovalsRoute
+  '/marketing/audit': typeof MarketingAuditRoute
+  '/marketing/campaign-builder': typeof MarketingCampaignBuilderRoute
+  '/marketing/campaigns': typeof MarketingCampaignsRoute
+  '/marketing/content': typeof MarketingContentRoute
+  '/marketing/creatives': typeof MarketingCreativesRoute
+  '/marketing/hierarchy': typeof MarketingHierarchyRoute
+  '/marketing/lead-sources': typeof MarketingLeadSourcesRoute
+  '/marketing/offers': typeof MarketingOffersRoute
+  '/marketing/performance': typeof MarketingPerformanceRoute
+  '/marketing/reports': typeof MarketingReportsRoute
+  '/marketing/schedules': typeof MarketingSchedulesRoute
+  '/marketing/seo': typeof MarketingSeoRoute
+  '/marketing/targeting': typeof MarketingTargetingRoute
+  '/vala-ai/credits': typeof ValaAiCreditsRoute
+  '/vala-ai/errors': typeof ValaAiErrorsRoute
+  '/vala-ai/lock': typeof ValaAiLockRoute
+  '/vala-ai/logs': typeof ValaAiLogsRoute
+  '/vala-ai/models': typeof ValaAiModelsRoute
+  '/vala-ai/projects': typeof ValaAiProjectsRoute
+  '/vala-ai/prompts': typeof ValaAiPromptsRoute
+  '/vala-ai/rollback': typeof ValaAiRollbackRoute
+  '/vala-ai/settings': typeof ValaAiSettingsRoute
+  '/academy': typeof AcademyIndexRoute
+  '/affiliate-manager': typeof AffiliateManagerIndexRoute
   '/apply': typeof ApplyIndexRoute
+  '/lead-manager': typeof LeadManagerIndexRoute
+  '/manager': typeof ManagerIndexRoute
+  '/marketing': typeof MarketingIndexRoute
+  '/vala-ai': typeof ValaAiIndexRoute
+  '/proxy/demo': typeof ProxyDemoRoute
+  '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
+  '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
+  '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
+  '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
+  '/api/internal/credential-setup': typeof ApiInternalCredentialSetupRoute
+  '/api/internal/db-health': typeof ApiInternalDbHealthRoute
+  '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
+  '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
+  '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
+  '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/affiliate-manager': typeof AffiliateManagerRouteWithChildren
+  '/ai-api-manager': typeof AiApiManagerRoute
+  '/ams-manager': typeof AmsManagerRoute
   '/auth': typeof AuthRoute
+  '/boss': typeof BossRoute
   '/chat': typeof ChatRoute
+  '/checkout': typeof CheckoutRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
+  '/demo-manager': typeof DemoManagerRoute
+  '/demo-ops': typeof DemoOpsRoute
+  '/demo-workspace': typeof DemoWorkspaceRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
+  '/internal-support-ai': typeof InternalSupportAiRoute
+  '/keywords': typeof KeywordsRoute
+  '/lead-manager': typeof LeadManagerRouteWithChildren
+  '/login': typeof LoginRoute
+  '/manager': typeof ManagerRouteWithChildren
+  '/marketing': typeof MarketingRouteWithChildren
+  '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-manager': typeof MarketplaceManagerRoute
+  '/marketplace-recovery': typeof MarketplaceRecoveryRoute
+  '/pages': typeof PagesRoute
+  '/product-demo-manager': typeof ProductDemoManagerRoute
   '/reseller-manager': typeof ResellerManagerRoute
+  '/sales-crm': typeof SalesCrmRoute
+  '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
+  '/support': typeof SupportRoute
+  '/support-agent': typeof SupportAgentRoute
+  '/support-chatbot': typeof SupportChatbotRoute
+  '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
+  '/vala-ai': typeof ValaAiRouteWithChildren
+  '/vala-tv': typeof ValaTvRoute
+  '/demo/': typeof DemoRoute
+  '/academy/$course': typeof AcademyCourseRoute
+  '/admin/import': typeof AdminImportRoute
+  '/affiliate-manager/affiliate-links': typeof AffiliateManagerAffiliateLinksRoute
+  '/affiliate-manager/affiliates': typeof AffiliateManagerAffiliatesRouteWithChildren
+  '/affiliate-manager/analytics': typeof AffiliateManagerAnalyticsRoute
+  '/affiliate-manager/applications': typeof AffiliateManagerApplicationsRoute
+  '/affiliate-manager/audit-log': typeof AffiliateManagerAuditLogRoute
+  '/affiliate-manager/bulk-actions': typeof AffiliateManagerBulkActionsRoute
+  '/affiliate-manager/campaigns': typeof AffiliateManagerCampaignsRoute
+  '/affiliate-manager/commissions': typeof AffiliateManagerCommissionsRoute
+  '/affiliate-manager/communication': typeof AffiliateManagerCommunicationRoute
+  '/affiliate-manager/compliance': typeof AffiliateManagerComplianceRoute
+  '/affiliate-manager/coupons': typeof AffiliateManagerCouponsRoute
+  '/affiliate-manager/customers': typeof AffiliateManagerCustomersRoute
+  '/affiliate-manager/documents': typeof AffiliateManagerDocumentsRoute
+  '/affiliate-manager/export': typeof AffiliateManagerExportRoute
+  '/affiliate-manager/import': typeof AffiliateManagerImportRoute
+  '/affiliate-manager/leads': typeof AffiliateManagerLeadsRoute
+  '/affiliate-manager/marketing': typeof AffiliateManagerMarketingRoute
+  '/affiliate-manager/marketplace': typeof AffiliateManagerMarketplaceRoute
+  '/affiliate-manager/orders': typeof AffiliateManagerOrdersRoute
+  '/affiliate-manager/payouts': typeof AffiliateManagerPayoutsRoute
+  '/affiliate-manager/performance': typeof AffiliateManagerPerformanceRoute
+  '/affiliate-manager/products': typeof AffiliateManagerProductsRoute
+  '/affiliate-manager/realtime-test': typeof AffiliateManagerRealtimeTestRoute
+  '/affiliate-manager/referral-codes': typeof AffiliateManagerReferralCodesRoute
+  '/affiliate-manager/referral-network': typeof AffiliateManagerReferralNetworkRoute
+  '/affiliate-manager/reports': typeof AffiliateManagerReportsRoute
+  '/affiliate-manager/sales': typeof AffiliateManagerSalesRoute
+  '/affiliate-manager/search': typeof AffiliateManagerSearchRoute
+  '/affiliate-manager/settings': typeof AffiliateManagerSettingsRoute
+  '/affiliate-manager/support': typeof AffiliateManagerSupportRoute
+  '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
+  '/ai/assistant': typeof AiAssistantRoute
+  '/ai/compare': typeof AiCompareRoute
+  '/ai/finder': typeof AiFinderRoute
+  '/ai/recommend': typeof AiRecommendRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/demo/$slug': typeof DemoSlugRoute
+  '/manager/$section': typeof ManagerSectionRoute
+  '/marketing/ai-automation': typeof MarketingAiAutomationRoute
+  '/marketing/analytics': typeof MarketingAnalyticsRoute
+  '/marketing/approvals': typeof MarketingApprovalsRoute
+  '/marketing/audit': typeof MarketingAuditRoute
+  '/marketing/campaign-builder': typeof MarketingCampaignBuilderRoute
+  '/marketing/campaigns': typeof MarketingCampaignsRoute
+  '/marketing/content': typeof MarketingContentRoute
+  '/marketing/creatives': typeof MarketingCreativesRoute
+  '/marketing/hierarchy': typeof MarketingHierarchyRoute
+  '/marketing/lead-sources': typeof MarketingLeadSourcesRoute
+  '/marketing/offers': typeof MarketingOffersRoute
+  '/marketing/performance': typeof MarketingPerformanceRoute
+  '/marketing/reports': typeof MarketingReportsRoute
+  '/marketing/schedules': typeof MarketingSchedulesRoute
+  '/marketing/seo': typeof MarketingSeoRoute
+  '/marketing/targeting': typeof MarketingTargetingRoute
+  '/vala-ai/credits': typeof ValaAiCreditsRoute
+  '/vala-ai/errors': typeof ValaAiErrorsRoute
+  '/vala-ai/lock': typeof ValaAiLockRoute
+  '/vala-ai/logs': typeof ValaAiLogsRoute
+  '/vala-ai/models': typeof ValaAiModelsRoute
+  '/vala-ai/projects': typeof ValaAiProjectsRoute
+  '/vala-ai/prompts': typeof ValaAiPromptsRoute
+  '/vala-ai/rollback': typeof ValaAiRollbackRoute
+  '/vala-ai/settings': typeof ValaAiSettingsRoute
+  '/academy/': typeof AcademyIndexRoute
+  '/affiliate-manager/': typeof AffiliateManagerIndexRoute
   '/apply/': typeof ApplyIndexRoute
+  '/lead-manager/': typeof LeadManagerIndexRoute
+  '/manager/': typeof ManagerIndexRoute
+  '/marketing/': typeof MarketingIndexRoute
+  '/vala-ai/': typeof ValaAiIndexRoute
+  '/proxy/demo/': typeof ProxyDemoRoute
+  '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
+  '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
+  '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
+  '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
+  '/api/internal/credential-setup': typeof ApiInternalCredentialSetupRoute
+  '/api/internal/db-health': typeof ApiInternalDbHealthRoute
+  '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
+  '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
+  '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
+  '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/affiliate-manager'
+    | '/ai-api-manager'
+    | '/ams-manager'
     | '/auth'
+    | '/boss'
     | '/chat'
+    | '/checkout'
     | '/control-panel'
     | '/creator-manager'
+    | '/demo-manager'
+    | '/demo-ops'
+    | '/demo-workspace'
     | '/franchise-manager'
     | '/influencer-manager'
+    | '/internal-support-ai'
+    | '/keywords'
+    | '/lead-manager'
+    | '/login'
+    | '/manager'
+    | '/marketing'
+    | '/marketplace'
     | '/marketplace-manager'
+    | '/marketplace-recovery'
+    | '/pages'
+    | '/product-demo-manager'
     | '/reseller-manager'
+    | '/sales-crm'
+    | '/sales-support-manager'
     | '/seo-manager'
+    | '/support'
+    | '/support-agent'
+    | '/support-chatbot'
+    | '/support-chatbot-blueprint'
+    | '/vala-ai'
+    | '/vala-tv'
+    | '/demo/'
+    | '/academy/$course'
+    | '/admin/import'
+    | '/affiliate-manager/affiliate-links'
+    | '/affiliate-manager/affiliates'
+    | '/affiliate-manager/analytics'
+    | '/affiliate-manager/applications'
+    | '/affiliate-manager/audit-log'
+    | '/affiliate-manager/bulk-actions'
+    | '/affiliate-manager/campaigns'
+    | '/affiliate-manager/commissions'
+    | '/affiliate-manager/communication'
+    | '/affiliate-manager/compliance'
+    | '/affiliate-manager/coupons'
+    | '/affiliate-manager/customers'
+    | '/affiliate-manager/documents'
+    | '/affiliate-manager/export'
+    | '/affiliate-manager/import'
+    | '/affiliate-manager/leads'
+    | '/affiliate-manager/marketing'
+    | '/affiliate-manager/marketplace'
+    | '/affiliate-manager/orders'
+    | '/affiliate-manager/payouts'
+    | '/affiliate-manager/performance'
+    | '/affiliate-manager/products'
+    | '/affiliate-manager/realtime-test'
+    | '/affiliate-manager/referral-codes'
+    | '/affiliate-manager/referral-network'
+    | '/affiliate-manager/reports'
+    | '/affiliate-manager/sales'
+    | '/affiliate-manager/search'
+    | '/affiliate-manager/settings'
+    | '/affiliate-manager/support'
+    | '/affiliate-manager/wallet'
+    | '/ai/assistant'
+    | '/ai/compare'
+    | '/ai/finder'
+    | '/ai/recommend'
     | '/api/chat'
     | '/apply/$role'
     | '/dashboard/$role'
+    | '/demo/$slug'
+    | '/manager/$section'
+    | '/marketing/ai-automation'
+    | '/marketing/analytics'
+    | '/marketing/approvals'
+    | '/marketing/audit'
+    | '/marketing/campaign-builder'
+    | '/marketing/campaigns'
+    | '/marketing/content'
+    | '/marketing/creatives'
+    | '/marketing/hierarchy'
+    | '/marketing/lead-sources'
+    | '/marketing/offers'
+    | '/marketing/performance'
+    | '/marketing/reports'
+    | '/marketing/schedules'
+    | '/marketing/seo'
+    | '/marketing/targeting'
+    | '/vala-ai/credits'
+    | '/vala-ai/errors'
+    | '/vala-ai/lock'
+    | '/vala-ai/logs'
+    | '/vala-ai/models'
+    | '/vala-ai/projects'
+    | '/vala-ai/prompts'
+    | '/vala-ai/rollback'
+    | '/vala-ai/settings'
+    | '/academy/'
+    | '/affiliate-manager/'
     | '/apply/'
+    | '/lead-manager/'
+    | '/manager/'
+    | '/marketing/'
+    | '/vala-ai/'
+    | '/proxy/demo/'
+    | '/affiliate-manager/affiliates/$id'
+    | '/api/finance/reseller-membership'
+    | '/api/internal/apply-migrations'
+    | '/api/internal/apply-reseller-schema'
+    | '/api/internal/credential-setup'
+    | '/api/internal/db-health'
+    | '/api/internal/marketplace-migration'
+    | '/api/marketplace/activity'
+    | '/api/marketplace/lead'
+    | '/api/marketplace/search'
+    | '/marketplace/category/$slug'
+    | '/marketplace/product/$slug'
+    | '/api/proxy/demo/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ai-api-manager'
+    | '/ams-manager'
     | '/auth'
+    | '/boss'
     | '/chat'
+    | '/checkout'
     | '/control-panel'
     | '/creator-manager'
+    | '/demo-manager'
+    | '/demo-ops'
+    | '/demo-workspace'
     | '/franchise-manager'
     | '/influencer-manager'
+    | '/internal-support-ai'
+    | '/keywords'
+    | '/login'
+    | '/marketplace'
     | '/marketplace-manager'
+    | '/marketplace-recovery'
+    | '/pages'
+    | '/product-demo-manager'
     | '/reseller-manager'
+    | '/sales-crm'
+    | '/sales-support-manager'
     | '/seo-manager'
+    | '/support'
+    | '/support-agent'
+    | '/support-chatbot'
+    | '/support-chatbot-blueprint'
+    | '/vala-tv'
+    | '/demo'
+    | '/academy/$course'
+    | '/admin/import'
+    | '/affiliate-manager/affiliate-links'
+    | '/affiliate-manager/affiliates'
+    | '/affiliate-manager/analytics'
+    | '/affiliate-manager/applications'
+    | '/affiliate-manager/audit-log'
+    | '/affiliate-manager/bulk-actions'
+    | '/affiliate-manager/campaigns'
+    | '/affiliate-manager/commissions'
+    | '/affiliate-manager/communication'
+    | '/affiliate-manager/compliance'
+    | '/affiliate-manager/coupons'
+    | '/affiliate-manager/customers'
+    | '/affiliate-manager/documents'
+    | '/affiliate-manager/export'
+    | '/affiliate-manager/import'
+    | '/affiliate-manager/leads'
+    | '/affiliate-manager/marketing'
+    | '/affiliate-manager/marketplace'
+    | '/affiliate-manager/orders'
+    | '/affiliate-manager/payouts'
+    | '/affiliate-manager/performance'
+    | '/affiliate-manager/products'
+    | '/affiliate-manager/realtime-test'
+    | '/affiliate-manager/referral-codes'
+    | '/affiliate-manager/referral-network'
+    | '/affiliate-manager/reports'
+    | '/affiliate-manager/sales'
+    | '/affiliate-manager/search'
+    | '/affiliate-manager/settings'
+    | '/affiliate-manager/support'
+    | '/affiliate-manager/wallet'
+    | '/ai/assistant'
+    | '/ai/compare'
+    | '/ai/finder'
+    | '/ai/recommend'
     | '/api/chat'
     | '/apply/$role'
     | '/dashboard/$role'
+    | '/demo/$slug'
+    | '/manager/$section'
+    | '/marketing/ai-automation'
+    | '/marketing/analytics'
+    | '/marketing/approvals'
+    | '/marketing/audit'
+    | '/marketing/campaign-builder'
+    | '/marketing/campaigns'
+    | '/marketing/content'
+    | '/marketing/creatives'
+    | '/marketing/hierarchy'
+    | '/marketing/lead-sources'
+    | '/marketing/offers'
+    | '/marketing/performance'
+    | '/marketing/reports'
+    | '/marketing/schedules'
+    | '/marketing/seo'
+    | '/marketing/targeting'
+    | '/vala-ai/credits'
+    | '/vala-ai/errors'
+    | '/vala-ai/lock'
+    | '/vala-ai/logs'
+    | '/vala-ai/models'
+    | '/vala-ai/projects'
+    | '/vala-ai/prompts'
+    | '/vala-ai/rollback'
+    | '/vala-ai/settings'
+    | '/academy'
+    | '/affiliate-manager'
     | '/apply'
+    | '/lead-manager'
+    | '/manager'
+    | '/marketing'
+    | '/vala-ai'
+    | '/proxy/demo'
+    | '/affiliate-manager/affiliates/$id'
+    | '/api/finance/reseller-membership'
+    | '/api/internal/apply-migrations'
+    | '/api/internal/apply-reseller-schema'
+    | '/api/internal/credential-setup'
+    | '/api/internal/db-health'
+    | '/api/internal/marketplace-migration'
+    | '/api/marketplace/activity'
+    | '/api/marketplace/lead'
+    | '/api/marketplace/search'
+    | '/marketplace/category/$slug'
+    | '/marketplace/product/$slug'
+    | '/api/proxy/demo/$'
   id:
     | '__root__'
     | '/'
+    | '/affiliate-manager'
+    | '/ai-api-manager'
+    | '/ams-manager'
     | '/auth'
+    | '/boss'
     | '/chat'
+    | '/checkout'
     | '/control-panel'
     | '/creator-manager'
+    | '/demo-manager'
+    | '/demo-ops'
+    | '/demo-workspace'
     | '/franchise-manager'
     | '/influencer-manager'
+    | '/internal-support-ai'
+    | '/keywords'
+    | '/lead-manager'
+    | '/login'
+    | '/manager'
+    | '/marketing'
+    | '/marketplace'
     | '/marketplace-manager'
+    | '/marketplace-recovery'
+    | '/pages'
+    | '/product-demo-manager'
     | '/reseller-manager'
+    | '/sales-crm'
+    | '/sales-support-manager'
     | '/seo-manager'
+    | '/support'
+    | '/support-agent'
+    | '/support-chatbot'
+    | '/support-chatbot-blueprint'
+    | '/vala-ai'
+    | '/vala-tv'
+    | '/demo/'
+    | '/academy/$course'
+    | '/admin/import'
+    | '/affiliate-manager/affiliate-links'
+    | '/affiliate-manager/affiliates'
+    | '/affiliate-manager/analytics'
+    | '/affiliate-manager/applications'
+    | '/affiliate-manager/audit-log'
+    | '/affiliate-manager/bulk-actions'
+    | '/affiliate-manager/campaigns'
+    | '/affiliate-manager/commissions'
+    | '/affiliate-manager/communication'
+    | '/affiliate-manager/compliance'
+    | '/affiliate-manager/coupons'
+    | '/affiliate-manager/customers'
+    | '/affiliate-manager/documents'
+    | '/affiliate-manager/export'
+    | '/affiliate-manager/import'
+    | '/affiliate-manager/leads'
+    | '/affiliate-manager/marketing'
+    | '/affiliate-manager/marketplace'
+    | '/affiliate-manager/orders'
+    | '/affiliate-manager/payouts'
+    | '/affiliate-manager/performance'
+    | '/affiliate-manager/products'
+    | '/affiliate-manager/realtime-test'
+    | '/affiliate-manager/referral-codes'
+    | '/affiliate-manager/referral-network'
+    | '/affiliate-manager/reports'
+    | '/affiliate-manager/sales'
+    | '/affiliate-manager/search'
+    | '/affiliate-manager/settings'
+    | '/affiliate-manager/support'
+    | '/affiliate-manager/wallet'
+    | '/ai/assistant'
+    | '/ai/compare'
+    | '/ai/finder'
+    | '/ai/recommend'
     | '/api/chat'
     | '/apply/$role'
     | '/dashboard/$role'
+    | '/demo/$slug'
+    | '/manager/$section'
+    | '/marketing/ai-automation'
+    | '/marketing/analytics'
+    | '/marketing/approvals'
+    | '/marketing/audit'
+    | '/marketing/campaign-builder'
+    | '/marketing/campaigns'
+    | '/marketing/content'
+    | '/marketing/creatives'
+    | '/marketing/hierarchy'
+    | '/marketing/lead-sources'
+    | '/marketing/offers'
+    | '/marketing/performance'
+    | '/marketing/reports'
+    | '/marketing/schedules'
+    | '/marketing/seo'
+    | '/marketing/targeting'
+    | '/vala-ai/credits'
+    | '/vala-ai/errors'
+    | '/vala-ai/lock'
+    | '/vala-ai/logs'
+    | '/vala-ai/models'
+    | '/vala-ai/projects'
+    | '/vala-ai/prompts'
+    | '/vala-ai/rollback'
+    | '/vala-ai/settings'
+    | '/academy/'
+    | '/affiliate-manager/'
     | '/apply/'
+    | '/lead-manager/'
+    | '/manager/'
+    | '/marketing/'
+    | '/vala-ai/'
+    | '/proxy/demo/'
+    | '/affiliate-manager/affiliates/$id'
+    | '/api/finance/reseller-membership'
+    | '/api/internal/apply-migrations'
+    | '/api/internal/apply-reseller-schema'
+    | '/api/internal/credential-setup'
+    | '/api/internal/db-health'
+    | '/api/internal/marketplace-migration'
+    | '/api/marketplace/activity'
+    | '/api/marketplace/lead'
+    | '/api/marketplace/search'
+    | '/marketplace/category/$slug'
+    | '/marketplace/product/$slug'
+    | '/api/proxy/demo/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AffiliateManagerRoute: typeof AffiliateManagerRouteWithChildren
+  AiApiManagerRoute: typeof AiApiManagerRoute
+  AmsManagerRoute: typeof AmsManagerRoute
   AuthRoute: typeof AuthRoute
+  BossRoute: typeof BossRoute
   ChatRoute: typeof ChatRoute
+  CheckoutRoute: typeof CheckoutRoute
   ControlPanelRoute: typeof ControlPanelRoute
   CreatorManagerRoute: typeof CreatorManagerRoute
+  DemoManagerRoute: typeof DemoManagerRoute
+  DemoOpsRoute: typeof DemoOpsRoute
+  DemoWorkspaceRoute: typeof DemoWorkspaceRoute
   FranchiseManagerRoute: typeof FranchiseManagerRoute
   InfluencerManagerRoute: typeof InfluencerManagerRoute
+  InternalSupportAiRoute: typeof InternalSupportAiRoute
+  KeywordsRoute: typeof KeywordsRoute
+  LeadManagerRoute: typeof LeadManagerRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  ManagerRoute: typeof ManagerRouteWithChildren
+  MarketingRoute: typeof MarketingRouteWithChildren
+  MarketplaceRoute: typeof MarketplaceRouteWithChildren
   MarketplaceManagerRoute: typeof MarketplaceManagerRoute
+  MarketplaceRecoveryRoute: typeof MarketplaceRecoveryRoute
+  PagesRoute: typeof PagesRoute
+  ProductDemoManagerRoute: typeof ProductDemoManagerRoute
   ResellerManagerRoute: typeof ResellerManagerRoute
+  SalesCrmRoute: typeof SalesCrmRoute
+  SalesSupportManagerRoute: typeof SalesSupportManagerRoute
   SeoManagerRoute: typeof SeoManagerRoute
+  SupportRoute: typeof SupportRoute
+  SupportAgentRoute: typeof SupportAgentRoute
+  SupportChatbotRoute: typeof SupportChatbotRoute
+  SupportChatbotBlueprintRoute: typeof SupportChatbotBlueprintRoute
+  ValaAiRoute: typeof ValaAiRouteWithChildren
+  ValaTvRoute: typeof ValaTvRoute
+  DemoRoute: typeof DemoRoute
+  AcademyCourseRoute: typeof AcademyCourseRoute
+  AdminImportRoute: typeof AdminImportRoute
+  AiAssistantRoute: typeof AiAssistantRoute
+  AiCompareRoute: typeof AiCompareRoute
+  AiFinderRoute: typeof AiFinderRoute
+  AiRecommendRoute: typeof AiRecommendRoute
   ApiChatRoute: typeof ApiChatRoute
   ApplyRoleRoute: typeof ApplyRoleRoute
   DashboardRoleRoute: typeof DashboardRoleRoute
+  DemoSlugRoute: typeof DemoSlugRoute
+  AcademyIndexRoute: typeof AcademyIndexRoute
   ApplyIndexRoute: typeof ApplyIndexRoute
+  ProxyDemoRoute: typeof ProxyDemoRoute
+  ApiFinanceResellerMembershipRoute: typeof ApiFinanceResellerMembershipRoute
+  ApiInternalApplyMigrationsRoute: typeof ApiInternalApplyMigrationsRoute
+  ApiInternalApplyResellerSchemaRoute: typeof ApiInternalApplyResellerSchemaRoute
+  ApiInternalCredentialSetupRoute: typeof ApiInternalCredentialSetupRoute
+  ApiInternalDbHealthRoute: typeof ApiInternalDbHealthRoute
+  ApiInternalMarketplaceMigrationRoute: typeof ApiInternalMarketplaceMigrationRoute
+  ApiMarketplaceActivityRoute: typeof ApiMarketplaceActivityRoute
+  ApiMarketplaceLeadRoute: typeof ApiMarketplaceLeadRoute
+  ApiMarketplaceSearchRoute: typeof ApiMarketplaceSearchRoute
+  ApiProxyDemoSplatRoute: typeof ApiProxyDemoSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -221,6 +1616,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/affiliate-manager': {
+      id: '/affiliate-manager'
+      path: '/affiliate-manager'
+      fullPath: '/affiliate-manager'
+      preLoaderRoute: typeof AffiliateManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-api-manager': {
+      id: '/ai-api-manager'
+      path: '/ai-api-manager'
+      fullPath: '/ai-api-manager'
+      preLoaderRoute: typeof AiApiManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ams-manager': {
+      id: '/ams-manager'
+      path: '/ams-manager'
+      fullPath: '/ams-manager'
+      preLoaderRoute: typeof AmsManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -228,11 +1644,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/boss': {
+      id: '/boss'
+      path: '/boss'
+      fullPath: '/boss'
+      preLoaderRoute: typeof BossRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/chat': {
       id: '/chat'
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout': {
+      id: '/checkout'
+      path: '/checkout'
+      fullPath: '/checkout'
+      preLoaderRoute: typeof CheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/control-panel': {
@@ -249,6 +1679,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CreatorManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/demo-manager': {
+      id: '/demo-manager'
+      path: '/demo-manager'
+      fullPath: '/demo-manager'
+      preLoaderRoute: typeof DemoManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo-ops': {
+      id: '/demo-ops'
+      path: '/demo-ops'
+      fullPath: '/demo-ops'
+      preLoaderRoute: typeof DemoOpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo-workspace': {
+      id: '/demo-workspace'
+      path: '/demo-workspace'
+      fullPath: '/demo-workspace'
+      preLoaderRoute: typeof DemoWorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/franchise-manager': {
       id: '/franchise-manager'
       path: '/franchise-manager'
@@ -263,11 +1714,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InfluencerManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/internal-support-ai': {
+      id: '/internal-support-ai'
+      path: '/internal-support-ai'
+      fullPath: '/internal-support-ai'
+      preLoaderRoute: typeof InternalSupportAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/keywords': {
+      id: '/keywords'
+      path: '/keywords'
+      fullPath: '/keywords'
+      preLoaderRoute: typeof KeywordsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lead-manager': {
+      id: '/lead-manager'
+      path: '/lead-manager'
+      fullPath: '/lead-manager'
+      preLoaderRoute: typeof LeadManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manager': {
+      id: '/manager'
+      path: '/manager'
+      fullPath: '/manager'
+      preLoaderRoute: typeof ManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketing': {
+      id: '/marketing'
+      path: '/marketing'
+      fullPath: '/marketing'
+      preLoaderRoute: typeof MarketingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketplace': {
+      id: '/marketplace'
+      path: '/marketplace'
+      fullPath: '/marketplace'
+      preLoaderRoute: typeof MarketplaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/marketplace-manager': {
       id: '/marketplace-manager'
       path: '/marketplace-manager'
       fullPath: '/marketplace-manager'
       preLoaderRoute: typeof MarketplaceManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketplace-recovery': {
+      id: '/marketplace-recovery'
+      path: '/marketplace-recovery'
+      fullPath: '/marketplace-recovery'
+      preLoaderRoute: typeof MarketplaceRecoveryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pages': {
+      id: '/pages'
+      path: '/pages'
+      fullPath: '/pages'
+      preLoaderRoute: typeof PagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/product-demo-manager': {
+      id: '/product-demo-manager'
+      path: '/product-demo-manager'
+      fullPath: '/product-demo-manager'
+      preLoaderRoute: typeof ProductDemoManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reseller-manager': {
@@ -277,11 +1798,340 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResellerManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sales-crm': {
+      id: '/sales-crm'
+      path: '/sales-crm'
+      fullPath: '/sales-crm'
+      preLoaderRoute: typeof SalesCrmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sales-support-manager': {
+      id: '/sales-support-manager'
+      path: '/sales-support-manager'
+      fullPath: '/sales-support-manager'
+      preLoaderRoute: typeof SalesSupportManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/seo-manager': {
       id: '/seo-manager'
       path: '/seo-manager'
       fullPath: '/seo-manager'
       preLoaderRoute: typeof SeoManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support-agent': {
+      id: '/support-agent'
+      path: '/support-agent'
+      fullPath: '/support-agent'
+      preLoaderRoute: typeof SupportAgentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support-chatbot': {
+      id: '/support-chatbot'
+      path: '/support-chatbot'
+      fullPath: '/support-chatbot'
+      preLoaderRoute: typeof SupportChatbotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support-chatbot-blueprint': {
+      id: '/support-chatbot-blueprint'
+      path: '/support-chatbot-blueprint'
+      fullPath: '/support-chatbot-blueprint'
+      preLoaderRoute: typeof SupportChatbotBlueprintRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vala-ai': {
+      id: '/vala-ai'
+      path: '/vala-ai'
+      fullPath: '/vala-ai'
+      preLoaderRoute: typeof ValaAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vala-tv': {
+      id: '/vala-tv'
+      path: '/vala-tv'
+      fullPath: '/vala-tv'
+      preLoaderRoute: typeof ValaTvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/academy/': {
+      id: '/academy/'
+      path: '/academy'
+      fullPath: '/academy/'
+      preLoaderRoute: typeof AcademyIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/academy/$course': {
+      id: '/academy/$course'
+      path: '/academy/$course'
+      fullPath: '/academy/$course'
+      preLoaderRoute: typeof AcademyCourseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/import': {
+      id: '/admin/import'
+      path: '/admin/import'
+      fullPath: '/admin/import'
+      preLoaderRoute: typeof AdminImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/affiliate-manager/': {
+      id: '/affiliate-manager/'
+      path: '/'
+      fullPath: '/affiliate-manager/'
+      preLoaderRoute: typeof AffiliateManagerIndexRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/affiliate-links': {
+      id: '/affiliate-manager/affiliate-links'
+      path: '/affiliate-links'
+      fullPath: '/affiliate-manager/affiliate-links'
+      preLoaderRoute: typeof AffiliateManagerAffiliateLinksRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/affiliates': {
+      id: '/affiliate-manager/affiliates'
+      path: '/affiliates'
+      fullPath: '/affiliate-manager/affiliates'
+      preLoaderRoute: typeof AffiliateManagerAffiliatesRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/analytics': {
+      id: '/affiliate-manager/analytics'
+      path: '/analytics'
+      fullPath: '/affiliate-manager/analytics'
+      preLoaderRoute: typeof AffiliateManagerAnalyticsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/applications': {
+      id: '/affiliate-manager/applications'
+      path: '/applications'
+      fullPath: '/affiliate-manager/applications'
+      preLoaderRoute: typeof AffiliateManagerApplicationsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/audit-log': {
+      id: '/affiliate-manager/audit-log'
+      path: '/audit-log'
+      fullPath: '/affiliate-manager/audit-log'
+      preLoaderRoute: typeof AffiliateManagerAuditLogRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/bulk-actions': {
+      id: '/affiliate-manager/bulk-actions'
+      path: '/bulk-actions'
+      fullPath: '/affiliate-manager/bulk-actions'
+      preLoaderRoute: typeof AffiliateManagerBulkActionsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/campaigns': {
+      id: '/affiliate-manager/campaigns'
+      path: '/campaigns'
+      fullPath: '/affiliate-manager/campaigns'
+      preLoaderRoute: typeof AffiliateManagerCampaignsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/commissions': {
+      id: '/affiliate-manager/commissions'
+      path: '/commissions'
+      fullPath: '/affiliate-manager/commissions'
+      preLoaderRoute: typeof AffiliateManagerCommissionsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/communication': {
+      id: '/affiliate-manager/communication'
+      path: '/communication'
+      fullPath: '/affiliate-manager/communication'
+      preLoaderRoute: typeof AffiliateManagerCommunicationRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/compliance': {
+      id: '/affiliate-manager/compliance'
+      path: '/compliance'
+      fullPath: '/affiliate-manager/compliance'
+      preLoaderRoute: typeof AffiliateManagerComplianceRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/coupons': {
+      id: '/affiliate-manager/coupons'
+      path: '/coupons'
+      fullPath: '/affiliate-manager/coupons'
+      preLoaderRoute: typeof AffiliateManagerCouponsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/customers': {
+      id: '/affiliate-manager/customers'
+      path: '/customers'
+      fullPath: '/affiliate-manager/customers'
+      preLoaderRoute: typeof AffiliateManagerCustomersRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/documents': {
+      id: '/affiliate-manager/documents'
+      path: '/documents'
+      fullPath: '/affiliate-manager/documents'
+      preLoaderRoute: typeof AffiliateManagerDocumentsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/export': {
+      id: '/affiliate-manager/export'
+      path: '/export'
+      fullPath: '/affiliate-manager/export'
+      preLoaderRoute: typeof AffiliateManagerExportRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/import': {
+      id: '/affiliate-manager/import'
+      path: '/import'
+      fullPath: '/affiliate-manager/import'
+      preLoaderRoute: typeof AffiliateManagerImportRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/leads': {
+      id: '/affiliate-manager/leads'
+      path: '/leads'
+      fullPath: '/affiliate-manager/leads'
+      preLoaderRoute: typeof AffiliateManagerLeadsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/marketing': {
+      id: '/affiliate-manager/marketing'
+      path: '/marketing'
+      fullPath: '/affiliate-manager/marketing'
+      preLoaderRoute: typeof AffiliateManagerMarketingRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/marketplace': {
+      id: '/affiliate-manager/marketplace'
+      path: '/marketplace'
+      fullPath: '/affiliate-manager/marketplace'
+      preLoaderRoute: typeof AffiliateManagerMarketplaceRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/orders': {
+      id: '/affiliate-manager/orders'
+      path: '/orders'
+      fullPath: '/affiliate-manager/orders'
+      preLoaderRoute: typeof AffiliateManagerOrdersRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/payouts': {
+      id: '/affiliate-manager/payouts'
+      path: '/payouts'
+      fullPath: '/affiliate-manager/payouts'
+      preLoaderRoute: typeof AffiliateManagerPayoutsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/performance': {
+      id: '/affiliate-manager/performance'
+      path: '/performance'
+      fullPath: '/affiliate-manager/performance'
+      preLoaderRoute: typeof AffiliateManagerPerformanceRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/products': {
+      id: '/affiliate-manager/products'
+      path: '/products'
+      fullPath: '/affiliate-manager/products'
+      preLoaderRoute: typeof AffiliateManagerProductsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/realtime-test': {
+      id: '/affiliate-manager/realtime-test'
+      path: '/realtime-test'
+      fullPath: '/affiliate-manager/realtime-test'
+      preLoaderRoute: typeof AffiliateManagerRealtimeTestRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/referral-codes': {
+      id: '/affiliate-manager/referral-codes'
+      path: '/referral-codes'
+      fullPath: '/affiliate-manager/referral-codes'
+      preLoaderRoute: typeof AffiliateManagerReferralCodesRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/referral-network': {
+      id: '/affiliate-manager/referral-network'
+      path: '/referral-network'
+      fullPath: '/affiliate-manager/referral-network'
+      preLoaderRoute: typeof AffiliateManagerReferralNetworkRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/reports': {
+      id: '/affiliate-manager/reports'
+      path: '/reports'
+      fullPath: '/affiliate-manager/reports'
+      preLoaderRoute: typeof AffiliateManagerReportsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/sales': {
+      id: '/affiliate-manager/sales'
+      path: '/sales'
+      fullPath: '/affiliate-manager/sales'
+      preLoaderRoute: typeof AffiliateManagerSalesRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/search': {
+      id: '/affiliate-manager/search'
+      path: '/search'
+      fullPath: '/affiliate-manager/search'
+      preLoaderRoute: typeof AffiliateManagerSearchRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/settings': {
+      id: '/affiliate-manager/settings'
+      path: '/settings'
+      fullPath: '/affiliate-manager/settings'
+      preLoaderRoute: typeof AffiliateManagerSettingsRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/support': {
+      id: '/affiliate-manager/support'
+      path: '/support'
+      fullPath: '/affiliate-manager/support'
+      preLoaderRoute: typeof AffiliateManagerSupportRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/affiliate-manager/wallet': {
+      id: '/affiliate-manager/wallet'
+      path: '/wallet'
+      fullPath: '/affiliate-manager/wallet'
+      preLoaderRoute: typeof AffiliateManagerWalletRouteImport
+      parentRoute: typeof AffiliateManagerRoute
+    }
+    '/ai/assistant': {
+      id: '/ai/assistant'
+      path: '/ai/assistant'
+      fullPath: '/ai/assistant'
+      preLoaderRoute: typeof AiAssistantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai/compare': {
+      id: '/ai/compare'
+      path: '/ai/compare'
+      fullPath: '/ai/compare'
+      preLoaderRoute: typeof AiCompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai/finder': {
+      id: '/ai/finder'
+      path: '/ai/finder'
+      fullPath: '/ai/finder'
+      preLoaderRoute: typeof AiFinderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai/recommend': {
+      id: '/ai/recommend'
+      path: '/ai/recommend'
+      fullPath: '/ai/recommend'
+      preLoaderRoute: typeof AiRecommendRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -312,24 +2162,591 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRoleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/demo/': {
+      id: '/demo/'
+      path: '/demo'
+      fullPath: '/demo/'
+      preLoaderRoute: typeof DemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo/$slug': {
+      id: '/demo/$slug'
+      path: '/demo/$slug'
+      fullPath: '/demo/$slug'
+      preLoaderRoute: typeof DemoSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lead-manager/': {
+      id: '/lead-manager/'
+      path: '/'
+      fullPath: '/lead-manager/'
+      preLoaderRoute: typeof LeadManagerIndexRouteImport
+      parentRoute: typeof LeadManagerRoute
+    }
+    '/manager/': {
+      id: '/manager/'
+      path: '/'
+      fullPath: '/manager/'
+      preLoaderRoute: typeof ManagerIndexRouteImport
+      parentRoute: typeof ManagerRoute
+    }
+    '/manager/$section': {
+      id: '/manager/$section'
+      path: '/$section'
+      fullPath: '/manager/$section'
+      preLoaderRoute: typeof ManagerSectionRouteImport
+      parentRoute: typeof ManagerRoute
+    }
+    '/marketing/': {
+      id: '/marketing/'
+      path: '/'
+      fullPath: '/marketing/'
+      preLoaderRoute: typeof MarketingIndexRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/ai-automation': {
+      id: '/marketing/ai-automation'
+      path: '/ai-automation'
+      fullPath: '/marketing/ai-automation'
+      preLoaderRoute: typeof MarketingAiAutomationRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/analytics': {
+      id: '/marketing/analytics'
+      path: '/analytics'
+      fullPath: '/marketing/analytics'
+      preLoaderRoute: typeof MarketingAnalyticsRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/approvals': {
+      id: '/marketing/approvals'
+      path: '/approvals'
+      fullPath: '/marketing/approvals'
+      preLoaderRoute: typeof MarketingApprovalsRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/audit': {
+      id: '/marketing/audit'
+      path: '/audit'
+      fullPath: '/marketing/audit'
+      preLoaderRoute: typeof MarketingAuditRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/campaign-builder': {
+      id: '/marketing/campaign-builder'
+      path: '/campaign-builder'
+      fullPath: '/marketing/campaign-builder'
+      preLoaderRoute: typeof MarketingCampaignBuilderRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/campaigns': {
+      id: '/marketing/campaigns'
+      path: '/campaigns'
+      fullPath: '/marketing/campaigns'
+      preLoaderRoute: typeof MarketingCampaignsRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/content': {
+      id: '/marketing/content'
+      path: '/content'
+      fullPath: '/marketing/content'
+      preLoaderRoute: typeof MarketingContentRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/creatives': {
+      id: '/marketing/creatives'
+      path: '/creatives'
+      fullPath: '/marketing/creatives'
+      preLoaderRoute: typeof MarketingCreativesRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/hierarchy': {
+      id: '/marketing/hierarchy'
+      path: '/hierarchy'
+      fullPath: '/marketing/hierarchy'
+      preLoaderRoute: typeof MarketingHierarchyRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/lead-sources': {
+      id: '/marketing/lead-sources'
+      path: '/lead-sources'
+      fullPath: '/marketing/lead-sources'
+      preLoaderRoute: typeof MarketingLeadSourcesRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/offers': {
+      id: '/marketing/offers'
+      path: '/offers'
+      fullPath: '/marketing/offers'
+      preLoaderRoute: typeof MarketingOffersRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/performance': {
+      id: '/marketing/performance'
+      path: '/performance'
+      fullPath: '/marketing/performance'
+      preLoaderRoute: typeof MarketingPerformanceRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/reports': {
+      id: '/marketing/reports'
+      path: '/reports'
+      fullPath: '/marketing/reports'
+      preLoaderRoute: typeof MarketingReportsRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/schedules': {
+      id: '/marketing/schedules'
+      path: '/schedules'
+      fullPath: '/marketing/schedules'
+      preLoaderRoute: typeof MarketingSchedulesRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/seo': {
+      id: '/marketing/seo'
+      path: '/seo'
+      fullPath: '/marketing/seo'
+      preLoaderRoute: typeof MarketingSeoRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/marketing/targeting': {
+      id: '/marketing/targeting'
+      path: '/targeting'
+      fullPath: '/marketing/targeting'
+      preLoaderRoute: typeof MarketingTargetingRouteImport
+      parentRoute: typeof MarketingRoute
+    }
+    '/vala-ai/': {
+      id: '/vala-ai/'
+      path: '/'
+      fullPath: '/vala-ai/'
+      preLoaderRoute: typeof ValaAiIndexRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/credits': {
+      id: '/vala-ai/credits'
+      path: '/credits'
+      fullPath: '/vala-ai/credits'
+      preLoaderRoute: typeof ValaAiCreditsRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/errors': {
+      id: '/vala-ai/errors'
+      path: '/errors'
+      fullPath: '/vala-ai/errors'
+      preLoaderRoute: typeof ValaAiErrorsRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/lock': {
+      id: '/vala-ai/lock'
+      path: '/lock'
+      fullPath: '/vala-ai/lock'
+      preLoaderRoute: typeof ValaAiLockRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/logs': {
+      id: '/vala-ai/logs'
+      path: '/logs'
+      fullPath: '/vala-ai/logs'
+      preLoaderRoute: typeof ValaAiLogsRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/models': {
+      id: '/vala-ai/models'
+      path: '/models'
+      fullPath: '/vala-ai/models'
+      preLoaderRoute: typeof ValaAiModelsRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/projects': {
+      id: '/vala-ai/projects'
+      path: '/projects'
+      fullPath: '/vala-ai/projects'
+      preLoaderRoute: typeof ValaAiProjectsRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/prompts': {
+      id: '/vala-ai/prompts'
+      path: '/prompts'
+      fullPath: '/vala-ai/prompts'
+      preLoaderRoute: typeof ValaAiPromptsRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/rollback': {
+      id: '/vala-ai/rollback'
+      path: '/rollback'
+      fullPath: '/vala-ai/rollback'
+      preLoaderRoute: typeof ValaAiRollbackRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/settings': {
+      id: '/vala-ai/settings'
+      path: '/settings'
+      fullPath: '/vala-ai/settings'
+      preLoaderRoute: typeof ValaAiSettingsRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/affiliate-manager/affiliates/$id': {
+      id: '/affiliate-manager/affiliates/$id'
+      path: '/$id'
+      fullPath: '/affiliate-manager/affiliates/$id'
+      preLoaderRoute: typeof AffiliateManagerAffiliatesIdRouteImport
+      parentRoute: typeof AffiliateManagerAffiliatesRoute
+    }
+    '/api/finance/reseller-membership': {
+      id: '/api/finance/reseller-membership'
+      path: '/api/finance/reseller-membership'
+      fullPath: '/api/finance/reseller-membership'
+      preLoaderRoute: typeof ApiFinanceResellerMembershipRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/apply-migrations': {
+      id: '/api/internal/apply-migrations'
+      path: '/api/internal/apply-migrations'
+      fullPath: '/api/internal/apply-migrations'
+      preLoaderRoute: typeof ApiInternalApplyMigrationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/apply-reseller-schema': {
+      id: '/api/internal/apply-reseller-schema'
+      path: '/api/internal/apply-reseller-schema'
+      fullPath: '/api/internal/apply-reseller-schema'
+      preLoaderRoute: typeof ApiInternalApplyResellerSchemaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/credential-setup': {
+      id: '/api/internal/credential-setup'
+      path: '/api/internal/credential-setup'
+      fullPath: '/api/internal/credential-setup'
+      preLoaderRoute: typeof ApiInternalCredentialSetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/db-health': {
+      id: '/api/internal/db-health'
+      path: '/api/internal/db-health'
+      fullPath: '/api/internal/db-health'
+      preLoaderRoute: typeof ApiInternalDbHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/marketplace-migration': {
+      id: '/api/internal/marketplace-migration'
+      path: '/api/internal/marketplace-migration'
+      fullPath: '/api/internal/marketplace-migration'
+      preLoaderRoute: typeof ApiInternalMarketplaceMigrationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/marketplace/activity': {
+      id: '/api/marketplace/activity'
+      path: '/api/marketplace/activity'
+      fullPath: '/api/marketplace/activity'
+      preLoaderRoute: typeof ApiMarketplaceActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/marketplace/lead': {
+      id: '/api/marketplace/lead'
+      path: '/api/marketplace/lead'
+      fullPath: '/api/marketplace/lead'
+      preLoaderRoute: typeof ApiMarketplaceLeadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/marketplace/search': {
+      id: '/api/marketplace/search'
+      path: '/api/marketplace/search'
+      fullPath: '/api/marketplace/search'
+      preLoaderRoute: typeof ApiMarketplaceSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketplace/category/$slug': {
+      id: '/marketplace/category/$slug'
+      path: '/category/$slug'
+      fullPath: '/marketplace/category/$slug'
+      preLoaderRoute: typeof MarketplaceCategorySlugRouteImport
+      parentRoute: typeof MarketplaceRoute
+    }
+    '/marketplace/product/$slug': {
+      id: '/marketplace/product/$slug'
+      path: '/product/$slug'
+      fullPath: '/marketplace/product/$slug'
+      preLoaderRoute: typeof MarketplaceProductSlugRouteImport
+      parentRoute: typeof MarketplaceRoute
+    }
+    '/proxy/demo/': {
+      id: '/proxy/demo/'
+      path: '/proxy/demo'
+      fullPath: '/proxy/demo/'
+      preLoaderRoute: typeof ProxyDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/proxy/demo/$': {
+      id: '/api/proxy/demo/$'
+      path: '/api/proxy/demo/$'
+      fullPath: '/api/proxy/demo/$'
+      preLoaderRoute: typeof ApiProxyDemoSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AffiliateManagerAffiliatesRouteChildren {
+  AffiliateManagerAffiliatesIdRoute: typeof AffiliateManagerAffiliatesIdRoute
+}
+
+const AffiliateManagerAffiliatesRouteChildren: AffiliateManagerAffiliatesRouteChildren =
+  {
+    AffiliateManagerAffiliatesIdRoute: AffiliateManagerAffiliatesIdRoute,
+  }
+
+const AffiliateManagerAffiliatesRouteWithChildren =
+  AffiliateManagerAffiliatesRoute._addFileChildren(
+    AffiliateManagerAffiliatesRouteChildren,
+  )
+
+interface AffiliateManagerRouteChildren {
+  AffiliateManagerAffiliateLinksRoute: typeof AffiliateManagerAffiliateLinksRoute
+  AffiliateManagerAffiliatesRoute: typeof AffiliateManagerAffiliatesRouteWithChildren
+  AffiliateManagerAnalyticsRoute: typeof AffiliateManagerAnalyticsRoute
+  AffiliateManagerApplicationsRoute: typeof AffiliateManagerApplicationsRoute
+  AffiliateManagerAuditLogRoute: typeof AffiliateManagerAuditLogRoute
+  AffiliateManagerBulkActionsRoute: typeof AffiliateManagerBulkActionsRoute
+  AffiliateManagerCampaignsRoute: typeof AffiliateManagerCampaignsRoute
+  AffiliateManagerCommissionsRoute: typeof AffiliateManagerCommissionsRoute
+  AffiliateManagerCommunicationRoute: typeof AffiliateManagerCommunicationRoute
+  AffiliateManagerComplianceRoute: typeof AffiliateManagerComplianceRoute
+  AffiliateManagerCouponsRoute: typeof AffiliateManagerCouponsRoute
+  AffiliateManagerCustomersRoute: typeof AffiliateManagerCustomersRoute
+  AffiliateManagerDocumentsRoute: typeof AffiliateManagerDocumentsRoute
+  AffiliateManagerExportRoute: typeof AffiliateManagerExportRoute
+  AffiliateManagerImportRoute: typeof AffiliateManagerImportRoute
+  AffiliateManagerLeadsRoute: typeof AffiliateManagerLeadsRoute
+  AffiliateManagerMarketingRoute: typeof AffiliateManagerMarketingRoute
+  AffiliateManagerMarketplaceRoute: typeof AffiliateManagerMarketplaceRoute
+  AffiliateManagerOrdersRoute: typeof AffiliateManagerOrdersRoute
+  AffiliateManagerPayoutsRoute: typeof AffiliateManagerPayoutsRoute
+  AffiliateManagerPerformanceRoute: typeof AffiliateManagerPerformanceRoute
+  AffiliateManagerProductsRoute: typeof AffiliateManagerProductsRoute
+  AffiliateManagerRealtimeTestRoute: typeof AffiliateManagerRealtimeTestRoute
+  AffiliateManagerReferralCodesRoute: typeof AffiliateManagerReferralCodesRoute
+  AffiliateManagerReferralNetworkRoute: typeof AffiliateManagerReferralNetworkRoute
+  AffiliateManagerReportsRoute: typeof AffiliateManagerReportsRoute
+  AffiliateManagerSalesRoute: typeof AffiliateManagerSalesRoute
+  AffiliateManagerSearchRoute: typeof AffiliateManagerSearchRoute
+  AffiliateManagerSettingsRoute: typeof AffiliateManagerSettingsRoute
+  AffiliateManagerSupportRoute: typeof AffiliateManagerSupportRoute
+  AffiliateManagerWalletRoute: typeof AffiliateManagerWalletRoute
+  AffiliateManagerIndexRoute: typeof AffiliateManagerIndexRoute
+}
+
+const AffiliateManagerRouteChildren: AffiliateManagerRouteChildren = {
+  AffiliateManagerAffiliateLinksRoute: AffiliateManagerAffiliateLinksRoute,
+  AffiliateManagerAffiliatesRoute: AffiliateManagerAffiliatesRouteWithChildren,
+  AffiliateManagerAnalyticsRoute: AffiliateManagerAnalyticsRoute,
+  AffiliateManagerApplicationsRoute: AffiliateManagerApplicationsRoute,
+  AffiliateManagerAuditLogRoute: AffiliateManagerAuditLogRoute,
+  AffiliateManagerBulkActionsRoute: AffiliateManagerBulkActionsRoute,
+  AffiliateManagerCampaignsRoute: AffiliateManagerCampaignsRoute,
+  AffiliateManagerCommissionsRoute: AffiliateManagerCommissionsRoute,
+  AffiliateManagerCommunicationRoute: AffiliateManagerCommunicationRoute,
+  AffiliateManagerComplianceRoute: AffiliateManagerComplianceRoute,
+  AffiliateManagerCouponsRoute: AffiliateManagerCouponsRoute,
+  AffiliateManagerCustomersRoute: AffiliateManagerCustomersRoute,
+  AffiliateManagerDocumentsRoute: AffiliateManagerDocumentsRoute,
+  AffiliateManagerExportRoute: AffiliateManagerExportRoute,
+  AffiliateManagerImportRoute: AffiliateManagerImportRoute,
+  AffiliateManagerLeadsRoute: AffiliateManagerLeadsRoute,
+  AffiliateManagerMarketingRoute: AffiliateManagerMarketingRoute,
+  AffiliateManagerMarketplaceRoute: AffiliateManagerMarketplaceRoute,
+  AffiliateManagerOrdersRoute: AffiliateManagerOrdersRoute,
+  AffiliateManagerPayoutsRoute: AffiliateManagerPayoutsRoute,
+  AffiliateManagerPerformanceRoute: AffiliateManagerPerformanceRoute,
+  AffiliateManagerProductsRoute: AffiliateManagerProductsRoute,
+  AffiliateManagerRealtimeTestRoute: AffiliateManagerRealtimeTestRoute,
+  AffiliateManagerReferralCodesRoute: AffiliateManagerReferralCodesRoute,
+  AffiliateManagerReferralNetworkRoute: AffiliateManagerReferralNetworkRoute,
+  AffiliateManagerReportsRoute: AffiliateManagerReportsRoute,
+  AffiliateManagerSalesRoute: AffiliateManagerSalesRoute,
+  AffiliateManagerSearchRoute: AffiliateManagerSearchRoute,
+  AffiliateManagerSettingsRoute: AffiliateManagerSettingsRoute,
+  AffiliateManagerSupportRoute: AffiliateManagerSupportRoute,
+  AffiliateManagerWalletRoute: AffiliateManagerWalletRoute,
+  AffiliateManagerIndexRoute: AffiliateManagerIndexRoute,
+}
+
+const AffiliateManagerRouteWithChildren =
+  AffiliateManagerRoute._addFileChildren(AffiliateManagerRouteChildren)
+
+interface LeadManagerRouteChildren {
+  LeadManagerIndexRoute: typeof LeadManagerIndexRoute
+}
+
+const LeadManagerRouteChildren: LeadManagerRouteChildren = {
+  LeadManagerIndexRoute: LeadManagerIndexRoute,
+}
+
+const LeadManagerRouteWithChildren = LeadManagerRoute._addFileChildren(
+  LeadManagerRouteChildren,
+)
+
+interface ManagerRouteChildren {
+  ManagerSectionRoute: typeof ManagerSectionRoute
+  ManagerIndexRoute: typeof ManagerIndexRoute
+}
+
+const ManagerRouteChildren: ManagerRouteChildren = {
+  ManagerSectionRoute: ManagerSectionRoute,
+  ManagerIndexRoute: ManagerIndexRoute,
+}
+
+const ManagerRouteWithChildren =
+  ManagerRoute._addFileChildren(ManagerRouteChildren)
+
+interface MarketingRouteChildren {
+  MarketingAiAutomationRoute: typeof MarketingAiAutomationRoute
+  MarketingAnalyticsRoute: typeof MarketingAnalyticsRoute
+  MarketingApprovalsRoute: typeof MarketingApprovalsRoute
+  MarketingAuditRoute: typeof MarketingAuditRoute
+  MarketingCampaignBuilderRoute: typeof MarketingCampaignBuilderRoute
+  MarketingCampaignsRoute: typeof MarketingCampaignsRoute
+  MarketingContentRoute: typeof MarketingContentRoute
+  MarketingCreativesRoute: typeof MarketingCreativesRoute
+  MarketingHierarchyRoute: typeof MarketingHierarchyRoute
+  MarketingLeadSourcesRoute: typeof MarketingLeadSourcesRoute
+  MarketingOffersRoute: typeof MarketingOffersRoute
+  MarketingPerformanceRoute: typeof MarketingPerformanceRoute
+  MarketingReportsRoute: typeof MarketingReportsRoute
+  MarketingSchedulesRoute: typeof MarketingSchedulesRoute
+  MarketingSeoRoute: typeof MarketingSeoRoute
+  MarketingTargetingRoute: typeof MarketingTargetingRoute
+  MarketingIndexRoute: typeof MarketingIndexRoute
+}
+
+const MarketingRouteChildren: MarketingRouteChildren = {
+  MarketingAiAutomationRoute: MarketingAiAutomationRoute,
+  MarketingAnalyticsRoute: MarketingAnalyticsRoute,
+  MarketingApprovalsRoute: MarketingApprovalsRoute,
+  MarketingAuditRoute: MarketingAuditRoute,
+  MarketingCampaignBuilderRoute: MarketingCampaignBuilderRoute,
+  MarketingCampaignsRoute: MarketingCampaignsRoute,
+  MarketingContentRoute: MarketingContentRoute,
+  MarketingCreativesRoute: MarketingCreativesRoute,
+  MarketingHierarchyRoute: MarketingHierarchyRoute,
+  MarketingLeadSourcesRoute: MarketingLeadSourcesRoute,
+  MarketingOffersRoute: MarketingOffersRoute,
+  MarketingPerformanceRoute: MarketingPerformanceRoute,
+  MarketingReportsRoute: MarketingReportsRoute,
+  MarketingSchedulesRoute: MarketingSchedulesRoute,
+  MarketingSeoRoute: MarketingSeoRoute,
+  MarketingTargetingRoute: MarketingTargetingRoute,
+  MarketingIndexRoute: MarketingIndexRoute,
+}
+
+const MarketingRouteWithChildren = MarketingRoute._addFileChildren(
+  MarketingRouteChildren,
+)
+
+interface MarketplaceRouteChildren {
+  MarketplaceCategorySlugRoute: typeof MarketplaceCategorySlugRoute
+  MarketplaceProductSlugRoute: typeof MarketplaceProductSlugRoute
+}
+
+const MarketplaceRouteChildren: MarketplaceRouteChildren = {
+  MarketplaceCategorySlugRoute: MarketplaceCategorySlugRoute,
+  MarketplaceProductSlugRoute: MarketplaceProductSlugRoute,
+}
+
+const MarketplaceRouteWithChildren = MarketplaceRoute._addFileChildren(
+  MarketplaceRouteChildren,
+)
+
+interface ValaAiRouteChildren {
+  ValaAiCreditsRoute: typeof ValaAiCreditsRoute
+  ValaAiErrorsRoute: typeof ValaAiErrorsRoute
+  ValaAiLockRoute: typeof ValaAiLockRoute
+  ValaAiLogsRoute: typeof ValaAiLogsRoute
+  ValaAiModelsRoute: typeof ValaAiModelsRoute
+  ValaAiProjectsRoute: typeof ValaAiProjectsRoute
+  ValaAiPromptsRoute: typeof ValaAiPromptsRoute
+  ValaAiRollbackRoute: typeof ValaAiRollbackRoute
+  ValaAiSettingsRoute: typeof ValaAiSettingsRoute
+  ValaAiIndexRoute: typeof ValaAiIndexRoute
+}
+
+const ValaAiRouteChildren: ValaAiRouteChildren = {
+  ValaAiCreditsRoute: ValaAiCreditsRoute,
+  ValaAiErrorsRoute: ValaAiErrorsRoute,
+  ValaAiLockRoute: ValaAiLockRoute,
+  ValaAiLogsRoute: ValaAiLogsRoute,
+  ValaAiModelsRoute: ValaAiModelsRoute,
+  ValaAiProjectsRoute: ValaAiProjectsRoute,
+  ValaAiPromptsRoute: ValaAiPromptsRoute,
+  ValaAiRollbackRoute: ValaAiRollbackRoute,
+  ValaAiSettingsRoute: ValaAiSettingsRoute,
+  ValaAiIndexRoute: ValaAiIndexRoute,
+}
+
+const ValaAiRouteWithChildren =
+  ValaAiRoute._addFileChildren(ValaAiRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AffiliateManagerRoute: AffiliateManagerRouteWithChildren,
+  AiApiManagerRoute: AiApiManagerRoute,
+  AmsManagerRoute: AmsManagerRoute,
   AuthRoute: AuthRoute,
+  BossRoute: BossRoute,
   ChatRoute: ChatRoute,
+  CheckoutRoute: CheckoutRoute,
   ControlPanelRoute: ControlPanelRoute,
   CreatorManagerRoute: CreatorManagerRoute,
+  DemoManagerRoute: DemoManagerRoute,
+  DemoOpsRoute: DemoOpsRoute,
+  DemoWorkspaceRoute: DemoWorkspaceRoute,
   FranchiseManagerRoute: FranchiseManagerRoute,
   InfluencerManagerRoute: InfluencerManagerRoute,
+  InternalSupportAiRoute: InternalSupportAiRoute,
+  KeywordsRoute: KeywordsRoute,
+  LeadManagerRoute: LeadManagerRouteWithChildren,
+  LoginRoute: LoginRoute,
+  ManagerRoute: ManagerRouteWithChildren,
+  MarketingRoute: MarketingRouteWithChildren,
+  MarketplaceRoute: MarketplaceRouteWithChildren,
   MarketplaceManagerRoute: MarketplaceManagerRoute,
+  MarketplaceRecoveryRoute: MarketplaceRecoveryRoute,
+  PagesRoute: PagesRoute,
+  ProductDemoManagerRoute: ProductDemoManagerRoute,
   ResellerManagerRoute: ResellerManagerRoute,
+  SalesCrmRoute: SalesCrmRoute,
+  SalesSupportManagerRoute: SalesSupportManagerRoute,
   SeoManagerRoute: SeoManagerRoute,
+  SupportRoute: SupportRoute,
+  SupportAgentRoute: SupportAgentRoute,
+  SupportChatbotRoute: SupportChatbotRoute,
+  SupportChatbotBlueprintRoute: SupportChatbotBlueprintRoute,
+  ValaAiRoute: ValaAiRouteWithChildren,
+  ValaTvRoute: ValaTvRoute,
+  DemoRoute: DemoRoute,
+  AcademyCourseRoute: AcademyCourseRoute,
+  AdminImportRoute: AdminImportRoute,
+  AiAssistantRoute: AiAssistantRoute,
+  AiCompareRoute: AiCompareRoute,
+  AiFinderRoute: AiFinderRoute,
+  AiRecommendRoute: AiRecommendRoute,
   ApiChatRoute: ApiChatRoute,
   ApplyRoleRoute: ApplyRoleRoute,
   DashboardRoleRoute: DashboardRoleRoute,
+  DemoSlugRoute: DemoSlugRoute,
+  AcademyIndexRoute: AcademyIndexRoute,
   ApplyIndexRoute: ApplyIndexRoute,
+  ProxyDemoRoute: ProxyDemoRoute,
+  ApiFinanceResellerMembershipRoute: ApiFinanceResellerMembershipRoute,
+  ApiInternalApplyMigrationsRoute: ApiInternalApplyMigrationsRoute,
+  ApiInternalApplyResellerSchemaRoute: ApiInternalApplyResellerSchemaRoute,
+  ApiInternalCredentialSetupRoute: ApiInternalCredentialSetupRoute,
+  ApiInternalDbHealthRoute: ApiInternalDbHealthRoute,
+  ApiInternalMarketplaceMigrationRoute: ApiInternalMarketplaceMigrationRoute,
+  ApiMarketplaceActivityRoute: ApiMarketplaceActivityRoute,
+  ApiMarketplaceLeadRoute: ApiMarketplaceLeadRoute,
+  ApiMarketplaceSearchRoute: ApiMarketplaceSearchRoute,
+  ApiProxyDemoSplatRoute: ApiProxyDemoSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

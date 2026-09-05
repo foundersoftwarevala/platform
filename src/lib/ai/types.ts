@@ -1,0 +1,13 @@
+export type AiProject = { id: string; title: string; url: string | null; status: "active" | "building" | "paused"; stack: string; lastDeploy: string };
+export type AiPrompt = { id: string; projectTitle: string | null; role: "user" | "assistant"; content: string; language: string; model: string; tokens: number; createdAt: string };
+export type AiExecutionLog = { id: string; projectTitle: string | null; command: string; status: "success" | "error" | "warning"; durationMs: number; createdAt: string };
+export type AiModelRow = { id: string; name: string; provider: string; status: "active" | "idle"; requests: number; latencyMs: number; load: number };
+export type AiCreditTransaction = { id: string; reference: string; type: "usage" | "topup" | "refund"; description: string; amount: number; balance: number; createdAt: string };
+export type AiUsageRow = { service: string; amount: number; percent: number };
+export type AiCredits = { balance: number; todayUsage: number; monthUsage: number; runwayDays: number; lowBalanceThreshold: number; transactions: AiCreditTransaction[]; usage: AiUsageRow[] };
+export type AiSetting = { id: string; key: string; label: string; description: string; enabled: boolean; locked: boolean; icon: string };
+export type AiIssue = { id: string; category: string; label: string; severity: "critical" | "warning" | "info"; count: number; detail: string | null; projectTitle: string | null };
+export type AiSnapshot = { id: string; label: string; projectTitle: string | null; stable: boolean; sizeKb: number; createdAt: string };
+export type AiLockState = { locked: boolean; reason: string | null; changedBy: string | null; updatedAt: string };
+export type AiDataSource = "postgres" | "seed";
+export type Sourced<T> = { source: AiDataSource; data: T };

@@ -1,0 +1,13 @@
+import { Eye, FileSearch, Lock, Shield } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { useAgents, useAuditLogs } from "@/lib/lead-manager/queries";
+import { leadApi } from "@/lib/lead-manager/api";
+import { Panel, StatCard, relTime } from "../shared";
+import { useAction } from "./common";
+
+export function SecurityScreen() {
+  const { data: agents = [] } = useAgents();
+  const { data: logs = [] } = useAuditLogs();
+  const run = useAction();
+  return <div className="space-y-6"><div className="grid gap-4 sm:grid-cols-3"><StatCard label="Agents with export" value={String(agents.filter((a) => a.can_export).length)} icon={FileSearch} tone="warning"/><StatCard label="Agents with unmask" value={String(agents.filter((a) => a.can_unmask).length)} icon={Eye} tone="info"/><StatCard label="Audit events" value={String(logs.length)} icon={Shield} tone="success"/></div><Panel title="Access control matrix" description="Agent-level export and contact visibility permissions stored in the backend."><div className="space-y-2">{agents.map((agent) => <div key={agent.id} className="grid items-center gap-3 rounded-md border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_auto_auto]"><div><p className="text-sm font-medium">{agent.name}</p><p className="text-xs text-muted-foreground">{agent.role} • {agent.team}</p></div><label className="flex items-center gap-2 text-xs"><Lock className="size-3"/> Export <Switch checked={agent.can_export} onCheckedChange={(checked) => run(() => leadApi.setAgentPermissions(agent.id, { can_export: checked }), "Export permission updated")}/></label><label className="flex items-center gap-2 text-xs"><Eye className="size-3"/> Unmask <Switch checked={agent.can_unmask} onCheckedChange={(checked) => run(() => leadApi.setAgentPermissions(agent.id, { can_unmask: checked }), "Contact permission updated")}/></label></div>)}</div></Panel><Panel title="Audit logs" description="Immutable trail of lead changes, assignments, communications and permission updates."><div className="space-y-2">{logs.map((log) => <div key={log.id} className="flex flex-wrap justify-between gap-2 rounded-md border border-border bg-surface-2 p-3 text-sm"><span><strong>{log.action}</strong><span className="block text-xs text-muted-foreground">{log.details ?? "No details"}</span></span><span className="text-right text-xs text-muted-foreground">{log.actor} • {log.actor_role}<br/>{relTime(log.created_at)}</span></div>)}</div></Panel></div>;
+}

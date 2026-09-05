@@ -25,7 +25,25 @@ export const VIDEO_CATEGORIES = [
   "Academy",
 ] as const;
 
+/**
+ * The seeded rows all carry the same stand-in YouTube id, which points at
+ * unrelated footage. Until a real URL is set from Marketplace Manager a video
+ * counts as unpublished footage rather than something to open, so a viewer is
+ * never sent to the wrong film.
+ */
+const PLACEHOLDER_IDS = ["aqz-KE-bpKQ"];
+
+export function hasPlayableVideo(url: string): boolean {
+  const value = (url ?? "").trim();
+  if (!value) return false;
+  return !PLACEHOLDER_IDS.some((id) => value.includes(id));
+}
+
 const seed: Array<[string, string, string, string, string]> = [
+  // Real film from the Software Vala channel. The rows below it are still
+  // placeholders and are shown as unpublished until real URLs are set from
+  // Marketplace Manager -> Growth -> Vala TV.
+  ["MLM Software — Grow Your Network. Manage Your Business.", "https://youtu.be/faWCyXVBurY", "", "", "Product Demo"],
   ["How MediCore 360 powers 42 hospitals", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "4:12", "12k", "Customer Film"],
   ["Inside ShopEngine — multi-vendor at scale", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "7:48", "8.3k", "Product Demo"],
   ["Build a school OS with EduFlow", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "5:21", "15k", "Walkthrough"],
@@ -34,11 +52,17 @@ const seed: Array<[string, string, string, string, string]> = [
   ["Reseller playbook — first 10 clients", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "9:03", "5.2k", "Academy"],
 ];
 
+/** YouTube publishes a poster for every video at a predictable address. */
+function youtubeThumbnail(url: string): string {
+  const match = url.match(/(?:youtu\.be\/|v=|embed\/)([\w-]{6,})/);
+  return match?.[1] ? `https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg` : "";
+}
+
 export const VIDEO_SEED: ValaVideo[] = seed.map(([title, url, duration, views, category], i) => ({
   id: `vtv-${i + 1}`,
   title,
   url,
-  thumbnail: "",
+  thumbnail: hasPlayableVideo(url) ? youtubeThumbnail(url) : "",
   duration,
   views,
   category,
