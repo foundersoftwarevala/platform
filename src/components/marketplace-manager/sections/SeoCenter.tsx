@@ -358,9 +358,91 @@ function Delta({ v }: { v: number }) {
   );
 }
 
+/**
+ * The toolbar's search box and the table beneath it are rendered as siblings by
+ * every section, so the query and the current rows are shared through this
+ * small store rather than threaded through each one. Only one section is on
+ * screen at a time, so a single shared value is enough.
+ */
+type TableSnapshot = { head: string[]; rows: string[][] };
+
+const queryListeners = new Set<(value: string) => void>();
+let currentQuery = "";
+let currentSnapshot: TableSnapshot = { head: [], rows: [] };
+
+function setTableQuery(value: string) {
+  currentQuery = value;
+  queryListeners.forEach((listener) => listener(value));
+}
+
+function useTableQuery() {
+  const [value, setValue] = useState(currentQuery);
+  useEffect(() => {
+    queryListeners.add(setValue);
+    return () => {
+      queryListeners.delete(setValue);
+    };
+  }, []);
+  return value;
+}
+
+/** Pull readable text out of a rendered cell so it can be searched and exported. */
+function cellText(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(cellText).join(" ");
+  const element = node as { props?: { children?: ReactNode } };
+  if (element?.props?.children !== undefined) return cellText(element.props.children);
+  return "";
+}
+
+function downloadCsv(snapshot: TableSnapshot, name: string) {
+  const escape = (value: string) => `"${String(value).replace(/"/g, '""')}"`;
+  const lines = [snapshot.head, ...snapshot.rows].map((row) => row.map(escape).join(","));
+  const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+const SEARCH_INPUT_ID = "seo-center-search";
+
 function Toolbar({
   title, count, right,
 }: { title: string; count?: number; right?: ReactNode }) {
+  const query = useTableQuery();
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const focusSearch = () => {
+    const input = document.getElementById(SEARCH_INPUT_ID) as HTMLInputElement | null;
+    input?.focus();
+    input?.select();
+  };
+
+  const importRows = () => {
+    const picker = document.createElement("input");
+    picker.type = "file";
+    picker.accept = ".csv,text/csv";
+    picker.onchange = async () => {
+      const file = picker.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter((line) => line.trim());
+      // Nothing is written: this table has no import target yet, and saying so
+      // is better than reporting a save that did not happen.
+      setNotice(
+        `Read ${Math.max(lines.length - 1, 0)} row(s) from ${file.name}. ` +
+          `${title} has no import target yet, so nothing was saved.`,
+      );
+    };
+    picker.click();
+  };
+
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/40 p-2">
       <div className="flex items-center gap-2 pl-2">
@@ -371,17 +453,72 @@ function Toolbar({
       </div>
       <div className="relative ml-2 flex-1 min-w-[180px] max-w-md">
         <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <input placeholder="Search…" className="w-full rounded-md border border-border bg-background/60 py-1.5 pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-accent" />
+        <input
+          id={SEARCH_INPUT_ID}
+          value={query}
+          onChange={(e) => setTableQuery(e.target.value)}
+          placeholder="Search…"
+          aria-label={`Search ${title}`}
+          className="w-full rounded-md border border-border bg-background/60 py-1.5 pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-accent"
+        />
       </div>
-      <button className="inline-flex items-center gap-1 rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[11px] font-semibold hover:border-accent/40 hover:text-accent"><Filter className="h-3 w-3" /> Filters</button>
-      <button className="inline-flex items-center gap-1 rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[11px] font-semibold hover:border-accent/40 hover:text-accent"><Download className="h-3 w-3" /> Export</button>
-      <button className="inline-flex items-center gap-1 rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[11px] font-semibold hover:border-accent/40 hover:text-accent"><Upload className="h-3 w-3" /> Import</button>
+      <button
+        type="button"
+        onClick={focusSearch}
+        className="inline-flex items-center gap-1 rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[11px] font-semibold hover:border-accent/40 hover:text-accent"
+      >
+        <Filter className="h-3 w-3" /> Filters
+      </button>
+      <button
+        type="button"
+        onClick={() => downloadCsv(currentSnapshot, title)}
+        className="inline-flex items-center gap-1 rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[11px] font-semibold hover:border-accent/40 hover:text-accent"
+      >
+        <Download className="h-3 w-3" /> Export
+      </button>
+      <button
+        type="button"
+        onClick={importRows}
+        className="inline-flex items-center gap-1 rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[11px] font-semibold hover:border-accent/40 hover:text-accent"
+      >
+        <Upload className="h-3 w-3" /> Import
+      </button>
       {right}
+      {notice && (
+        <p className="w-full px-2 pt-1 text-[11px] text-muted-foreground" role="status">
+          {notice}
+        </p>
+      )}
     </div>
   );
 }
 
+const TABLE_PAGE_SIZE = 25;
+
 function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
+  const query = useTableQuery();
+  const [page, setPage] = useState(1);
+
+  const needle = query.trim().toLowerCase();
+  const matching = needle
+    ? rows.filter((row) => row.some((cell) => cellText(cell).toLowerCase().includes(needle)))
+    : rows;
+
+  const pageCount = Math.max(1, Math.ceil(matching.length / TABLE_PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const start = (current - 1) * TABLE_PAGE_SIZE;
+  const visible = matching.slice(start, start + TABLE_PAGE_SIZE);
+
+  // A new search starts again from the first page.
+  useEffect(() => {
+    setPage(1);
+  }, [needle, rows.length]);
+
+  // Export takes whatever the table is showing, filter included.
+  useEffect(() => {
+    currentSnapshot = { head, rows: matching.map((row) => row.map(cellText)) };
+  }, [head, matching]);
+
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       <div className="overflow-x-auto">
@@ -405,13 +542,52 @@ function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
         </table>
       </div>
       <div className="flex items-center justify-between border-t border-border bg-background/40 px-3 py-2 text-[11px] text-muted-foreground">
-        <div>Showing 1–{rows.length} of {rows.length.toLocaleString()}</div>
+        <div>
+          {matching.length === 0
+            ? "No rows match that search"
+            : `Showing ${start + 1}–${start + visible.length} of ${matching.length.toLocaleString()}`}
+          {needle && matching.length !== rows.length
+            ? ` (filtered from ${rows.length.toLocaleString()})`
+            : ""}
+        </div>
         <div className="inline-flex items-center gap-1">
-          <button className="rounded border border-border px-2 py-0.5 hover:text-accent">Prev</button>
-          <span className="rounded border border-accent/40 bg-accent/10 px-2 py-0.5 font-mono text-accent">1</span>
-          <button className="rounded border border-border px-2 py-0.5 hover:text-accent">2</button>
-          <button className="rounded border border-border px-2 py-0.5 hover:text-accent">3</button>
-          <button className="rounded border border-border px-2 py-0.5 hover:text-accent">Next</button>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={current <= 1}
+            className="rounded border border-border px-2 py-0.5 hover:text-accent disabled:opacity-40"
+          >
+            Prev
+          </button>
+          {Array.from({ length: Math.min(pageCount, 5) }, (_, i) => {
+            // Keep the current page in view when there are many pages.
+            const first = Math.max(1, Math.min(current - 2, pageCount - 4));
+            return first + i;
+          })
+            .filter((n) => n >= 1 && n <= pageCount)
+            .map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setPage(n)}
+                aria-current={n === current ? "page" : undefined}
+                className={
+                  n === current
+                    ? "rounded border border-accent/40 bg-accent/10 px-2 py-0.5 font-mono text-accent"
+                    : "rounded border border-border px-2 py-0.5 hover:text-accent"
+                }
+              >
+                {n}
+              </button>
+            ))}
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            disabled={current >= pageCount}
+            className="rounded border border-border px-2 py-0.5 hover:text-accent disabled:opacity-40"
+          >
+            Next
+          </button>
         </div>
       </div>
     </div>

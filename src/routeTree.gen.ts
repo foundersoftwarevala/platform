@@ -133,6 +133,7 @@ import { Route as ApiMarketplaceSearchRouteImport } from './routes/api/marketpla
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
 import { Route as MarketplaceProductSlugRouteImport } from './routes/marketplace.product.$slug'
 import { Route as ProxyDemoRouteImport } from './routes/proxy.demo.'
+import { Route as ApiOrdersIdFulfilRouteImport } from './routes/api/orders/$id/fulfil'
 import { Route as ApiProxyDemoSplatRouteImport } from './routes/api/proxy/demo.$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -782,6 +783,11 @@ const ProxyDemoRoute = ProxyDemoRouteImport.update({
   path: '/proxy/demo/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOrdersIdFulfilRoute = ApiOrdersIdFulfilRouteImport.update({
+  id: '/api/orders/$id/fulfil',
+  path: '/api/orders/$id/fulfil',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProxyDemoSplatRoute = ApiProxyDemoSplatRouteImport.update({
   id: '/api/proxy/demo/$',
   path: '/api/proxy/demo/$',
@@ -913,6 +919,7 @@ export interface FileRoutesByFullPath {
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
 }
 export interface FileRoutesByTo {
@@ -1035,6 +1042,7 @@ export interface FileRoutesByTo {
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
 }
 export interface FileRoutesById {
@@ -1163,6 +1171,7 @@ export interface FileRoutesById {
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
 }
 export interface FileRouteTypes {
@@ -1292,6 +1301,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/search'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
+    | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1414,6 +1424,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/search'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
+    | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
   id:
     | '__root__'
@@ -1541,6 +1552,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/search'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
+    | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
   fileRoutesById: FileRoutesById
 }
@@ -1604,6 +1616,7 @@ export interface RootRouteChildren {
   ApiMarketplaceActivityRoute: typeof ApiMarketplaceActivityRoute
   ApiMarketplaceLeadRoute: typeof ApiMarketplaceLeadRoute
   ApiMarketplaceSearchRoute: typeof ApiMarketplaceSearchRoute
+  ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
   ApiProxyDemoSplatRoute: typeof ApiProxyDemoSplatRoute
 }
 
@@ -2477,6 +2490,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProxyDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/orders/$id/fulfil': {
+      id: '/api/orders/$id/fulfil'
+      path: '/api/orders/$id/fulfil'
+      fullPath: '/api/orders/$id/fulfil'
+      preLoaderRoute: typeof ApiOrdersIdFulfilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/proxy/demo/$': {
       id: '/api/proxy/demo/$'
       path: '/api/proxy/demo/$'
@@ -2746,6 +2766,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketplaceActivityRoute: ApiMarketplaceActivityRoute,
   ApiMarketplaceLeadRoute: ApiMarketplaceLeadRoute,
   ApiMarketplaceSearchRoute: ApiMarketplaceSearchRoute,
+  ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,
   ApiProxyDemoSplatRoute: ApiProxyDemoSplatRoute,
 }
 export const routeTree = rootRouteImport
