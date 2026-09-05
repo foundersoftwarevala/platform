@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { siteUrl } from "@/lib/seo/site-url";
 import { CategoryDetail } from "@/components/marketplace-home/CategoryDetail";
 import { getCategorySeo, type CategorySeo } from "@/lib/seo/category-seo";
 
@@ -12,7 +13,7 @@ import { getCategorySeo, type CategorySeo } from "@/lib/seo/category-seo";
  * rather than the route failing.
  */
 
-const SITE = "https://softwarewala.net";
+
 
 const GENERIC = {
   title: "Category — Software Vala Marketplace",
@@ -69,7 +70,7 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
         .filter(Boolean)
         .join(" ");
 
-    const canonical = `${SITE}/marketplace/category/${params.slug}`;
+    const canonical = `${siteUrl()}/marketplace/category/${params.slug}`;
 
     const meta: Array<Record<string, string>> = [
       { title },

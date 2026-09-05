@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { siteUrl } from "@/lib/seo/site-url";
 import { ProductDetail } from "@/components/marketplace-home/ProductDetail";
 import { getProductSeo } from "@/lib/seo/category-seo";
 
@@ -22,7 +23,7 @@ type Loaded = {
   deployment?: string | null;
 };
 
-const SITE = "https://softwarewala.net";
+
 
 const GENERIC = {
   title: "Product — Software Vala Marketplace",
@@ -88,7 +89,7 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
       meta.push({ name: "geo.placename", content: data.country });
     }
 
-    const canonical = `${SITE}/marketplace/product/${data.slug}`;
+    const canonical = `${siteUrl()}/marketplace/product/${data.slug}`;
     const schema = {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",

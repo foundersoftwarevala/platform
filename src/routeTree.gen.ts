@@ -40,6 +40,9 @@ import { Route as ResellerManagerRouteImport } from './routes/reseller-manager'
 import { Route as SalesCrmRouteImport } from './routes/sales-crm'
 import { Route as SalesSupportManagerRouteImport } from './routes/sales-support-manager'
 import { Route as SeoManagerRouteImport } from './routes/seo-manager'
+import { Route as SitemapCategoriesDotxmlRouteImport } from './routes/sitemap-categories[.]xml'
+import { Route as SitemapPagesDotxmlRouteImport } from './routes/sitemap-pages[.]xml'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as SupportAgentRouteImport } from './routes/support-agent'
 import { Route as SupportChatbotRouteImport } from './routes/support-chatbot'
@@ -165,6 +168,7 @@ import { Route as MarketingSeoRouteImport } from './routes/marketing.seo'
 import { Route as MarketingTargetingRouteImport } from './routes/marketing.targeting'
 import { Route as PaymentFailRouteImport } from './routes/payment/fail'
 import { Route as PaymentSuccessRouteImport } from './routes/payment/success'
+import { Route as SitemapProductsPageDotxmlRouteImport } from './routes/sitemap-products/$page[.]xml'
 import { Route as ValaAiIndexRouteImport } from './routes/vala-ai.index'
 import { Route as ValaAiCreditsRouteImport } from './routes/vala-ai.credits'
 import { Route as ValaAiErrorsRouteImport } from './routes/vala-ai.errors'
@@ -381,6 +385,21 @@ const SalesSupportManagerRoute = SalesSupportManagerRouteImport.update({
 const SeoManagerRoute = SeoManagerRouteImport.update({
   id: '/seo-manager',
   path: '/seo-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapCategoriesDotxmlRoute = SitemapCategoriesDotxmlRouteImport.update({
+  id: '/sitemap-categories.xml',
+  path: '/sitemap-categories.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapPagesDotxmlRoute = SitemapPagesDotxmlRouteImport.update({
+  id: '/sitemap-pages.xml',
+  path: '/sitemap-pages.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SupportRoute = SupportRouteImport.update({
@@ -1029,6 +1048,12 @@ const PaymentSuccessRoute = PaymentSuccessRouteImport.update({
   path: '/payment/success',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SitemapProductsPageDotxmlRoute =
+  SitemapProductsPageDotxmlRouteImport.update({
+    id: '/sitemap-products/$page.xml',
+    path: '/sitemap-products/$page.xml',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ValaAiIndexRoute = ValaAiIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -1382,6 +1407,9 @@ export interface FileRoutesByFullPath {
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
+  '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
+  '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/support-agent': typeof SupportAgentRoute
   '/support-chatbot': typeof SupportChatbotRoute
@@ -1501,6 +1529,7 @@ export interface FileRoutesByFullPath {
   '/marketing/targeting': typeof MarketingTargetingRoute
   '/payment/fail': typeof PaymentFailRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -1598,6 +1627,9 @@ export interface FileRoutesByTo {
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
+  '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
+  '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/support-agent': typeof SupportAgentRoute
   '/support-chatbot': typeof SupportChatbotRoute
@@ -1715,6 +1747,7 @@ export interface FileRoutesByTo {
   '/marketing/targeting': typeof MarketingTargetingRoute
   '/payment/fail': typeof PaymentFailRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -1817,6 +1850,9 @@ export interface FileRoutesById {
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
+  '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
+  '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/support-agent': typeof SupportAgentRoute
   '/support-chatbot': typeof SupportChatbotRoute
@@ -1936,6 +1972,7 @@ export interface FileRoutesById {
   '/marketing/targeting': typeof MarketingTargetingRoute
   '/payment/fail': typeof PaymentFailRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -2039,6 +2076,9 @@ export interface FileRouteTypes {
     | '/sales-crm'
     | '/sales-support-manager'
     | '/seo-manager'
+    | '/sitemap-categories.xml'
+    | '/sitemap-pages.xml'
+    | '/sitemap.xml'
     | '/support'
     | '/support-agent'
     | '/support-chatbot'
@@ -2158,6 +2198,7 @@ export interface FileRouteTypes {
     | '/marketing/targeting'
     | '/payment/fail'
     | '/payment/success'
+    | '/sitemap-products/$page.xml'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -2255,6 +2296,9 @@ export interface FileRouteTypes {
     | '/sales-crm'
     | '/sales-support-manager'
     | '/seo-manager'
+    | '/sitemap-categories.xml'
+    | '/sitemap-pages.xml'
+    | '/sitemap.xml'
     | '/support'
     | '/support-agent'
     | '/support-chatbot'
@@ -2372,6 +2416,7 @@ export interface FileRouteTypes {
     | '/marketing/targeting'
     | '/payment/fail'
     | '/payment/success'
+    | '/sitemap-products/$page.xml'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -2473,6 +2518,9 @@ export interface FileRouteTypes {
     | '/sales-crm'
     | '/sales-support-manager'
     | '/seo-manager'
+    | '/sitemap-categories.xml'
+    | '/sitemap-pages.xml'
+    | '/sitemap.xml'
     | '/support'
     | '/support-agent'
     | '/support-chatbot'
@@ -2592,6 +2640,7 @@ export interface FileRouteTypes {
     | '/marketing/targeting'
     | '/payment/fail'
     | '/payment/success'
+    | '/sitemap-products/$page.xml'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -2694,6 +2743,9 @@ export interface RootRouteChildren {
   SalesCrmRoute: typeof SalesCrmRoute
   SalesSupportManagerRoute: typeof SalesSupportManagerRoute
   SeoManagerRoute: typeof SeoManagerRoute
+  SitemapCategoriesDotxmlRoute: typeof SitemapCategoriesDotxmlRoute
+  SitemapPagesDotxmlRoute: typeof SitemapPagesDotxmlRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SupportRoute: typeof SupportRoute
   SupportAgentRoute: typeof SupportAgentRoute
   SupportChatbotRoute: typeof SupportChatbotRoute
@@ -2765,6 +2817,7 @@ export interface RootRouteChildren {
   DemoSlugRoute: typeof DemoSlugRoute
   PaymentFailRoute: typeof PaymentFailRoute
   PaymentSuccessRoute: typeof PaymentSuccessRoute
+  SitemapProductsPageDotxmlRoute: typeof SitemapProductsPageDotxmlRoute
   AcademyIndexRoute: typeof AcademyIndexRoute
   ApplyIndexRoute: typeof ApplyIndexRoute
   ProxyDemoRoute: typeof ProxyDemoRoute
@@ -3032,6 +3085,27 @@ declare module '@tanstack/react-router' {
       path: '/seo-manager'
       fullPath: '/seo-manager'
       preLoaderRoute: typeof SeoManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap-categories.xml': {
+      id: '/sitemap-categories.xml'
+      path: '/sitemap-categories.xml'
+      fullPath: '/sitemap-categories.xml'
+      preLoaderRoute: typeof SitemapCategoriesDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap-pages.xml': {
+      id: '/sitemap-pages.xml'
+      path: '/sitemap-pages.xml'
+      fullPath: '/sitemap-pages.xml'
+      preLoaderRoute: typeof SitemapPagesDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/support': {
@@ -3909,6 +3983,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PaymentSuccessRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sitemap-products/$page.xml': {
+      id: '/sitemap-products/$page.xml'
+      path: '/sitemap-products/$page.xml'
+      fullPath: '/sitemap-products/$page.xml'
+      preLoaderRoute: typeof SitemapProductsPageDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/vala-ai/': {
       id: '/vala-ai/'
       path: '/'
@@ -4603,6 +4684,9 @@ const rootRouteChildren: RootRouteChildren = {
   SalesCrmRoute: SalesCrmRoute,
   SalesSupportManagerRoute: SalesSupportManagerRoute,
   SeoManagerRoute: SeoManagerRoute,
+  SitemapCategoriesDotxmlRoute: SitemapCategoriesDotxmlRoute,
+  SitemapPagesDotxmlRoute: SitemapPagesDotxmlRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   SupportRoute: SupportRoute,
   SupportAgentRoute: SupportAgentRoute,
   SupportChatbotRoute: SupportChatbotRoute,
@@ -4674,6 +4758,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoSlugRoute: DemoSlugRoute,
   PaymentFailRoute: PaymentFailRoute,
   PaymentSuccessRoute: PaymentSuccessRoute,
+  SitemapProductsPageDotxmlRoute: SitemapProductsPageDotxmlRoute,
   AcademyIndexRoute: AcademyIndexRoute,
   ApplyIndexRoute: ApplyIndexRoute,
   ProxyDemoRoute: ProxyDemoRoute,
