@@ -11,6 +11,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { TooltipProvider } from "../components/ui/tooltip";
+import { CelebrationProvider } from "../components/ams/effects/Celebration";
 
 function NotFoundComponent() {
   return (
@@ -119,8 +121,12 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <TooltipProvider>
+        <CelebrationProvider>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+        </CelebrationProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }
