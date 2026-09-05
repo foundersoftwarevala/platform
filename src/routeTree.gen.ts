@@ -23,6 +23,7 @@ import { Route as CreatorManagerRouteImport } from './routes/creator-manager'
 import { Route as DemoManagerRouteImport } from './routes/demo-manager'
 import { Route as DemoOpsRouteImport } from './routes/demo-ops'
 import { Route as DemoWorkspaceRouteImport } from './routes/demo-workspace'
+import { Route as FinanceManagerRouteImport } from './routes/finance-manager'
 import { Route as FranchiseManagerRouteImport } from './routes/franchise-manager'
 import { Route as InfluencerManagerRouteImport } from './routes/influencer-manager'
 import { Route as InternalSupportAiRouteImport } from './routes/internal-support-ai'
@@ -302,6 +303,11 @@ const DemoOpsRoute = DemoOpsRouteImport.update({
 const DemoWorkspaceRoute = DemoWorkspaceRouteImport.update({
   id: '/demo-workspace',
   path: '/demo-workspace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceManagerRoute = FinanceManagerRouteImport.update({
+  id: '/finance-manager',
+  path: '/finance-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FranchiseManagerRoute = FranchiseManagerRouteImport.update({
@@ -1402,6 +1408,7 @@ export interface FileRoutesByFullPath {
   '/demo-manager': typeof DemoManagerRoute
   '/demo-ops': typeof DemoOpsRoute
   '/demo-workspace': typeof DemoWorkspaceRoute
+  '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
@@ -1627,6 +1634,7 @@ export interface FileRoutesByTo {
   '/demo-manager': typeof DemoManagerRoute
   '/demo-ops': typeof DemoOpsRoute
   '/demo-workspace': typeof DemoWorkspaceRoute
+  '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
@@ -1849,6 +1857,7 @@ export interface FileRoutesById {
   '/demo-manager': typeof DemoManagerRoute
   '/demo-ops': typeof DemoOpsRoute
   '/demo-workspace': typeof DemoWorkspaceRoute
+  '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
@@ -2077,6 +2086,7 @@ export interface FileRouteTypes {
     | '/demo-manager'
     | '/demo-ops'
     | '/demo-workspace'
+    | '/finance-manager'
     | '/franchise-manager'
     | '/influencer-manager'
     | '/internal-support-ai'
@@ -2302,6 +2312,7 @@ export interface FileRouteTypes {
     | '/demo-manager'
     | '/demo-ops'
     | '/demo-workspace'
+    | '/finance-manager'
     | '/franchise-manager'
     | '/influencer-manager'
     | '/internal-support-ai'
@@ -2523,6 +2534,7 @@ export interface FileRouteTypes {
     | '/demo-manager'
     | '/demo-ops'
     | '/demo-workspace'
+    | '/finance-manager'
     | '/franchise-manager'
     | '/influencer-manager'
     | '/internal-support-ai'
@@ -2750,6 +2762,7 @@ export interface RootRouteChildren {
   DemoManagerRoute: typeof DemoManagerRoute
   DemoOpsRoute: typeof DemoOpsRoute
   DemoWorkspaceRoute: typeof DemoWorkspaceRoute
+  FinanceManagerRoute: typeof FinanceManagerRoute
   FranchiseManagerRoute: typeof FranchiseManagerRoute
   InfluencerManagerRoute: typeof InfluencerManagerRoute
   InternalSupportAiRoute: typeof InternalSupportAiRoute
@@ -2992,6 +3005,13 @@ declare module '@tanstack/react-router' {
       path: '/demo-workspace'
       fullPath: '/demo-workspace'
       preLoaderRoute: typeof DemoWorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/finance-manager': {
+      id: '/finance-manager'
+      path: '/finance-manager'
+      fullPath: '/finance-manager'
+      preLoaderRoute: typeof FinanceManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/franchise-manager': {
@@ -4707,6 +4727,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoManagerRoute: DemoManagerRoute,
   DemoOpsRoute: DemoOpsRoute,
   DemoWorkspaceRoute: DemoWorkspaceRoute,
+  FinanceManagerRoute: FinanceManagerRoute,
   FranchiseManagerRoute: FranchiseManagerRoute,
   InfluencerManagerRoute: InfluencerManagerRoute,
   InternalSupportAiRoute: InternalSupportAiRoute,

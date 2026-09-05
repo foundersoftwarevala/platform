@@ -27,6 +27,8 @@ type Resource = {
   searchable: string[];
   order: string;
   label: string;
+  /** Columns held as a list in the database and edited as one line of text. */
+  arrays?: string[];
 };
 
 const RESOURCES: Record<string, Resource> = {
@@ -56,9 +58,16 @@ const RESOURCES: Record<string, Resource> = {
     table: "marketplace_products",
     select: ["id", "name", "slug", "industry_label", "price_label", "rating", "downloads_label",
       "badge", "visible", "is_featured", "is_trending", "is_best_seller", "is_new_release",
-      "content_status", "demo_url", "sort_order", "category_id", "updated_at"],
+      "content_status", "demo_url", "sort_order", "category_id", "description",
+      "search_keywords", "updated_at"],
+    // `search_keywords` is what the product's own meta tags and its country
+    // targeting are built from. It had no way in from any screen, so the terms
+    // that decide how a product is found could not be changed by the people
+    // responsible for them. It is edited here as one line, comma separated.
     editable: ["name", "price_label", "badge", "visible", "is_featured", "is_trending",
-      "is_best_seller", "is_new_release", "content_status", "sort_order", "industry_label"],
+      "is_best_seller", "is_new_release", "content_status", "sort_order", "industry_label",
+      "description", "search_keywords"],
+    arrays: ["search_keywords"],
     searchable: ["name", "slug", "industry_label"],
     order: "sort_order.asc",
     label: "Products",
@@ -228,7 +237,19 @@ export const Route = createFileRoute("/api/manager/resource")({
         // so a UI sending an extra field cannot fail the whole save.
         const changes: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(body.changes ?? {})) {
-          if (resource.editable.includes(key)) changes[key] = value;
+          if (!resource.editable.includes(key)) continue;
+          // A list column arrives as the single line the table showed. One term
+          // per line if the editor used lines, otherwise comma separated; empty
+          // pieces are dropped so a stray separator cannot store a blank term.
+          if (resource.arrays?.includes(key) && typeof value === "string") {
+            const NEWLINE = String.fromCharCode(10);
+            const pieces = value.includes(NEWLINE)
+              ? value.split(NEWLINE)
+              : value.split(",");
+            changes[key] = pieces.map((piece) => piece.trim()).filter(Boolean);
+            continue;
+          }
+          changes[key] = value;
         }
         if (!Object.keys(changes).length) {
           return Response.json(

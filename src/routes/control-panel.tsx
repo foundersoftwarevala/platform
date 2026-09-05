@@ -227,6 +227,7 @@ function Index() {
                   chat_manager: "/chat-manager",
                   creator_manager: "/creator-manager",
                   demo_manager: "/demo-manager",
+                  finance_manager: "/finance-manager",
                   franchise_manager: "/franchise-manager",
                   influencer_manager: "/influencer-manager",
                   lead_manager: "/lead-manager",

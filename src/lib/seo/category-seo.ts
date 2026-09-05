@@ -147,7 +147,16 @@ export const getProductSeo = createServerFn({ method: "GET" })
         description: (row.description as string) ?? null,
         deployment: (row.deployment as string) ?? null,
         // The bookkeeping markers are for our tooling, not for a meta tag.
-        keywords: keywords.filter((k) => k !== "geo-targeted" && !k.startsWith("country:")),
+        // The markers are bookkeeping for our own tooling - which country a
+        // product targets, which region and which city it was written for.
+        // They are not search terms and never belong in a meta tag.
+        keywords: keywords.filter(
+          (k) =>
+            k !== "geo-targeted" &&
+            !k.startsWith("country:") &&
+            !k.startsWith("region:") &&
+            !k.startsWith("city:"),
+        ),
         country: readCountry(keywords),
       };
       productCache.set(data.slug, { at: Date.now(), value });

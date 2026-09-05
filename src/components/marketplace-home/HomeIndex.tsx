@@ -3525,6 +3525,16 @@ type CatalogRow = {
 const ROW_PAGE = 8;
 const CARD_PAGE = 12;
 
+/**
+ * How many products a category row carries.
+ *
+ * The row is seeded with a first page so the document itself is small and
+ * crawlable, then fills to this many the moment the reader reaches it. A
+ * category holding more than this keeps its "Show more" control, so a row is
+ * never capped at the target - the catalogue is heading well past it.
+ */
+const ROW_TARGET = 60;
+
 /** Card colours cycle through the same palette the hand-written rows use. */
 const CARD_COLORS = [
   "from-blue-600 to-indigo-600", "from-emerald-600 to-teal-600",
@@ -3564,28 +3574,61 @@ function CatalogRowStrip({
   const [cards, setCards] = useState<CatalogCard[]>(row.cards);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  const inView = useRef<HTMLDivElement>(null);
+  const toppedUp = useRef(false);
 
-  const loadMore = async () => {
-    if (loading || cards.length >= row.total) return;
+  /** How many this row should be holding: its target, or all it has. */
+  const wanted = Math.min(row.total, ROW_TARGET);
+
+  const load = async (count: number) => {
+    if (loading || count <= 0) return;
     setLoading(true);
     setFailed(false);
     try {
       const response = await fetch(
         `/api/marketplace/catalog?category=${encodeURIComponent(row.slug)}` +
-          `&offset=${cards.length}&limit=${CARD_PAGE}`,
+          `&offset=${cards.length}&limit=${count}`,
       );
       if (!response.ok) throw new Error(String(response.status));
       const data = await response.json();
       setCards((current) => [...current, ...(data.cards ?? [])]);
     } catch {
       setFailed(true);
+      toppedUp.current = false;   // let reaching the row try again
     } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Fill the row to its target when the reader reaches it.
+   *
+   * The row arrived holding a first page and waited for a button press to show
+   * anything more, so a category of sixty products showed twelve and looked
+   * like a category of twelve. The rest are asked for in one request rather
+   * than a page at a time, because they are all going into the same strip.
+   */
+  useEffect(() => {
+    const node = inView.current;
+    if (!node || toppedUp.current || cards.length >= wanted) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting || toppedUp.current) return;
+        toppedUp.current = true;
+        void load(wanted - cards.length);
+      },
+      { rootMargin: "400px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wanted, cards.length]);
+
+  const remaining = row.total - cards.length;
+
   return (
     <CategoryRow title={row.title} count={row.total}>
+      <div ref={inView} aria-hidden="true" className="w-0 flex-none" />
       {cards.map((card, index) => (
         <div key={card.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
           <DemoCard
@@ -3596,11 +3639,11 @@ function CatalogRowStrip({
           />
         </div>
       ))}
-      {cards.length < row.total && (
+      {remaining > 0 && (
         <div className="flex w-[220px] flex-none items-center justify-center">
           <button
             type="button"
-            onClick={() => void loadMore()}
+            onClick={() => void load(Math.min(remaining, ROW_TARGET))}
             disabled={loading}
             className="rounded-xl border border-cyan-400/30 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-cyan-200 hover:bg-white/[0.08] disabled:opacity-60"
           >
@@ -3608,7 +3651,7 @@ function CatalogRowStrip({
               ? "Loading…"
               : failed
                 ? "Try again"
-                : `Show more (${row.total - cards.length} left)`}
+                : `Show more (${remaining} left)`}
           </button>
         </div>
       )}
