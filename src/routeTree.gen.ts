@@ -210,6 +210,7 @@ import { Route as ApiManagerResourceRouteImport } from './routes/api/manager/res
 import { Route as ApiMarketplaceActivityRouteImport } from './routes/api/marketplace/activity'
 import { Route as ApiMarketplaceCatalogRouteImport } from './routes/api/marketplace/catalog'
 import { Route as ApiMarketplaceLeadRouteImport } from './routes/api/marketplace/lead'
+import { Route as ApiMarketplaceProofRouteImport } from './routes/api/marketplace/proof'
 import { Route as ApiMarketplaceRowsRouteImport } from './routes/api/marketplace/rows'
 import { Route as ApiMarketplaceSearchRouteImport } from './routes/api/marketplace/search'
 import { Route as ApiPartnerQuoteRouteImport } from './routes/api/partner/quote'
@@ -1266,6 +1267,11 @@ const ApiMarketplaceLeadRoute = ApiMarketplaceLeadRouteImport.update({
   path: '/api/marketplace/lead',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMarketplaceProofRoute = ApiMarketplaceProofRouteImport.update({
+  id: '/api/marketplace/proof',
+  path: '/api/marketplace/proof',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMarketplaceRowsRoute = ApiMarketplaceRowsRouteImport.update({
   id: '/api/marketplace/rows',
   path: '/api/marketplace/rows',
@@ -1578,6 +1584,7 @@ export interface FileRoutesByFullPath {
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
+  '/api/marketplace/proof': typeof ApiMarketplaceProofRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
@@ -1797,6 +1804,7 @@ export interface FileRoutesByTo {
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
+  '/api/marketplace/proof': typeof ApiMarketplaceProofRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
@@ -2023,6 +2031,7 @@ export interface FileRoutesById {
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
+  '/api/marketplace/proof': typeof ApiMarketplaceProofRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
@@ -2250,6 +2259,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/activity'
     | '/api/marketplace/catalog'
     | '/api/marketplace/lead'
+    | '/api/marketplace/proof'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
     | '/api/partner/quote'
@@ -2469,6 +2479,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/activity'
     | '/api/marketplace/catalog'
     | '/api/marketplace/lead'
+    | '/api/marketplace/proof'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
     | '/api/partner/quote'
@@ -2694,6 +2705,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/activity'
     | '/api/marketplace/catalog'
     | '/api/marketplace/lead'
+    | '/api/marketplace/proof'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
     | '/api/partner/quote'
@@ -2856,6 +2868,7 @@ export interface RootRouteChildren {
   ApiMarketplaceActivityRoute: typeof ApiMarketplaceActivityRoute
   ApiMarketplaceCatalogRoute: typeof ApiMarketplaceCatalogRoute
   ApiMarketplaceLeadRoute: typeof ApiMarketplaceLeadRoute
+  ApiMarketplaceProofRoute: typeof ApiMarketplaceProofRoute
   ApiMarketplaceRowsRoute: typeof ApiMarketplaceRowsRoute
   ApiMarketplaceSearchRoute: typeof ApiMarketplaceSearchRoute
   ApiPartnerQuoteRoute: typeof ApiPartnerQuoteRoute
@@ -4290,6 +4303,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMarketplaceLeadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/marketplace/proof': {
+      id: '/api/marketplace/proof'
+      path: '/api/marketplace/proof'
+      fullPath: '/api/marketplace/proof'
+      preLoaderRoute: typeof ApiMarketplaceProofRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/marketplace/rows': {
       id: '/api/marketplace/rows'
       path: '/api/marketplace/rows'
@@ -4805,6 +4825,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketplaceActivityRoute: ApiMarketplaceActivityRoute,
   ApiMarketplaceCatalogRoute: ApiMarketplaceCatalogRoute,
   ApiMarketplaceLeadRoute: ApiMarketplaceLeadRoute,
+  ApiMarketplaceProofRoute: ApiMarketplaceProofRoute,
   ApiMarketplaceRowsRoute: ApiMarketplaceRowsRoute,
   ApiMarketplaceSearchRoute: ApiMarketplaceSearchRoute,
   ApiPartnerQuoteRoute: ApiPartnerQuoteRoute,

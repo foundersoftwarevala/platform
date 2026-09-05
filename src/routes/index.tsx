@@ -2,9 +2,27 @@ import { Suspense } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import "@/styles/marketplace-home.css";
 import HomeIndex from "@/components/marketplace-home/HomeIndex";
+import { getHomeCatalog, type HomeCatalogSeed } from "@/lib/marketplace/home-catalog.functions";
+import { absoluteUrl } from "@/lib/seo/site-url";
 
 export const Route = createFileRoute("/")({
+  /**
+   * Fetch the first rows before the page is sent, so the HTML that leaves the
+   * server carries real category and product links. Without this the front
+   * door of the catalogue was an empty document and nothing below it could be
+   * followed. A failure here returns nothing and the browser asks for the rows
+   * itself, exactly as it did before.
+   */
+  loader: async (): Promise<{ seed: HomeCatalogSeed }> => {
+    try {
+      return { seed: await getHomeCatalog() };
+    } catch {
+      return { seed: null };
+    }
+  },
+
   head: () => ({
+    links: [{ rel: "canonical", href: absoluteUrl("/") }],
     meta: [
       { title: "Software Vala — 12,000+ Software Solutions Marketplace" },
       {

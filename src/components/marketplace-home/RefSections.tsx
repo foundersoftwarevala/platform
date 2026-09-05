@@ -92,11 +92,55 @@ export const AIZone = () => (
 
 // Success Stories — content lives in @/lib/site-content/stories so these can
 // be swapped for real marketplace records without changing this component.
-export const SuccessStories = () => (
+
+type PublishedStory = {
+  id: string; company: string; quote: string; author: string; role: string;
+  metric: string; metric_label: string; product: string; product_slug: string | null;
+};
+type PublishedAward = {
+  id: string; category: string; winner: string; product_slug: string | null; year: number;
+};
+
+/**
+ * The stories and awards an operator has published.
+ *
+ * Both of these sections drew a list written into the source: named companies,
+ * named people and figures nobody ever gave. One of the names is a real
+ * healthcare brand. They read the database now, and when nothing is published
+ * the sections draw nothing at all. The written lists are left in the codebase,
+ * unused, rather than removed.
+ */
+function usePublishedProof() {
+  const [proof, setProof] = useState<{ stories: PublishedStory[]; awards: PublishedAward[] } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/marketplace/proof");
+        const data = await response.json();
+        if (!cancelled) {
+          setProof({
+            stories: Array.isArray(data?.stories) ? data.stories : [],
+            awards: Array.isArray(data?.awards) ? data.awards : [],
+          });
+        }
+      } catch {
+        if (!cancelled) setProof({ stories: [], awards: [] });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return proof;
+}
+
+export const SuccessStories = () => {
+  const proof = usePublishedProof();
+  if (!proof || proof.stories.length === 0) return null;
+  return (
   <section className="py-10">
     {sectionTitle("Success Stories", "/marketplace", "How businesses are running on Software Vala")}
     <div className="grid grid-cols-1 gap-4 px-6 lg:grid-cols-3">
-      {listStories().map((s) => (
+      {proof.stories.map((s) => (
         <article
           key={s.company}
           className="relative flex flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-white/[0.04] to-transparent p-6"
@@ -114,14 +158,14 @@ export const SuccessStories = () => (
               </div>
               <div className="shrink-0 text-right">
                 <div className="text-base font-bold text-emerald-300">{s.metric}</div>
-                <div className="text-[10px] uppercase tracking-wider text-white/50">{s.metricLabel}</div>
+                <div className="text-[10px] uppercase tracking-wider text-white/50">{s.metric_label}</div>
               </div>
             </div>
             <div className="mt-3 text-[11px] text-white/50">
               Product:{" "}
-              {s.productSlug ? (
+              {s.product_slug ? (
                 <a
-                  href={`/marketplace/product/${s.productSlug}`}
+                  href={`/marketplace/product/${s.product_slug}`}
                   className="font-semibold text-cyan-300 hover:text-cyan-200"
                 >
                   {s.product}
@@ -135,7 +179,8 @@ export const SuccessStories = () => (
       ))}
     </div>
   </section>
-);
+  );
+};
 
 // Awards & Champions — the winners live in @/lib/site-content/awards; only the
 // styling for each category stays here.
@@ -147,11 +192,14 @@ const AWARD_STYLE: Record<string, { icon: typeof Trophy; color: string; ring: st
 };
 const AWARD_FALLBACK = { icon: Trophy, color: "text-amber-300", ring: "border-amber-400/30" };
 
-export const AwardsRow = () => (
+export const AwardsRow = () => {
+  const proof = usePublishedProof();
+  if (!proof || proof.awards.length === 0) return null;
+  return (
   <section className="py-10">
     {sectionTitle("Awards & Champions", "/marketplace", "Recognised across the marketplace")}
     <ul className="grid grid-cols-2 gap-4 px-6 lg:grid-cols-4">
-      {listAwards().map((a) => {
+      {proof.awards.map((a) => {
         const style = AWARD_STYLE[a.category] ?? AWARD_FALLBACK;
         const Icon = style.icon;
         // A winner only becomes a link when it is a real listing.
@@ -165,9 +213,9 @@ export const AwardsRow = () => (
         );
         return (
           <li key={a.category}>
-            {a.productSlug ? (
+            {a.product_slug ? (
               <a
-                href={`/marketplace/product/${a.productSlug}`}
+                href={`/marketplace/product/${a.product_slug}`}
                 className={`block rounded-2xl border ${style.ring} bg-white/[0.03] p-5 transition-colors hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400`}
               >
                 {body}
@@ -180,7 +228,8 @@ export const AwardsRow = () => (
       })}
     </ul>
   </section>
-);
+  );
+};
 
 // Live Activity
 const seedEvents = () => [
@@ -191,33 +240,109 @@ const seedEvents = () => [
   { icon: Activity, label: "renewed", text: "FactoryOS Annual", who: "Steel Works Pvt", city: "Chennai", color: "text-violet-300" },
 ];
 
+/** Which icon and colour a real event kind is drawn with. */
+const EVENT_STYLE: Record<string, { icon: typeof Activity; color: string }> = {
+  purchase: { icon: ShoppingCart, color: "text-emerald-300" },
+  product_view: { icon: Activity, color: "text-cyan-300" },
+  demo_open: { icon: Play, color: "text-fuchsia-300" },
+  download: { icon: Download, color: "text-cyan-300" },
+  review: { icon: Star, color: "text-amber-300" },
+  release: { icon: Sparkles, color: "text-fuchsia-300" },
+};
+
+type MarketplaceEvent = {
+  id: string;
+  kind: string;
+  label: string;
+  product: string;
+  at: string;
+};
+
+/** "3 minutes ago", from the time the event was actually recorded. */
+function whenAgo(at: string): string {
+  const then = new Date(at).getTime();
+  if (!Number.isFinite(then)) return "";
+  const seconds = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  return `${Math.floor(hours / 24)} d ago`;
+}
+
+/**
+ * What is really happening in the marketplace.
+ *
+ * This drew five invented purchases - named companies in named cities that do
+ * not exist - and rotated them on a timer so they looked like a live feed.
+ * Invented social proof is not something this business is willing to show, and
+ * the events endpoint that carries the real ones was already built and going
+ * unused. It reads that now. When there is nothing to report it says so
+ * plainly rather than filling the space with something untrue.
+ *
+ * `seedEvents` above is left in place, unused, rather than removed.
+ */
 export const LiveActivity = () => {
-  const [items, setItems] = useState(seedEvents());
+  const [items, setItems] = useState<MarketplaceEvent[] | null>(null);
+
   useEffect(() => {
-    const t = setInterval(() => {
-      setItems((prev) => {
-        const next = [...prev];
-        next.unshift(next.pop()!);
-        return next;
-      });
-    }, 2500);
-    return () => clearInterval(t);
+    let cancelled = false;
+    const read = async () => {
+      try {
+        const response = await fetch("/api/marketplace/activity");
+        if (!response.ok) throw new Error("unavailable");
+        const data = (await response.json()) as { events?: MarketplaceEvent[] };
+        if (!cancelled) setItems(Array.isArray(data.events) ? data.events.slice(0, 8) : []);
+      } catch {
+        if (!cancelled) setItems([]);
+      }
+    };
+    void read();
+    // The feed refreshes on its own, but from the database rather than by
+    // shuffling the same five rows around.
+    const timer = setInterval(read, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, []);
+
   return (
     <section className="py-10">
-      {sectionTitle("Live Marketplace Activity", undefined, "Streaming purchases, downloads, reviews & releases")}
+      {sectionTitle("Live Marketplace Activity", undefined, "Real views, demo opens and purchases across the catalogue")}
       <div className="mx-6 overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-white/[0.03] to-transparent">
-        <ul>
-          {items.map((e, i) => (
-            <li key={`${e.text}-${i}`} className="flex items-center gap-3 border-b border-white/5 px-5 py-3 text-sm transition-colors hover:bg-white/[0.03] last:border-0 animate-in fade-in slide-in-from-top-1 duration-500">
-              <span className={`flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 ${e.color}`}>
-                <e.icon className="h-4 w-4" />
-              </span>
-              <span className="text-white/85"><span className="font-semibold text-white">{e.who}</span> {e.label} <span className="font-medium text-white">{e.text}</span></span>
-              <span className="ml-auto text-[11px] text-white/60">{e.city} · now</span>
-            </li>
-          ))}
-        </ul>
+        {items === null && (
+          <p className="px-5 py-6 text-sm text-white/60">Reading the marketplace…</p>
+        )}
+        {items !== null && items.length === 0 && (
+          <p className="px-5 py-6 text-sm text-white/60">
+            Nothing has happened in the marketplace just yet.
+          </p>
+        )}
+        {items !== null && items.length > 0 && (
+          <ul>
+            {items.map((event) => {
+              const style = EVENT_STYLE[event.kind] ?? { icon: Activity, color: "text-white/70" };
+              const Icon = style.icon;
+              return (
+                <li
+                  key={event.id}
+                  className="flex items-center gap-3 border-b border-white/5 px-5 py-3 text-sm transition-colors hover:bg-white/[0.03] last:border-0 animate-in fade-in slide-in-from-top-1 duration-500"
+                >
+                  <span className={`flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 ${style.color}`}>
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="text-white/85">
+                    Someone {event.label}{" "}
+                    <span className="font-medium text-white">{event.product}</span>
+                  </span>
+                  <span className="ml-auto text-[11px] text-white/60">{whenAgo(event.at)}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </section>
   );

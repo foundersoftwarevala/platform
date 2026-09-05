@@ -31,6 +31,7 @@ import {
 } from "@/components/marketplace-home/RefSections";
 import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { buildRow } from "@/data/rowFill";
+import { useLoaderData } from "@tanstack/react-router";
 import CategoryRow from "@/components/marketplace-home/CategoryRow";
 import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE, SITE_STATS } from "@/lib/site-content/constants";
 
@@ -3621,10 +3622,17 @@ function CatalogRows({
   favorites: string[];
   onToggleFavorite: (id: string) => void;
 }) {
-  const [rows, setRows] = useState<CatalogRow[] | null>(null);
+  // What the server already rendered. Starting from it means the first rows
+  // are on the page in the HTML itself rather than appearing a moment later,
+  // and the browser does not ask twice for the same thing.
+  const seeded = useLoaderData({ from: "/" })?.seed ?? null;
+
+  const [rows, setRows] = useState<CatalogRow[] | null>(
+    (seeded?.rows as CatalogRow[] | undefined) ?? null,
+  );
   const [error, setError] = useState<string | null>(null);
-  const [rowOffset, setRowOffset] = useState(0);
-  const [hasMoreRows, setHasMoreRows] = useState(false);
+  const [rowOffset, setRowOffset] = useState(seeded?.rowCount ?? 0);
+  const [hasMoreRows, setHasMoreRows] = useState(Boolean(seeded?.hasMoreRows));
   const [loadingRows, setLoadingRows] = useState(false);
   const sentinel = useRef<HTMLDivElement>(null);
 
@@ -3649,6 +3657,9 @@ function CatalogRows({
   };
 
   useEffect(() => {
+    // Only ask when the server sent nothing; otherwise the first page is
+    // already on screen and the next one arrives on scroll.
+    if (seeded?.rows?.length) return;
     void fetchRows(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import {
   Sparkles, GraduationCap, Stethoscope, Utensils, Hotel, Home, Car, Plane,
   CreditCard, Factory, Users, Truck, Building, Megaphone, Wallet, Briefcase,
@@ -33,7 +33,72 @@ const CATEGORIES = [
 // Duplicate the list so the auto-scroll can loop seamlessly.
 const LOOP = [...CATEGORIES, ...CATEGORIES];
 
+type Chip = { name: string; link: string; icon: typeof Sparkles; color: string };
+
+/**
+ * The rows the marketplace actually has, as chips.
+ *
+ * Every chip used to point at a fragment - "/#Education", "/#Hospitality" -
+ * and the page had no element with any of those ids, so clicking a category
+ * did nothing at all. Two of them pointed at the same fragment as each other
+ * and one at a name no row ever carried. They point at the real category
+ * pages now, taken from the same rows the manager controls, so hiding or
+ * renaming a category here changes what the strip offers.
+ *
+ * The written list stays as the fallback for a server that cannot answer, and
+ * lends each row its icon and colour by name.
+ */
+function useCategoryChips(): Chip[] {
+  const [live, setLive] = useState<{ title: string; slug: string }[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/marketplace/rows");
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          rows?: { title: string; slug: string; hidden?: boolean }[];
+        };
+        const rows = (data.rows ?? []).filter((r) => r.slug && !r.hidden);
+        if (!cancelled && rows.length > 0) setLive(rows);
+      } catch {
+        // Keep the written list; the strip is never left empty.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return useMemo(() => {
+    if (!live) return CATEGORIES as Chip[];
+
+    const styleFor = (title: string) => {
+      const key = title.toLowerCase();
+      const match = CATEGORIES.find((c) => c.name.toLowerCase() === key)
+        ?? CATEGORIES.find((c) => key.includes(c.name.toLowerCase()) && c.name !== "All");
+      return match ?? CATEGORIES[0]!;
+    };
+
+    return [
+      { ...CATEGORIES[0]!, link: "/marketplace" },
+      ...live.map((row) => {
+        const style = styleFor(row.title);
+        return {
+          name: row.title,
+          link: `/marketplace/category/${row.slug}`,
+          icon: style.icon,
+          color: style.color,
+        };
+      }),
+    ];
+  }, [live]);
+}
+
 const CategorySlider = () => {
+  const chips = useCategoryChips();
+  const loop = useMemo(() => [...chips, ...chips], [chips]);
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const pausedRef = useRef(false);
@@ -151,7 +216,7 @@ const CategorySlider = () => {
             className="flex gap-3 will-change-transform"
             style={{ transform: "translate3d(0,0,0)", backfaceVisibility: "hidden" }}
           >
-          {LOOP.map((cat, i) => {
+          {loop.map((cat, i) => {
             const Icon = cat.icon;
             return (
               <a

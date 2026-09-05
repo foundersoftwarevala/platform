@@ -30,6 +30,28 @@ type Resource = {
 };
 
 const RESOURCES: Record<string, Resource> = {
+  // Customer stories and awards shown on the home page. Nothing appears there
+  // until an operator sets `published`, which is what stopped the written-in
+  // testimonials being shown as if real customers had said them.
+  stories: {
+    table: "marketplace_stories",
+    select: ["id", "company", "quote", "author", "role", "metric", "metric_label",
+      "product", "product_slug", "published", "sort_order", "updated_at"],
+    editable: ["company", "quote", "author", "role", "metric", "metric_label",
+      "product", "product_slug", "published", "sort_order"],
+    searchable: ["company", "author", "product"],
+    order: "sort_order.asc",
+    label: "Success stories",
+  },
+  awards: {
+    table: "marketplace_awards",
+    select: ["id", "category", "winner", "product_slug", "year", "published",
+      "sort_order", "updated_at"],
+    editable: ["category", "winner", "product_slug", "year", "published", "sort_order"],
+    searchable: ["category", "winner"],
+    order: "sort_order.asc",
+    label: "Awards",
+  },
   products: {
     table: "marketplace_products",
     select: ["id", "name", "slug", "industry_label", "price_label", "rating", "downloads_label",
