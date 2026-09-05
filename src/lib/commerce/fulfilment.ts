@@ -1,4 +1,5 @@
 import { randomBytes, createHash } from "node:crypto";
+import { licenceEmail, send as sendMail } from "./mailer";
 
 /**
  * Turning a paid order into access.
@@ -101,7 +102,7 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   }
 
   const orderResponse = await rest(
-    `marketplace_orders?select=id,buyer_id,user_id,status,metadata&id=eq.${encodeURIComponent(orderId)}&limit=1`,
+    `marketplace_orders?select=id,buyer_id,user_id,status,metadata,order_no&id=eq.${encodeURIComponent(orderId)}&limit=1`,
   );
   const orders = orderResponse.ok ? ((await orderResponse.json()) as Record<string, unknown>[]) : [];
   const order = orders[0];
@@ -202,6 +203,28 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
     product_id: productId || null,
     entitlement_id: entitlementId,
   });
+
+  // Tell the buyer. Queued regardless of whether a provider is configured, so
+  // nothing bought goes uncommunicated once credentials exist.
+  const buyerEmail = String(
+    metadata.email ?? (metadata as { meta?: Record<string, unknown> }).meta?.email ?? "",
+  ).trim();
+  if (buyerEmail) {
+    const message = licenceEmail({
+      name: String(metadata.buyer_name ?? buyerEmail.split("@")[0]),
+      productName: String(metadata.product_name ?? "your Software Vala licence"),
+      licenceKey,
+      orderNo: (order.order_no as string | null) ?? null,
+    });
+    const mail = await sendMail({ ...message, to: buyerEmail, context: { order_id: orderId, licence_id: licence.id } });
+    await logPaymentEvent(orderId, mail.sent ? "licence_email_sent" : "licence_email_queued", {
+      to: buyerEmail, reason: mail.reason,
+    });
+  } else {
+    await logPaymentEvent(orderId, "licence_email_skipped", {
+      reason: "the order carries no buyer email",
+    });
+  }
 
   return { ok: true, created: true, licenceKey, licenceId: licence.id, entitlementId };
 }

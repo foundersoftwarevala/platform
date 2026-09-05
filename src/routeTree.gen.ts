@@ -110,6 +110,8 @@ import { Route as MarketingReportsRouteImport } from './routes/marketing.reports
 import { Route as MarketingSchedulesRouteImport } from './routes/marketing.schedules'
 import { Route as MarketingSeoRouteImport } from './routes/marketing.seo'
 import { Route as MarketingTargetingRouteImport } from './routes/marketing.targeting'
+import { Route as PaymentFailRouteImport } from './routes/payment/fail'
+import { Route as PaymentSuccessRouteImport } from './routes/payment/success'
 import { Route as ValaAiIndexRouteImport } from './routes/vala-ai.index'
 import { Route as ValaAiCreditsRouteImport } from './routes/vala-ai.credits'
 import { Route as ValaAiErrorsRouteImport } from './routes/vala-ai.errors'
@@ -126,12 +128,14 @@ import { Route as ApiInternalApplyMigrationsRouteImport } from './routes/api/int
 import { Route as ApiInternalApplyResellerSchemaRouteImport } from './routes/api/internal/apply-reseller-schema'
 import { Route as ApiInternalCredentialSetupRouteImport } from './routes/api/internal/credential-setup'
 import { Route as ApiInternalDbHealthRouteImport } from './routes/api/internal/db-health'
+import { Route as ApiInternalEmailFlushRouteImport } from './routes/api/internal/email-flush'
 import { Route as ApiInternalMarketplaceMigrationRouteImport } from './routes/api/internal/marketplace-migration'
 import { Route as ApiMarketplaceActivityRouteImport } from './routes/api/marketplace/activity'
 import { Route as ApiMarketplaceLeadRouteImport } from './routes/api/marketplace/lead'
 import { Route as ApiMarketplaceRowsRouteImport } from './routes/api/marketplace/rows'
 import { Route as ApiMarketplaceSearchRouteImport } from './routes/api/marketplace/search'
 import { Route as ApiPaymentInitiateRouteImport } from './routes/api/payment/initiate'
+import { Route as ApiPaymentStatusRouteImport } from './routes/api/payment/status'
 import { Route as ApiPaymentWebhookRouteImport } from './routes/api/payment/webhook'
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
 import { Route as MarketplaceProductSlugRouteImport } from './routes/marketplace.product.$slug'
@@ -665,6 +669,16 @@ const MarketingTargetingRoute = MarketingTargetingRouteImport.update({
   path: '/targeting',
   getParentRoute: () => MarketingRoute,
 } as any)
+const PaymentFailRoute = PaymentFailRouteImport.update({
+  id: '/payment/fail',
+  path: '/payment/fail',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentSuccessRoute = PaymentSuccessRouteImport.update({
+  id: '/payment/success',
+  path: '/payment/success',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ValaAiIndexRoute = ValaAiIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -750,6 +764,11 @@ const ApiInternalDbHealthRoute = ApiInternalDbHealthRouteImport.update({
   path: '/api/internal/db-health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalEmailFlushRoute = ApiInternalEmailFlushRouteImport.update({
+  id: '/api/internal/email-flush',
+  path: '/api/internal/email-flush',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInternalMarketplaceMigrationRoute =
   ApiInternalMarketplaceMigrationRouteImport.update({
     id: '/api/internal/marketplace-migration',
@@ -779,6 +798,11 @@ const ApiMarketplaceSearchRoute = ApiMarketplaceSearchRouteImport.update({
 const ApiPaymentInitiateRoute = ApiPaymentInitiateRouteImport.update({
   id: '/api/payment/initiate',
   path: '/api/payment/initiate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPaymentStatusRoute = ApiPaymentStatusRouteImport.update({
+  id: '/api/payment/status',
+  path: '/api/payment/status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPaymentWebhookRoute = ApiPaymentWebhookRouteImport.update({
@@ -908,6 +932,8 @@ export interface FileRoutesByFullPath {
   '/marketing/schedules': typeof MarketingSchedulesRoute
   '/marketing/seo': typeof MarketingSeoRoute
   '/marketing/targeting': typeof MarketingTargetingRoute
+  '/payment/fail': typeof PaymentFailRoute
+  '/payment/success': typeof PaymentSuccessRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -931,12 +957,14 @@ export interface FileRoutesByFullPath {
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
   '/api/internal/credential-setup': typeof ApiInternalCredentialSetupRoute
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
+  '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -1034,6 +1062,8 @@ export interface FileRoutesByTo {
   '/marketing/schedules': typeof MarketingSchedulesRoute
   '/marketing/seo': typeof MarketingSeoRoute
   '/marketing/targeting': typeof MarketingTargetingRoute
+  '/payment/fail': typeof PaymentFailRoute
+  '/payment/success': typeof PaymentSuccessRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -1057,12 +1087,14 @@ export interface FileRoutesByTo {
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
   '/api/internal/credential-setup': typeof ApiInternalCredentialSetupRoute
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
+  '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -1166,6 +1198,8 @@ export interface FileRoutesById {
   '/marketing/schedules': typeof MarketingSchedulesRoute
   '/marketing/seo': typeof MarketingSeoRoute
   '/marketing/targeting': typeof MarketingTargetingRoute
+  '/payment/fail': typeof PaymentFailRoute
+  '/payment/success': typeof PaymentSuccessRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -1189,12 +1223,14 @@ export interface FileRoutesById {
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
   '/api/internal/credential-setup': typeof ApiInternalCredentialSetupRoute
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
+  '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -1299,6 +1335,8 @@ export interface FileRouteTypes {
     | '/marketing/schedules'
     | '/marketing/seo'
     | '/marketing/targeting'
+    | '/payment/fail'
+    | '/payment/success'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -1322,12 +1360,14 @@ export interface FileRouteTypes {
     | '/api/internal/apply-reseller-schema'
     | '/api/internal/credential-setup'
     | '/api/internal/db-health'
+    | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
     | '/api/marketplace/activity'
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
     | '/api/payment/initiate'
+    | '/api/payment/status'
     | '/api/payment/webhook'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
@@ -1425,6 +1465,8 @@ export interface FileRouteTypes {
     | '/marketing/schedules'
     | '/marketing/seo'
     | '/marketing/targeting'
+    | '/payment/fail'
+    | '/payment/success'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -1448,12 +1490,14 @@ export interface FileRouteTypes {
     | '/api/internal/apply-reseller-schema'
     | '/api/internal/credential-setup'
     | '/api/internal/db-health'
+    | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
     | '/api/marketplace/activity'
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
     | '/api/payment/initiate'
+    | '/api/payment/status'
     | '/api/payment/webhook'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
@@ -1556,6 +1600,8 @@ export interface FileRouteTypes {
     | '/marketing/schedules'
     | '/marketing/seo'
     | '/marketing/targeting'
+    | '/payment/fail'
+    | '/payment/success'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -1579,12 +1625,14 @@ export interface FileRouteTypes {
     | '/api/internal/apply-reseller-schema'
     | '/api/internal/credential-setup'
     | '/api/internal/db-health'
+    | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
     | '/api/marketplace/activity'
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
     | '/api/payment/initiate'
+    | '/api/payment/status'
     | '/api/payment/webhook'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
@@ -1640,6 +1688,8 @@ export interface RootRouteChildren {
   ApplyRoleRoute: typeof ApplyRoleRoute
   DashboardRoleRoute: typeof DashboardRoleRoute
   DemoSlugRoute: typeof DemoSlugRoute
+  PaymentFailRoute: typeof PaymentFailRoute
+  PaymentSuccessRoute: typeof PaymentSuccessRoute
   AcademyIndexRoute: typeof AcademyIndexRoute
   ApplyIndexRoute: typeof ApplyIndexRoute
   ProxyDemoRoute: typeof ProxyDemoRoute
@@ -1648,12 +1698,14 @@ export interface RootRouteChildren {
   ApiInternalApplyResellerSchemaRoute: typeof ApiInternalApplyResellerSchemaRoute
   ApiInternalCredentialSetupRoute: typeof ApiInternalCredentialSetupRoute
   ApiInternalDbHealthRoute: typeof ApiInternalDbHealthRoute
+  ApiInternalEmailFlushRoute: typeof ApiInternalEmailFlushRoute
   ApiInternalMarketplaceMigrationRoute: typeof ApiInternalMarketplaceMigrationRoute
   ApiMarketplaceActivityRoute: typeof ApiMarketplaceActivityRoute
   ApiMarketplaceLeadRoute: typeof ApiMarketplaceLeadRoute
   ApiMarketplaceRowsRoute: typeof ApiMarketplaceRowsRoute
   ApiMarketplaceSearchRoute: typeof ApiMarketplaceSearchRoute
   ApiPaymentInitiateRoute: typeof ApiPaymentInitiateRoute
+  ApiPaymentStatusRoute: typeof ApiPaymentStatusRoute
   ApiPaymentWebhookRoute: typeof ApiPaymentWebhookRoute
   ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
   ApiProxyDemoSplatRoute: typeof ApiProxyDemoSplatRoute
@@ -2368,6 +2420,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketingTargetingRouteImport
       parentRoute: typeof MarketingRoute
     }
+    '/payment/fail': {
+      id: '/payment/fail'
+      path: '/payment/fail'
+      fullPath: '/payment/fail'
+      preLoaderRoute: typeof PaymentFailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment/success': {
+      id: '/payment/success'
+      path: '/payment/success'
+      fullPath: '/payment/success'
+      preLoaderRoute: typeof PaymentSuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/vala-ai/': {
       id: '/vala-ai/'
       path: '/'
@@ -2480,6 +2546,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalDbHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/email-flush': {
+      id: '/api/internal/email-flush'
+      path: '/api/internal/email-flush'
+      fullPath: '/api/internal/email-flush'
+      preLoaderRoute: typeof ApiInternalEmailFlushRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/internal/marketplace-migration': {
       id: '/api/internal/marketplace-migration'
       path: '/api/internal/marketplace-migration'
@@ -2520,6 +2593,13 @@ declare module '@tanstack/react-router' {
       path: '/api/payment/initiate'
       fullPath: '/api/payment/initiate'
       preLoaderRoute: typeof ApiPaymentInitiateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/payment/status': {
+      id: '/api/payment/status'
+      path: '/api/payment/status'
+      fullPath: '/api/payment/status'
+      preLoaderRoute: typeof ApiPaymentStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/payment/webhook': {
@@ -2814,6 +2894,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApplyRoleRoute: ApplyRoleRoute,
   DashboardRoleRoute: DashboardRoleRoute,
   DemoSlugRoute: DemoSlugRoute,
+  PaymentFailRoute: PaymentFailRoute,
+  PaymentSuccessRoute: PaymentSuccessRoute,
   AcademyIndexRoute: AcademyIndexRoute,
   ApplyIndexRoute: ApplyIndexRoute,
   ProxyDemoRoute: ProxyDemoRoute,
@@ -2822,12 +2904,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInternalApplyResellerSchemaRoute: ApiInternalApplyResellerSchemaRoute,
   ApiInternalCredentialSetupRoute: ApiInternalCredentialSetupRoute,
   ApiInternalDbHealthRoute: ApiInternalDbHealthRoute,
+  ApiInternalEmailFlushRoute: ApiInternalEmailFlushRoute,
   ApiInternalMarketplaceMigrationRoute: ApiInternalMarketplaceMigrationRoute,
   ApiMarketplaceActivityRoute: ApiMarketplaceActivityRoute,
   ApiMarketplaceLeadRoute: ApiMarketplaceLeadRoute,
   ApiMarketplaceRowsRoute: ApiMarketplaceRowsRoute,
   ApiMarketplaceSearchRoute: ApiMarketplaceSearchRoute,
   ApiPaymentInitiateRoute: ApiPaymentInitiateRoute,
+  ApiPaymentStatusRoute: ApiPaymentStatusRoute,
   ApiPaymentWebhookRoute: ApiPaymentWebhookRoute,
   ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,
   ApiProxyDemoSplatRoute: ApiProxyDemoSplatRoute,
