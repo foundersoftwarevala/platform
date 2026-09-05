@@ -49,6 +49,7 @@ const COLUMNS: Array<{ heading: string; links: Array<{ label: string; href: stri
       { label: "Contact support", href: "/support" },
       { label: "Sales assistant", href: "/ai/assistant" },
       { label: "Sign in", href: "/login" },
+      { label: "Your purchases", href: "/account/purchases" },
       { label: "WhatsApp +91 83488 38383", href: "https://wa.me/918348838383" },
       { label: "hellosoftwarevala@gmail.com", href: "mailto:hellosoftwarevala@gmail.com" },
       { label: "Offline software — ErpVala", href: "https://erpvala.com" },

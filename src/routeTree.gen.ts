@@ -47,6 +47,7 @@ import { Route as ValaAiRouteImport } from './routes/vala-ai'
 import { Route as ValaTvRouteImport } from './routes/vala-tv'
 import { Route as AcademyIndexRouteImport } from './routes/academy.index'
 import { Route as AcademyCourseRouteImport } from './routes/academy.$course'
+import { Route as AccountPurchasesRouteImport } from './routes/account/purchases'
 import { Route as AdminImportRouteImport } from './routes/admin.import'
 import { Route as AffiliateManagerIndexRouteImport } from './routes/affiliate-manager.index'
 import { Route as AffiliateManagerAffiliateLinksRouteImport } from './routes/affiliate-manager.affiliate-links'
@@ -123,6 +124,7 @@ import { Route as ValaAiPromptsRouteImport } from './routes/vala-ai.prompts'
 import { Route as ValaAiRollbackRouteImport } from './routes/vala-ai.rollback'
 import { Route as ValaAiSettingsRouteImport } from './routes/vala-ai.settings'
 import { Route as AffiliateManagerAffiliatesIdRouteImport } from './routes/affiliate-manager.affiliates.$id'
+import { Route as ApiAccountPurchasesRouteImport } from './routes/api/account/purchases'
 import { Route as ApiFinanceResellerMembershipRouteImport } from './routes/api/finance/reseller-membership'
 import { Route as ApiInternalApplyMigrationsRouteImport } from './routes/api/internal/apply-migrations'
 import { Route as ApiInternalApplyResellerSchemaRouteImport } from './routes/api/internal/apply-reseller-schema'
@@ -331,6 +333,11 @@ const AcademyIndexRoute = AcademyIndexRouteImport.update({
 const AcademyCourseRoute = AcademyCourseRouteImport.update({
   id: '/academy/$course',
   path: '/academy/$course',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountPurchasesRoute = AccountPurchasesRouteImport.update({
+  id: '/account/purchases',
+  path: '/account/purchases',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminImportRoute = AdminImportRouteImport.update({
@@ -735,6 +742,11 @@ const AffiliateManagerAffiliatesIdRoute =
     path: '/$id',
     getParentRoute: () => AffiliateManagerAffiliatesRoute,
   } as any)
+const ApiAccountPurchasesRoute = ApiAccountPurchasesRouteImport.update({
+  id: '/api/account/purchases',
+  path: '/api/account/purchases',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFinanceResellerMembershipRoute =
   ApiFinanceResellerMembershipRouteImport.update({
     id: '/api/finance/reseller-membership',
@@ -875,6 +887,7 @@ export interface FileRoutesByFullPath {
   '/vala-tv': typeof ValaTvRoute
   '/demo/': typeof DemoRoute
   '/academy/$course': typeof AcademyCourseRoute
+  '/account/purchases': typeof AccountPurchasesRoute
   '/admin/import': typeof AdminImportRoute
   '/affiliate-manager/affiliate-links': typeof AffiliateManagerAffiliateLinksRoute
   '/affiliate-manager/affiliates': typeof AffiliateManagerAffiliatesRouteWithChildren
@@ -952,6 +965,7 @@ export interface FileRoutesByFullPath {
   '/vala-ai/': typeof ValaAiIndexRoute
   '/proxy/demo/': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
+  '/api/account/purchases': typeof ApiAccountPurchasesRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
@@ -1005,6 +1019,7 @@ export interface FileRoutesByTo {
   '/vala-tv': typeof ValaTvRoute
   '/demo': typeof DemoRoute
   '/academy/$course': typeof AcademyCourseRoute
+  '/account/purchases': typeof AccountPurchasesRoute
   '/admin/import': typeof AdminImportRoute
   '/affiliate-manager/affiliate-links': typeof AffiliateManagerAffiliateLinksRoute
   '/affiliate-manager/affiliates': typeof AffiliateManagerAffiliatesRouteWithChildren
@@ -1082,6 +1097,7 @@ export interface FileRoutesByTo {
   '/vala-ai': typeof ValaAiIndexRoute
   '/proxy/demo': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
+  '/api/account/purchases': typeof ApiAccountPurchasesRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
@@ -1141,6 +1157,7 @@ export interface FileRoutesById {
   '/vala-tv': typeof ValaTvRoute
   '/demo/': typeof DemoRoute
   '/academy/$course': typeof AcademyCourseRoute
+  '/account/purchases': typeof AccountPurchasesRoute
   '/admin/import': typeof AdminImportRoute
   '/affiliate-manager/affiliate-links': typeof AffiliateManagerAffiliateLinksRoute
   '/affiliate-manager/affiliates': typeof AffiliateManagerAffiliatesRouteWithChildren
@@ -1218,6 +1235,7 @@ export interface FileRoutesById {
   '/vala-ai/': typeof ValaAiIndexRoute
   '/proxy/demo/': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
+  '/api/account/purchases': typeof ApiAccountPurchasesRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
@@ -1278,6 +1296,7 @@ export interface FileRouteTypes {
     | '/vala-tv'
     | '/demo/'
     | '/academy/$course'
+    | '/account/purchases'
     | '/admin/import'
     | '/affiliate-manager/affiliate-links'
     | '/affiliate-manager/affiliates'
@@ -1355,6 +1374,7 @@ export interface FileRouteTypes {
     | '/vala-ai/'
     | '/proxy/demo/'
     | '/affiliate-manager/affiliates/$id'
+    | '/api/account/purchases'
     | '/api/finance/reseller-membership'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
@@ -1408,6 +1428,7 @@ export interface FileRouteTypes {
     | '/vala-tv'
     | '/demo'
     | '/academy/$course'
+    | '/account/purchases'
     | '/admin/import'
     | '/affiliate-manager/affiliate-links'
     | '/affiliate-manager/affiliates'
@@ -1485,6 +1506,7 @@ export interface FileRouteTypes {
     | '/vala-ai'
     | '/proxy/demo'
     | '/affiliate-manager/affiliates/$id'
+    | '/api/account/purchases'
     | '/api/finance/reseller-membership'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
@@ -1543,6 +1565,7 @@ export interface FileRouteTypes {
     | '/vala-tv'
     | '/demo/'
     | '/academy/$course'
+    | '/account/purchases'
     | '/admin/import'
     | '/affiliate-manager/affiliate-links'
     | '/affiliate-manager/affiliates'
@@ -1620,6 +1643,7 @@ export interface FileRouteTypes {
     | '/vala-ai/'
     | '/proxy/demo/'
     | '/affiliate-manager/affiliates/$id'
+    | '/api/account/purchases'
     | '/api/finance/reseller-membership'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
@@ -1679,6 +1703,7 @@ export interface RootRouteChildren {
   ValaTvRoute: typeof ValaTvRoute
   DemoRoute: typeof DemoRoute
   AcademyCourseRoute: typeof AcademyCourseRoute
+  AccountPurchasesRoute: typeof AccountPurchasesRoute
   AdminImportRoute: typeof AdminImportRoute
   AiAssistantRoute: typeof AiAssistantRoute
   AiCompareRoute: typeof AiCompareRoute
@@ -1693,6 +1718,7 @@ export interface RootRouteChildren {
   AcademyIndexRoute: typeof AcademyIndexRoute
   ApplyIndexRoute: typeof ApplyIndexRoute
   ProxyDemoRoute: typeof ProxyDemoRoute
+  ApiAccountPurchasesRoute: typeof ApiAccountPurchasesRoute
   ApiFinanceResellerMembershipRoute: typeof ApiFinanceResellerMembershipRoute
   ApiInternalApplyMigrationsRoute: typeof ApiInternalApplyMigrationsRoute
   ApiInternalApplyResellerSchemaRoute: typeof ApiInternalApplyResellerSchemaRoute
@@ -1977,6 +2003,13 @@ declare module '@tanstack/react-router' {
       path: '/academy/$course'
       fullPath: '/academy/$course'
       preLoaderRoute: typeof AcademyCourseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account/purchases': {
+      id: '/account/purchases'
+      path: '/account/purchases'
+      fullPath: '/account/purchases'
+      preLoaderRoute: typeof AccountPurchasesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/import': {
@@ -2511,6 +2544,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AffiliateManagerAffiliatesIdRouteImport
       parentRoute: typeof AffiliateManagerAffiliatesRoute
     }
+    '/api/account/purchases': {
+      id: '/api/account/purchases'
+      path: '/api/account/purchases'
+      fullPath: '/api/account/purchases'
+      preLoaderRoute: typeof ApiAccountPurchasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/finance/reseller-membership': {
       id: '/api/finance/reseller-membership'
       path: '/api/finance/reseller-membership'
@@ -2885,6 +2925,7 @@ const rootRouteChildren: RootRouteChildren = {
   ValaTvRoute: ValaTvRoute,
   DemoRoute: DemoRoute,
   AcademyCourseRoute: AcademyCourseRoute,
+  AccountPurchasesRoute: AccountPurchasesRoute,
   AdminImportRoute: AdminImportRoute,
   AiAssistantRoute: AiAssistantRoute,
   AiCompareRoute: AiCompareRoute,
@@ -2899,6 +2940,7 @@ const rootRouteChildren: RootRouteChildren = {
   AcademyIndexRoute: AcademyIndexRoute,
   ApplyIndexRoute: ApplyIndexRoute,
   ProxyDemoRoute: ProxyDemoRoute,
+  ApiAccountPurchasesRoute: ApiAccountPurchasesRoute,
   ApiFinanceResellerMembershipRoute: ApiFinanceResellerMembershipRoute,
   ApiInternalApplyMigrationsRoute: ApiInternalApplyMigrationsRoute,
   ApiInternalApplyResellerSchemaRoute: ApiInternalApplyResellerSchemaRoute,
