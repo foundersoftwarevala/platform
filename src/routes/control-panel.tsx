@@ -219,6 +219,28 @@ function Index() {
               }
 
 
+              // Every sidebar entry that has a route of its own. Entries handled
+              // by the cases above keep their existing behaviour; this only
+              // catches the ones that used to fall through to a toast.
+              const MODULE_ROUTES: Record<string, string> = {
+                  ams_manager: "/ams-manager",
+                  chat_manager: "/chat-manager",
+                  creator_manager: "/creator-manager",
+                  demo_manager: "/demo-manager",
+                  franchise_manager: "/franchise-manager",
+                  influencer_manager: "/influencer-manager",
+                  lead_manager: "/lead-manager",
+                  marketplace_manager: "/marketplace-manager",
+                  reseller_manager: "/reseller-manager",
+                  sales_support_manager: "/sales-support-manager",
+                  seo_manager: "/seo-manager",
+              };
+              const modulePath = MODULE_ROUTES[roleId];
+              if (modulePath) {
+                void navigate({ to: modulePath });
+                return;
+              }
+
               toast.success(`Switched to ${roleId.replace(/_/g, " ")}`);
             }}
             onLogout={() => toast.info("Logging out...")}
