@@ -193,6 +193,10 @@ function Index() {
                 void navigate({ to: "/dashboard/$role", params: { role: dashRole } });
                 return;
               }
+              if (roleId === "chat_manager") {
+                void navigate({ to: "/chat-manager" });
+                return;
+              }
               if (roleId === "marketplace_manager") {
                 void navigate({ to: "/marketplace-manager" });
                 return;

@@ -25,7 +25,7 @@ import {
   Star, Scale, ListTodo, DollarSign, Code2, 
   Megaphone, HeartHandshake, Users, LogOut, Zap, Timer, MonitorPlay, 
   Home, Shield, Settings, Search, User, UserCircle, Boxes, Store, Sparkles,
-  PanelLeftClose, PanelLeftOpen
+  PanelLeftClose, PanelLeftOpen, MessagesSquare
 } from "lucide-react";
 // ScrollArea removed - NO SCROLLING in Control Panel
 
