@@ -70,6 +70,7 @@ const ROLE_CATEGORIES = [
   { id: 'seo_manager', label: 'SEO Manager', icon: Search },
   { id: 'lead_manager', label: 'Lead Manager', icon: Target },
   { id: 'sales_support_manager', label: 'Sales & Support', icon: Headphones },
+  { id: 'chat_manager', label: 'Chat Manager', icon: MessagesSquare },
   { id: 'customer_support_management', label: 'Customer Support', icon: HeartHandshake },
   // GRADE 4
   { id: 'franchise_manager', label: 'Franchise Owner', icon: Building2 },
