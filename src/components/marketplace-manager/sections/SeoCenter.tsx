@@ -444,7 +444,7 @@ function Toolbar({
   };
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/40 p-2">
+    <div data-skip-drawer className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/40 p-2">
       <div className="flex items-center gap-2 pl-2">
         <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{title}</div>
         {typeof count === "number" && (
@@ -541,7 +541,7 @@ function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between border-t border-border bg-background/40 px-3 py-2 text-[11px] text-muted-foreground">
+      <div data-skip-drawer className="flex items-center justify-between border-t border-border bg-background/40 px-3 py-2 text-[11px] text-muted-foreground">
         <div>
           {matching.length === 0
             ? "No rows match that search"

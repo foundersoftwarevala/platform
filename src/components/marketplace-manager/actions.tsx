@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type ReactNode } from "react";
+import { useState, useEffect, type ComponentType, type ReactNode } from "react";
 import {
   Plus, Pencil, Eye, Check, X, Trash2, Upload, Download, FileDown, Copy,
   Archive, RotateCcw, Lock, Unlock, Star, Pin, Tag, DollarSign, KeyRound,
@@ -90,6 +90,32 @@ export const BULK_ACTIONS: { id: BulkActionId; label: string; icon: ComponentTyp
 ];
 
 // ---------- single button ----------
+/**
+ * Sections wire their own behaviour through `onAction`. Until one does, the
+ * button reports that the action is not connected rather than doing nothing at
+ * all, so a missing wire is visible instead of looking like a broken button.
+ */
+function useActionNotice() {
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  const report = (label: string) =>
+    setNotice(`"${label}" is not connected to an action yet.`);
+  return { notice, report };
+}
+
+function ActionNotice({ notice }: { notice: string | null }) {
+  if (!notice) return null;
+  return (
+    <p role="status" className="w-full px-2 pt-1 text-[11px] text-muted-foreground">
+      {notice}
+    </p>
+  );
+}
+
 export function ActionButton({
   action,
   size = "md",
@@ -121,17 +147,27 @@ export function RowActions({
   ids,
   can,
   compact = true,
+  onAction,
 }: {
   ids: ActionId[];
   can?: (id: ActionId) => boolean;
   compact?: boolean;
+  onAction?: (id: ActionId) => void;
 }) {
   const allowed = ids.filter((id) => (can ? can(id) : true));
+  const { notice, report } = useActionNotice();
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1">
       {allowed.map((id) => (
-        <ActionButton key={id} action={id} size="sm" label={!compact} />
+        <ActionButton
+          key={id}
+          action={id}
+          size="sm"
+          label={!compact}
+          onClick={() => (onAction ? onAction(id) : report(ACTIONS[id].label))}
+        />
       ))}
+      <ActionNotice notice={notice} />
     </div>
   );
 }
@@ -208,11 +244,14 @@ export function BulkActionBar({
   selectedCount,
   onClear,
   can,
+  onAction,
 }: {
   selectedCount: number;
   onClear?: () => void;
   can?: (id: BulkActionId) => boolean;
+  onAction?: (id: BulkActionId) => void;
 }) {
+  const { notice, report } = useActionNotice();
   if (selectedCount <= 0) return null;
   const items = BULK_ACTIONS.filter((b) => (can ? can(b.id) : true));
   return (
@@ -229,6 +268,8 @@ export function BulkActionBar({
         return (
           <button
             key={b.id}
+            type="button"
+            onClick={() => (onAction ? onAction(b.id) : report(b.label))}
             className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold transition-all active:scale-[0.98] ${TONE[b.tone]}`}
           >
             <Icon className="h-3.5 w-3.5" />
@@ -242,12 +283,19 @@ export function BulkActionBar({
       >
         <X className="h-3.5 w-3.5" /> Clear
       </button>
+      <ActionNotice notice={notice} />
     </div>
   );
 }
 
 // ---------- detail-page action rail ----------
-export function DetailActionRail({ can }: { can?: (id: ActionId) => boolean }) {
+export function DetailActionRail({
+  can,
+  onAction,
+}: {
+  can?: (id: ActionId) => boolean;
+  onAction?: (id: ActionId) => void;
+}) {
   const primary: ActionId[] = ["edit", "approve", "reject", "publish", "unpublish", "duplicate", "archive", "delete"];
   const extras: { label: string; icon: ComponentType<{ className?: string }> }[] = [
     { label: "Preview",         icon: Eye },
@@ -265,7 +313,9 @@ export function DetailActionRail({ can }: { can?: (id: ActionId) => boolean }) {
   const allowed = primary.filter((id) => (can ? can(id) : true));
   return (
     <div className="glass mb-4 flex flex-wrap items-center gap-2 rounded-2xl p-2.5">
-      {allowed.map((id) => <ActionButton key={id} action={id} size="sm" />)}
+      {allowed.map((id) => (
+        <ActionButton key={id} action={id} size="sm" onClick={() => onAction?.(id)} />
+      ))}
       <span className="mx-1 h-5 w-px bg-border" />
       {extras.map((e) => (
         <button
