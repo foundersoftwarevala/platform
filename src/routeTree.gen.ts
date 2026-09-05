@@ -131,6 +131,8 @@ import { Route as ApiMarketplaceActivityRouteImport } from './routes/api/marketp
 import { Route as ApiMarketplaceLeadRouteImport } from './routes/api/marketplace/lead'
 import { Route as ApiMarketplaceRowsRouteImport } from './routes/api/marketplace/rows'
 import { Route as ApiMarketplaceSearchRouteImport } from './routes/api/marketplace/search'
+import { Route as ApiPaymentInitiateRouteImport } from './routes/api/payment/initiate'
+import { Route as ApiPaymentWebhookRouteImport } from './routes/api/payment/webhook'
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
 import { Route as MarketplaceProductSlugRouteImport } from './routes/marketplace.product.$slug'
 import { Route as ProxyDemoRouteImport } from './routes/proxy.demo.'
@@ -774,6 +776,16 @@ const ApiMarketplaceSearchRoute = ApiMarketplaceSearchRouteImport.update({
   path: '/api/marketplace/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPaymentInitiateRoute = ApiPaymentInitiateRouteImport.update({
+  id: '/api/payment/initiate',
+  path: '/api/payment/initiate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPaymentWebhookRoute = ApiPaymentWebhookRouteImport.update({
+  id: '/api/payment/webhook',
+  path: '/api/payment/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarketplaceCategorySlugRoute = MarketplaceCategorySlugRouteImport.update({
   id: '/category/$slug',
   path: '/category/$slug',
@@ -924,6 +936,8 @@ export interface FileRoutesByFullPath {
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
@@ -1048,6 +1062,8 @@ export interface FileRoutesByTo {
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
@@ -1178,6 +1194,8 @@ export interface FileRoutesById {
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
@@ -1309,6 +1327,8 @@ export interface FileRouteTypes {
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/payment/initiate'
+    | '/api/payment/webhook'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
     | '/api/orders/$id/fulfil'
@@ -1433,6 +1453,8 @@ export interface FileRouteTypes {
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/payment/initiate'
+    | '/api/payment/webhook'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
     | '/api/orders/$id/fulfil'
@@ -1562,6 +1584,8 @@ export interface FileRouteTypes {
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/payment/initiate'
+    | '/api/payment/webhook'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
     | '/api/orders/$id/fulfil'
@@ -1629,6 +1653,8 @@ export interface RootRouteChildren {
   ApiMarketplaceLeadRoute: typeof ApiMarketplaceLeadRoute
   ApiMarketplaceRowsRoute: typeof ApiMarketplaceRowsRoute
   ApiMarketplaceSearchRoute: typeof ApiMarketplaceSearchRoute
+  ApiPaymentInitiateRoute: typeof ApiPaymentInitiateRoute
+  ApiPaymentWebhookRoute: typeof ApiPaymentWebhookRoute
   ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
   ApiProxyDemoSplatRoute: typeof ApiProxyDemoSplatRoute
 }
@@ -2489,6 +2515,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMarketplaceSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/payment/initiate': {
+      id: '/api/payment/initiate'
+      path: '/api/payment/initiate'
+      fullPath: '/api/payment/initiate'
+      preLoaderRoute: typeof ApiPaymentInitiateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/payment/webhook': {
+      id: '/api/payment/webhook'
+      path: '/api/payment/webhook'
+      fullPath: '/api/payment/webhook'
+      preLoaderRoute: typeof ApiPaymentWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/marketplace/category/$slug': {
       id: '/marketplace/category/$slug'
       path: '/category/$slug'
@@ -2787,6 +2827,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketplaceLeadRoute: ApiMarketplaceLeadRoute,
   ApiMarketplaceRowsRoute: ApiMarketplaceRowsRoute,
   ApiMarketplaceSearchRoute: ApiMarketplaceSearchRoute,
+  ApiPaymentInitiateRoute: ApiPaymentInitiateRoute,
+  ApiPaymentWebhookRoute: ApiPaymentWebhookRoute,
   ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,
   ApiProxyDemoSplatRoute: ApiProxyDemoSplatRoute,
 }
