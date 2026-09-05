@@ -93,7 +93,7 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
       name: title,
       description,
       url: canonical,
-      isPartOf: { "@type": "WebSite", name: "Software Vala", url: SITE },
+      isPartOf: { "@type": "WebSite", name: "Software Vala", url: siteUrl() },
       ...(count > 0
         ? { mainEntity: { "@type": "ItemList", numberOfItems: count, name: `${data.name} software` } }
         : {}),

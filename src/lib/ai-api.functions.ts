@@ -142,16 +142,27 @@ export const listAiRegistry = createServerFn({ method: "GET" })
     };
   });
 
-export const routeAiRequest = createServerFn({ method: "POST" })
-  .inputValidator((v) => z.object({
-    serviceId: z.string().optional(),
-    serviceName: z.string().optional(),
-    module: z.string().optional(),
-    system: z.string().optional(),
-    prompt: z.string().optional(),
-    payload: z.record(z.any()).optional(),
-  }).parse(v ?? {}))
-  .handler(async ({ data }) => {
+/**
+ * The one path to a model.
+ *
+ * AI API Manager holds the provider, the model, the credential and the record
+ * of what was spent, so every request goes through here. A caller that built
+ * its own client would be a second place to configure and a second place to
+ * leak from, and its usage would never appear in the manager at all.
+ *
+ * It refuses rather than guessing: no active provider, or no real credential,
+ * and it throws with the reason.
+ */
+export type AiRequest = {
+  serviceId?: string;
+  serviceName?: string;
+  module?: string;
+  system?: string;
+  prompt?: string;
+  payload?: Record<string, unknown>;
+};
+
+export async function executeAiRequest(data: AiRequest) {
     const { url } = resolveSupabaseEnv();
     const serverKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? "";
     const sb = createClient(url, serverKey || resolveSupabaseEnv().key, { auth: { persistSession: false } }) as any;
@@ -205,4 +216,16 @@ export const routeAiRequest = createServerFn({ method: "POST" })
     await sb.from("usage_events").insert({ service_id: target.id, model_id: model?.id ?? null, product: data.module ?? "sales-support", requests: 1, tokens_in: result.usage?.input_tokens ?? result.usage?.prompt_tokens ?? 0, tokens_out: result.usage?.output_tokens ?? result.usage?.completion_tokens ?? 0, latency_ms: latency, status_code: response.status, success: response.ok, source: "ai-api-manager" });
     if (!response.ok || !output) throw new Error(result.error?.message ?? result.error?.[0]?.message ?? `AI provider returned HTTP ${response.status}.`);
     return { text: String(output), service: target.name, provider: provider?.name ?? target.provider, model: model?.model_id ?? null, latencyMs: latency };
-  });
+}
+
+/** The same routing, for a browser to call. */
+export const routeAiRequest = createServerFn({ method: "POST" })
+  .inputValidator((v) => z.object({
+    serviceId: z.string().optional(),
+    serviceName: z.string().optional(),
+    module: z.string().optional(),
+    system: z.string().optional(),
+    prompt: z.string().optional(),
+    payload: z.record(z.any()).optional(),
+  }).parse(v ?? {}))
+  .handler(async ({ data }) => executeAiRequest(data as AiRequest));

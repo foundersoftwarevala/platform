@@ -31,7 +31,7 @@ import {
 } from "@/components/marketplace-home/RefSections";
 import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { buildRow } from "@/data/rowFill";
-import { useLoaderData } from "@tanstack/react-router";
+import { useMatch } from "@tanstack/react-router";
 import CategoryRow from "@/components/marketplace-home/CategoryRow";
 import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE, SITE_STATS } from "@/lib/site-content/constants";
 
@@ -3535,6 +3535,15 @@ const CARD_PAGE = 12;
  */
 const ROW_TARGET = 60;
 
+/** The first page of rows, as the home route's loader prepared it. */
+type CatalogSeed = {
+  rows: CatalogRow[];
+  rowOffset: number;
+  rowCount: number;
+  totalRows: number;
+  hasMoreRows: boolean;
+} | null;
+
 /** Card colours cycle through the same palette the hand-written rows use. */
 const CARD_COLORS = [
   "from-blue-600 to-indigo-600", "from-emerald-600 to-teal-600",
@@ -3665,10 +3674,19 @@ function CatalogRows({
   favorites: string[];
   onToggleFavorite: (id: string) => void;
 }) {
-  // What the server already rendered. Starting from it means the first rows
-  // are on the page in the HTML itself rather than appearing a moment later,
+  // What the server already rendered for the home page. Starting from it means
+  // the first rows are in the HTML itself rather than appearing a moment later,
   // and the browser does not ask twice for the same thing.
-  const seeded = useLoaderData({ from: "/" })?.seed ?? null;
+  //
+  // This component is also drawn by the /marketplace layout, where there is no
+  // such match. Asking for the home route's data there threw, and the throw
+  // took the whole server render down with it - every page under /marketplace
+  // arrived as an empty shell that only filled in once its JavaScript ran. So
+  // the match is requested without throwing, and its absence simply means
+  // nothing was seeded and the rows are fetched as before.
+  const homeMatch = useMatch({ from: "/", shouldThrow: false });
+  const seeded =
+    (homeMatch?.loaderData as { seed?: CatalogSeed } | undefined)?.seed ?? null;
 
   const [rows, setRows] = useState<CatalogRow[] | null>(
     (seeded?.rows as CatalogRow[] | undefined) ?? null,

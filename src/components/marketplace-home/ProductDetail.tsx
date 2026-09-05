@@ -8,7 +8,10 @@ import { useServerFn } from "@/lib/serverFn";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { useState } from "react";
+// useEffect was used without ever being imported. The product page never
+// rendered - the marketplace layout swallowed it - so the reference error sat
+// unnoticed until the page was finally drawn.
+import { useEffect, useState } from "react";
 
 export function ProductDetail() {
   const { slug } = useParams({ from: "/marketplace/product/$slug" });

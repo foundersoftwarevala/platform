@@ -42,6 +42,7 @@ import { Route as SalesCrmRouteImport } from './routes/sales-crm'
 import { Route as SalesSupportManagerRouteImport } from './routes/sales-support-manager'
 import { Route as SeoManagerRouteImport } from './routes/seo-manager'
 import { Route as SitemapCategoriesDotxmlRouteImport } from './routes/sitemap-categories[.]xml'
+import { Route as SitemapCountriesDotxmlRouteImport } from './routes/sitemap-countries[.]xml'
 import { Route as SitemapPagesDotxmlRouteImport } from './routes/sitemap-pages[.]xml'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SupportRouteImport } from './routes/support'
@@ -167,6 +168,7 @@ import { Route as MarketingReportsRouteImport } from './routes/marketing.reports
 import { Route as MarketingSchedulesRouteImport } from './routes/marketing.schedules'
 import { Route as MarketingSeoRouteImport } from './routes/marketing.seo'
 import { Route as MarketingTargetingRouteImport } from './routes/marketing.targeting'
+import { Route as MarketplaceIndexRouteImport } from './routes/marketplace.index'
 import { Route as PaymentFailRouteImport } from './routes/payment/fail'
 import { Route as PaymentSuccessRouteImport } from './routes/payment/success'
 import { Route as SitemapProductsPageDotxmlRouteImport } from './routes/sitemap-products/$page[.]xml'
@@ -210,15 +212,18 @@ import { Route as ApiInternalMarketplaceMigrationRouteImport } from './routes/ap
 import { Route as ApiManagerResourceRouteImport } from './routes/api/manager/resource'
 import { Route as ApiMarketplaceActivityRouteImport } from './routes/api/marketplace/activity'
 import { Route as ApiMarketplaceCatalogRouteImport } from './routes/api/marketplace/catalog'
+import { Route as ApiMarketplaceCountryRouteImport } from './routes/api/marketplace/country'
 import { Route as ApiMarketplaceLeadRouteImport } from './routes/api/marketplace/lead'
 import { Route as ApiMarketplaceProofRouteImport } from './routes/api/marketplace/proof'
 import { Route as ApiMarketplaceRowsRouteImport } from './routes/api/marketplace/rows'
 import { Route as ApiMarketplaceSearchRouteImport } from './routes/api/marketplace/search'
+import { Route as ApiMarketplaceTranslateRouteImport } from './routes/api/marketplace/translate'
 import { Route as ApiPartnerQuoteRouteImport } from './routes/api/partner/quote'
 import { Route as ApiPaymentInitiateRouteImport } from './routes/api/payment/initiate'
 import { Route as ApiPaymentStatusRouteImport } from './routes/api/payment/status'
 import { Route as ApiPaymentWebhookRouteImport } from './routes/api/payment/webhook'
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
+import { Route as MarketplaceCountryCountryRouteImport } from './routes/marketplace.country.$country'
 import { Route as MarketplaceProductSlugRouteImport } from './routes/marketplace.product.$slug'
 import { Route as ProxyDemoRouteImport } from './routes/proxy.demo.'
 import { Route as AmsAwardsIdEditRouteImport } from './routes/ams.awards.$id.edit'
@@ -398,6 +403,11 @@ const SeoManagerRoute = SeoManagerRouteImport.update({
 const SitemapCategoriesDotxmlRoute = SitemapCategoriesDotxmlRouteImport.update({
   id: '/sitemap-categories.xml',
   path: '/sitemap-categories.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapCountriesDotxmlRoute = SitemapCountriesDotxmlRouteImport.update({
+  id: '/sitemap-countries.xml',
+  path: '/sitemap-countries.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SitemapPagesDotxmlRoute = SitemapPagesDotxmlRouteImport.update({
@@ -1046,6 +1056,11 @@ const MarketingTargetingRoute = MarketingTargetingRouteImport.update({
   path: '/targeting',
   getParentRoute: () => MarketingRoute,
 } as any)
+const MarketplaceIndexRoute = MarketplaceIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MarketplaceRoute,
+} as any)
 const PaymentFailRoute = PaymentFailRouteImport.update({
   id: '/payment/fail',
   path: '/payment/fail',
@@ -1268,6 +1283,11 @@ const ApiMarketplaceCatalogRoute = ApiMarketplaceCatalogRouteImport.update({
   path: '/api/marketplace/catalog',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMarketplaceCountryRoute = ApiMarketplaceCountryRouteImport.update({
+  id: '/api/marketplace/country',
+  path: '/api/marketplace/country',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMarketplaceLeadRoute = ApiMarketplaceLeadRouteImport.update({
   id: '/api/marketplace/lead',
   path: '/api/marketplace/lead',
@@ -1286,6 +1306,11 @@ const ApiMarketplaceRowsRoute = ApiMarketplaceRowsRouteImport.update({
 const ApiMarketplaceSearchRoute = ApiMarketplaceSearchRouteImport.update({
   id: '/api/marketplace/search',
   path: '/api/marketplace/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMarketplaceTranslateRoute = ApiMarketplaceTranslateRouteImport.update({
+  id: '/api/marketplace/translate',
+  path: '/api/marketplace/translate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPartnerQuoteRoute = ApiPartnerQuoteRouteImport.update({
@@ -1313,6 +1338,12 @@ const MarketplaceCategorySlugRoute = MarketplaceCategorySlugRouteImport.update({
   path: '/category/$slug',
   getParentRoute: () => MarketplaceRoute,
 } as any)
+const MarketplaceCountryCountryRoute =
+  MarketplaceCountryCountryRouteImport.update({
+    id: '/country/$country',
+    path: '/country/$country',
+    getParentRoute: () => MarketplaceRoute,
+  } as any)
 const MarketplaceProductSlugRoute = MarketplaceProductSlugRouteImport.update({
   id: '/product/$slug',
   path: '/product/$slug',
@@ -1427,6 +1458,7 @@ export interface FileRoutesByFullPath {
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
+  '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
   '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
@@ -1564,6 +1596,7 @@ export interface FileRoutesByFullPath {
   '/lead-manager/': typeof LeadManagerIndexRoute
   '/manager/': typeof ManagerIndexRoute
   '/marketing/': typeof MarketingIndexRoute
+  '/marketplace/': typeof MarketplaceIndexRoute
   '/vala-ai/': typeof ValaAiIndexRoute
   '/proxy/demo/': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
@@ -1590,15 +1623,18 @@ export interface FileRoutesByFullPath {
   '/api/manager/resource': typeof ApiManagerResourceRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
+  '/api/marketplace/country': typeof ApiMarketplaceCountryRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/proof': typeof ApiMarketplaceProofRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
+  '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
   '/ams/awards/': typeof AmsAwardsIndexRoute
   '/ams/collection/': typeof AmsCollectionIndexRoute
@@ -1640,7 +1676,6 @@ export interface FileRoutesByTo {
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
   '/login': typeof LoginRoute
-  '/marketplace': typeof MarketplaceRouteWithChildren
   '/marketplace-manager': typeof MarketplaceManagerRoute
   '/marketplace-recovery': typeof MarketplaceRecoveryRoute
   '/pages': typeof PagesRoute
@@ -1650,6 +1685,7 @@ export interface FileRoutesByTo {
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
+  '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
   '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
@@ -1785,6 +1821,7 @@ export interface FileRoutesByTo {
   '/lead-manager': typeof LeadManagerIndexRoute
   '/manager': typeof ManagerIndexRoute
   '/marketing': typeof MarketingIndexRoute
+  '/marketplace': typeof MarketplaceIndexRoute
   '/vala-ai': typeof ValaAiIndexRoute
   '/proxy/demo': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
@@ -1811,15 +1848,18 @@ export interface FileRoutesByTo {
   '/api/manager/resource': typeof ApiManagerResourceRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
+  '/api/marketplace/country': typeof ApiMarketplaceCountryRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/proof': typeof ApiMarketplaceProofRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
+  '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
   '/ams/awards': typeof AmsAwardsIndexRoute
   '/ams/collection': typeof AmsCollectionIndexRoute
@@ -1876,6 +1916,7 @@ export interface FileRoutesById {
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
+  '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
   '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
@@ -2013,6 +2054,7 @@ export interface FileRoutesById {
   '/lead-manager/': typeof LeadManagerIndexRoute
   '/manager/': typeof ManagerIndexRoute
   '/marketing/': typeof MarketingIndexRoute
+  '/marketplace/': typeof MarketplaceIndexRoute
   '/vala-ai/': typeof ValaAiIndexRoute
   '/proxy/demo/': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
@@ -2039,15 +2081,18 @@ export interface FileRoutesById {
   '/api/manager/resource': typeof ApiManagerResourceRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
+  '/api/marketplace/country': typeof ApiMarketplaceCountryRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/proof': typeof ApiMarketplaceProofRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
+  '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
   '/ams/awards/': typeof AmsAwardsIndexRoute
   '/ams/collection/': typeof AmsCollectionIndexRoute
@@ -2105,6 +2150,7 @@ export interface FileRouteTypes {
     | '/sales-support-manager'
     | '/seo-manager'
     | '/sitemap-categories.xml'
+    | '/sitemap-countries.xml'
     | '/sitemap-pages.xml'
     | '/sitemap.xml'
     | '/support'
@@ -2242,6 +2288,7 @@ export interface FileRouteTypes {
     | '/lead-manager/'
     | '/manager/'
     | '/marketing/'
+    | '/marketplace/'
     | '/vala-ai/'
     | '/proxy/demo/'
     | '/affiliate-manager/affiliates/$id'
@@ -2268,15 +2315,18 @@ export interface FileRouteTypes {
     | '/api/manager/resource'
     | '/api/marketplace/activity'
     | '/api/marketplace/catalog'
+    | '/api/marketplace/country'
     | '/api/marketplace/lead'
     | '/api/marketplace/proof'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/marketplace/translate'
     | '/api/partner/quote'
     | '/api/payment/initiate'
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/marketplace/category/$slug'
+    | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
     | '/ams/awards/'
     | '/ams/collection/'
@@ -2318,7 +2368,6 @@ export interface FileRouteTypes {
     | '/internal-support-ai'
     | '/keywords'
     | '/login'
-    | '/marketplace'
     | '/marketplace-manager'
     | '/marketplace-recovery'
     | '/pages'
@@ -2328,6 +2377,7 @@ export interface FileRouteTypes {
     | '/sales-support-manager'
     | '/seo-manager'
     | '/sitemap-categories.xml'
+    | '/sitemap-countries.xml'
     | '/sitemap-pages.xml'
     | '/sitemap.xml'
     | '/support'
@@ -2463,6 +2513,7 @@ export interface FileRouteTypes {
     | '/lead-manager'
     | '/manager'
     | '/marketing'
+    | '/marketplace'
     | '/vala-ai'
     | '/proxy/demo'
     | '/affiliate-manager/affiliates/$id'
@@ -2489,15 +2540,18 @@ export interface FileRouteTypes {
     | '/api/manager/resource'
     | '/api/marketplace/activity'
     | '/api/marketplace/catalog'
+    | '/api/marketplace/country'
     | '/api/marketplace/lead'
     | '/api/marketplace/proof'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/marketplace/translate'
     | '/api/partner/quote'
     | '/api/payment/initiate'
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/marketplace/category/$slug'
+    | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
     | '/ams/awards'
     | '/ams/collection'
@@ -2553,6 +2607,7 @@ export interface FileRouteTypes {
     | '/sales-support-manager'
     | '/seo-manager'
     | '/sitemap-categories.xml'
+    | '/sitemap-countries.xml'
     | '/sitemap-pages.xml'
     | '/sitemap.xml'
     | '/support'
@@ -2690,6 +2745,7 @@ export interface FileRouteTypes {
     | '/lead-manager/'
     | '/manager/'
     | '/marketing/'
+    | '/marketplace/'
     | '/vala-ai/'
     | '/proxy/demo/'
     | '/affiliate-manager/affiliates/$id'
@@ -2716,15 +2772,18 @@ export interface FileRouteTypes {
     | '/api/manager/resource'
     | '/api/marketplace/activity'
     | '/api/marketplace/catalog'
+    | '/api/marketplace/country'
     | '/api/marketplace/lead'
     | '/api/marketplace/proof'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/marketplace/translate'
     | '/api/partner/quote'
     | '/api/payment/initiate'
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/marketplace/category/$slug'
+    | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
     | '/ams/awards/'
     | '/ams/collection/'
@@ -2781,6 +2840,7 @@ export interface RootRouteChildren {
   SalesSupportManagerRoute: typeof SalesSupportManagerRoute
   SeoManagerRoute: typeof SeoManagerRoute
   SitemapCategoriesDotxmlRoute: typeof SitemapCategoriesDotxmlRoute
+  SitemapCountriesDotxmlRoute: typeof SitemapCountriesDotxmlRoute
   SitemapPagesDotxmlRoute: typeof SitemapPagesDotxmlRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SupportRoute: typeof SupportRoute
@@ -2880,10 +2940,12 @@ export interface RootRouteChildren {
   ApiManagerResourceRoute: typeof ApiManagerResourceRoute
   ApiMarketplaceActivityRoute: typeof ApiMarketplaceActivityRoute
   ApiMarketplaceCatalogRoute: typeof ApiMarketplaceCatalogRoute
+  ApiMarketplaceCountryRoute: typeof ApiMarketplaceCountryRoute
   ApiMarketplaceLeadRoute: typeof ApiMarketplaceLeadRoute
   ApiMarketplaceProofRoute: typeof ApiMarketplaceProofRoute
   ApiMarketplaceRowsRoute: typeof ApiMarketplaceRowsRoute
   ApiMarketplaceSearchRoute: typeof ApiMarketplaceSearchRoute
+  ApiMarketplaceTranslateRoute: typeof ApiMarketplaceTranslateRoute
   ApiPartnerQuoteRoute: typeof ApiPartnerQuoteRoute
   ApiPaymentInitiateRoute: typeof ApiPaymentInitiateRoute
   ApiPaymentStatusRoute: typeof ApiPaymentStatusRoute
@@ -3138,6 +3200,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap-categories.xml'
       fullPath: '/sitemap-categories.xml'
       preLoaderRoute: typeof SitemapCategoriesDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap-countries.xml': {
+      id: '/sitemap-countries.xml'
+      path: '/sitemap-countries.xml'
+      fullPath: '/sitemap-countries.xml'
+      preLoaderRoute: typeof SitemapCountriesDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sitemap-pages.xml': {
@@ -4015,6 +4084,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketingTargetingRouteImport
       parentRoute: typeof MarketingRoute
     }
+    '/marketplace/': {
+      id: '/marketplace/'
+      path: '/'
+      fullPath: '/marketplace/'
+      preLoaderRoute: typeof MarketplaceIndexRouteImport
+      parentRoute: typeof MarketplaceRoute
+    }
     '/payment/fail': {
       id: '/payment/fail'
       path: '/payment/fail'
@@ -4316,6 +4392,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMarketplaceCatalogRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/marketplace/country': {
+      id: '/api/marketplace/country'
+      path: '/api/marketplace/country'
+      fullPath: '/api/marketplace/country'
+      preLoaderRoute: typeof ApiMarketplaceCountryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/marketplace/lead': {
       id: '/api/marketplace/lead'
       path: '/api/marketplace/lead'
@@ -4342,6 +4425,13 @@ declare module '@tanstack/react-router' {
       path: '/api/marketplace/search'
       fullPath: '/api/marketplace/search'
       preLoaderRoute: typeof ApiMarketplaceSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/marketplace/translate': {
+      id: '/api/marketplace/translate'
+      path: '/api/marketplace/translate'
+      fullPath: '/api/marketplace/translate'
+      preLoaderRoute: typeof ApiMarketplaceTranslateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/partner/quote': {
@@ -4377,6 +4467,13 @@ declare module '@tanstack/react-router' {
       path: '/category/$slug'
       fullPath: '/marketplace/category/$slug'
       preLoaderRoute: typeof MarketplaceCategorySlugRouteImport
+      parentRoute: typeof MarketplaceRoute
+    }
+    '/marketplace/country/$country': {
+      id: '/marketplace/country/$country'
+      path: '/country/$country'
+      fullPath: '/marketplace/country/$country'
+      preLoaderRoute: typeof MarketplaceCountryCountryRouteImport
       parentRoute: typeof MarketplaceRoute
     }
     '/marketplace/product/$slug': {
@@ -4644,12 +4741,16 @@ const MarketingRouteWithChildren = MarketingRoute._addFileChildren(
 )
 
 interface MarketplaceRouteChildren {
+  MarketplaceIndexRoute: typeof MarketplaceIndexRoute
   MarketplaceCategorySlugRoute: typeof MarketplaceCategorySlugRoute
+  MarketplaceCountryCountryRoute: typeof MarketplaceCountryCountryRoute
   MarketplaceProductSlugRoute: typeof MarketplaceProductSlugRoute
 }
 
 const MarketplaceRouteChildren: MarketplaceRouteChildren = {
+  MarketplaceIndexRoute: MarketplaceIndexRoute,
   MarketplaceCategorySlugRoute: MarketplaceCategorySlugRoute,
+  MarketplaceCountryCountryRoute: MarketplaceCountryCountryRoute,
   MarketplaceProductSlugRoute: MarketplaceProductSlugRoute,
 }
 
@@ -4746,6 +4847,7 @@ const rootRouteChildren: RootRouteChildren = {
   SalesSupportManagerRoute: SalesSupportManagerRoute,
   SeoManagerRoute: SeoManagerRoute,
   SitemapCategoriesDotxmlRoute: SitemapCategoriesDotxmlRoute,
+  SitemapCountriesDotxmlRoute: SitemapCountriesDotxmlRoute,
   SitemapPagesDotxmlRoute: SitemapPagesDotxmlRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SupportRoute: SupportRoute,
@@ -4845,10 +4947,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiManagerResourceRoute: ApiManagerResourceRoute,
   ApiMarketplaceActivityRoute: ApiMarketplaceActivityRoute,
   ApiMarketplaceCatalogRoute: ApiMarketplaceCatalogRoute,
+  ApiMarketplaceCountryRoute: ApiMarketplaceCountryRoute,
   ApiMarketplaceLeadRoute: ApiMarketplaceLeadRoute,
   ApiMarketplaceProofRoute: ApiMarketplaceProofRoute,
   ApiMarketplaceRowsRoute: ApiMarketplaceRowsRoute,
   ApiMarketplaceSearchRoute: ApiMarketplaceSearchRoute,
+  ApiMarketplaceTranslateRoute: ApiMarketplaceTranslateRoute,
   ApiPartnerQuoteRoute: ApiPartnerQuoteRoute,
   ApiPaymentInitiateRoute: ApiPaymentInitiateRoute,
   ApiPaymentStatusRoute: ApiPaymentStatusRoute,

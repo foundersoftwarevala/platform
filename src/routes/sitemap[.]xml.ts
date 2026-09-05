@@ -63,6 +63,7 @@ export const Route = createFileRoute("/sitemap.xml")({
         const entries = [
           `<sitemap><loc>${absoluteUrl("/sitemap-pages.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
           `<sitemap><loc>${absoluteUrl("/sitemap-categories.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
+          `<sitemap><loc>${absoluteUrl("/sitemap-countries.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
           ...Array.from({ length: pages }, (_, i) =>
             `<sitemap><loc>${absoluteUrl(`/sitemap-products/${i + 1}.xml`)}</loc>` +
             `<lastmod>${today}</lastmod></sitemap>`,
