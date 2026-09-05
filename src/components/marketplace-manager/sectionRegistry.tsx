@@ -4,10 +4,11 @@ import type { ComponentType } from "react";
 import { DashboardSection } from "./sections/DashboardSection";
 import { FaqManagerSection, ValaTvSection } from "./sections/ContentStudio";
 import * as S from "./sections";
+import { LIVE_SECTIONS, withLive } from "./LiveSections";
 
 type SectionComponent = ComponentType<{ onNavigate?: (id: string) => void }>;
 
-export const sectionRegistry: Record<string, SectionComponent> = {
+const designedSections: Record<string, SectionComponent> = {
   // Overview
   Dashboard: DashboardSection as SectionComponent,
   Analytics: S.AnalyticsSection,
@@ -121,3 +122,17 @@ export const navIdToLabel: Record<string, string> = {
   reviews: "Reviews",
   notifications: "Notifications",
 };
+
+/**
+ * The registry the console actually uses.
+ *
+ * Sections named in LIVE_SECTIONS are handed back wrapped, so they open with the
+ * real marketplace rows above their designed content. Every other section is
+ * passed through exactly as it was.
+ */
+export const sectionRegistry: Record<string, SectionComponent> = Object.fromEntries(
+  Object.entries(designedSections).map(([label, Section]) => {
+    const live = LIVE_SECTIONS[label];
+    return [label, live ? withLive(live.resource, live.columns, Section) : Section];
+  }),
+);

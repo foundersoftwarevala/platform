@@ -533,3 +533,117 @@
 .sv-row-scroll::-webkit-scrollbar-track { background: oklch(1 0 0 / 0.04); border-radius: 999px; }
 .sv-row-scroll::-webkit-scrollbar-thumb { background: oklch(0.7 0.14 200 / 0.45); border-radius: 999px; }
 .sv-row-scroll::-webkit-scrollbar-thumb:hover { background: oklch(0.75 0.16 200 / 0.7); }
+
+/* =====================================================================
+   Refinement pass — density, touch comfort and scroll feel.
+
+   Deliberately no colour is declared here. Everything below adjusts
+   spacing, sizing, motion and rendering only, so the palette in force
+   stays exactly as it is on every screen and in every theme.
+   ===================================================================== */
+
+/* --- scrolling ------------------------------------------------------ */
+
+/* Anchor jumps and the row rails settle instead of snapping. Honoured
+   only when the visitor has not asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+  .sv-rail, .sv-row-scroll { scroll-behavior: smooth; }
+}
+
+/* A card should come to rest aligned, not half cut off, and the rail
+   should stop rubber-banding the page underneath it. */
+.sv-rail, .sv-row-scroll {
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.sv-rail > *, .sv-row-scroll > * { scroll-snap-align: start; }
+
+/* Anchored sections clear the sticky header rather than hiding under it. */
+.mpc-home [id] { scroll-margin-top: 88px; }
+
+/* --- typography and rendering --------------------------------------- */
+
+.mpc-home {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.011em;
+}
+
+/* Long product names and descriptions break cleanly instead of
+   overflowing their card on narrow screens. */
+.mpc-home h1, .mpc-home h2, .mpc-home h3 { text-wrap: balance; }
+.mpc-home p { text-wrap: pretty; }
+.mpc-home { overflow-wrap: anywhere; }
+
+/* --- touch comfort --------------------------------------------------- */
+
+/* Every control a finger has to find is at least the 44px Apple and
+   WCAG both ask for. Padding grows, the visual box does not move. */
+@media (pointer: coarse) {
+  .mpc-home button,
+  .mpc-home a[role="button"],
+  .mpc-home [role="tab"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .mpc-home input,
+  .mpc-home select,
+  .mpc-home textarea {
+    min-height: 44px;
+    font-size: 16px; /* stops iOS zooming the page on focus */
+  }
+}
+
+/* --- density --------------------------------------------------------- */
+
+/* Tighter on a phone so more of the catalogue is visible at once,
+   roomier from tablet up where the space exists. */
+@media (max-width: 640px) {
+  .mpc-home section { padding-top: 1.75rem; padding-bottom: 1.75rem; }
+  .mpc-home .sv-rail { gap: 0.75rem; }
+}
+@media (min-width: 1280px) {
+  .mpc-home section { padding-top: 2.75rem; padding-bottom: 2.75rem; }
+}
+
+/* --- surface quality ------------------------------------------------- */
+
+/* A slightly deeper, softer shadow reads as more expensive than a hard
+   one, and only on devices that can afford the paint. */
+@media (prefers-reduced-motion: no-preference) and (min-width: 768px) {
+  .mpc-home .glass,
+  .mpc-home article {
+    transition:
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 220ms ease;
+    will-change: transform;
+  }
+}
+
+/* Images hold their space while loading, so nothing jumps as the row
+   fills in. */
+.mpc-home img { content-visibility: auto; }
+
+/* Long rows are only painted when they are near the viewport. */
+.mpc-home .sv-row-scroll { content-visibility: auto; contain-intrinsic-size: 320px; }
+
+/* --- focus ----------------------------------------------------------- */
+
+/* A visible focus ring that follows the element's own colour rather
+   than introducing one. */
+.mpc-home :focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* --- scrollbars ------------------------------------------------------ */
+
+/* Slimmer, and they keep whatever colour the row already defines. */
+.sv-row-scroll::-webkit-scrollbar { height: 6px; }
+.sv-row-scroll::-webkit-scrollbar-thumb { border-radius: 999px; }

@@ -132,6 +132,7 @@ import { Route as ApiInternalCredentialSetupRouteImport } from './routes/api/int
 import { Route as ApiInternalDbHealthRouteImport } from './routes/api/internal/db-health'
 import { Route as ApiInternalEmailFlushRouteImport } from './routes/api/internal/email-flush'
 import { Route as ApiInternalMarketplaceMigrationRouteImport } from './routes/api/internal/marketplace-migration'
+import { Route as ApiManagerResourceRouteImport } from './routes/api/manager/resource'
 import { Route as ApiMarketplaceActivityRouteImport } from './routes/api/marketplace/activity'
 import { Route as ApiMarketplaceLeadRouteImport } from './routes/api/marketplace/lead'
 import { Route as ApiMarketplaceRowsRouteImport } from './routes/api/marketplace/rows'
@@ -788,6 +789,11 @@ const ApiInternalMarketplaceMigrationRoute =
     path: '/api/internal/marketplace-migration',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiManagerResourceRoute = ApiManagerResourceRouteImport.update({
+  id: '/api/manager/resource',
+  path: '/api/manager/resource',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMarketplaceActivityRoute = ApiMarketplaceActivityRouteImport.update({
   id: '/api/marketplace/activity',
   path: '/api/marketplace/activity',
@@ -979,6 +985,7 @@ export interface FileRoutesByFullPath {
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/manager/resource': typeof ApiManagerResourceRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
@@ -1112,6 +1119,7 @@ export interface FileRoutesByTo {
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/manager/resource': typeof ApiManagerResourceRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
@@ -1251,6 +1259,7 @@ export interface FileRoutesById {
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/manager/resource': typeof ApiManagerResourceRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
@@ -1391,6 +1400,7 @@ export interface FileRouteTypes {
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/manager/resource'
     | '/api/marketplace/activity'
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
@@ -1524,6 +1534,7 @@ export interface FileRouteTypes {
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/manager/resource'
     | '/api/marketplace/activity'
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
@@ -1662,6 +1673,7 @@ export interface FileRouteTypes {
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/manager/resource'
     | '/api/marketplace/activity'
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
@@ -1738,6 +1750,7 @@ export interface RootRouteChildren {
   ApiInternalDbHealthRoute: typeof ApiInternalDbHealthRoute
   ApiInternalEmailFlushRoute: typeof ApiInternalEmailFlushRoute
   ApiInternalMarketplaceMigrationRoute: typeof ApiInternalMarketplaceMigrationRoute
+  ApiManagerResourceRoute: typeof ApiManagerResourceRoute
   ApiMarketplaceActivityRoute: typeof ApiMarketplaceActivityRoute
   ApiMarketplaceLeadRoute: typeof ApiMarketplaceLeadRoute
   ApiMarketplaceRowsRoute: typeof ApiMarketplaceRowsRoute
@@ -2613,6 +2626,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalMarketplaceMigrationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/manager/resource': {
+      id: '/api/manager/resource'
+      path: '/api/manager/resource'
+      fullPath: '/api/manager/resource'
+      preLoaderRoute: typeof ApiManagerResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/marketplace/activity': {
       id: '/api/marketplace/activity'
       path: '/api/marketplace/activity'
@@ -2968,6 +2988,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInternalDbHealthRoute: ApiInternalDbHealthRoute,
   ApiInternalEmailFlushRoute: ApiInternalEmailFlushRoute,
   ApiInternalMarketplaceMigrationRoute: ApiInternalMarketplaceMigrationRoute,
+  ApiManagerResourceRoute: ApiManagerResourceRoute,
   ApiMarketplaceActivityRoute: ApiMarketplaceActivityRoute,
   ApiMarketplaceLeadRoute: ApiMarketplaceLeadRoute,
   ApiMarketplaceRowsRoute: ApiMarketplaceRowsRoute,
