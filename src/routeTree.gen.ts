@@ -137,6 +137,7 @@ import { Route as ApiMarketplaceActivityRouteImport } from './routes/api/marketp
 import { Route as ApiMarketplaceLeadRouteImport } from './routes/api/marketplace/lead'
 import { Route as ApiMarketplaceRowsRouteImport } from './routes/api/marketplace/rows'
 import { Route as ApiMarketplaceSearchRouteImport } from './routes/api/marketplace/search'
+import { Route as ApiPartnerQuoteRouteImport } from './routes/api/partner/quote'
 import { Route as ApiPaymentInitiateRouteImport } from './routes/api/payment/initiate'
 import { Route as ApiPaymentStatusRouteImport } from './routes/api/payment/status'
 import { Route as ApiPaymentWebhookRouteImport } from './routes/api/payment/webhook'
@@ -814,6 +815,11 @@ const ApiMarketplaceSearchRoute = ApiMarketplaceSearchRouteImport.update({
   path: '/api/marketplace/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPartnerQuoteRoute = ApiPartnerQuoteRouteImport.update({
+  id: '/api/partner/quote',
+  path: '/api/partner/quote',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPaymentInitiateRoute = ApiPaymentInitiateRouteImport.update({
   id: '/api/payment/initiate',
   path: '/api/payment/initiate',
@@ -990,6 +996,7 @@ export interface FileRoutesByFullPath {
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
@@ -1124,6 +1131,7 @@ export interface FileRoutesByTo {
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
@@ -1264,6 +1272,7 @@ export interface FileRoutesById {
   '/api/marketplace/lead': typeof ApiMarketplaceLeadRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
@@ -1405,6 +1414,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/partner/quote'
     | '/api/payment/initiate'
     | '/api/payment/status'
     | '/api/payment/webhook'
@@ -1539,6 +1549,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/partner/quote'
     | '/api/payment/initiate'
     | '/api/payment/status'
     | '/api/payment/webhook'
@@ -1678,6 +1689,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/lead'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/partner/quote'
     | '/api/payment/initiate'
     | '/api/payment/status'
     | '/api/payment/webhook'
@@ -1755,6 +1767,7 @@ export interface RootRouteChildren {
   ApiMarketplaceLeadRoute: typeof ApiMarketplaceLeadRoute
   ApiMarketplaceRowsRoute: typeof ApiMarketplaceRowsRoute
   ApiMarketplaceSearchRoute: typeof ApiMarketplaceSearchRoute
+  ApiPartnerQuoteRoute: typeof ApiPartnerQuoteRoute
   ApiPaymentInitiateRoute: typeof ApiPaymentInitiateRoute
   ApiPaymentStatusRoute: typeof ApiPaymentStatusRoute
   ApiPaymentWebhookRoute: typeof ApiPaymentWebhookRoute
@@ -2661,6 +2674,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMarketplaceSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/partner/quote': {
+      id: '/api/partner/quote'
+      path: '/api/partner/quote'
+      fullPath: '/api/partner/quote'
+      preLoaderRoute: typeof ApiPartnerQuoteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/payment/initiate': {
       id: '/api/payment/initiate'
       path: '/api/payment/initiate'
@@ -2993,6 +3013,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketplaceLeadRoute: ApiMarketplaceLeadRoute,
   ApiMarketplaceRowsRoute: ApiMarketplaceRowsRoute,
   ApiMarketplaceSearchRoute: ApiMarketplaceSearchRoute,
+  ApiPartnerQuoteRoute: ApiPartnerQuoteRoute,
   ApiPaymentInitiateRoute: ApiPaymentInitiateRoute,
   ApiPaymentStatusRoute: ApiPaymentStatusRoute,
   ApiPaymentWebhookRoute: ApiPaymentWebhookRoute,
