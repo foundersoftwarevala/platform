@@ -91,6 +91,24 @@ export const Route = createFileRoute("/api/account/purchases")({
             }
           }
 
+          // Invoices for the same orders, matched on the meta they carry.
+          const invoices = new Map<string, { id: string; no: string }>();
+          if (ids.length) {
+            const invoiceResponse = await fetch(
+              `${url()}/rest/v1/finance_invoices?select=id,invoice_no,line_items` +
+                `&line_items->meta->>user_id=eq.${owner}&limit=200`,
+              { headers: admin() },
+            );
+            if (invoiceResponse.ok) {
+              for (const row of (await invoiceResponse.json()) as Record<string, unknown>[]) {
+                const meta = (row.line_items as { meta?: { order_id?: string } })?.meta;
+                if (meta?.order_id) {
+                  invoices.set(meta.order_id, { id: String(row.id), no: String(row.invoice_no) });
+                }
+              }
+            }
+          }
+
           const purchases = orders.map((order) => {
             const metadata = (order.metadata ?? {}) as Record<string, unknown>;
             const licence = licences.get(String(order.id));
@@ -105,6 +123,8 @@ export const Route = createFileRoute("/api/account/purchases")({
               placed: order.created_at,
               licence_key: licence?.key ?? null,
               licence_status: licence?.status ?? null,
+              invoice_id: invoices.get(String(order.id))?.id ?? null,
+              invoice_no: invoices.get(String(order.id))?.no ?? null,
             };
           });
 

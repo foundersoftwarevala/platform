@@ -24,6 +24,8 @@ type Purchase = {
   placed: string;
   licence_key: string | null;
   licence_status: string | null;
+  invoice_id: string | null;
+  invoice_no: string | null;
 };
 
 const TONE: Record<string, string> = {
@@ -183,6 +185,20 @@ function PurchasesPage() {
                       Your licence is being issued. Refresh in a moment.
                     </p>
                   ) : null}
+
+                  {p.invoice_id && (
+                    <p className="mt-2 text-[11px] text-white/50">
+                      Invoice {p.invoice_no} —{" "}
+                      <a
+                        href={`/api/account/invoice/${p.invoice_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-cyan-300 underline"
+                      >
+                        open
+                      </a>
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

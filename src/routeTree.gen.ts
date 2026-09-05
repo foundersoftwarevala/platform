@@ -142,6 +142,7 @@ import { Route as ApiPaymentWebhookRouteImport } from './routes/api/payment/webh
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
 import { Route as MarketplaceProductSlugRouteImport } from './routes/marketplace.product.$slug'
 import { Route as ProxyDemoRouteImport } from './routes/proxy.demo.'
+import { Route as ApiAccountInvoiceIdRouteImport } from './routes/api/account/invoice/$id'
 import { Route as ApiOrdersIdFulfilRouteImport } from './routes/api/orders/$id/fulfil'
 import { Route as ApiProxyDemoSplatRouteImport } from './routes/api/proxy/demo.$'
 
@@ -837,6 +838,11 @@ const ProxyDemoRoute = ProxyDemoRouteImport.update({
   path: '/proxy/demo/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAccountInvoiceIdRoute = ApiAccountInvoiceIdRouteImport.update({
+  id: '/api/account/invoice/$id',
+  path: '/api/account/invoice/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOrdersIdFulfilRoute = ApiOrdersIdFulfilRouteImport.update({
   id: '/api/orders/$id/fulfil',
   path: '/api/orders/$id/fulfil',
@@ -982,6 +988,7 @@ export interface FileRoutesByFullPath {
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
 }
@@ -1114,6 +1121,7 @@ export interface FileRoutesByTo {
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
 }
@@ -1252,6 +1260,7 @@ export interface FileRoutesById {
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
 }
@@ -1391,6 +1400,7 @@ export interface FileRouteTypes {
     | '/api/payment/webhook'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
+    | '/api/account/invoice/$id'
     | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
   fileRoutesByTo: FileRoutesByTo
@@ -1523,6 +1533,7 @@ export interface FileRouteTypes {
     | '/api/payment/webhook'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
+    | '/api/account/invoice/$id'
     | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
   id:
@@ -1660,6 +1671,7 @@ export interface FileRouteTypes {
     | '/api/payment/webhook'
     | '/marketplace/category/$slug'
     | '/marketplace/product/$slug'
+    | '/api/account/invoice/$id'
     | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
   fileRoutesById: FileRoutesById
@@ -1733,6 +1745,7 @@ export interface RootRouteChildren {
   ApiPaymentInitiateRoute: typeof ApiPaymentInitiateRoute
   ApiPaymentStatusRoute: typeof ApiPaymentStatusRoute
   ApiPaymentWebhookRoute: typeof ApiPaymentWebhookRoute
+  ApiAccountInvoiceIdRoute: typeof ApiAccountInvoiceIdRoute
   ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
   ApiProxyDemoSplatRoute: typeof ApiProxyDemoSplatRoute
 }
@@ -2670,6 +2683,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProxyDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/account/invoice/$id': {
+      id: '/api/account/invoice/$id'
+      path: '/api/account/invoice/$id'
+      fullPath: '/api/account/invoice/$id'
+      preLoaderRoute: typeof ApiAccountInvoiceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/orders/$id/fulfil': {
       id: '/api/orders/$id/fulfil'
       path: '/api/orders/$id/fulfil'
@@ -2955,6 +2975,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPaymentInitiateRoute: ApiPaymentInitiateRoute,
   ApiPaymentStatusRoute: ApiPaymentStatusRoute,
   ApiPaymentWebhookRoute: ApiPaymentWebhookRoute,
+  ApiAccountInvoiceIdRoute: ApiAccountInvoiceIdRoute,
   ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,
   ApiProxyDemoSplatRoute: ApiProxyDemoSplatRoute,
 }

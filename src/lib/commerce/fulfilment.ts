@@ -1,5 +1,6 @@
 import { randomBytes, createHash } from "node:crypto";
 import { licenceEmail, send as sendMail } from "./mailer";
+import { createInvoiceForOrder } from "./invoices";
 
 /**
  * Turning a paid order into access.
@@ -102,7 +103,7 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   }
 
   const orderResponse = await rest(
-    `marketplace_orders?select=id,buyer_id,user_id,status,metadata,order_no&id=eq.${encodeURIComponent(orderId)}&limit=1`,
+    `marketplace_orders?select=id,buyer_id,user_id,status,metadata,order_no,total,amount_inr,currency,currency_charged&id=eq.${encodeURIComponent(orderId)}&limit=1`,
   );
   const orders = orderResponse.ok ? ((await orderResponse.json()) as Record<string, unknown>[]) : [];
   const order = orders[0];
@@ -202,6 +203,25 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
     fingerprint: licenceFingerprint(licenceKey),
     product_id: productId || null,
     entitlement_id: entitlementId,
+  });
+
+  // The document for the customer and for the accounts.
+  // Bill what was charged: rupees when the customer paid in rupees.
+  const chargedAmount = Number(order.amount_inr ?? order.total ?? 0) || 0;
+  const chargedCurrency = String(order.currency_charged ?? order.currency ?? "USD");
+  const invoice = await createInvoiceForOrder({
+    userId,
+    orderId,
+    amount: chargedAmount,
+    currency: chargedCurrency,
+    productName: String(metadata.product_name ?? "Software Vala lifetime licence"),
+    clientName: String(metadata.buyer_name ?? metadata.email ?? "Marketplace customer"),
+    status: "paid",
+  });
+  await logPaymentEvent(orderId, invoice.invoice ? "invoice_ready" : "invoice_failed", {
+    created: invoice.created,
+    invoice_no: (invoice.invoice as { invoice_no?: string } | null)?.invoice_no ?? null,
+    detail: invoice.error ?? null,
   });
 
   // Tell the buyer. Queued regardless of whether a provider is configured, so
