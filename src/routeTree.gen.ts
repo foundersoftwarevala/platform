@@ -198,6 +198,7 @@ import { Route as AmsTicketsIndexRouteImport } from './routes/ams.tickets.index'
 import { Route as AmsTicketsIdRouteImport } from './routes/ams.tickets.$id'
 import { Route as AmsTicketsNewRouteImport } from './routes/ams.tickets.new'
 import { Route as ApiAccountPurchasesRouteImport } from './routes/api/account/purchases'
+import { Route as ApiDemoTicketRouteImport } from './routes/api/demo/ticket'
 import { Route as ApiFinanceResellerMembershipRouteImport } from './routes/api/finance/reseller-membership'
 import { Route as ApiInternalApplyMigrationsRouteImport } from './routes/api/internal/apply-migrations'
 import { Route as ApiInternalApplyResellerSchemaRouteImport } from './routes/api/internal/apply-reseller-schema'
@@ -1200,6 +1201,11 @@ const ApiAccountPurchasesRoute = ApiAccountPurchasesRouteImport.update({
   path: '/api/account/purchases',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDemoTicketRoute = ApiDemoTicketRouteImport.update({
+  id: '/api/demo/ticket',
+  path: '/api/demo/ticket',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFinanceResellerMembershipRoute =
   ApiFinanceResellerMembershipRouteImport.update({
     id: '/api/finance/reseller-membership',
@@ -1560,6 +1566,7 @@ export interface FileRoutesByFullPath {
   '/ams/tickets/$id': typeof AmsTicketsIdRoute
   '/ams/tickets/new': typeof AmsTicketsNewRoute
   '/api/account/purchases': typeof ApiAccountPurchasesRoute
+  '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
@@ -1778,6 +1785,7 @@ export interface FileRoutesByTo {
   '/ams/tickets/$id': typeof AmsTicketsIdRoute
   '/ams/tickets/new': typeof AmsTicketsNewRoute
   '/api/account/purchases': typeof ApiAccountPurchasesRoute
+  '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
@@ -2003,6 +2011,7 @@ export interface FileRoutesById {
   '/ams/tickets/$id': typeof AmsTicketsIdRoute
   '/ams/tickets/new': typeof AmsTicketsNewRoute
   '/api/account/purchases': typeof ApiAccountPurchasesRoute
+  '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
@@ -2229,6 +2238,7 @@ export interface FileRouteTypes {
     | '/ams/tickets/$id'
     | '/ams/tickets/new'
     | '/api/account/purchases'
+    | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
@@ -2447,6 +2457,7 @@ export interface FileRouteTypes {
     | '/ams/tickets/$id'
     | '/ams/tickets/new'
     | '/api/account/purchases'
+    | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
@@ -2671,6 +2682,7 @@ export interface FileRouteTypes {
     | '/ams/tickets/$id'
     | '/ams/tickets/new'
     | '/api/account/purchases'
+    | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
@@ -2832,6 +2844,7 @@ export interface RootRouteChildren {
   AmsTicketsIdRoute: typeof AmsTicketsIdRoute
   AmsTicketsNewRoute: typeof AmsTicketsNewRoute
   ApiAccountPurchasesRoute: typeof ApiAccountPurchasesRoute
+  ApiDemoTicketRoute: typeof ApiDemoTicketRoute
   ApiFinanceResellerMembershipRoute: typeof ApiFinanceResellerMembershipRoute
   ApiInternalApplyMigrationsRoute: typeof ApiInternalApplyMigrationsRoute
   ApiInternalApplyResellerSchemaRoute: typeof ApiInternalApplyResellerSchemaRoute
@@ -4193,6 +4206,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAccountPurchasesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/demo/ticket': {
+      id: '/api/demo/ticket'
+      path: '/api/demo/ticket'
+      fullPath: '/api/demo/ticket'
+      preLoaderRoute: typeof ApiDemoTicketRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/finance/reseller-membership': {
       id: '/api/finance/reseller-membership'
       path: '/api/finance/reseller-membership'
@@ -4773,6 +4793,7 @@ const rootRouteChildren: RootRouteChildren = {
   AmsTicketsIdRoute: AmsTicketsIdRoute,
   AmsTicketsNewRoute: AmsTicketsNewRoute,
   ApiAccountPurchasesRoute: ApiAccountPurchasesRoute,
+  ApiDemoTicketRoute: ApiDemoTicketRoute,
   ApiFinanceResellerMembershipRoute: ApiFinanceResellerMembershipRoute,
   ApiInternalApplyMigrationsRoute: ApiInternalApplyMigrationsRoute,
   ApiInternalApplyResellerSchemaRoute: ApiInternalApplyResellerSchemaRoute,

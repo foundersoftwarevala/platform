@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
+import { DEMO_COOKIE, ticketFromRequest } from "@/lib/demo/ticket";
 
 /**
  * Full Reverse Proxy for Demo Applications
@@ -16,7 +17,16 @@ async function getOriginalDemo(slug: string): Promise<{ url: string; name: strin
   const env = typeof process !== "undefined" ? process.env : undefined;
   const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
   const supabaseUrl = viteEnv?.VITE_SUPABASE_URL ?? env?.SUPABASE_URL;
-  const supabaseKey = viteEnv?.VITE_SUPABASE_PUBLISHABLE_KEY ?? viteEnv?.VITE_SUPABASE_ANON_KEY ?? env?.SUPABASE_PUBLISHABLE_KEY ?? env?.SUPABASE_ANON_KEY;
+  // Read the demo with the server's own key. The anon key cannot see
+  // product_demo_urls - the policy that keeps the catalogue from being walked
+  // denies it - so this lookup returned nothing and every demo answered 404.
+  // The key stays on the server; the visitor is checked separately, above.
+  const supabaseKey =
+    env?.SUPABASE_SERVICE_ROLE_KEY ??
+    viteEnv?.VITE_SUPABASE_PUBLISHABLE_KEY ??
+    viteEnv?.VITE_SUPABASE_ANON_KEY ??
+    env?.SUPABASE_PUBLISHABLE_KEY ??
+    env?.SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) return null;
   const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
   const { data: product } = await supabase.from("marketplace_products").select("id, name").eq("slug", slug).eq("visible", true).maybeSingle();
@@ -133,6 +143,20 @@ export const Route = createFileRoute('/api/proxy/demo/$')({
               { status: 400, headers: { 'Content-Type': 'application/json' } }
             );
           }
+
+          // Only a signed-in, verified visitor may see a demo. The products are
+          // hosted elsewhere and their addresses are the only thing there is to
+          // steal, so an anonymous caller is refused here rather than being
+          // handed a page it can read the origin out of. The pass names the one
+          // product it opens, so a pass for another demo does not work.
+          const pass = ticketFromRequest(request);
+          if (!pass || pass.slug !== slug) {
+            return new Response(
+              JSON.stringify({ error: 'Sign in to open this demo.', reason: 'sign_in_required' }),
+              { status: 401, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+          const passFromQuery = url.searchParams.get('t');
           
           // Get the original demo URL from catalog
           const originalDemo = await getOriginalDemo(slug);
@@ -183,17 +207,29 @@ export const Route = createFileRoute('/api/proxy/demo/$')({
             
             console.log(`[demo-proxy] >>> Returning HTML response`);
             
-            return new Response(html, {
-              status: 200,
-              headers: {
-                'Content-Type': 'text/html; charset=utf-8',
-                'X-Software-Vala': 'true',
-                'X-Demo-Slug': slug,
-                'X-Demo-Name': demoName,
-                'X-Content-Type-Options': 'nosniff',
-                'X-Frame-Options': 'SAMEORIGIN',
-              },
+            const htmlHeaders = new Headers({
+              'Content-Type': 'text/html; charset=utf-8',
+              'X-Software-Vala': 'true',
+              'X-Demo-Slug': slug,
+              'X-Demo-Name': demoName,
+              'X-Content-Type-Options': 'nosniff',
+              'X-Frame-Options': 'SAMEORIGIN',
             });
+
+            // The demo asks for its own scripts and images, and a browser will
+            // not put the pass on those requests. Hand it back as a cookie
+            // scoped to this demo so they carry it and the rest of the demo
+            // loads; it is unreadable to scripts and expires with the pass.
+            if (passFromQuery) {
+              const remaining = Math.max(0, Math.floor((pass.expiresAt - Date.now()) / 1000));
+              htmlHeaders.append(
+                'Set-Cookie',
+                `${DEMO_COOKIE}=${encodeURIComponent(passFromQuery)}; Path=/api/proxy/demo; ` +
+                  `Max-Age=${remaining}; HttpOnly; SameSite=Lax; Secure`,
+              );
+            }
+
+            return new Response(html, { status: 200, headers: htmlHeaders });
           }
           
           // For non-HTML responses (JS, CSS, images, etc.), just proxy through

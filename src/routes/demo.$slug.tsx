@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { resolveDemoUrl, BRANDING_CONFIG } from "@/lib/demo-gateway";
 import { getPublicProduct, recordPublicDemoClick } from "@/lib/marketplace.functions";
 import { useServerFn } from "@/lib/serverFn";
-import { AlertCircle, Loader, ArrowLeft } from "lucide-react";
+import { AlertCircle, Loader, ArrowLeft, LogIn } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/demo/$slug")({
   component: DemoBrandedGatewayPage,
@@ -30,6 +31,64 @@ function DemoBrandedGatewayPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSafeUrl, setIsSafeUrl] = useState(false);
   const [isEmbeddable, setIsEmbeddable] = useState(true);
+  const [pass, setPass] = useState<string | null>(null);
+  const [gate, setGate] = useState<"checking" | "open" | "sign_in" | "verify" | "unavailable">(
+    "checking",
+  );
+
+  /**
+   * Ask for a pass before anything is loaded.
+   *
+   * A demo is the only public thread back to the catalogue, so it opens for a
+   * signed-in, verified visitor and for nobody else. The same step is where the
+   * business gets the lead, which is why it happens before the demo is shown
+   * rather than after.
+   */
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) {
+          if (!cancelled) setGate("sign_in");
+          return;
+        }
+        const response = await fetch("/api/demo/ticket", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ slug }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          ticket?: string;
+          error?: string;
+          reason?: string;
+        };
+        if (cancelled) return;
+
+        if (response.ok && payload.ticket) {
+          setPass(payload.ticket);
+          setGate("open");
+          return;
+        }
+        if (payload.reason === "sign_in_required") setGate("sign_in");
+        else if (payload.reason === "verification_required") setGate("verify");
+        else setGate("unavailable");
+        setError(payload.error ?? "This demo could not be opened.");
+      } catch {
+        if (!cancelled) {
+          setGate("unavailable");
+          setError("Could not reach the server.");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
 
   // Fetch product and demo information from Marketplace API
   const { data: productData, isLoading } = useQuery({
@@ -77,7 +136,8 @@ function DemoBrandedGatewayPage() {
   useEffect(() => {
     const resolve = async () => {
       console.log('[demo-gateway] Resolving demo for slug:', slug);
-      if (!activeDemo?.url) {
+      if (!pass) return;
+      if (!activeDemo) {
         setError(`No active demo found for product: ${slug}`);
         return;
       }
@@ -87,7 +147,7 @@ function DemoBrandedGatewayPage() {
       console.log('[demo-gateway] Demo name:', demoName);
 
       // Use the API proxy endpoint with query parameters
-      const proxyUrl = `/api/proxy/demo/${slug}`;
+      const proxyUrl = `/api/proxy/demo/${slug}?t=${encodeURIComponent(pass)}`;
       console.log('[demo-gateway] Proxy URL:', proxyUrl);
       console.log('[demo-gateway] Resolving proxy URL:', proxyUrl);
       
@@ -110,7 +170,7 @@ function DemoBrandedGatewayPage() {
     };
 
     resolve();
-  }, [activeDemo, slug, productData?.product?.name]);
+  }, [activeDemo, slug, pass, productData?.product?.name]);
 
   // Set page title and favicon
   useEffect(() => {
@@ -123,7 +183,46 @@ function DemoBrandedGatewayPage() {
     }
   }, []);
 
-  if (isLoading) {
+  if (gate === "sign_in" || gate === "verify") {
+    const verifying = gate === "verify";
+    return (
+      <div className="flex h-screen flex-col bg-linear-to-b from-slate-950 to-slate-900">
+        <div className="border-b border-slate-700 bg-slate-900 px-6 py-4">
+          <a
+            href="/"
+            className="flex w-fit items-center gap-2 text-sm text-slate-400 transition-colors hover:text-slate-200"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Marketplace
+          </a>
+        </div>
+        <div className="flex flex-1 items-center justify-center px-6">
+          <div className="max-w-md space-y-5 text-center">
+            <LogIn className="mx-auto h-10 w-10 text-blue-400" />
+            <h1 className="text-xl font-semibold text-slate-100">
+              {verifying ? "Confirm your email to open this demo" : "Sign in to open this demo"}
+            </h1>
+            <p className="text-sm text-slate-400">
+              {verifying
+                ? "We have sent a confirmation link to your address. Open it, then come back to this page."
+                : "Live demos open for signed-in visitors. It takes a moment with Google or your email address, and you come straight back here."}
+            </p>
+            {!verifying && (
+              <a
+                href={`/login?redirect=${encodeURIComponent(`/demo/${slug}`)}`}
+                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+              >
+                <LogIn className="h-4 w-4" />
+                Sign in and open the demo
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading || gate === "checking") {
     return (
       <div className="flex h-screen items-center justify-center bg-linear-to-b from-slate-950 to-slate-900">
         <div className="space-y-4 text-center">

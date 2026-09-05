@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Loader2, RefreshCw, Search, X } from "lucide-react";
+import { authHeaders } from "@/lib/auth/operator-fetch";
 
 /**
  * The Marketplace Manager's live table.
@@ -81,6 +82,7 @@ export function LiveTable({
         const response = await fetch(
           `/api/manager/resource?resource=${encodeURIComponent(resource)}` +
             `&limit=${PAGE}&offset=${offset}&search=${encodeURIComponent(term)}`,
+          { headers: await authHeaders() },
         );
         const payload = (await response.json()) as Payload;
         if (!response.ok) {
@@ -128,7 +130,7 @@ export function LiveTable({
     try {
       const response = await fetch("/api/manager/resource", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ resource, id, changes: { [column]: value } }),
       });
       const payload = await response.json().catch(() => ({}));

@@ -31,7 +31,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const Route = createFileRoute("/api/marketplace/rows")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
         if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
           return Response.json({ rows: [], error: "Not configured" }, { status: 503 });
         }
@@ -75,10 +75,17 @@ export const Route = createFileRoute("/api/marketplace/rows")({
             href: `/marketplace/category/${String(category.slug ?? "")}`,
           }));
 
+          // A hidden row is one an operator deliberately took off the home
+          // page, so an ordinary visitor should not be able to read it back
+          // out of this endpoint. An operator sees every row, because hiding
+          // and unhiding is the whole point of the panel that calls this.
+          const gate = await requireInternalOperator(request);
+          const visible = gate.ok ? rows : rows.filter((r) => !r.hidden);
+
           return Response.json({
-            rows,
-            total: rows.length,
-            live: rows.filter((r) => !r.hidden).length,
+            rows: visible,
+            total: visible.length,
+            live: visible.filter((r) => !r.hidden).length,
           });
         } catch (error) {
           console.error("[rows] read failed", error);

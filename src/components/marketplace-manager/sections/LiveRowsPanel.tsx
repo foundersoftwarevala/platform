@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { authHeaders } from "@/lib/auth/operator-fetch";
 
 /**
  * The real category rows of the marketplace home page.
@@ -32,7 +33,9 @@ export function LiveRowsPanel() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const response = await fetch("/api/marketplace/rows");
+      const response = await fetch("/api/marketplace/rows", {
+        headers: await authHeaders(),
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error ?? "Could not load the rows");
       setRows(Array.isArray(data.rows) ? data.rows : []);
@@ -53,7 +56,7 @@ export function LiveRowsPanel() {
     try {
       const response = await fetch("/api/marketplace/rows", {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify(body),
       });
       const data = await response.json().catch(() => ({}));

@@ -322,6 +322,58 @@ async function loadPublicProductBySlugFromSupabase(sb: any, slug: string) {
   return { row: null, source: "none" as const };
 }
 
+/**
+ * What a visitor is allowed to know about a product's demos.
+ *
+ * The live address is the catalogue's only sensitive asset - the products
+ * themselves are hosted elsewhere - so it never travels to a browser, not even
+ * in a field the page does not draw. What is left is enough for the card to say
+ * a demo exists and for the gateway to offer it; the address is resolved on the
+ * server, behind the sign-in, when the demo is actually opened.
+ */
+function withoutAddress(demos: ProductDemoBinding[]): ProductDemoBinding[] {
+  return demos.map((demo) => ({ ...demo, url: "" }));
+}
+
+/**
+ * Every listed product's demos in one query.
+ *
+ * This was a query per product inside a Promise.all, so a page of a thousand
+ * products opened a thousand connections at once and the list waited for the
+ * slowest of them. One request answers for all of them.
+ */
+async function loadPublicDemosForProducts(
+  sb: any,
+  productIds: string[],
+): Promise<Map<string, ProductDemoBinding[]>> {
+  const grouped = new Map<string, ProductDemoBinding[]>();
+  const ids = Array.from(new Set(productIds.filter(Boolean)));
+  if (ids.length === 0) return grouped;
+
+  // PostgREST caps a response at a thousand rows, so ask in batches and keep
+  // every page rather than silently losing the demos past the cap.
+  const CHUNK = 200;
+  for (let start = 0; start < ids.length; start += CHUNK) {
+    const slice = ids.slice(start, start + CHUNK);
+    const result = await sb
+      .from("product_demo_urls")
+      .select("id, demo_name, role_name, status, environment, url, product_id")
+      .in("product_id", slice)
+      .eq("status", "active")
+      .order("sort_order");
+
+    if (result.error || !Array.isArray(result.data)) continue;
+    for (const row of result.data as (ProductDemoBinding & { product_id: string })[]) {
+      if (!row.url || !/^https?:\/\//i.test(row.url)) continue;
+      const list = grouped.get(row.product_id) ?? [];
+      const { product_id: _ignored, ...binding } = row;
+      list.push(binding as ProductDemoBinding);
+      grouped.set(row.product_id, list);
+    }
+  }
+  return grouped;
+}
+
 async function loadPublicDemosForProduct(sb: any, productId: string) {
   const demoResult = await sb
     .from("product_demo_urls")
@@ -433,21 +485,20 @@ export const getPublicProducts = createServerFn({ method: "GET" })
         return buildSuppliedCatalogFallback();
       }
 
-      const productsWithDemos = await Promise.all(
-        rows.map(async (product: any) => {
-          const activeDemos = (await loadPublicDemosForProduct(sb, product.id)).filter((demo) => {
-            if (!demo.url) return false;
-            return /^https?:\/\//i.test(demo.url);
-          });
-
-          const mapped = mapProductRecord(product);
-          return {
-            ...mapped,
-            demo_count: activeDemos.length,
-            demo_urls: activeDemos,
-          } as PublicProduct;
-        }),
+      const demosByProduct = await loadPublicDemosForProducts(
+        sb,
+        rows.map((product: any) => product.id),
       );
+
+      const productsWithDemos = rows.map((product: any) => {
+        const activeDemos = demosByProduct.get(product.id) ?? [];
+        const mapped = mapProductRecord(product);
+        return {
+          ...mapped,
+          demo_count: activeDemos.length,
+          demo_urls: withoutAddress(activeDemos),
+        } as PublicProduct;
+      });
 
       return productsWithDemos.length ? productsWithDemos : buildSuppliedCatalogFallback();
     } catch (err) {
@@ -475,10 +526,12 @@ export const getPublicProduct = createServerFn({ method: "GET" })
         return { product: null, active_demos: [], seo: null };
       }
 
-      const activeDemos = (await loadPublicDemosForProduct(sb, productRow.id)).filter((demo) => {
-        if (!demo.url) return false;
-        return /^https?:\/\//i.test(demo.url);
-      });
+      const activeDemos = withoutAddress(
+        (await loadPublicDemosForProduct(sb, productRow.id)).filter((demo) => {
+          if (!demo.url) return false;
+          return /^https?:\/\//i.test(demo.url);
+        }),
+      );
 
       return {
         product: {
@@ -592,10 +645,12 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
       // Enrich products with demo URLs
       const productsWithDemos = await Promise.all(
         catalogRows.map(async (product: any) => {
-          const activeDemos = (await loadPublicDemosForProduct(sb, product.id)).filter((demo) => {
-            if (!demo.url) return false;
-            return /^https?:\/\//i.test(demo.url);
-          });
+          const activeDemos = withoutAddress(
+            (await loadPublicDemosForProduct(sb, product.id)).filter((demo) => {
+              if (!demo.url) return false;
+              return /^https?:\/\//i.test(demo.url);
+            }),
+          );
           
           const mapped = mapProductRecord(product);
           return {
