@@ -62,6 +62,7 @@ const ROLE_CATEGORIES = [
   { id: 'ams_manager', label: 'AMS Manager', icon: Boxes },
   { id: 'marketplace_manager', label: 'Marketplace Manager', icon: Store },
   { id: 'creator_manager', label: 'Creator Manager', icon: Sparkles },
+  { id: 'vendor_manager', label: 'Vendor Manager', icon: Store },
 
 
 

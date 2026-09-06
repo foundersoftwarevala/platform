@@ -11,6 +11,7 @@ import { ResellerHero } from "@/components/dashboard/ResellerHero";
 import { AuthorHero } from "@/components/dashboard/AuthorHero";
 import { ResellerProfileHero } from "@/components/dashboard/ResellerProfileHero";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { useSellerMetrics } from "@/hooks/useSellerMetrics";
 import { ContentRows } from "@/components/dashboard/ContentRows";
 import { Breadcrumbs } from "@/components/dashboard/Breadcrumbs";
 import { KpiToolbar, type KpiSort, type KpiTone } from "@/components/dashboard/KpiToolbar";
@@ -110,6 +111,9 @@ function DashboardPage() {
   const [activeModule, setActiveModule] = useState<string | null>(null);
   const cfg = ROLES[role as RoleKey];
   const perms = usePermissions(role as RoleKey);
+  // Vendors and authors both sell on the marketplace, so both dashboards
+  // read their figures from the database instead of the sample engine.
+  const sellerMetrics = useSellerMetrics(role);
   const openModule = useCallback(
     (key: string | null) => setActiveModule(key && perms.canOpen(key) ? key : null),
     [perms],
@@ -239,7 +243,12 @@ function DashboardPage() {
                 sort={kpiSort}
                 onSortChange={setKpiSort}
               />
-              <KpiGrid items={filteredKpis} roleKey={role} onOpen={openModule} />
+              <KpiGrid
+                items={filteredKpis}
+                roleKey={role}
+                onOpen={openModule}
+                {...(sellerMetrics.values ? { values: sellerMetrics.values } : {})}
+              />
               {role === "franchise" ? (
                 <Suspense fallback={<ModuleFallback />}><FranchiseHome onOpen={openModule} /></Suspense>
               ) : (

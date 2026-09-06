@@ -29,6 +29,7 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/franchise-manager", roles: ["finance", "support", "sales_support_manager"], label: "Franchise Manager" },
   { prefix: "/influencer-manager", roles: ["finance", "support", "sales_support_manager"], label: "Influencer Manager" },
   { prefix: "/affiliate-manager", roles: ["finance", "support", "sales_support_manager"], label: "Affiliate Manager" },
+  { prefix: "/vendor-manager", roles: ["finance", "support", "sales_support_manager"], label: "Vendor Manager" },
   { prefix: "/creator-manager", roles: ["finance", "support"], label: "Creator Manager" },
   { prefix: "/finance-manager", roles: ["finance"], label: "Finance Manager" },
   { prefix: "/lead-manager", roles: ["sales", "marketing", "support", "sales_support_manager"], label: "Lead Manager" },

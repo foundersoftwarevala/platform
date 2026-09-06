@@ -14,10 +14,21 @@ const toneStyle: Record<Kpi["tone"], { bg: string; fg: string; ring: string; lin
 };
 
 function KpiCardBase({
-  kpi, roleKey, onOpen,
-}: { kpi: Kpi; roleKey: string; onOpen?: (k: string) => void }) {
+  kpi, roleKey, onOpen, value,
+}: {
+  kpi: Kpi;
+  roleKey: string;
+  onOpen?: (k: string) => void;
+  /**
+   * A real figure for this KPI. `null` means the platform genuinely has no
+   * source for it and a dash is shown. `undefined` means this dashboard has
+   * not been wired to real data yet and the sample engine still renders it.
+   */
+  value?: number | null;
+}) {
   const t = toneStyle[kpi.tone];
   const m = metricFor(roleKey, kpi);
+  const isReal = value !== undefined;
   const up = m.deltaPct >= 0;
   return (
     <button
@@ -35,29 +46,59 @@ function KpiCardBase({
         </span>
       </div>
       <div className="mt-3 flex items-baseline gap-1">
-        <span className="text-2xl font-black tracking-tight text-foreground">{fmtValue(m.value, m.unit)}</span>
+        <span className="text-2xl font-black tracking-tight text-foreground">
+          {isReal
+            ? value === null
+              ? "—"
+              : fmtValue(value, kpi.unit)
+            : fmtValue(m.value, m.unit)}
+        </span>
       </div>
       <div className="mt-1 text-xs text-muted-foreground truncate">{kpi.label}</div>
       <div className="mt-1.5 flex items-end justify-between gap-2">
-        <span
-          className={`inline-flex items-center gap-0.5 text-[10px] font-semibold whitespace-nowrap ${up ? "text-success" : "text-destructive"}`}
-        >
-          {up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-          {Math.abs(m.deltaPct)}%
-        </span>
-        <span className={t.fg}>
-          <Sparkline values={m.series} color={t.line} w={64} h={24} />
-        </span>
+        {isReal ? (
+          // A real figure gets no invented trend line and no invented delta.
+          // When there is nothing to report yet, say so plainly.
+          <span className="text-[10px] font-medium text-muted-foreground">
+            {value === null ? "not tracked yet" : "live"}
+          </span>
+        ) : (
+          <>
+            <span
+              className={`inline-flex items-center gap-0.5 text-[10px] font-semibold whitespace-nowrap ${up ? "text-success" : "text-destructive"}`}
+            >
+              {up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+              {Math.abs(m.deltaPct)}%
+            </span>
+            <span className={t.fg}>
+              <Sparkline values={m.series} color={t.line} w={64} h={24} />
+            </span>
+          </>
+        )}
       </div>
     </button>
   );
 }
 
-function KpiGridBase({ items, roleKey, onOpen }: { items: Kpi[]; roleKey: string; onOpen: (k: string) => void }) {
+function KpiGridBase({
+  items, roleKey, onOpen, values,
+}: {
+  items: Kpi[];
+  roleKey: string;
+  onOpen: (k: string) => void;
+  /** Real figures by KPI key. Omit entirely to keep the previous behaviour. */
+  values?: Record<string, number | null>;
+}) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
       {items.map((k) => (
-        <KpiCard key={k.key} kpi={k} roleKey={roleKey} onOpen={onOpen} />
+        <KpiCard
+          key={k.key}
+          kpi={k}
+          roleKey={roleKey}
+          onOpen={onOpen}
+          {...(values ? { value: k.key in values ? values[k.key] : null } : {})}
+        />
       ))}
     </div>
   );

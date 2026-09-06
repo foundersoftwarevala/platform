@@ -22,7 +22,12 @@
  *     so the ledger stays auditable.
  */
 
-const DEFAULT_PLATFORM_RATE = 30; // percent to the platform when no rule matches
+// The platform share when a seller has no rule of their own. This is the
+// lower of the agreed rates on purpose: undercharging ourselves is a
+// bookkeeping fix, overcharging a partner is a breach of their agreement.
+import { FALLBACK_PLATFORM_RATE } from "./commission-rates";
+
+const DEFAULT_PLATFORM_RATE = FALLBACK_PLATFORM_RATE;
 
 function supabaseUrl(): string {
   return process.env.SUPABASE_URL?.trim() ?? "";

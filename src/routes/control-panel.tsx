@@ -245,6 +245,7 @@ function Index() {
                   lead_manager: "/lead-manager",
                   marketplace_manager: "/marketplace-manager",
                   reseller_manager: "/reseller-manager",
+                  vendor_manager: "/vendor-manager",
                   sales_support_manager: "/sales-support-manager",
                   seo_manager: "/seo-manager",
               };
