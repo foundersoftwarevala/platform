@@ -53,6 +53,7 @@ import { Route as SupportRouteImport } from './routes/support'
 import { Route as SupportAgentRouteImport } from './routes/support-agent'
 import { Route as SupportChatbotRouteImport } from './routes/support-chatbot'
 import { Route as SupportChatbotBlueprintRouteImport } from './routes/support-chatbot-blueprint'
+import { Route as TaskManagerRouteImport } from './routes/task-manager'
 import { Route as ValaAiRouteImport } from './routes/vala-ai'
 import { Route as ValaTvRouteImport } from './routes/vala-tv'
 import { Route as VendorManagerRouteImport } from './routes/vendor-manager'
@@ -486,6 +487,11 @@ const SupportChatbotRoute = SupportChatbotRouteImport.update({
 const SupportChatbotBlueprintRoute = SupportChatbotBlueprintRouteImport.update({
   id: '/support-chatbot-blueprint',
   path: '/support-chatbot-blueprint',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TaskManagerRoute = TaskManagerRouteImport.update({
+  id: '/task-manager',
+  path: '/task-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ValaAiRoute = ValaAiRouteImport.update({
@@ -1638,6 +1644,7 @@ export interface FileRoutesByFullPath {
   '/support-agent': typeof SupportAgentRoute
   '/support-chatbot': typeof SupportChatbotRoute
   '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
+  '/task-manager': typeof TaskManagerRoute
   '/vala-ai': typeof ValaAiRouteWithChildren
   '/vala-tv': typeof ValaTvRoute
   '/vendor-manager': typeof VendorManagerRoute
@@ -1891,6 +1898,7 @@ export interface FileRoutesByTo {
   '/support-agent': typeof SupportAgentRoute
   '/support-chatbot': typeof SupportChatbotRoute
   '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
+  '/task-manager': typeof TaskManagerRoute
   '/vala-tv': typeof ValaTvRoute
   '/vendor-manager': typeof VendorManagerRoute
   '/demo': typeof DemoRoute
@@ -2150,6 +2158,7 @@ export interface FileRoutesById {
   '/support-agent': typeof SupportAgentRoute
   '/support-chatbot': typeof SupportChatbotRoute
   '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
+  '/task-manager': typeof TaskManagerRoute
   '/vala-ai': typeof ValaAiRouteWithChildren
   '/vala-tv': typeof ValaTvRoute
   '/vendor-manager': typeof VendorManagerRoute
@@ -2412,6 +2421,7 @@ export interface FileRouteTypes {
     | '/support-agent'
     | '/support-chatbot'
     | '/support-chatbot-blueprint'
+    | '/task-manager'
     | '/vala-ai'
     | '/vala-tv'
     | '/vendor-manager'
@@ -2665,6 +2675,7 @@ export interface FileRouteTypes {
     | '/support-agent'
     | '/support-chatbot'
     | '/support-chatbot-blueprint'
+    | '/task-manager'
     | '/vala-tv'
     | '/vendor-manager'
     | '/demo'
@@ -2923,6 +2934,7 @@ export interface FileRouteTypes {
     | '/support-agent'
     | '/support-chatbot'
     | '/support-chatbot-blueprint'
+    | '/task-manager'
     | '/vala-ai'
     | '/vala-tv'
     | '/vendor-manager'
@@ -3184,6 +3196,7 @@ export interface RootRouteChildren {
   SupportAgentRoute: typeof SupportAgentRoute
   SupportChatbotRoute: typeof SupportChatbotRoute
   SupportChatbotBlueprintRoute: typeof SupportChatbotBlueprintRoute
+  TaskManagerRoute: typeof TaskManagerRoute
   ValaAiRoute: typeof ValaAiRouteWithChildren
   ValaTvRoute: typeof ValaTvRoute
   VendorManagerRoute: typeof VendorManagerRoute
@@ -3552,6 +3565,13 @@ declare module '@tanstack/react-router' {
       path: '/support-chatbot-blueprint'
       fullPath: '/support-chatbot-blueprint'
       preLoaderRoute: typeof SupportChatbotBlueprintRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/task-manager': {
+      id: '/task-manager'
+      path: '/task-manager'
+      fullPath: '/task-manager'
+      preLoaderRoute: typeof TaskManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vala-ai': {
@@ -5517,6 +5537,7 @@ const rootRouteChildren: RootRouteChildren = {
   SupportAgentRoute: SupportAgentRoute,
   SupportChatbotRoute: SupportChatbotRoute,
   SupportChatbotBlueprintRoute: SupportChatbotBlueprintRoute,
+  TaskManagerRoute: TaskManagerRoute,
   ValaAiRoute: ValaAiRouteWithChildren,
   ValaTvRoute: ValaTvRoute,
   VendorManagerRoute: VendorManagerRoute,

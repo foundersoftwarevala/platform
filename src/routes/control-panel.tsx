@@ -246,6 +246,9 @@ function Index() {
                   // The Developer Manager control tower. The entry used to open the
                   // generic role dashboard because no module existed behind it.
                   developer_management: "/dev-manager",
+                  // The central task control tower. This entry used to report
+                  // that nothing was built behind it, which was true.
+                  task_management: "/task-manager",
                   chat_manager: "/chat-manager",
                   creator_manager: "/creator-manager",
                   demo_manager: "/demo-manager",
@@ -287,7 +290,6 @@ function Index() {
               // something had opened, which is what made the whole sidebar feel
               // broken. Name the gap instead.
               const NOT_BUILT: Record<string, string> = {
-                task_management: "Task Manager",
                 continent_super_admin: "Continent Admin",
                 country_head: "Country Admin",
                 legal_manager: "Legal Manager",

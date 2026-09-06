@@ -60,6 +60,9 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   // Developer operations. The database enforces the same separation: internal
   // notes are operator-only, so a developer cannot read one about themselves.
   { prefix: "/dev-manager", roles: ["developer"], label: "Developer Manager" },
+  // The task control tower. The database enforces the same separation: a member
+  // sees their own work and whatever is still claimable, an operator sees all.
+  { prefix: "/task-manager", roles: ["developer", "support", "sales"], label: "Task Manager" },
   { prefix: "/keywords", roles: ["seo", "marketing"], label: "Keywords" },
   { prefix: "/pages", roles: ["seo", "marketing"], label: "Pages" },
 ];
