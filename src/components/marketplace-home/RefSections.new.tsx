@@ -1,3 +1,15 @@
+/**
+ * SUPERSEDED — not imported anywhere.
+ *
+ * HomeIndex.tsx imports ./RefSections, which is the canonical file and the
+ * larger of the two (28.6 KB against 22.6 KB here). This copy has zero
+ * importers and does not ship; verified with a repository-wide search before
+ * marking it.
+ *
+ * Kept rather than deleted, per the project rule that nothing is removed. Do
+ * not import from this file — edit ./RefSections instead, or the change will
+ * silently do nothing.
+ */
 import { useEffect, useState } from "react";
 import { useMarketplaceContent } from "@/lib/marketplace-manager/store";
 import {
