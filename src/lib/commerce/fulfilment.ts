@@ -1,4 +1,5 @@
 import { randomBytes, createHash } from "node:crypto";
+import { recordCommissionsForOrder } from "./commission";
 import { licenceEmail, send as sendMail } from "./mailer";
 import { createInvoiceForOrder } from "./invoices";
 
@@ -245,6 +246,21 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
       reason: "the order carries no buyer email",
     });
   }
+
+  // The sale is real, so the author who owns the product is credited now.
+  // This is deliberately after the licence: a commission problem must never
+  // cost a paying customer the product they have already bought.
+  const commission = await recordCommissionsForOrder(orderId);
+  await logPaymentEvent(
+    orderId,
+    commission.ok ? "commission_recorded" : "commission_failed",
+    {
+      created: commission.created,
+      skipped: commission.skipped,
+      unattributed: commission.unattributed,
+      detail: commission.error,
+    },
+  );
 
   return { ok: true, created: true, licenceKey, licenceId: licence.id, entitlementId };
 }
