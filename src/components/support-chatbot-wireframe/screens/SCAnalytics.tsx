@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from 'recharts';
 import { toast } from 'sonner';
+import { downloadCsv, stampedName } from '@/lib/export/download';
 
 const analyticsData = [
   { date: 'Jan 10', totalChats: 145, botResolved: 98, humanResolved: 47, csat: 92 },
@@ -48,7 +49,12 @@ export const SCAnalytics: React.FC = () => {
           <h1 className="text-2xl font-bold">Analytics</h1>
           <p className="text-sm text-muted-foreground mt-1">Performance metrics & insights</p>
         </div>
-        <Button variant="outline" className="gap-2" onClick={() => toast.success('Report exported')}>
+        <Button variant="outline" className="gap-2" onClick={() => {
+          // The daily series charted above, exactly as displayed.
+          const n = downloadCsv(stampedName('chatbot-analytics', 'csv'), chartData,
+            ['date', 'totalChats', 'botResolved', 'humanResolved', 'botRate', 'csat']);
+          toast.success(`Exported ${n} days of analytics as CSV`);
+        }}>
           <Download className="w-4 h-4" />
           Export Report
         </Button>

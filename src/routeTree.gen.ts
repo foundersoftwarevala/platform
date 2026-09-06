@@ -51,6 +51,7 @@ import { Route as SupportChatbotRouteImport } from './routes/support-chatbot'
 import { Route as SupportChatbotBlueprintRouteImport } from './routes/support-chatbot-blueprint'
 import { Route as ValaAiRouteImport } from './routes/vala-ai'
 import { Route as ValaTvRouteImport } from './routes/vala-tv'
+import { Route as VendorManagerRouteImport } from './routes/vendor-manager'
 import { Route as AcademyIndexRouteImport } from './routes/academy.index'
 import { Route as AcademyCourseRouteImport } from './routes/academy.$course'
 import { Route as AccountPurchasesRouteImport } from './routes/account/purchases'
@@ -182,6 +183,7 @@ import { Route as ValaAiProjectsRouteImport } from './routes/vala-ai.projects'
 import { Route as ValaAiPromptsRouteImport } from './routes/vala-ai.prompts'
 import { Route as ValaAiRollbackRouteImport } from './routes/vala-ai.rollback'
 import { Route as ValaAiSettingsRouteImport } from './routes/vala-ai.settings'
+import { Route as VerifyCodeRouteImport } from './routes/verify.$code'
 import { Route as AffiliateManagerAffiliatesIdRouteImport } from './routes/affiliate-manager.affiliates.$id'
 import { Route as AmsAwardsIndexRouteImport } from './routes/ams.awards.index'
 import { Route as AmsAwardsIdRouteImport } from './routes/ams.awards.$id'
@@ -201,14 +203,23 @@ import { Route as AmsTicketsIndexRouteImport } from './routes/ams.tickets.index'
 import { Route as AmsTicketsIdRouteImport } from './routes/ams.tickets.$id'
 import { Route as AmsTicketsNewRouteImport } from './routes/ams.tickets.new'
 import { Route as ApiAccountPurchasesRouteImport } from './routes/api/account/purchases'
+import { Route as ApiAffiliateAccountRouteImport } from './routes/api/affiliate/account'
+import { Route as ApiAffiliateAttributeRouteImport } from './routes/api/affiliate/attribute'
+import { Route as ApiAuthorEarningsRouteImport } from './routes/api/author/earnings'
+import { Route as ApiAuthorProductsRouteImport } from './routes/api/author/products'
 import { Route as ApiDemoTicketRouteImport } from './routes/api/demo/ticket'
 import { Route as ApiFinanceResellerMembershipRouteImport } from './routes/api/finance/reseller-membership'
 import { Route as ApiInternalApplyMigrationsRouteImport } from './routes/api/internal/apply-migrations'
 import { Route as ApiInternalApplyResellerSchemaRouteImport } from './routes/api/internal/apply-reseller-schema'
+import { Route as ApiInternalAuthorReviewRouteImport } from './routes/api/internal/author-review'
 import { Route as ApiInternalCredentialSetupRouteImport } from './routes/api/internal/credential-setup'
 import { Route as ApiInternalDbHealthRouteImport } from './routes/api/internal/db-health'
 import { Route as ApiInternalEmailFlushRouteImport } from './routes/api/internal/email-flush'
 import { Route as ApiInternalMarketplaceMigrationRouteImport } from './routes/api/internal/marketplace-migration'
+import { Route as ApiInternalSellerAdminRouteImport } from './routes/api/internal/seller-admin'
+import { Route as ApiInternalSeoAuditRouteImport } from './routes/api/internal/seo-audit'
+import { Route as ApiInternalSeoPageRouteImport } from './routes/api/internal/seo-page'
+import { Route as ApiInternalSettleCommissionsRouteImport } from './routes/api/internal/settle-commissions'
 import { Route as ApiManagerResourceRouteImport } from './routes/api/manager/resource'
 import { Route as ApiMarketplaceActivityRouteImport } from './routes/api/marketplace/activity'
 import { Route as ApiMarketplaceCatalogRouteImport } from './routes/api/marketplace/catalog'
@@ -222,6 +233,8 @@ import { Route as ApiPartnerQuoteRouteImport } from './routes/api/partner/quote'
 import { Route as ApiPaymentInitiateRouteImport } from './routes/api/payment/initiate'
 import { Route as ApiPaymentStatusRouteImport } from './routes/api/payment/status'
 import { Route as ApiPaymentWebhookRouteImport } from './routes/api/payment/webhook'
+import { Route as ApiSellerMetricsRouteImport } from './routes/api/seller/metrics'
+import { Route as ApiTrackRefRouteImport } from './routes/api/track/ref'
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
 import { Route as MarketplaceCountryCountryRouteImport } from './routes/marketplace.country.$country'
 import { Route as MarketplaceProductSlugRouteImport } from './routes/marketplace.product.$slug'
@@ -448,6 +461,11 @@ const ValaAiRoute = ValaAiRouteImport.update({
 const ValaTvRoute = ValaTvRouteImport.update({
   id: '/vala-tv',
   path: '/vala-tv',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VendorManagerRoute = VendorManagerRouteImport.update({
+  id: '/vendor-manager',
+  path: '/vendor-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AcademyIndexRoute = AcademyIndexRouteImport.update({
@@ -1127,6 +1145,11 @@ const ValaAiSettingsRoute = ValaAiSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => ValaAiRoute,
 } as any)
+const VerifyCodeRoute = VerifyCodeRouteImport.update({
+  id: '/verify/$code',
+  path: '/verify/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AffiliateManagerAffiliatesIdRoute =
   AffiliateManagerAffiliatesIdRouteImport.update({
     id: '/$id',
@@ -1223,6 +1246,26 @@ const ApiAccountPurchasesRoute = ApiAccountPurchasesRouteImport.update({
   path: '/api/account/purchases',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAffiliateAccountRoute = ApiAffiliateAccountRouteImport.update({
+  id: '/api/affiliate/account',
+  path: '/api/affiliate/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAffiliateAttributeRoute = ApiAffiliateAttributeRouteImport.update({
+  id: '/api/affiliate/attribute',
+  path: '/api/affiliate/attribute',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthorEarningsRoute = ApiAuthorEarningsRouteImport.update({
+  id: '/api/author/earnings',
+  path: '/api/author/earnings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthorProductsRoute = ApiAuthorProductsRouteImport.update({
+  id: '/api/author/products',
+  path: '/api/author/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDemoTicketRoute = ApiDemoTicketRouteImport.update({
   id: '/api/demo/ticket',
   path: '/api/demo/ticket',
@@ -1246,6 +1289,11 @@ const ApiInternalApplyResellerSchemaRoute =
     path: '/api/internal/apply-reseller-schema',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiInternalAuthorReviewRoute = ApiInternalAuthorReviewRouteImport.update({
+  id: '/api/internal/author-review',
+  path: '/api/internal/author-review',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInternalCredentialSetupRoute =
   ApiInternalCredentialSetupRouteImport.update({
     id: '/api/internal/credential-setup',
@@ -1266,6 +1314,27 @@ const ApiInternalMarketplaceMigrationRoute =
   ApiInternalMarketplaceMigrationRouteImport.update({
     id: '/api/internal/marketplace-migration',
     path: '/api/internal/marketplace-migration',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalSellerAdminRoute = ApiInternalSellerAdminRouteImport.update({
+  id: '/api/internal/seller-admin',
+  path: '/api/internal/seller-admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInternalSeoAuditRoute = ApiInternalSeoAuditRouteImport.update({
+  id: '/api/internal/seo-audit',
+  path: '/api/internal/seo-audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInternalSeoPageRoute = ApiInternalSeoPageRouteImport.update({
+  id: '/api/internal/seo-page',
+  path: '/api/internal/seo-page',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInternalSettleCommissionsRoute =
+  ApiInternalSettleCommissionsRouteImport.update({
+    id: '/api/internal/settle-commissions',
+    path: '/api/internal/settle-commissions',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiManagerResourceRoute = ApiManagerResourceRouteImport.update({
@@ -1331,6 +1400,16 @@ const ApiPaymentStatusRoute = ApiPaymentStatusRouteImport.update({
 const ApiPaymentWebhookRoute = ApiPaymentWebhookRouteImport.update({
   id: '/api/payment/webhook',
   path: '/api/payment/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSellerMetricsRoute = ApiSellerMetricsRouteImport.update({
+  id: '/api/seller/metrics',
+  path: '/api/seller/metrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTrackRefRoute = ApiTrackRefRouteImport.update({
+  id: '/api/track/ref',
+  path: '/api/track/ref',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarketplaceCategorySlugRoute = MarketplaceCategorySlugRouteImport.update({
@@ -1467,6 +1546,7 @@ export interface FileRoutesByFullPath {
   '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
   '/vala-ai': typeof ValaAiRouteWithChildren
   '/vala-tv': typeof ValaTvRoute
+  '/vendor-manager': typeof VendorManagerRoute
   '/demo/': typeof DemoRoute
   '/academy/$course': typeof AcademyCourseRoute
   '/account/purchases': typeof AccountPurchasesRoute
@@ -1590,6 +1670,7 @@ export interface FileRoutesByFullPath {
   '/vala-ai/prompts': typeof ValaAiPromptsRoute
   '/vala-ai/rollback': typeof ValaAiRollbackRoute
   '/vala-ai/settings': typeof ValaAiSettingsRoute
+  '/verify/$code': typeof VerifyCodeRoute
   '/academy/': typeof AcademyIndexRoute
   '/affiliate-manager/': typeof AffiliateManagerIndexRoute
   '/apply/': typeof ApplyIndexRoute
@@ -1612,14 +1693,23 @@ export interface FileRoutesByFullPath {
   '/ams/tickets/$id': typeof AmsTicketsIdRoute
   '/ams/tickets/new': typeof AmsTicketsNewRoute
   '/api/account/purchases': typeof ApiAccountPurchasesRoute
+  '/api/affiliate/account': typeof ApiAffiliateAccountRoute
+  '/api/affiliate/attribute': typeof ApiAffiliateAttributeRoute
+  '/api/author/earnings': typeof ApiAuthorEarningsRoute
+  '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
+  '/api/internal/author-review': typeof ApiInternalAuthorReviewRoute
   '/api/internal/credential-setup': typeof ApiInternalCredentialSetupRoute
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
+  '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
+  '/api/internal/seo-page': typeof ApiInternalSeoPageRoute
+  '/api/internal/settle-commissions': typeof ApiInternalSettleCommissionsRoute
   '/api/manager/resource': typeof ApiManagerResourceRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
@@ -1633,6 +1723,8 @@ export interface FileRoutesByFullPath {
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
+  '/api/seller/metrics': typeof ApiSellerMetricsRoute
+  '/api/track/ref': typeof ApiTrackRefRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -1693,6 +1785,7 @@ export interface FileRoutesByTo {
   '/support-chatbot': typeof SupportChatbotRoute
   '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
   '/vala-tv': typeof ValaTvRoute
+  '/vendor-manager': typeof VendorManagerRoute
   '/demo': typeof DemoRoute
   '/academy/$course': typeof AcademyCourseRoute
   '/account/purchases': typeof AccountPurchasesRoute
@@ -1815,6 +1908,7 @@ export interface FileRoutesByTo {
   '/vala-ai/prompts': typeof ValaAiPromptsRoute
   '/vala-ai/rollback': typeof ValaAiRollbackRoute
   '/vala-ai/settings': typeof ValaAiSettingsRoute
+  '/verify/$code': typeof VerifyCodeRoute
   '/academy': typeof AcademyIndexRoute
   '/affiliate-manager': typeof AffiliateManagerIndexRoute
   '/apply': typeof ApplyIndexRoute
@@ -1837,14 +1931,23 @@ export interface FileRoutesByTo {
   '/ams/tickets/$id': typeof AmsTicketsIdRoute
   '/ams/tickets/new': typeof AmsTicketsNewRoute
   '/api/account/purchases': typeof ApiAccountPurchasesRoute
+  '/api/affiliate/account': typeof ApiAffiliateAccountRoute
+  '/api/affiliate/attribute': typeof ApiAffiliateAttributeRoute
+  '/api/author/earnings': typeof ApiAuthorEarningsRoute
+  '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
+  '/api/internal/author-review': typeof ApiInternalAuthorReviewRoute
   '/api/internal/credential-setup': typeof ApiInternalCredentialSetupRoute
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
+  '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
+  '/api/internal/seo-page': typeof ApiInternalSeoPageRoute
+  '/api/internal/settle-commissions': typeof ApiInternalSettleCommissionsRoute
   '/api/manager/resource': typeof ApiManagerResourceRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
@@ -1858,6 +1961,8 @@ export interface FileRoutesByTo {
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
+  '/api/seller/metrics': typeof ApiSellerMetricsRoute
+  '/api/track/ref': typeof ApiTrackRefRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -1925,6 +2030,7 @@ export interface FileRoutesById {
   '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
   '/vala-ai': typeof ValaAiRouteWithChildren
   '/vala-tv': typeof ValaTvRoute
+  '/vendor-manager': typeof VendorManagerRoute
   '/demo/': typeof DemoRoute
   '/academy/$course': typeof AcademyCourseRoute
   '/account/purchases': typeof AccountPurchasesRoute
@@ -2048,6 +2154,7 @@ export interface FileRoutesById {
   '/vala-ai/prompts': typeof ValaAiPromptsRoute
   '/vala-ai/rollback': typeof ValaAiRollbackRoute
   '/vala-ai/settings': typeof ValaAiSettingsRoute
+  '/verify/$code': typeof VerifyCodeRoute
   '/academy/': typeof AcademyIndexRoute
   '/affiliate-manager/': typeof AffiliateManagerIndexRoute
   '/apply/': typeof ApplyIndexRoute
@@ -2070,14 +2177,23 @@ export interface FileRoutesById {
   '/ams/tickets/$id': typeof AmsTicketsIdRoute
   '/ams/tickets/new': typeof AmsTicketsNewRoute
   '/api/account/purchases': typeof ApiAccountPurchasesRoute
+  '/api/affiliate/account': typeof ApiAffiliateAccountRoute
+  '/api/affiliate/attribute': typeof ApiAffiliateAttributeRoute
+  '/api/author/earnings': typeof ApiAuthorEarningsRoute
+  '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
+  '/api/internal/author-review': typeof ApiInternalAuthorReviewRoute
   '/api/internal/credential-setup': typeof ApiInternalCredentialSetupRoute
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
+  '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
+  '/api/internal/seo-page': typeof ApiInternalSeoPageRoute
+  '/api/internal/settle-commissions': typeof ApiInternalSettleCommissionsRoute
   '/api/manager/resource': typeof ApiManagerResourceRoute
   '/api/marketplace/activity': typeof ApiMarketplaceActivityRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
@@ -2091,6 +2207,8 @@ export interface FileRoutesById {
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
+  '/api/seller/metrics': typeof ApiSellerMetricsRoute
+  '/api/track/ref': typeof ApiTrackRefRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -2159,6 +2277,7 @@ export interface FileRouteTypes {
     | '/support-chatbot-blueprint'
     | '/vala-ai'
     | '/vala-tv'
+    | '/vendor-manager'
     | '/demo/'
     | '/academy/$course'
     | '/account/purchases'
@@ -2282,6 +2401,7 @@ export interface FileRouteTypes {
     | '/vala-ai/prompts'
     | '/vala-ai/rollback'
     | '/vala-ai/settings'
+    | '/verify/$code'
     | '/academy/'
     | '/affiliate-manager/'
     | '/apply/'
@@ -2304,14 +2424,23 @@ export interface FileRouteTypes {
     | '/ams/tickets/$id'
     | '/ams/tickets/new'
     | '/api/account/purchases'
+    | '/api/affiliate/account'
+    | '/api/affiliate/attribute'
+    | '/api/author/earnings'
+    | '/api/author/products'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
+    | '/api/internal/author-review'
     | '/api/internal/credential-setup'
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/internal/seller-admin'
+    | '/api/internal/seo-audit'
+    | '/api/internal/seo-page'
+    | '/api/internal/settle-commissions'
     | '/api/manager/resource'
     | '/api/marketplace/activity'
     | '/api/marketplace/catalog'
@@ -2325,6 +2454,8 @@ export interface FileRouteTypes {
     | '/api/payment/initiate'
     | '/api/payment/status'
     | '/api/payment/webhook'
+    | '/api/seller/metrics'
+    | '/api/track/ref'
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
@@ -2385,6 +2516,7 @@ export interface FileRouteTypes {
     | '/support-chatbot'
     | '/support-chatbot-blueprint'
     | '/vala-tv'
+    | '/vendor-manager'
     | '/demo'
     | '/academy/$course'
     | '/account/purchases'
@@ -2507,6 +2639,7 @@ export interface FileRouteTypes {
     | '/vala-ai/prompts'
     | '/vala-ai/rollback'
     | '/vala-ai/settings'
+    | '/verify/$code'
     | '/academy'
     | '/affiliate-manager'
     | '/apply'
@@ -2529,14 +2662,23 @@ export interface FileRouteTypes {
     | '/ams/tickets/$id'
     | '/ams/tickets/new'
     | '/api/account/purchases'
+    | '/api/affiliate/account'
+    | '/api/affiliate/attribute'
+    | '/api/author/earnings'
+    | '/api/author/products'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
+    | '/api/internal/author-review'
     | '/api/internal/credential-setup'
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/internal/seller-admin'
+    | '/api/internal/seo-audit'
+    | '/api/internal/seo-page'
+    | '/api/internal/settle-commissions'
     | '/api/manager/resource'
     | '/api/marketplace/activity'
     | '/api/marketplace/catalog'
@@ -2550,6 +2692,8 @@ export interface FileRouteTypes {
     | '/api/payment/initiate'
     | '/api/payment/status'
     | '/api/payment/webhook'
+    | '/api/seller/metrics'
+    | '/api/track/ref'
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
@@ -2616,6 +2760,7 @@ export interface FileRouteTypes {
     | '/support-chatbot-blueprint'
     | '/vala-ai'
     | '/vala-tv'
+    | '/vendor-manager'
     | '/demo/'
     | '/academy/$course'
     | '/account/purchases'
@@ -2739,6 +2884,7 @@ export interface FileRouteTypes {
     | '/vala-ai/prompts'
     | '/vala-ai/rollback'
     | '/vala-ai/settings'
+    | '/verify/$code'
     | '/academy/'
     | '/affiliate-manager/'
     | '/apply/'
@@ -2761,14 +2907,23 @@ export interface FileRouteTypes {
     | '/ams/tickets/$id'
     | '/ams/tickets/new'
     | '/api/account/purchases'
+    | '/api/affiliate/account'
+    | '/api/affiliate/attribute'
+    | '/api/author/earnings'
+    | '/api/author/products'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
+    | '/api/internal/author-review'
     | '/api/internal/credential-setup'
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/internal/seller-admin'
+    | '/api/internal/seo-audit'
+    | '/api/internal/seo-page'
+    | '/api/internal/settle-commissions'
     | '/api/manager/resource'
     | '/api/marketplace/activity'
     | '/api/marketplace/catalog'
@@ -2782,6 +2937,8 @@ export interface FileRouteTypes {
     | '/api/payment/initiate'
     | '/api/payment/status'
     | '/api/payment/webhook'
+    | '/api/seller/metrics'
+    | '/api/track/ref'
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
@@ -2849,6 +3006,7 @@ export interface RootRouteChildren {
   SupportChatbotBlueprintRoute: typeof SupportChatbotBlueprintRoute
   ValaAiRoute: typeof ValaAiRouteWithChildren
   ValaTvRoute: typeof ValaTvRoute
+  VendorManagerRoute: typeof VendorManagerRoute
   DemoRoute: typeof DemoRoute
   AcademyCourseRoute: typeof AcademyCourseRoute
   AccountPurchasesRoute: typeof AccountPurchasesRoute
@@ -2915,6 +3073,7 @@ export interface RootRouteChildren {
   PaymentFailRoute: typeof PaymentFailRoute
   PaymentSuccessRoute: typeof PaymentSuccessRoute
   SitemapProductsPageDotxmlRoute: typeof SitemapProductsPageDotxmlRoute
+  VerifyCodeRoute: typeof VerifyCodeRoute
   AcademyIndexRoute: typeof AcademyIndexRoute
   ApplyIndexRoute: typeof ApplyIndexRoute
   ProxyDemoRoute: typeof ProxyDemoRoute
@@ -2929,14 +3088,23 @@ export interface RootRouteChildren {
   AmsTicketsIdRoute: typeof AmsTicketsIdRoute
   AmsTicketsNewRoute: typeof AmsTicketsNewRoute
   ApiAccountPurchasesRoute: typeof ApiAccountPurchasesRoute
+  ApiAffiliateAccountRoute: typeof ApiAffiliateAccountRoute
+  ApiAffiliateAttributeRoute: typeof ApiAffiliateAttributeRoute
+  ApiAuthorEarningsRoute: typeof ApiAuthorEarningsRoute
+  ApiAuthorProductsRoute: typeof ApiAuthorProductsRoute
   ApiDemoTicketRoute: typeof ApiDemoTicketRoute
   ApiFinanceResellerMembershipRoute: typeof ApiFinanceResellerMembershipRoute
   ApiInternalApplyMigrationsRoute: typeof ApiInternalApplyMigrationsRoute
   ApiInternalApplyResellerSchemaRoute: typeof ApiInternalApplyResellerSchemaRoute
+  ApiInternalAuthorReviewRoute: typeof ApiInternalAuthorReviewRoute
   ApiInternalCredentialSetupRoute: typeof ApiInternalCredentialSetupRoute
   ApiInternalDbHealthRoute: typeof ApiInternalDbHealthRoute
   ApiInternalEmailFlushRoute: typeof ApiInternalEmailFlushRoute
   ApiInternalMarketplaceMigrationRoute: typeof ApiInternalMarketplaceMigrationRoute
+  ApiInternalSellerAdminRoute: typeof ApiInternalSellerAdminRoute
+  ApiInternalSeoAuditRoute: typeof ApiInternalSeoAuditRoute
+  ApiInternalSeoPageRoute: typeof ApiInternalSeoPageRoute
+  ApiInternalSettleCommissionsRoute: typeof ApiInternalSettleCommissionsRoute
   ApiManagerResourceRoute: typeof ApiManagerResourceRoute
   ApiMarketplaceActivityRoute: typeof ApiMarketplaceActivityRoute
   ApiMarketplaceCatalogRoute: typeof ApiMarketplaceCatalogRoute
@@ -2950,6 +3118,8 @@ export interface RootRouteChildren {
   ApiPaymentInitiateRoute: typeof ApiPaymentInitiateRoute
   ApiPaymentStatusRoute: typeof ApiPaymentStatusRoute
   ApiPaymentWebhookRoute: typeof ApiPaymentWebhookRoute
+  ApiSellerMetricsRoute: typeof ApiSellerMetricsRoute
+  ApiTrackRefRoute: typeof ApiTrackRefRoute
   AmsAwardsIndexRoute: typeof AmsAwardsIndexRoute
   AmsCollectionIndexRoute: typeof AmsCollectionIndexRoute
   AmsMuseumIndexRoute: typeof AmsMuseumIndexRoute
@@ -3263,6 +3433,13 @@ declare module '@tanstack/react-router' {
       path: '/vala-tv'
       fullPath: '/vala-tv'
       preLoaderRoute: typeof ValaTvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vendor-manager': {
+      id: '/vendor-manager'
+      path: '/vendor-manager'
+      fullPath: '/vendor-manager'
+      preLoaderRoute: typeof VendorManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/academy/': {
@@ -4182,6 +4359,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ValaAiSettingsRouteImport
       parentRoute: typeof ValaAiRoute
     }
+    '/verify/$code': {
+      id: '/verify/$code'
+      path: '/verify/$code'
+      fullPath: '/verify/$code'
+      preLoaderRoute: typeof VerifyCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/affiliate-manager/affiliates/$id': {
       id: '/affiliate-manager/affiliates/$id'
       path: '/$id'
@@ -4315,6 +4499,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAccountPurchasesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/affiliate/account': {
+      id: '/api/affiliate/account'
+      path: '/api/affiliate/account'
+      fullPath: '/api/affiliate/account'
+      preLoaderRoute: typeof ApiAffiliateAccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/affiliate/attribute': {
+      id: '/api/affiliate/attribute'
+      path: '/api/affiliate/attribute'
+      fullPath: '/api/affiliate/attribute'
+      preLoaderRoute: typeof ApiAffiliateAttributeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/author/earnings': {
+      id: '/api/author/earnings'
+      path: '/api/author/earnings'
+      fullPath: '/api/author/earnings'
+      preLoaderRoute: typeof ApiAuthorEarningsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/author/products': {
+      id: '/api/author/products'
+      path: '/api/author/products'
+      fullPath: '/api/author/products'
+      preLoaderRoute: typeof ApiAuthorProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/demo/ticket': {
       id: '/api/demo/ticket'
       path: '/api/demo/ticket'
@@ -4343,6 +4555,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalApplyResellerSchemaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/author-review': {
+      id: '/api/internal/author-review'
+      path: '/api/internal/author-review'
+      fullPath: '/api/internal/author-review'
+      preLoaderRoute: typeof ApiInternalAuthorReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/internal/credential-setup': {
       id: '/api/internal/credential-setup'
       path: '/api/internal/credential-setup'
@@ -4369,6 +4588,34 @@ declare module '@tanstack/react-router' {
       path: '/api/internal/marketplace-migration'
       fullPath: '/api/internal/marketplace-migration'
       preLoaderRoute: typeof ApiInternalMarketplaceMigrationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/seller-admin': {
+      id: '/api/internal/seller-admin'
+      path: '/api/internal/seller-admin'
+      fullPath: '/api/internal/seller-admin'
+      preLoaderRoute: typeof ApiInternalSellerAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/seo-audit': {
+      id: '/api/internal/seo-audit'
+      path: '/api/internal/seo-audit'
+      fullPath: '/api/internal/seo-audit'
+      preLoaderRoute: typeof ApiInternalSeoAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/seo-page': {
+      id: '/api/internal/seo-page'
+      path: '/api/internal/seo-page'
+      fullPath: '/api/internal/seo-page'
+      preLoaderRoute: typeof ApiInternalSeoPageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/settle-commissions': {
+      id: '/api/internal/settle-commissions'
+      path: '/api/internal/settle-commissions'
+      fullPath: '/api/internal/settle-commissions'
+      preLoaderRoute: typeof ApiInternalSettleCommissionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/manager/resource': {
@@ -4460,6 +4707,20 @@ declare module '@tanstack/react-router' {
       path: '/api/payment/webhook'
       fullPath: '/api/payment/webhook'
       preLoaderRoute: typeof ApiPaymentWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/seller/metrics': {
+      id: '/api/seller/metrics'
+      path: '/api/seller/metrics'
+      fullPath: '/api/seller/metrics'
+      preLoaderRoute: typeof ApiSellerMetricsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/track/ref': {
+      id: '/api/track/ref'
+      path: '/api/track/ref'
+      fullPath: '/api/track/ref'
+      preLoaderRoute: typeof ApiTrackRefRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/marketplace/category/$slug': {
@@ -4856,6 +5117,7 @@ const rootRouteChildren: RootRouteChildren = {
   SupportChatbotBlueprintRoute: SupportChatbotBlueprintRoute,
   ValaAiRoute: ValaAiRouteWithChildren,
   ValaTvRoute: ValaTvRoute,
+  VendorManagerRoute: VendorManagerRoute,
   DemoRoute: DemoRoute,
   AcademyCourseRoute: AcademyCourseRoute,
   AccountPurchasesRoute: AccountPurchasesRoute,
@@ -4922,6 +5184,7 @@ const rootRouteChildren: RootRouteChildren = {
   PaymentFailRoute: PaymentFailRoute,
   PaymentSuccessRoute: PaymentSuccessRoute,
   SitemapProductsPageDotxmlRoute: SitemapProductsPageDotxmlRoute,
+  VerifyCodeRoute: VerifyCodeRoute,
   AcademyIndexRoute: AcademyIndexRoute,
   ApplyIndexRoute: ApplyIndexRoute,
   ProxyDemoRoute: ProxyDemoRoute,
@@ -4936,14 +5199,23 @@ const rootRouteChildren: RootRouteChildren = {
   AmsTicketsIdRoute: AmsTicketsIdRoute,
   AmsTicketsNewRoute: AmsTicketsNewRoute,
   ApiAccountPurchasesRoute: ApiAccountPurchasesRoute,
+  ApiAffiliateAccountRoute: ApiAffiliateAccountRoute,
+  ApiAffiliateAttributeRoute: ApiAffiliateAttributeRoute,
+  ApiAuthorEarningsRoute: ApiAuthorEarningsRoute,
+  ApiAuthorProductsRoute: ApiAuthorProductsRoute,
   ApiDemoTicketRoute: ApiDemoTicketRoute,
   ApiFinanceResellerMembershipRoute: ApiFinanceResellerMembershipRoute,
   ApiInternalApplyMigrationsRoute: ApiInternalApplyMigrationsRoute,
   ApiInternalApplyResellerSchemaRoute: ApiInternalApplyResellerSchemaRoute,
+  ApiInternalAuthorReviewRoute: ApiInternalAuthorReviewRoute,
   ApiInternalCredentialSetupRoute: ApiInternalCredentialSetupRoute,
   ApiInternalDbHealthRoute: ApiInternalDbHealthRoute,
   ApiInternalEmailFlushRoute: ApiInternalEmailFlushRoute,
   ApiInternalMarketplaceMigrationRoute: ApiInternalMarketplaceMigrationRoute,
+  ApiInternalSellerAdminRoute: ApiInternalSellerAdminRoute,
+  ApiInternalSeoAuditRoute: ApiInternalSeoAuditRoute,
+  ApiInternalSeoPageRoute: ApiInternalSeoPageRoute,
+  ApiInternalSettleCommissionsRoute: ApiInternalSettleCommissionsRoute,
   ApiManagerResourceRoute: ApiManagerResourceRoute,
   ApiMarketplaceActivityRoute: ApiMarketplaceActivityRoute,
   ApiMarketplaceCatalogRoute: ApiMarketplaceCatalogRoute,
@@ -4957,6 +5229,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPaymentInitiateRoute: ApiPaymentInitiateRoute,
   ApiPaymentStatusRoute: ApiPaymentStatusRoute,
   ApiPaymentWebhookRoute: ApiPaymentWebhookRoute,
+  ApiSellerMetricsRoute: ApiSellerMetricsRoute,
+  ApiTrackRefRoute: ApiTrackRefRoute,
   AmsAwardsIndexRoute: AmsAwardsIndexRoute,
   AmsCollectionIndexRoute: AmsCollectionIndexRoute,
   AmsMuseumIndexRoute: AmsMuseumIndexRoute,

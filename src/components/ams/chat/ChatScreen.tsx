@@ -11,6 +11,7 @@ import { useDialogA11y } from "@/hooks/use-dialog-a11y";
 import { playSound } from "@/lib/ams/ui-sound";
 import { cn } from "@/lib/utils";
 
+import { notBuilt } from "@/lib/ui/not-built";
 type ConvId = string;
 type Conversation = {
   id: ConvId;
@@ -526,6 +527,7 @@ function IconBtn({ icon: Icon, small, label }: { icon: typeof Phone; small?: boo
   const s = small ? "h-8 w-8" : "h-9 w-9";
   return (
     <button
+        onClick={() => notBuilt(label)}
       type="button"
       title={label}
       aria-label={label}

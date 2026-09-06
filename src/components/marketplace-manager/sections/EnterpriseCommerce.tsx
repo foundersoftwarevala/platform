@@ -12,6 +12,7 @@ import {
 import { Card, EmptyHint, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import { TableToolbar, RowActions } from "../actions";
 
+import { notBuilt } from "@/lib/ui/not-built";
 /* =============================================================
    Shared atoms
    ============================================================= */
@@ -207,7 +208,9 @@ export function LicenseSection() {
             {LICENSE_KEYS.map((k) => (
               <div key={k.key} className="grid grid-cols-[1.4fr_1fr_.7fr_.7fr_.8fr_.9fr_auto] items-center gap-3 border-b border-border/60 px-4 py-3 text-[12px] hover:bg-white/[0.03]">
                 <div className="flex items-center gap-2 font-mono text-[11px] tabular">
-                  <button title="Copy" className="grid h-6 w-6 place-items-center rounded-md border border-border bg-background/60 text-muted-foreground hover:text-accent">
+                  <button
+        type="button"
+        onClick={() => notBuilt("Copy")} title="Copy" className="grid h-6 w-6 place-items-center rounded-md border border-border bg-background/60 text-muted-foreground hover:text-accent">
                     <Copy className="h-3 w-3" />
                   </button>
                   <span className="truncate">{k.key}</span>
@@ -293,7 +296,9 @@ export function LicenseSection() {
             <Card key={r.l}>
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{r.l}</div>
               <div className="mt-2 text-lg font-bold">{r.v}</div>
-              <button className="mt-3 text-[11px] font-bold uppercase tracking-wider text-accent hover:text-cyan-glow">Configure →</button>
+              <button
+        type="button"
+        onClick={() => notBuilt("Configure →")} className="mt-3 text-[11px] font-bold uppercase tracking-wider text-accent hover:text-cyan-glow">Configure →</button>
             </Card>
           ))}
         </div>
@@ -639,6 +644,8 @@ function LicenseGeneratorPanel() {
                   <Copy className="h-3.5 w-3.5" />
                 </button>
                 <button
+        type="button"
+        onClick={() => notBuilt("QR")}
                   title="QR"
                   className="grid h-7 w-7 place-items-center rounded-md border border-border bg-background/60 text-muted-foreground transition-colors hover:text-accent"
                 >
@@ -905,12 +912,16 @@ export function DownloadsSection() {
                   </div>
                   <div className="flex items-center justify-end gap-1">
                     <button
+        type="button"
+        onClick={() => notBuilt("Copy signed URL")}
                       title="Copy signed URL"
                       className="grid h-7 w-7 place-items-center rounded-md border border-border bg-background/60 text-muted-foreground hover:text-accent"
                     >
                       <Copy className="h-3.5 w-3.5" />
                     </button>
                     <button
+        type="button"
+        onClick={() => notBuilt("Download")}
                       title="Download"
                       className="grid h-7 w-7 place-items-center rounded-md border border-border bg-background/60 text-muted-foreground hover:text-accent"
                     >

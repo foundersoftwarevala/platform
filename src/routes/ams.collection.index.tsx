@@ -42,7 +42,7 @@ function Page() {
         {COLLECTION_TYPES.map((t) => (
           <Link
             key={t.slug}
-            to="/collection/$type"
+            to="/ams/collection/$type"
             params={{ type: t.slug }}
             className="group rounded-2xl border border-border/60 bg-black/25 p-5 motion-card"
           >

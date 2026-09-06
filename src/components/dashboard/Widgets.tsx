@@ -8,6 +8,7 @@ import { SectionTitle, StatCard, ProgressBar, EmptyHint } from "./Primitives";
 import { cn } from "@/lib/utils";
 import { AnimatedNumber } from "@/components/ams/effects/AnimatedNumber";
 
+import { notBuilt } from "@/lib/ui/not-built";
 type Data = any; // shape matches getCommandCenter return
 
 const fmt = new Intl.NumberFormat();
@@ -211,7 +212,9 @@ export function Row10AI() {
       {cards.map((c) => (
         <Card key={c.title} title={c.title} icon={<Sparkles className="h-4 w-4 text-secondary" />}>
           <div className="text-xs text-muted-foreground">{c.copy}</div>
-          <button className="mt-3 text-xs font-medium text-primary hover:underline">Run analysis →</button>
+          <button
+        type="button"
+        onClick={() => notBuilt("Run analysis →")} className="mt-3 text-xs font-medium text-primary hover:underline">Run analysis →</button>
         </Card>
       ))}
     </div>

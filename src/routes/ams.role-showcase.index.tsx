@@ -37,7 +37,7 @@ function Page() {
           return (
             <Link
               key={role.slug}
-              to="/role-showcase/$slug"
+              to="/ams/role-showcase/$slug"
               params={{ slug: role.slug }}
               className="group relative aspect-[4/5] rounded-2xl border overflow-hidden transition hover:brightness-110"
               style={{

@@ -160,7 +160,13 @@ export const SCBotTraining: React.FC = () => {
           </div>
 
           <div className="flex justify-end">
-            <Button className="gap-2" onClick={() => toast.success('Training started')}>
+            <Button className="gap-2" onClick={() =>
+                // No training job is dispatched anywhere; saying it started was
+                // the reason operators waited for a result that never came.
+                toast.info('Training is not connected yet', {
+                  description: 'The knowledge base saves, but no training run is dispatched.',
+                })
+              }>
               <RefreshCw className="w-4 h-4" />
               Start Training
             </Button>

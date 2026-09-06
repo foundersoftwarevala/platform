@@ -88,7 +88,7 @@ function AwardsListPage() {
         description="Create, edit, approve, publish and archive every award, trophy, badge, achievement and rank used across the Software Vala ecosystem."
         actions={
           <Button asChild className="gap-1.5 bg-gradient-to-r from-trophy to-legendary text-background hover:opacity-90">
-            <Link to="/awards/new"><Plus className="h-4 w-4" /> New award</Link>
+            <Link to="/ams/awards/new"><Plus className="h-4 w-4" /> New award</Link>
           </Button>
         }
       />
@@ -124,7 +124,7 @@ function AwardsListPage() {
         <EmptyState
           title="No awards yet"
           description="Build your first award — trophy, badge, achievement, rank, milestone or streak — and it will appear here, in libraries, and in every dashboard that subscribes to it."
-          action={<Button asChild className="gap-1.5"><Link to="/awards/new"><Plus className="h-4 w-4" /> Create award</Link></Button>}
+          action={<Button asChild className="gap-1.5"><Link to="/ams/awards/new"><Plus className="h-4 w-4" /> Create award</Link></Button>}
         />
       ) : view === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -162,7 +162,7 @@ function AwardsListPage() {
                 <TableRow key={a.id}>
                   <TableCell><Checkbox checked={selected.has(a.id)} onCheckedChange={() => toggle(a.id)} /></TableCell>
                   <TableCell>
-                    <Link to="/awards/$id" params={{ id: a.id }} className="font-medium hover:text-trophy">{a.name}</Link>
+                    <Link to="/ams/awards/$id" params={{ id: a.id }} className="font-medium hover:text-trophy">{a.name}</Link>
                     <div className="text-xs text-muted-foreground line-clamp-1">{a.description}</div>
                   </TableCell>
                   <TableCell className="capitalize text-sm">{a.type}</TableCell>
@@ -174,8 +174,8 @@ function AwardsListPage() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" title="Award actions" aria-label={`Actions for ${a.name}`}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild><Link to="/awards/$id" params={{ id: a.id }}><Eye className="h-4 w-4 mr-2" /> View</Link></DropdownMenuItem>
-                        <DropdownMenuItem asChild><Link to="/awards/$id/edit" params={{ id: a.id }}><Pencil className="h-4 w-4 mr-2" /> Edit</Link></DropdownMenuItem>
+                        <DropdownMenuItem asChild><Link to="/ams/awards/$id" params={{ id: a.id }}><Eye className="h-4 w-4 mr-2" /> View</Link></DropdownMenuItem>
+                        <DropdownMenuItem asChild><Link to="/ams/awards/$id/edit" params={{ id: a.id }}><Pencil className="h-4 w-4 mr-2" /> Edit</Link></DropdownMenuItem>
                         <DropdownMenuItem onClick={() => run(() => cloneAward(a.id), "Cloned")}><Copy className="h-4 w-4 mr-2" /> Clone</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => run(() => approveAward(a.id), "Approved")}><Check className="h-4 w-4 mr-2" /> Approve</DropdownMenuItem>

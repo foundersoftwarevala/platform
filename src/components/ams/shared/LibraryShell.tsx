@@ -26,7 +26,7 @@ export function LibraryShell({
         description={description}
         actions={
           <Button asChild className="gap-1.5 bg-gradient-to-r from-trophy to-legendary text-background hover:opacity-90">
-            <Link to="/awards/new"><Plus className="h-4 w-4" /> New</Link>
+            <Link to="/ams/awards/new"><Plus className="h-4 w-4" /> New</Link>
           </Button>
         }
       />
@@ -35,7 +35,7 @@ export function LibraryShell({
           icon={helpIcon}
           title="Nothing here yet"
           description="Connect this library to the backend and items created in the Award Management Center will appear here."
-          action={<Button asChild className="gap-1.5"><Link to="/awards/new"><Plus className="h-4 w-4" /> Create your first</Link></Button>}
+          action={<Button asChild className="gap-1.5"><Link to="/ams/awards/new"><Plus className="h-4 w-4" /> Create your first</Link></Button>}
         />
       )}
     </div>

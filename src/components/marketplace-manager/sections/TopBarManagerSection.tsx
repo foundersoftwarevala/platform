@@ -8,6 +8,7 @@ import {
 import { PageHeader, PillButton, SubNav, StatCard } from "../ui";
 import { TableToolbar, RowActions } from "../actions";
 
+import { notBuilt } from "@/lib/ui/not-built";
 type ModuleDef = {
   id: string; label: string; icon: any; group: string; status: "live" | "draft" | "hidden";
   meta?: string;
@@ -84,7 +85,9 @@ export function TopBarManagerSection() {
           return (
             <div key={m.id} className="glass rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:border-[oklch(0.80_0.13_192/0.45)]">
               <div className="flex items-start gap-3">
-                <button className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-border bg-background/40 text-muted-foreground hover:text-foreground">
+                <button
+        type="button"
+        onClick={() => notBuilt("Reorder")} className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-border bg-background/40 text-muted-foreground hover:text-foreground">
                   <GripVertical className="h-3.5 w-3.5" />
                 </button>
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-[oklch(0.80_0.13_192/0.10)] text-accent">
@@ -105,7 +108,9 @@ export function TopBarManagerSection() {
               </div>
               <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
                 <RowActions ids={["edit", "view", "duplicate", "archive"]} />
-                <button className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-accent hover:text-cyan-glow">
+                <button
+        type="button"
+        onClick={() => notBuilt("Configure")} className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-accent hover:text-cyan-glow">
                   Configure <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>

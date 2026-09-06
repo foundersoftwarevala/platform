@@ -41,62 +41,86 @@ import { useQuery } from "@tanstack/react-query";
 import { seoQueries } from "@/lib/seo-queries";
 import { cn } from "@/lib/utils";
 
-type NavItem = { to: string; label: string; icon: typeof Search };
+/**
+ * `to` is where the entry opens. `search` carries the SEO Manager module id
+ * when the destination is a section of that console. `pending` marks an entry
+ * that has no module anywhere in the project yet: it stays visible and keeps
+ * its place in the menu, but it is rendered as disabled rather than as a link
+ * to a page that does not exist.
+ */
+type NavItem = {
+  to?: string;
+  search?: { module: string };
+  pending?: boolean;
+  label: string;
+  icon: typeof Search;
+};
 
-const primary: NavItem[] = [{ to: "/", label: "Overview", icon: LayoutDashboard }];
+// Every destination below was checked against the generated route tree. An
+// entry marked `pending` has no module anywhere in the project — not in the SEO
+// Manager, not in Marketing, not in Lead Manager — so it is shown as disabled
+// instead of linking to a 404.
+const SEO_MANAGER = "/seo-manager";
+
+const primary: NavItem[] = [
+  { to: SEO_MANAGER, search: { module: "dashboard" }, label: "Overview", icon: LayoutDashboard },
+];
 
 export const navGroups: Array<{ title: string; items: NavItem[] }> = [
   {
     title: "Optimization",
     items: [
-      { to: "/", label: "Overview", icon: LayoutDashboard },
+      // "/" used to send an SEO operator to the public marketplace home page.
+      { to: SEO_MANAGER, search: { module: "dashboard" }, label: "Overview", icon: LayoutDashboard },
       { to: "/pages", label: "Pages", icon: FileText },
       { to: "/keywords", label: "Keywords", icon: Search },
-      { to: "/meta-rules", label: "Meta Rules", icon: Code2 },
-      { to: "/indexing", label: "Indexing & Crawl", icon: Globe },
-      { to: "/performance", label: "Performance", icon: TrendingUp },
-      { to: "/technical", label: "Technical SEO", icon: Gauge },
-      { to: "/issues", label: "Issues & Fixes", icon: AlertTriangle },
-      { to: "/audit", label: "Audit", icon: Shield },
-      { to: "/reports", label: "Reports", icon: BarChart3 },
+      { to: SEO_MANAGER, search: { module: "meta" }, label: "Meta Rules", icon: Code2 },
+      { to: SEO_MANAGER, search: { module: "robots" }, label: "Indexing & Crawl", icon: Globe },
+      { to: SEO_MANAGER, search: { module: "health" }, label: "Performance", icon: TrendingUp },
+      { to: SEO_MANAGER, search: { module: "canonical" }, label: "Technical SEO", icon: Gauge },
+      { to: SEO_MANAGER, search: { module: "health" }, label: "Issues & Fixes", icon: AlertTriangle },
+      { to: SEO_MANAGER, search: { module: "reports" }, label: "Audit", icon: Shield },
+      { to: SEO_MANAGER, search: { module: "reports" }, label: "Reports", icon: BarChart3 },
     ],
   },
   {
     title: "Intelligence",
     items: [
-      { to: "/ai-assistant", label: "AI SEO Assistant", icon: Sparkles },
-      { to: "/competitors", label: "Competitors", icon: Users },
-      { to: "/backlinks", label: "Backlinks", icon: Link2 },
-      { to: "/regions", label: "Regional Modes", icon: Globe },
-      { to: "/behavior", label: "Heatmap & Behavior", icon: MousePointerClick },
-      { to: "/spam-guard", label: "Spam Guard", icon: ShieldAlert },
-      { to: "/product-library", label: "Product SEO Library", icon: Package },
+      { to: SEO_MANAGER, search: { module: "aiwriter" }, label: "AI SEO Assistant", icon: Sparkles },
+      { to: SEO_MANAGER, search: { module: "competitor" }, label: "Competitors", icon: Users },
+      { to: SEO_MANAGER, search: { module: "backlinks" }, label: "Backlinks", icon: Link2 },
+      { to: SEO_MANAGER, search: { module: "intl" }, label: "Regional Modes", icon: Globe },
+      { pending: true, label: "Heatmap & Behavior", icon: MousePointerClick },
+      { pending: true, label: "Spam Guard", icon: ShieldAlert },
+      { to: SEO_MANAGER, search: { module: "product" }, label: "Product SEO Library", icon: Package },
     ],
   },
   {
     title: "Growth",
     items: [
-      { to: "/content", label: "Content Generator", icon: FileCode },
-      { to: "/reels", label: "AI Reels Creator", icon: Video },
-      { to: "/leads", label: "Lead Intelligence", icon: Target },
-      { to: "/ads", label: "Ads Automation", icon: Megaphone },
-      { to: "/email", label: "Email Automation", icon: Mail },
-      { to: "/social", label: "Social Auto-Post", icon: Share2 },
-      { to: "/inbox", label: "Comments & Inbox", icon: MessageSquare },
-      { to: "/flows", label: "Automation Flows", icon: Workflow },
-      { to: "/scheduler", label: "Automation Scheduler", icon: Calendar },
+      { to: "/marketing/content", label: "Content Generator", icon: FileCode },
+      { to: "/marketing/creatives", label: "AI Reels Creator", icon: Video },
+      { to: "/lead-manager", label: "Lead Intelligence", icon: Target },
+      { to: "/marketing/campaigns", label: "Ads Automation", icon: Megaphone },
+      { pending: true, label: "Email Automation", icon: Mail },
+      { pending: true, label: "Social Auto-Post", icon: Share2 },
+      { pending: true, label: "Comments & Inbox", icon: MessageSquare },
+      { to: "/marketing/ai-automation", label: "Automation Flows", icon: Workflow },
+      { to: "/marketing/schedules", label: "Automation Scheduler", icon: Calendar },
     ],
   },
 ];
 
 const bottomItems: NavItem[] = [
-  { to: "/alerts", label: "Alerts", icon: Zap },
-  { to: "/diagnostics", label: "Diagnostics", icon: Activity },
-  { to: "/integrations", label: "Settings & Integrations", icon: Plug },
+  { pending: true, label: "Alerts", icon: Zap },
+  { to: SEO_MANAGER, search: { module: "health" }, label: "Diagnostics", icon: Activity },
+  { to: SEO_MANAGER, search: { module: "settings" }, label: "Settings & Integrations", icon: Plug },
 ];
 
 const sidebarGroups = navGroups.map((g) =>
-  g.title === "Optimization" ? { ...g, items: g.items.filter((i) => i.to !== "/") } : g,
+  g.title === "Optimization"
+    ? { ...g, items: g.items.filter((i) => i.label !== "Overview") }
+    : g,
 );
 
 const COLLAPSE_KEY = "sv:sidebar:collapsed";
@@ -178,17 +202,43 @@ function AppSidebar({
   }, [query]);
 
   const groupOpen = (title: string, items: NavItem[]) =>
-    openGroups[title] ?? items.some((i) => isActive(i.to));
+    openGroups[title] ?? items.some((i) => (i.to ? isActive(i.to) : false));
 
   const ItemLink = ({ item }: { item: NavItem }) => {
+    const base =
+      "group/item relative flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-colors duration-150";
+
+    // No module exists for this one anywhere yet. It keeps its place in the
+    // menu, but it does not pretend to be a link.
+    if (item.pending || !item.to) {
+      return (
+        <div
+          aria-disabled="true"
+          title={`${item.label} — not built yet`}
+          className={cn(base, "cursor-not-allowed text-muted-foreground/45", collapsed && "justify-center px-0")}
+        >
+          <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {!collapsed && (
+            <>
+              <span className="truncate">{item.label}</span>
+              <span className="ml-auto shrink-0 rounded-md border border-border/60 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider">
+                Soon
+              </span>
+            </>
+          )}
+        </div>
+      );
+    }
+
     const active = isActive(item.to);
     return (
       <Link
         to={item.to}
+        search={item.search}
         onClick={onCloseMobile}
         title={item.label}
         className={cn(
-          "group/item relative flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-colors duration-150",
+          base,
           collapsed && "justify-center px-0",
           active
             ? "bg-primary/18 font-medium text-foreground"
@@ -271,7 +321,7 @@ function AppSidebar({
       <nav className="flex-1 space-y-3 overflow-y-auto px-2 py-3">
         <div className="space-y-0.5">
           {primary.map((item) => (
-            <ItemLink key={item.to} item={item} />
+            <ItemLink key={item.label} item={item} />
           ))}
         </div>
 
@@ -281,7 +331,7 @@ function AppSidebar({
             return (
               <div key={group.title} className="space-y-0.5 border-t border-border/60 pt-2">
                 {group.items.map((item) => (
-                  <ItemLink key={item.to} item={item} />
+                  <ItemLink key={item.label} item={item} />
                 ))}
               </div>
             );
@@ -300,7 +350,7 @@ function AppSidebar({
               {open && (
                 <div className="mt-0.5 space-y-0.5">
                   {group.items.map((item) => (
-                    <ItemLink key={item.to} item={item} />
+                    <ItemLink key={item.label} item={item} />
                   ))}
                 </div>
               )}
@@ -311,7 +361,7 @@ function AppSidebar({
 
       <div className="shrink-0 space-y-0.5 border-t border-border px-2 py-2">
         {bottomItems.map((item) => (
-          <ItemLink key={item.to} item={item} />
+          <ItemLink key={item.label} item={item} />
         ))}
       </div>
     </div>

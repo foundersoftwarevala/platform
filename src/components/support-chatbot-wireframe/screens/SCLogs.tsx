@@ -13,6 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { downloadCsv, stampedName } from '@/lib/export/download';
 import { useBotConversationLogs, useChatbots, relativeTime } from '@/hooks/useSalesSupportData';
 
 const outcomeToLevel = (outcome: string): 'info' | 'success' | 'warning' | 'error' => {
@@ -87,7 +88,17 @@ export const SCLogs: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${autoRefresh ? 'animate-spin' : ''}`} />
             {autoRefresh ? 'Live' : 'Paused'}
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => toast.success('Logs exported')}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => {
+              // Exports exactly what the filters currently show, so the file
+              // matches the screen it was taken from.
+              if (!filteredLogs.length) {
+                toast.info('There are no log rows to export.');
+                return;
+              }
+              const n = downloadCsv(stampedName('chatbot-logs', 'csv'), filteredLogs,
+                ['time', 'level', 'bot', 'session', 'message']);
+              toast.success(`Exported ${n} log ${n === 1 ? 'row' : 'rows'} as CSV`);
+            }}>
             <Download className="w-4 h-4" />
             Export
           </Button>

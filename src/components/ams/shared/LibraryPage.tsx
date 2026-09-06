@@ -152,7 +152,7 @@ export function LibraryPage({
               </DropdownMenuContent>
             </DropdownMenu>
             <Button asChild size="sm" className="gap-1.5 bg-gradient-to-r from-trophy to-legendary text-background hover:opacity-90">
-              <Link to="/awards/new"><Plus className="h-4 w-4" /> New {type}</Link>
+              <Link to="/ams/awards/new"><Plus className="h-4 w-4" /> New {type}</Link>
             </Button>
           </div>
         }
@@ -214,7 +214,7 @@ export function LibraryPage({
           description={`Create your first ${type} in the Award Management Center, or import a CSV/JSON.`}
           action={
             <div className="flex gap-2 justify-center">
-              <Button asChild className="gap-1.5"><Link to="/awards/new"><Plus className="h-4 w-4" /> Create</Link></Button>
+              <Button asChild className="gap-1.5"><Link to="/ams/awards/new"><Plus className="h-4 w-4" /> Create</Link></Button>
               <Button variant="outline" className="gap-1.5" onClick={() => fileRef.current?.click()}>
                 <Upload className="h-4 w-4" /> Import
               </Button>

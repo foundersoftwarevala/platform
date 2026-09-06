@@ -7,6 +7,7 @@ import {
 import { PageHeader, PillButton, StatCard } from "../ui";
 import { TableToolbar } from "../actions";
 
+import { notBuilt } from "@/lib/ui/not-built";
 const VISUAL = [
   { label: "Product Thumbnail", icon: ImageIcon, hint: "1:1 · 1024px · webp" },
   { label: "Demo Thumbnail", icon: MonitorPlay, hint: "16:9 · poster" },
@@ -100,7 +101,9 @@ export function CardManagerSection() {
               <div className="text-[11px] text-muted-foreground">Enterprise control center for marketplace ops.</div>
               <div className="flex items-center justify-between pt-1">
                 <div className="font-mono text-[13px] font-bold tabular text-accent">$249</div>
-                <button className="rounded-lg border border-[oklch(0.80_0.13_192/0.45)] bg-[oklch(0.80_0.13_192/0.12)] px-2.5 py-1 text-[11px] font-bold">Live Demo</button>
+                <button
+        type="button"
+        onClick={() => notBuilt("Live Demo")} className="rounded-lg border border-[oklch(0.80_0.13_192/0.45)] bg-[oklch(0.80_0.13_192/0.12)] px-2.5 py-1 text-[11px] font-bold">Live Demo</button>
               </div>
             </div>
           </div>
@@ -121,7 +124,9 @@ function Block({ title, items }: { title: string; items: { label: string; icon: 
         {items.map((it) => {
           const I = it.icon;
           return (
-            <button key={it.label} className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-2.5 py-2 text-left transition-all hover:border-[oklch(0.80_0.13_192/0.40)] hover:bg-white/[0.05]">
+            <button
+        type="button"
+        onClick={() => notBuilt("} Edit")} key={it.label} className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-2.5 py-2 text-left transition-all hover:border-[oklch(0.80_0.13_192/0.40)] hover:bg-white/[0.05]">
               <span className="flex min-w-0 items-center gap-2">
                 <I className="h-3.5 w-3.5 shrink-0 text-accent"/>
                 <span className="min-w-0">

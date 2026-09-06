@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   X, Bell, Inbox, Globe, CheckCircle2, 
@@ -62,6 +63,16 @@ const notifications = [
 ];
 
 const SupportNotifications = ({ onClose }: SupportNotificationsProps) => {
+  // The list is static sample data, so read state lives here rather than
+  // in a store that does not exist yet. Marking all as read is then a real
+  // change the person can see, which is what the button claims to do.
+  const items = notifications;
+  const [readIds, setReadIds] = useState<Set<number>>(new Set());
+  const unreadCount = useMemo(
+    () => items.filter((n) => !n.read && !readIds.has(n.id)).length,
+    [items, readIds],
+  );
+
   const getTypeStyles = (type: string) => {
     const styles: Record<string, { bg: string; border: string; text: string }> = {
       ticket: { bg: 'bg-teal-500/10', border: 'border-teal-500/20', text: 'text-teal-400' },
@@ -111,6 +122,7 @@ const SupportNotifications = ({ onClose }: SupportNotificationsProps) => {
       <div className="overflow-auto max-h-[calc(100vh-180px)]">
         {notifications.map((notification, index) => {
           const styles = getTypeStyles(notification.type);
+          const isRead = notification.read || readIds.has(notification.id);
           const Icon = notification.icon;
 
           return (
@@ -120,7 +132,7 @@ const SupportNotifications = ({ onClose }: SupportNotificationsProps) => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.05 }}
               className={`p-4 border-b border-border hover:bg-card/60 transition-colors cursor-pointer ${
-                !notification.read ? 'bg-teal-500/5' : ''
+                !isRead ? 'bg-teal-500/5' : ''
               }`}
             >
               <div className="flex gap-4">
@@ -129,10 +141,10 @@ const SupportNotifications = ({ onClose }: SupportNotificationsProps) => {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-start justify-between">
-                    <h4 className={`text-sm font-medium ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>
+                    <h4 className={`text-sm font-medium ${!isRead ? 'text-foreground' : 'text-muted-foreground'}`}>
                       {notification.title}
                     </h4>
-                    {!notification.read && (
+                    {!isRead && (
                       <motion.div
                         animate={{ scale: [1, 1.2, 1] }}
                         transition={{ duration: 2, repeat: Infinity }}
@@ -151,8 +163,13 @@ const SupportNotifications = ({ onClose }: SupportNotificationsProps) => {
 
       {/* Footer */}
       <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-card/60">
-        <button className="w-full py-2.5 rounded-xl bg-card/60 border border-border text-muted-foreground text-sm hover:border-teal-500/20 hover:text-teal-400 transition-all">
-          Mark all as read
+        <button
+          type="button"
+          disabled={!unreadCount}
+          onClick={() => setReadIds(new Set(items.map((n) => n.id)))}
+          className="w-full py-2.5 rounded-xl bg-card/60 border border-border text-muted-foreground text-sm transition-all hover:border-teal-500/20 hover:text-teal-400 disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground"
+        >
+          {unreadCount ? `Mark all as read (${unreadCount})` : "All caught up"}
         </button>
       </div>
     </motion.div>

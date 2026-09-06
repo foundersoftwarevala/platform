@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { Card, PageHeader, PillButton, StatCard } from "@/components/marketplace-manager/ui";
 import { createTable, uid } from "@/lib/marketplace-manager/store";
+import { downloadCsv, stampedName } from "@/lib/export/download";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -281,7 +282,19 @@ export function ManagerWall({ config }: { config: WallConfig }) {
         description={config.subtitle}
         actions={
           <>
-            <PillButton onClick={() => toast.success("Export queued")}>Export</PillButton>
+            <PillButton
+              onClick={() => {
+                // Nothing was ever queued. This writes the filtered rows now.
+                if (!filtered.length) {
+                  toast.info(`No ${config.entity} rows to export.`);
+                  return;
+                }
+                const n = downloadCsv(stampedName(config.entity, "csv"), filtered);
+                toast.success(`Exported ${n} ${config.entity} ${n === 1 ? "row" : "rows"} as CSV`);
+              }}
+            >
+              Export
+            </PillButton>
             <PillButton variant="primary" onClick={openCreate}>
               <span className="inline-flex items-center gap-1.5">
                 <Plus className="h-3.5 w-3.5" /> {config.primaryLabel}

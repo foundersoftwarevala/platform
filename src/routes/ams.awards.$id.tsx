@@ -60,9 +60,9 @@ function AwardDetailPage() {
       await qc.invalidateQueries({ queryKey: ["award", id] });
       await qc.invalidateQueries({ queryKey: ["awards"] });
       toast.success(`Award ${op}d`);
-      if (op === "delete") navigate({ to: "/awards" });
+      if (op === "delete") navigate({ to: "/ams/awards" });
       if (op === "clone" && res && typeof res === "object" && "id" in res) {
-        navigate({ to: "/awards/$id", params: { id: (res as { id: string }).id } });
+        navigate({ to: "/ams/awards/$id", params: { id: (res as { id: string }).id } });
       }
     },
     onError: (e: Error) => toast.error(e.message),
@@ -90,7 +90,7 @@ function AwardDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             <RarityBadge rarity={award.rarity} />
             <StatusPill status={award.status} />
-            <Button asChild variant="outline" className="gap-1.5"><Link to="/awards/$id/edit" params={{ id: award.id }}><Pencil className="h-4 w-4" /> Edit</Link></Button>
+            <Button asChild variant="outline" className="gap-1.5"><Link to="/ams/awards/$id/edit" params={{ id: award.id }}><Pencil className="h-4 w-4" /> Edit</Link></Button>
             <Button variant="outline" className="gap-1.5" onClick={() => action.mutate("clone")}><Copy className="h-4 w-4" /> Clone</Button>
             {award.status === "published"
               ? <Button variant="outline" className="gap-1.5" onClick={() => action.mutate("unpublish")}><Ban className="h-4 w-4" /> Unpublish</Button>

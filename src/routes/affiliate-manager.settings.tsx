@@ -9,6 +9,7 @@ import { WallShell } from "@/components/affiliate/WallShell";
 import { SectionCard } from "@/components/affiliate/StatusBadge";
 import { Button } from "@/components/ui/button";
 
+import { notBuilt } from "@/lib/ui/not-built";
 export const Route = createFileRoute("/affiliate-manager/settings")({
   head: () => ({ meta: [{ title: "Settings — Affiliate Manager" }] }),
   component: SettingsWall,
@@ -66,6 +67,8 @@ function SettingsWall() {
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {g.items.map((it) => (
                 <button
+        type="button"
+        onClick={() => notBuilt(it.label)}
                   key={it.label}
                   className="group flex items-center gap-3 rounded-md border border-border bg-surface p-3 text-left transition-colors hover:border-border-strong hover:bg-muted/40"
                 >

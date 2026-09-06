@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
+import { notBuilt } from "@/lib/ui/not-built";
 export default function SeoManagerScreen() {
   const [keywords, setKeywords] = useState<any[]>([
     {
@@ -170,10 +171,14 @@ export default function SeoManagerScreen() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
-                              <button className="text-muted-foreground hover:text-foreground">
+                              <button
+        type="button"
+        onClick={() => notBuilt("Edit")} className="text-muted-foreground hover:text-foreground">
                                 <Edit className="h-4 w-4" />
                               </button>
-                              <button className="text-muted-foreground hover:text-foreground">
+                              <button
+        type="button"
+        onClick={() => notBuilt("Delete")} className="text-muted-foreground hover:text-foreground">
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             </div>
@@ -231,7 +236,9 @@ export default function SeoManagerScreen() {
                         <TableCell className="text-right">{comp.backlinks.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{comp.keywords.toLocaleString()}</TableCell>
                         <TableCell className="text-right">
-                          <button className="text-primary hover:underline flex items-center gap-1">
+                          <button
+        type="button"
+        onClick={() => notBuilt("Analyze")} className="text-primary hover:underline flex items-center gap-1">
                             Analyze <ExternalLink className="h-4 w-4" />
                           </button>
                         </TableCell>

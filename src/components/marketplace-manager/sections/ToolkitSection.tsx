@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PageHeader, Card, PillButton } from "../ui";
+import { notBuilt } from "@/lib/ui/not-built";
 import {
   ACTIONS, type ActionId,
   ActionButton, RowActions, TableToolbar, BulkActionBar,
@@ -126,7 +127,9 @@ export function ToolkitSection() {
                 ["Aurora",     ["#46DFB1","#09D1C7","#0EA5E9","#0C6478"]],
                 ["Sunset",     ["#F59E0B","#F5C518","#EF4444","#0F172A"]],
               ].map(([name, colors]) => (
-                <button key={name as string} className="flex items-center gap-2 rounded-xl border border-border bg-background/40 px-3 py-2 transition-colors hover:border-accent/50">
+                <button
+        type="button"
+        onClick={() => notBuilt("Theme preset")} key={name as string} className="flex items-center gap-2 rounded-xl border border-border bg-background/40 px-3 py-2 transition-colors hover:border-accent/50">
                   <div className="flex">
                     {(colors as string[]).map((c) => (
                       <span key={c} style={{ background: c }} className="h-4 w-4 rounded-sm ring-1 ring-black/20 -mr-1 last:mr-0" />

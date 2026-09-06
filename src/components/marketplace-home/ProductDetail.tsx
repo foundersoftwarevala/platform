@@ -6,6 +6,7 @@ import { getPublicProduct, type PublicProduct } from "@/lib/marketplace.function
 import { addMarketplaceCartItem } from "@/lib/marketplace-commerce.functions";
 import { useServerFn } from "@/lib/serverFn";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 // useEffect was used without ever being imported. The product page never
@@ -232,6 +233,23 @@ export function ProductDetail() {
                   {cartMutation.isPending ? "Adding..." : "Add to cart"}
                 </button>
                 <button
+                  type="button"
+                  onClick={async () => {
+                    // A customer pressing Share on the storefront got nothing
+                    // back at all. Share the page they are looking at.
+                    const url = window.location.href;
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({ title: product.name, url });
+                        return;
+                      } catch {
+                        /* the sheet was dismissed; fall through to copying */
+                      }
+                    }
+                    const { copyText } = await import("@/lib/export/download");
+                    if (await copyText(url)) toast.success("Link copied");
+                    else toast.error("Could not copy the link");
+                  }}
                   className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-cyan-500/40 hover:border-cyan-500/60 text-cyan-300 hover:text-cyan-200 font-semibold transition"
                 >
                   <Share2 className="h-4 w-4" />

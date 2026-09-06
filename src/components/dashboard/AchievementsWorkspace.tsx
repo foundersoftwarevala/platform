@@ -46,6 +46,9 @@ const TROPHIES = [
 
 const LEADERBOARD_TABS = ["Global","Country","State","Monthly","Weekly","Lifetime","Top Revenue","Top Orders","Top Growth"] as const;
 
+const NO_CERT_STORE =
+  "Certificates are not connected yet - there is no store to open, render or share from.";
+
 export function AchievementsWorkspace({ role, onBack }: { role: RoleConfig; onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [lbTab, setLbTab] = useState<string>("Global");
@@ -324,9 +327,12 @@ export function AchievementsWorkspace({ role, onBack }: { role: RoleConfig; onBa
                 <div className="mt-3 font-medium">{c.name}</div>
                 <div className="text-xs text-muted-foreground">{c.type}</div>
                 <div className="mt-4 flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => toast.success("Opened.")}>View</Button>
-                  <Button size="sm" variant="outline" onClick={() => toast.success("Downloaded.")}><Download className="h-3.5 w-3.5 mr-1" />PDF</Button>
-                  <Button size="sm" variant="outline" onClick={() => toast.success("Share link copied.")}><Share2 className="h-3.5 w-3.5 mr-1" />Share</Button>
+                  {/* These two certificates are sample rows: there is no
+                      certificate store to open, render or share from yet, so
+                      the buttons say that rather than reporting success. */}
+                  <Button size="sm" variant="outline" onClick={() => toast.info(NO_CERT_STORE)}>View</Button>
+                  <Button size="sm" variant="outline" onClick={() => toast.info(NO_CERT_STORE)}><Download className="h-3.5 w-3.5 mr-1" />PDF</Button>
+                  <Button size="sm" variant="outline" onClick={() => toast.info(NO_CERT_STORE)}><Share2 className="h-3.5 w-3.5 mr-1" />Share</Button>
                 </div>
               </div>
             ))}

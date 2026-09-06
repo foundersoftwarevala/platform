@@ -1,4 +1,5 @@
 import { useState, useEffect, type ComponentType, type ReactNode } from "react";
+import { notBuilt } from "@/lib/ui/not-built";
 import {
   Plus, Pencil, Eye, Check, X, Trash2, Upload, Download, FileDown, Copy,
   Archive, RotateCcw, Lock, Unlock, Star, Pin, Tag, DollarSign, KeyRound,
@@ -319,6 +320,8 @@ export function DetailActionRail({
       <span className="mx-1 h-5 w-px bg-border" />
       {extras.map((e) => (
         <button
+        type="button"
+        onClick={() => notBuilt(e.label)}
           key={e.label}
           className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-white/[0.04] px-2.5 text-[11px] font-semibold text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
         >
@@ -326,7 +329,9 @@ export function DetailActionRail({
           {e.label}
         </button>
       ))}
-      <button className="ml-auto inline-flex h-7 items-center justify-center rounded-lg border border-border bg-white/[0.04] px-2 text-muted-foreground hover:text-foreground">
+      <button
+        type="button"
+        onClick={() => notBuilt("More actions")} className="ml-auto inline-flex h-7 items-center justify-center rounded-lg border border-border bg-white/[0.04] px-2 text-muted-foreground hover:text-foreground">
         <MoreHorizontal className="h-4 w-4" />
       </button>
     </div>

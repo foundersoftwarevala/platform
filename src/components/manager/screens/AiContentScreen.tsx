@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
+import { notBuilt } from "@/lib/ui/not-built";
 export default function AiContentScreen() {
   const [content, setContent] = useState<any[]>([
     {
@@ -154,10 +155,14 @@ export default function AiContentScreen() {
                         </p>
                       </div>
                       <div className="ml-4 flex gap-2">
-                        <button className="text-muted-foreground hover:text-foreground">
+                        <button
+        type="button"
+        onClick={() => notBuilt("Copy")} className="text-muted-foreground hover:text-foreground">
                           <Copy className="h-4 w-4" />
                         </button>
-                        <button className="text-muted-foreground hover:text-foreground">
+                        <button
+        type="button"
+        onClick={() => notBuilt("Download")} className="text-muted-foreground hover:text-foreground">
                           <Download className="h-4 w-4" />
                         </button>
                       </div>

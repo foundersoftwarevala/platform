@@ -7,6 +7,7 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { downloadCsv, stampedName } from '@/lib/export/download';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -71,7 +72,15 @@ export const CBAnalyticsLogs: React.FC = () => {
           <h1 className="text-2xl font-bold text-foreground">Analytics & Logs</h1>
           <p className="text-muted-foreground text-sm mt-1">Review conversations and monitor performance</p>
         </div>
-        <Button variant="outline" onClick={() => toast.success('Report export started — you will get a download link shortly')}>
+        <Button variant="outline" onClick={() => {
+          if (!filteredLogs.length) {
+            toast.info('There are no conversations to export yet.');
+            return;
+          }
+          // No link arrives later; the file is written here and now.
+          const n = downloadCsv(stampedName('chatbot-conversations', 'csv'), filteredLogs);
+          toast.success(`Exported ${n} conversation ${n === 1 ? 'row' : 'rows'} as CSV`);
+        }}>
           <Download className="w-4 h-4 mr-2" />
           Export Report
         </Button>

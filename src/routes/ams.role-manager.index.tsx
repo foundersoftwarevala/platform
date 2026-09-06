@@ -21,7 +21,7 @@ function Page() {
   const rows = ROLES.map((r) => ({
     id: r.slug,
     name: (
-      <Link to="/role-manager/$slug" params={{ slug: r.slug }} className="group flex items-center gap-2">
+      <Link to="/ams/role-manager/$slug" params={{ slug: r.slug }} className="group flex items-center gap-2">
         <span className="text-lg" style={{ color: r.accent }}>{r.glyph}</span>
         <span>
           <div className="font-medium flex items-center gap-1 group-hover:underline">

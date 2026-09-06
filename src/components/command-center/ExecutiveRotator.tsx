@@ -231,7 +231,18 @@ const WIDGETS: Widget[] = [
                 >
                   Approve
                 </Btn>
-                <Btn className="px-2 py-1" tone="graphite" onClick={() => toast.info("Sent back for revision")}>
+                <Btn
+                  className="px-2 py-1"
+                  tone="graphite"
+                  onClick={() => {
+                    // Approve cleared the item and wrote an action; Revise only
+                    // showed a message, so the item stayed on the banner for
+                    // ever and nothing recorded the decision.
+                    resolveBannerItem(a.id);
+                    logExecAction("approval", "Sent back for revision", a.title);
+                    toast.info("Sent back for revision");
+                  }}
+                >
                   Revise
                 </Btn>
               </div>

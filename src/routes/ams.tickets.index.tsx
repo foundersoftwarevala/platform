@@ -43,7 +43,7 @@ function AmsListPage() {
         title="Tickets"
         description="Create, assign, work and close enterprise support tickets across every product."
         actions={
-          <Button asChild className="gap-1.5"><Link to="/ams/new"><Plus className="h-4 w-4" /> New ticket</Link></Button>
+          <Button asChild className="gap-1.5"><Link to="/ams/tickets/new"><Plus className="h-4 w-4" /> New ticket</Link></Button>
         }
       />
 
@@ -111,10 +111,10 @@ function AmsListPage() {
               {rows.map((t) => (
                 <tr key={t.id} className="hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs">
-                    <Link to="/ams/$id" params={{ id: t.id }} className="text-trophy hover:underline">{t.ticket_no}</Link>
+                    <Link to="/ams/tickets/$id" params={{ id: t.id }} className="text-trophy hover:underline">{t.ticket_no}</Link>
                   </td>
                   <td className="px-4 py-3">
-                    <Link to="/ams/$id" params={{ id: t.id }} className="font-medium hover:text-trophy">{t.subject}</Link>
+                    <Link to="/ams/tickets/$id" params={{ id: t.id }} className="font-medium hover:text-trophy">{t.subject}</Link>
                     {t.category && <div className="text-xs text-muted-foreground mt-0.5">{t.category}</div>}
                   </td>
                   <td className="px-4 py-3">

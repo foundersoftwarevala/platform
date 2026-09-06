@@ -671,7 +671,13 @@ const FounderAI = memo(() => (
       ))}
     </div>
     <button
-      onClick={() => toast.success("Voice command listening…")}
+      onClick={() =>
+        // Nothing listens. Speech capture is not wired to the command palette,
+        // and claiming otherwise left people talking at a dead microphone.
+        toast.info("Voice command is not available yet", {
+          description: "Use the command palette or the shortcuts above.",
+        })
+      }
       className="relative mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-primary via-accent to-primary-glow py-1.5 text-[10.5px] font-extrabold text-white shadow-[0_10px_24px_-12px_rgba(60,160,255,0.9)] transition-transform active:scale-[0.98]"
     >
       <Mic className="h-3.5 w-3.5" />

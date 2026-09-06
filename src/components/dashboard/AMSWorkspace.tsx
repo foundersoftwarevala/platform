@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ArrowLeft, Plus, Search, LifeBuoy, AlertTriangle, Hourglass, CheckCircle2,
@@ -375,6 +375,7 @@ function AMSDetail({
   const [tab, setTab] = useState<"chat"|"details"|"ai"|"history">("chat");
   const [draft, setDraft] = useState("");
   const [channel, setChannel] = useState<"support"|"developer"|"qa"|"boss"|"ai">("support");
+  const fileRef = useRef<HTMLInputElement>(null);
   const status = statusOf(record);
   const priority = priorityOf(record);
 
@@ -397,7 +398,14 @@ function AMSDetail({
           <ArrowLeft className="h-4 w-4" /> Back to AMS list
         </button>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => toast.success("Reopened.")}><RefreshCcw className="h-4 w-4 mr-1" />Reopen</Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={status === "reopened"}
+            onClick={() => setStatus("reopened")}
+          >
+            <RefreshCcw className="h-4 w-4 mr-1" />Reopen
+          </Button>
           <Button variant="outline" size="sm" onClick={onDelete}><Trash2 className="h-4 w-4 mr-1" />Delete</Button>
         </div>
       </div>
@@ -460,7 +468,32 @@ function AMSDetail({
             </div>
 
             <div className="p-3 border-t border-border flex items-end gap-2">
-              <Button variant="outline" size="icon" onClick={() => toast.success("Attachment picker (UI).")}><Paperclip className="h-4 w-4" /></Button>
+              <>
+                {/* There is no attachment store yet, so the file is not uploaded.
+                    Naming it in the message is honest and still useful — it
+                    tells the other side what to ask for. */}
+                <input
+                  ref={fileRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setDraft((d) => `${d}${d ? " " : ""}[attachment: ${file.name}]`);
+                      toast.info("Attachment noted in the message. File upload is not connected yet.");
+                    }
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Attach a file"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+              </>
               <Textarea rows={1} value={draft} onChange={(e) => setDraft(e.target.value)}
                 placeholder={`Message ${channel === "ai" ? "AI Assistant" : channel}…`}
                 className="resize-none min-h-[40px]"

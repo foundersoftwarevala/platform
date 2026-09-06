@@ -86,7 +86,7 @@ export function AwardForm({ initial, mode = "create" }: { initial?: Award | null
     onSuccess: async (saved, publish) => {
       await qc.invalidateQueries({ queryKey: ["awards"] });
       toast.success(publish ? "Award published" : "Award saved");
-      navigate({ to: "/awards/$id", params: { id: saved.id } });
+      navigate({ to: "/ams/awards/$id", params: { id: saved.id } });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -222,7 +222,7 @@ export function AwardForm({ initial, mode = "create" }: { initial?: Award | null
         </Tabs>
 
         <div className="flex items-center gap-2 pt-2 border-t border-border">
-          <Button variant="outline" onClick={() => navigate({ to: "/awards" })} className="gap-1.5">
+          <Button variant="outline" onClick={() => navigate({ to: "/ams/awards" })} className="gap-1.5">
             <X className="h-4 w-4" /> Cancel
           </Button>
           <div className="ml-auto flex items-center gap-2">

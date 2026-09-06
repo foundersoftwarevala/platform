@@ -12,6 +12,7 @@ import { PageHeader, PillButton, SubNav, StatCard, Card, EmptyHint } from "../ui
 import { TableToolbar, RowActions, BulkActionBar, ActionButton, ColorPicker } from "../actions";
 import { LiveRowsPanel } from "./LiveRowsPanel";
 
+import { notBuilt } from "@/lib/ui/not-built";
 type Row = {
   n: string; title: string; icon: any; status: "live" | "draft" | "hidden";
   pinned?: boolean; sub: string[]; meta?: string;
@@ -104,7 +105,9 @@ export function HomepageRowsSection() {
               className="glass group rounded-2xl p-3.5 transition-all hover:-translate-y-0.5 hover:border-[oklch(0.80_0.13_192/0.45)]"
             >
               <div className="flex items-center gap-3">
-                <button className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border bg-background/40 text-muted-foreground hover:text-foreground">
+                <button
+        type="button"
+        onClick={() => notBuilt("Reorder")} className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border bg-background/40 text-muted-foreground hover:text-foreground">
                   <GripVertical className="h-3.5 w-3.5"/>
                 </button>
                 <span className="grid h-7 w-9 shrink-0 place-items-center rounded-md border border-border bg-background/40 font-mono text-[11px] font-bold tabular text-accent">
@@ -147,7 +150,9 @@ export function HomepageRowsSection() {
 
 function IconBtn({ icon: Icon }: { icon: any }) {
   return (
-    <button className="grid h-7 w-7 place-items-center rounded-md border border-border bg-white/[0.04] text-muted-foreground hover:text-foreground hover:bg-white/[0.08]">
+    <button
+        type="button"
+        onClick={() => notBuilt("Row action")} className="grid h-7 w-7 place-items-center rounded-md border border-border bg-white/[0.04] text-muted-foreground hover:text-foreground hover:bg-white/[0.08]">
       <Icon className="h-3.5 w-3.5"/>
     </button>
   );
@@ -371,7 +376,9 @@ function ThemeTab() {
         <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-accent">Layout</div>
         <div className="grid grid-cols-3 gap-2">
           {["Carousel","Grid","Masonry","Stacked","Hero+Grid","Marquee"].map((l) => (
-            <button key={l} className="rounded-lg border border-border bg-background/40 px-2 py-3 text-[12px] font-semibold hover:border-[oklch(0.80_0.13_192/0.45)]">{l}</button>
+            <button
+        type="button"
+        onClick={() => notBuilt("Layout preset")} key={l} className="rounded-lg border border-border bg-background/40 px-2 py-3 text-[12px] font-semibold hover:border-[oklch(0.80_0.13_192/0.45)]">{l}</button>
           ))}
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2">
@@ -548,7 +555,9 @@ function GlobalManagementBlock() {
               {g.items.map((it) => {
                 const I = it.icon;
                 return (
-                  <button key={it.label} className="flex w-full items-center justify-between rounded-lg border border-border bg-background/40 px-2.5 py-1.5 text-left transition-all hover:border-[oklch(0.80_0.13_192/0.40)] hover:bg-white/[0.05]">
+                  <button
+        type="button"
+        onClick={() => notBuilt("Manage")} key={it.label} className="flex w-full items-center justify-between rounded-lg border border-border bg-background/40 px-2.5 py-1.5 text-left transition-all hover:border-[oklch(0.80_0.13_192/0.40)] hover:bg-white/[0.05]">
                     <span className="flex items-center gap-2 text-[12px] font-medium">
                       <I className="h-3.5 w-3.5 text-accent"/>{it.label}
                     </span>

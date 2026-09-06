@@ -461,8 +461,60 @@ function PassportSection({ ctx }: { ctx: SectionCtx }) {
         <Button size="sm" variant="outline" onClick={() => { navigator.clipboard?.writeText(state.passportId); toast.success("Passport ID copied."); }}>
           <Copy className="h-4 w-4 mr-1" /> Copy Passport ID
         </Button>
-        <Button size="sm" variant="outline" onClick={() => toast.success("Passport shared.")}><Share2 className="h-4 w-4 mr-1" /> Share</Button>
-        <Button size="sm" variant="outline" onClick={() => toast.success("Passport downloaded.")}><Download className="h-4 w-4 mr-1" /> Download</Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={async () => {
+            // There is no public registry for an engine passport id, so a
+            // /verify link would resolve to "not recognised". Share the card
+            // itself instead — that is genuinely shareable.
+            const summary =
+              `Software Vala passport ${state.passportId}
+` +
+              `${role.name} - ${cfg.subject}
+` +
+              `Level ${level.level} (${level.label}) - ${state.xp.toLocaleString()} XP
+` +
+              `Trust ${state.trustScore}/100 - Reputation ${state.reputation}/100`;
+            if (navigator.share) {
+              try {
+                await navigator.share({ title: "Software Vala passport", text: summary });
+                return;
+              } catch {
+                /* the sheet was dismissed; fall through to copying */
+              }
+            }
+            const { copyText } = await import("@/lib/export/download");
+            const ok = await copyText(summary);
+            if (ok) toast.success("Passport details copied.");
+            else toast.error("Could not reach the clipboard.");
+          }}
+        >
+          <Share2 className="h-4 w-4 mr-1" /> Share
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={async () => {
+            // A real file, built from the passport shown above.
+            const { downloadJson, stampedName } = await import("@/lib/export/download");
+            downloadJson(stampedName(`passport-${state.passportId}`, "json"), {
+              passportId: state.passportId,
+              role: role.name,
+              subject: cfg.subject,
+              level: { number: level.level, label: level.label },
+              xp: state.xp,
+              joinedAt: state.joinedAt,
+              trustScore: state.trustScore,
+              reputation: state.reputation,
+              verified: state.verified,
+              stamps: stamps.map((s) => ({ kind: s.kind, label: s.label })),
+            });
+            toast.success("Passport downloaded.");
+          }}
+        >
+          <Download className="h-4 w-4 mr-1" /> Download
+        </Button>
       </div>
 
       <div>

@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { usePermissions, can, QUICK_ACTION_PERMISSIONS, type Permission } from "@/lib/affiliate-permissions";
 import { toast } from "sonner";
 
+import { notBuilt } from "@/lib/ui/not-built";
 type Item = { label: string; icon: LucideIcon; desc: string; to?: string };
 
 const create: Item[] = [
@@ -116,5 +117,6 @@ function ActionRow({
     );
   }
   if (to) return <Link to={to} className={`${cls} hover:border-border-strong hover:bg-muted/40`}>{body}</Link>;
-  return <button type="button" className={`${cls} hover:border-border-strong hover:bg-muted/40`}>{body}</button>;
+  return <button
+        onClick={() => notBuilt(label)} type="button" className={`${cls} hover:border-border-strong hover:bg-muted/40`}>{body}</button>;
 }

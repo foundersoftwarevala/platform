@@ -14,6 +14,7 @@ import {
 import { Card, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import { SeoSection as LegacySeoEditor } from "./SeoSection";
 
+import { notBuilt } from "@/lib/ui/not-built";
 /* =========================================================
    UNIVERSAL ACTION DRAWER — wires every button to a workflow
    ========================================================= */
@@ -136,7 +137,9 @@ function DrawerBody({ kind, title }: { kind: DrawerKind; title: string }) {
           <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-background/40 p-3 text-[12px]">
             <div className="mt-1 h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_currentColor]" />
             <div className="flex-1"><div className="font-semibold">{e.w}</div><div className="text-[10px] text-muted-foreground">{e.t}</div></div>
-            <button className="text-[10px] font-bold uppercase tracking-wider text-accent">Restore</button>
+            <button
+        type="button"
+        onClick={() => notBuilt("Restore")} className="text-[10px] font-bold uppercase tracking-wider text-accent">Restore</button>
           </div>
         ))}
       </div>
@@ -215,7 +218,9 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
           <button onClick={onClose} className="rounded-full border border-border bg-background/60 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground">Cancel</button>
           <div className="flex items-center gap-2">
             {state.kind === "edit" || state.kind === "create" ? (
-              <button className="rounded-full border border-border bg-background/60 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-accent">Save draft</button>
+              <button
+        type="button"
+        onClick={() => notBuilt("Save draft")} className="rounded-full border border-border bg-background/60 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-accent">Save draft</button>
             ) : null}
             <button
               onClick={onClose}
@@ -612,9 +617,15 @@ function MiniSpark({ data, tone = "accent" }: { data: number[]; tone?: "accent" 
 function RowActs() {
   return (
     <div className="inline-flex items-center gap-1">
-      <button className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-accent/40 hover:text-accent" title="View"><Eye className="h-3 w-3" /></button>
-      <button className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-accent/40 hover:text-accent" title="Edit"><Edit3 className="h-3 w-3" /></button>
-      <button className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-warning/40 hover:text-warning" title="More"><MoreHorizontal className="h-3 w-3" /></button>
+      <button
+        type="button"
+        onClick={() => notBuilt("View")} className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-accent/40 hover:text-accent" title="View"><Eye className="h-3 w-3" /></button>
+      <button
+        type="button"
+        onClick={() => notBuilt("Edit")} className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-accent/40 hover:text-accent" title="Edit"><Edit3 className="h-3 w-3" /></button>
+      <button
+        type="button"
+        onClick={() => notBuilt("More")} className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-warning/40 hover:text-warning" title="More"><MoreHorizontal className="h-3 w-3" /></button>
     </div>
   );
 }
@@ -796,7 +807,9 @@ function DashboardModule() {
             </div>
             <div className="flex gap-1">
               {["7d", "30d", "90d", "1y"].map((r, i) => (
-                <button key={r} className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${i === 1 ? "border-accent/40 bg-accent/10 text-accent" : "border-border text-muted-foreground"}`}>{r}</button>
+                <button
+        type="button"
+        onClick={() => notBuilt("Rating filter")} key={r} className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${i === 1 ? "border-accent/40 bg-accent/10 text-accent" : "border-border text-muted-foreground"}`}>{r}</button>
               ))}
             </div>
           </div>
@@ -838,7 +851,9 @@ function DashboardModule() {
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Top ranking pages</div>
-            <button className="text-[10px] font-bold uppercase tracking-wider text-accent">View all</button>
+            <button
+        type="button"
+        onClick={() => notBuilt("View all")} className="text-[10px] font-bold uppercase tracking-wider text-accent">View all</button>
           </div>
           <Table
             head={["URL", "Clicks", "Impr.", "CTR", "Pos", "Trend"]}
@@ -855,7 +870,9 @@ function DashboardModule() {
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Top ranking keywords</div>
-            <button className="text-[10px] font-bold uppercase tracking-wider text-accent">Keyword center</button>
+            <button
+        type="button"
+        onClick={() => notBuilt("Keyword center")} className="text-[10px] font-bold uppercase tracking-wider text-accent">Keyword center</button>
           </div>
           <Table
             head={["Keyword", "Pos", "Δ", "Vol", "CPC", "URL"]}
@@ -964,7 +981,9 @@ function HealthModule() {
                   </div>
                   <div className="text-[11px] text-muted-foreground">{i.desc}</div>
                 </div>
-                <button className="opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+        type="button"
+        onClick={() => notBuilt("Fix")} className="opacity-0 transition-opacity group-hover:opacity-100">
                   <PillButton variant="ghost"><span className="inline-flex items-center gap-1"><Wand2 className="h-3 w-3" /> Fix</span></PillButton>
                 </button>
               </div>
@@ -1010,8 +1029,12 @@ function ReportsModule() {
               <div className="mt-3 text-sm font-bold">{r.l}</div>
               <div className="text-[11px] text-muted-foreground">{r.d}</div>
               <div className="mt-3 flex gap-1">
-                <button className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Preview</button>
-                <button className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Download</button>
+                <button
+        type="button"
+        onClick={() => notBuilt("Preview")} className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Preview</button>
+                <button
+        type="button"
+        onClick={() => notBuilt("Download")} className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Download</button>
               </div>
             </Card>
           );
@@ -1209,7 +1232,9 @@ function MetaManagerModule() {
                     <div><span className="font-semibold">{f}</span></div>
                     <div className="flex items-center gap-2">
                       <Chip tone="success">Set</Chip>
-                      <button className="text-muted-foreground hover:text-accent"><Edit3 className="h-3.5 w-3.5" /></button>
+                      <button
+        type="button"
+        onClick={() => notBuilt("Edit")} className="text-muted-foreground hover:text-accent"><Edit3 className="h-3.5 w-3.5" /></button>
                     </div>
                   </div>
                 ))}
@@ -1273,8 +1298,12 @@ function SchemaModule() {
             <div className="mt-3 text-sm font-bold">{s.t}</div>
             <div className="text-[11px] text-muted-foreground">Applied to {s.c.toLocaleString()} pages · {s.s}</div>
             <div className="mt-3 flex gap-1">
-              <button className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Edit</button>
-              <button className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Preview</button>
+              <button
+        type="button"
+        onClick={() => notBuilt("Edit")} className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Edit</button>
+              <button
+        type="button"
+        onClick={() => notBuilt("Preview")} className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Preview</button>
             </div>
           </Card>
         ))}
@@ -1341,7 +1370,9 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="font-mono text-[11px] text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2">
         <span className="max-w-[180px] truncate">{value}</span>
-        <button className="text-muted-foreground hover:text-accent"><Edit3 className="h-3.5 w-3.5" /></button>
+        <button
+        type="button"
+        onClick={() => notBuilt("Edit")} className="text-muted-foreground hover:text-accent"><Edit3 className="h-3.5 w-3.5" /></button>
       </div>
     </div>
   );
@@ -1557,9 +1588,15 @@ function CompetitorModule() {
               <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Gap</div><div className="font-mono tabular text-warning">+{Math.floor(Math.random() * 400)}</div></div>
             </div>
             <div className="mt-3 flex gap-1">
-              <button className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Keyword gap</button>
-              <button className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Backlink gap</button>
-              <button className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Content gap</button>
+              <button
+        type="button"
+        onClick={() => notBuilt("Keyword gap")} className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Keyword gap</button>
+              <button
+        type="button"
+        onClick={() => notBuilt("Backlink gap")} className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Backlink gap</button>
+              <button
+        type="button"
+        onClick={() => notBuilt("Content gap")} className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Content gap</button>
             </div>
           </Card>
         ))}
@@ -1830,8 +1867,12 @@ function SitemapModule() {
             <div className="mt-3 font-mono text-[12px] font-bold">{m.n}</div>
             <div className="mt-1 text-[11px] text-muted-foreground">{m.urls.toLocaleString()} URLs · updated {m.mod}</div>
             <div className="mt-3 flex gap-1">
-              <button className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Preview</button>
-              <button className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Regen</button>
+              <button
+        type="button"
+        onClick={() => notBuilt("Preview")} className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Preview</button>
+              <button
+        type="button"
+        onClick={() => notBuilt("Regen")} className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Regen</button>
             </div>
           </Card>
         ))}
@@ -2091,8 +2132,12 @@ function ToolGrid({ items }: { items: { l: string; d: string; st: "Connected" | 
           <div className="mt-3 text-sm font-bold">{t.l}</div>
           <div className="text-[11px] text-muted-foreground">{t.d}</div>
           <div className="mt-3 flex gap-1">
-            <button className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Configure</button>
-            <button className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Open</button>
+            <button
+        type="button"
+        onClick={() => notBuilt("Configure")} className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Configure</button>
+            <button
+        type="button"
+        onClick={() => notBuilt("Open")} className="flex-1 rounded-md border border-border bg-background/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">Open</button>
           </div>
         </Card>
       ))}
@@ -2149,7 +2194,9 @@ function BulkOpsModule() {
         <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Selection scope</div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {["All Products", "All Categories", "All Blogs", "Filtered results", "Uploaded CSV"].map((s, i) => (
-            <button key={s} className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${i === 0 ? "border-accent/40 bg-accent/10 text-accent" : "border-border text-muted-foreground hover:text-accent"}`}>{s}</button>
+            <button
+        type="button"
+        onClick={() => notBuilt("Section filter")} key={s} className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${i === 0 ? "border-accent/40 bg-accent/10 text-accent" : "border-border text-muted-foreground hover:text-accent"}`}>{s}</button>
           ))}
           <span className="ml-auto text-[11px] text-muted-foreground">1,284 items selected</span>
         </div>

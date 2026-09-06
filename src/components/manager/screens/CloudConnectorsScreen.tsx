@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
+import { notBuilt } from "@/lib/ui/not-built";
 export default function CloudConnectorsScreen() {
   const [connectors, setConnectors] = useState<any[]>([
     {
@@ -121,10 +122,14 @@ export default function CloudConnectorsScreen() {
                     <div className="flex items-center gap-3">
                       <StatusBadge value={conn.status} />
                       <div className="flex gap-2">
-                        <button className="text-muted-foreground hover:text-foreground">
+                        <button
+        type="button"
+        onClick={() => notBuilt("Edit")} className="text-muted-foreground hover:text-foreground">
                           <Edit className="h-4 w-4" />
                         </button>
-                        <button className="text-muted-foreground hover:text-foreground">
+                        <button
+        type="button"
+        onClick={() => notBuilt("Delete")} className="text-muted-foreground hover:text-foreground">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -300,7 +305,9 @@ export default function CloudConnectorsScreen() {
                           Revoked
                         </Badge>
                       )}
-                      <button className="text-muted-foreground hover:text-foreground">
+                      <button
+        type="button"
+        onClick={() => notBuilt("Delete")} className="text-muted-foreground hover:text-foreground">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>

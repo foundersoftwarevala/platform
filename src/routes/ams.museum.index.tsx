@@ -35,7 +35,7 @@ function Page() {
         {SHOWCASES.map((s) => (
           <Link
             key={s.slug}
-            to="/museum/$showcase"
+            to="/ams/museum/$showcase"
             params={{ showcase: s.slug }}
             className="group rounded-2xl border border-border/60 bg-black/20 p-4 motion-card"
           >

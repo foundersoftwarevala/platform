@@ -30,6 +30,7 @@ import {
 import { Card, EmptyHint, PageHeader, PillButton, StatCard, SubNav, SectionRow } from "../ui";
 import { TableToolbar, RowActions, BulkActionBar } from "../actions";
 
+import { notBuilt, previewOnly } from "@/lib/ui/not-built";
 // ---------- HERO BANNER MANAGER ----------
 // Real, DB-backed implementation lives in ./HeroSlidesManager.tsx
 export { HeroBannerSection } from "./HeroSlidesManager";
@@ -341,7 +342,9 @@ export function FaqSection() {
         <Card>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Categories</div>
           {["General","Pricing","Licensing","Delivery","Refunds","Support"].map((c, i) => (
-            <button key={c} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm ${i === 0 ? "bg-surface text-foreground" : "text-muted-foreground hover:bg-surface/50"}`}>
+            <button
+        type="button"
+        onClick={() => notBuilt("—")} key={c} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm ${i === 0 ? "bg-surface text-foreground" : "text-muted-foreground hover:bg-surface/50"}`}>
               <span>{c}</span><span className="text-xs">—</span>
             </button>
           ))}
@@ -569,7 +572,9 @@ export function SettingsSection() {
 // ---------- shared atoms ----------
 function IconBtn({ icon }: { icon: ReactNode }) {
   return (
-    <button className="rounded-lg border border-border bg-background/40 p-1.5 text-muted-foreground hover:text-foreground">
+    <button
+        type="button"
+        onClick={() => notBuilt("Quick action")} className="rounded-lg border border-border bg-background/40 p-1.5 text-muted-foreground hover:text-foreground">
       {icon}
     </button>
   );
@@ -627,9 +632,15 @@ function PreviewProductCard() {
         </div>
         {/* Hover quick actions */}
         <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-          <button title="Quick View" className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"><Eye className="h-4 w-4" /></button>
-          <button title="Live Demo" className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"><Sparkles className="h-4 w-4" /></button>
-          <button title="Compare" className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"><TrendingUp className="h-4 w-4" /></button>
+          <button
+        type="button"
+        onClick={() => previewOnly("Quick View")} title="Quick View" className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"><Eye className="h-4 w-4" /></button>
+          <button
+        type="button"
+        onClick={() => previewOnly("Live Demo")} title="Live Demo" className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"><Sparkles className="h-4 w-4" /></button>
+          <button
+        type="button"
+        onClick={() => previewOnly("Compare")} title="Compare" className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"><TrendingUp className="h-4 w-4" /></button>
         </div>
         {/* Gallery dots */}
         <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1">
@@ -669,15 +680,25 @@ function PreviewProductCard() {
             <div className="text-lg font-bold leading-none">₹14,999<span className="ml-1 text-[10px] font-normal text-muted-foreground">lifetime</span></div>
           </div>
           <div className="flex items-center gap-1">
-            <button title="Wishlist" className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"><Heart className="h-3.5 w-3.5" /></button>
-            <button title="Share" className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"><Share2 className="h-3.5 w-3.5" /></button>
-            <button title="Add to Cart" className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"><ShoppingCart className="h-3.5 w-3.5" /></button>
+            <button
+        type="button"
+        onClick={() => previewOnly("Wishlist")} title="Wishlist" className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"><Heart className="h-3.5 w-3.5" /></button>
+            <button
+        type="button"
+        onClick={() => previewOnly("Share")} title="Share" className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"><Share2 className="h-3.5 w-3.5" /></button>
+            <button
+        type="button"
+        onClick={() => previewOnly("Add to Cart")} title="Add to Cart" className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"><ShoppingCart className="h-3.5 w-3.5" /></button>
           </div>
         </div>
 
         <div className="mt-3 flex gap-1.5">
-          <button className="flex-1 rounded-md bg-gradient-to-r from-primary to-accent px-2 py-2 text-[11px] font-bold text-primary-foreground shadow-[0_8px_20px_-8px_oklch(0.62_0.20_255/0.6)] hover:brightness-110">Buy Now</button>
-          <button className="rounded-md border border-border bg-background/60 px-2.5 py-2 text-[11px] font-bold hover:border-accent/50 hover:text-accent">Details</button>
+          <button
+        type="button"
+        onClick={() => previewOnly("Buy Now")} className="flex-1 rounded-md bg-gradient-to-r from-primary to-accent px-2 py-2 text-[11px] font-bold text-primary-foreground shadow-[0_8px_20px_-8px_oklch(0.62_0.20_255/0.6)] hover:brightness-110">Buy Now</button>
+          <button
+        type="button"
+        onClick={() => previewOnly("Details")} className="rounded-md border border-border bg-background/60 px-2.5 py-2 text-[11px] font-bold hover:border-accent/50 hover:text-accent">Details</button>
         </div>
       </div>
     </div>

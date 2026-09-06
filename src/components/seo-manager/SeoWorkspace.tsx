@@ -17,8 +17,8 @@ const seoPrimary: NavItem[] = [
   { label: "AI Writer", icon: Sparkles },
 ];
 
-export function SeoWorkspace() {
-  const { groups, idByLabel } = useMemo(() => {
+export function SeoWorkspace({ initialModule }: { initialModule?: string } = {}) {
+  const { groups, idByLabel, labelById } = useMemo(() => {
     const map: Record<string, string> = {};
     const g: NavGroup[] = SEO_MODULE_GROUPS.map((group) => ({
       label: group.label,
@@ -27,12 +27,18 @@ export function SeoWorkspace() {
         return { label: item.label, icon: item.icon };
       }),
     }));
-    return { groups: g, idByLabel: map };
+    const reverse: Record<string, string> = {};
+    for (const [label, id] of Object.entries(map)) reverse[id] = label;
+    return { groups: g, idByLabel: map, labelById: reverse };
   }, []);
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [active, setActive] = useState("Dashboard");
+  // ?module=<id> opens that section directly, so a link from elsewhere in the
+  // project can land on the right screen instead of the dashboard.
+  const [active, setActive] = useState(
+    () => (initialModule && labelById[initialModule]) || "Dashboard",
+  );
   const [aiOpen, setAiOpen] = useState(false);
 
   return (

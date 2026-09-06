@@ -52,7 +52,7 @@ function NewTicketPage() {
         },
       });
       toast.success(asSubmit ? "Ticket submitted" : "Draft saved");
-      navigate({ to: "/ams/$id", params: { id: row.id } });
+      navigate({ to: "/ams/tickets/$id", params: { id: row.id } });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to create ticket");
     } finally { setSaving(false); }
@@ -60,7 +60,7 @@ function NewTicketPage() {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
-      <Button asChild variant="ghost" size="sm" className="gap-1.5 -ml-2"><Link to="/ams/ams"><ChevronLeft className="h-4 w-4" /> Back to tickets</Link></Button>
+      <Button asChild variant="ghost" size="sm" className="gap-1.5 -ml-2"><Link to="/ams/tickets"><ChevronLeft className="h-4 w-4" /> Back to tickets</Link></Button>
       <PageHeader kicker="Create" title="New AMS ticket" description="Capture an issue and route it to the right team." />
 
       <div className="surface-card p-6 space-y-5">

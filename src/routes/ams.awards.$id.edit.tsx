@@ -28,7 +28,7 @@ function EditAwardPage() {
   if (!data) return <EmptyState title="Award not found" />;
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
-      <Button asChild variant="ghost" size="sm" className="gap-1.5 -ml-2"><Link to="/awards/$id" params={{ id }}><ChevronLeft className="h-4 w-4" /> Back to award</Link></Button>
+      <Button asChild variant="ghost" size="sm" className="gap-1.5 -ml-2"><Link to="/ams/awards/$id" params={{ id }}><ChevronLeft className="h-4 w-4" /> Back to award</Link></Button>
       <PageHeader kicker="Edit" title={data.name} description="Update basics, media, rules, rewards or visibility." />
       <AwardForm mode="edit" initial={data} />
     </div>

@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Card, EmptyHint, PageHeader, PillButton, SubNav } from "../ui";
 
+import { notBuilt } from "@/lib/ui/not-built";
 function Switch({ on = false }: { on?: boolean }) {
   const [v, setV] = useState(on);
   return (
@@ -148,7 +149,9 @@ export function FooterSection() {
               <div key={title} className="rounded-xl border border-border bg-background/40 p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <div className="text-xs font-bold uppercase tracking-wider text-accent">{title}</div>
-                  <button className="text-[11px] text-muted-foreground hover:text-foreground">+ Link</button>
+                  <button
+        type="button"
+        onClick={() => notBuilt("+ Link")} className="text-[11px] text-muted-foreground hover:text-foreground">+ Link</button>
                 </div>
                 <ul className="space-y-1.5 text-sm text-muted-foreground">
                   {links.map((l) => (
@@ -262,8 +265,12 @@ export function UpcomingSection() {
               <div className="text-sm font-bold">{p}</div>
               <div className="text-[11px] text-muted-foreground">Release: —  ·  Waitlist: —</div>
               <div className="mt-3 flex gap-1.5">
-                <button className="flex-1 rounded-md bg-gradient-to-r from-primary to-accent px-2 py-1.5 text-[11px] font-bold text-primary-foreground">Notify Me</button>
-                <button className="rounded-md border border-border bg-background/60 px-2 py-1.5 text-[11px]">Join Waitlist</button>
+                <button
+        type="button"
+        onClick={() => notBuilt("Notify Me")} className="flex-1 rounded-md bg-gradient-to-r from-primary to-accent px-2 py-1.5 text-[11px] font-bold text-primary-foreground">Notify Me</button>
+                <button
+        type="button"
+        onClick={() => notBuilt("Join Waitlist")} className="rounded-md border border-border bg-background/60 px-2 py-1.5 text-[11px]">Join Waitlist</button>
               </div>
             </div>
           </Card>

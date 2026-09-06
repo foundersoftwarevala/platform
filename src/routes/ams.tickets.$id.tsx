@@ -44,7 +44,7 @@ function TicketPage() {
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
-      <Button asChild variant="ghost" size="sm" className="gap-1.5 -ml-2"><Link to="/ams/ams"><ChevronLeft className="h-4 w-4" /> Back to tickets</Link></Button>
+      <Button asChild variant="ghost" size="sm" className="gap-1.5 -ml-2"><Link to="/ams/tickets"><ChevronLeft className="h-4 w-4" /> Back to tickets</Link></Button>
 
       <PageHeader
         kicker={t.ticket_no}

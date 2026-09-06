@@ -33,7 +33,7 @@ function Page() {
         <p className="text-sm text-muted-foreground">Choose one of the {SHOWCASES.length} museums below.</p>
         <div className="flex flex-wrap gap-2">
           {SHOWCASES.map((s) => (
-            <Link key={s.slug} to="/museum/$showcase" params={{ showcase: s.slug }}
+            <Link key={s.slug} to="/ams/museum/$showcase" params={{ showcase: s.slug }}
               className="rounded-lg border border-border/60 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground">
               {s.title}
             </Link>

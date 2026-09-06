@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Card, EmptyHint, PageHeader, PillButton, SectionRow, StatCard } from "../ui";
 
+import { notBuilt } from "@/lib/ui/not-built";
 const WALLS = [
   "Featured Products",
   "Top Selling",
@@ -197,7 +198,9 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
                 <span className="text-sm">{t}</span>
                 <div className="flex items-center gap-2">
                   <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">—</span>
-                  <button className="text-xs font-semibold text-accent hover:text-cyan-glow">Review</button>
+                  <button
+        type="button"
+        onClick={() => notBuilt("Review")} className="text-xs font-semibold text-accent hover:text-cyan-glow">Review</button>
                 </div>
               </li>
             ))}
@@ -270,7 +273,9 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
               </div>
               <h4 className="text-base font-bold">{c.t}</h4>
               <p className="mt-1 text-sm text-muted-foreground">{c.d}</p>
-              <button className="mt-4 text-sm font-semibold text-accent hover:text-cyan-glow">Ask now →</button>
+              <button
+        type="button"
+        onClick={() => notBuilt("Ask now →")} className="mt-4 text-sm font-semibold text-accent hover:text-cyan-glow">Ask now →</button>
             </Card>
           ))}
         </div>

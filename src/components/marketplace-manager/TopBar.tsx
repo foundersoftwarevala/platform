@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/lib/language-catalog";
 import { SVLogo } from "./SVLogo";
 import { AiChatPanel } from "./AiChatPanel";
+import { notBuilt } from "@/lib/ui/not-built";
 import {
   Bot,
   LayoutDashboard,
@@ -305,6 +306,7 @@ export function MarketplaceTopBar({
 
           {/* Workspace switcher (indicator) */}
           <button
+        onClick={() => notBuilt("Workspace switcher")}
             type="button"
             className="ml-1 hidden items-center gap-2 rounded-full border border-border bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground xl:flex"
             title={t("Current workspace")}

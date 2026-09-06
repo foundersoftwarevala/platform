@@ -42,6 +42,13 @@ export function AIChatWorkspace({ onBack }: { onBack: () => void }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [chatQuery, setChatQuery] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [pickAccept, setPickAccept] = useState("*/*");
+  const pick = (accept: string) => {
+    setPickAccept(accept);
+    // let the accept attribute land before the dialog opens
+    requestAnimationFrame(() => fileRef.current?.click());
+  };
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { taRef.current?.focus(); }, []);
@@ -189,11 +196,43 @@ export function AIChatWorkspace({ onBack }: { onBack: () => void }) {
                 className="block w-full bg-transparent px-4 pt-3 pb-2 text-sm placeholder:text-muted-foreground outline-none resize-none max-h-48"
               />
               <div className="flex items-center gap-1 px-2 pb-2">
-                <ComposerBtn icon={Paperclip} label="Attach file" />
-                <ComposerBtn icon={ImageIcon} label="Image" />
-                <ComposerBtn icon={FileText} label="PDF analysis" />
-                <ComposerBtn icon={Code2} label="Code analysis" />
-                <ComposerBtn icon={Mic} label="Voice input" />
+                {/* These five were decoration. There is no upload store behind
+                    the chat, so a picked file is named in the message rather
+                    than silently going nowhere. */}
+                <input
+                  ref={fileRef}
+                  type="file"
+                  className="hidden"
+                  accept={pickAccept}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setInput((v) => (v ? v + "\n" : "") + "[file: " + file.name + "]");
+                      toast.info("File named in the message. Uploads are not connected yet.");
+                    }
+                    e.target.value = "";
+                  }}
+                />
+                <ComposerBtn icon={Paperclip} label="Attach file" onAct={() => pick("*/*")} />
+                <ComposerBtn icon={ImageIcon} label="Image" onAct={() => pick("image/*")} />
+                <ComposerBtn icon={FileText} label="PDF analysis" onAct={() => pick("application/pdf")} />
+                <ComposerBtn
+                  icon={Code2}
+                  label="Code analysis"
+                  onAct={() => {
+                    setInput((v) => (v ? v + "\n" : "") + "```\n\n```");
+                    taRef.current?.focus();
+                  }}
+                />
+                <ComposerBtn
+                  icon={Mic}
+                  label="Voice input"
+                  onAct={() =>
+                    toast.info("Voice input is not available yet", {
+                      description: "Type the message, or paste from your own dictation.",
+                    })
+                  }
+                />
                 <div className="ml-auto flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground hidden md:block">{mode.hint}</span>
                   <button
@@ -367,9 +406,15 @@ function ActionBtn({ icon: Icon, label, onAct }: { icon: any; label: string; onA
   );
 }
 
-function ComposerBtn({ icon: Icon, label }: { icon: any; label: string }) {
+function ComposerBtn({ icon: Icon, label, onAct }: { icon: any; label: string; onAct: () => void }) {
   return (
-    <button title={label} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-surface transition text-muted-foreground hover:text-foreground">
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onAct}
+      className="grid h-8 w-8 place-items-center rounded-lg hover:bg-surface transition text-muted-foreground hover:text-foreground"
+    >
       <Icon className="h-4 w-4" />
     </button>
   );
