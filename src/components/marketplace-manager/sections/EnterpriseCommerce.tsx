@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import {
   KeyRound, Download, ShoppingBag, Receipt, CreditCard, Wallet, Banknote,
   QrCode, Rocket, Copy, RefreshCw, ShieldCheck, Fingerprint, Cpu, Globe2,
@@ -13,6 +13,10 @@ import { Card, EmptyHint, PageHeader, PillButton, StatCard, SubNav } from "../ui
 import { TableToolbar, RowActions } from "../actions";
 
 import { notBuilt } from "@/lib/ui/not-built";
+import { useQuery } from "@tanstack/react-query";
+import {
+  listOrders, listOrderDocs, exportOrders, type OrderRow,
+} from "@/lib/marketplace-manager/orders.functions";
 /* =============================================================
    Shared atoms
    ============================================================= */
@@ -1404,7 +1408,11 @@ export function PricingSection() {
    ORDERS + INVOICES
    ============================================================= */
 
-const ORDERS = [
+/**
+ * Superseded. These five rows were never real orders — no SV-8842 exists in
+ * marketplace_orders. Kept for reference only; nothing below reads it.
+ */
+const ORDERS_SAMPLE_UNUSED = [
   { id: "SV-8842", cust: "Aurora Systems Pvt Ltd", prod: "Vala ERP Pro · Lifetime · 5 seats", amt: "₹14,999", pay: "Razorpay", status: "Paid",     tone: "success" as const },
   { id: "SV-8841", cust: "ByteForge Studios",     prod: "Vala CRM · Subscription · 3 seats",  amt: "₹4,497",  pay: "Stripe",   status: "Paid",     tone: "success" as const },
   { id: "SV-8840", cust: "Nimbus Retail LLP",     prod: "Vala POS Retail · Enterprise",       amt: "₹1,20,000",pay: "Bank",     status: "Pending",  tone: "warning" as const },
@@ -1414,7 +1422,55 @@ const ORDERS = [
 
 export function OrdersSection() {
   const [tab, setTab] = useState("All Orders");
-  const list = useMemo(() => ORDERS, []);
+  const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [sort, setSort] = useState<"newest" | "oldest" | "amount_high" | "amount_low" | "status">("newest");
+  const [offset, setOffset] = useState(0);
+  const LIMIT = 25;
+
+  // Section 3 asks for debounce, and it matters here: search runs in the
+  // database across order numbers, customer emails, product names and payment
+  // references, so a keystroke should not be a query.
+  useEffect(() => {
+    const t = setTimeout(() => { setDebounced(search); setOffset(0); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const orders = useQuery({
+    queryKey: ["marketplace", "orders", debounced, sort, offset],
+    queryFn: () => listOrders({
+      data: { search: debounced || undefined, sort, limit: LIMIT, offset },
+    }),
+    staleTime: 15_000,
+  });
+
+  const docTab = tab === "Invoices" ? "invoices"
+    : tab === "Proforma" ? "proforma"
+    : tab === "Credit Notes" ? "credit_notes"
+    : tab === "Refunds" ? "refunds"
+    : tab === "Disputes" ? "disputes" : null;
+
+  const docs = useQuery({
+    queryKey: ["marketplace", "order-docs", docTab],
+    queryFn: () => listOrderDocs({ data: { tab: docTab as never, limit: 50 } }),
+    enabled: Boolean(docTab),
+    staleTime: 20_000,
+  });
+
+  const list = orders.data?.orders ?? [];
+  const total = orders.data?.total ?? 0;
+
+  const money = (v: number | null | undefined, currency: string) => {
+    if (v === null || v === undefined) return "\u2014";
+    try {
+      return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(v);
+    } catch { return `${currency} ${v}`; }
+  };
+  const toneFor = (status: string) =>
+    status === "paid" ? ("success" as const)
+    : status === "refunded" ? ("danger" as const)
+    : status === "failed" ? ("danger" as const)
+    : ("warning" as const);
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
@@ -1430,46 +1486,169 @@ export function OrdersSection() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
-        <MiniStat label="Orders today"  value="184"    delta="+22 vs yesterday" tone="success" icon={ShoppingBag} />
-        <MiniStat label="Revenue today" value="₹4.82L" delta="+18%"             tone="premium" icon={DollarSign} />
-        <MiniStat label="Pending"       value="12"                              tone="warning" icon={Timer} />
-        <MiniStat label="Refunded 30d"  value="₹28k"                            tone="warning" icon={ArrowDownRight} />
-        <MiniStat label="AOV"           value="₹6,214"                          tone="premium" icon={TrendingUp} />
-        <MiniStat label="Disputes"      value="2"      delta="in review"        tone="destructive" icon={ShieldAlert} />
+        <MiniStat label="Orders" value={orders.isLoading ? "\u2014" : String(total)}
+                  delta={`${list.filter((o) => o.status === "paid").length} paid on this page`}
+                  tone="success" icon={ShoppingBag} />
+        <MiniStat label="Value on this page"
+                  value={orders.isLoading ? "\u2014"
+                    : money(list.reduce((n, o) => n + Number(o.total ?? 0), 0),
+                            list[0]?.currency ?? "USD")}
+                  tone="premium" icon={DollarSign} />
+        <MiniStat label="Awaiting payment"
+                  value={orders.isLoading ? "\u2014" : String(list.filter((o) => o.status !== "paid").length)}
+                  tone="warning" icon={Timer} />
+        <MiniStat label="With a refund"
+                  value={orders.isLoading ? "\u2014" : String(list.filter((o) => o.refund_status).length)}
+                  tone="warning" icon={ArrowDownRight} />
+        <MiniStat label="Invoiced"
+                  value={orders.isLoading ? "\u2014" : String(list.filter((o) => o.invoice_no).length)}
+                  tone="premium" icon={TrendingUp} />
+        <MiniStat label="Disputed"
+                  value={orders.isLoading ? "\u2014" : String(list.filter((o) => o.dispute_status).length)}
+                  tone="destructive" icon={ShieldAlert} />
       </div>
 
       <SubNav items={["All Orders","Invoices","Proforma","Credit Notes","Refunds","Disputes"]} active={tab} onChange={setTab} />
 
       {tab === "All Orders" && (
         <>
-          <TableToolbar title="Orders" count={list.length} extraActions={["export"]} />
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search order number, customer email, product or payment reference"
+              className="h-9 min-w-[22rem] flex-1 rounded-lg border border-border bg-background/40 px-3 text-xs outline-none focus:border-accent/60"
+            />
+            <select
+              value={sort}
+              onChange={(e) => { setSort(e.target.value as typeof sort); setOffset(0); }}
+              className="h-9 rounded-lg border border-border bg-background/40 px-2 text-xs outline-none"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="amount_high">Amount high to low</option>
+              <option value="amount_low">Amount low to high</option>
+              <option value="status">Status</option>
+            </select>
+            <button type="button" onClick={() => void orders.refetch()}
+                    className="h-9 rounded-lg border border-border px-3 text-xs hover:bg-white/[0.04]">
+              {orders.isFetching ? "Refreshing\u2026" : "Refresh"}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                // Exports exactly the authorised query behind the current view.
+                const r = await exportOrders({ data: { search: debounced || undefined, sort, limit: 100 } });
+                const blob = new Blob([r.csv], { type: "text/csv;charset=utf-8" });
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = r.filename;
+                a.click();
+                URL.revokeObjectURL(a.href);
+              }}
+              className="h-9 rounded-lg border border-border px-3 text-xs hover:bg-white/[0.04]"
+            >
+              Export CSV
+            </button>
+          </div>
+
           <div className="glass overflow-hidden rounded-2xl">
-            <div className="grid grid-cols-[.6fr_1.2fr_1.4fr_.7fr_.7fr_.7fr_auto] items-center gap-3 border-b border-border bg-background/40 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <div className="grid grid-cols-[.7fr_1.2fr_1.4fr_.7fr_.7fr_.7fr_auto] items-center gap-3 border-b border-border bg-background/40 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               <div>Order</div><div>Customer</div><div>Product</div><div>Amount</div><div>Payment</div><div>Status</div><div className="text-right">Actions</div>
             </div>
-            {list.map((o) => (
-              <div key={o.id} className="grid grid-cols-[.6fr_1.2fr_1.4fr_.7fr_.7fr_.7fr_auto] items-center gap-3 border-b border-border/60 px-4 py-3 text-[12px] hover:bg-white/[0.03]">
-                <div className="font-mono tabular text-accent">{o.id}</div>
-                <div className="truncate">{o.cust}</div>
-                <div className="truncate text-muted-foreground">{o.prod}</div>
-                <div className="font-mono tabular font-bold">{o.amt}</div>
-                <div>{o.pay}</div>
-                <div><Chip tone={o.tone}>{o.status}</Chip></div>
-                <div className="flex justify-end"><RowActions ids={["view","edit","duplicate","archive"]} /></div>
+
+            {orders.isLoading && (
+              <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading orders\u2026</div>
+            )}
+            {orders.isError && (
+              <div className="px-4 py-8 text-center text-xs text-destructive">
+                {(orders.error as Error)?.message}
+                <button type="button" onClick={() => void orders.refetch()}
+                        className="ml-2 underline">Retry</button>
+              </div>
+            )}
+            {!orders.isLoading && !orders.isError && list.length === 0 && (
+              <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+                {debounced ? `No order matches \u201c${debounced}\u201d.` : "No orders yet."}
+              </div>
+            )}
+
+            {list.map((o: OrderRow) => (
+              <div key={o.id} className="grid grid-cols-[.7fr_1.2fr_1.4fr_.7fr_.7fr_.7fr_auto] items-center gap-3 border-b border-border/60 px-4 py-3 text-[12px] hover:bg-white/[0.03]">
+                <div className="font-mono tabular text-accent">{o.order_number}</div>
+                <div className="truncate">{o.customer?.email ?? "\u2014"}</div>
+                <div className="truncate text-muted-foreground">
+                  {o.items.length ? o.items.map((i) => i.name).join(", ") : "no line items"}
+                </div>
+                <div className="font-mono tabular font-bold">{money(o.total, o.currency)}</div>
+                <div className="truncate">
+                  {o.payment_gateway ?? (o.payment_reference ? "reference only" : "not configured")}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  <Chip tone={toneFor(o.status)}>{o.status}</Chip>
+                  {o.refund_status && <Chip tone="warning">refund {o.refund_status}</Chip>}
+                  {o.dispute_status && <Chip tone="danger">dispute {o.dispute_status}</Chip>}
+                </div>
+                <div className="flex justify-end gap-2 text-[11px]">
+                  {o.invoice_no
+                    ? <span className="font-mono text-muted-foreground">{o.invoice_no}</span>
+                    : <span className="text-muted-foreground">no invoice</span>}
+                </div>
               </div>
             ))}
+
+            {total > LIMIT && (
+              <div className="flex items-center justify-between px-4 py-2 text-[11px] text-muted-foreground">
+                <span>Showing {offset + 1}\u2013{Math.min(offset + LIMIT, total)} of {total}</span>
+                <div className="flex gap-2">
+                  <button type="button" disabled={offset === 0}
+                          onClick={() => setOffset((v) => Math.max(0, v - LIMIT))}
+                          className="rounded border border-border px-2 py-1 disabled:opacity-40">Previous</button>
+                  <button type="button" disabled={offset + LIMIT >= total}
+                          onClick={() => setOffset((v) => v + LIMIT)}
+                          className="rounded border border-border px-2 py-1 disabled:opacity-40">Next</button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
 
-      {tab === "Invoices" && <InvoicePreview />}
-
-      {(tab === "Proforma" || tab === "Credit Notes" || tab === "Refunds" || tab === "Disputes") && (
-        <EmptyTable
-          title={`${tab} — empty`}
-          hint={`When ${tab.toLowerCase()} are created, they appear here with search, filters, PDF preview and one-click download.`}
-          cta={`Create ${tab.toLowerCase().replace(/s$/, "")}`}
-        />
+      {docTab && (
+        <div className="glass mt-3 overflow-hidden rounded-2xl">
+          {docs.isLoading && (
+            <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading {tab.toLowerCase()}\u2026</div>
+          )}
+          {docs.isError && (
+            <div className="px-4 py-8 text-center text-xs text-destructive">
+              {(docs.error as Error)?.message}
+            </div>
+          )}
+          {!docs.isLoading && !docs.isError && ((docs.data as { rows?: unknown[] })?.rows ?? []).length === 0 && (
+            <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+              No {tab.toLowerCase()} yet.
+            </div>
+          )}
+          {(((docs.data as { rows?: Record<string, unknown>[] })?.rows) ?? []).map((r, i) => (
+            <div key={String(r.id ?? i)}
+                 className="grid grid-cols-[1fr_1.2fr_.7fr_.7fr_.9fr] items-center gap-3 border-b border-border/60 px-4 py-3 text-[12px]">
+              <div className="font-mono tabular text-accent">
+                {String(r.number ?? r.dispute_no ?? r.order_number ?? r.id)}
+              </div>
+              <div className="truncate">{String(r.client ?? r.reason ?? "\u2014")}</div>
+              <div className="font-mono tabular">{String(r.total ?? r.amount ?? "\u2014")}</div>
+              <div><Chip tone={String(r.status) === "paid" ? "success" : "warning"}>{String(r.status ?? "\u2014")}</Chip></div>
+              <div className="truncate text-muted-foreground">
+                {r.linked_order ? `order ${String(r.linked_order)}` : String(r.order_number ?? "")}
+              </div>
+            </div>
+          ))}
+          {!docs.isLoading && (
+            <div className="px-4 py-2 text-[11px] text-muted-foreground">
+              {String((docs.data as { total?: number })?.total ?? 0)} record(s) in {tab.toLowerCase()}.
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
