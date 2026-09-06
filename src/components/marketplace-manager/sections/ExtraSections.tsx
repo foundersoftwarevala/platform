@@ -7,6 +7,11 @@ import {
 import { Card, EmptyHint, PageHeader, PillButton, SubNav } from "../ui";
 
 import { notBuilt } from "@/lib/ui/not-built";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import {
+  listTopBarModules, configureTopBarModule, type TopBarModule,
+} from "@/lib/marketplace-manager/topbar.functions";
 function Switch({ on = false }: { on?: boolean }) {
   const [v, setV] = useState(on);
   return (
@@ -22,106 +27,194 @@ function Switch({ on = false }: { on?: boolean }) {
 // ---------- STOREFRONT TOPBAR MANAGER ----------
 export function StorefrontTopBarSection() {
   const [tab, setTab] = useState("Navigation");
-  const navItems = ["Logo", "Products", "Categories", "Solutions", "Pricing", "Apply ▾", "Language ▾", "Currency ▾", "AI Chat", "Notifications", "Login", "Register"];
-  const applyRoles = ["Reseller", "Vendor", "Author", "Influencer", "Franchise", "Affiliate", "Employee"];
-  const languages = ["English", "Hindi", "Arabic", "Spanish", "French", "German", "Chinese", "Russian", "Portuguese", "Japanese"];
-  const currencies = ["USD", "INR", "EUR", "GBP", "AED", "SAR", "JPY", "CNY", "AUD", "CAD"];
+  const qc = useQueryClient();
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["marketplace", "topbar"],
+    queryFn: () => listTopBarModules(),
+    staleTime: 20_000,
+  });
+
+  const save = useMutation({
+    mutationFn: (v: { key: string; patch: Record<string, unknown> }) =>
+      configureTopBarModule({ data: v as never }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["marketplace", "topbar"] });
+      toast.success("Top bar updated");
+    },
+    onError: (e: Error) =>
+      toast.error("That change was refused", { description: e.message }),
+  });
+
+  const modules = data?.modules ?? [];
+  const rendered = modules.filter((m) => (m as { rendered?: boolean }).rendered);
+  const planned = modules.filter((m) => (m as { planned?: boolean }).planned);
+
+  const byCategory = (c: string[]) => modules.filter((m) => c.includes(m.category));
 
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
         eyebrow="Storefront Top Bar"
         title="Public Top Bar Manager"
-        description="What customers see at the top of the marketplace storefront — nav, Apply dropdown, language, currency, AI Chat, login & register."
-        actions={<PillButton variant="primary">Publish Top Bar</PillButton>}
+        description="What customers see at the top of the marketplace storefront. Reads the same registry as Top Bar, so both screens and the header agree."
       />
-      <SubNav items={["Navigation", "Apply Dropdown", "Language", "Currency", "Auth & Chat"]} active={tab} onChange={setTab} />
 
-      {/* Live preview */}
+      <SubNav
+        items={["Navigation", "Apply Dropdown", "Language", "Currency", "Auth & Chat"]}
+        active={tab}
+        onChange={setTab}
+      />
+
+      {isError && (
+        <Card className="mb-4">
+          <div className="p-3 text-sm text-destructive">{(error as Error)?.message}</div>
+        </Card>
+      )}
+
+      {/* Live preview, built from stored configuration rather than drawn. */}
       <Card className="mb-6">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Live preview</div>
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/60 px-4 py-3 text-xs">
-          <div className="mr-3 flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary to-accent" />
-            <span className="font-bold">Software Vala</span>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Live preview
           </div>
-          {["Products", "Categories", "Solutions", "Pricing"].map((n) => (
-            <span key={n} className="rounded-md px-2 py-1 text-muted-foreground hover:bg-surface">{n}</span>
-          ))}
-          <span className="ml-auto inline-flex items-center gap-1 rounded-md bg-surface px-2 py-1"><Users2 className="h-3 w-3" /> Apply ▾</span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-surface px-2 py-1"><Globe2 className="h-3 w-3" /> EN ▾</span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-surface px-2 py-1"><DollarSign className="h-3 w-3" /> USD ▾</span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-surface px-2 py-1"><MessageCircle className="h-3 w-3" /> AI</span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-surface px-2 py-1"><Bell className="h-3 w-3" /></span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-surface px-2 py-1"><LogIn className="h-3 w-3" /> Login</span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-primary to-accent px-2 py-1 text-primary-foreground"><UserPlus className="h-3 w-3" /> Register</span>
+          <div className="text-[11px] text-muted-foreground">
+            {isLoading ? "loading…" : `${rendered.filter((m) => m.status === "live").length} live on the storefront`}
+          </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/60 px-4 py-3 text-xs">
+          {isLoading && <span className="text-muted-foreground">Reading the registry…</span>}
+          {!isLoading && rendered.filter((m) => m.status === "live").length === 0 && (
+            <span className="text-muted-foreground">No module is live, so the header would be empty.</span>
+          )}
+          {rendered
+            .filter((m) => m.status === "live")
+            .map((m) => (
+              <span key={m.module_key} className="rounded-md bg-surface px-2 py-1 text-muted-foreground">
+                {m.name}
+              </span>
+            ))}
+        </div>
+        {planned.length > 0 && (
+          <div className="mt-2 text-[11px] text-muted-foreground">
+            {planned.length} module{planned.length === 1 ? " is" : "s are"} registered but not rendered by the
+            header yet, so {planned.length === 1 ? "it does" : "they do"} not appear above.
+          </div>
+        )}
       </Card>
 
       {tab === "Navigation" && (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {navItems.map((n) => (
-            <div key={n} className="glass flex items-center justify-between rounded-xl p-3">
-              <div className="flex items-center gap-2"><Menu className="h-4 w-4 text-accent" /><span className="text-sm font-semibold">{n}</span></div>
-              <Switch on />
-            </div>
-          ))}
-        </div>
+        <ModuleGrid modules={modules} save={save} loading={isLoading} />
       )}
 
       {tab === "Apply Dropdown" && (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {applyRoles.map((r) => (
-            <Card key={r}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-bold">Become {r}</div>
-                  <div className="text-[11px] text-muted-foreground">Route → /apply/{r.toLowerCase()}</div>
-                </div>
-                <Switch on />
-              </div>
-            </Card>
-          ))}
-        </div>
+        <>
+          <SourceNote
+            text="Apply roles come from the APPLY_ROLES constant in TopUtilityBar.tsx. There is no applications table, so the list is edited in that file rather than here."
+          />
+          <ModuleGrid modules={byCategory(["identity"])} save={save} loading={isLoading} />
+        </>
       )}
 
       {tab === "Language" && (
-        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-          {languages.map((l) => (
-            <div key={l} className="glass flex items-center justify-between rounded-xl p-3 text-sm">
-              <span>{l}</span><Switch on={["English", "Hindi", "Arabic", "Spanish", "French", "German"].includes(l)} />
-            </div>
-          ))}
-        </div>
+        <>
+          <SourceNote
+            text="Languages come from src/lib/language-catalog.ts (143 entries). marketplace_translations is empty, so the picker changes the label and nothing is translated yet."
+          />
+          <ModuleGrid modules={byCategory(["locale"]).filter((m) => m.module_key === "language")} save={save} loading={isLoading} />
+        </>
       )}
 
       {tab === "Currency" && (
-        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-          {currencies.map((c) => (
-            <div key={c} className="glass flex items-center justify-between rounded-xl p-3 text-sm">
-              <span className="font-mono">{c}</span><Switch on={["USD", "INR", "EUR", "GBP", "AED"].includes(c)} />
-            </div>
-          ))}
-        </div>
+        <>
+          <SourceNote
+            text="Currencies come from the CURRENCIES constant in TopUtilityBar.tsx. No currency table exists, so this controls the picker's visibility, not exchange rates."
+          />
+          <ModuleGrid modules={byCategory(["locale"]).filter((m) => m.module_key === "currency")} save={save} loading={isLoading} />
+        </>
       )}
 
       {tab === "Auth & Chat" && (
-        <div className="grid gap-3 md:grid-cols-2">
-          {[["Login button", true], ["Register button", true], ["AI Chat launcher", true], ["Notifications bell", true], ["Global search", true]].map(([l, on]) => (
-            <Card key={l as string}>
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-bold">{l as string}</div>
-                <Switch on={on as boolean} />
-              </div>
-            </Card>
-          ))}
-        </div>
+        <ModuleGrid
+          modules={modules.filter((m) =>
+            ["login", "register", "ai-chat", "notifications"].includes(m.module_key),
+          )}
+          save={save}
+          loading={isLoading}
+        />
       )}
     </div>
   );
 }
 
-// ---------- FOOTER MANAGER ----------
+/** States plainly where a tab's data actually comes from. */
+function SourceNote({ text }: { text: string }) {
+  return (
+    <div className="mb-3 rounded-lg border border-border bg-muted/10 p-3 text-[11px] text-muted-foreground">
+      {text}
+    </div>
+  );
+}
+
+function ModuleGrid({
+  modules,
+  save,
+  loading,
+}: {
+  modules: TopBarModule[];
+  save: { mutate: (v: { key: string; patch: Record<string, unknown> }) => void };
+  loading: boolean;
+}) {
+  if (loading) {
+    return <div className="text-xs text-muted-foreground">Reading the registry…</div>;
+  }
+  if (modules.length === 0) {
+    return <div className="text-xs text-muted-foreground">No module in this group.</div>;
+  }
+  return (
+    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+      {modules.map((m) => {
+        const meta = m as TopBarModule & { rendered?: boolean; blocked_reason?: string };
+        return (
+          <div key={m.module_key} className="glass flex items-start justify-between gap-3 rounded-xl p-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Menu className="h-4 w-4 shrink-0 text-accent" />
+                <span className="truncate text-sm font-semibold">{m.name}</span>
+              </div>
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                {meta.rendered
+                  ? `${m.component} · ${m.status}`
+                  : `not rendered yet — ${meta.blocked_reason ?? "no component"}`}
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={!meta.rendered}
+              title={meta.rendered ? "Toggle on the storefront" : "Nothing renders this module yet"}
+              onClick={() =>
+                save.mutate({
+                  key: m.module_key,
+                  patch: { status: m.status === "live" ? "hidden" : "live" },
+                })
+              }
+              className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                !meta.rendered
+                  ? "cursor-not-allowed border border-border text-muted-foreground opacity-60"
+                  : m.status === "live"
+                    ? "bg-success/15 text-success"
+                    : "bg-muted/50 text-muted-foreground"
+              }`}
+            >
+              {meta.rendered ? (m.status === "live" ? "Live" : "Hidden") : "Planned"}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function FooterSection() {
   const columns = [
     ["Company", ["About", "Careers", "Blog", "Press", "Contact"]],
