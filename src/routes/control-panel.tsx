@@ -202,11 +202,14 @@ function Index() {
                 // Both are real RoleKeys with their own dashboard; neither was
                 // reachable from the sidebar that offers them.
 
-                promise_tracker_manager: "promise-tracker",
               };
               const dashRole = ROLE_DASHBOARD_ROUTES[roleId];
               if (dashRole) {
                 void navigate({ to: "/dashboard/$role", params: { role: dashRole } });
+                return;
+              }
+              if (roleId === "promise_tracker_manager") {
+                void navigate({ to: "/promise-tracker" });
                 return;
               }
               if (roleId === "chat_manager") {
