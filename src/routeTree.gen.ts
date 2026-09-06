@@ -25,6 +25,7 @@ import { Route as CreatorManagerRouteImport } from './routes/creator-manager'
 import { Route as DemoManagerRouteImport } from './routes/demo-manager'
 import { Route as DemoOpsRouteImport } from './routes/demo-ops'
 import { Route as DemoWorkspaceRouteImport } from './routes/demo-workspace'
+import { Route as DevManagerRouteImport } from './routes/dev-manager'
 import { Route as FinanceManagerRouteImport } from './routes/finance-manager'
 import { Route as FranchiseManagerRouteImport } from './routes/franchise-manager'
 import { Route as InfluencerManagerRouteImport } from './routes/influencer-manager'
@@ -345,6 +346,11 @@ const DemoOpsRoute = DemoOpsRouteImport.update({
 const DemoWorkspaceRoute = DemoWorkspaceRouteImport.update({
   id: '/demo-workspace',
   path: '/demo-workspace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevManagerRoute = DevManagerRouteImport.update({
+  id: '/dev-manager',
+  path: '/dev-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FinanceManagerRoute = FinanceManagerRouteImport.update({
@@ -1604,6 +1610,7 @@ export interface FileRoutesByFullPath {
   '/demo-manager': typeof DemoManagerRoute
   '/demo-ops': typeof DemoOpsRoute
   '/demo-workspace': typeof DemoWorkspaceRoute
+  '/dev-manager': typeof DevManagerRoute
   '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
@@ -1860,6 +1867,7 @@ export interface FileRoutesByTo {
   '/demo-manager': typeof DemoManagerRoute
   '/demo-ops': typeof DemoOpsRoute
   '/demo-workspace': typeof DemoWorkspaceRoute
+  '/dev-manager': typeof DevManagerRoute
   '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
@@ -2114,6 +2122,7 @@ export interface FileRoutesById {
   '/demo-manager': typeof DemoManagerRoute
   '/demo-ops': typeof DemoOpsRoute
   '/demo-workspace': typeof DemoWorkspaceRoute
+  '/dev-manager': typeof DevManagerRoute
   '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
   '/influencer-manager': typeof InfluencerManagerRoute
@@ -2375,6 +2384,7 @@ export interface FileRouteTypes {
     | '/demo-manager'
     | '/demo-ops'
     | '/demo-workspace'
+    | '/dev-manager'
     | '/finance-manager'
     | '/franchise-manager'
     | '/influencer-manager'
@@ -2631,6 +2641,7 @@ export interface FileRouteTypes {
     | '/demo-manager'
     | '/demo-ops'
     | '/demo-workspace'
+    | '/dev-manager'
     | '/finance-manager'
     | '/franchise-manager'
     | '/influencer-manager'
@@ -2884,6 +2895,7 @@ export interface FileRouteTypes {
     | '/demo-manager'
     | '/demo-ops'
     | '/demo-workspace'
+    | '/dev-manager'
     | '/finance-manager'
     | '/franchise-manager'
     | '/influencer-manager'
@@ -3144,6 +3156,7 @@ export interface RootRouteChildren {
   DemoManagerRoute: typeof DemoManagerRoute
   DemoOpsRoute: typeof DemoOpsRoute
   DemoWorkspaceRoute: typeof DemoWorkspaceRoute
+  DevManagerRoute: typeof DevManagerRoute
   FinanceManagerRoute: typeof FinanceManagerRoute
   FranchiseManagerRoute: typeof FranchiseManagerRoute
   InfluencerManagerRoute: typeof InfluencerManagerRoute
@@ -3343,6 +3356,13 @@ declare module '@tanstack/react-router' {
       path: '/demo-workspace'
       fullPath: '/demo-workspace'
       preLoaderRoute: typeof DemoWorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dev-manager': {
+      id: '/dev-manager'
+      path: '/dev-manager'
+      fullPath: '/dev-manager'
+      preLoaderRoute: typeof DevManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/finance-manager': {
@@ -5469,6 +5489,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoManagerRoute: DemoManagerRoute,
   DemoOpsRoute: DemoOpsRoute,
   DemoWorkspaceRoute: DemoWorkspaceRoute,
+  DevManagerRoute: DevManagerRoute,
   FinanceManagerRoute: FinanceManagerRoute,
   FranchiseManagerRoute: FranchiseManagerRoute,
   InfluencerManagerRoute: InfluencerManagerRoute,

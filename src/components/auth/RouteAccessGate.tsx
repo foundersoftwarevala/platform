@@ -57,6 +57,9 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   // Infrastructure is operator-level. The database enforces the same thing
   // independently through row-level security on all 25 server_* tables.
   { prefix: "/server-manager", roles: ["developer"], label: "Server Manager" },
+  // Developer operations. The database enforces the same separation: internal
+  // notes are operator-only, so a developer cannot read one about themselves.
+  { prefix: "/dev-manager", roles: ["developer"], label: "Developer Manager" },
   { prefix: "/keywords", roles: ["seo", "marketing"], label: "Keywords" },
   { prefix: "/pages", roles: ["seo", "marketing"], label: "Pages" },
 ];

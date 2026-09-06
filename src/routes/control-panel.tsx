@@ -201,7 +201,7 @@ function Index() {
                 influencer_dashboard: "influencer",
                 // Both are real RoleKeys with their own dashboard; neither was
                 // reachable from the sidebar that offers them.
-                developer_management: "dev-manager",
+
                 promise_tracker_manager: "promise-tracker",
               };
               const dashRole = ROLE_DASHBOARD_ROUTES[roleId];
@@ -243,6 +243,9 @@ function Index() {
                   // own sidebar, mounted at /ams. The older /ams-manager panel is
                   // left in place and still works; this entry opens the module.
                   ams_manager: "/ams",
+                  // The Developer Manager control tower. The entry used to open the
+                  // generic role dashboard because no module existed behind it.
+                  developer_management: "/dev-manager",
                   chat_manager: "/chat-manager",
                   creator_manager: "/creator-manager",
                   demo_manager: "/demo-manager",
