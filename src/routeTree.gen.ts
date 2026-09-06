@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AffiliateManagerRouteImport } from './routes/affiliate-manager'
 import { Route as AiApiManagerRouteImport } from './routes/ai-api-manager'
+import { Route as AiCeoRouteImport } from './routes/ai-ceo'
 import { Route as AmsManagerRouteImport } from './routes/ams-manager'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BossRouteImport } from './routes/boss'
@@ -88,6 +89,16 @@ import { Route as AffiliateManagerSearchRouteImport } from './routes/affiliate-m
 import { Route as AffiliateManagerSettingsRouteImport } from './routes/affiliate-manager.settings'
 import { Route as AffiliateManagerSupportRouteImport } from './routes/affiliate-manager.support'
 import { Route as AffiliateManagerWalletRouteImport } from './routes/affiliate-manager.wallet'
+import { Route as AiCeoIndexRouteImport } from './routes/ai-ceo.index'
+import { Route as AiCeoApprovalsRouteImport } from './routes/ai-ceo.approvals'
+import { Route as AiCeoDecisionEngineRouteImport } from './routes/ai-ceo.decision-engine'
+import { Route as AiCeoLearningRouteImport } from './routes/ai-ceo.learning'
+import { Route as AiCeoLiveMonitorRouteImport } from './routes/ai-ceo.live-monitor'
+import { Route as AiCeoPerformanceRouteImport } from './routes/ai-ceo.performance'
+import { Route as AiCeoPredictionsRouteImport } from './routes/ai-ceo.predictions'
+import { Route as AiCeoReportsRouteImport } from './routes/ai-ceo.reports'
+import { Route as AiCeoRiskRouteImport } from './routes/ai-ceo.risk'
+import { Route as AiCeoSettingsRouteImport } from './routes/ai-ceo.settings'
 import { Route as AiAssistantRouteImport } from './routes/ai.assistant'
 import { Route as AiCompareRouteImport } from './routes/ai.compare'
 import { Route as AiFinderRouteImport } from './routes/ai.finder'
@@ -266,6 +277,11 @@ const AffiliateManagerRoute = AffiliateManagerRouteImport.update({
 const AiApiManagerRoute = AiApiManagerRouteImport.update({
   id: '/ai-api-manager',
   path: '/ai-api-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiCeoRoute = AiCeoRouteImport.update({
+  id: '/ai-ceo',
+  path: '/ai-ceo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AmsManagerRoute = AmsManagerRouteImport.update({
@@ -667,6 +683,56 @@ const AffiliateManagerWalletRoute = AffiliateManagerWalletRouteImport.update({
   id: '/wallet',
   path: '/wallet',
   getParentRoute: () => AffiliateManagerRoute,
+} as any)
+const AiCeoIndexRoute = AiCeoIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoApprovalsRoute = AiCeoApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoDecisionEngineRoute = AiCeoDecisionEngineRouteImport.update({
+  id: '/decision-engine',
+  path: '/decision-engine',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoLearningRoute = AiCeoLearningRouteImport.update({
+  id: '/learning',
+  path: '/learning',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoLiveMonitorRoute = AiCeoLiveMonitorRouteImport.update({
+  id: '/live-monitor',
+  path: '/live-monitor',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoPerformanceRoute = AiCeoPerformanceRouteImport.update({
+  id: '/performance',
+  path: '/performance',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoPredictionsRoute = AiCeoPredictionsRouteImport.update({
+  id: '/predictions',
+  path: '/predictions',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoReportsRoute = AiCeoReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoRiskRoute = AiCeoRiskRouteImport.update({
+  id: '/risk',
+  path: '/risk',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoSettingsRoute = AiCeoSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AiCeoRoute,
 } as any)
 const AiAssistantRoute = AiAssistantRouteImport.update({
   id: '/ai/assistant',
@@ -1507,6 +1573,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/affiliate-manager': typeof AffiliateManagerRouteWithChildren
   '/ai-api-manager': typeof AiApiManagerRoute
+  '/ai-ceo': typeof AiCeoRouteWithChildren
   '/ams-manager': typeof AmsManagerRoute
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
@@ -1582,6 +1649,15 @@ export interface FileRoutesByFullPath {
   '/affiliate-manager/settings': typeof AffiliateManagerSettingsRoute
   '/affiliate-manager/support': typeof AffiliateManagerSupportRoute
   '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
+  '/ai-ceo/approvals': typeof AiCeoApprovalsRoute
+  '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
+  '/ai-ceo/learning': typeof AiCeoLearningRoute
+  '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
+  '/ai-ceo/performance': typeof AiCeoPerformanceRoute
+  '/ai-ceo/predictions': typeof AiCeoPredictionsRoute
+  '/ai-ceo/reports': typeof AiCeoReportsRoute
+  '/ai-ceo/risk': typeof AiCeoRiskRoute
+  '/ai-ceo/settings': typeof AiCeoSettingsRoute
   '/ai/assistant': typeof AiAssistantRoute
   '/ai/compare': typeof AiCompareRoute
   '/ai/finder': typeof AiFinderRoute
@@ -1673,6 +1749,7 @@ export interface FileRoutesByFullPath {
   '/verify/$code': typeof VerifyCodeRoute
   '/academy/': typeof AcademyIndexRoute
   '/affiliate-manager/': typeof AffiliateManagerIndexRoute
+  '/ai-ceo/': typeof AiCeoIndexRoute
   '/apply/': typeof ApplyIndexRoute
   '/lead-manager/': typeof LeadManagerIndexRoute
   '/manager/': typeof ManagerIndexRoute
@@ -1821,6 +1898,15 @@ export interface FileRoutesByTo {
   '/affiliate-manager/settings': typeof AffiliateManagerSettingsRoute
   '/affiliate-manager/support': typeof AffiliateManagerSupportRoute
   '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
+  '/ai-ceo/approvals': typeof AiCeoApprovalsRoute
+  '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
+  '/ai-ceo/learning': typeof AiCeoLearningRoute
+  '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
+  '/ai-ceo/performance': typeof AiCeoPerformanceRoute
+  '/ai-ceo/predictions': typeof AiCeoPredictionsRoute
+  '/ai-ceo/reports': typeof AiCeoReportsRoute
+  '/ai-ceo/risk': typeof AiCeoRiskRoute
+  '/ai-ceo/settings': typeof AiCeoSettingsRoute
   '/ai/assistant': typeof AiAssistantRoute
   '/ai/compare': typeof AiCompareRoute
   '/ai/finder': typeof AiFinderRoute
@@ -1911,6 +1997,7 @@ export interface FileRoutesByTo {
   '/verify/$code': typeof VerifyCodeRoute
   '/academy': typeof AcademyIndexRoute
   '/affiliate-manager': typeof AffiliateManagerIndexRoute
+  '/ai-ceo': typeof AiCeoIndexRoute
   '/apply': typeof ApplyIndexRoute
   '/lead-manager': typeof LeadManagerIndexRoute
   '/manager': typeof ManagerIndexRoute
@@ -1991,6 +2078,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/affiliate-manager': typeof AffiliateManagerRouteWithChildren
   '/ai-api-manager': typeof AiApiManagerRoute
+  '/ai-ceo': typeof AiCeoRouteWithChildren
   '/ams-manager': typeof AmsManagerRoute
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
@@ -2066,6 +2154,15 @@ export interface FileRoutesById {
   '/affiliate-manager/settings': typeof AffiliateManagerSettingsRoute
   '/affiliate-manager/support': typeof AffiliateManagerSupportRoute
   '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
+  '/ai-ceo/approvals': typeof AiCeoApprovalsRoute
+  '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
+  '/ai-ceo/learning': typeof AiCeoLearningRoute
+  '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
+  '/ai-ceo/performance': typeof AiCeoPerformanceRoute
+  '/ai-ceo/predictions': typeof AiCeoPredictionsRoute
+  '/ai-ceo/reports': typeof AiCeoReportsRoute
+  '/ai-ceo/risk': typeof AiCeoRiskRoute
+  '/ai-ceo/settings': typeof AiCeoSettingsRoute
   '/ai/assistant': typeof AiAssistantRoute
   '/ai/compare': typeof AiCompareRoute
   '/ai/finder': typeof AiFinderRoute
@@ -2157,6 +2254,7 @@ export interface FileRoutesById {
   '/verify/$code': typeof VerifyCodeRoute
   '/academy/': typeof AcademyIndexRoute
   '/affiliate-manager/': typeof AffiliateManagerIndexRoute
+  '/ai-ceo/': typeof AiCeoIndexRoute
   '/apply/': typeof ApplyIndexRoute
   '/lead-manager/': typeof LeadManagerIndexRoute
   '/manager/': typeof ManagerIndexRoute
@@ -2238,6 +2336,7 @@ export interface FileRouteTypes {
     | '/'
     | '/affiliate-manager'
     | '/ai-api-manager'
+    | '/ai-ceo'
     | '/ams-manager'
     | '/auth'
     | '/boss'
@@ -2313,6 +2412,15 @@ export interface FileRouteTypes {
     | '/affiliate-manager/settings'
     | '/affiliate-manager/support'
     | '/affiliate-manager/wallet'
+    | '/ai-ceo/approvals'
+    | '/ai-ceo/decision-engine'
+    | '/ai-ceo/learning'
+    | '/ai-ceo/live-monitor'
+    | '/ai-ceo/performance'
+    | '/ai-ceo/predictions'
+    | '/ai-ceo/reports'
+    | '/ai-ceo/risk'
+    | '/ai-ceo/settings'
     | '/ai/assistant'
     | '/ai/compare'
     | '/ai/finder'
@@ -2404,6 +2512,7 @@ export interface FileRouteTypes {
     | '/verify/$code'
     | '/academy/'
     | '/affiliate-manager/'
+    | '/ai-ceo/'
     | '/apply/'
     | '/lead-manager/'
     | '/manager/'
@@ -2552,6 +2661,15 @@ export interface FileRouteTypes {
     | '/affiliate-manager/settings'
     | '/affiliate-manager/support'
     | '/affiliate-manager/wallet'
+    | '/ai-ceo/approvals'
+    | '/ai-ceo/decision-engine'
+    | '/ai-ceo/learning'
+    | '/ai-ceo/live-monitor'
+    | '/ai-ceo/performance'
+    | '/ai-ceo/predictions'
+    | '/ai-ceo/reports'
+    | '/ai-ceo/risk'
+    | '/ai-ceo/settings'
     | '/ai/assistant'
     | '/ai/compare'
     | '/ai/finder'
@@ -2642,6 +2760,7 @@ export interface FileRouteTypes {
     | '/verify/$code'
     | '/academy'
     | '/affiliate-manager'
+    | '/ai-ceo'
     | '/apply'
     | '/lead-manager'
     | '/manager'
@@ -2721,6 +2840,7 @@ export interface FileRouteTypes {
     | '/'
     | '/affiliate-manager'
     | '/ai-api-manager'
+    | '/ai-ceo'
     | '/ams-manager'
     | '/auth'
     | '/boss'
@@ -2796,6 +2916,15 @@ export interface FileRouteTypes {
     | '/affiliate-manager/settings'
     | '/affiliate-manager/support'
     | '/affiliate-manager/wallet'
+    | '/ai-ceo/approvals'
+    | '/ai-ceo/decision-engine'
+    | '/ai-ceo/learning'
+    | '/ai-ceo/live-monitor'
+    | '/ai-ceo/performance'
+    | '/ai-ceo/predictions'
+    | '/ai-ceo/reports'
+    | '/ai-ceo/risk'
+    | '/ai-ceo/settings'
     | '/ai/assistant'
     | '/ai/compare'
     | '/ai/finder'
@@ -2887,6 +3016,7 @@ export interface FileRouteTypes {
     | '/verify/$code'
     | '/academy/'
     | '/affiliate-manager/'
+    | '/ai-ceo/'
     | '/apply/'
     | '/lead-manager/'
     | '/manager/'
@@ -2967,6 +3097,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AffiliateManagerRoute: typeof AffiliateManagerRouteWithChildren
   AiApiManagerRoute: typeof AiApiManagerRoute
+  AiCeoRoute: typeof AiCeoRouteWithChildren
   AmsManagerRoute: typeof AmsManagerRoute
   AuthRoute: typeof AuthRoute
   BossRoute: typeof BossRoute
@@ -3160,6 +3291,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-api-manager'
       fullPath: '/ai-api-manager'
       preLoaderRoute: typeof AiApiManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-ceo': {
+      id: '/ai-ceo'
+      path: '/ai-ceo'
+      fullPath: '/ai-ceo'
+      preLoaderRoute: typeof AiCeoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ams-manager': {
@@ -3693,6 +3831,76 @@ declare module '@tanstack/react-router' {
       fullPath: '/affiliate-manager/wallet'
       preLoaderRoute: typeof AffiliateManagerWalletRouteImport
       parentRoute: typeof AffiliateManagerRoute
+    }
+    '/ai-ceo/': {
+      id: '/ai-ceo/'
+      path: '/'
+      fullPath: '/ai-ceo/'
+      preLoaderRoute: typeof AiCeoIndexRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/approvals': {
+      id: '/ai-ceo/approvals'
+      path: '/approvals'
+      fullPath: '/ai-ceo/approvals'
+      preLoaderRoute: typeof AiCeoApprovalsRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/decision-engine': {
+      id: '/ai-ceo/decision-engine'
+      path: '/decision-engine'
+      fullPath: '/ai-ceo/decision-engine'
+      preLoaderRoute: typeof AiCeoDecisionEngineRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/learning': {
+      id: '/ai-ceo/learning'
+      path: '/learning'
+      fullPath: '/ai-ceo/learning'
+      preLoaderRoute: typeof AiCeoLearningRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/live-monitor': {
+      id: '/ai-ceo/live-monitor'
+      path: '/live-monitor'
+      fullPath: '/ai-ceo/live-monitor'
+      preLoaderRoute: typeof AiCeoLiveMonitorRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/performance': {
+      id: '/ai-ceo/performance'
+      path: '/performance'
+      fullPath: '/ai-ceo/performance'
+      preLoaderRoute: typeof AiCeoPerformanceRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/predictions': {
+      id: '/ai-ceo/predictions'
+      path: '/predictions'
+      fullPath: '/ai-ceo/predictions'
+      preLoaderRoute: typeof AiCeoPredictionsRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/reports': {
+      id: '/ai-ceo/reports'
+      path: '/reports'
+      fullPath: '/ai-ceo/reports'
+      preLoaderRoute: typeof AiCeoReportsRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/risk': {
+      id: '/ai-ceo/risk'
+      path: '/risk'
+      fullPath: '/ai-ceo/risk'
+      preLoaderRoute: typeof AiCeoRiskRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/settings': {
+      id: '/ai-ceo/settings'
+      path: '/settings'
+      fullPath: '/ai-ceo/settings'
+      preLoaderRoute: typeof AiCeoSettingsRouteImport
+      parentRoute: typeof AiCeoRoute
     }
     '/ai/assistant': {
       id: '/ai/assistant'
@@ -4932,6 +5140,34 @@ const AffiliateManagerRouteChildren: AffiliateManagerRouteChildren = {
 const AffiliateManagerRouteWithChildren =
   AffiliateManagerRoute._addFileChildren(AffiliateManagerRouteChildren)
 
+interface AiCeoRouteChildren {
+  AiCeoApprovalsRoute: typeof AiCeoApprovalsRoute
+  AiCeoDecisionEngineRoute: typeof AiCeoDecisionEngineRoute
+  AiCeoLearningRoute: typeof AiCeoLearningRoute
+  AiCeoLiveMonitorRoute: typeof AiCeoLiveMonitorRoute
+  AiCeoPerformanceRoute: typeof AiCeoPerformanceRoute
+  AiCeoPredictionsRoute: typeof AiCeoPredictionsRoute
+  AiCeoReportsRoute: typeof AiCeoReportsRoute
+  AiCeoRiskRoute: typeof AiCeoRiskRoute
+  AiCeoSettingsRoute: typeof AiCeoSettingsRoute
+  AiCeoIndexRoute: typeof AiCeoIndexRoute
+}
+
+const AiCeoRouteChildren: AiCeoRouteChildren = {
+  AiCeoApprovalsRoute: AiCeoApprovalsRoute,
+  AiCeoDecisionEngineRoute: AiCeoDecisionEngineRoute,
+  AiCeoLearningRoute: AiCeoLearningRoute,
+  AiCeoLiveMonitorRoute: AiCeoLiveMonitorRoute,
+  AiCeoPerformanceRoute: AiCeoPerformanceRoute,
+  AiCeoPredictionsRoute: AiCeoPredictionsRoute,
+  AiCeoReportsRoute: AiCeoReportsRoute,
+  AiCeoRiskRoute: AiCeoRiskRoute,
+  AiCeoSettingsRoute: AiCeoSettingsRoute,
+  AiCeoIndexRoute: AiCeoIndexRoute,
+}
+
+const AiCeoRouteWithChildren = AiCeoRoute._addFileChildren(AiCeoRouteChildren)
+
 interface LeadManagerRouteChildren {
   LeadManagerIndexRoute: typeof LeadManagerIndexRoute
 }
@@ -5078,6 +5314,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AffiliateManagerRoute: AffiliateManagerRouteWithChildren,
   AiApiManagerRoute: AiApiManagerRoute,
+  AiCeoRoute: AiCeoRouteWithChildren,
   AmsManagerRoute: AmsManagerRoute,
   AuthRoute: AuthRoute,
   BossRoute: BossRoute,

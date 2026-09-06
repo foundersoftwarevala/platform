@@ -265,6 +265,9 @@ function Index() {
                   security: "/manager/security",
                   settings: "/manager/settings",
                   home: "/",
+                  // The AI CEO command centre. This entry used to report
+                  // that nothing was built behind it, which was true.
+                  ceo: "/ai-ceo",
               };
               const modulePath = MODULE_ROUTES[roleId];
               if (modulePath) {
@@ -276,7 +279,6 @@ function Index() {
               // something had opened, which is what made the whole sidebar feel
               // broken. Name the gap instead.
               const NOT_BUILT: Record<string, string> = {
-                ceo: "CEO Dashboard",
                 task_management: "Task Manager",
                 continent_super_admin: "Continent Admin",
                 country_head: "Country Admin",
