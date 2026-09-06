@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import {
   ChevronUp, ChevronDown, Eye, EyeOff, PinIcon, Search, Plus, X,
   ArrowLeft, Layers, BarChart3, SlidersHorizontal, ExternalLink, Trash2,
-  Monitor, Tablet, Smartphone, AlertTriangle,
+  Monitor, Tablet, Smartphone, AlertTriangle, GripVertical, CheckSquare, Square,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { PageHeader, PillButton, StatCard, Card, EmptyHint } from "../ui";
 import {
   listHomepageRows, getRowProducts, getRowAnalytics, searchRowProducts,
   assignSlot, removeSlot, moveSlot, pinSlot, configureRow, reorderRows,
+  createRow, assignSlotsBulk, clearRowSlots, getRowAudit,
   type HomepageRow, type RowSlot,
 } from "@/lib/marketplace-manager/rows.functions";
 
@@ -84,7 +85,113 @@ function useRowMutations(onDone?: () => void) {
       mutationFn: (keys: string[]) => reorderRows({ data: { keys } }),
       onSuccess: () => done("Row order saved"), onError: fail,
     }),
+    create: useMutation({
+      mutationFn: (spec: Record<string, unknown>) => createRow({ data: spec as never }),
+      onSuccess: (r) => done(String(r.message ?? "Row created")), onError: fail,
+    }),
+    bulkAssign: useMutation({
+      mutationFn: (v: { key: string; productIds: string[]; startAt?: number }) =>
+        assignSlotsBulk({ data: v }),
+      onSuccess: (r) => done(String(r.message ?? "Placed")), onError: fail,
+    }),
+    bulkClear: useMutation({
+      mutationFn: (v: { key: string; positions: number[] }) => clearRowSlots({ data: v }),
+      onSuccess: (r) => done(String(r.message ?? "Cleared")), onError: fail,
+    }),
   };
+}
+
+
+/**
+ * Create Row — section 9.
+ *
+ * The database refuses a key any category slug or existing row already uses, so
+ * this cannot make a second row with the same name. A new row is created as a
+ * draft: creating it should not put anything in front of customers before
+ * somebody has looked at it.
+ */
+function CreateRowDialog({ onClose }: { onClose: () => void }) {
+  const m = useRowMutations(onClose);
+  const [key, setKey] = useState("");
+  const [title, setTitle] = useState("");
+  const [rule, setRule] = useState("featured");
+  const [maxProducts, setMaxProducts] = useState(60);
+
+  const validKey = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(key);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-16"
+         role="dialog" aria-label="Create a homepage row">
+      <div className="w-full max-w-lg rounded-xl border border-border bg-background shadow-xl">
+        <div className="flex items-center justify-between border-b border-border p-3">
+          <div className="text-sm font-medium">Create a homepage row</div>
+          <IconBtn title="Close" onClick={onClose}><X className="h-4 w-4" /></IconBtn>
+        </div>
+        <div className="space-y-3 p-4">
+          <Field label="Stable row key" hint="Lowercase slug. Display names can change; this cannot.">
+            <input value={key} onChange={(e) => setKey(e.target.value)}
+                   placeholder="featured-software"
+                   className="h-9 w-full rounded-lg border border-border bg-background/40 px-3 text-sm outline-none focus:border-primary/60" />
+          </Field>
+          {key && !validKey && (
+            <div className="text-[11px] text-destructive">
+              Use a lowercase slug such as <code>featured-software</code>.
+            </div>
+          )}
+          <Field label="Display name">
+            <input value={title} onChange={(e) => setTitle(e.target.value)}
+                   placeholder="Featured Software"
+                   className="h-9 w-full rounded-lg border border-border bg-background/40 px-3 text-sm outline-none focus:border-primary/60" />
+          </Field>
+          <Field label="How it fills">
+            <div className="flex flex-wrap gap-1.5">
+              {["featured", "trending", "best_selling", "new_release", "newest", "rating"].map((r) => (
+                <PillButton key={r} onClick={() => setRule(r)}>
+                  {rule === r ? "● " : ""}{r.replace("_", " ")}
+                </PillButton>
+              ))}
+            </div>
+          </Field>
+          <Field label="Maximum products">
+            <input type="number" min={1} max={60} value={maxProducts}
+                   onChange={(e) => setMaxProducts(Number(e.target.value))}
+                   className="h-9 w-24 rounded-lg border border-border bg-background/40 px-3 text-sm outline-none focus:border-primary/60" />
+          </Field>
+          <div className="rounded-lg border border-border bg-muted/10 p-2.5 text-[11px] text-muted-foreground">
+            The row is created as a draft and will not appear on the homepage until you publish it
+            from its Visibility tab.
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <PillButton onClick={onClose}>Cancel</PillButton>
+            <PillButton
+              variant="primary"
+              onClick={() => {
+                if (!validKey) return;
+                m.create.mutate({
+                  key, title: title || undefined, row_kind: "curated",
+                  auto_rule: rule, source_mode: "auto", max_products: maxProducts,
+                });
+              }}
+            >
+              Create row
+            </PillButton>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, hint, children }: {
+  label: string; hint?: string; children: React.ReactNode;
+}) {
+  return (
+    <label className="block space-y-1">
+      <span className="text-[11px] font-medium">{label}</span>
+      {children}
+      {hint && <span className="block text-[10px] text-muted-foreground">{hint}</span>}
+    </label>
+  );
 }
 
 /* ------------------------------------------------------------------ list -- */
@@ -99,6 +206,10 @@ function RowList({ onOpen }: { onOpen: (key: string) => void }) {
   const { data, isLoading, isError, error } = useRows();
   const m = useRowMutations();
   const [q, setQ] = useState("");
+  const [creating, setCreating] = useState(false);
+  // Drag state for reordering rows. Kept here rather than in a library so the
+  // reorder writes the same sort_order the homepage reads.
+  const [dragKey, setDragKey] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     const all = data?.rows ?? [];
@@ -128,7 +239,13 @@ function RowList({ onOpen }: { onOpen: (key: string) => void }) {
       <PageHeader
         title="Homepage Rows"
         description="The rows the public marketplace homepage renders, in the order it renders them."
+        actions={
+          <PillButton variant="primary" onClick={() => setCreating(true)}>
+            <Plus className="h-3.5 w-3.5" /> Create row
+          </PillButton>
+        }
       />
+      {creating && <CreateRowDialog onClose={() => setCreating(false)} />}
 
       {isError && (
         <Card>
@@ -168,7 +285,28 @@ function RowList({ onOpen }: { onOpen: (key: string) => void }) {
       <div className="space-y-2">
         {rows.map((r, i) => (
           <Card key={r.key}>
-            <div className="flex flex-wrap items-center gap-3 p-3">
+            <div
+              className={`flex flex-wrap items-center gap-3 p-3 ${
+                dragKey === r.key ? "opacity-40" : ""
+              }`}
+              draggable
+              onDragStart={() => setDragKey(r.key)}
+              onDragEnd={() => setDragKey(null)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (!dragKey || dragKey === r.key) return;
+                const all = [...(data?.rows ?? [])];
+                const from = all.findIndex((x) => x.key === dragKey);
+                const to = all.findIndex((x) => x.key === r.key);
+                if (from < 0 || to < 0) return;
+                const [moved] = all.splice(from, 1);
+                all.splice(to, 0, moved);
+                m.reorder.mutate(all.map((x) => x.key));
+                setDragKey(null);
+              }}
+            >
+              <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground" />
               <div className="flex flex-col">
                 <button
                   className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
@@ -232,7 +370,7 @@ function RowList({ onOpen }: { onOpen: (key: string) => void }) {
 
 /* ------------------------------------------------------------- workspace -- */
 
-const TABS = ["Products", "Rules", "Visibility", "Analytics"] as const;
+const TABS = ["Overview", "Products", "Rules", "Visibility", "Analytics", "Audit"] as const;
 type Tab = (typeof TABS)[number];
 
 function RowWorkspace({ rowKey, onBack }: { rowKey: string; onBack: () => void }) {
@@ -266,10 +404,12 @@ function RowWorkspace({ rowKey, onBack }: { rowKey: string; onBack: () => void }
         ))}
       </div>
 
+      {tab === "Overview" && <RowOverview rowKey={rowKey} row={row} />}
       {tab === "Products" && <SlotWall rowKey={rowKey} row={row} />}
       {tab === "Rules" && <RowRules rowKey={rowKey} row={row} />}
       {tab === "Visibility" && <RowVisibility rowKey={rowKey} row={row} />}
       {tab === "Analytics" && <RowAnalytics rowKey={rowKey} />}
+      {tab === "Audit" && <RowAudit rowKey={rowKey} />}
     </div>
   );
 }
@@ -281,7 +421,16 @@ const PAGE = 20;
 function SlotWall({ rowKey, row }: { rowKey: string; row?: HomepageRow }) {
   const [page, setPage] = useState(0);
   const [picking, setPicking] = useState<number | null>(null);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const m = useRowMutations(() => setPicking(null));
+
+  const toggle = (pos: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(pos)) next.delete(pos); else next.add(pos);
+      return next;
+    });
 
   const { data, isLoading } = useQuery({
     queryKey: ["marketplace", "row-products", rowKey],
@@ -317,13 +466,49 @@ function SlotWall({ rowKey, row }: { rowKey: string; row?: HomepageRow }) {
         </div>
       )}
 
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5">
+          <span className="text-[11px]">{selected.size} slot(s) selected</span>
+          <div className="flex gap-1.5">
+            <PillButton onClick={() => setSelected(new Set())}>Clear selection</PillButton>
+            <PillButton
+              onClick={() => {
+                m.bulkClear.mutate({ key: rowKey, positions: [...selected] });
+                setSelected(new Set());
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Empty selected slots
+            </PillButton>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {positions.map((pos) => {
           const slot = bySlot.get(pos);
           return (
             <div key={pos}
-                 className="flex items-center gap-3 rounded-lg border border-border bg-background/40 p-2.5">
-              <span className="w-7 shrink-0 text-center font-mono text-[11px] text-muted-foreground">
+                 draggable={Boolean(slot && slot.source === "manual")}
+                 onDragStart={() => setDragFrom(pos)}
+                 onDragEnd={() => setDragFrom(null)}
+                 onDragOver={(e) => e.preventDefault()}
+                 onDrop={(e) => {
+                   e.preventDefault();
+                   if (dragFrom && dragFrom !== pos) {
+                     m.move.mutate({ key: rowKey, from: dragFrom, to: pos });
+                   }
+                   setDragFrom(null);
+                 }}
+                 className={`flex items-center gap-2 rounded-lg border bg-background/40 p-2.5 ${
+                   dragFrom === pos ? "opacity-40" : ""
+                 } ${selected.has(pos) ? "border-primary/60" : "border-border"}`}>
+              <button onClick={() => toggle(pos)} aria-label={`Select slot ${pos}`}
+                      className="shrink-0 text-muted-foreground hover:text-foreground">
+                {selected.has(pos)
+                  ? <CheckSquare className="h-3.5 w-3.5" />
+                  : <Square className="h-3.5 w-3.5" />}
+              </button>
+              <span className="w-6 shrink-0 text-center font-mono text-[11px] text-muted-foreground">
                 {String(pos).padStart(2, "0")}
               </span>
 
@@ -631,6 +816,97 @@ function RowAnalytics({ rowKey }: { rowKey: string }) {
           ? `Counted from marketplace_events since ${new Date(data.measured_from).toLocaleDateString()}, and from paid orders.`
           : "No events have been recorded for this row yet, so the rates read “not measured” rather than 0%."}
       </div>
+    </div>
+  );
+}
+
+
+/* --------------------------------------------------------------- overview */
+
+function RowOverview({ rowKey, row }: { rowKey: string; row?: HomepageRow }) {
+  const m = useRowMutations();
+  const { data } = useQuery({
+    queryKey: ["marketplace", "row-products", rowKey],
+    queryFn: () => getRowProducts({ data: { key: rowKey } }),
+    staleTime: 15_000,
+  });
+
+  const live = row?.["live_now" as keyof HomepageRow];
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Showing on the homepage" value={live ? "Yes" : "No"}
+                  tone={live ? "success" : "warning"} />
+        <StatCard label="Status" value={String(row?.status ?? "—")} />
+        <StatCard label="Row kind" value={String(row?.["row_kind" as keyof HomepageRow] ?? "category")} />
+        <StatCard label="Stable key" value={rowKey} />
+      </div>
+
+      <Card>
+        <div className="space-y-2 p-4 text-[11px] text-muted-foreground">
+          <div className="text-xs font-medium text-foreground">What this row does right now</div>
+          <p>
+            It fills <strong>{data?.source_mode ?? "—"}</strong> by
+            {" "}<strong>{(data?.auto_rule ?? "").replace("_", " ") || "—"}</strong>, holding
+            {" "}{data?.filled ?? 0} of {data?.max_products ?? 60} positions from
+            {" "}{data?.eligible_total ?? 0} eligible products.
+          </p>
+          {!live && (
+            <p>
+              It is not on the public homepage at the moment. Publish it from the Visibility tab when
+              it is ready.
+            </p>
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <div className="flex flex-wrap items-center gap-1.5 p-4">
+          <span className="mr-2 text-xs font-medium">Status</span>
+          {(["draft", "review", "scheduled", "published", "unpublished", "archived"] as const).map((st) => (
+            <PillButton key={st} onClick={() => m.configure.mutate({ key: rowKey, patch: { status: st } })}>
+              {row?.status === st ? "● " : ""}{st}
+            </PillButton>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ audit */
+
+function RowAudit({ rowKey }: { rowKey: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["marketplace", "row-audit", rowKey],
+    queryFn: () => getRowAudit({ data: { key: rowKey } }),
+    staleTime: 20_000,
+  });
+
+  if (isLoading) return <EmptyHint text="Loading the audit trail…" />;
+  if (!data?.entries.length) {
+    return <EmptyHint text="Nothing has been changed on this row yet, so there is nothing to show." />;
+  }
+
+  return (
+    <div className="space-y-2">
+      {data.entries.map((e, i) => (
+        <Card key={i}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2 p-3">
+            <div className="min-w-0">
+              <div className="text-xs font-medium">{e.action}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {e.reason || "—"}
+                {e.actor ? ` · ${e.actor}` : ""}
+                {e.actor_role ? ` (${e.actor_role})` : ""}
+              </div>
+            </div>
+            <div className="shrink-0 text-[10px] text-muted-foreground">
+              {new Date(e.created_at).toLocaleString()}
+            </div>
+          </div>
+        </Card>
+      ))}
     </div>
   );
 }

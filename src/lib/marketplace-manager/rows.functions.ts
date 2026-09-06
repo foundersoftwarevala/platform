@@ -246,6 +246,14 @@ export const searchRowProducts = createServerFn({ method: "GET" })
       categoryId: z.string().uuid().optional(),
       query: z.string().max(120).optional(),
       onlyPublished: z.boolean().optional(),
+      subcategory: z.string().max(120).optional(),
+      industry: z.string().max(120).optional(),
+      sellerId: z.string().uuid().optional(),
+      license: z.string().max(60).optional(),
+      featured: z.boolean().optional(),
+      trending: z.boolean().optional(),
+      bestSeller: z.boolean().optional(),
+      newRelease: z.boolean().optional(),
       limit: z.number().int().min(1).max(50).optional(),
     }).parse(i ?? {}),
   )
@@ -253,15 +261,152 @@ export const searchRowProducts = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let q = supabaseAdmin
       .from("marketplace_products")
-      .select("id,name,slug,thumbnail_url,category_id,subcategory,industry_label,visible,content_status,moderation_status")
+      .select("id,name,slug,thumbnail_url,category_id,subcategory,industry_label,visible,content_status,moderation_status,license,is_featured,is_trending,is_best_seller,is_new_release,seller_id")
       .order("sort_order", { ascending: true })
       .limit(data.limit ?? 24);
 
     if (data.categoryId) q = q.eq("category_id", data.categoryId);
     if (data.onlyPublished !== false) q = q.eq("visible", true).eq("content_status", "published");
     if (data.query?.trim()) q = q.ilike("name", `%${data.query.trim()}%`);
+    if (data.subcategory) q = q.eq("subcategory", data.subcategory);
+    if (data.industry) q = q.eq("industry_label", data.industry);
+    if (data.sellerId) q = q.eq("seller_id", data.sellerId);
+    if (data.featured) q = q.eq("is_featured", true);
+    if (data.trending) q = q.eq("is_trending", true);
+    if (data.bestSeller) q = q.eq("is_best_seller", true);
+    if (data.newRelease) q = q.eq("is_new_release", true);
+    // Legal status, section 6. `license` is what the catalogue actually records
+    // per product; legal_product_bindings is the Legal Manager link and is
+    // empty today, so filtering on it would return nothing and look broken.
+    if (data.license) q = q.eq("license", data.license);
 
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return { ok: true as const, products: rows ?? [] };
+  });
+
+/* ------------------------------------------------------------------------ */
+/* Create Row, bulk placement, audit — section 9, 14, 15.                     */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Create a homepage row that does not exist yet.
+ *
+ * The database refuses a key that any category slug or existing row already
+ * uses, so this cannot produce a second row with the same name — the failure
+ * comes back as `row_exists` and the manager is told to manage the existing one
+ * instead.
+ *
+ * A new row is created as a draft on purpose. Creating a row should not put
+ * something in front of customers before anybody has looked at it.
+ */
+export const createRow = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z.object({
+      key: z.string().min(1).max(60)
+        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Use a lowercase slug such as featured-software"),
+      title: z.string().min(1).max(120).optional(),
+      row_kind: z.enum(["category", "curated"]).optional(),
+      category_id: z.string().uuid().optional(),
+      subcategory: z.string().max(120).optional(),
+      source_mode: z.enum(["manual", "auto", "hybrid"]).optional(),
+      auto_rule: z.enum([
+        "sort_order", "newest", "best_selling", "trending", "rating",
+        "featured", "new_release",
+      ]).optional(),
+      max_products: z.number().int().min(1).max(60).optional(),
+      visible_desktop: z.boolean().optional(),
+      visible_tablet: z.boolean().optional(),
+      visible_mobile: z.boolean().optional(),
+      starts_at: z.string().optional(),
+      ends_at: z.string().optional(),
+      cta_label: z.string().max(60).optional(),
+      cta_href: z.string().max(300).optional(),
+      status: z.enum(["draft", "review", "scheduled", "published", "unpublished", "archived"]).optional(),
+    }).parse(i),
+  )
+  .handler(async ({ data }) =>
+    settle(await callAsUser<Outcome>("mm_row_create", { p_spec: data }), "Row created"),
+  );
+
+/**
+ * Fill several slots at once.
+ *
+ * Section 15 asks for bulk actions, and doing it one round trip per product
+ * would be slow and would half-apply on a failure. Each assignment still goes
+ * through mm_slot_assign, so category validation and duplicate protection apply
+ * to every one of them; the results are reported per product rather than as a
+ * single success.
+ */
+export const assignSlotsBulk = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z.object({
+      key: z.string().min(1),
+      productIds: z.array(z.string().uuid()).min(1).max(60),
+      startAt: z.number().int().min(1).max(60).optional(),
+      override: z.boolean().optional(),
+    }).parse(i),
+  )
+  .handler(async ({ data }) => {
+    const results: { productId: string; ok: boolean; reason?: string }[] = [];
+    let position = data.startAt ?? 1;
+    for (const productId of data.productIds) {
+      try {
+        const r = await callAsUser<Outcome>("mm_slot_assign", {
+          p_key: data.key,
+          p_position: position,
+          p_product_id: productId,
+          p_override: data.override ?? false,
+        });
+        results.push({ productId, ok: Boolean(r?.ok), reason: r?.reason });
+      } catch (error) {
+        results.push({ productId, ok: false, reason: (error as Error).message });
+      }
+      position += 1;
+      if (position > 60) break;
+    }
+    const placed = results.filter((r) => r.ok).length;
+    return {
+      ok: true as const,
+      placed,
+      refused: results.length - placed,
+      results,
+      message: `${placed} placed${results.length - placed ? `, ${results.length - placed} refused` : ""}`,
+    };
+  });
+
+/** Clear a whole row's placements at once. */
+export const clearRowSlots = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z.object({ key: z.string().min(1), positions: z.array(z.number().int().min(1).max(60)).min(1) }).parse(i),
+  )
+  .handler(async ({ data }) => {
+    let cleared = 0;
+    for (const position of data.positions) {
+      const r = await callAsUser<Outcome>("mm_slot_remove", { p_key: data.key, p_position: position });
+      if (r?.ok) cleared += 1;
+    }
+    return { ok: true as const, cleared, message: `${cleared} slot(s) cleared` };
+  });
+
+/** The audit trail for a row — section 14. */
+export const getRowAudit = createServerFn({ method: "GET" })
+  .inputValidator((i: unknown) => z.object({ key: z.string().min(1) }).parse(i))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row } = await supabaseAdmin
+      .from("marketplace_categories").select("id").eq("slug", data.key).maybeSingle();
+    const { data: cfg } = await supabaseAdmin
+      .from("marketplace_row_config").select("id").eq("key", data.key).maybeSingle();
+    const ids = [row?.id, cfg?.id].filter(Boolean) as string[];
+    if (!ids.length) return { ok: true as const, entries: [] };
+
+    const { data: entries, error } = await supabaseAdmin
+      .from("marketplace_audit_logs")
+      .select("action,actor,actor_role,before_state,after_state,reason,created_at")
+      .in("entity_id", ids)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw new Error(error.message);
+    return { ok: true as const, entries: entries ?? [] };
   });

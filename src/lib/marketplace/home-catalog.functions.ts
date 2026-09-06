@@ -121,6 +121,66 @@ async function configuredOrder(slug: string): Promise<string[] | null> {
   }
 }
 
+
+type RegistryRow = {
+  key: string;
+  row_kind: "category" | "curated";
+  category_id: string | null;
+  title: string;
+  effective_order: number;
+  live_now: boolean;
+  cta_label: string | null;
+  cta_href: string | null;
+};
+
+/**
+ * Every homepage row the manager knows about, with the registry's own answer
+ * to whether it is live right now — status published, not hidden, and inside
+ * its schedule.
+ *
+ * Returns null on any failure, and the caller then renders categories the way
+ * it always has. A homepage that loses a curated row is a small problem; a
+ * homepage that loses its catalogue is an incident.
+ */
+async function rowRegistry(): Promise<RegistryRow[] | null> {
+  try {
+    const response = await fetch(`${url()}/rest/v1/rpc/mm_rows_list`, {
+      method: "POST",
+      headers: { ...admin(), "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (!response.ok) return null;
+    const rows = (await response.json()) as RegistryRow[];
+    return Array.isArray(rows) ? rows : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The cards for a curated row, in the order the manager's resolver gives. */
+async function curatedCards(key: string, limit: number) {
+  const order = await configuredOrder(key);
+  if (!order || !order.length) return { cards: [], total: 0 };
+  const wanted = order.slice(0, limit);
+  try {
+    const response = await fetch(
+      `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}` +
+        `&visible=eq.true&content_status=eq.published&id=in.(${wanted.join(",")})`,
+      { headers: admin() },
+    );
+    if (!response.ok) return { cards: [], total: 0 };
+    const rows = (await response.json()) as Row[];
+    const index = new Map(rows.map((r) => [String(r.id), r]));
+    const cards = wanted
+      .map((id) => index.get(id))
+      .filter((r): r is Row => Boolean(r))
+      .map(toCard);
+    return { cards, total: order.length };
+  } catch {
+    return { cards: [], total: 0 };
+  }
+}
+
 async function productsFor(categoryId: string, limit: number, slug?: string, configured?: boolean) {
   // A configured row renders in the order the manager set. The cards
   // themselves are still fetched with the same fields as before, so the shape
@@ -202,24 +262,65 @@ export const getHomeCatalog = createServerFn({ method: "GET" }).handler(
       const totalRows = Number(range.split("/")[1]) || categories.length;
 
       const curated = await configuredRows();
+      const registry = await rowRegistry();
 
-      const rows = await Promise.all(
-        categories.map(async (c) => {
-          const { cards, total } = await productsFor(
-            String(c.id), PER_ROW, String(c.slug ?? ""), curated.has(String(c.id)),
-          );
+      // What the registry says about each row. Absent means unconfigured,
+      // which is live — that is the state every category is in today.
+      const byKey = new Map((registry ?? []).map((r) => [r.key, r]));
+      const isLive = (slug: string) => {
+        const r = byKey.get(slug);
+        return r ? r.live_now : true;
+      };
+
+      const categoryRows = await Promise.all(
+        categories
+          // A row held back as a draft, or outside its schedule, is not shown.
+          .filter((c) => isLive(String(c.slug ?? "")))
+          .map(async (c) => {
+            const { cards, total } = await productsFor(
+              String(c.id), PER_ROW, String(c.slug ?? ""), curated.has(String(c.id)),
+            );
+            const meta = byKey.get(String(c.slug ?? ""));
+            return {
+              id: String(c.id),
+              title: String(c.name ?? ""),
+              slug: String(c.slug ?? ""),
+              icon: c.icon == null ? null : String(c.icon),
+              href: `/marketplace/category/${String(c.slug ?? "")}`,
+              cards,
+              total,
+              hasMore: total > cards.length,
+              order: meta?.effective_order ?? Number(c.sort_order ?? 9999),
+            };
+          }),
+      );
+
+      // Curated rows — featured, trending and the like. They are not
+      // categories, so they link to the marketplace rather than to a category
+      // page, and only published ones appear at all.
+      const curatedLive = (registry ?? []).filter(
+        (r) => r.row_kind === "curated" && r.live_now,
+      );
+      const curatedRows = await Promise.all(
+        curatedLive.map(async (r) => {
+          const { cards, total } = await curatedCards(r.key, PER_ROW);
           return {
-            id: String(c.id),
-            title: String(c.name ?? ""),
-            slug: String(c.slug ?? ""),
-            icon: c.icon == null ? null : String(c.icon),
-            href: `/marketplace/category/${String(c.slug ?? "")}`,
+            id: r.key,
+            title: r.title,
+            slug: r.key,
+            icon: null,
+            href: r.cta_href ?? "/marketplace",
             cards,
             total,
             hasMore: total > cards.length,
+            order: r.effective_order ?? 9999,
           };
         }),
       );
+
+      const rows = [...categoryRows, ...curatedRows]
+        .sort((a, b) => a.order - b.order)
+        .map(({ order: _order, ...row }) => row);
 
       const payload: HomeCatalogSeed = {
         // A category with nothing published is not shown as an empty shelf.
