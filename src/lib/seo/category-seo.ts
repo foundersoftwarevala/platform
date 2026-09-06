@@ -132,6 +132,10 @@ export const getProductSeo = createServerFn({ method: "GET" })
       const response = await fetch(
         `${url}/rest/v1/marketplace_products` +
           `?select=name,description,deployment,search_keywords` +
+          // Only a product that is actually on sale has a public page. Without
+          // this an unreviewed draft, a rejected submission or a suspended
+          // product still rendered at its slug.
+          `&visible=is.true` +
           `&slug=eq.${encodeURIComponent(data.slug)}&limit=1`,
         { headers: admin() },
       );
