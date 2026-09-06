@@ -199,6 +199,10 @@ function Index() {
                 rd_admin: "admin",
                 developer_dashboard: "developer",
                 influencer_dashboard: "influencer",
+                // Both are real RoleKeys with their own dashboard; neither was
+                // reachable from the sidebar that offers them.
+                developer_management: "dev-manager",
+                promise_tracker_manager: "promise-tracker",
               };
               const dashRole = ROLE_DASHBOARD_ROUTES[roleId];
               if (dashRole) {
@@ -248,6 +252,19 @@ function Index() {
                   vendor_manager: "/vendor-manager",
                   sales_support_manager: "/sales-support-manager",
                   seo_manager: "/seo-manager",
+                  // Each of these was falling through to a success toast while
+                  // its module sat at a working address. Verified by request.
+                  boss_owner: "/boss",
+                  vala_ai_management: "/vala-ai",
+                  api_ai_manager: "/ai-api-manager",
+                  marketing_management: "/marketing",
+                  customer_support_management: "/support",
+                  assist_manager: "/support-agent",
+                  product_manager: "/product-demo-manager",
+                  server_manager: "/manager/monitoring",
+                  security: "/manager/security",
+                  settings: "/manager/settings",
+                  home: "/",
               };
               const modulePath = MODULE_ROUTES[roleId];
               if (modulePath) {
@@ -255,7 +272,28 @@ function Index() {
                 return;
               }
 
-              toast.success(`Switched to ${roleId.replace(/_/g, " ")}`);
+              // Nothing is built behind these yet. Saying "switched" implied
+              // something had opened, which is what made the whole sidebar feel
+              // broken. Name the gap instead.
+              const NOT_BUILT: Record<string, string> = {
+                ceo: "CEO Dashboard",
+                task_management: "Task Manager",
+                continent_super_admin: "Continent Admin",
+                country_head: "Country Admin",
+                legal_manager: "Legal Manager",
+                pro_manager: "Pro Manager",
+                pro_user_dashboard: "Pro User Dashboard",
+                basic_user_dashboard: "Basic User Dashboard",
+                rd_pro: "Pro Dashboard",
+              };
+              const pending = NOT_BUILT[roleId];
+              if (pending) {
+                toast.info(`${pending} has not been built yet`, {
+                  description: "There is no module behind this entry. It is on the list.",
+                });
+                return;
+              }
+              toast.info(`No module is wired to "${roleId.replace(/_/g, " ")}" yet`);
             }}
             onLogout={() => toast.info("Logging out...")}
           />
