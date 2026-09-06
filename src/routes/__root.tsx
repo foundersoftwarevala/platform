@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { RouteAccessGate } from "@/components/auth/RouteAccessGate";
+import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { CelebrationProvider } from "../components/ams/effects/Celebration";
@@ -126,6 +127,8 @@ function RootComponent() {
         <CelebrationProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           {/* Operator consoles are gated centrally by path; public pages pass straight through. */}
+          {/* Notices a ?ref= arrival on any page and tells the server once. */}
+          <ReferralCapture />
           <RouteAccessGate>
             <Outlet />
           </RouteAccessGate>
