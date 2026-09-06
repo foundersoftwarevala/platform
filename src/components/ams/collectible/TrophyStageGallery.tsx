@@ -5,6 +5,8 @@ import { SVMicroMark, SVSeal, svCollectionNumber } from "@/components/ams/brand/
 import { TIERS, TROPHIES, ROLE_LIST, type Tier, type TrophyStage } from "@/lib/ams/trophy-catalog";
 import { stageRender, referenceForRole } from "@/lib/ams/trophy-stage-assets";
 import { getRole } from "@/lib/ams/roles";
+import { useQuery } from "@tanstack/react-query";
+import { getRoleChain, type AssetState } from "@/lib/ams/chain.functions";
 
 const TIER_HUE: Record<Tier, string> = {
   Foundation: "#7dd3fc",
@@ -20,11 +22,55 @@ function accentFor(slug: string, tier: Tier) {
 const chip =
   "rounded-full border px-3 py-1.5 text-[11px] font-medium uppercase tracking-widest transition-colors";
 
+
+/**
+ * Real per-trophy state for one role, keyed by trophy slug ("developer-01"),
+ * which is exactly the id the catalogue and the stage renders already use.
+ *
+ * Only fetched when a single role is selected. "All roles" is a catalogue view
+ * of 180 assets across 18 roles and a person can only ever hold one role's
+ * chain, so asking for eighteen chains to grey out seventeen of them would be
+ * work spent to say nothing.
+ */
+function useRoleChainStates(role: string) {
+  const q = useQuery({
+    queryKey: ["ams", "role-chain", role],
+    queryFn: () => getRoleChain({ data: { role } }),
+    enabled: role !== "all",
+    staleTime: 60_000,
+  });
+
+  const states = new Map<string, AssetState>();
+  for (const st of q.data?.stages ?? []) {
+    if (st.trophy?.slug) states.set(st.trophy.slug, st.trophy.state);
+  }
+  // Signed out, or a role nobody holds: no states, and the gallery renders as
+  // the plain catalogue rather than claiming everything is locked to someone.
+  return { states, signedIn: Boolean(q.data?.user_id), stage: q.data?.current_stage ?? 0 };
+}
+
+const STATE_LABEL: Record<AssetState, string> = {
+  locked: "Locked",
+  in_progress: "In progress",
+  eligible: "Eligible",
+  earned: "Earned",
+  claimed: "Claimed",
+};
+
+const STATE_HUE: Record<AssetState, string> = {
+  locked: "#64748b",
+  in_progress: "#7dd3fc",
+  eligible: "#facc15",
+  earned: "#4ade80",
+  claimed: "#a78bfa",
+};
+
 export function TrophyStageGallery() {
   const [role, setRole] = useState<string>("all");
   const [tier, setTier] = useState<Tier | "all">("all");
   const [query, setQuery] = useState("");
   const [active, setActive] = useState<TrophyStage | null>(null);
+  const chain = useRoleChainStates(role);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -104,20 +150,53 @@ export function TrophyStageGallery() {
         </label>
       </div>
 
-      <div className="text-xs text-muted-foreground">
-        {visible.length} of {TROPHIES.length} stages shown
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-xs text-muted-foreground">
+          {visible.length} of {TROPHIES.length} stages shown
+        </div>
+        {role !== "all" && chain.signedIn && (
+          <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-widest">
+            {(["locked", "in_progress", "eligible", "earned", "claimed"] as AssetState[]).map((k) => (
+              <span key={k} className="flex items-center gap-1.5 text-muted-foreground">
+                <i className="h-2 w-2 rounded-full" style={{ background: STATE_HUE[k] }} />
+                {STATE_LABEL[k]}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {visible.map((item) => {
           const src = stageRender(item.id);
           const accent = accentFor(item.roleSlug, item.tier);
+          // Undefined when signed out or viewing all roles: the card then keeps
+          // its normal catalogue treatment rather than being greyed out for
+          // someone who was never claiming to have earned it.
+          const state = chain.states.get(item.id);
+          const dim = state === "locked";
           return (
             <article
               key={item.id}
-              className="group relative overflow-hidden rounded-2xl border bg-black/25"
-              style={{ borderColor: `${accent}44` }}
+              className="group relative overflow-hidden rounded-2xl border bg-black/25 transition-all"
+              style={{
+                borderColor: state ? `${STATE_HUE[state]}55` : `${accent}44`,
+                opacity: dim ? 0.42 : 1,
+                filter: dim ? "grayscale(0.85)" : undefined,
+              }}
             >
+              {state && (
+                <span
+                  className="absolute right-2 top-2 z-20 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest backdrop-blur"
+                  style={{
+                    borderColor: `${STATE_HUE[state]}66`,
+                    color: STATE_HUE[state],
+                    background: `${STATE_HUE[state]}14`,
+                  }}
+                >
+                  {STATE_LABEL[state]}
+                </span>
+              )}
               <div
                 className="relative aspect-square overflow-hidden"
                 style={{

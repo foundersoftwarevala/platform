@@ -243,6 +243,9 @@ begin
                     where ub.user_id = p_user_id and ub.badge_id = b.id)
   on conflict do nothing;
 
+  -- Stage awards, the fourth asset class in the chain.
+  perform public.ams_issue_awards(p_user_id, v_role, v_stage);
+
   -- ---- Passport keeps up with the person -----------------------------------
   v_passport := 'SV-AMS-'
     || lpad(((('x' || substr(replace(p_user_id::text,'-',''),1,6))::bit(24)::int) % 10000)::text, 4, '0')
