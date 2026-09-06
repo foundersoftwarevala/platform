@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AffiliateManagerRouteImport } from './routes/affiliate-manager'
 import { Route as AiApiManagerRouteImport } from './routes/ai-api-manager'
 import { Route as AiCeoRouteImport } from './routes/ai-ceo'
+import { Route as AmsRouteImport } from './routes/ams'
 import { Route as AmsManagerRouteImport } from './routes/ams-manager'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BossRouteImport } from './routes/boss'
@@ -103,6 +104,7 @@ import { Route as AiAssistantRouteImport } from './routes/ai.assistant'
 import { Route as AiCompareRouteImport } from './routes/ai.compare'
 import { Route as AiFinderRouteImport } from './routes/ai.finder'
 import { Route as AiRecommendRouteImport } from './routes/ai.recommend'
+import { Route as AmsIndexRouteImport } from './routes/ams.index'
 import { Route as AmsAchievementVaultRouteImport } from './routes/ams.achievement-vault'
 import { Route as AmsAchievementsRouteImport } from './routes/ams.achievements'
 import { Route as AmsAiRouteImport } from './routes/ams.ai'
@@ -282,6 +284,11 @@ const AiApiManagerRoute = AiApiManagerRouteImport.update({
 const AiCeoRoute = AiCeoRouteImport.update({
   id: '/ai-ceo',
   path: '/ai-ceo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AmsRoute = AmsRouteImport.update({
+  id: '/ams',
+  path: '/ams',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AmsManagerRoute = AmsManagerRouteImport.update({
@@ -754,260 +761,265 @@ const AiRecommendRoute = AiRecommendRouteImport.update({
   path: '/ai/recommend',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AmsIndexRoute = AmsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AmsRoute,
+} as any)
 const AmsAchievementVaultRoute = AmsAchievementVaultRouteImport.update({
-  id: '/ams/achievement-vault',
-  path: '/ams/achievement-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/achievement-vault',
+  path: '/achievement-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAchievementsRoute = AmsAchievementsRouteImport.update({
-  id: '/ams/achievements',
-  path: '/ams/achievements',
-  getParentRoute: () => rootRouteImport,
+  id: '/achievements',
+  path: '/achievements',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAiRoute = AmsAiRouteImport.update({
-  id: '/ams/ai',
-  path: '/ams/ai',
-  getParentRoute: () => rootRouteImport,
+  id: '/ai',
+  path: '/ai',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAnalyticsRoute = AmsAnalyticsRouteImport.update({
-  id: '/ams/analytics',
-  path: '/ams/analytics',
-  getParentRoute: () => rootRouteImport,
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAuditRoute = AmsAuditRouteImport.update({
-  id: '/ams/audit',
-  path: '/ams/audit',
-  getParentRoute: () => rootRouteImport,
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAuthorProgressionRoute = AmsAuthorProgressionRouteImport.update({
-  id: '/ams/author-progression',
-  path: '/ams/author-progression',
-  getParentRoute: () => rootRouteImport,
+  id: '/author-progression',
+  path: '/author-progression',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAwardVaultRoute = AmsAwardVaultRouteImport.update({
-  id: '/ams/award-vault',
-  path: '/ams/award-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/award-vault',
+  path: '/award-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsBadgeVaultRoute = AmsBadgeVaultRouteImport.update({
-  id: '/ams/badge-vault',
-  path: '/ams/badge-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/badge-vault',
+  path: '/badge-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsBadgesRoute = AmsBadgesRouteImport.update({
-  id: '/ams/badges',
-  path: '/ams/badges',
-  getParentRoute: () => rootRouteImport,
+  id: '/badges',
+  path: '/badges',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsCertificateVaultRoute = AmsCertificateVaultRouteImport.update({
-  id: '/ams/certificate-vault',
-  path: '/ams/certificate-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/certificate-vault',
+  path: '/certificate-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsCertificatesRoute = AmsCertificatesRouteImport.update({
-  id: '/ams/certificates',
-  path: '/ams/certificates',
-  getParentRoute: () => rootRouteImport,
+  id: '/certificates',
+  path: '/certificates',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsChallengesRoute = AmsChallengesRouteImport.update({
-  id: '/ams/challenges',
-  path: '/ams/challenges',
-  getParentRoute: () => rootRouteImport,
+  id: '/challenges',
+  path: '/challenges',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsChatRoute = AmsChatRouteImport.update({
-  id: '/ams/chat',
-  path: '/ams/chat',
-  getParentRoute: () => rootRouteImport,
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsClaimsRoute = AmsClaimsRouteImport.update({
-  id: '/ams/claims',
-  path: '/ams/claims',
-  getParentRoute: () => rootRouteImport,
+  id: '/claims',
+  path: '/claims',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsCollectionsRoute = AmsCollectionsRouteImport.update({
-  id: '/ams/collections',
-  path: '/ams/collections',
-  getParentRoute: () => rootRouteImport,
+  id: '/collections',
+  path: '/collections',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsDeveloperProgressionRoute = AmsDeveloperProgressionRouteImport.update({
-  id: '/ams/developer-progression',
-  path: '/ams/developer-progression',
-  getParentRoute: () => rootRouteImport,
+  id: '/developer-progression',
+  path: '/developer-progression',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsFounderSealVaultRoute = AmsFounderSealVaultRouteImport.update({
-  id: '/ams/founder-seal-vault',
-  path: '/ams/founder-seal-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/founder-seal-vault',
+  path: '/founder-seal-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsHallOfFameRoute = AmsHallOfFameRouteImport.update({
-  id: '/ams/hall-of-fame',
-  path: '/ams/hall-of-fame',
-  getParentRoute: () => rootRouteImport,
+  id: '/hall-of-fame',
+  path: '/hall-of-fame',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsHallOfFameVaultRoute = AmsHallOfFameVaultRouteImport.update({
-  id: '/ams/hall-of-fame-vault',
-  path: '/ams/hall-of-fame-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/hall-of-fame-vault',
+  path: '/hall-of-fame-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsHonorCoinVaultRoute = AmsHonorCoinVaultRouteImport.update({
-  id: '/ams/honor-coin-vault',
-  path: '/ams/honor-coin-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/honor-coin-vault',
+  path: '/honor-coin-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsIdentityRoute = AmsIdentityRouteImport.update({
-  id: '/ams/identity',
-  path: '/ams/identity',
-  getParentRoute: () => rootRouteImport,
+  id: '/identity',
+  path: '/identity',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsIdentityCardVaultRoute = AmsIdentityCardVaultRouteImport.update({
-  id: '/ams/identity-card-vault',
-  path: '/ams/identity-card-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/identity-card-vault',
+  path: '/identity-card-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsLeaderboardsRoute = AmsLeaderboardsRouteImport.update({
-  id: '/ams/leaderboards',
-  path: '/ams/leaderboards',
-  getParentRoute: () => rootRouteImport,
+  id: '/leaderboards',
+  path: '/leaderboards',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsLegacyRoute = AmsLegacyRouteImport.update({
-  id: '/ams/legacy',
-  path: '/ams/legacy',
-  getParentRoute: () => rootRouteImport,
+  id: '/legacy',
+  path: '/legacy',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsLegacyMedalVaultRoute = AmsLegacyMedalVaultRouteImport.update({
-  id: '/ams/legacy-medal-vault',
-  path: '/ams/legacy-medal-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/legacy-medal-vault',
+  path: '/legacy-medal-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsLevelsRoute = AmsLevelsRouteImport.update({
-  id: '/ams/levels',
-  path: '/ams/levels',
-  getParentRoute: () => rootRouteImport,
+  id: '/levels',
+  path: '/levels',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsLicenseCardVaultRoute = AmsLicenseCardVaultRouteImport.update({
-  id: '/ams/license-card-vault',
-  path: '/ams/license-card-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/license-card-vault',
+  path: '/license-card-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsMembershipVaultRoute = AmsMembershipVaultRouteImport.update({
-  id: '/ams/membership-vault',
-  path: '/ams/membership-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/membership-vault',
+  path: '/membership-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsMissionsRoute = AmsMissionsRouteImport.update({
-  id: '/ams/missions',
-  path: '/ams/missions',
-  getParentRoute: () => rootRouteImport,
+  id: '/missions',
+  path: '/missions',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsNotificationsRoute = AmsNotificationsRouteImport.update({
-  id: '/ams/notifications',
-  path: '/ams/notifications',
-  getParentRoute: () => rootRouteImport,
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsOverviewRoute = AmsOverviewRouteImport.update({
-  id: '/ams/overview',
-  path: '/ams/overview',
-  getParentRoute: () => rootRouteImport,
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsPassportRoute = AmsPassportRouteImport.update({
-  id: '/ams/passport',
-  path: '/ams/passport',
-  getParentRoute: () => rootRouteImport,
+  id: '/passport',
+  path: '/passport',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsPassportVaultRoute = AmsPassportVaultRouteImport.update({
-  id: '/ams/passport-vault',
-  path: '/ams/passport-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/passport-vault',
+  path: '/passport-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsQuestsRoute = AmsQuestsRouteImport.update({
-  id: '/ams/quests',
-  path: '/ams/quests',
-  getParentRoute: () => rootRouteImport,
+  id: '/quests',
+  path: '/quests',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsRankVaultRoute = AmsRankVaultRouteImport.update({
-  id: '/ams/rank-vault',
-  path: '/ams/rank-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/rank-vault',
+  path: '/rank-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsRanksRoute = AmsRanksRouteImport.update({
-  id: '/ams/ranks',
-  path: '/ams/ranks',
-  getParentRoute: () => rootRouteImport,
+  id: '/ranks',
+  path: '/ranks',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsRecognitionCoinVaultRoute = AmsRecognitionCoinVaultRouteImport.update({
-  id: '/ams/recognition-coin-vault',
-  path: '/ams/recognition-coin-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/recognition-coin-vault',
+  path: '/recognition-coin-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsReputationVaultRoute = AmsReputationVaultRouteImport.update({
-  id: '/ams/reputation-vault',
-  path: '/ams/reputation-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/reputation-vault',
+  path: '/reputation-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsRewardChestVaultRoute = AmsRewardChestVaultRouteImport.update({
-  id: '/ams/reward-chest-vault',
-  path: '/ams/reward-chest-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/reward-chest-vault',
+  path: '/reward-chest-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsRewardsRoute = AmsRewardsRouteImport.update({
-  id: '/ams/rewards',
-  path: '/ams/rewards',
-  getParentRoute: () => rootRouteImport,
+  id: '/rewards',
+  path: '/rewards',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsRoleManagerRoute = AmsRoleManagerRouteImport.update({
-  id: '/ams/role-manager',
-  path: '/ams/role-manager',
-  getParentRoute: () => rootRouteImport,
+  id: '/role-manager',
+  path: '/role-manager',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsSettingsRoute = AmsSettingsRouteImport.update({
-  id: '/ams/settings',
-  path: '/ams/settings',
-  getParentRoute: () => rootRouteImport,
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsTrophiesRoute = AmsTrophiesRouteImport.update({
-  id: '/ams/trophies',
-  path: '/ams/trophies',
-  getParentRoute: () => rootRouteImport,
+  id: '/trophies',
+  path: '/trophies',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsTrophyGalleryRoute = AmsTrophyGalleryRouteImport.update({
-  id: '/ams/trophy-gallery',
-  path: '/ams/trophy-gallery',
-  getParentRoute: () => rootRouteImport,
+  id: '/trophy-gallery',
+  path: '/trophy-gallery',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsTrophyStagesRoute = AmsTrophyStagesRouteImport.update({
-  id: '/ams/trophy-stages',
-  path: '/ams/trophy-stages',
-  getParentRoute: () => rootRouteImport,
+  id: '/trophy-stages',
+  path: '/trophy-stages',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsTrophyVaultRoute = AmsTrophyVaultRouteImport.update({
-  id: '/ams/trophy-vault',
-  path: '/ams/trophy-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/trophy-vault',
+  path: '/trophy-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsTrustSealVaultRoute = AmsTrustSealVaultRouteImport.update({
-  id: '/ams/trust-seal-vault',
-  path: '/ams/trust-seal-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/trust-seal-vault',
+  path: '/trust-seal-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsVendorProgressionRoute = AmsVendorProgressionRouteImport.update({
-  id: '/ams/vendor-progression',
-  path: '/ams/vendor-progression',
-  getParentRoute: () => rootRouteImport,
+  id: '/vendor-progression',
+  path: '/vendor-progression',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsVerificationVaultRoute = AmsVerificationVaultRouteImport.update({
-  id: '/ams/verification-vault',
-  path: '/ams/verification-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/verification-vault',
+  path: '/verification-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsXpRoute = AmsXpRouteImport.update({
-  id: '/ams/xp',
-  path: '/ams/xp',
-  getParentRoute: () => rootRouteImport,
+  id: '/xp',
+  path: '/xp',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsXpCrystalVaultRoute = AmsXpCrystalVaultRouteImport.update({
-  id: '/ams/xp-crystal-vault',
-  path: '/ams/xp-crystal-vault',
-  getParentRoute: () => rootRouteImport,
+  id: '/xp-crystal-vault',
+  path: '/xp-crystal-vault',
+  getParentRoute: () => AmsRoute,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
@@ -1223,54 +1235,54 @@ const AffiliateManagerAffiliatesIdRoute =
     getParentRoute: () => AffiliateManagerAffiliatesRoute,
   } as any)
 const AmsAwardsIndexRoute = AmsAwardsIndexRouteImport.update({
-  id: '/ams/awards/',
-  path: '/ams/awards/',
-  getParentRoute: () => rootRouteImport,
+  id: '/awards/',
+  path: '/awards/',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAwardsIdRoute = AmsAwardsIdRouteImport.update({
-  id: '/ams/awards/$id',
-  path: '/ams/awards/$id',
-  getParentRoute: () => rootRouteImport,
+  id: '/awards/$id',
+  path: '/awards/$id',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAwardsAuditRoute = AmsAwardsAuditRouteImport.update({
-  id: '/ams/awards/audit',
-  path: '/ams/awards/audit',
-  getParentRoute: () => rootRouteImport,
+  id: '/awards/audit',
+  path: '/awards/audit',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAwardsCategoriesRoute = AmsAwardsCategoriesRouteImport.update({
-  id: '/ams/awards/categories',
-  path: '/ams/awards/categories',
-  getParentRoute: () => rootRouteImport,
+  id: '/awards/categories',
+  path: '/awards/categories',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAwardsEffectsRoute = AmsAwardsEffectsRouteImport.update({
-  id: '/ams/awards/effects',
-  path: '/ams/awards/effects',
-  getParentRoute: () => rootRouteImport,
+  id: '/awards/effects',
+  path: '/awards/effects',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAwardsNewRoute = AmsAwardsNewRouteImport.update({
-  id: '/ams/awards/new',
-  path: '/ams/awards/new',
-  getParentRoute: () => rootRouteImport,
+  id: '/awards/new',
+  path: '/awards/new',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsCollectionIndexRoute = AmsCollectionIndexRouteImport.update({
-  id: '/ams/collection/',
-  path: '/ams/collection/',
-  getParentRoute: () => rootRouteImport,
+  id: '/collection/',
+  path: '/collection/',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsCollectionTypeRoute = AmsCollectionTypeRouteImport.update({
-  id: '/ams/collection/$type',
-  path: '/ams/collection/$type',
-  getParentRoute: () => rootRouteImport,
+  id: '/collection/$type',
+  path: '/collection/$type',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsMuseumIndexRoute = AmsMuseumIndexRouteImport.update({
-  id: '/ams/museum/',
-  path: '/ams/museum/',
-  getParentRoute: () => rootRouteImport,
+  id: '/museum/',
+  path: '/museum/',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsMuseumShowcaseRoute = AmsMuseumShowcaseRouteImport.update({
-  id: '/ams/museum/$showcase',
-  path: '/ams/museum/$showcase',
-  getParentRoute: () => rootRouteImport,
+  id: '/museum/$showcase',
+  path: '/museum/$showcase',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsRoleManagerIndexRoute = AmsRoleManagerIndexRouteImport.update({
   id: '/',
@@ -1283,29 +1295,29 @@ const AmsRoleManagerSlugRoute = AmsRoleManagerSlugRouteImport.update({
   getParentRoute: () => AmsRoleManagerRoute,
 } as any)
 const AmsRoleShowcaseIndexRoute = AmsRoleShowcaseIndexRouteImport.update({
-  id: '/ams/role-showcase/',
-  path: '/ams/role-showcase/',
-  getParentRoute: () => rootRouteImport,
+  id: '/role-showcase/',
+  path: '/role-showcase/',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsRoleShowcaseSlugRoute = AmsRoleShowcaseSlugRouteImport.update({
-  id: '/ams/role-showcase/$slug',
-  path: '/ams/role-showcase/$slug',
-  getParentRoute: () => rootRouteImport,
+  id: '/role-showcase/$slug',
+  path: '/role-showcase/$slug',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsTicketsIndexRoute = AmsTicketsIndexRouteImport.update({
-  id: '/ams/tickets/',
-  path: '/ams/tickets/',
-  getParentRoute: () => rootRouteImport,
+  id: '/tickets/',
+  path: '/tickets/',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsTicketsIdRoute = AmsTicketsIdRouteImport.update({
-  id: '/ams/tickets/$id',
-  path: '/ams/tickets/$id',
-  getParentRoute: () => rootRouteImport,
+  id: '/tickets/$id',
+  path: '/tickets/$id',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsTicketsNewRoute = AmsTicketsNewRouteImport.update({
-  id: '/ams/tickets/new',
-  path: '/ams/tickets/new',
-  getParentRoute: () => rootRouteImport,
+  id: '/tickets/new',
+  path: '/tickets/new',
+  getParentRoute: () => AmsRoute,
 } as any)
 const ApiAccountPurchasesRoute = ApiAccountPurchasesRouteImport.update({
   id: '/api/account/purchases',
@@ -1506,52 +1518,52 @@ const AmsAwardsIdEditRoute = AmsAwardsIdEditRouteImport.update({
 } as any)
 const AmsAwardsLibrariesAchievementsRoute =
   AmsAwardsLibrariesAchievementsRouteImport.update({
-    id: '/ams/awards/libraries/achievements',
-    path: '/ams/awards/libraries/achievements',
-    getParentRoute: () => rootRouteImport,
+    id: '/awards/libraries/achievements',
+    path: '/awards/libraries/achievements',
+    getParentRoute: () => AmsRoute,
   } as any)
 const AmsAwardsLibrariesBadgesRoute =
   AmsAwardsLibrariesBadgesRouteImport.update({
-    id: '/ams/awards/libraries/badges',
-    path: '/ams/awards/libraries/badges',
-    getParentRoute: () => rootRouteImport,
+    id: '/awards/libraries/badges',
+    path: '/awards/libraries/badges',
+    getParentRoute: () => AmsRoute,
   } as any)
 const AmsAwardsLibrariesRanksRoute = AmsAwardsLibrariesRanksRouteImport.update({
-  id: '/ams/awards/libraries/ranks',
-  path: '/ams/awards/libraries/ranks',
-  getParentRoute: () => rootRouteImport,
+  id: '/awards/libraries/ranks',
+  path: '/awards/libraries/ranks',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAwardsLibrariesTrophiesRoute =
   AmsAwardsLibrariesTrophiesRouteImport.update({
-    id: '/ams/awards/libraries/trophies',
-    path: '/ams/awards/libraries/trophies',
-    getParentRoute: () => rootRouteImport,
+    id: '/awards/libraries/trophies',
+    path: '/awards/libraries/trophies',
+    getParentRoute: () => AmsRoute,
   } as any)
 const AmsAwardsRulesLevelsRoute = AmsAwardsRulesLevelsRouteImport.update({
-  id: '/ams/awards/rules/levels',
-  path: '/ams/awards/rules/levels',
-  getParentRoute: () => rootRouteImport,
+  id: '/awards/rules/levels',
+  path: '/awards/rules/levels',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAwardsRulesMilestonesRoute =
   AmsAwardsRulesMilestonesRouteImport.update({
-    id: '/ams/awards/rules/milestones',
-    path: '/ams/awards/rules/milestones',
-    getParentRoute: () => rootRouteImport,
+    id: '/awards/rules/milestones',
+    path: '/awards/rules/milestones',
+    getParentRoute: () => AmsRoute,
   } as any)
 const AmsAwardsRulesRewardsRoute = AmsAwardsRulesRewardsRouteImport.update({
-  id: '/ams/awards/rules/rewards',
-  path: '/ams/awards/rules/rewards',
-  getParentRoute: () => rootRouteImport,
+  id: '/awards/rules/rewards',
+  path: '/awards/rules/rewards',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAwardsRulesStreaksRoute = AmsAwardsRulesStreaksRouteImport.update({
-  id: '/ams/awards/rules/streaks',
-  path: '/ams/awards/rules/streaks',
-  getParentRoute: () => rootRouteImport,
+  id: '/awards/rules/streaks',
+  path: '/awards/rules/streaks',
+  getParentRoute: () => AmsRoute,
 } as any)
 const AmsAwardsRulesXpRoute = AmsAwardsRulesXpRouteImport.update({
-  id: '/ams/awards/rules/xp',
-  path: '/ams/awards/rules/xp',
-  getParentRoute: () => rootRouteImport,
+  id: '/awards/rules/xp',
+  path: '/awards/rules/xp',
+  getParentRoute: () => AmsRoute,
 } as any)
 const ApiAccountInvoiceIdRoute = ApiAccountInvoiceIdRouteImport.update({
   id: '/api/account/invoice/$id',
@@ -1574,6 +1586,7 @@ export interface FileRoutesByFullPath {
   '/affiliate-manager': typeof AffiliateManagerRouteWithChildren
   '/ai-api-manager': typeof AiApiManagerRoute
   '/ai-ceo': typeof AiCeoRouteWithChildren
+  '/ams': typeof AmsRouteWithChildren
   '/ams-manager': typeof AmsManagerRoute
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
@@ -1750,6 +1763,7 @@ export interface FileRoutesByFullPath {
   '/academy/': typeof AcademyIndexRoute
   '/affiliate-manager/': typeof AffiliateManagerIndexRoute
   '/ai-ceo/': typeof AiCeoIndexRoute
+  '/ams/': typeof AmsIndexRoute
   '/apply/': typeof ApplyIndexRoute
   '/lead-manager/': typeof LeadManagerIndexRoute
   '/manager/': typeof ManagerIndexRoute
@@ -1998,6 +2012,7 @@ export interface FileRoutesByTo {
   '/academy': typeof AcademyIndexRoute
   '/affiliate-manager': typeof AffiliateManagerIndexRoute
   '/ai-ceo': typeof AiCeoIndexRoute
+  '/ams': typeof AmsIndexRoute
   '/apply': typeof ApplyIndexRoute
   '/lead-manager': typeof LeadManagerIndexRoute
   '/manager': typeof ManagerIndexRoute
@@ -2079,6 +2094,7 @@ export interface FileRoutesById {
   '/affiliate-manager': typeof AffiliateManagerRouteWithChildren
   '/ai-api-manager': typeof AiApiManagerRoute
   '/ai-ceo': typeof AiCeoRouteWithChildren
+  '/ams': typeof AmsRouteWithChildren
   '/ams-manager': typeof AmsManagerRoute
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
@@ -2255,6 +2271,7 @@ export interface FileRoutesById {
   '/academy/': typeof AcademyIndexRoute
   '/affiliate-manager/': typeof AffiliateManagerIndexRoute
   '/ai-ceo/': typeof AiCeoIndexRoute
+  '/ams/': typeof AmsIndexRoute
   '/apply/': typeof ApplyIndexRoute
   '/lead-manager/': typeof LeadManagerIndexRoute
   '/manager/': typeof ManagerIndexRoute
@@ -2337,6 +2354,7 @@ export interface FileRouteTypes {
     | '/affiliate-manager'
     | '/ai-api-manager'
     | '/ai-ceo'
+    | '/ams'
     | '/ams-manager'
     | '/auth'
     | '/boss'
@@ -2513,6 +2531,7 @@ export interface FileRouteTypes {
     | '/academy/'
     | '/affiliate-manager/'
     | '/ai-ceo/'
+    | '/ams/'
     | '/apply/'
     | '/lead-manager/'
     | '/manager/'
@@ -2761,6 +2780,7 @@ export interface FileRouteTypes {
     | '/academy'
     | '/affiliate-manager'
     | '/ai-ceo'
+    | '/ams'
     | '/apply'
     | '/lead-manager'
     | '/manager'
@@ -2841,6 +2861,7 @@ export interface FileRouteTypes {
     | '/affiliate-manager'
     | '/ai-api-manager'
     | '/ai-ceo'
+    | '/ams'
     | '/ams-manager'
     | '/auth'
     | '/boss'
@@ -3017,6 +3038,7 @@ export interface FileRouteTypes {
     | '/academy/'
     | '/affiliate-manager/'
     | '/ai-ceo/'
+    | '/ams/'
     | '/apply/'
     | '/lead-manager/'
     | '/manager/'
@@ -3098,6 +3120,7 @@ export interface RootRouteChildren {
   AffiliateManagerRoute: typeof AffiliateManagerRouteWithChildren
   AiApiManagerRoute: typeof AiApiManagerRoute
   AiCeoRoute: typeof AiCeoRouteWithChildren
+  AmsRoute: typeof AmsRouteWithChildren
   AmsManagerRoute: typeof AmsManagerRoute
   AuthRoute: typeof AuthRoute
   BossRoute: typeof BossRoute
@@ -3146,57 +3169,6 @@ export interface RootRouteChildren {
   AiCompareRoute: typeof AiCompareRoute
   AiFinderRoute: typeof AiFinderRoute
   AiRecommendRoute: typeof AiRecommendRoute
-  AmsAchievementVaultRoute: typeof AmsAchievementVaultRoute
-  AmsAchievementsRoute: typeof AmsAchievementsRoute
-  AmsAiRoute: typeof AmsAiRoute
-  AmsAnalyticsRoute: typeof AmsAnalyticsRoute
-  AmsAuditRoute: typeof AmsAuditRoute
-  AmsAuthorProgressionRoute: typeof AmsAuthorProgressionRoute
-  AmsAwardVaultRoute: typeof AmsAwardVaultRoute
-  AmsBadgeVaultRoute: typeof AmsBadgeVaultRoute
-  AmsBadgesRoute: typeof AmsBadgesRoute
-  AmsCertificateVaultRoute: typeof AmsCertificateVaultRoute
-  AmsCertificatesRoute: typeof AmsCertificatesRoute
-  AmsChallengesRoute: typeof AmsChallengesRoute
-  AmsChatRoute: typeof AmsChatRoute
-  AmsClaimsRoute: typeof AmsClaimsRoute
-  AmsCollectionsRoute: typeof AmsCollectionsRoute
-  AmsDeveloperProgressionRoute: typeof AmsDeveloperProgressionRoute
-  AmsFounderSealVaultRoute: typeof AmsFounderSealVaultRoute
-  AmsHallOfFameRoute: typeof AmsHallOfFameRoute
-  AmsHallOfFameVaultRoute: typeof AmsHallOfFameVaultRoute
-  AmsHonorCoinVaultRoute: typeof AmsHonorCoinVaultRoute
-  AmsIdentityRoute: typeof AmsIdentityRoute
-  AmsIdentityCardVaultRoute: typeof AmsIdentityCardVaultRoute
-  AmsLeaderboardsRoute: typeof AmsLeaderboardsRoute
-  AmsLegacyRoute: typeof AmsLegacyRoute
-  AmsLegacyMedalVaultRoute: typeof AmsLegacyMedalVaultRoute
-  AmsLevelsRoute: typeof AmsLevelsRoute
-  AmsLicenseCardVaultRoute: typeof AmsLicenseCardVaultRoute
-  AmsMembershipVaultRoute: typeof AmsMembershipVaultRoute
-  AmsMissionsRoute: typeof AmsMissionsRoute
-  AmsNotificationsRoute: typeof AmsNotificationsRoute
-  AmsOverviewRoute: typeof AmsOverviewRoute
-  AmsPassportRoute: typeof AmsPassportRoute
-  AmsPassportVaultRoute: typeof AmsPassportVaultRoute
-  AmsQuestsRoute: typeof AmsQuestsRoute
-  AmsRankVaultRoute: typeof AmsRankVaultRoute
-  AmsRanksRoute: typeof AmsRanksRoute
-  AmsRecognitionCoinVaultRoute: typeof AmsRecognitionCoinVaultRoute
-  AmsReputationVaultRoute: typeof AmsReputationVaultRoute
-  AmsRewardChestVaultRoute: typeof AmsRewardChestVaultRoute
-  AmsRewardsRoute: typeof AmsRewardsRoute
-  AmsRoleManagerRoute: typeof AmsRoleManagerRouteWithChildren
-  AmsSettingsRoute: typeof AmsSettingsRoute
-  AmsTrophiesRoute: typeof AmsTrophiesRoute
-  AmsTrophyGalleryRoute: typeof AmsTrophyGalleryRoute
-  AmsTrophyStagesRoute: typeof AmsTrophyStagesRoute
-  AmsTrophyVaultRoute: typeof AmsTrophyVaultRoute
-  AmsTrustSealVaultRoute: typeof AmsTrustSealVaultRoute
-  AmsVendorProgressionRoute: typeof AmsVendorProgressionRoute
-  AmsVerificationVaultRoute: typeof AmsVerificationVaultRoute
-  AmsXpRoute: typeof AmsXpRoute
-  AmsXpCrystalVaultRoute: typeof AmsXpCrystalVaultRoute
   ApiChatRoute: typeof ApiChatRoute
   ApplyRoleRoute: typeof ApplyRoleRoute
   DashboardRoleRoute: typeof DashboardRoleRoute
@@ -3208,16 +3180,6 @@ export interface RootRouteChildren {
   AcademyIndexRoute: typeof AcademyIndexRoute
   ApplyIndexRoute: typeof ApplyIndexRoute
   ProxyDemoRoute: typeof ProxyDemoRoute
-  AmsAwardsIdRoute: typeof AmsAwardsIdRouteWithChildren
-  AmsAwardsAuditRoute: typeof AmsAwardsAuditRoute
-  AmsAwardsCategoriesRoute: typeof AmsAwardsCategoriesRoute
-  AmsAwardsEffectsRoute: typeof AmsAwardsEffectsRoute
-  AmsAwardsNewRoute: typeof AmsAwardsNewRoute
-  AmsCollectionTypeRoute: typeof AmsCollectionTypeRoute
-  AmsMuseumShowcaseRoute: typeof AmsMuseumShowcaseRoute
-  AmsRoleShowcaseSlugRoute: typeof AmsRoleShowcaseSlugRoute
-  AmsTicketsIdRoute: typeof AmsTicketsIdRoute
-  AmsTicketsNewRoute: typeof AmsTicketsNewRoute
   ApiAccountPurchasesRoute: typeof ApiAccountPurchasesRoute
   ApiAffiliateAccountRoute: typeof ApiAffiliateAccountRoute
   ApiAffiliateAttributeRoute: typeof ApiAffiliateAttributeRoute
@@ -3251,20 +3213,6 @@ export interface RootRouteChildren {
   ApiPaymentWebhookRoute: typeof ApiPaymentWebhookRoute
   ApiSellerMetricsRoute: typeof ApiSellerMetricsRoute
   ApiTrackRefRoute: typeof ApiTrackRefRoute
-  AmsAwardsIndexRoute: typeof AmsAwardsIndexRoute
-  AmsCollectionIndexRoute: typeof AmsCollectionIndexRoute
-  AmsMuseumIndexRoute: typeof AmsMuseumIndexRoute
-  AmsRoleShowcaseIndexRoute: typeof AmsRoleShowcaseIndexRoute
-  AmsTicketsIndexRoute: typeof AmsTicketsIndexRoute
-  AmsAwardsLibrariesAchievementsRoute: typeof AmsAwardsLibrariesAchievementsRoute
-  AmsAwardsLibrariesBadgesRoute: typeof AmsAwardsLibrariesBadgesRoute
-  AmsAwardsLibrariesRanksRoute: typeof AmsAwardsLibrariesRanksRoute
-  AmsAwardsLibrariesTrophiesRoute: typeof AmsAwardsLibrariesTrophiesRoute
-  AmsAwardsRulesLevelsRoute: typeof AmsAwardsRulesLevelsRoute
-  AmsAwardsRulesMilestonesRoute: typeof AmsAwardsRulesMilestonesRoute
-  AmsAwardsRulesRewardsRoute: typeof AmsAwardsRulesRewardsRoute
-  AmsAwardsRulesStreaksRoute: typeof AmsAwardsRulesStreaksRoute
-  AmsAwardsRulesXpRoute: typeof AmsAwardsRulesXpRoute
   ApiAccountInvoiceIdRoute: typeof ApiAccountInvoiceIdRoute
   ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
   ApiProxyDemoSplatRoute: typeof ApiProxyDemoSplatRoute
@@ -3298,6 +3246,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-ceo'
       fullPath: '/ai-ceo'
       preLoaderRoute: typeof AiCeoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ams': {
+      id: '/ams'
+      path: '/ams'
+      fullPath: '/ams'
+      preLoaderRoute: typeof AmsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ams-manager': {
@@ -3930,362 +3885,369 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiRecommendRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ams/': {
+      id: '/ams/'
+      path: '/'
+      fullPath: '/ams/'
+      preLoaderRoute: typeof AmsIndexRouteImport
+      parentRoute: typeof AmsRoute
+    }
     '/ams/achievement-vault': {
       id: '/ams/achievement-vault'
-      path: '/ams/achievement-vault'
+      path: '/achievement-vault'
       fullPath: '/ams/achievement-vault'
       preLoaderRoute: typeof AmsAchievementVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/achievements': {
       id: '/ams/achievements'
-      path: '/ams/achievements'
+      path: '/achievements'
       fullPath: '/ams/achievements'
       preLoaderRoute: typeof AmsAchievementsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/ai': {
       id: '/ams/ai'
-      path: '/ams/ai'
+      path: '/ai'
       fullPath: '/ams/ai'
       preLoaderRoute: typeof AmsAiRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/analytics': {
       id: '/ams/analytics'
-      path: '/ams/analytics'
+      path: '/analytics'
       fullPath: '/ams/analytics'
       preLoaderRoute: typeof AmsAnalyticsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/audit': {
       id: '/ams/audit'
-      path: '/ams/audit'
+      path: '/audit'
       fullPath: '/ams/audit'
       preLoaderRoute: typeof AmsAuditRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/author-progression': {
       id: '/ams/author-progression'
-      path: '/ams/author-progression'
+      path: '/author-progression'
       fullPath: '/ams/author-progression'
       preLoaderRoute: typeof AmsAuthorProgressionRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/award-vault': {
       id: '/ams/award-vault'
-      path: '/ams/award-vault'
+      path: '/award-vault'
       fullPath: '/ams/award-vault'
       preLoaderRoute: typeof AmsAwardVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/badge-vault': {
       id: '/ams/badge-vault'
-      path: '/ams/badge-vault'
+      path: '/badge-vault'
       fullPath: '/ams/badge-vault'
       preLoaderRoute: typeof AmsBadgeVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/badges': {
       id: '/ams/badges'
-      path: '/ams/badges'
+      path: '/badges'
       fullPath: '/ams/badges'
       preLoaderRoute: typeof AmsBadgesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/certificate-vault': {
       id: '/ams/certificate-vault'
-      path: '/ams/certificate-vault'
+      path: '/certificate-vault'
       fullPath: '/ams/certificate-vault'
       preLoaderRoute: typeof AmsCertificateVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/certificates': {
       id: '/ams/certificates'
-      path: '/ams/certificates'
+      path: '/certificates'
       fullPath: '/ams/certificates'
       preLoaderRoute: typeof AmsCertificatesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/challenges': {
       id: '/ams/challenges'
-      path: '/ams/challenges'
+      path: '/challenges'
       fullPath: '/ams/challenges'
       preLoaderRoute: typeof AmsChallengesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/chat': {
       id: '/ams/chat'
-      path: '/ams/chat'
+      path: '/chat'
       fullPath: '/ams/chat'
       preLoaderRoute: typeof AmsChatRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/claims': {
       id: '/ams/claims'
-      path: '/ams/claims'
+      path: '/claims'
       fullPath: '/ams/claims'
       preLoaderRoute: typeof AmsClaimsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/collections': {
       id: '/ams/collections'
-      path: '/ams/collections'
+      path: '/collections'
       fullPath: '/ams/collections'
       preLoaderRoute: typeof AmsCollectionsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/developer-progression': {
       id: '/ams/developer-progression'
-      path: '/ams/developer-progression'
+      path: '/developer-progression'
       fullPath: '/ams/developer-progression'
       preLoaderRoute: typeof AmsDeveloperProgressionRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/founder-seal-vault': {
       id: '/ams/founder-seal-vault'
-      path: '/ams/founder-seal-vault'
+      path: '/founder-seal-vault'
       fullPath: '/ams/founder-seal-vault'
       preLoaderRoute: typeof AmsFounderSealVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/hall-of-fame': {
       id: '/ams/hall-of-fame'
-      path: '/ams/hall-of-fame'
+      path: '/hall-of-fame'
       fullPath: '/ams/hall-of-fame'
       preLoaderRoute: typeof AmsHallOfFameRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/hall-of-fame-vault': {
       id: '/ams/hall-of-fame-vault'
-      path: '/ams/hall-of-fame-vault'
+      path: '/hall-of-fame-vault'
       fullPath: '/ams/hall-of-fame-vault'
       preLoaderRoute: typeof AmsHallOfFameVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/honor-coin-vault': {
       id: '/ams/honor-coin-vault'
-      path: '/ams/honor-coin-vault'
+      path: '/honor-coin-vault'
       fullPath: '/ams/honor-coin-vault'
       preLoaderRoute: typeof AmsHonorCoinVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/identity': {
       id: '/ams/identity'
-      path: '/ams/identity'
+      path: '/identity'
       fullPath: '/ams/identity'
       preLoaderRoute: typeof AmsIdentityRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/identity-card-vault': {
       id: '/ams/identity-card-vault'
-      path: '/ams/identity-card-vault'
+      path: '/identity-card-vault'
       fullPath: '/ams/identity-card-vault'
       preLoaderRoute: typeof AmsIdentityCardVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/leaderboards': {
       id: '/ams/leaderboards'
-      path: '/ams/leaderboards'
+      path: '/leaderboards'
       fullPath: '/ams/leaderboards'
       preLoaderRoute: typeof AmsLeaderboardsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/legacy': {
       id: '/ams/legacy'
-      path: '/ams/legacy'
+      path: '/legacy'
       fullPath: '/ams/legacy'
       preLoaderRoute: typeof AmsLegacyRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/legacy-medal-vault': {
       id: '/ams/legacy-medal-vault'
-      path: '/ams/legacy-medal-vault'
+      path: '/legacy-medal-vault'
       fullPath: '/ams/legacy-medal-vault'
       preLoaderRoute: typeof AmsLegacyMedalVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/levels': {
       id: '/ams/levels'
-      path: '/ams/levels'
+      path: '/levels'
       fullPath: '/ams/levels'
       preLoaderRoute: typeof AmsLevelsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/license-card-vault': {
       id: '/ams/license-card-vault'
-      path: '/ams/license-card-vault'
+      path: '/license-card-vault'
       fullPath: '/ams/license-card-vault'
       preLoaderRoute: typeof AmsLicenseCardVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/membership-vault': {
       id: '/ams/membership-vault'
-      path: '/ams/membership-vault'
+      path: '/membership-vault'
       fullPath: '/ams/membership-vault'
       preLoaderRoute: typeof AmsMembershipVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/missions': {
       id: '/ams/missions'
-      path: '/ams/missions'
+      path: '/missions'
       fullPath: '/ams/missions'
       preLoaderRoute: typeof AmsMissionsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/notifications': {
       id: '/ams/notifications'
-      path: '/ams/notifications'
+      path: '/notifications'
       fullPath: '/ams/notifications'
       preLoaderRoute: typeof AmsNotificationsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/overview': {
       id: '/ams/overview'
-      path: '/ams/overview'
+      path: '/overview'
       fullPath: '/ams/overview'
       preLoaderRoute: typeof AmsOverviewRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/passport': {
       id: '/ams/passport'
-      path: '/ams/passport'
+      path: '/passport'
       fullPath: '/ams/passport'
       preLoaderRoute: typeof AmsPassportRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/passport-vault': {
       id: '/ams/passport-vault'
-      path: '/ams/passport-vault'
+      path: '/passport-vault'
       fullPath: '/ams/passport-vault'
       preLoaderRoute: typeof AmsPassportVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/quests': {
       id: '/ams/quests'
-      path: '/ams/quests'
+      path: '/quests'
       fullPath: '/ams/quests'
       preLoaderRoute: typeof AmsQuestsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/rank-vault': {
       id: '/ams/rank-vault'
-      path: '/ams/rank-vault'
+      path: '/rank-vault'
       fullPath: '/ams/rank-vault'
       preLoaderRoute: typeof AmsRankVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/ranks': {
       id: '/ams/ranks'
-      path: '/ams/ranks'
+      path: '/ranks'
       fullPath: '/ams/ranks'
       preLoaderRoute: typeof AmsRanksRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/recognition-coin-vault': {
       id: '/ams/recognition-coin-vault'
-      path: '/ams/recognition-coin-vault'
+      path: '/recognition-coin-vault'
       fullPath: '/ams/recognition-coin-vault'
       preLoaderRoute: typeof AmsRecognitionCoinVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/reputation-vault': {
       id: '/ams/reputation-vault'
-      path: '/ams/reputation-vault'
+      path: '/reputation-vault'
       fullPath: '/ams/reputation-vault'
       preLoaderRoute: typeof AmsReputationVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/reward-chest-vault': {
       id: '/ams/reward-chest-vault'
-      path: '/ams/reward-chest-vault'
+      path: '/reward-chest-vault'
       fullPath: '/ams/reward-chest-vault'
       preLoaderRoute: typeof AmsRewardChestVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/rewards': {
       id: '/ams/rewards'
-      path: '/ams/rewards'
+      path: '/rewards'
       fullPath: '/ams/rewards'
       preLoaderRoute: typeof AmsRewardsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/role-manager': {
       id: '/ams/role-manager'
-      path: '/ams/role-manager'
+      path: '/role-manager'
       fullPath: '/ams/role-manager'
       preLoaderRoute: typeof AmsRoleManagerRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/settings': {
       id: '/ams/settings'
-      path: '/ams/settings'
+      path: '/settings'
       fullPath: '/ams/settings'
       preLoaderRoute: typeof AmsSettingsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/trophies': {
       id: '/ams/trophies'
-      path: '/ams/trophies'
+      path: '/trophies'
       fullPath: '/ams/trophies'
       preLoaderRoute: typeof AmsTrophiesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/trophy-gallery': {
       id: '/ams/trophy-gallery'
-      path: '/ams/trophy-gallery'
+      path: '/trophy-gallery'
       fullPath: '/ams/trophy-gallery'
       preLoaderRoute: typeof AmsTrophyGalleryRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/trophy-stages': {
       id: '/ams/trophy-stages'
-      path: '/ams/trophy-stages'
+      path: '/trophy-stages'
       fullPath: '/ams/trophy-stages'
       preLoaderRoute: typeof AmsTrophyStagesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/trophy-vault': {
       id: '/ams/trophy-vault'
-      path: '/ams/trophy-vault'
+      path: '/trophy-vault'
       fullPath: '/ams/trophy-vault'
       preLoaderRoute: typeof AmsTrophyVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/trust-seal-vault': {
       id: '/ams/trust-seal-vault'
-      path: '/ams/trust-seal-vault'
+      path: '/trust-seal-vault'
       fullPath: '/ams/trust-seal-vault'
       preLoaderRoute: typeof AmsTrustSealVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/vendor-progression': {
       id: '/ams/vendor-progression'
-      path: '/ams/vendor-progression'
+      path: '/vendor-progression'
       fullPath: '/ams/vendor-progression'
       preLoaderRoute: typeof AmsVendorProgressionRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/verification-vault': {
       id: '/ams/verification-vault'
-      path: '/ams/verification-vault'
+      path: '/verification-vault'
       fullPath: '/ams/verification-vault'
       preLoaderRoute: typeof AmsVerificationVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/xp': {
       id: '/ams/xp'
-      path: '/ams/xp'
+      path: '/xp'
       fullPath: '/ams/xp'
       preLoaderRoute: typeof AmsXpRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/xp-crystal-vault': {
       id: '/ams/xp-crystal-vault'
-      path: '/ams/xp-crystal-vault'
+      path: '/xp-crystal-vault'
       fullPath: '/ams/xp-crystal-vault'
       preLoaderRoute: typeof AmsXpCrystalVaultRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/api/chat': {
       id: '/api/chat'
@@ -4583,73 +4545,73 @@ declare module '@tanstack/react-router' {
     }
     '/ams/awards/': {
       id: '/ams/awards/'
-      path: '/ams/awards'
+      path: '/awards'
       fullPath: '/ams/awards/'
       preLoaderRoute: typeof AmsAwardsIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/$id': {
       id: '/ams/awards/$id'
-      path: '/ams/awards/$id'
+      path: '/awards/$id'
       fullPath: '/ams/awards/$id'
       preLoaderRoute: typeof AmsAwardsIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/audit': {
       id: '/ams/awards/audit'
-      path: '/ams/awards/audit'
+      path: '/awards/audit'
       fullPath: '/ams/awards/audit'
       preLoaderRoute: typeof AmsAwardsAuditRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/categories': {
       id: '/ams/awards/categories'
-      path: '/ams/awards/categories'
+      path: '/awards/categories'
       fullPath: '/ams/awards/categories'
       preLoaderRoute: typeof AmsAwardsCategoriesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/effects': {
       id: '/ams/awards/effects'
-      path: '/ams/awards/effects'
+      path: '/awards/effects'
       fullPath: '/ams/awards/effects'
       preLoaderRoute: typeof AmsAwardsEffectsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/new': {
       id: '/ams/awards/new'
-      path: '/ams/awards/new'
+      path: '/awards/new'
       fullPath: '/ams/awards/new'
       preLoaderRoute: typeof AmsAwardsNewRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/collection/': {
       id: '/ams/collection/'
-      path: '/ams/collection'
+      path: '/collection'
       fullPath: '/ams/collection/'
       preLoaderRoute: typeof AmsCollectionIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/collection/$type': {
       id: '/ams/collection/$type'
-      path: '/ams/collection/$type'
+      path: '/collection/$type'
       fullPath: '/ams/collection/$type'
       preLoaderRoute: typeof AmsCollectionTypeRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/museum/': {
       id: '/ams/museum/'
-      path: '/ams/museum'
+      path: '/museum'
       fullPath: '/ams/museum/'
       preLoaderRoute: typeof AmsMuseumIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/museum/$showcase': {
       id: '/ams/museum/$showcase'
-      path: '/ams/museum/$showcase'
+      path: '/museum/$showcase'
       fullPath: '/ams/museum/$showcase'
       preLoaderRoute: typeof AmsMuseumShowcaseRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/role-manager/': {
       id: '/ams/role-manager/'
@@ -4667,38 +4629,38 @@ declare module '@tanstack/react-router' {
     }
     '/ams/role-showcase/': {
       id: '/ams/role-showcase/'
-      path: '/ams/role-showcase'
+      path: '/role-showcase'
       fullPath: '/ams/role-showcase/'
       preLoaderRoute: typeof AmsRoleShowcaseIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/role-showcase/$slug': {
       id: '/ams/role-showcase/$slug'
-      path: '/ams/role-showcase/$slug'
+      path: '/role-showcase/$slug'
       fullPath: '/ams/role-showcase/$slug'
       preLoaderRoute: typeof AmsRoleShowcaseSlugRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/tickets/': {
       id: '/ams/tickets/'
-      path: '/ams/tickets'
+      path: '/tickets'
       fullPath: '/ams/tickets/'
       preLoaderRoute: typeof AmsTicketsIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/tickets/$id': {
       id: '/ams/tickets/$id'
-      path: '/ams/tickets/$id'
+      path: '/tickets/$id'
       fullPath: '/ams/tickets/$id'
       preLoaderRoute: typeof AmsTicketsIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/tickets/new': {
       id: '/ams/tickets/new'
-      path: '/ams/tickets/new'
+      path: '/tickets/new'
       fullPath: '/ams/tickets/new'
       preLoaderRoute: typeof AmsTicketsNewRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/api/account/purchases': {
       id: '/api/account/purchases'
@@ -4968,66 +4930,66 @@ declare module '@tanstack/react-router' {
     }
     '/ams/awards/libraries/achievements': {
       id: '/ams/awards/libraries/achievements'
-      path: '/ams/awards/libraries/achievements'
+      path: '/awards/libraries/achievements'
       fullPath: '/ams/awards/libraries/achievements'
       preLoaderRoute: typeof AmsAwardsLibrariesAchievementsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/libraries/badges': {
       id: '/ams/awards/libraries/badges'
-      path: '/ams/awards/libraries/badges'
+      path: '/awards/libraries/badges'
       fullPath: '/ams/awards/libraries/badges'
       preLoaderRoute: typeof AmsAwardsLibrariesBadgesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/libraries/ranks': {
       id: '/ams/awards/libraries/ranks'
-      path: '/ams/awards/libraries/ranks'
+      path: '/awards/libraries/ranks'
       fullPath: '/ams/awards/libraries/ranks'
       preLoaderRoute: typeof AmsAwardsLibrariesRanksRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/libraries/trophies': {
       id: '/ams/awards/libraries/trophies'
-      path: '/ams/awards/libraries/trophies'
+      path: '/awards/libraries/trophies'
       fullPath: '/ams/awards/libraries/trophies'
       preLoaderRoute: typeof AmsAwardsLibrariesTrophiesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/rules/levels': {
       id: '/ams/awards/rules/levels'
-      path: '/ams/awards/rules/levels'
+      path: '/awards/rules/levels'
       fullPath: '/ams/awards/rules/levels'
       preLoaderRoute: typeof AmsAwardsRulesLevelsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/rules/milestones': {
       id: '/ams/awards/rules/milestones'
-      path: '/ams/awards/rules/milestones'
+      path: '/awards/rules/milestones'
       fullPath: '/ams/awards/rules/milestones'
       preLoaderRoute: typeof AmsAwardsRulesMilestonesRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/rules/rewards': {
       id: '/ams/awards/rules/rewards'
-      path: '/ams/awards/rules/rewards'
+      path: '/awards/rules/rewards'
       fullPath: '/ams/awards/rules/rewards'
       preLoaderRoute: typeof AmsAwardsRulesRewardsRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/rules/streaks': {
       id: '/ams/awards/rules/streaks'
-      path: '/ams/awards/rules/streaks'
+      path: '/awards/rules/streaks'
       fullPath: '/ams/awards/rules/streaks'
       preLoaderRoute: typeof AmsAwardsRulesStreaksRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/ams/awards/rules/xp': {
       id: '/ams/awards/rules/xp'
-      path: '/ams/awards/rules/xp'
+      path: '/awards/rules/xp'
       fullPath: '/ams/awards/rules/xp'
       preLoaderRoute: typeof AmsAwardsRulesXpRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AmsRoute
     }
     '/api/account/invoice/$id': {
       id: '/api/account/invoice/$id'
@@ -5168,6 +5130,192 @@ const AiCeoRouteChildren: AiCeoRouteChildren = {
 
 const AiCeoRouteWithChildren = AiCeoRoute._addFileChildren(AiCeoRouteChildren)
 
+interface AmsRoleManagerRouteChildren {
+  AmsRoleManagerSlugRoute: typeof AmsRoleManagerSlugRoute
+  AmsRoleManagerIndexRoute: typeof AmsRoleManagerIndexRoute
+}
+
+const AmsRoleManagerRouteChildren: AmsRoleManagerRouteChildren = {
+  AmsRoleManagerSlugRoute: AmsRoleManagerSlugRoute,
+  AmsRoleManagerIndexRoute: AmsRoleManagerIndexRoute,
+}
+
+const AmsRoleManagerRouteWithChildren = AmsRoleManagerRoute._addFileChildren(
+  AmsRoleManagerRouteChildren,
+)
+
+interface AmsAwardsIdRouteChildren {
+  AmsAwardsIdEditRoute: typeof AmsAwardsIdEditRoute
+}
+
+const AmsAwardsIdRouteChildren: AmsAwardsIdRouteChildren = {
+  AmsAwardsIdEditRoute: AmsAwardsIdEditRoute,
+}
+
+const AmsAwardsIdRouteWithChildren = AmsAwardsIdRoute._addFileChildren(
+  AmsAwardsIdRouteChildren,
+)
+
+interface AmsRouteChildren {
+  AmsAchievementVaultRoute: typeof AmsAchievementVaultRoute
+  AmsAchievementsRoute: typeof AmsAchievementsRoute
+  AmsAiRoute: typeof AmsAiRoute
+  AmsAnalyticsRoute: typeof AmsAnalyticsRoute
+  AmsAuditRoute: typeof AmsAuditRoute
+  AmsAuthorProgressionRoute: typeof AmsAuthorProgressionRoute
+  AmsAwardVaultRoute: typeof AmsAwardVaultRoute
+  AmsBadgeVaultRoute: typeof AmsBadgeVaultRoute
+  AmsBadgesRoute: typeof AmsBadgesRoute
+  AmsCertificateVaultRoute: typeof AmsCertificateVaultRoute
+  AmsCertificatesRoute: typeof AmsCertificatesRoute
+  AmsChallengesRoute: typeof AmsChallengesRoute
+  AmsChatRoute: typeof AmsChatRoute
+  AmsClaimsRoute: typeof AmsClaimsRoute
+  AmsCollectionsRoute: typeof AmsCollectionsRoute
+  AmsDeveloperProgressionRoute: typeof AmsDeveloperProgressionRoute
+  AmsFounderSealVaultRoute: typeof AmsFounderSealVaultRoute
+  AmsHallOfFameRoute: typeof AmsHallOfFameRoute
+  AmsHallOfFameVaultRoute: typeof AmsHallOfFameVaultRoute
+  AmsHonorCoinVaultRoute: typeof AmsHonorCoinVaultRoute
+  AmsIdentityRoute: typeof AmsIdentityRoute
+  AmsIdentityCardVaultRoute: typeof AmsIdentityCardVaultRoute
+  AmsLeaderboardsRoute: typeof AmsLeaderboardsRoute
+  AmsLegacyRoute: typeof AmsLegacyRoute
+  AmsLegacyMedalVaultRoute: typeof AmsLegacyMedalVaultRoute
+  AmsLevelsRoute: typeof AmsLevelsRoute
+  AmsLicenseCardVaultRoute: typeof AmsLicenseCardVaultRoute
+  AmsMembershipVaultRoute: typeof AmsMembershipVaultRoute
+  AmsMissionsRoute: typeof AmsMissionsRoute
+  AmsNotificationsRoute: typeof AmsNotificationsRoute
+  AmsOverviewRoute: typeof AmsOverviewRoute
+  AmsPassportRoute: typeof AmsPassportRoute
+  AmsPassportVaultRoute: typeof AmsPassportVaultRoute
+  AmsQuestsRoute: typeof AmsQuestsRoute
+  AmsRankVaultRoute: typeof AmsRankVaultRoute
+  AmsRanksRoute: typeof AmsRanksRoute
+  AmsRecognitionCoinVaultRoute: typeof AmsRecognitionCoinVaultRoute
+  AmsReputationVaultRoute: typeof AmsReputationVaultRoute
+  AmsRewardChestVaultRoute: typeof AmsRewardChestVaultRoute
+  AmsRewardsRoute: typeof AmsRewardsRoute
+  AmsRoleManagerRoute: typeof AmsRoleManagerRouteWithChildren
+  AmsSettingsRoute: typeof AmsSettingsRoute
+  AmsTrophiesRoute: typeof AmsTrophiesRoute
+  AmsTrophyGalleryRoute: typeof AmsTrophyGalleryRoute
+  AmsTrophyStagesRoute: typeof AmsTrophyStagesRoute
+  AmsTrophyVaultRoute: typeof AmsTrophyVaultRoute
+  AmsTrustSealVaultRoute: typeof AmsTrustSealVaultRoute
+  AmsVendorProgressionRoute: typeof AmsVendorProgressionRoute
+  AmsVerificationVaultRoute: typeof AmsVerificationVaultRoute
+  AmsXpRoute: typeof AmsXpRoute
+  AmsXpCrystalVaultRoute: typeof AmsXpCrystalVaultRoute
+  AmsIndexRoute: typeof AmsIndexRoute
+  AmsAwardsIdRoute: typeof AmsAwardsIdRouteWithChildren
+  AmsAwardsAuditRoute: typeof AmsAwardsAuditRoute
+  AmsAwardsCategoriesRoute: typeof AmsAwardsCategoriesRoute
+  AmsAwardsEffectsRoute: typeof AmsAwardsEffectsRoute
+  AmsAwardsNewRoute: typeof AmsAwardsNewRoute
+  AmsCollectionTypeRoute: typeof AmsCollectionTypeRoute
+  AmsMuseumShowcaseRoute: typeof AmsMuseumShowcaseRoute
+  AmsRoleShowcaseSlugRoute: typeof AmsRoleShowcaseSlugRoute
+  AmsTicketsIdRoute: typeof AmsTicketsIdRoute
+  AmsTicketsNewRoute: typeof AmsTicketsNewRoute
+  AmsAwardsIndexRoute: typeof AmsAwardsIndexRoute
+  AmsCollectionIndexRoute: typeof AmsCollectionIndexRoute
+  AmsMuseumIndexRoute: typeof AmsMuseumIndexRoute
+  AmsRoleShowcaseIndexRoute: typeof AmsRoleShowcaseIndexRoute
+  AmsTicketsIndexRoute: typeof AmsTicketsIndexRoute
+  AmsAwardsLibrariesAchievementsRoute: typeof AmsAwardsLibrariesAchievementsRoute
+  AmsAwardsLibrariesBadgesRoute: typeof AmsAwardsLibrariesBadgesRoute
+  AmsAwardsLibrariesRanksRoute: typeof AmsAwardsLibrariesRanksRoute
+  AmsAwardsLibrariesTrophiesRoute: typeof AmsAwardsLibrariesTrophiesRoute
+  AmsAwardsRulesLevelsRoute: typeof AmsAwardsRulesLevelsRoute
+  AmsAwardsRulesMilestonesRoute: typeof AmsAwardsRulesMilestonesRoute
+  AmsAwardsRulesRewardsRoute: typeof AmsAwardsRulesRewardsRoute
+  AmsAwardsRulesStreaksRoute: typeof AmsAwardsRulesStreaksRoute
+  AmsAwardsRulesXpRoute: typeof AmsAwardsRulesXpRoute
+}
+
+const AmsRouteChildren: AmsRouteChildren = {
+  AmsAchievementVaultRoute: AmsAchievementVaultRoute,
+  AmsAchievementsRoute: AmsAchievementsRoute,
+  AmsAiRoute: AmsAiRoute,
+  AmsAnalyticsRoute: AmsAnalyticsRoute,
+  AmsAuditRoute: AmsAuditRoute,
+  AmsAuthorProgressionRoute: AmsAuthorProgressionRoute,
+  AmsAwardVaultRoute: AmsAwardVaultRoute,
+  AmsBadgeVaultRoute: AmsBadgeVaultRoute,
+  AmsBadgesRoute: AmsBadgesRoute,
+  AmsCertificateVaultRoute: AmsCertificateVaultRoute,
+  AmsCertificatesRoute: AmsCertificatesRoute,
+  AmsChallengesRoute: AmsChallengesRoute,
+  AmsChatRoute: AmsChatRoute,
+  AmsClaimsRoute: AmsClaimsRoute,
+  AmsCollectionsRoute: AmsCollectionsRoute,
+  AmsDeveloperProgressionRoute: AmsDeveloperProgressionRoute,
+  AmsFounderSealVaultRoute: AmsFounderSealVaultRoute,
+  AmsHallOfFameRoute: AmsHallOfFameRoute,
+  AmsHallOfFameVaultRoute: AmsHallOfFameVaultRoute,
+  AmsHonorCoinVaultRoute: AmsHonorCoinVaultRoute,
+  AmsIdentityRoute: AmsIdentityRoute,
+  AmsIdentityCardVaultRoute: AmsIdentityCardVaultRoute,
+  AmsLeaderboardsRoute: AmsLeaderboardsRoute,
+  AmsLegacyRoute: AmsLegacyRoute,
+  AmsLegacyMedalVaultRoute: AmsLegacyMedalVaultRoute,
+  AmsLevelsRoute: AmsLevelsRoute,
+  AmsLicenseCardVaultRoute: AmsLicenseCardVaultRoute,
+  AmsMembershipVaultRoute: AmsMembershipVaultRoute,
+  AmsMissionsRoute: AmsMissionsRoute,
+  AmsNotificationsRoute: AmsNotificationsRoute,
+  AmsOverviewRoute: AmsOverviewRoute,
+  AmsPassportRoute: AmsPassportRoute,
+  AmsPassportVaultRoute: AmsPassportVaultRoute,
+  AmsQuestsRoute: AmsQuestsRoute,
+  AmsRankVaultRoute: AmsRankVaultRoute,
+  AmsRanksRoute: AmsRanksRoute,
+  AmsRecognitionCoinVaultRoute: AmsRecognitionCoinVaultRoute,
+  AmsReputationVaultRoute: AmsReputationVaultRoute,
+  AmsRewardChestVaultRoute: AmsRewardChestVaultRoute,
+  AmsRewardsRoute: AmsRewardsRoute,
+  AmsRoleManagerRoute: AmsRoleManagerRouteWithChildren,
+  AmsSettingsRoute: AmsSettingsRoute,
+  AmsTrophiesRoute: AmsTrophiesRoute,
+  AmsTrophyGalleryRoute: AmsTrophyGalleryRoute,
+  AmsTrophyStagesRoute: AmsTrophyStagesRoute,
+  AmsTrophyVaultRoute: AmsTrophyVaultRoute,
+  AmsTrustSealVaultRoute: AmsTrustSealVaultRoute,
+  AmsVendorProgressionRoute: AmsVendorProgressionRoute,
+  AmsVerificationVaultRoute: AmsVerificationVaultRoute,
+  AmsXpRoute: AmsXpRoute,
+  AmsXpCrystalVaultRoute: AmsXpCrystalVaultRoute,
+  AmsIndexRoute: AmsIndexRoute,
+  AmsAwardsIdRoute: AmsAwardsIdRouteWithChildren,
+  AmsAwardsAuditRoute: AmsAwardsAuditRoute,
+  AmsAwardsCategoriesRoute: AmsAwardsCategoriesRoute,
+  AmsAwardsEffectsRoute: AmsAwardsEffectsRoute,
+  AmsAwardsNewRoute: AmsAwardsNewRoute,
+  AmsCollectionTypeRoute: AmsCollectionTypeRoute,
+  AmsMuseumShowcaseRoute: AmsMuseumShowcaseRoute,
+  AmsRoleShowcaseSlugRoute: AmsRoleShowcaseSlugRoute,
+  AmsTicketsIdRoute: AmsTicketsIdRoute,
+  AmsTicketsNewRoute: AmsTicketsNewRoute,
+  AmsAwardsIndexRoute: AmsAwardsIndexRoute,
+  AmsCollectionIndexRoute: AmsCollectionIndexRoute,
+  AmsMuseumIndexRoute: AmsMuseumIndexRoute,
+  AmsRoleShowcaseIndexRoute: AmsRoleShowcaseIndexRoute,
+  AmsTicketsIndexRoute: AmsTicketsIndexRoute,
+  AmsAwardsLibrariesAchievementsRoute: AmsAwardsLibrariesAchievementsRoute,
+  AmsAwardsLibrariesBadgesRoute: AmsAwardsLibrariesBadgesRoute,
+  AmsAwardsLibrariesRanksRoute: AmsAwardsLibrariesRanksRoute,
+  AmsAwardsLibrariesTrophiesRoute: AmsAwardsLibrariesTrophiesRoute,
+  AmsAwardsRulesLevelsRoute: AmsAwardsRulesLevelsRoute,
+  AmsAwardsRulesMilestonesRoute: AmsAwardsRulesMilestonesRoute,
+  AmsAwardsRulesRewardsRoute: AmsAwardsRulesRewardsRoute,
+  AmsAwardsRulesStreaksRoute: AmsAwardsRulesStreaksRoute,
+  AmsAwardsRulesXpRoute: AmsAwardsRulesXpRoute,
+}
+
+const AmsRouteWithChildren = AmsRoute._addFileChildren(AmsRouteChildren)
+
 interface LeadManagerRouteChildren {
   LeadManagerIndexRoute: typeof LeadManagerIndexRoute
 }
@@ -5284,37 +5432,12 @@ const ValaAiRouteChildren: ValaAiRouteChildren = {
 const ValaAiRouteWithChildren =
   ValaAiRoute._addFileChildren(ValaAiRouteChildren)
 
-interface AmsRoleManagerRouteChildren {
-  AmsRoleManagerSlugRoute: typeof AmsRoleManagerSlugRoute
-  AmsRoleManagerIndexRoute: typeof AmsRoleManagerIndexRoute
-}
-
-const AmsRoleManagerRouteChildren: AmsRoleManagerRouteChildren = {
-  AmsRoleManagerSlugRoute: AmsRoleManagerSlugRoute,
-  AmsRoleManagerIndexRoute: AmsRoleManagerIndexRoute,
-}
-
-const AmsRoleManagerRouteWithChildren = AmsRoleManagerRoute._addFileChildren(
-  AmsRoleManagerRouteChildren,
-)
-
-interface AmsAwardsIdRouteChildren {
-  AmsAwardsIdEditRoute: typeof AmsAwardsIdEditRoute
-}
-
-const AmsAwardsIdRouteChildren: AmsAwardsIdRouteChildren = {
-  AmsAwardsIdEditRoute: AmsAwardsIdEditRoute,
-}
-
-const AmsAwardsIdRouteWithChildren = AmsAwardsIdRoute._addFileChildren(
-  AmsAwardsIdRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AffiliateManagerRoute: AffiliateManagerRouteWithChildren,
   AiApiManagerRoute: AiApiManagerRoute,
   AiCeoRoute: AiCeoRouteWithChildren,
+  AmsRoute: AmsRouteWithChildren,
   AmsManagerRoute: AmsManagerRoute,
   AuthRoute: AuthRoute,
   BossRoute: BossRoute,
@@ -5363,57 +5486,6 @@ const rootRouteChildren: RootRouteChildren = {
   AiCompareRoute: AiCompareRoute,
   AiFinderRoute: AiFinderRoute,
   AiRecommendRoute: AiRecommendRoute,
-  AmsAchievementVaultRoute: AmsAchievementVaultRoute,
-  AmsAchievementsRoute: AmsAchievementsRoute,
-  AmsAiRoute: AmsAiRoute,
-  AmsAnalyticsRoute: AmsAnalyticsRoute,
-  AmsAuditRoute: AmsAuditRoute,
-  AmsAuthorProgressionRoute: AmsAuthorProgressionRoute,
-  AmsAwardVaultRoute: AmsAwardVaultRoute,
-  AmsBadgeVaultRoute: AmsBadgeVaultRoute,
-  AmsBadgesRoute: AmsBadgesRoute,
-  AmsCertificateVaultRoute: AmsCertificateVaultRoute,
-  AmsCertificatesRoute: AmsCertificatesRoute,
-  AmsChallengesRoute: AmsChallengesRoute,
-  AmsChatRoute: AmsChatRoute,
-  AmsClaimsRoute: AmsClaimsRoute,
-  AmsCollectionsRoute: AmsCollectionsRoute,
-  AmsDeveloperProgressionRoute: AmsDeveloperProgressionRoute,
-  AmsFounderSealVaultRoute: AmsFounderSealVaultRoute,
-  AmsHallOfFameRoute: AmsHallOfFameRoute,
-  AmsHallOfFameVaultRoute: AmsHallOfFameVaultRoute,
-  AmsHonorCoinVaultRoute: AmsHonorCoinVaultRoute,
-  AmsIdentityRoute: AmsIdentityRoute,
-  AmsIdentityCardVaultRoute: AmsIdentityCardVaultRoute,
-  AmsLeaderboardsRoute: AmsLeaderboardsRoute,
-  AmsLegacyRoute: AmsLegacyRoute,
-  AmsLegacyMedalVaultRoute: AmsLegacyMedalVaultRoute,
-  AmsLevelsRoute: AmsLevelsRoute,
-  AmsLicenseCardVaultRoute: AmsLicenseCardVaultRoute,
-  AmsMembershipVaultRoute: AmsMembershipVaultRoute,
-  AmsMissionsRoute: AmsMissionsRoute,
-  AmsNotificationsRoute: AmsNotificationsRoute,
-  AmsOverviewRoute: AmsOverviewRoute,
-  AmsPassportRoute: AmsPassportRoute,
-  AmsPassportVaultRoute: AmsPassportVaultRoute,
-  AmsQuestsRoute: AmsQuestsRoute,
-  AmsRankVaultRoute: AmsRankVaultRoute,
-  AmsRanksRoute: AmsRanksRoute,
-  AmsRecognitionCoinVaultRoute: AmsRecognitionCoinVaultRoute,
-  AmsReputationVaultRoute: AmsReputationVaultRoute,
-  AmsRewardChestVaultRoute: AmsRewardChestVaultRoute,
-  AmsRewardsRoute: AmsRewardsRoute,
-  AmsRoleManagerRoute: AmsRoleManagerRouteWithChildren,
-  AmsSettingsRoute: AmsSettingsRoute,
-  AmsTrophiesRoute: AmsTrophiesRoute,
-  AmsTrophyGalleryRoute: AmsTrophyGalleryRoute,
-  AmsTrophyStagesRoute: AmsTrophyStagesRoute,
-  AmsTrophyVaultRoute: AmsTrophyVaultRoute,
-  AmsTrustSealVaultRoute: AmsTrustSealVaultRoute,
-  AmsVendorProgressionRoute: AmsVendorProgressionRoute,
-  AmsVerificationVaultRoute: AmsVerificationVaultRoute,
-  AmsXpRoute: AmsXpRoute,
-  AmsXpCrystalVaultRoute: AmsXpCrystalVaultRoute,
   ApiChatRoute: ApiChatRoute,
   ApplyRoleRoute: ApplyRoleRoute,
   DashboardRoleRoute: DashboardRoleRoute,
@@ -5425,16 +5497,6 @@ const rootRouteChildren: RootRouteChildren = {
   AcademyIndexRoute: AcademyIndexRoute,
   ApplyIndexRoute: ApplyIndexRoute,
   ProxyDemoRoute: ProxyDemoRoute,
-  AmsAwardsIdRoute: AmsAwardsIdRouteWithChildren,
-  AmsAwardsAuditRoute: AmsAwardsAuditRoute,
-  AmsAwardsCategoriesRoute: AmsAwardsCategoriesRoute,
-  AmsAwardsEffectsRoute: AmsAwardsEffectsRoute,
-  AmsAwardsNewRoute: AmsAwardsNewRoute,
-  AmsCollectionTypeRoute: AmsCollectionTypeRoute,
-  AmsMuseumShowcaseRoute: AmsMuseumShowcaseRoute,
-  AmsRoleShowcaseSlugRoute: AmsRoleShowcaseSlugRoute,
-  AmsTicketsIdRoute: AmsTicketsIdRoute,
-  AmsTicketsNewRoute: AmsTicketsNewRoute,
   ApiAccountPurchasesRoute: ApiAccountPurchasesRoute,
   ApiAffiliateAccountRoute: ApiAffiliateAccountRoute,
   ApiAffiliateAttributeRoute: ApiAffiliateAttributeRoute,
@@ -5468,20 +5530,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPaymentWebhookRoute: ApiPaymentWebhookRoute,
   ApiSellerMetricsRoute: ApiSellerMetricsRoute,
   ApiTrackRefRoute: ApiTrackRefRoute,
-  AmsAwardsIndexRoute: AmsAwardsIndexRoute,
-  AmsCollectionIndexRoute: AmsCollectionIndexRoute,
-  AmsMuseumIndexRoute: AmsMuseumIndexRoute,
-  AmsRoleShowcaseIndexRoute: AmsRoleShowcaseIndexRoute,
-  AmsTicketsIndexRoute: AmsTicketsIndexRoute,
-  AmsAwardsLibrariesAchievementsRoute: AmsAwardsLibrariesAchievementsRoute,
-  AmsAwardsLibrariesBadgesRoute: AmsAwardsLibrariesBadgesRoute,
-  AmsAwardsLibrariesRanksRoute: AmsAwardsLibrariesRanksRoute,
-  AmsAwardsLibrariesTrophiesRoute: AmsAwardsLibrariesTrophiesRoute,
-  AmsAwardsRulesLevelsRoute: AmsAwardsRulesLevelsRoute,
-  AmsAwardsRulesMilestonesRoute: AmsAwardsRulesMilestonesRoute,
-  AmsAwardsRulesRewardsRoute: AmsAwardsRulesRewardsRoute,
-  AmsAwardsRulesStreaksRoute: AmsAwardsRulesStreaksRoute,
-  AmsAwardsRulesXpRoute: AmsAwardsRulesXpRoute,
   ApiAccountInvoiceIdRoute: ApiAccountInvoiceIdRoute,
   ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,
   ApiProxyDemoSplatRoute: ApiProxyDemoSplatRoute,

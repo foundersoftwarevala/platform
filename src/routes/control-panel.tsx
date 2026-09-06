@@ -239,7 +239,10 @@ function Index() {
               // by the cases above keep their existing behaviour; this only
               // catches the ones that used to fall through to a toast.
               const MODULE_ROUTES: Record<string, string> = {
-                  ams_manager: "/ams-manager",
+                  // AMS Manager is one module: the whole AMS experience with its
+                  // own sidebar, mounted at /ams. The older /ams-manager panel is
+                  // left in place and still works; this entry opens the module.
+                  ams_manager: "/ams",
                   chat_manager: "/chat-manager",
                   creator_manager: "/creator-manager",
                   demo_manager: "/demo-manager",
