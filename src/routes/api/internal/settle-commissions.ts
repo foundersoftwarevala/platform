@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { recordCommissionsForOrder, reverseCommissionsForOrder } from "@/lib/commerce/commission";
+import { createInvoiceForOrder } from "@/lib/commerce/invoices";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 
 /**
@@ -40,16 +41,61 @@ export const Route = createFileRoute("/api/internal/settle-commissions")({
           return Response.json({ error: "orderId is required" }, { status: 400 });
         }
 
-        const result = body.reverse
-          ? await reverseCommissionsForOrder(
+        if (body.reverse) {
+          const reversal = await reverseCommissionsForOrder(
+            orderId,
+            body.refundId ?? null,
+            String(body.reason ?? "manual reversal"),
+          );
+          return Response.json(
+            { orderId, mode: "reverse", ...reversal },
+            { status: reversal.ok ? 200 : 502 },
+          );
+        }
+
+        const result = await recordCommissionsForOrder(orderId);
+
+        // A missed webhook costs the business its invoice as well as the
+        // author's commission, so a replay reissues both. The invoicing module
+        // is already idempotent on the order, so this cannot double-issue.
+        let invoice: { created: boolean; invoiceNo: string | null; error?: string } = {
+          created: false, invoiceNo: null,
+        };
+        const orderResponse = await fetch(
+          `${process.env.SUPABASE_URL?.trim() ?? ""}/rest/v1/marketplace_orders` +
+            `?select=id,buyer_id,user_id,total,amount_inr,currency,currency_charged,metadata` +
+            `&id=eq.${encodeURIComponent(orderId)}&limit=1`,
+          {
+            headers: {
+              apikey: process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "",
+              Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? ""}`,
+            },
+          },
+        );
+        if (orderResponse.ok) {
+          const order = ((await orderResponse.json()) as Record<string, unknown>[])[0];
+          if (order) {
+            const metadata = (order.metadata ?? {}) as Record<string, unknown>;
+            const currency = String(order.currency_charged ?? order.currency ?? "USD");
+            const issued = await createInvoiceForOrder({
+              userId: String(order.buyer_id ?? order.user_id ?? ""),
               orderId,
-              body.refundId ?? null,
-              String(body.reason ?? "manual reversal"),
-            )
-          : await recordCommissionsForOrder(orderId);
+              amount: Number(currency === "INR" ? order.amount_inr ?? order.total : order.total) || 0,
+              currency,
+              productName: String(metadata.product_name ?? "Software Vala lifetime licence"),
+              clientName: String(metadata.buyer_name ?? metadata.email ?? "Marketplace customer"),
+              status: "paid",
+            });
+            invoice = {
+              created: issued.created,
+              invoiceNo: (issued.invoice as { invoice_no?: string } | null)?.invoice_no ?? null,
+              error: issued.error,
+            };
+          }
+        }
 
         return Response.json(
-          { orderId, mode: body.reverse ? "reverse" : "record", ...result },
+          { orderId, mode: "record", ...result, invoice },
           { status: result.ok ? 200 : 502 },
         );
       },

@@ -55,6 +55,40 @@ export const MANAGER_TABLES = [
   "customer_finance_profiles",
   "reseller_membership_orders",
   "reseller_payment_intents",
+  // Where the marketplace's real money lives. Orders, the lines within them,
+  // the commission each line owes an author or vendor, refunds and payouts.
+  // Finance could not see any of this: none of it was reachable through the
+  // data layer, so the console showed API-usage billing and nothing else.
+  "marketplace_orders",
+  "marketplace_order_items",
+  "marketplace_payment_intents",
+  "marketplace_payment_events",
+  "marketplace_order_refunds",
+  "marketplace_commissions",
+  "marketplace_commission_rules",
+  "marketplace_commission_reversals",
+  "marketplace_payouts",
+  "marketplace_coupons",
+  "marketplace_licenses",
+  // The finance tables that actually carry rows. The list already had the
+  // operational ones, which are all empty; these are the populated ones.
+  "finance_transactions",
+  "finance_subscriptions",
+  "finance_plans",
+  "finance_wallets",
+  "finance_wallet_transactions",
+  "finance_payouts",
+  "finance_commissions",
+  "finance_expenses",
+  "finance_tax_records",
+  "finance_daily_metrics",
+  "finance_approvals",
+  "finance_alerts",
+  "finance_fraud_alerts",
+  "finance_gateways",
+  // Entitlement is what the buyer actually received for the money.
+  "licenses",
+  "entitlements",
 ] as const;
 
 export type ManagerTable = (typeof MANAGER_TABLES)[number];

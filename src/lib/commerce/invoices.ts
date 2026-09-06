@@ -101,6 +101,13 @@ export async function createInvoiceForOrder(
       status: toDbStatus(status),
       auto_generated: true,
       issue_date: now.slice(0, 10),
+      // NOT NULL on this table. Every insert was being rejected without it, so
+      // no settled order ever produced an invoice. A paid invoice is not owed
+      // later; anything else gets the customary fourteen days.
+      due_date:
+        status === "paid"
+          ? now.slice(0, 10)
+          : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       paid_at: status === "paid" ? now : null,
       line_items: {
         items: [

@@ -51,11 +51,16 @@ async function requireManager() {
   const db = await admin();
   const { data: user, error: userError } = await db.auth.getUser(token);
   if (userError || !user.user) throw new Error("Manager authentication required");
-  const [{ data: isAdmin }, { data: isBoss }] = await Promise.all([
+  // The Control Panel gates the Finance Manager on the `finance` role, so a
+  // finance operator has to be able to use the data layer behind it. Without
+  // this they passed the door and were refused here, and the console loaded
+  // empty with nothing to explain why. Admin and boss keep what they had.
+  const [{ data: isAdmin }, { data: isBoss }, { data: isFinance }] = await Promise.all([
     db.rpc("has_role", { _user_id: user.user.id, _role: "admin" }),
     db.rpc("has_role", { _user_id: user.user.id, _role: "boss" }),
+    db.rpc("has_role", { _user_id: user.user.id, _role: "finance" }),
   ]);
-  if (!isAdmin && !isBoss) throw new Error("Manager permission required");
+  if (!isAdmin && !isBoss && !isFinance) throw new Error("Manager permission required");
   return db;
 }
 
