@@ -208,6 +208,10 @@ function Index() {
                 void navigate({ to: "/dashboard/$role", params: { role: dashRole } });
                 return;
               }
+              if (roleId === "assist_manager") {
+                void navigate({ to: "/assist-manager" });
+                return;
+              }
               if (roleId === "promise_tracker_manager") {
                 void navigate({ to: "/promise-tracker" });
                 return;
@@ -271,7 +275,6 @@ function Index() {
                   api_ai_manager: "/ai-api-manager",
                   marketing_management: "/marketing",
                   customer_support_management: "/support",
-                  assist_manager: "/support-agent",
                   product_manager: "/product-demo-manager",
                   // The button existed; it pointed at the API usage monitor because
                   // no Server Manager module existed to open. It does now.
