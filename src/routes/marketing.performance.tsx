@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { recordAudit, tableQuery } from "@/lib/marketing/api";
 import { buildCsv, csvFilename, downloadCsv } from "@/lib/marketing/csv";
 import { compactInr, compactNum, ctr, num, pct, roas, shortDate } from "@/lib/marketing/format";
+import { SeedDataNotice } from "@/components/marketing/SeedNotice";
 
 export const Route = createFileRoute("/marketing/performance")({
   head: () => ({
@@ -106,6 +107,7 @@ function PerformanceScreen() {
 
   return (
     <div className="space-y-6">
+      <SeedDataNotice />
       <ScreenHeader
         title="Performance"
         description="Daily delivery, channel efficiency and budget pacing across the marketing portfolio."

@@ -30,6 +30,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { tableQuery } from "@/lib/marketing/api";
 import { compactInr, compactNum, ctr, dateTime, pct, roas, shortDate, toNum } from "@/lib/marketing/format";
+import { SeedDataNotice } from "@/components/marketing/SeedNotice";
 
 export const Route = createFileRoute("/marketing/")({
   head: () => ({
@@ -97,6 +98,7 @@ function MarketingOverview() {
 
   return (
     <div className="space-y-6">
+      <SeedDataNotice />
       <ScreenHeader
         title="Marketing Overview"
         description="Rolling 30-day performance across every channel, campaign and region."

@@ -1,9 +1,9 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Bell, Menu, PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-react";
+import { Activity, Bell, ChevronDown, Menu, PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-react";
 import { useState } from "react";
 
-import { marketingNav } from "@/components/marketing/nav";
+import { marketingGroups, marketingNav, marketingPrimary } from "@/components/marketing/nav";
 import { StatusBadge } from "@/components/marketing/kit";
 import { Toaster } from "@/components/ui/sonner";
 import { tableQuery } from "@/lib/marketing/api";
@@ -20,12 +20,45 @@ function MarketingLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const openAlerts = (alerts.data ?? []).filter((a) => a.status === "open");
   const critical = openAlerts.some((a) => a.severity === "critical");
   const health = critical ? "critical" : openAlerts.length > 0 ? "warning" : "active";
   const active = marketingNav.find((item) => item.to === pathname) ?? marketingNav[0];
-  const filteredNav = marketingNav.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()));
+  const needle = query.trim().toLowerCase();
+  // While searching, every group is shown open and reduced to its matches;
+  // with no search the groups behave normally.
+  const filteredGroups = needle
+    ? marketingGroups
+        .map((g) => ({ ...g, items: g.items.filter((i) => i.label.toLowerCase().includes(needle)) }))
+        .filter((g) => g.items.length > 0)
+    : null;
+  const filteredPrimary = needle
+    ? marketingPrimary.filter((i) => i.label.toLowerCase().includes(needle))
+    : marketingPrimary;
+
+  const NavLink = ({ item }: { item: (typeof marketingNav)[number] }) => {
+    const isActive = pathname === item.to;
+    return (
+      <Link
+        to={item.to}
+        onClick={() => setMobileOpen(false)}
+        title={item.label}
+        className={cn(
+          "group/item relative flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-all duration-150",
+          collapsed && "justify-center px-0",
+          isActive
+            ? "bg-gradient-brand font-medium text-brand-foreground shadow-glow"
+            : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+        )}
+      >
+        {isActive && <span className="absolute bottom-1.5 left-0 top-1.5 w-[2px] rounded-full bg-primary" />}
+        <item.icon className="h-4 w-4 shrink-0" />
+        {!collapsed && <span className="truncate">{item.label}</span>}
+      </Link>
+    );
+  };
 
   return (
     <RequireRole role="marketing">
@@ -47,26 +80,42 @@ function MarketingLayout() {
         {!collapsed && <div className="shrink-0 px-3 pt-3"><div className="focus-glow flex items-center gap-2 rounded-lg border border-sidebar-border bg-surface px-2.5 py-1.5"><Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a module…" aria-label="Find a module" className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground" /></div></div>}
 
         <nav aria-label="Marketing manager navigation" className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-          {filteredNav.map((item) => {
-            const isActive = pathname === item.to;
+          {filteredPrimary.map((item) => (
+            <NavLink key={item.to} item={item} />
+          ))}
+
+          {(filteredGroups ?? marketingGroups).map((group) => {
+            const open = filteredGroups ? true : (openGroups[group.label] ?? group.items.some((i) => i.to === pathname));
+            if (collapsed) {
+              // Collapsed to icons there is no room for a heading, so the
+              // groups become separated runs instead.
+              return (
+                <div key={group.label} className="space-y-0.5 border-t border-sidebar-border/60 pt-2">
+                  {group.items.map((item) => (
+                    <NavLink key={item.to} item={item} />
+                  ))}
+                </div>
+              );
+            }
             return (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={() => setMobileOpen(false)}
-                title={item.label}
-                className={cn(
-                  "group/item relative flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-all duration-150",
-                  collapsed && "justify-center px-0",
-                  isActive
-                    ? "bg-gradient-brand font-medium text-brand-foreground shadow-glow"
-                    : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+              <div key={group.label}>
+                <button
+                  type="button"
+                  onClick={() => setOpenGroups((s) => ({ ...s, [group.label]: !open }))}
+                  aria-expanded={open}
+                  className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {group.label}
+                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")} />
+                </button>
+                {open && (
+                  <div className="mt-0.5 space-y-0.5">
+                    {group.items.map((item) => (
+                      <NavLink key={item.to} item={item} />
+                    ))}
+                  </div>
                 )}
-              >
-                {isActive && <span className="absolute bottom-1.5 left-0 top-1.5 w-[2px] rounded-full bg-primary" />}
-                <item.icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span className="truncate">{item.label}</span>}
-              </Link>
+              </div>
             );
           })}
         </nav>

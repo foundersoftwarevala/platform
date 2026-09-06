@@ -27,6 +27,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { tableQuery } from "@/lib/marketing/api";
 import { compactInr, compactNum, num, pct, roas } from "@/lib/marketing/format";
+import { SeedDataNotice } from "@/components/marketing/SeedNotice";
 
 export const Route = createFileRoute("/marketing/analytics")({
   head: () => ({
@@ -71,6 +72,7 @@ function AnalyticsScreen() {
 
   return (
     <div className="space-y-6">
+      <SeedDataNotice />
       <ScreenHeader
         title="ROI Analytics"
         description="Where the money comes back: campaign ROAS, regional revenue and growth."
