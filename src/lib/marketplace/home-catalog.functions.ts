@@ -72,7 +72,84 @@ function toCard(row: Row) {
   };
 }
 
-async function productsFor(categoryId: string, limit: number) {
+
+/**
+ * Which category rows the manager has actually configured.
+ *
+ * Returns an empty set — and costs one tiny query — while nothing is
+ * configured, which is the state the site is in until somebody curates a row.
+ * A failure here returns an empty set too, so the homepage simply behaves as
+ * it always did.
+ */
+async function configuredRows(): Promise<Set<string>> {
+  try {
+    const response = await fetch(
+      `${url()}/rest/v1/marketplace_row_config?select=category_id`,
+      { headers: admin() },
+    );
+    if (!response.ok) return new Set();
+    const rows = (await response.json()) as { category_id: string }[];
+    return new Set(rows.map((r) => String(r.category_id)));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * The product order a configured row should render in, from the same resolver
+ * the manager writes through. Null means "not configured, or unavailable" and
+ * the caller keeps its original behaviour.
+ */
+async function configuredOrder(slug: string): Promise<string[] | null> {
+  try {
+    const response = await fetch(`${url()}/rest/v1/rpc/mm_row_products`, {
+      method: "POST",
+      headers: { ...admin(), "Content-Type": "application/json" },
+      body: JSON.stringify({ p_key: slug }),
+    });
+    if (!response.ok) return null;
+    const data = (await response.json()) as {
+      ok?: boolean;
+      products?: { product_id: string; live?: boolean }[];
+    };
+    if (!data?.ok || !Array.isArray(data.products)) return null;
+    // A product placed by hand and later unpublished is dropped here rather
+    // than shown to the public; the manager still sees it flagged in the slot.
+    return data.products.filter((x) => x.live !== false).map((x) => String(x.product_id));
+  } catch {
+    return null;
+  }
+}
+
+async function productsFor(categoryId: string, limit: number, slug?: string, configured?: boolean) {
+  // A configured row renders in the order the manager set. The cards
+  // themselves are still fetched with the same fields as before, so the shape
+  // the page receives never changes — only which products, and in what order.
+  if (configured && slug) {
+    const order = await configuredOrder(slug);
+    if (order && order.length) {
+      const wanted = order.slice(0, limit);
+      const byId = await fetch(
+        `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}` +
+          `&visible=eq.true&content_status=eq.published` +
+          `&id=in.(${wanted.join(",")})`,
+        { headers: admin() },
+      );
+      if (byId.ok) {
+        const rows = (await byId.json()) as Row[];
+        const index = new Map(rows.map((r) => [String(r.id), r]));
+        const cards = wanted
+          .map((id) => index.get(id))
+          .filter((r): r is Row => Boolean(r))
+          .map(toCard);
+        if (cards.length) return { cards, total: order.length };
+      }
+      // Falling through on an empty result is deliberate: a configured row
+      // that resolves to nothing renders its catalogue default rather than an
+      // empty shelf.
+    }
+  }
+
   const response = await fetch(
     `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}` +
       `&visible=eq.true&content_status=eq.published` +
@@ -124,9 +201,13 @@ export const getHomeCatalog = createServerFn({ method: "GET" }).handler(
       const range = categoryResponse.headers.get("content-range") ?? "";
       const totalRows = Number(range.split("/")[1]) || categories.length;
 
+      const curated = await configuredRows();
+
       const rows = await Promise.all(
         categories.map(async (c) => {
-          const { cards, total } = await productsFor(String(c.id), PER_ROW);
+          const { cards, total } = await productsFor(
+            String(c.id), PER_ROW, String(c.slug ?? ""), curated.has(String(c.id)),
+          );
           return {
             id: String(c.id),
             title: String(c.name ?? ""),

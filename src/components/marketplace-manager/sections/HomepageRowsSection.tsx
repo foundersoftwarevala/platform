@@ -1,637 +1,638 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  GripVertical, Eye, EyeOff, PinIcon, ChevronUp, ChevronDown, Plus, Sparkles,
-  Star, Briefcase, TrendingUp, Award, Activity, PlayCircle, GraduationCap,
-  Users2, HelpCircle, Rocket, PanelBottom, FolderTree, Newspaper, Trophy,
-  Search, Image as ImageIcon, MousePointerClick, Filter, ArrowUpDown,
-  Tag as TagIcon, Languages, DollarSign, Type, Palette, Wand2,
-  ArrowLeft, History, Layout, Layers, Settings as SettingsIcon, Copy,
-  Archive, Trash2, MonitorPlay, Smartphone, Monitor, Tablet,
+  ChevronUp, ChevronDown, Eye, EyeOff, PinIcon, Search, Plus, X,
+  ArrowLeft, Layers, BarChart3, SlidersHorizontal, ExternalLink, Trash2,
+  Monitor, Tablet, Smartphone, AlertTriangle,
 } from "lucide-react";
-import { PageHeader, PillButton, SubNav, StatCard, Card, EmptyHint } from "../ui";
-import { TableToolbar, RowActions, BulkActionBar, ActionButton, ColorPicker } from "../actions";
-import { LiveRowsPanel } from "./LiveRowsPanel";
-
-import { notBuilt } from "@/lib/ui/not-built";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { PageHeader, PillButton, StatCard, Card, EmptyHint } from "../ui";
+import {
+  listHomepageRows, getRowProducts, getRowAnalytics, searchRowProducts,
+  assignSlot, removeSlot, moveSlot, pinSlot, configureRow, reorderRows,
+  type HomepageRow, type RowSlot,
+} from "@/lib/marketplace-manager/rows.functions";
+
 /**
- * The rows, from the database rather than the constant below.
+ * Homepage Rows — the real ones.
  *
- * ROWS is kept as the fallback shape so this screen still renders while the
- * request is in flight or if it fails — a control screen that goes blank when
- * a query is slow is worse than one showing last-known structure.
+ * This screen used to render a static ROWS array with Card 1 / Card 2
+ * placeholders, `Array.from({ length: 12 })` cards, a hardcoded "Last Edit 2h"
+ * and notBuilt() actions. None of it touched the front page, and worse, an
+ * earlier attempt of mine wired two of its controls to
+ * marketplace_homepage_sections — a table the public homepage has never read.
+ *
+ * The homepage builds its product rows from marketplace_categories:
+ * `is_hidden=eq.false`, ordered by `sort_order`, one row per category, filled
+ * by `productsFor(category_id)`. So those categories are the rows, their slug
+ * is the stable key, and this screen manages them directly. Ordering and
+ * visibility write the very columns the homepage reads; placement writes the
+ * slots the homepage now resolves through the same function this screen calls.
+ *
+ * Every number here is counted and every control writes the database. Where a
+ * figure has not been measured yet it says so rather than showing a confident
+ * zero.
  */
-function useHomepageRows() {
-  const queryClient = useQueryClient();
-  const rows = useQuery({
-    queryKey: ["marketplace", "homepage-rows"],
-    queryFn: async () => {
-      const { listHomepageRows } = await import("@/lib/marketplace-manager/homepage-rows.functions");
-      return listHomepageRows();
-    },
+
+const KEY = ["marketplace", "rows"] as const;
+
+function useRows() {
+  return useQuery({
+    queryKey: KEY,
+    queryFn: () => listHomepageRows(),
     staleTime: 30_000,
   });
-
-  const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ["marketplace", "homepage-rows"] });
-
-  const setStatus = useMutation({
-    mutationFn: async (input: { rowId: string; status: string; reason?: string }) => {
-      const { setHomepageRowStatus } = await import("@/lib/marketplace-manager/homepage-rows.functions");
-      return setHomepageRowStatus({ data: input as never });
-    },
-    onSuccess: (r) => { invalidate(); toast.success((r as { message?: string })?.message ?? "Row updated"); },
-    onError: (e: Error) => toast.error("Could not change the row", { description: e.message }),
-  });
-
-  const reorder = useMutation({
-    mutationFn: async (orderedIds: string[]) => {
-      const { reorderHomepageRows } = await import("@/lib/marketplace-manager/homepage-rows.functions");
-      return reorderHomepageRows({ data: { orderedIds } });
-    },
-    onSuccess: () => { invalidate(); toast.success("Homepage rows reordered"); },
-    onError: (e: Error) => toast.error("Could not reorder", { description: e.message }),
-  });
-
-  const duplicate = useMutation({
-    mutationFn: async (rowId: string) => {
-      const { duplicateHomepageRow } = await import("@/lib/marketplace-manager/homepage-rows.functions");
-      return duplicateHomepageRow({ data: { rowId } });
-    },
-    onSuccess: (r) => { invalidate(); toast.success((r as { message?: string })?.message ?? "Duplicated"); },
-    onError: (e: Error) => toast.error("Could not duplicate", { description: e.message }),
-  });
-
-  return { rows, setStatus, reorder, duplicate };
 }
 
-type Row = {
-  n: string; title: string; icon: any; status: "live" | "draft" | "hidden";
-  pinned?: boolean; sub: string[]; meta?: string;
-};
+function useRowMutations(onDone?: () => void) {
+  const qc = useQueryClient();
+  const done = (msg: string) => {
+    void qc.invalidateQueries({ queryKey: KEY });
+    void qc.invalidateQueries({ queryKey: ["marketplace", "row-products"] });
+    toast.success(msg);
+    onDone?.();
+  };
+  const fail = (e: Error) =>
+    toast.error(e.message.startsWith("Product category mismatch")
+      ? "Product category mismatch"
+      : "That change was refused", { description: e.message });
 
-const ROWS: Row[] = [
-  { n: "01", title: "Featured Software", icon: Star, status: "live", pinned: true,
-    sub: ["Row","Cards","Priority","Featured Products","Badges","CTA","Layout","Background","Visibility","Sorting","Display Rules"], meta: "8 cards · auto-rotate" },
-  { n: "02", title: "Shop By Industry", icon: Briefcase, status: "live",
-    sub: ["Industries","Icons","Industry Banner","Industry Cards","Industry Order","Industry Visibility"], meta: "14 industries" },
-  { n: "03", title: "Trending Now", icon: TrendingUp, status: "live",
-    sub: ["Trending Products","Trending Logic","Trending Badge","Trending Order","Trending Visibility"], meta: "live signal" },
-  { n: "04", title: "Top Selling", icon: Award, status: "live",
-    sub: ["Top Selling Products","Top Selling Badge","Ranking","Display Order"], meta: "30d window" },
-  { n: "05", title: "New Releases", icon: Sparkles, status: "live",
-    sub: ["New Products","Release Badge","Version","Release Order"], meta: "v-tag" },
-  { n: "06", title: "Shop By Category", icon: FolderTree, status: "live",
-    sub: ["Categories","Category Icons","Category Banner","Category Cards","Hierarchy"], meta: "20 categories" },
-  { n: "07", title: "AI Zone", icon: Sparkles, status: "live",
-    sub: ["AI Cards","AI Services","AI Recommendation","AI Compare","AI Search"], meta: "AI Gateway" },
-  { n: "08", title: "Success Stories", icon: Trophy, status: "live",
-    sub: ["Stories","Customer Images","Company Logo","Case Study","Metrics"] },
-  { n: "09", title: "Awards & Champions", icon: Award, status: "draft",
-    sub: ["Awards","Champions","Recognition","Winner Cards"] },
-  { n: "10", title: "Live Marketplace Activity", icon: Activity, status: "live",
-    sub: ["Recent Activity","Recent Purchases","Recent Downloads","Recent Reviews","Recent Updates"], meta: "real-time" },
-  { n: "11", title: "Vala TV", icon: PlayCircle, status: "live",
-    sub: ["Videos","Playlists","Categories","Featured Videos","Video Thumbnail"] },
-  { n: "12", title: "Vala Academy", icon: GraduationCap, status: "live",
-    sub: ["Courses","Training","Certificates","Videos","Learning Paths"] },
-  { n: "13", title: "Partner Ecosystem", icon: Users2, status: "live",
-    sub: ["Partners","Partner Cards","Partner Categories","Partner Banner"] },
-  { n: "14", title: "FAQ", icon: HelpCircle, status: "live",
-    sub: ["Questions","Answers","Categories","Popular Questions"] },
-  { n: "15", title: "Enterprise CTA", icon: Rocket, status: "live",
-    sub: ["Headline","Description","CTA Buttons","Background","Illustration"] },
-  { n: "16", title: "Footer", icon: PanelBottom, status: "live",
-    sub: ["Columns","Links","Social Links","Newsletter","Legal Links","Language","Currency","Country","Copyright"] },
-];
+  return {
+    assign: useMutation({
+      mutationFn: (v: { key: string; position: number; productId: string; override?: boolean }) =>
+        assignSlot({ data: v }),
+      onSuccess: (r) => done(String(r.message ?? "Assigned")), onError: fail,
+    }),
+    remove: useMutation({
+      mutationFn: (v: { key: string; position: number }) => removeSlot({ data: v }),
+      onSuccess: (r) => done(String(r.message ?? "Cleared")), onError: fail,
+    }),
+    move: useMutation({
+      mutationFn: (v: { key: string; from: number; to: number }) => moveSlot({ data: v }),
+      onSuccess: (r) => done(String(r.message ?? "Moved")), onError: fail,
+    }),
+    pin: useMutation({
+      mutationFn: (v: { key: string; position: number; pinned: boolean }) => pinSlot({ data: v }),
+      onSuccess: (r) => done(String(r.message ?? "Updated")), onError: fail,
+    }),
+    configure: useMutation({
+      mutationFn: (v: { key: string; patch: Record<string, unknown> }) => configureRow({ data: v }),
+      onSuccess: () => done("Row updated"), onError: fail,
+    }),
+    reorder: useMutation({
+      mutationFn: (keys: string[]) => reorderRows({ data: { keys } }),
+      onSuccess: () => done("Row order saved"), onError: fail,
+    }),
+  };
+}
 
-const TONE: Record<string, string> = {
-  live:   "text-success border-success/40 bg-success/10",
-  draft:  "text-warning border-warning/40 bg-warning/10",
-  hidden: "text-muted-foreground border-border bg-white/[0.04]",
-};
+/* ------------------------------------------------------------------ list -- */
 
 export function HomepageRowsSection() {
-  const live = useHomepageRows();
-  const [tab, setTab] = useState("All");
-  const [openRow, setOpenRow] = useState<string | null>(null);
-  const filtered = tab === "All" ? ROWS : ROWS.filter((r) => r.status === tab.toLowerCase());
+  const [open, setOpen] = useState<string | null>(null);
+  if (open) return <RowWorkspace rowKey={open} onBack={() => setOpen(null)} />;
+  return <RowList onOpen={setOpen} />;
+}
 
-  if (openRow) {
-    const row = ROWS.find((r) => r.n === openRow)!;
-    return <RowWorkspace row={row} onBack={() => setOpenRow(null)} />;
-  }
+function RowList({ onOpen }: { onOpen: (key: string) => void }) {
+  const { data, isLoading, isError, error } = useRows();
+  const m = useRowMutations();
+  const [q, setQ] = useState("");
+
+  const rows = useMemo(() => {
+    const all = data?.rows ?? [];
+    const needle = q.trim().toLowerCase();
+    return needle
+      ? all.filter((r) => r.title.toLowerCase().includes(needle) || r.key.includes(needle))
+      : all;
+  }, [data, q]);
+
+  const live = (data?.rows ?? []).filter((r) => !r.hidden).length;
+  const curated = (data?.rows ?? []).filter((r) => r.configured).length;
+  const placed = (data?.rows ?? []).reduce((n, r) => n + r.filled_slots, 0);
+
+  // Reordering writes marketplace_categories.sort_order, which is the column
+  // the homepage sorts on, so a move here moves the row on the public page.
+  const nudge = (key: string, dir: -1 | 1) => {
+    const all = [...(data?.rows ?? [])];
+    const i = all.findIndex((r) => r.key === key);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= all.length) return;
+    [all[i], all[j]] = [all[j], all[i]];
+    m.reorder.mutate(all.map((r) => r.key));
+  };
 
   return (
-    <div className="px-4 py-8 md:px-8">
-      {/* The rows the storefront really has, and the controls that change them. */}
-      <LiveRowsPanel />
+    <div className="space-y-5">
       <PageHeader
-        eyebrow="Homepage Rows · 16 modules"
-        title="Homepage Row Manager"
-        description="Reorder, gate, and configure every row of the marketplace homepage. Open any row to access its full enterprise workspace."
-        actions={
-          <>
-            <PillButton variant="ghost"><span className="inline-flex items-center gap-1.5"><ArrowUpDown className="h-3.5 w-3.5"/>Reorder Layout</span></PillButton>
-            <PillButton variant="ghost"><span className="inline-flex items-center gap-1.5"><Palette className="h-3.5 w-3.5"/>Theme</span></PillButton>
-            <PillButton variant="primary"><span className="inline-flex items-center gap-1.5"><Plus className="h-3.5 w-3.5"/>New Row</span></PillButton>
-          </>
-        }
+        title="Homepage Rows"
+        description="The rows the public marketplace homepage renders, in the order it renders them."
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Total Rows" value={String(ROWS.length)} />
-        <StatCard label="Live" value={String(ROWS.filter(r=>r.status==="live").length)} tone="success" />
-        <StatCard label="Drafts" value={String(ROWS.filter(r=>r.status==="draft").length)} tone="warning" />
-        <StatCard label="Pinned" value={String(ROWS.filter(r=>r.pinned).length)} tone="premium" />
+      {isError && (
+        <Card>
+          <div className="flex items-start gap-3 p-4 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 text-destructive" />
+            <div>
+              <div className="font-medium text-destructive">Could not load the homepage rows</div>
+              <div className="text-muted-foreground">{(error as Error)?.message}</div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Rows on the homepage" value={isLoading ? "—" : String(live)} />
+        <StatCard label="Rows in total" value={isLoading ? "—" : String(data?.rows.length ?? 0)} />
+        <StatCard label="Curated rows" value={isLoading ? "—" : String(curated)}
+                  tone={curated ? "success" : undefined} />
+        <StatCard label="Products placed by hand" value={isLoading ? "—" : String(placed)} />
       </div>
 
-      <SubNav items={["All", "Live", "Draft", "Hidden"]} active={tab} onChange={setTab} />
-      <TableToolbar title="Homepage Rows" count={filtered.length} extraActions={["publish", "feature"]} />
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search rows by name or key"
+          className="h-10 w-full rounded-lg border border-border bg-background/40 pl-9 pr-3 text-sm outline-none focus:border-primary/60"
+        />
+      </div>
 
-      <div className="space-y-2.5">
-        {filtered.map((r) => {
-          const Icon = r.icon;
-          return (
-            <div
-              key={r.n}
-              className="glass group rounded-2xl p-3.5 transition-all hover:-translate-y-0.5 hover:border-[oklch(0.80_0.13_192/0.45)]"
-            >
-              <div className="flex items-center gap-3">
+      {isLoading && <EmptyHint text={`Loading the homepage rows…`} />}
+      {!isLoading && rows.length === 0 && (
+        <EmptyHint text={`No row matches “${q}”.`} />
+      )}
+
+      <div className="space-y-2">
+        {rows.map((r, i) => (
+          <Card key={r.key}>
+            <div className="flex flex-wrap items-center gap-3 p-3">
+              <div className="flex flex-col">
                 <button
-        type="button"
-        onClick={() => {
-          const ids = (live.rows.data?.rows ?? []).map((x: { id: string }) => x.id);
-          if (ids.length) live.reorder.mutate(ids);
-          else toast.info("Homepage rows are still loading");
-        }} className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border bg-background/40 text-muted-foreground hover:text-foreground">
-                  <GripVertical className="h-3.5 w-3.5"/>
-                </button>
-                <span className="grid h-7 w-9 shrink-0 place-items-center rounded-md border border-border bg-background/40 font-mono text-[11px] font-bold tabular text-accent">
-                  {r.n}
-                </span>
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-[oklch(0.80_0.13_192/0.10)] text-accent">
-                  <Icon className="h-4.5 w-4.5"/>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="truncate text-[13px] font-bold">{r.title}</div>
-                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${TONE[r.status]}`}>{r.status}</span>
-                    {r.pinned && <span className="inline-flex items-center gap-1 rounded-full border border-premium/40 bg-premium/10 px-2 py-0.5 text-[10px] font-bold uppercase text-premium"><PinIcon className="h-2.5 w-2.5"/>Pinned</span>}
-                    <span className="rounded-full border border-border bg-background/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">{r.sub.length} sub-modules</span>
-                  </div>
-                  {r.meta && <div className="mt-0.5 text-[11px] text-muted-foreground">{r.meta}</div>}
-                </div>
-                <div className="hidden md:flex items-center gap-1">
-                  <IconBtn icon={ChevronUp}/>
-                  <IconBtn icon={ChevronDown}/>
-                  <IconBtn icon={r.status==="hidden"?EyeOff:Eye}/>
-                </div>
-                <RowActions ids={["edit","view","duplicate","archive","delete"]}/>
-                <button
-                  onClick={() => setOpenRow(r.n)}
-                  className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-lg border border-[oklch(0.80_0.13_192/0.45)] bg-[oklch(0.80_0.13_192/0.12)] px-3 text-[11px] font-bold uppercase tracking-wider text-foreground hover:bg-[oklch(0.80_0.13_192/0.20)]"
+                  className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  onClick={() => nudge(r.key, -1)} disabled={i === 0 || m.reorder.isPending}
+                  aria-label={`Move ${r.title} up`}
                 >
-                  Manage
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  onClick={() => nudge(r.key, 1)}
+                  disabled={i === rows.length - 1 || m.reorder.isPending}
+                  aria-label={`Move ${r.title} down`}
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
                 </button>
               </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <button className="truncate text-sm font-medium hover:underline"
+                          onClick={() => onOpen(r.key)}>
+                    {r.title}
+                  </button>
+                  <code className="rounded bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    {r.key}
+                  </code>
+                  {r.hidden && (
+                    <span className="rounded-full bg-muted/50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      hidden
+                    </span>
+                  )}
+                </div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                  {r.source_mode === "auto"
+                    ? `Automatic · ${r.auto_rule.replace("_", " ")}`
+                    : `${r.source_mode === "manual" ? "Manual" : "Hybrid"} · ${r.filled_slots} placed`}
+                  {" · "}
+                  {r.eligible_products} eligible product{r.eligible_products === 1 ? "" : "s"}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <PillButton
+                  onClick={() => m.configure.mutate({ key: r.key, patch: { hidden: !r.hidden } })}
+                >
+                  {r.hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {r.hidden ? "Hidden" : "Visible"}
+                </PillButton>
+                <PillButton onClick={() => onOpen(r.key)}>
+                  <Layers className="h-3.5 w-3.5" /> Manage
+                </PillButton>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- workspace -- */
+
+const TABS = ["Products", "Rules", "Visibility", "Analytics"] as const;
+type Tab = (typeof TABS)[number];
+
+function RowWorkspace({ rowKey, onBack }: { rowKey: string; onBack: () => void }) {
+  const [tab, setTab] = useState<Tab>("Products");
+  const { data } = useRows();
+  const row = data?.rows.find((r) => r.key === rowKey);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-2">
+        <PillButton onClick={onBack}><ArrowLeft className="h-3.5 w-3.5" /> All rows</PillButton>
+        <code className="rounded bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">{rowKey}</code>
+      </div>
+
+      <PageHeader
+        title={row?.title ?? rowKey}
+        description={`This row on the public homepage. ${row?.eligible_products ?? 0} products are eligible for it.`}
+      />
+
+      <div className="flex flex-wrap gap-1.5">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              tab === t ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab === "Products" && <SlotWall rowKey={rowKey} row={row} />}
+      {tab === "Rules" && <RowRules rowKey={rowKey} row={row} />}
+      {tab === "Visibility" && <RowVisibility rowKey={rowKey} row={row} />}
+      {tab === "Analytics" && <RowAnalytics rowKey={rowKey} />}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- slot wall -- */
+
+const PAGE = 20;
+
+function SlotWall({ rowKey, row }: { rowKey: string; row?: HomepageRow }) {
+  const [page, setPage] = useState(0);
+  const [picking, setPicking] = useState<number | null>(null);
+  const m = useRowMutations(() => setPicking(null));
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["marketplace", "row-products", rowKey],
+    queryFn: () => getRowProducts({ data: { key: rowKey } }),
+    staleTime: 15_000,
+  });
+
+  const max = data?.max_products ?? row?.max_products ?? 60;
+  const bySlot = new Map<number, RowSlot>();
+  for (const p of data?.products ?? []) bySlot.set(p.position, p);
+
+  // 60 positions, shown a page at a time. A wall of sixty cards in one column
+  // is unusable; twenty with paging is what a person can actually work in.
+  const start = page * PAGE;
+  const positions = Array.from({ length: Math.min(PAGE, max - start) }, (_, i) => start + i + 1);
+  const pages = Math.ceil(max / PAGE);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Slots filled" value={isLoading ? "—" : `${data?.filled ?? 0} / ${max}`} />
+        <StatCard label="Empty slots" value={isLoading ? "—" : String(data?.empty ?? 0)}
+                  tone={(data?.empty ?? 0) > 0 ? "warning" : "success"} />
+        <StatCard label="Eligible products" value={isLoading ? "—" : String(data?.eligible_total ?? 0)} />
+        <StatCard label="Source" value={data?.source_mode ?? "—"} />
+      </div>
+
+      {(data?.empty ?? 0) > 0 && (
+        <div className="rounded-lg border border-border bg-muted/10 p-3 text-[11px] text-muted-foreground">
+          {data?.eligible_total ?? 0} products are eligible for this row and {data?.filled ?? 0} positions
+          are filled. The remaining {data?.empty} are shown as available slots rather than padded with
+          anything.
+        </div>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {positions.map((pos) => {
+          const slot = bySlot.get(pos);
+          return (
+            <div key={pos}
+                 className="flex items-center gap-3 rounded-lg border border-border bg-background/40 p-2.5">
+              <span className="w-7 shrink-0 text-center font-mono text-[11px] text-muted-foreground">
+                {String(pos).padStart(2, "0")}
+              </span>
+
+              {slot ? (
+                <>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-xs font-medium">{slot.name}</span>
+                      {slot.pinned && slot.source === "manual" && (
+                        <PinIcon className="h-3 w-3 shrink-0 text-primary" />
+                      )}
+                      {!slot.live && (
+                        <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-[9px] uppercase text-destructive">
+                          not live
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {slot.source === "auto" ? "filled automatically" : "placed by hand"}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <IconBtn title="Open product"
+                             onClick={() => window.open(`/marketplace/product/${slot.slug}`, "_blank")}>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </IconBtn>
+                    {slot.source === "manual" && (
+                      <>
+                        <IconBtn title="Move up" disabled={pos === 1}
+                                 onClick={() => m.move.mutate({ key: rowKey, from: pos, to: pos - 1 })}>
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </IconBtn>
+                        <IconBtn title="Move down" disabled={pos >= max}
+                                 onClick={() => m.move.mutate({ key: rowKey, from: pos, to: pos + 1 })}>
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </IconBtn>
+                        <IconBtn title={slot.pinned ? "Unpin" : "Pin"}
+                                 onClick={() => m.pin.mutate({ key: rowKey, position: pos, pinned: !slot.pinned })}>
+                          <PinIcon className="h-3.5 w-3.5" />
+                        </IconBtn>
+                        <IconBtn title="Remove from slot"
+                                 onClick={() => m.remove.mutate({ key: rowKey, position: pos })}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </IconBtn>
+                      </>
+                    )}
+                    <IconBtn title="Replace" onClick={() => setPicking(pos)}>
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                    </IconBtn>
+                  </div>
+                </>
+              ) : (
+                <button
+                  onClick={() => setPicking(pos)}
+                  className="flex flex-1 items-center gap-2 rounded-md border border-dashed border-border/70 px-2 py-1.5 text-[11px] text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Assign a product
+                </button>
+              )}
             </div>
           );
         })}
       </div>
 
-      <GlobalManagementBlock/>
+      {pages > 1 && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>Slots {start + 1}–{start + positions.length} of {max}</span>
+          <div className="flex gap-1.5">
+            <PillButton onClick={() => setPage((p) => Math.max(0, p - 1))}>Previous</PillButton>
+            <PillButton onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}>Next</PillButton>
+          </div>
+        </div>
+      )}
+
+      {picking !== null && (
+        <ProductPicker
+          rowKey={rowKey}
+          categoryId={row?.category_id}
+          position={picking}
+          onClose={() => setPicking(null)}
+          onPick={(productId, override) =>
+            m.assign.mutate({ key: rowKey, position: picking, productId, override })}
+          pending={m.assign.isPending}
+        />
+      )}
     </div>
   );
 }
 
-function IconBtn({ icon: Icon }: { icon: any }) {
+function IconBtn({ children, title, onClick, disabled }: {
+  children: React.ReactNode; title: string; onClick: () => void; disabled?: boolean;
+}) {
   return (
-    <button
-        type="button"
-        onClick={() => {
-          const first = (live.rows.data?.rows ?? [])[0] as { id?: string } | undefined;
-          if (first?.id) live.duplicate.mutate(first.id);
-          else toast.info("Homepage rows are still loading");
-        }} className="grid h-7 w-7 place-items-center rounded-md border border-border bg-white/[0.04] text-muted-foreground hover:text-foreground hover:bg-white/[0.08]">
-      <Icon className="h-3.5 w-3.5"/>
+    <button title={title} aria-label={title} onClick={onClick} disabled={disabled}
+            className="rounded p-1 text-muted-foreground hover:bg-muted/40 hover:text-foreground disabled:opacity-30">
+      {children}
     </button>
   );
 }
 
-/* ============================================================
-   ROW WORKSPACE — dedicated enterprise workspace per row
-   ============================================================ */
-function RowWorkspace({ row, onBack }: { row: Row; onBack: () => void }) {
-  const [tab, setTab] = useState("Overview");
-  const [selected, setSelected] = useState<number>(0);
-  const Icon = row.icon;
+/* ---------------------------------------------------------- product picker */
+
+function ProductPicker({ rowKey, categoryId, position, onClose, onPick, pending }: {
+  rowKey: string; categoryId?: string; position: number;
+  onClose: () => void; onPick: (id: string, override?: boolean) => void; pending: boolean;
+}) {
+  const [q, setQ] = useState("");
+  // Defaults to this row's own category, so the ordinary case cannot produce a
+  // mismatch. Widening the search is a deliberate act.
+  const [sameCategory, setSameCategory] = useState(true);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["marketplace", "product-picker", categoryId, q, sameCategory],
+    queryFn: () => searchRowProducts({
+      data: {
+        categoryId: sameCategory ? categoryId : undefined,
+        query: q || undefined,
+        limit: 24,
+      },
+    }),
+    staleTime: 10_000,
+  });
 
   return (
-    <div className="px-4 py-8 md:px-8">
-      {/* breadcrumb */}
-      <div className="mb-6 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white/[0.04] px-2.5 py-1.5 hover:text-foreground">
-          <ArrowLeft className="h-3.5 w-3.5"/> Homepage Rows
-        </button>
-        <span>/</span>
-        <span className="font-mono text-accent">Row {row.n}</span>
-        <span>/</span>
-        <span className="text-foreground">{row.title}</span>
-      </div>
-
-      <PageHeader
-        eyebrow={`Row ${row.n} · ${row.sub.length} sub-modules`}
-        title={`${row.title} Workspace`}
-        description={`Dedicated enterprise workspace to manage every element of the “${row.title}” row — preview, cards, sub-modules, visibility, theme and history.`}
-        actions={
-          <>
-            <PillButton variant="ghost"><span className="inline-flex items-center gap-1.5"><Eye className="h-3.5 w-3.5"/>Preview</span></PillButton>
-            <PillButton variant="ghost"><span className="inline-flex items-center gap-1.5"><Copy className="h-3.5 w-3.5"/>Duplicate</span></PillButton>
-            <PillButton variant="primary"><span className="inline-flex items-center gap-1.5"><Rocket className="h-3.5 w-3.5"/>Publish</span></PillButton>
-          </>
-        }
-      />
-
-      {/* identity strip */}
-      <div className="glass mb-6 flex flex-wrap items-center gap-3 rounded-2xl p-3.5">
-        <div className="grid h-12 w-12 place-items-center rounded-xl border border-border bg-[oklch(0.80_0.13_192/0.10)] text-accent">
-          <Icon className="h-5 w-5"/>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="text-sm font-bold">{row.title}</div>
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${TONE[row.status]}`}>{row.status}</span>
-            {row.pinned && <span className="inline-flex items-center gap-1 rounded-full border border-premium/40 bg-premium/10 px-2 py-0.5 text-[10px] font-bold uppercase text-premium"><PinIcon className="h-2.5 w-2.5"/>Pinned</span>}
-            {row.meta && <span className="font-mono text-[10px] text-muted-foreground">· {row.meta}</span>}
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-16"
+         role="dialog" aria-label={`Assign a product to slot ${position}`}>
+      <div className="w-full max-w-2xl rounded-xl border border-border bg-background shadow-xl">
+        <div className="flex items-center justify-between border-b border-border p-3">
+          <div className="text-sm font-medium">
+            Assign to slot {String(position).padStart(2, "0")} · <code className="text-xs text-muted-foreground">{rowKey}</code>
           </div>
-          <div className="mt-0.5 text-[11px] text-muted-foreground">Slot order, audience targeting and theme all configurable from this workspace.</div>
+          <IconBtn title="Close" onClick={onClose}><X className="h-4 w-4" /></IconBtn>
         </div>
-        <div className="flex items-center gap-1.5">
-          <ActionButton action="edit" size="sm"/>
-          <ActionButton action="duplicate" size="sm"/>
-          <ActionButton action="archive" size="sm"/>
-          <ActionButton action="delete" size="sm"/>
-        </div>
-      </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Cards" value="12" />
-        <StatCard label="Impressions 7d" value="48.2K" tone="success"/>
-        <StatCard label="CTR" value="4.8%" tone="premium"/>
-        <StatCard label="Last Edit" value="2h" tone="warning"/>
-      </div>
-
-      <SubNav
-        items={["Overview", "Cards", "Sub-modules", "Layout & Theme", "Visibility", "History"]}
-        active={tab}
-        onChange={setTab}
-      />
-
-      {tab === "Overview" && <OverviewTab row={row} />}
-      {tab === "Cards" && <CardsTab/>}
-      {tab === "Sub-modules" && <SubmodulesTab row={row} selected={selected} setSelected={setSelected}/>}
-      {tab === "Layout & Theme" && <ThemeTab/>}
-      {tab === "Visibility" && <VisibilityTab/>}
-      {tab === "History" && <HistoryTab/>}
-    </div>
-  );
-}
-
-function OverviewTab({ row }: { row: Row }) {
-  const Icon = row.icon;
-  return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-      <Card>
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-accent">Live Preview</div>
-          <div className="flex items-center gap-1">
-            <IconBtn icon={Smartphone}/><IconBtn icon={Tablet}/><IconBtn icon={Monitor}/>
+        <div className="space-y-3 p-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              autoFocus value={q} onChange={(e) => setQ(e.target.value)}
+              placeholder="Search products by name"
+              className="h-10 w-full rounded-lg border border-border bg-background/40 pl-9 pr-3 text-sm outline-none focus:border-primary/60"
+            />
           </div>
-        </div>
-        <div className="rounded-xl border border-border bg-[oklch(0.18_0.03_240)] p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Icon className="h-4 w-4 text-accent"/>
-              <div className="text-sm font-bold">{row.title}</div>
-            </div>
-            <span className="text-[11px] text-muted-foreground">See all →</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="aspect-[4/5] rounded-lg border border-border bg-gradient-to-br from-primary/20 via-surface to-accent/15"/>
-            ))}
-          </div>
-        </div>
-      </Card>
 
-      <Card>
-        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-accent">Quick Controls</div>
-        <div className="space-y-2">
-          {[
-            { l: "Pin to top", i: PinIcon },
-            { l: "Auto-rotate cards", i: ArrowUpDown },
-            { l: "Show on mobile", i: Smartphone },
-            { l: "Show on tablet", i: Tablet },
-            { l: "Show on desktop", i: Monitor },
-            { l: "AI Recommendations", i: Sparkles },
-          ].map((q) => (
-            <div key={q.l} className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2">
-              <span className="inline-flex items-center gap-2 text-[12px] font-medium"><q.i className="h-3.5 w-3.5 text-accent"/>{q.l}</span>
-              <span className="inline-flex h-5 w-9 items-center rounded-full bg-success/40 p-0.5"><span className="ml-auto h-4 w-4 rounded-full bg-success"/></span>
-            </div>
-          ))}
-        </div>
-        <EmptyHint text="Changes here apply only to this row."/>
-      </Card>
-    </div>
-  );
-}
+          <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <input type="checkbox" checked={sameCategory}
+                   onChange={(e) => setSameCategory(e.target.checked)} />
+            Only products from this row’s category
+          </label>
 
-function CardsTab() {
-  const [sel, setSel] = useState<Set<number>>(new Set());
-  const cards = Array.from({ length: 12 }).map((_, i) => ({
-    id: i, title: `Card ${i + 1}`, badge: i % 3 === 0 ? "Featured" : i % 3 === 1 ? "New" : "Trending",
-  }));
-  const toggle = (id: number) => {
-    const next = new Set(sel);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSel(next);
-  };
-  return (
-    <>
-      <TableToolbar title="Cards in this row" count={cards.length} extraActions={["publish", "feature"]}/>
-      <BulkActionBar selectedCount={sel.size} onClear={() => setSel(new Set())}/>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {cards.map((c) => {
-          const isSel = sel.has(c.id);
-          return (
-            <div key={c.id} className={`glass overflow-hidden rounded-2xl transition-all ${isSel ? "border-[oklch(0.80_0.13_192/0.55)] shadow-[0_0_0_1px_oklch(0.80_0.13_192/0.35)]" : "hover:-translate-y-0.5"}`}>
-              <div className="relative h-32 bg-gradient-to-br from-primary/30 via-surface to-accent/20">
-                <input
-                  type="checkbox" checked={isSel} onChange={() => toggle(c.id)}
-                  className="absolute left-2 top-2 h-4 w-4 cursor-pointer accent-[oklch(0.80_0.13_192)]"
-                />
-                <span className="absolute right-2 top-2 rounded bg-background/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-premium backdrop-blur">{c.badge}</span>
-              </div>
-              <div className="space-y-2 p-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-[13px] font-bold">{c.title}</div>
-                  <span className="font-mono text-[10px] text-muted-foreground">#{c.id + 1}</span>
-                </div>
-                <RowActions ids={["edit","view","duplicate","pin","archive","delete"]}/>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
-function SubmodulesTab({ row, selected, setSelected }: { row: Row; selected: number; setSelected: (n: number) => void }) {
-  return (
-    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-      <Card className="!p-3">
-        <div className="mb-2 px-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Sub-modules</div>
-        <div className="space-y-1">
-          {row.sub.map((s, i) => {
-            const active = i === selected;
-            return (
+          <div className="max-h-80 space-y-1.5 overflow-y-auto">
+            {isLoading && <EmptyHint text={`Searching the catalogue…`} />}
+            {!isLoading && (data?.products.length ?? 0) === 0 && (
+              <EmptyHint text={`No published product matches that search.`} />
+            )}
+            {(data?.products ?? []).map((p) => (
               <button
-                key={s} onClick={() => setSelected(i)}
-                className={`flex w-full items-center justify-between rounded-lg border px-2.5 py-2 text-left text-[12px] font-semibold transition-all ${active ? "border-[oklch(0.80_0.13_192/0.55)] bg-[oklch(0.80_0.13_192/0.12)] text-foreground" : "border-border bg-background/40 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"}`}
+                key={p.id}
+                disabled={pending}
+                onClick={() => onPick(p.id, !sameCategory)}
+                className="flex w-full items-center gap-3 rounded-lg border border-border bg-background/40 p-2 text-left hover:border-primary/50 disabled:opacity-50"
               >
-                <span className="inline-flex items-center gap-2">
-                  <span className="font-mono text-[10px] tabular text-accent">{String(i + 1).padStart(2, "0")}</span>
-                  {s}
-                </span>
-                <ChevronUp className="h-3.5 w-3.5 rotate-90 opacity-50"/>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-medium">{p.name}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {p.subcategory || p.industry_label || "—"}
+                    {p.category_id !== categoryId && " · different category"}
+                  </div>
+                </div>
+                <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
-            );
-          })}
-        </div>
-      </Card>
-
-      <div>
-        <TableToolbar title={row.sub[selected] ?? ""} extraActions={["publish"]}/>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {["Add Item","Edit Item","View Item","Approve","Reject","Duplicate","Archive","Restore","Pin","Hide","Show","Move Up","Move Down","Sort","Filter","History"].map((a) => (
-            <div key={a} className="glass flex items-center justify-between rounded-xl p-3">
-              <div className="flex items-center gap-2 text-[12px] font-semibold">
-                <Wand2 className="h-3.5 w-3.5 text-accent"/>{a}
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Action</span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function ThemeTab() {
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Card>
-        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-accent">Layout</div>
-        <div className="grid grid-cols-3 gap-2">
-          {["Carousel","Grid","Masonry","Stacked","Hero+Grid","Marquee"].map((l) => (
-            <button
-        type="button"
-        onClick={() => notBuilt("Layout preset")} key={l} className="rounded-lg border border-border bg-background/40 px-2 py-3 text-[12px] font-semibold hover:border-[oklch(0.80_0.13_192/0.45)]">{l}</button>
-          ))}
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          {["Spacing","Card Size","Card Ratio","Animation"].map((l) => (
-            <div key={l} className="rounded-lg border border-border bg-background/40 p-3">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{l}</div>
-              <div className="mt-1 font-mono text-[13px] tabular">Auto</div>
-            </div>
-          ))}
-        </div>
-      </Card>
-      <Card>
-        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-accent">Background & Color</div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <ColorPicker label="Background" defaultValue="#0F172A"/>
-          <ColorPicker label="Accent" defaultValue="#06B6D4"/>
-          <ColorPicker label="Title Color" defaultValue="#FFFFFF"/>
-          <ColorPicker label="Badge Color" defaultValue="#F5C518"/>
-        </div>
-      </Card>
-    </div>
-  );
-}
+/* ------------------------------------------------------------------ rules */
 
-function VisibilityTab() {
+function RowRules({ rowKey, row }: { rowKey: string; row?: HomepageRow }) {
+  const m = useRowMutations();
+  const set = (patch: Record<string, unknown>) => m.configure.mutate({ key: rowKey, patch });
+
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="space-y-4">
       <Card>
-        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-accent">Audience & Device</div>
-        <div className="space-y-2">
-          {[
-            { l: "All visitors", on: true }, { l: "Logged-in only", on: false },
-            { l: "Enterprise plan", on: false }, { l: "Mobile", on: true },
-            { l: "Tablet", on: true }, { l: "Desktop", on: true },
-            { l: "Geo-targeting", on: false }, { l: "Language-targeting", on: false },
-          ].map((q) => (
-            <div key={q.l} className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2">
-              <span className="text-[12px] font-medium">{q.l}</span>
-              <span className={`inline-flex h-5 w-9 items-center rounded-full p-0.5 ${q.on ? "bg-success/40" : "bg-white/[0.08]"}`}>
-                <span className={`h-4 w-4 rounded-full ${q.on ? "ml-auto bg-success" : "bg-muted-foreground/60"}`}/>
-              </span>
-            </div>
-          ))}
-        </div>
-      </Card>
-      <Card>
-        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-accent">Schedule</div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {["Start Date","End Date","Timezone","Recurrence"].map((l) => (
-            <div key={l} className="rounded-lg border border-border bg-background/40 p-3">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{l}</div>
-              <div className="mt-1 font-mono text-[13px] tabular">—</div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 rounded-lg border border-border bg-background/40 p-3">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Display Rules</div>
-          <div className="mt-2 space-y-1.5">
-            {["After login","First-time visitor","Returning visitor","Cart abandoned"].map((r) => (
-              <div key={r} className="flex items-center justify-between text-[12px]">
-                <span>{r}</span>
-                <span className="font-mono text-[10px] text-muted-foreground">off</span>
-              </div>
+        <div className="space-y-3 p-4">
+          <div className="text-xs font-medium">How this row is filled</div>
+          <div className="flex flex-wrap gap-1.5">
+            {(["manual", "auto", "hybrid"] as const).map((mode) => (
+              <PillButton key={mode} onClick={() => set({ source_mode: mode })}>
+                {row?.source_mode === mode ? "● " : ""}{mode}
+              </PillButton>
             ))}
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            Manual keeps only what you place. Automatic ignores placement and fills by the rule below.
+            Hybrid holds your pinned products in their positions and fills the rest around them.
+          </p>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="space-y-3 p-4">
+          <div className="text-xs font-medium">Automatic order</div>
+          <div className="flex flex-wrap gap-1.5">
+            {(["sort_order", "newest", "best_selling", "trending", "rating"] as const).map((rule) => (
+              <PillButton key={rule} onClick={() => set({ auto_rule: rule })}>
+                {row?.auto_rule === rule ? "● " : ""}{rule.replace("_", " ")}
+              </PillButton>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Best selling counts paid orders. Trending counts product views from the last thirty days.
+            Neither is random.
+          </p>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="space-y-3 p-4">
+          <div className="text-xs font-medium">Placement rules</div>
+          <label className="flex items-center gap-2 text-[11px]">
+            <input type="checkbox" checked={Boolean(row?.["allow_cross_category" as keyof HomepageRow])}
+                   onChange={(e) => set({ allow_cross_category: e.target.checked })} />
+            Allow products from other categories in this row
+          </label>
+          <label className="flex items-center gap-2 text-[11px]">
+            <input type="checkbox" checked={Boolean(row?.["allow_duplicates" as keyof HomepageRow])}
+                   onChange={(e) => set({ allow_duplicates: e.target.checked })} />
+            Allow the same product in more than one slot
+          </label>
+          <p className="text-[11px] text-muted-foreground">
+            With cross-category placement off, assigning a product from another category is refused and
+            the mismatch is reported rather than silently accepted.
+          </p>
         </div>
       </Card>
     </div>
   );
 }
 
-function HistoryTab() {
-  const events = [
-    { t: "2h ago", who: "Boss", what: "Updated cards order" },
-    { t: "Yesterday", who: "System", what: "Auto-rotated featured cards" },
-    { t: "3d ago", who: "Boss", what: "Changed background color" },
-    { t: "1w ago", who: "Editor", what: "Published row" },
-    { t: "2w ago", who: "Boss", what: "Created row" },
-  ];
+/* ------------------------------------------------------------- visibility */
+
+function RowVisibility({ rowKey, row }: { rowKey: string; row?: HomepageRow }) {
+  const m = useRowMutations();
+  const set = (patch: Record<string, unknown>) => m.configure.mutate({ key: rowKey, patch });
+
   return (
     <Card>
-      <div className="mb-3 flex items-center gap-2">
-        <History className="h-3.5 w-3.5 text-accent"/>
-        <div className="text-[11px] font-bold uppercase tracking-wider text-accent">Activity</div>
+      <div className="space-y-4 p-4">
+        <div className="text-xs font-medium">Where this row appears</div>
+        <div className="flex flex-wrap gap-1.5">
+          <PillButton onClick={() => set({ hidden: !row?.hidden })}>
+            {row?.hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {row?.hidden ? "Hidden from the homepage" : "Showing on the homepage"}
+          </PillButton>
+          <PillButton onClick={() => set({ visible_desktop: !row?.visible_desktop })}>
+            <Monitor className="h-3.5 w-3.5" /> Desktop {row?.visible_desktop ? "on" : "off"}
+          </PillButton>
+          <PillButton onClick={() => set({ visible_tablet: !row?.visible_tablet })}>
+            <Tablet className="h-3.5 w-3.5" /> Tablet {row?.visible_tablet ? "on" : "off"}
+          </PillButton>
+          <PillButton onClick={() => set({ visible_mobile: !row?.visible_mobile })}>
+            <Smartphone className="h-3.5 w-3.5" /> Mobile {row?.visible_mobile ? "on" : "off"}
+          </PillButton>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Hiding writes <code>marketplace_categories.is_hidden</code>, the column the homepage filters
+          on, so the row leaves the public page immediately.
+        </p>
       </div>
-      <ol className="relative space-y-3 border-l border-border pl-4">
-        {events.map((e, i) => (
-          <li key={i} className="relative">
-            <span className="absolute -left-[19px] top-1.5 h-2.5 w-2.5 rounded-full border border-border bg-accent shadow-[0_0_8px_currentColor]"/>
-            <div className="flex flex-wrap items-baseline gap-2">
-              <span className="text-[12px] font-semibold">{e.what}</span>
-              <span className="font-mono text-[10px] text-muted-foreground">by {e.who}</span>
-              <span className="font-mono text-[10px] text-muted-foreground">· {e.t}</span>
-            </div>
-          </li>
-        ))}
-      </ol>
     </Card>
   );
 }
 
-/* ============================================================
-   GLOBAL MANAGEMENT BLOCK
-   ============================================================ */
-const GLOBAL_GROUPS: { title: string; items: { label: string; icon: any }[] }[] = [
-  { title: "Discovery", items: [
-    { label: "Homepage Search", icon: Search },
-    { label: "Homepage Filters", icon: Filter },
-    { label: "Homepage Sorting", icon: ArrowUpDown },
-    { label: "Homepage Tags", icon: TagIcon },
-    { label: "Homepage Badges", icon: Star },
-    { label: "Homepage Labels", icon: TagIcon },
-  ]},
-  { title: "Media", items: [
-    { label: "Homepage Icons", icon: Sparkles },
-    { label: "Homepage Images", icon: ImageIcon },
-    { label: "Homepage Videos", icon: PlayCircle },
-  ]},
-  { title: "Content", items: [
-    { label: "Homepage SEO", icon: Search },
-    { label: "Homepage Blog", icon: Newspaper },
-    { label: "Homepage News", icon: Newspaper },
-    { label: "Homepage Documentation", icon: HelpCircle },
-    { label: "Homepage Support", icon: HelpCircle },
-    { label: "Homepage Announcements", icon: Sparkles },
-  ]},
-  { title: "Commerce", items: [
-    { label: "Homepage Popups", icon: MousePointerClick },
-    { label: "Homepage Promotions", icon: TagIcon },
-    { label: "Homepage Coupons", icon: TagIcon },
-    { label: "Homepage Deals", icon: TagIcon },
-    { label: "Homepage Collections", icon: FolderTree },
-    { label: "Homepage Bundles", icon: FolderTree },
-  ]},
-  { title: "Design System", items: [
-    { label: "Homepage Themes", icon: Palette },
-    { label: "Homepage Colors", icon: Palette },
-    { label: "Homepage Typography", icon: Type },
-    { label: "Homepage Spacing", icon: ArrowUpDown },
-    { label: "Homepage Components", icon: Wand2 },
-    { label: "Homepage Widgets", icon: Wand2 },
-    { label: "Homepage Cards", icon: Wand2 },
-    { label: "Homepage Sections", icon: FolderTree },
-    { label: "Homepage Layout", icon: Layout },
-  ]},
-  { title: "Structure", items: [
-    { label: "Homepage Navigation", icon: MousePointerClick },
-    { label: "Homepage Footer", icon: PanelBottom },
-  ]},
-  { title: "Locale", items: [
-    { label: "Languages", icon: Languages },
-    { label: "Currencies", icon: DollarSign },
-  ]},
-];
+/* -------------------------------------------------------------- analytics */
 
-function GlobalManagementBlock() {
+function RowAnalytics({ rowKey }: { rowKey: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["marketplace", "row-analytics", rowKey],
+    queryFn: () => getRowAnalytics({ data: { key: rowKey } }),
+    staleTime: 30_000,
+  });
+
+  const pct = (v: number | null | undefined) =>
+    v === null || v === undefined ? "not measured" : `${v}%`;
+
   return (
-    <section className="mt-10">
-      <div className="mb-5 flex items-baseline gap-3">
-        <h2 className="text-xl font-bold">Homepage Global Management</h2>
-        <span className="h-px w-24 bg-gradient-to-r from-border to-transparent"/>
-        <span className="rounded-full border border-border bg-background/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
-          {GLOBAL_GROUPS.reduce((n,g)=>n+g.items.length,0)} controls
-        </span>
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Product views" value={isLoading ? "—" : String(data?.product_views ?? 0)} />
+        <StatCard label="Demo opens" value={isLoading ? "—" : String(data?.demo_opens ?? 0)} />
+        <StatCard label="Paid orders" value={isLoading ? "—" : String(data?.orders ?? 0)} />
+        <StatCard label="Revenue" value={isLoading ? "—" : String(data?.revenue ?? 0)} />
       </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {GLOBAL_GROUPS.map((g) => (
-          <div key={g.title} className="glass rounded-2xl p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-accent">{g.title}</div>
-              <span className="rounded-full border border-border bg-background/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">{g.items.length}</span>
-            </div>
-            <div className="space-y-1.5">
-              {g.items.map((it) => {
-                const I = it.icon;
-                return (
-                  <button
-        type="button"
-        onClick={() => notBuilt("Manage")} key={it.label} className="flex w-full items-center justify-between rounded-lg border border-border bg-background/40 px-2.5 py-1.5 text-left transition-all hover:border-[oklch(0.80_0.13_192/0.40)] hover:bg-white/[0.05]">
-                    <span className="flex items-center gap-2 text-[12px] font-medium">
-                      <I className="h-3.5 w-3.5 text-accent"/>{it.label}
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Manage</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <StatCard label="Click-through" value={isLoading ? "—" : pct(data?.ctr)} />
+        <StatCard label="Conversion" value={isLoading ? "—" : pct(data?.conversion)} />
       </div>
-    </section>
+      <div className="rounded-lg border border-border bg-muted/10 p-3 text-[11px] text-muted-foreground">
+        {data?.measured_from
+          ? `Counted from marketplace_events since ${new Date(data.measured_from).toLocaleDateString()}, and from paid orders.`
+          : "No events have been recorded for this row yet, so the rates read “not measured” rather than 0%."}
+      </div>
+    </div>
   );
 }
+
+export default HomepageRowsSection;
