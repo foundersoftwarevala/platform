@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { aiComplete } from "@/lib/ai-gateway.server";
 
 const schema = z.object({
   text: z.string().min(1).max(4000),
@@ -10,15 +11,11 @@ const schema = z.object({
 export const translateMessage = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => schema.parse(input))
   .handler(async ({ data }) => {
-    const apiKey = process.env["LOVABLE_API_KEY"];
-    if (!apiKey) return { ok: false as const, error: "Translation service is not configured." };
+        if (!apiKey) return { ok: false as const, error: "Translation service is not configured." };
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "google/gemini-3.1-flash-lite",
-        messages: [
+    const __ai = await aiComplete({
+      module: "translate",
+      messages: [
           {
             role: "system",
             content:
@@ -26,8 +23,14 @@ export const translateMessage = createServerFn({ method: "POST" })
           },
           { role: "user", content: `Target language code: ${data.target}\n\nMessage:\n${data.text}` },
         ],
-      }),
     });
+    // Shaped like the gateway reply the surrounding code already parses.
+    const response = {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: __ai.text } }] }),
+      text: async () => __ai.text,
+    };
 
     if (response.status === 429) return { ok: false as const, error: "Translation rate limit reached. Try again shortly." };
     if (response.status === 402) return { ok: false as const, error: "Translation credits exhausted." };

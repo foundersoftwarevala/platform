@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { aiComplete } from "@/lib/ai-gateway.server";
 
 type SeoInput = {
   topic: string;
@@ -51,8 +52,7 @@ function fallback(input: SeoInput): SeoOutput {
 export const generateSeo = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as SeoInput)
   .handler(async ({ data }): Promise<SeoOutput> => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) return fallback(data);
+        if (!key) return fallback(data);
 
     const sys = `You are an SEO specialist for a global software marketplace.
 Return STRICT JSON only, no markdown. Schema:
@@ -63,21 +63,21 @@ Page type: ${data.type ?? "homepage"} | Locale: ${data.locale ?? "global/en"}
 Brand: Software Vala Marketplace.`;
 
     try {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Lovable-API-Key": key,
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
+      const __ai = await aiComplete({
+      module: "seo",
+      messages: [
             { role: "system", content: sys },
             { role: "user", content: user },
           ],
-          response_format: { type: "json_object" },
-        }),
-      });
+      json: true,
+    });
+    // Shaped like the gateway reply the surrounding code already parses.
+    const res = {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: __ai.text } }] }),
+      text: async () => __ai.text,
+    };
       if (!res.ok) return fallback(data);
       const json = await res.json();
       const txt = json?.choices?.[0]?.message?.content ?? "";

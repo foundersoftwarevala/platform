@@ -8,6 +8,7 @@ import {
 } from "@/components/promise-tracker/PromiseFilters";
 import { Button } from "@/components/ui/button";
 import { useApplyInsight, useDismissInsight, useInsights } from "@/hooks/usePromiseTracker";
+import { useGenerateInsights } from "@/hooks/usePromiseTracker";
 import type { PromiseWithCategory } from "@/lib/promise-tracker/constants";
 
 export const Route = createFileRoute("/promise-tracker/insights")({
@@ -41,6 +42,7 @@ function PTInsights() {
   const { data = [] } = useInsights();
   const { filters, update, reset } = usePromiseFilters();
   const applyInsight = useApplyInsight();
+  const generate = useGenerateInsights();
   const dismissInsight = useDismissInsight();
   const linkedPromises = data
     .map((insight) => insight.promises)
@@ -57,6 +59,14 @@ function PTInsights() {
       <PTPageHeader
         title="AI Insights"
         description="Risk scoring across open commitments, with the recommended next action for each one."
+        actions={
+          <Button
+            onClick={() => generate.mutate({ limit: 10 })}
+            disabled={generate.isPending}
+          >
+            {generate.isPending ? "Assessing\u2026" : "Assess open promises"}
+          </Button>
+        }
       />
 
       <div className="mb-4">
@@ -68,6 +78,17 @@ function PTInsights() {
           resultCount={filtered.length}
         />
       </div>
+
+      {filtered.length === 0 ? (
+        <div className="glass-panel p-8 text-center">
+          <p className="text-sm font-medium text-foreground">No insights yet</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+            Nothing here is assumed. Choose &ldquo;Assess open promises&rdquo; to have the
+            configured AI provider score the open register; whatever it returns is
+            advisory, and applying a suggestion stays a separate, audited step.
+          </p>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         {filtered.map((insight) => (

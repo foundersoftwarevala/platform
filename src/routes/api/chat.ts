@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { aiStream } from "@/lib/ai-gateway.server";
 
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
 
@@ -29,33 +30,19 @@ export const Route = createFileRoute("/api/chat")({
           return new Response("Messages are required", { status: 400 });
         }
 
-        const key = process.env["LOVABLE_API_KEY"];
-        if (!key) return new Response("AI is not configured", { status: 500 });
-
-        const upstream = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${key}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-3.6-flash",
-            stream: true,
+        // Streamed through AI API Manager, which owns the provider, the model
+        // and the credential. The upstream body still reaches the browser
+        // untouched, so the client's event parsing is unchanged.
+        try {
+          return await aiStream({
+            module: "assistant",
             messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
-          }),
-        });
-
-        if (!upstream.ok || !upstream.body) {
-          const text = await upstream.text().catch(() => "");
-          return new Response(text || "AI request failed", { status: upstream.status || 500 });
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "The AI request failed.";
+          // A missing provider is a configuration problem, not a server fault.
+          return new Response(message, { status: 503 });
         }
-
-        return new Response(upstream.body, {
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-          },
-        });
       },
     },
   },

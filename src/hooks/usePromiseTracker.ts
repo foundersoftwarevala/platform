@@ -905,3 +905,34 @@ export function useTrackerMetrics() {
 
   return { metrics, promises, isLoading };
 }
+
+/**
+ * Ask the configured AI provider to assess the open register.
+ *
+ * Advisory only: it writes insight rows and changes no promise. Where no
+ * provider is configured in AI API Manager the server says so, and that reason
+ * is shown rather than an empty board that implies there is no risk.
+ */
+export function useGenerateInsights() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { limit?: number }) => {
+      const { generatePromiseInsights } = await import("@/lib/promise-tracker/insights.functions");
+      return generatePromiseInsights({ data: { limit: input.limit ?? 10 } });
+    },
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: trackerKeys.insights });
+      void queryClient.invalidateQueries({ queryKey: trackerKeys.logs });
+      const generated = (result as { generated?: number; message?: string }).generated ?? 0;
+      const note = (result as { message?: string }).message;
+      toast.success(
+        generated > 0 ? `${generated} insight(s) generated` : "Nothing new to assess",
+        { description: note },
+      );
+    },
+    onError: (error: Error) => {
+      void reportHealth({ source: "mutation", event: "generate_insights", message: error.message });
+      toast.error("Could not assess the register", { description: error.message });
+    },
+  });
+}

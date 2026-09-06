@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { aiComplete } from "@/lib/ai-gateway.server";
 
 /**
  * AI assistant layer for Connect Chat.
@@ -28,46 +29,30 @@ type GatewayResult =
   | { ok: false; status: number; error: string; retryable: boolean };
 
 async function callGateway(
-  apiKey: string,
   input: { role: "system" | "user" | "assistant"; content: string }[],
 ): Promise<GatewayResult> {
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
-    body: JSON.stringify({ model: MODEL, input }),
-  });
-
-  if (!res.ok) {
-    let message = `AI gateway error (${res.status}).`;
-    try {
-      const payload = (await res.json()) as { error?: { message?: string }; message?: string };
-      message = payload.error?.message ?? payload.message ?? message;
-    } catch {
-      /* non-JSON error body */
+  // Routed through AI API Manager rather than a vendor key read from the
+  // environment. The result shape is unchanged, so every caller below is
+  // untouched.
+  try {
+    const { text } = await aiComplete({ module: "chat", messages: input });
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return { ok: false, status: 502, error: "AI returned an empty reply.", retryable: true };
     }
+    return { ok: true, text: trimmed };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The AI request failed.";
+    // A missing provider or credential is a configuration problem: retrying
+    // will not fix it, and telling the caller otherwise wastes their time.
+    const configuration = /not configured|no active|credential|AI API Manager/i.test(message);
     return {
       ok: false,
-      status: res.status,
+      status: configuration ? 503 : 502,
       error: message,
-      retryable: res.status === 429 || res.status >= 500,
+      retryable: !configuration,
     };
   }
-
-  const payload = (await res.json()) as {
-    output_text?: string;
-    output?: { content?: { type?: string; text?: string }[] }[];
-  };
-  const text =
-    payload.output_text?.trim() ||
-    (payload.output ?? [])
-      .flatMap((item) => item.content ?? [])
-      .filter((part) => part.type === "output_text" || typeof part.text === "string")
-      .map((part) => part.text ?? "")
-      .join("")
-      .trim();
-
-  if (!text) return { ok: false, status: 502, error: "AI returned an empty reply.", retryable: true };
-  return { ok: true, text };
 }
 
 type AdminClient = Awaited<
@@ -125,9 +110,6 @@ export const generateAiReply = createServerFn({ method: "POST" })
       .limit(24);
     if (historyError) return { ok: false as const, error: historyError.message };
 
-    const apiKey = process.env["LOVABLE_API_KEY"];
-    if (!apiKey) return { ok: false as const, error: "AI is not configured on this workspace." };
-
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const botId = await ensureBotUser(supabaseAdmin);
 
@@ -148,7 +130,7 @@ export const generateAiReply = createServerFn({ method: "POST" })
         content: m.body,
       }));
 
-    const result = await callGateway(apiKey, [
+    const result = await callGateway([
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "system",

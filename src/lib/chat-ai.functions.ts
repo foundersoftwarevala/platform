@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { aiComplete } from "@/lib/ai-gateway.server";
 
 export type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
 
@@ -13,29 +14,27 @@ Never invent metrics, revenue, ratings or downloads. If asked for live data you 
 export const chatWithAi = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as ChatInput)
   .handler(async ({ data }): Promise<ChatOutput> => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) {
+        if (!key) {
       return {
         reply: "",
-        error: "AI is not configured. Add LOVABLE_API_KEY to enable Vala AI Chat.",
+        error: "AI is not configured. Configure an AI provider in AI API Manager to enable Vala AI Chat.",
       };
     }
     try {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Lovable-API-Key": key,
-          "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
+      const __ai = await aiComplete({
+      module: "chat",
+      messages: [
             { role: "system", content: SYSTEM_PROMPT },
             ...data.messages.slice(-20),
           ],
-        }),
-      });
+    });
+    // Shaped like the gateway reply the surrounding code already parses.
+    const res = {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: __ai.text } }] }),
+      text: async () => __ai.text,
+    };
       if (res.status === 429) return { reply: "", error: "Rate limit reached. Try again in a moment." };
       if (res.status === 402) return { reply: "", error: "AI credits exhausted. Top up in workspace billing." };
       if (!res.ok) return { reply: "", error: `AI gateway error (${res.status}).` };

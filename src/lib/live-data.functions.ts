@@ -289,11 +289,31 @@ async function probe(url: string): Promise<{ up: boolean; ms: number }> {
   }
 }
 
+/**
+ * Is the AI provider this platform actually uses reachable?
+ *
+ * This used to ping the Lovable gateway, which the platform no longer uses - so
+ * the status light on the dashboard was reporting somebody else's service.
+ * Where no provider is configured, the honest answer is that it is down for us,
+ * not that it is fine.
+ */
+async function probeConfiguredAi(): Promise<{ up: boolean; ms: number }> {
+  const t0 = Date.now();
+  try {
+    const { resolveAiTarget } = await import("@/lib/ai-gateway.server");
+    const target = await resolveAiTarget();
+    const origin = new URL(target.endpoint).origin;
+    return await probe(origin);
+  } catch {
+    return { up: false, ms: Date.now() - t0 };
+  }
+}
+
 export const getSystemPulse = createServerFn({ method: "GET" }).handler(async (): Promise<PulsePayload> => {
   const [w, m, ai] = await Promise.all([
     probe("https://api.open-meteo.com/v1/forecast?latitude=0&longitude=0&current=temperature_2m"),
     probe("https://api.frankfurter.app/latest?from=USD&to=EUR"),
-    probe("https://ai.gateway.lovable.dev/v1/models"),
+    probeConfiguredAi(),
   ]);
 
   return {

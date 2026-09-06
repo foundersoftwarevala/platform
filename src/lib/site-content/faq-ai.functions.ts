@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { aiComplete } from "@/lib/ai-gateway.server";
 
 type GenInput = { topic?: string; count?: number; category?: string };
 type GenOutput = {
@@ -18,19 +19,12 @@ Answers must be 1-3 sentences, factual, no marketing fluff, no invented metrics.
 export const generateFaqs = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => (d ?? {}) as GenInput)
   .handler(async ({ data }): Promise<GenOutput> => {
-    const key = process.env["LOVABLE_API_KEY"];
-    if (!key) return { items: [], error: "AI is not configured yet." };
+        if (!key) return { items: [], error: "AI is not configured yet." };
     const count = Math.min(Math.max(data.count ?? 6, 1), 12);
     try {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Lovable-API-Key": key,
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
+      const __ai = await aiComplete({
+      module: "faq",
+      messages: [
             { role: "system", content: SYSTEM },
             {
               role: "user",
@@ -39,8 +33,14 @@ export const generateFaqs = createServerFn({ method: "POST" })
               }${data.topic ? ` about: ${data.topic}` : ""}.`,
             },
           ],
-        }),
-      });
+    });
+    // Shaped like the gateway reply the surrounding code already parses.
+    const res = {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: __ai.text } }] }),
+      text: async () => __ai.text,
+    };
       if (res.status === 429) return { items: [], error: "Rate limit reached. Try again shortly." };
       if (res.status === 402) return { items: [], error: "AI credits exhausted." };
       if (!res.ok) return { items: [], error: `AI gateway error (${res.status}).` };
