@@ -1098,6 +1098,27 @@ function DashboardsMenu({ t }: { t: (s: string) => string }) {
 }
 
 
+
+/**
+ * Tailwind classes that hide a module on the surfaces it is switched off for.
+ *
+ * Expressed as CSS so the markup is identical on server and client — measuring
+ * the viewport in JavaScript would hide the module only after hydration, which
+ * is a visible flicker on the front page.
+ *
+ * Breakpoints match the rest of this file: < md mobile, md–lg tablet, lg+ desktop.
+ */
+function deviceClass(m?: { desktop_enabled?: boolean; tablet_enabled?: boolean; mobile_enabled?: boolean }): string {
+  if (!m) return "";
+  const out: string[] = [];
+  // Hidden everywhere it is switched off; shown again at the next breakpoint up
+  // so the rules do not cascade past their own band.
+  if (m.mobile_enabled === false) out.push("hidden", "md:flex");
+  if (m.tablet_enabled === false) out.push("md:hidden", "lg:flex");
+  if (m.desktop_enabled === false) out.push("lg:hidden");
+  return out.join(" ");
+}
+
 /** The registry key each rendered module corresponds to. */
 const MODULE_KEYS: Record<string, string> = {
   apply: "apply-now",
@@ -1112,7 +1133,14 @@ const MODULE_KEYS: Record<string, string> = {
   ai: "ai-chat",
 };
 
-type TopBarModule = { module_key: string; status: string; sort_order: number };
+type TopBarModule = {
+  module_key: string;
+  status: string;
+  sort_order: number;
+  desktop_enabled?: boolean;
+  tablet_enabled?: boolean;
+  mobile_enabled?: boolean;
+};
 
 /**
  * What Top Bar Manager says the header should show.
@@ -1187,13 +1215,27 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
       });
   }, [items, config]);
 
+  // Looked up once so each wrapper can carry its own device rules.
+  const byKey = useMemo(() => {
+    const map = new Map<string, TopBarModule>();
+    for (const m of config ?? []) map.set(m.module_key, m);
+    return map;
+  }, [config]);
+
   return (
     <div className="flex flex-wrap items-center justify-center gap-2">
-      {visible.map((el, i) => (
-        <div key={el.key} className="kr-stagger" style={{ animationDelay: `${i * 55}ms` }}>
-          {el}
-        </div>
-      ))}
+      {visible.map((el, i) => {
+        const key = MODULE_KEYS[String(el.key)];
+        return (
+          <div
+            key={el.key}
+            className={`kr-stagger flex ${key ? deviceClass(byKey.get(key)) : ""}`}
+            style={{ animationDelay: `${i * 55}ms` }}
+          >
+            {el}
+          </div>
+        );
+      })}
     </div>
   );
 }
