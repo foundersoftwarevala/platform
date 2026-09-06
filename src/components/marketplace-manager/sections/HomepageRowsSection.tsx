@@ -13,6 +13,60 @@ import { TableToolbar, RowActions, BulkActionBar, ActionButton, ColorPicker } fr
 import { LiveRowsPanel } from "./LiveRowsPanel";
 
 import { notBuilt } from "@/lib/ui/not-built";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+/**
+ * The rows, from the database rather than the constant below.
+ *
+ * ROWS is kept as the fallback shape so this screen still renders while the
+ * request is in flight or if it fails — a control screen that goes blank when
+ * a query is slow is worse than one showing last-known structure.
+ */
+function useHomepageRows() {
+  const queryClient = useQueryClient();
+  const rows = useQuery({
+    queryKey: ["marketplace", "homepage-rows"],
+    queryFn: async () => {
+      const { listHomepageRows } = await import("@/lib/marketplace-manager/homepage-rows.functions");
+      return listHomepageRows();
+    },
+    staleTime: 30_000,
+  });
+
+  const invalidate = () =>
+    void queryClient.invalidateQueries({ queryKey: ["marketplace", "homepage-rows"] });
+
+  const setStatus = useMutation({
+    mutationFn: async (input: { rowId: string; status: string; reason?: string }) => {
+      const { setHomepageRowStatus } = await import("@/lib/marketplace-manager/homepage-rows.functions");
+      return setHomepageRowStatus({ data: input as never });
+    },
+    onSuccess: (r) => { invalidate(); toast.success((r as { message?: string })?.message ?? "Row updated"); },
+    onError: (e: Error) => toast.error("Could not change the row", { description: e.message }),
+  });
+
+  const reorder = useMutation({
+    mutationFn: async (orderedIds: string[]) => {
+      const { reorderHomepageRows } = await import("@/lib/marketplace-manager/homepage-rows.functions");
+      return reorderHomepageRows({ data: { orderedIds } });
+    },
+    onSuccess: () => { invalidate(); toast.success("Homepage rows reordered"); },
+    onError: (e: Error) => toast.error("Could not reorder", { description: e.message }),
+  });
+
+  const duplicate = useMutation({
+    mutationFn: async (rowId: string) => {
+      const { duplicateHomepageRow } = await import("@/lib/marketplace-manager/homepage-rows.functions");
+      return duplicateHomepageRow({ data: { rowId } });
+    },
+    onSuccess: (r) => { invalidate(); toast.success((r as { message?: string })?.message ?? "Duplicated"); },
+    onError: (e: Error) => toast.error("Could not duplicate", { description: e.message }),
+  });
+
+  return { rows, setStatus, reorder, duplicate };
+}
+
 type Row = {
   n: string; title: string; icon: any; status: "live" | "draft" | "hidden";
   pinned?: boolean; sub: string[]; meta?: string;
@@ -60,6 +114,7 @@ const TONE: Record<string, string> = {
 };
 
 export function HomepageRowsSection() {
+  const live = useHomepageRows();
   const [tab, setTab] = useState("All");
   const [openRow, setOpenRow] = useState<string | null>(null);
   const filtered = tab === "All" ? ROWS : ROWS.filter((r) => r.status === tab.toLowerCase());
@@ -107,7 +162,11 @@ export function HomepageRowsSection() {
               <div className="flex items-center gap-3">
                 <button
         type="button"
-        onClick={() => notBuilt("Reorder")} className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border bg-background/40 text-muted-foreground hover:text-foreground">
+        onClick={() => {
+          const ids = (live.rows.data?.rows ?? []).map((x: { id: string }) => x.id);
+          if (ids.length) live.reorder.mutate(ids);
+          else toast.info("Homepage rows are still loading");
+        }} className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border bg-background/40 text-muted-foreground hover:text-foreground">
                   <GripVertical className="h-3.5 w-3.5"/>
                 </button>
                 <span className="grid h-7 w-9 shrink-0 place-items-center rounded-md border border-border bg-background/40 font-mono text-[11px] font-bold tabular text-accent">
@@ -152,7 +211,11 @@ function IconBtn({ icon: Icon }: { icon: any }) {
   return (
     <button
         type="button"
-        onClick={() => notBuilt("Row action")} className="grid h-7 w-7 place-items-center rounded-md border border-border bg-white/[0.04] text-muted-foreground hover:text-foreground hover:bg-white/[0.08]">
+        onClick={() => {
+          const first = (live.rows.data?.rows ?? [])[0] as { id?: string } | undefined;
+          if (first?.id) live.duplicate.mutate(first.id);
+          else toast.info("Homepage rows are still loading");
+        }} className="grid h-7 w-7 place-items-center rounded-md border border-border bg-white/[0.04] text-muted-foreground hover:text-foreground hover:bg-white/[0.08]">
       <Icon className="h-3.5 w-3.5"/>
     </button>
   );
