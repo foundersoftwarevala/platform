@@ -1097,6 +1097,52 @@ function DashboardsMenu({ t }: { t: (s: string) => string }) {
   );
 }
 
+
+/** The registry key each rendered module corresponds to. */
+const MODULE_KEYS: Record<string, string> = {
+  apply: "apply-now",
+  lang: "language",
+  cal: "calendar",
+  calc: "calculator",
+  login: "login",
+  dashboards: "dashboards",
+  cur: "currency",
+  notif: "notifications",
+  fav: "favorites",
+  ai: "ai-chat",
+};
+
+type TopBarModule = { module_key: string; status: string; sort_order: number };
+
+/**
+ * What Top Bar Manager says the header should show.
+ *
+ * Returns null until it knows, and null means "render everything" — the header
+ * is never held back waiting for configuration, and never blanked by a failed
+ * request. Read anonymously on purpose: the bar renders for signed-out
+ * visitors, so the policy on marketplace_topbar_modules allows anon select.
+ */
+function useTopBarConfig(): TopBarModule[] | null {
+  const [config, setConfig] = useState<TopBarModule[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { supabase } = await import("@/integrations/supabase/client");
+        const { data, error } = await supabase.rpc("mm_topbar_modules");
+        if (cancelled || error || !Array.isArray(data) || data.length === 0) return;
+        setConfig(data as TopBarModule[]);
+      } catch {
+        /* keep the default order — the header must not depend on this call */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return config;
+}
+
 export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number }) {
   const { lang, t, apply, busy } = useBarTranslation();
   const items = useMemo(
@@ -1115,9 +1161,35 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
     [lang, t, apply, busy, favoritesCount],
   );
 
+  const config = useTopBarConfig();
+
+  // With no configuration loaded the header renders exactly as it always has.
+  // With configuration, a module that is not live is dropped and the rest
+  // follow the order the manager saved.
+  const visible = useMemo(() => {
+    if (!config) return items;
+    const state = new Map(config.map((m) => [m.module_key, m]));
+    return items
+      .filter((el) => {
+        const key = MODULE_KEYS[String(el.key)];
+        // A module the registry has never heard of keeps rendering; the
+        // registry can hide what it knows, not suppress what it does not.
+        if (!key) return true;
+        const m = state.get(key);
+        return m ? m.status === "live" : true;
+      })
+      .sort((a, b) => {
+        const ak = MODULE_KEYS[String(a.key)];
+        const bk = MODULE_KEYS[String(b.key)];
+        const ao = ak ? (state.get(ak)?.sort_order ?? 999) : 999;
+        const bo = bk ? (state.get(bk)?.sort_order ?? 999) : 999;
+        return ao - bo;
+      });
+  }, [items, config]);
+
   return (
     <div className="flex flex-wrap items-center justify-center gap-2">
-      {items.map((el, i) => (
+      {visible.map((el, i) => (
         <div key={el.key} className="kr-stagger" style={{ animationDelay: `${i * 55}ms` }}>
           {el}
         </div>
