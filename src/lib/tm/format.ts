@@ -12,6 +12,15 @@ export const STATUS_LABELS: Record<TMTaskStatus, string> = {
   on_hold: "On Hold",
   completed: "Completed",
   cancelled: "Cancelled",
+  routed: "Routed",
+  available_for_claim: "Available",
+  claimed: "Claimed",
+  submitted: "Submitted",
+  under_review: "Under Review",
+  approved: "Approved",
+  rejected: "Rejected",
+  failed: "Failed",
+  closed: "Closed",
 };
 
 /** Token-based classes only — no hardcoded palette colours. */
@@ -27,6 +36,15 @@ export const STATUS_CLASSES: Record<TMTaskStatus, string> = {
   on_hold: "bg-muted text-muted-foreground border-border",
   completed: "bg-success/15 text-success border-success/30",
   cancelled: "bg-muted text-muted-foreground border-border",
+  routed: "bg-info/15 text-info border-info/30",
+  available_for_claim: "bg-info/20 text-info border-info/40",
+  claimed: "bg-primary/15 text-primary border-primary/30",
+  submitted: "bg-warning/15 text-warning border-warning/30",
+  under_review: "bg-warning/20 text-warning border-warning/40",
+  approved: "bg-success/15 text-success border-success/30",
+  rejected: "bg-destructive/15 text-destructive border-destructive/30",
+  failed: "bg-destructive/20 text-destructive border-destructive/40",
+  closed: "bg-muted text-muted-foreground border-border",
 };
 
 export const PRIORITY_LABELS: Record<TMTaskPriority, string> = {
@@ -131,7 +149,9 @@ export interface SLAInfo {
   className: string;
 }
 
-const TERMINAL: TMTaskStatus[] = ["completed", "cancelled"];
+// Every state a task can rest in. An approved or closed task has no
+// deadline left to miss, so its clock stops with the others.
+const TERMINAL: TMTaskStatus[] = ["completed", "cancelled", "approved", "closed", "failed"];
 
 /**
  * Derives live SLA state from the task's real timestamps. No mock values.

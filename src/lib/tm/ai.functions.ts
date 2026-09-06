@@ -1,6 +1,29 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { executeAiRequest } from "@/lib/ai-api.functions";
+
+/**
+ * The AI Task Generator of section 18.
+ *
+ * This used to call the Lovable AI gateway directly on a LOVABLE_API_KEY.
+ * Lovable is no longer part of this platform, and that key is not set on the
+ * server, so every generation attempt failed with "AI is not configured" -
+ * which read as a broken screen rather than as a removed vendor.
+ *
+ * It now goes through AI API Manager, which is the single place this platform
+ * keeps AI providers, models and credentials. That means the provider can be
+ * changed by an operator without a deployment, the call is metered into
+ * usage_events like every other AI call, and there is exactly one place a key
+ * lives. Nothing here holds a credential of its own.
+ *
+ * Suggestions are returned for review and are not written to the task table.
+ * Section 18 is explicit that a person approves them before they become tasks,
+ * and section 27 is explicit that nothing may be invented: if no provider is
+ * configured, this raises the reason rather than returning a plausible-looking
+ * list that nobody asked a model for.
+ */
+
 const inputSchema = z.object({
   brief: z.string().min(10).max(4000),
   count: z.number().int().min(1).max(8).default(4),
@@ -23,79 +46,77 @@ export interface AITaskSuggestion {
   tags: string[];
   subtasks: string[];
   suggested_owner_role: string;
+  acceptance_criteria: string[];
 }
 
-/** Generates task breakdowns with Lovable AI. No canned/mock output. */
+const suggestionSchema = z.object({
+  tasks: z
+    .array(
+      z.object({
+        title: z.string(),
+        description: z.string().default(""),
+        category: z.string().default("development"),
+        priority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
+        difficulty: z.enum(["easy", "medium", "hard", "expert"]).default("medium"),
+        estimated_hours: z.coerce.number().min(0.5).max(200).default(4),
+        sla_hours: z.coerce.number().min(1).max(720).default(24),
+        tags: z.array(z.string()).default([]),
+        subtasks: z.array(z.string()).default([]),
+        suggested_owner_role: z.string().default("developer"),
+        acceptance_criteria: z.array(z.string()).default([]),
+      }),
+    )
+    .default([]),
+});
+
+const SYSTEM =
+  "You are the task planner for a software agency operations platform. Break a work " +
+  "brief into concrete, independently deliverable engineering tasks. Reply with JSON only, " +
+  "with no prose and no code fence.";
+
+/** Models often wrap JSON in a fence or a sentence; take the object itself. */
+function extractJson(text: string): unknown {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = fenced ? fenced[1] : trimmed;
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("The AI provider did not return a JSON object.");
+  }
+  return JSON.parse(candidate.slice(start, end + 1));
+}
+
 export const generateTasks = createServerFn({ method: "POST" })
   .inputValidator((data) => inputSchema.parse(data))
   .handler(async ({ data }): Promise<AITaskSuggestion[]> => {
-    const apiKey = process.env["LOVABLE_API_KEY"];
-    if (!apiKey) throw new Error("AI is not configured for this project.");
+    const prompt = [
+      `Brief: ${data.brief}`,
+      `Produce exactly ${data.count} tasks.`,
+      data.context.categories.length
+        ? `Allowed categories: ${data.context.categories.join(", ")}.`
+        : "",
+      data.context.members.length
+        ? `Team roles available: ${data.context.members.join(", ")}.`
+        : "",
+      'Return JSON of shape {"tasks":[{"title","description","category","priority",' +
+        '"difficulty","estimated_hours","sla_hours","tags":[],"subtasks":[],' +
+        '"suggested_owner_role","acceptance_criteria":[]}]}.',
+      "priority is one of low|medium|high|critical. difficulty is one of easy|medium|hard|expert. " +
+        "estimated_hours and sla_hours are numbers.",
+    ]
+      .filter(Boolean)
+      .join("\n");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are the task planner for a software agency operations platform. Break a work brief into concrete, independently deliverable engineering tasks. Reply with JSON only.",
-          },
-          {
-            role: "user",
-            content: [
-              `Brief: ${data.brief}`,
-              `Produce exactly ${data.count} tasks.`,
-              data.context.categories.length ? `Allowed categories: ${data.context.categories.join(", ")}.` : "",
-              data.context.members.length ? `Team roles available: ${data.context.members.join(", ")}.` : "",
-              'Return JSON of shape {"tasks":[{"title","description","category","priority","difficulty","estimated_hours","sla_hours","tags":[],"subtasks":[],"suggested_owner_role"}]}.',
-              "priority ∈ low|medium|high|critical. difficulty ∈ easy|medium|hard|expert. estimated_hours and sla_hours are numbers.",
-            ]
-              .filter(Boolean)
-              .join("\n"),
-          },
-        ],
-        response_format: { type: "json_object" },
-      }),
+    // Routed, credentialed and metered by AI API Manager. If no provider is
+    // active there, this throws with that reason and the screen shows it.
+    const { text } = await executeAiRequest({
+      module: "task-manager",
+      system: SYSTEM,
+      prompt,
     });
 
-    if (!response.ok) {
-      const body = await response.text();
-      console.error(`AI gateway failed [${response.status}]: ${body}`);
-      if (response.status === 429) throw new Error("AI rate limit reached, please retry shortly.");
-      if (response.status === 402) throw new Error("AI credits exhausted for this workspace.");
-      throw new Error(`AI request failed [${response.status}]`);
-    }
-
-    const payload = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const content = payload.choices?.[0]?.message?.content ?? "{}";
-
-    const parsed = z
-      .object({
-        tasks: z
-          .array(
-            z.object({
-              title: z.string(),
-              description: z.string().default(""),
-              category: z.string().default("development"),
-              priority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
-              difficulty: z.enum(["easy", "medium", "hard", "expert"]).default("medium"),
-              estimated_hours: z.coerce.number().min(0.5).max(200).default(4),
-              sla_hours: z.coerce.number().min(1).max(720).default(24),
-              tags: z.array(z.string()).default([]),
-              subtasks: z.array(z.string()).default([]),
-              suggested_owner_role: z.string().default("developer"),
-            }),
-          )
-          .default([]),
-      })
-      .safeParse(JSON.parse(content));
-
+    const parsed = suggestionSchema.safeParse(extractJson(text));
     if (!parsed.success) throw new Error("AI returned an unexpected response shape.");
     return parsed.data.tasks;
   });

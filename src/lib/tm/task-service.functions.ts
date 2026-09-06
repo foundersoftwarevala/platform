@@ -83,24 +83,25 @@ async function record(
 }
 
 const STATUSES = [
-  "new", "assigned", "accepted", "in_progress", "ai_review",
-  "waiting_client", "testing", "blocked", "on_hold", "completed", "cancelled",
+  "new", "routed", "available_for_claim", "claimed", "assigned", "accepted",
+  "in_progress", "on_hold", "blocked", "waiting_client", "ai_review", "testing",
+  "submitted", "under_review", "approved", "rejected",
+  "completed", "cancelled", "failed", "closed",
 ] as const;
 
-/** A transition table, so an impossible move is refused rather than written. */
-const ALLOWED: Record<string, string[]> = {
-  new: ["assigned", "accepted", "cancelled"],
-  assigned: ["accepted", "in_progress", "cancelled", "new"],
-  accepted: ["in_progress", "on_hold", "blocked", "cancelled"],
-  in_progress: ["on_hold", "blocked", "ai_review", "testing", "completed", "cancelled"],
-  on_hold: ["in_progress", "blocked", "cancelled"],
-  blocked: ["in_progress", "on_hold", "cancelled"],
-  ai_review: ["in_progress", "testing", "completed", "waiting_client", "cancelled"],
-  testing: ["in_progress", "ai_review", "completed", "cancelled"],
-  waiting_client: ["in_progress", "ai_review", "cancelled"],
-  completed: [],
-  cancelled: [],
-};
+/**
+ * What may follow a given status.
+ *
+ * The database enforces this in a trigger, so asking it rather than keeping a
+ * second copy here means the two can never drift apart. A local table looked
+ * tidier right up to the moment somebody changed one of them.
+ */
+async function allowedFrom(status: string): Promise<string[]> {
+  const db = await admin();
+  const { data, error } = await db.rpc("tm_allowed_transitions", { p_from: status });
+  if (error) return [];
+  return (data as string[] | null) ?? [];
+}
 
 async function currentStatus(taskId: string): Promise<string | null> {
   const db = await admin();
@@ -113,15 +114,18 @@ async function transition(taskId: string, to: string, note?: string) {
   const from = await currentStatus(taskId);
   if (!from) return { ok: false as const, reason: "no_such_task" };
   if (from === to) return { ok: true as const, status: to, unchanged: true };
-  if (!(ALLOWED[from] ?? []).includes(to)) {
-    return { ok: false as const, reason: "invalid_transition", from, to };
+
+  const allowed = await allowedFrom(from);
+  if (!allowed.includes(to)) {
+    return { ok: false as const, reason: "invalid_transition", from, to, allowed };
   }
 
   const db = await admin();
-  const patch: Record<string, unknown> = { status: to, updated_at: new Date().toISOString() };
-  if (to === "in_progress") patch.started_at = new Date().toISOString();
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = { status: to, updated_at: now };
+  if (to === "in_progress" ) patch.started_at = now;
   if (to === "completed") {
-    patch.completed_at = new Date().toISOString();
+    patch.completed_at = now;
     patch.progress = 100;
   }
 
@@ -289,7 +293,9 @@ export const submitTask = createServerFn({ method: "POST" })
     await db.from("tm_tasks")
       .update({ approval_status: "pending", progress: 100 })
       .eq("id", data.taskId);
-    return transition(data.taskId, "ai_review", data.note);
+    // Submission is its own state now. An AI pass is a separate step that may
+    // or may not happen, and conflating the two hid which one a task was in.
+    return transition(data.taskId, "submitted", data.note);
   });
 
 export const reviewTask = createServerFn({ method: "POST" })
@@ -314,9 +320,15 @@ export const reviewTask = createServerFn({ method: "POST" })
     await record(data.taskId, `Review ${data.decision}`, "review", null, data.decision,
                  data.comment);
 
-    // Sending work back returns it to the person doing it, rather than leaving
-    // it sitting in a review queue nobody owns.
-    if (data.decision === "changes_requested" || data.decision === "rejected") {
+    // The lifecycle moves with the decision, not only the approval flag: a
+    // reviewed task that still reads "submitted" tells the next person nothing.
+    if (data.decision === "approved") {
+      await transition(data.taskId, "approved", data.comment);
+    } else if (data.decision === "rejected") {
+      await transition(data.taskId, "rejected", data.comment);
+    } else {
+      // Changes requested sends the work back to the person doing it, rather
+      // than leaving it in a review queue nobody owns.
       await transition(data.taskId, "in_progress", data.comment);
     }
     return { ok: true as const, decision: data.decision };
@@ -422,3 +434,144 @@ export const listModuleTasks = createServerFn({ method: "GET" })
       .limit(data.limit);
     return { tasks: rows ?? [] };
   });
+
+export const approveTask = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      taskId: z.string().uuid(),
+      comment: z.string().trim().max(2000).optional(),
+      qualityScore: z.number().int().min(0).max(100).optional(),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { isOperator } = await requireUser();
+    if (!isOperator) return { ok: false as const, reason: "forbidden" };
+    const db = await admin();
+    const patch: Record<string, unknown> = { approval_status: "approved" };
+    if (data.qualityScore !== undefined) patch.quality_score = data.qualityScore;
+    await db.from("tm_tasks").update(patch).eq("id", data.taskId);
+    await record(data.taskId, "Approved", "approval", null, "approved", data.comment);
+    return transition(data.taskId, "approved", data.comment);
+  });
+
+export const rejectTask = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      taskId: z.string().uuid(),
+      reason: z.string().trim().min(3).max(2000),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { isOperator } = await requireUser();
+    if (!isOperator) return { ok: false as const, reason: "forbidden" };
+    const db = await admin();
+    await db.from("tm_tasks").update({ approval_status: "rejected" }).eq("id", data.taskId);
+    await record(data.taskId, "Rejected", "approval", null, "rejected", data.reason);
+    return transition(data.taskId, "rejected", data.reason);
+  });
+
+/** Routes work to a role before any individual is chosen. */
+export const routeTask = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      taskId: z.string().uuid(),
+      role: z.string().trim().min(2).max(60),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    await requireUser();
+    const db = await admin();
+    const { data: result, error } = await db.rpc("tm_route_task", {
+      p_task_id: data.taskId,
+      p_role: data.role,
+    });
+    if (error) return { ok: false as const, reason: error.message };
+    return result as Record<string, unknown>;
+  });
+
+/**
+ * Hold: quiet the buzzer without taking the work on.
+ *
+ * Section 5 treats this as distinct from claiming - the person is saying "not
+ * now", so the reason and the person are recorded and the task stays available.
+ */
+export const holdTask = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      taskId: z.string().uuid(),
+      reason: z.string().trim().min(3).max(500),
+      minutes: z.number().int().min(1).max(24 * 60).optional(),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { userId } = await requireUser();
+    const memberId = await memberIdFor(userId);
+    const db = await admin();
+    const until = new Date(Date.now() + (data.minutes ?? 30) * 60_000).toISOString();
+
+    const { error } = await db.from("tm_tasks").update({
+      buzzer_active: false,
+      buzzer_acknowledged_at: new Date().toISOString(),
+      acknowledged_by: memberId,
+      hold_reason: data.reason,
+      hold_until: until,
+    }).eq("id", data.taskId);
+    if (error) return { ok: false as const, reason: error.message };
+
+    await record(data.taskId, "Buzzer held", "buzzer", "ringing", "held", data.reason);
+    return { ok: true as const, until };
+  });
+
+/** The whole lifecycle of a task, for the history screen and for other modules. */
+export const getTaskHistory = createServerFn({ method: "GET" })
+  .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    await requireUser();
+    const db = await admin();
+    const [task, activity, reviews, escalations, timeLogs] = await Promise.all([
+      db.from("tm_tasks").select("*").eq("id", data.taskId).maybeSingle(),
+      db.from("tm_activity").select("*").eq("task_id", data.taskId).order("created_at"),
+      db.from("tm_reviews").select("*").eq("task_id", data.taskId).order("created_at"),
+      db.from("tm_escalations").select("*").eq("task_id", data.taskId).order("created_at"),
+      db.from("tm_time_logs").select("*").eq("task_id", data.taskId).order("created_at"),
+    ]);
+    if (!task.data) return { ok: false as const, reason: "no_such_task" };
+    return {
+      ok: true as const,
+      task: task.data,
+      activity: activity.data ?? [],
+      reviews: reviews.data ?? [],
+      escalations: escalations.data ?? [],
+      timeLogs: timeLogs.data ?? [],
+    };
+  });
+
+/**
+ * The billing position of one task.
+ *
+ * Every figure is read from the row; nothing is inferred and nothing is
+ * defaulted to a plausible-looking number. A task with no cost recorded
+ * reports no cost, which is the honest answer.
+ */
+export const getTaskWallet = createServerFn({ method: "GET" })
+  .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    await requireUser();
+    const db = await admin();
+    const { data: task } = await db
+      .from("tm_tasks")
+      .select("id, code, title, billable, cost, currency, billing_status, invoice_reference, payment_reference, settled_at, actual_minutes, estimated_hours, client_name, project_name")
+      .eq("id", data.taskId)
+      .maybeSingle();
+    if (!task) return { ok: false as const, reason: "no_such_task" };
+
+    const { data: logs } = await db
+      .from("tm_time_logs").select("minutes").eq("task_id", data.taskId);
+    const loggedMinutes = (logs ?? []).reduce(
+      (sum, l) => sum + (Number((l as { minutes?: number }).minutes) || 0), 0);
+
+    return { ok: true as const, wallet: { ...task, logged_minutes: loggedMinutes } };
+  });
+
+/** Section 22 names this createTask; openTask is the same call. */
+export const createTask = openTask;

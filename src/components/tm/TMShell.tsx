@@ -18,6 +18,7 @@ import {
 import { computeSLA } from "@/lib/tm/format";
 import { TMSidebar, TM_NAV, useTMSidebarState, type TMScreen } from "./TMSidebar";
 import { TMTaskDetail } from "./TMTaskDetail";
+import { TaskBuzzerAlert } from "./TaskBuzzerAlert";
 import { TMDashboard } from "./screens/TMDashboard";
 import { TMInbox } from "./screens/TMInbox";
 import { TMPipeline } from "./screens/TMPipeline";
@@ -121,6 +122,9 @@ export function TMShell() {
 
   return (
     <div className="flex min-h-screen w-full bg-background">
+      {/* Section 5: the alert follows the person across all screens,
+          not only while they are standing on Buzzer Alerts. */}
+      <TaskBuzzerAlert onOpenTask={setOpenTaskId} />
       <TMSidebar
         activeScreen={screen}
         onScreenChange={setScreen}
