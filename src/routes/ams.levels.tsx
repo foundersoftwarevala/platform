@@ -1,13 +1,24 @@
+import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { EngineDashboard, StatusChip } from "@/components/ams/shared/EngineDashboard";
+import { ArrowUpCircle } from "lucide-react";
 
+import { EngineDashboard, StatusChip } from "@/components/ams/shared/EngineDashboard";
+import { useAmsCatalogue } from "@/hooks/useAmsCatalogue";
+
+/**
+ * The level ladder, read from the database.
+ *
+ * This screen shipped with hand-written KPI figures and invented rows. Every
+ * number below is counted from the database, and an empty catalogue reads as
+ * empty rather than as a table of examples.
+ */
 export const Route = createFileRoute("/ams/levels")({
   head: () => ({
     meta: [
       { title: "Level Engine — AMS" },
-      { name: "description", content: "Level curve, requirements, unlocks, rewards and prestige loops per role." },
+      { name: "description", content: "Every progression level, the XP it requires and how many people currently sit on it." },
       { property: "og:title", content: "Level Engine — AMS" },
-      { property: "og:description", content: "Level curve, requirements, unlocks, rewards and prestige loops per role." },
+      { property: "og:description", content: "Every progression level, the XP it requires and how many people currently sit on it." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -15,37 +26,64 @@ export const Route = createFileRoute("/ams/levels")({
   component: Page,
 });
 
+const TONE: Record<string, "success" | "info" | "warn"> = {
+  active: "success",
+  draft: "warn",
+  inactive: "info",
+};
+
+function chip(status: string) {
+  return (
+    <StatusChip tone={TONE[status] ?? "info"}>
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </StatusChip>
+  );
+}
+
 function Page() {
+  const catalogue = useAmsCatalogue();
+  const levels = useMemo(() => catalogue.data?.levels ?? [], [catalogue.data]);
+  const occupied = levels.filter((l) => l.holders > 0).length;
+  const people = levels.reduce((sum, l) => sum + l.holders, 0);
+  const top = levels.length ? levels[levels.length - 1] : null;
+
   return (
     <EngineDashboard
       kicker="AMS Manager"
       title="Level Engine"
-      description="Level curve, requirements, unlocks, rewards and prestige loops per role."
+      description={
+        catalogue.isLoading
+          ? "Reading the level ladder…"
+          : `${levels.length} levels from ${levels[0]?.name ?? "—"} to ${top?.name ?? "—"}.`
+      }
       primaryAction="New Level"
       kpis={[
-        { label: "Max Level", value: "100" },
-        { label: "Prestige Tiers", value: "5", accent: "#facc15" },
-        { label: "Active Users", value: "84,204" },
-        { label: "Avg Level", value: "12" },
-        { label: "Level-Ups (7d)", value: "4,182", delta: "+6%", trend: "up" },
-        { label: "Prestige-Ups", value: "48", delta: "+2", trend: "up" },
+        { label: "Levels", value: levels.length },
+        { label: "Occupied", value: occupied },
+        { label: "People placed", value: people },
+        { label: "Top level XP", value: (top?.xpRequired ?? 0).toLocaleString() },
       ]}
-      filters={[{ label: "Tier", values: ["1-10", "11-25", "26-50", "51-100", "Prestige"] }]}
       columns={[
-        { key: "level", label: "Level", align: "right" },
-        { key: "xp", label: "XP Required", align: "right" },
-        { key: "title", label: "Title" },
-        { key: "unlocks", label: "Unlocks" },
+        { key: "n", label: "#", align: "right" },
+        { key: "name", label: "Level" },
+        { key: "xp", label: "XP required", align: "right" },
+        { key: "holders", label: "People here", align: "right" },
         { key: "status", label: "Status" },
       ]}
-      rows={[
-        { id: "l1", level: "1", xp: "0", title: "Rookie", unlocks: "Passport", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "l5", level: "5", xp: "500", title: "Explorer", unlocks: "Mission board", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "l10", level: "10", xp: "1,800", title: "Rising Star", unlocks: "Bronze trophies", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "l25", level: "25", xp: "8,400", title: "Professional", unlocks: "Elite missions", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "l50", level: "50", xp: "42,000", title: "Master", unlocks: "Legendary trophies", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "l100", level: "100", xp: "250,000", title: "Legend", unlocks: "Prestige gate", status: <StatusChip tone="info">Locked</StatusChip> },
-      ]}
+      rows={levels.map((l) => ({
+        id: l.id,
+        n: l.levelNumber,
+        name: (
+          <div className="flex items-center gap-2">
+            <ArrowUpCircle className="h-4 w-4 text-primary" />
+            <span className="font-medium">{l.name}</span>
+          </div>
+        ),
+        xp: l.xpRequired.toLocaleString(),
+        holders: l.holders.toLocaleString(),
+        status: chip(l.status),
+      }))}
+      emptyLabel={catalogue.isLoading ? "Reading the level ladder…" : "No levels defined yet."}
     />
   );
 }

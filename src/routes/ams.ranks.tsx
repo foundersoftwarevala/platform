@@ -1,14 +1,24 @@
+import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Crown } from "lucide-react";
-import { EngineDashboard, StatusChip } from "@/components/ams/shared/EngineDashboard";
 
+import { EngineDashboard, StatusChip } from "@/components/ams/shared/EngineDashboard";
+import { useAmsCatalogue } from "@/hooks/useAmsCatalogue";
+
+/**
+ * The rank ladder, read from the database.
+ *
+ * This screen shipped with hand-written KPI figures and invented rows. Every
+ * number below is counted from the database, and an empty catalogue reads as
+ * empty rather than as a table of examples.
+ */
 export const Route = createFileRoute("/ams/ranks")({
   head: () => ({
     meta: [
       { title: "Rank Engine — AMS" },
-      { name: "description", content: "Promotion, demotion, prestige and seasonal rank ladders for every role." },
+      { name: "description", content: "Every recognition rank, the XP it opens at and how many people hold it." },
       { property: "og:title", content: "Rank Engine — AMS" },
-      { property: "og:description", content: "Promotion, demotion, prestige and seasonal rank ladders for every role." },
+      { property: "og:description", content: "Every recognition rank, the XP it opens at and how many people hold it." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -16,35 +26,63 @@ export const Route = createFileRoute("/ams/ranks")({
   component: Page,
 });
 
+const TONE: Record<string, "success" | "info" | "warn"> = {
+  active: "success",
+  draft: "warn",
+  inactive: "info",
+};
+
+function chip(status: string) {
+  return (
+    <StatusChip tone={TONE[status] ?? "info"}>
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </StatusChip>
+  );
+}
+
 function Page() {
+  const catalogue = useAmsCatalogue();
+  const ranks = useMemo(() => catalogue.data?.ranks ?? [], [catalogue.data]);
+  const held = ranks.filter((r) => r.holders > 0).length;
+  const people = ranks.reduce((sum, r) => sum + r.holders, 0);
+
   return (
     <EngineDashboard
       kicker="AMS Manager"
       title="Rank Engine"
-      description="Promotion, demotion, prestige and seasonal rank ladders for every role."
+      description={
+        catalogue.isLoading
+          ? "Reading the rank ladder…"
+          : `${ranks.length} ranks from ${ranks[0]?.name ?? "—"} upward.`
+      }
       primaryAction="New Rank"
       kpis={[
-        { label: "Ranks", value: "24" },
-        { label: "Promotions (7d)", value: "312", delta: "+11%", trend: "up" },
-        { label: "Demotions (7d)", value: "18", delta: "-4%", trend: "down" },
-        { label: "Prestige Users", value: "84", accent: "#facc15" },
-        { label: "Ladder Season", value: "3" },
-        { label: "Days Left", value: "42" },
+        { label: "Ranks", value: ranks.length },
+        { label: "Held", value: held },
+        { label: "People ranked", value: people },
+        { label: "Highest opens at", value: (ranks[ranks.length - 1]?.minXp ?? 0).toLocaleString() },
       ]}
-      filters={[{ label: "Role", values: ["Developer", "Reseller", "Support", "SEO", "Author"] }]}
       columns={[
+        { key: "n", label: "#", align: "right" },
         { key: "name", label: "Rank" },
-        { key: "role", label: "Role" },
-        { key: "min", label: "Min Level", align: "right" },
+        { key: "xp", label: "Opens at XP", align: "right" },
         { key: "holders", label: "Holders", align: "right" },
         { key: "status", label: "Status" },
       ]}
-      rows={[
-        { id: "r1", name: <div className="flex items-center gap-2"><Crown className="h-4 w-4 text-amber-500" /><span className="font-medium">Grandmaster</span></div>, role: "Developer", min: "80", holders: "12", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "r2", name: <span className="font-medium">Master Reseller</span>, role: "Reseller", min: "60", holders: "84", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "r3", name: <span className="font-medium">Support Hero</span>, role: "Support", min: "40", holders: "204", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "r4", name: <span className="font-medium">SEO Sage</span>, role: "SEO", min: "50", holders: "48", status: <StatusChip tone="success">Active</StatusChip> },
-      ]}
+      rows={ranks.map((r) => ({
+        id: r.id,
+        n: r.rankNumber,
+        name: (
+          <div className="flex items-center gap-2">
+            <Crown className="h-4 w-4 text-amber-400" />
+            <span className="font-medium">{r.name}</span>
+          </div>
+        ),
+        xp: r.minXp.toLocaleString(),
+        holders: r.holders.toLocaleString(),
+        status: chip(r.status),
+      }))}
+      emptyLabel={catalogue.isLoading ? "Reading the rank ladder…" : "No ranks defined yet."}
     />
   );
 }
