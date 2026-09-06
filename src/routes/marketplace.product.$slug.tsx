@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { siteUrl } from "@/lib/seo/site-url";
 import { ProductDetail } from "@/components/marketplace-home/ProductDetail";
+import { resolveSeoOverride } from "@/lib/seo/page-overrides";
 import { getProductSeo } from "@/lib/seo/category-seo";
 
 /**
@@ -21,6 +22,8 @@ type Loaded = {
   country?: string;
   slug?: string;
   deployment?: string | null;
+  /** What the SEO Manager says about this page, when it has been given a record. */
+  override?: import("@/lib/seo/page-overrides").SeoOverride | null;
 };
 
 
@@ -43,6 +46,20 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
     try {
       const seo = await getProductSeo({ data: { slug: params.slug } });
       if (!seo) return {};
+      // What the SEO Manager says about this page, if anything. A record it has
+      // never been given simply resolves to null and the product speaks for
+      // itself, exactly as before.
+      const override = await resolveSeoOverride(
+        `/marketplace/product/${params.slug}`,
+        {
+          page_name: seo.name,
+          title: seo.name,
+          product: seo.name,
+          country: seo.country ?? undefined,
+          industry: seo.deployment ?? undefined,
+          excerpt: seo.description ?? undefined,
+        },
+      );
       return {
         name: seo.name,
         description: seo.description,
@@ -50,6 +67,7 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
         country: seo.country,
         slug: params.slug,
         deployment: seo.deployment,
+        override,
       };
     } catch (error) {
       console.error("[product head] could not load", params.slug, error);
@@ -63,14 +81,20 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
       return { meta: [{ title: GENERIC.title }, { name: "description", content: GENERIC.description }] };
     }
 
-    const title = data.country
+    const override = data.override ?? null;
+
+    const defaultTitle = data.country
       ? `${data.name} — ${data.country} | Software Vala`
       : `${data.name} | Software Vala`;
-    const description =
+    const defaultDescription =
       (data.description && data.description.trim()) ||
       (data.country
         ? `${data.name} for businesses in ${data.country}. Live demo, one-time lifetime licence, on Software Vala.`
         : `${data.name} on Software Vala. Live demo and one-time lifetime licence.`);
+
+    // The Manager wins where it has something to say, and only there.
+    const title = override?.title ?? defaultTitle;
+    const description = override?.description ?? defaultDescription;
 
     const meta: Array<Record<string, string>> = [
       { title },
@@ -89,7 +113,12 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
       meta.push({ name: "geo.placename", content: data.country });
     }
 
-    const canonical = `${siteUrl()}/marketplace/product/${data.slug}`;
+    // A canonical the Manager has set for this page wins, unless it points at
+    // the testing domain, which the resolver already refuses.
+    const canonical = override?.canonical ?? `${siteUrl()}/marketplace/product/${data.slug}`;
+    if (override?.noindex) {
+      meta.push({ name: "robots", content: "noindex, follow" });
+    }
     const schema = {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
