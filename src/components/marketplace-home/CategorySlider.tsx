@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import { anchorClick, categoryHref, GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
 import {
   Sparkles, GraduationCap, Stethoscope, Utensils, Hotel, Home, Car, Plane,
   CreditCard, Factory, Users, Truck, Building, Megaphone, Wallet, Briefcase,
@@ -221,8 +222,12 @@ const CategorySlider = () => {
             return (
               <a
                 key={`${cat.name}-${i}`}
-                href={cat.link}
-                onClick={(e) => { if (movedRef.current) e.preventDefault(); }}
+                href={cat.name === "All" ? `#${GRID_ANCHOR}` : categoryHref(cat.name)}
+                onClick={(e) => {
+                  if (movedRef.current) { e.preventDefault(); return; }
+                  const target = cat.name === "All" ? `#${GRID_ANCHOR}` : categoryHref(cat.name);
+                  anchorClick(target.slice(1))(e);
+                }}
                 draggable={false}
                 className={`group relative flex-shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-br ${cat.color} text-white text-sm font-bold whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_10px_26px_-12px_rgba(0,0,0,0.85)] border border-white/25 transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] hover:-translate-y-1`}
               >

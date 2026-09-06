@@ -1,4 +1,6 @@
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
+
+import { RequireRole } from "@/components/auth/RequireRole";
 import { TopBar } from "@/components/affiliate/TopBar";
 import { AppSidebar, useSidebarState } from "@/components/affiliate/AppSidebar";
 import { useAffiliateRealtimeSync } from "@/lib/affiliate-realtime";
@@ -15,7 +17,12 @@ export const Route = createFileRoute("/affiliate-manager")({
       { name: "description", content: "Global affiliate, referral, commission and payout control center." },
     ],
   }),
-  component: AffiliateManagerLayout,
+  // Operator console — it used to render in full to anonymous visitors.
+  component: () => (
+    <RequireRole role={["finance", "support", "sales_support_manager"]}>
+      <AffiliateManagerLayout />
+    </RequireRole>
+  ),
   errorComponent: WallError,
   notFoundComponent: WallNotFound,
 });

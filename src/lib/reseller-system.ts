@@ -18,10 +18,14 @@ export async function ensureCurrentResellerRecord(): Promise<ResellerSystemConte
   if (userError || !user) return null;
 
   const email = (user.email ?? "").trim().toLowerCase();
+  // Exact match only. A substring match (`ilike %email%`) could bind this session
+  // to a different reseller whose address merely contains this one, and the raw
+  // address was being interpolated into PostgREST filter syntax.
+  const encodedEmail = encodeURIComponent(email).replace(/[(),]/g, "");
   const query = supabase
     .from("resellers")
     .select("*")
-    .or(`user_id.eq.${user.id},email.ilike.%${email}%`)
+    .or(email ? `user_id.eq.${user.id},email.eq.${encodedEmail}` : `user_id.eq.${user.id}`)
     .limit(20);
 
   const { data, error } = await query;
@@ -33,7 +37,10 @@ export async function ensureCurrentResellerRecord(): Promise<ResellerSystemConte
     return row.user_id === user.id || (email && rowEmail === email);
   });
 
-  const row = matches[0] ?? discovered[0] ?? null;
+  // Only ever bind to a row that belongs to this account. Falling back to
+  // whatever the query returned first is how a session ends up on someone
+  // else's reseller record.
+  const row = matches[0] ?? null;
   if (!row) {
     throw new Error("No reseller record is linked to the authenticated user. Map the signed-in user to a reseller row in Supabase before visiting the Reseller Dashboard.");
   }

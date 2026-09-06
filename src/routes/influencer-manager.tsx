@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { RequireRole } from "@/components/auth/RequireRole";
+
 import { PageShell } from "@/components/creator/PageShell";
 import { ManagerWorkspace } from "@/components/manager-suite/ManagerWorkspace";
 import { buildModuleRegistry } from "@/components/creator/registry";
@@ -29,16 +31,19 @@ export const Route = createFileRoute("/influencer-manager")({
   }),
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(moduleAnalyticsQueryOptions("influencer", "7d")),
+  // Operator console — it used to render in full to anonymous visitors.
   component: () => (
-    <ManagerWorkspace
-      primary={influencerPrimary}
-      groups={influencerGroups}
-      registry={influencerRegistry}
-      brand={influencerConfig.brand}
-      brandMark={influencerConfig.brandMark}
-      initial={influencerConfig.defaultModule}
-      role="influencer"
-    />
+    <RequireRole role={["finance", "support", "sales_support_manager"]}>
+      <ManagerWorkspace
+        primary={influencerPrimary}
+        groups={influencerGroups}
+        registry={influencerRegistry}
+        brand={influencerConfig.brand}
+        brandMark={influencerConfig.brandMark}
+        initial={influencerConfig.defaultModule}
+        role="influencer"
+      />
+    </RequireRole>
   ),
   errorComponent: ({ error }) => (
     <div className="creator-theme min-h-screen">

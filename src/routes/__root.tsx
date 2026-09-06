@@ -10,6 +10,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import { RouteAccessGate } from "@/components/auth/RouteAccessGate";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { CelebrationProvider } from "../components/ams/effects/Celebration";
@@ -124,7 +125,10 @@ function RootComponent() {
       <TooltipProvider>
         <CelebrationProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
+          {/* Operator consoles are gated centrally by path; public pages pass straight through. */}
+          <RouteAccessGate>
+            <Outlet />
+          </RouteAccessGate>
         </CelebrationProvider>
       </TooltipProvider>
     </QueryClientProvider>

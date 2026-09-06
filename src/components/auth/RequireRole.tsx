@@ -6,14 +6,25 @@ function normalizeRole(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
-export function RequireRole({ role, children }: {
+/**
+ * Platform operators reach every guarded workspace. Without this an admin or the
+ * boss would be refused from a console whose narrow role they do not personally
+ * hold, which is how people end up removing guards altogether.
+ */
+const OPERATOR_ROLES = ["boss", "boss_owner", "admin", "super_admin", "founder", "owner"];
+
+export function RequireRole({ role, children, allowOperators = true }: {
   role: string | string[];
   children: ReactNode;
+  /** Set false for a workspace that must exclude even platform operators. */
+  allowOperators?: boolean;
 }) {
   const navigate = useNavigate();
   const [state, setState] = useState<"loading" | "allowed" | "denied">("loading");
   const allowedRoles = Array.isArray(role) ? role : [role];
-  const normalizedAllowed = new Set(allowedRoles.map(normalizeRole));
+  const normalizedAllowed = new Set(
+    [...allowedRoles, ...(allowOperators ? OPERATOR_ROLES : [])].map(normalizeRole),
+  );
 
   useEffect(() => {
     let active = true;

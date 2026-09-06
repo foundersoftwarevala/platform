@@ -17,6 +17,7 @@ import { KpiToolbar, type KpiSort, type KpiTone } from "@/components/dashboard/K
 import { ModuleBoundary } from "@/components/dashboard/ModuleBoundary";
 import { ModuleFocusScope } from "@/components/dashboard/ModuleFocusScope";
 import { ROLES, isRoleKey, type RoleKey } from "@/lib/roles";
+import { RequireRole } from "@/components/auth/RequireRole";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ModuleFallback, AccessDenied } from "@/components/dashboard/AccessStates";
 
@@ -69,8 +70,38 @@ export const Route = createFileRoute("/dashboard/$role")({
       ],
     };
   },
-  component: DashboardPage,
+  // A role dashboard is the private workspace of the account that holds that
+  // role. It used to open for anyone, signed in or not, on the URL alone.
+  component: GuardedDashboardPage,
 });
+
+/**
+ * URL role -> the app_role the account must hold. Roles with no app_role of
+ * their own (developer management, promise tracker) stay operator-only, which
+ * RequireRole grants through its operator bypass.
+ */
+const DASHBOARD_ROLE_REQUIREMENT: Record<string, string[]> = {
+  author: ["author"],
+  vendor: ["vendor"],
+  reseller: ["reseller"],
+  affiliate: ["affiliate"],
+  influencer: ["influencer"],
+  franchise: ["franchise"],
+  seo: ["seo"],
+  admin: [],
+  developer: ["developer"],
+  "dev-manager": ["developer"],
+  "promise-tracker": [],
+};
+
+function GuardedDashboardPage() {
+  const { role } = Route.useParams();
+  return (
+    <RequireRole role={DASHBOARD_ROLE_REQUIREMENT[role] ?? []}>
+      <DashboardPage />
+    </RequireRole>
+  );
+}
 
 function DashboardPage() {
   const { role } = Route.useParams();

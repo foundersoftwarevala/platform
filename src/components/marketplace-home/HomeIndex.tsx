@@ -25,12 +25,15 @@ import FestiveBanner from "@/components/marketplace-home/FestiveBanner";
 import FeatureStrip from "@/components/marketplace-home/FeatureStrip";
 import CategorySlider from "@/components/marketplace-home/CategorySlider";
 import UtilityStrip from "@/components/marketplace-home/UtilityStrip";
+import SectionBoundary from "@/components/marketplace-home/SectionBoundary";
 import {
   IndustryGrid, AIZone, SuccessStories, AwardsRow, LiveActivity,
   ValaTV, Academy as ValaAcademy, PartnerEcosystem, FaqSection, EnterpriseCTA,
 } from "@/components/marketplace-home/RefSections";
 import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { buildRow } from "@/data/rowFill";
+import { GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
+import { useDebouncedValue, useFavorites } from "@/lib/marketplace-home/persistentState";
 import { useMatch } from "@tanstack/react-router";
 import CategoryRow from "@/components/marketplace-home/CategoryRow";
 import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE, SITE_STATS } from "@/lib/site-content/constants";
@@ -3352,19 +3355,23 @@ const masterCategories = ["All", ...allMasterCategories55];
 const Index = () => {
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [favorites, setFavorites] = useState<string[]>([]);
+  // Filtering three thousand cards on every keystroke made the box unusable
+  // on a slow device; the grid now settles once typing pauses.
+  const search = useDebouncedValue(searchQuery, 220);
+  // Favourites survive a refresh instead of being thrown away.
+  const { favorites, toggle: toggleFavorite } = useFavorites();
 
   const filteredDemos = allDemos.filter(demo => {
     const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
-    const matchesSearch = demo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          demo.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          demo.masterCategory.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = demo.name.toLowerCase().includes(search.toLowerCase()) ||
+                          demo.description.toLowerCase().includes(search.toLowerCase()) ||
+                          demo.masterCategory.toLowerCase().includes(search.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
-  const toggleFavorite = (id: string) => {
-    setFavorites(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
-  };
+  // Superseded by useFavorites(), which persists. Kept for reference.
+  const toggleFavoriteInMemoryLegacy = (_id: string) => {};
+  void toggleFavoriteInMemoryLegacy;
 
   // Count demos per master category
   const getCategoryCount = (category: string) => {
@@ -3390,23 +3397,40 @@ const Index = () => {
       </header>
 
       {/* Utility strip — clone of the feature strip, different subject */}
-      <UtilityStrip favoritesCount={favorites.length} />
+      <SectionBoundary label="The utility bar" fallback={null}>
+        <UtilityStrip favoritesCount={favorites.length} />
+      </SectionBoundary>
 
       {/* Running offer ticker sits between the two strips */}
-      <FestiveBanner />
+      <SectionBoundary label="The offer banner" fallback={null}>
+        <FestiveBanner />
+      </SectionBoundary>
 
-      <FeatureStrip />
+      <SectionBoundary label="The feature strip" fallback={null}>
+        <FeatureStrip />
+      </SectionBoundary>
 
 
 
-      <HeroCarousel />
+      {/* The hero reads its slides from Supabase with a suspense query — it is
+          the one section that can throw during render, so it carries its own
+          boundary and the rest of the marketplace survives a failed request. */}
+      <SectionBoundary label="The featured carousel">
+        <HeroCarousel />
+      </SectionBoundary>
 
       {/* Industry Grid */}
-      <div className="max-w-7xl mx-auto"><IndustryGrid /></div>
+      <div className="max-w-7xl mx-auto">
+        <SectionBoundary label="Shop by Industry" fallback={null}>
+          <IndustryGrid />
+        </SectionBoundary>
+      </div>
 
 
       {/* Category Slider (auto-scroll) */}
-      <CategorySlider />
+      <SectionBoundary label="The category slider" fallback={null}>
+        <CategorySlider />
+      </SectionBoundary>
 
 
 
@@ -3434,17 +3458,17 @@ const Index = () => {
       </div>
 
       {/* Demo Cards Grid */}
-      <section className="py-8 px-4">
+      <section id={GRID_ANCHOR} className="scroll-mt-24 py-8 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Group by Master Category when "All" is selected */}
-          {activeCategory === "All" && !searchQuery ? (
+          {activeCategory === "All" && !search ? (
             /* The real catalogue, paged from the database. */
             <CatalogRows favorites={favorites} onToggleFavorite={toggleFavorite} />
           ) : activeCategory === "All" ? (
             masterCategories.slice(1).map(masterCat => {
               const categoryDemos = filteredDemos.filter(d => d.masterCategory === masterCat);
               if (categoryDemos.length === 0) return null;
-              const rowDemos = searchQuery
+              const rowDemos = search
                 ? categoryDemos
                 : (buildRow(masterCat, categoryDemos) as Demo[]);
 
@@ -3465,7 +3489,7 @@ const Index = () => {
             })
           ) : (
             <CategoryRow title={activeCategory} count={filteredDemos.length}>
-              {(searchQuery ? filteredDemos : (buildRow(activeCategory, filteredDemos) as Demo[])).map((demo, index) => (
+              {(search ? filteredDemos : (buildRow(activeCategory, filteredDemos) as Demo[])).map((demo, index) => (
                 <div key={demo.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
                   <DemoCard
                     demo={demo}
@@ -3482,19 +3506,21 @@ const Index = () => {
 
       {/* Reference marketplace sections (added below product grid, keeping design intact) */}
       <div className="max-w-7xl mx-auto">
-        <AIZone />
-        <SuccessStories />
-        <AwardsRow />
-        <LiveActivity />
-        <ValaTV />
-        <ValaAcademy />
-        <PartnerEcosystem />
-        <FaqSection />
-        <EnterpriseCTA />
+        <SectionBoundary label="AI Zone"><AIZone /></SectionBoundary>
+        <SectionBoundary label="Success Stories"><SuccessStories /></SectionBoundary>
+        <SectionBoundary label="Awards"><AwardsRow /></SectionBoundary>
+        <SectionBoundary label="Live Activity"><LiveActivity /></SectionBoundary>
+        <SectionBoundary label="Vala TV"><ValaTV /></SectionBoundary>
+        <SectionBoundary label="Vala Academy"><ValaAcademy /></SectionBoundary>
+        <SectionBoundary label="Partner Ecosystem"><PartnerEcosystem /></SectionBoundary>
+        <SectionBoundary label="The FAQ section"><FaqSection /></SectionBoundary>
+        <SectionBoundary label="The enterprise panel"><EnterpriseCTA /></SectionBoundary>
       </div>
 
       {/* Footer */}
-      <SiteFooter />
+      <SectionBoundary label="The footer" fallback={null}>
+        <SiteFooter />
+      </SectionBoundary>
     </div>
   );
 };

@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchSharedMedia } from "@/services/chat/chat-service";
 import type { ConversationSummary, Profile } from "@/services/chat/types";
 import { AttachmentCard, UserAvatar } from "./media";
+import { memberId, roleLabel } from "@/lib/chat/identity";
 
 interface Props {
   conversation: ConversationSummary;
@@ -87,6 +88,9 @@ export function ContextPanel({
               {conversation.participants.map((p) => {
                 const profile = p.profile ?? profilesById.get(p.user_id) ?? null;
                 const name = profile?.display_name ?? "Member";
+                // Internal messages must stay attributable to a real account, so the
+                // participant carries a stable member ID, not just a display name.
+                const identity = memberId(p.user_id, p.role_label ? [p.role_label] : []);
                 return (
                   <li key={p.user_id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-secondary/50">
                     <UserAvatar name={name} avatarPath={profile?.avatar_path} presence={profile?.presence} />
@@ -98,10 +102,13 @@ export function ContextPanel({
                       <span className="block truncate text-[11px] text-muted-foreground">
                         {profile?.job_title || `@${profile?.handle ?? "member"}`}
                       </span>
+                      <span className="block truncate font-mono text-[10px] text-muted-foreground/80">
+                        {identity}
+                      </span>
                     </span>
                     {p.role_label ? (
                       <Badge variant="secondary" className="text-[10px]">
-                        {p.role_label}
+                        {roleLabel(p.role_label)}
                       </Badge>
                     ) : null}
                   </li>

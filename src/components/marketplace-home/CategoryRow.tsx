@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { categoryAnchor } from "@/lib/marketplace-home/anchors";
 
 /**
  * Netflix-style horizontal product row: snap scrolling, hover arrows and
@@ -24,7 +25,10 @@ export function CategoryRow({
   };
 
   return (
+    // The row keeps its original id so any existing link still works, and
+    // carries a slug anchor that a URL fragment can actually address.
     <div id={title} className="group/row mb-12 scroll-mt-32">
+      <span id={categoryAnchor(title)} className="block h-0 scroll-mt-32" aria-hidden />
       <div className="mb-4 flex items-center gap-3">
         <h3 className="text-xl font-bold text-white md:text-2xl">{title}</h3>
         <Badge className="border-cyan-500/30 bg-cyan-500/20 text-cyan-400">{count} Products</Badge>

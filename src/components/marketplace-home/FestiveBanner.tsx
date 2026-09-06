@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { usePersistentState } from "@/lib/marketplace-home/persistentState";
+
 import { X, PartyPopper, Tag, Handshake, Store, Share2, Building2, Search, Megaphone, Headphones } from "lucide-react";
 
 /** Plain (single) premium colours — no gradients, no shades. */
@@ -26,7 +28,8 @@ const announcements = [
 ];
 
 const FestiveBanner = () => {
-  const [dismissed, setDismissed] = useState(false);
+  // Closing the banner used to last until the next page load.
+  const [dismissed, setDismissed] = usePersistentState("sv.home.offerBanner.dismissed.v1", false);
   const [index, setIndex] = useState(0);
 
   useEffect(() => {

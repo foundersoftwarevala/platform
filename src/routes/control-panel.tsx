@@ -1,4 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+
+import { RequireRole } from "@/components/auth/RequireRole";
 import { useState } from "react";
 
 import { toast } from "sonner";
@@ -74,7 +76,9 @@ export const Route = createFileRoute("/control-panel")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Index,
+  // The Control Panel is the operator entry point for every manager. It used
+  // to render in full, sidebar and all, to anonymous visitors.
+  component: GuardedIndex,
 });
 
 type Status = "healthy" | "warning" | "critical" | "action";
@@ -157,6 +161,14 @@ function CockpitBanner() {
   );
 }
 
+
+function GuardedIndex() {
+  return (
+    <RequireRole role={["developer", "finance", "support", "sales_support_manager"]}>
+      <Index />
+    </RequireRole>
+  );
+}
 
 function Index() {
   const navigate = useNavigate();

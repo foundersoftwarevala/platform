@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { RequireRole } from "@/components/auth/RequireRole";
+
 import { PageShell } from "@/components/creator/PageShell";
 import { ManagerWorkspace } from "@/components/manager-suite/ManagerWorkspace";
 import { resellerGroups, resellerPrimary } from "@/components/reseller/navigation";
@@ -26,15 +28,19 @@ export const Route = createFileRoute("/reseller-manager")({
   }),
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(moduleAnalyticsQueryOptions("reseller", "7d")),
+  // Billing, payment verification and reseller support — an operator console,
+  // not a public page. It used to render in full to anonymous visitors.
   component: () => (
-    <ManagerWorkspace
-      primary={resellerPrimary}
-      groups={resellerGroups}
-      registry={resellerRegistry}
-      brand="Reseller Manager"
-      brandMark="RS"
-      role="reseller"
-    />
+    <RequireRole role={["finance", "support", "sales_support_manager"]}>
+      <ManagerWorkspace
+        primary={resellerPrimary}
+        groups={resellerGroups}
+        registry={resellerRegistry}
+        brand="Reseller Manager"
+        brandMark="RS"
+        role="reseller"
+      />
+    </RequireRole>
   ),
   errorComponent: ({ error }) => (
     <div className="creator-theme min-h-screen">

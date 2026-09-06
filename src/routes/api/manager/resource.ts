@@ -29,6 +29,15 @@ type Resource = {
   label: string;
   /** Columns held as a list in the database and edited as one line of text. */
   arrays?: string[];
+  /** Columns that may be set when a row is created. Absent means no creating. */
+  creatable?: string[];
+  /** Columns required to have a value before a row can be created. */
+  required?: string[];
+  /**
+   * How a row is retired. Nothing in this catalogue is deleted, so a resource
+   * names the change that takes a row out of use instead.
+   */
+  archive?: Record<string, unknown>;
 };
 
 const RESOURCES: Record<string, Resource> = {
@@ -54,31 +63,75 @@ const RESOURCES: Record<string, Resource> = {
     order: "sort_order.asc",
     label: "Awards",
   },
+  // The addresses themselves. These never appear in a public response - the
+  // catalogue's one stealable asset - but an operator has to be able to see and
+  // change them, and this endpoint answers nobody else.
+  demos: {
+    table: "product_demo_urls",
+    select: ["id", "product_id", "demo_name", "role_name", "url", "username", "password",
+      "description", "environment", "status", "sort_order", "last_checked_at",
+      "last_response_ms", "last_http_status", "last_result", "ssl_valid",
+      "created_at", "updated_at"],
+    editable: ["demo_name", "role_name", "url", "username", "password", "description",
+      "environment", "status", "sort_order", "last_checked_at", "last_response_ms",
+      "last_http_status", "last_result", "ssl_valid"],
+    searchable: ["demo_name", "role_name", "status", "url"],
+    order: "sort_order.asc",
+    label: "Demo addresses",
+    creatable: ["product_id", "demo_name", "role_name", "url", "username", "password",
+      "description", "environment", "status", "sort_order"],
+    required: ["url"],
+    archive: { status: "inactive" },
+  },
+
+  /** What an operator did to an address, kept where the team can see it. */
+  demo_audit: {
+    table: "demo_url_audit_log",
+    select: ["id", "demo_url_id", "action", "actor_email", "metadata", "created_at"],
+    editable: [],
+    searchable: ["action", "actor_email"],
+    order: "created_at.desc",
+    label: "Demo address history",
+    creatable: ["demo_url_id", "action", "actor_email", "metadata"],
+    required: ["action"],
+  },
   products: {
     table: "marketplace_products",
     select: ["id", "name", "slug", "industry_label", "price_label", "rating", "downloads_label",
       "badge", "visible", "is_featured", "is_trending", "is_best_seller", "is_new_release",
       "content_status", "demo_url", "sort_order", "category_id", "description",
-      "search_keywords", "updated_at"],
+      "search_keywords", "icon", "price_period", "downloads", "is_ai",
+      "publish_at", "unpublish_at", "updated_at"],
     // `search_keywords` is what the product's own meta tags and its country
     // targeting are built from. It had no way in from any screen, so the terms
     // that decide how a product is found could not be changed by the people
     // responsible for them. It is edited here as one line, comma separated.
     editable: ["name", "price_label", "badge", "visible", "is_featured", "is_trending",
       "is_best_seller", "is_new_release", "content_status", "sort_order", "industry_label",
-      "description", "search_keywords"],
+      "description", "search_keywords", "icon", "price_period", "is_ai",
+      "publish_at", "unpublish_at"],
     arrays: ["search_keywords"],
     searchable: ["name", "slug", "industry_label"],
     order: "sort_order.asc",
     label: "Products",
+    creatable: ["name", "slug", "industry_label", "icon", "price_label", "price_period",
+      "badge", "visible", "is_featured", "is_trending", "is_best_seller", "is_new_release",
+      "content_status", "sort_order", "category_id", "description", "search_keywords"],
+    required: ["name", "slug"],
+    archive: { visible: false, content_status: "archived" },
   },
   categories: {
     table: "marketplace_categories",
-    select: ["id", "name", "slug", "icon", "sort_order", "is_hidden", "is_featured", "updated_at"],
-    editable: ["name", "icon", "sort_order", "is_hidden", "is_featured"],
+    select: ["id", "name", "slug", "icon", "image_key", "tone", "sort_order",
+      "is_hidden", "is_featured", "updated_at"],
+    editable: ["name", "icon", "image_key", "tone", "sort_order", "is_hidden", "is_featured"],
     searchable: ["name", "slug"],
     order: "sort_order.asc",
     label: "Categories",
+    creatable: ["name", "slug", "icon", "image_key", "tone", "sort_order", "is_hidden",
+      "is_featured"],
+    required: ["name", "slug"],
+    archive: { is_hidden: true },
   },
   orders: {
     table: "marketplace_orders",
@@ -210,6 +263,119 @@ export const Route = createFileRoute("/api/manager/resource")({
         } catch (error) {
           console.error("[manager] read threw", error);
           return Response.json({ error: `Could not read ${resource.label}` }, { status: 502 });
+        }
+      },
+
+      POST: async ({ request }) => {
+        const gate = await requireInternalOperator(request);
+        if (!gate.ok) return gate.response;
+        if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
+
+        let body: { resource?: string; values?: Record<string, unknown> };
+        try {
+          body = await request.json();
+        } catch {
+          return Response.json({ error: "Invalid request" }, { status: 400 });
+        }
+
+        const resource = RESOURCES[String(body.resource ?? "")];
+        if (!resource) return Response.json({ error: "Unknown resource" }, { status: 400 });
+        if (!resource.creatable?.length) {
+          return Response.json(
+            { error: `${resource.label} cannot be created here` },
+            { status: 403 },
+          );
+        }
+
+        // Only whitelisted columns survive, the same as a change.
+        const values: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(body.values ?? {})) {
+          if (!resource.creatable.includes(key)) continue;
+          if (resource.arrays?.includes(key) && typeof value === "string") {
+            const NEWLINE = String.fromCharCode(10);
+            const pieces = value.includes(NEWLINE)
+              ? value.split(NEWLINE)
+              : value.split(",");
+            values[key] = pieces.map((piece) => piece.trim()).filter(Boolean);
+            continue;
+          }
+          values[key] = value;
+        }
+
+        const missing = (resource.required ?? []).filter(
+          (column) => values[column] === undefined || values[column] === "",
+        );
+        if (missing.length) {
+          return Response.json(
+            { error: `Missing: ${missing.join(", ")}`, required: resource.required },
+            { status: 400 },
+          );
+        }
+
+        try {
+          const response = await fetch(
+            `${url()}/rest/v1/${resource.table}?select=${resource.select.join(",")}`,
+            { method: "POST", headers: { ...admin(), "Content-Type": "application/json",
+              Prefer: "return=representation" },
+              body: JSON.stringify(values) },
+          );
+          if (!response.ok) {
+            const detail = await response.text();
+            console.error("[manager] create failed", resource.table, response.status, detail);
+            return Response.json(
+              { error: "That row was not created", detail: detail.slice(0, 200) },
+              { status: 502 },
+            );
+          }
+          const rows = (await response.json()) as Record<string, unknown>[];
+          return Response.json({ ok: true, row: rows[0] ?? null });
+        } catch (error) {
+          console.error("[manager] create threw", error);
+          return Response.json({ error: "That row was not created" }, { status: 502 });
+        }
+      },
+
+      /**
+       * Retire a row.
+       *
+       * Nothing in this catalogue is deleted. A row is taken out of use by the
+       * change its resource names - hidden, archived, made inactive - so it is
+       * still there to be put back.
+       */
+      DELETE: async ({ request }) => {
+        const gate = await requireInternalOperator(request);
+        if (!gate.ok) return gate.response;
+        if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
+
+        const params = new URL(request.url).searchParams;
+        const resource = RESOURCES[String(params.get("resource") ?? "")];
+        const id = String(params.get("id") ?? "");
+        if (!resource) return Response.json({ error: "Unknown resource" }, { status: 400 });
+        if (!resource.archive) {
+          return Response.json(
+            { error: `${resource.label} cannot be retired here` },
+            { status: 403 },
+          );
+        }
+        if (!UUID.test(id)) return Response.json({ error: "A row id is required" }, { status: 400 });
+
+        try {
+          const response = await fetch(
+            `${url()}/rest/v1/${resource.table}?id=eq.${encodeURIComponent(id)}` +
+              `&select=${resource.select.join(",")}`,
+            { method: "PATCH", headers: { ...admin(), "Content-Type": "application/json",
+              Prefer: "return=representation" },
+              body: JSON.stringify(resource.archive) },
+          );
+          if (!response.ok) {
+            console.error("[manager] retire failed", resource.table, response.status);
+            return Response.json({ error: "That row was not retired" }, { status: 502 });
+          }
+          const rows = (await response.json()) as Record<string, unknown>[];
+          return Response.json({ ok: true, row: rows[0] ?? null, retired: resource.archive });
+        } catch (error) {
+          console.error("[manager] retire threw", error);
+          return Response.json({ error: "That row was not retired" }, { status: 502 });
         }
       },
 

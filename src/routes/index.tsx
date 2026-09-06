@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import "@/styles/marketplace-home.css";
 import HomeIndex from "@/components/marketplace-home/HomeIndex";
+import { HomeBoundary, HomeShellFallback } from "@/components/marketplace-home/SectionBoundary";
 import { getHomeCatalog, type HomeCatalogSeed } from "@/lib/marketplace/home-catalog.functions";
 import { absoluteUrl } from "@/lib/seo/site-url";
 
@@ -41,6 +42,10 @@ export const Route = createFileRoute("/")({
     ],
   }),
   component: Index,
+  // `/` is a protected production route. Even if the router or the loader
+  // fails, visitors must land on Software Vala — never on a blank page or the
+  // generic "this page didn't load" card from the root boundary.
+  errorComponent: () => <HomeShellFallback />,
 });
 
 const HomeLoading = () => (
@@ -52,9 +57,11 @@ const HomeLoading = () => (
 function Index() {
   return (
     <div className="mpc-home">
-      <Suspense fallback={<HomeLoading />}>
-        <HomeIndex />
-      </Suspense>
+      <HomeBoundary>
+        <Suspense fallback={<HomeLoading />}>
+          <HomeIndex />
+        </Suspense>
+      </HomeBoundary>
     </div>
   );
 }

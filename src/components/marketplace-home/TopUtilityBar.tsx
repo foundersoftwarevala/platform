@@ -810,7 +810,7 @@ function AiChat({ t }: { t: (s: string) => string }) {
           <div className="space-y-2 p-4 text-[12.5px]">
             <p className="text-white/60">Connect with the Software Vala support team directly:</p>
             <a
-              href="https://wa.me/919999999999?text=Hi%20Software%20Vala%2C%20I%20need%20help"
+              href="https://wa.me/918348838383?text=Hi%20Software%20Vala%2C%20I%20need%20help"
               target="_blank"
               rel="noreferrer"
               className="kr-item flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 font-semibold text-emerald-200 hover:bg-emerald-400/20"
@@ -818,7 +818,7 @@ function AiChat({ t }: { t: (s: string) => string }) {
               <Headphones className="h-4 w-4" /> WhatsApp live chat
             </a>
             <a
-              href="mailto:support@softwarevala.com?subject=Support%20request"
+              href="mailto:support@softwarevala.net?subject=Support%20request"
               className="kr-item flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 font-semibold hover:bg-white/10"
             >
               <Send className="h-4 w-4" /> Email support

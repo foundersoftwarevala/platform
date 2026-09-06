@@ -68,10 +68,11 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
       {/* Connect Chat — same central chat ecosystem for every dashboard role */}
       <button
         onClick={() => navigate({ to: "/chat" })}
-        className="hidden md:inline-flex items-center gap-2 rounded-lg bg-surface px-3 py-2 text-xs font-medium text-foreground/90 border border-border hover:bg-surface-2 transition"
+        aria-label="Open internal chat"
+        className="inline-flex items-center gap-2 rounded-lg bg-surface px-2.5 py-2 text-xs font-medium text-foreground/90 border border-border hover:bg-surface-2 transition md:px-3"
       >
         <MessageSquare className="h-3.5 w-3.5" />
-        Chat
+        <span className="hidden md:inline">Chat</span>
       </button>
 
       {/* AI Chat */}

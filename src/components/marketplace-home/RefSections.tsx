@@ -452,20 +452,20 @@ export const Academy = () => (
 
 // Partner Ecosystem
 const PARTNERS = [
-  { name: "Reseller", desc: "Up to 40% recurring commission", icon: Handshake, color: "text-orange-300", ring: "border-orange-400/30" },
-  { name: "Vendor", desc: "List products, reach 50k+ buyers", icon: ShoppingBag, color: "text-emerald-300", ring: "border-emerald-400/30" },
-  { name: "Franchise", desc: "Exclusive territory rights", icon: Building2, color: "text-amber-300", ring: "border-amber-400/30" },
-  { name: "Author", desc: "Publish & monetise products", icon: BookOpen, color: "text-cyan-300", ring: "border-cyan-400/30" },
-  { name: "Affiliate", desc: "Link, share, earn per sale", icon: Globe2, color: "text-fuchsia-300", ring: "border-fuchsia-400/30" },
-  { name: "Implementation", desc: "Deliver projects on the stack", icon: Wrench, color: "text-violet-300", ring: "border-violet-400/30" },
+  { name: "Reseller", desc: "Up to 40% recurring commission", icon: Handshake, color: "text-orange-300", ring: "border-orange-400/30" , applyPath: "/apply/reseller" },
+  { name: "Vendor", desc: "List products, reach 50k+ buyers", icon: ShoppingBag, color: "text-emerald-300", ring: "border-emerald-400/30" , applyPath: "/apply/vendor" },
+  { name: "Franchise", desc: "Exclusive territory rights", icon: Building2, color: "text-amber-300", ring: "border-amber-400/30" , applyPath: "/apply/franchise" },
+  { name: "Author", desc: "Publish & monetise products", icon: BookOpen, color: "text-cyan-300", ring: "border-cyan-400/30" , applyPath: "/apply/author" },
+  { name: "Affiliate", desc: "Link, share, earn per sale", icon: Globe2, color: "text-fuchsia-300", ring: "border-fuchsia-400/30" , applyPath: "/apply/affiliate" },
+  { name: "Implementation", desc: "Deliver projects on the stack", icon: Wrench, color: "text-violet-300", ring: "border-violet-400/30" , applyPath: "/apply/employee" },
 ];
 
 export const PartnerEcosystem = () => (
   <section className="py-10">
-    {sectionTitle("Partner Ecosystem", "/careers", "Build a business on Software Vala")}
+    {sectionTitle("Partner Ecosystem", "/apply", "Build a business on Software Vala")}
     <div className="grid grid-cols-2 gap-4 px-6 sm:grid-cols-3 lg:grid-cols-6">
       {PARTNERS.map((p) => (
-        <a key={p.name} href="/careers" className={`group rounded-2xl border ${p.ring} bg-white/[0.03] p-4 transition-all hover:-translate-y-1`}>
+        <a key={p.name} href={p.applyPath} className={`group rounded-2xl border ${p.ring} bg-white/[0.03] p-4 transition-all hover:-translate-y-1`}>
           <p.icon className={`h-6 w-6 ${p.color}`} />
           <div className="mt-3 text-sm font-bold text-white">{p.name}</div>
           <div className="mt-1 text-[11px] text-white/60">{p.desc}</div>
@@ -489,7 +489,7 @@ export const FaqSection = () => {
   if (faqs.length === 0) return null;
 
   return (
-    <section className="py-10">
+    <section id="faq" className="py-10">
       {sectionTitle("Frequently Asked Questions", undefined, `Everything about the ${LIFETIME_PRICE} lifetime licence, delivery, demos and partners`)}
       <div className="mb-4 flex flex-wrap gap-2 px-6">
         {["All", ...categories].map((c) => (
@@ -544,10 +544,10 @@ export const EnterpriseCTA = () => (
             Dedicated success manager, custom SLAs, SSO, regional data residency, white-glove migration & 24/7 support — built for teams of 100 to 10,000+.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <a href="#All" className="rounded-xl bg-white px-6 py-3 text-sm font-bold text-gray-900 shadow-2xl transition-transform hover:scale-[1.03]">
+            <a href="mailto:support@softwarevala.net?subject=Enterprise%20enquiry" className="rounded-xl bg-white px-6 py-3 text-sm font-bold text-gray-900 shadow-2xl transition-transform hover:scale-[1.03]">
               Talk to Enterprise
             </a>
-            <a href="#All" className="rounded-xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white backdrop-blur-md hover:bg-white/10">
+            <a href="#faq" className="rounded-xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white backdrop-blur-md hover:bg-white/10">
               Trust & Security
             </a>
           </div>

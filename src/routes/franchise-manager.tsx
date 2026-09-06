@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { RequireRole } from "@/components/auth/RequireRole";
+
 import { PageShell } from "@/components/creator/PageShell";
 import { ManagerWorkspace } from "@/components/manager-suite/ManagerWorkspace";
 import { franchiseGroups, franchisePrimary } from "@/components/franchise/navigation";
@@ -26,15 +28,19 @@ export const Route = createFileRoute("/franchise-manager")({
   }),
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(moduleAnalyticsQueryOptions("franchise", "7d")),
+  // Operator console for the franchise network. It used to render in full,
+  // every section, to anonymous visitors.
   component: () => (
-    <ManagerWorkspace
-      primary={franchisePrimary}
-      groups={franchiseGroups}
-      registry={franchiseRegistry}
-      brand="Franchise Manager"
-      brandMark="FR"
-      role="franchise"
-    />
+    <RequireRole role={["finance", "support", "sales_support_manager"]}>
+      <ManagerWorkspace
+        primary={franchisePrimary}
+        groups={franchiseGroups}
+        registry={franchiseRegistry}
+        brand="Franchise Manager"
+        brandMark="FR"
+        role="franchise"
+      />
+    </RequireRole>
   ),
   errorComponent: ({ error }) => (
     <div className="creator-theme min-h-screen">

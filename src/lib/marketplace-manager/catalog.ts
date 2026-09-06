@@ -4,6 +4,7 @@
  * sections expect: `fn()` for reads, `fn({ data })` for writes.
  */
 import { createTable, slugify, uid } from "./store";
+import { authHeaders } from "@/lib/auth/operator-fetch";
 
 export type Category = {
   id: string; slug: string; name: string; icon: string | null; image_key: string | null;
@@ -73,59 +74,111 @@ const sections = createTable<Section>("sections", SEED_SECTIONS);
 const sortBy = <T extends { sort_order: number }>(rows: T[]) =>
   [...rows].sort((a, b) => a.sort_order - b.sort_order);
 
+const ENDPOINT = "/api/manager/resource";
+
+/** Ask the manager endpoint for a whole resource, a page at a time. */
+async function readAll<T>(resource: string): Promise<T[]> {
+  const rows: T[] = [];
+  const PAGE = 200;
+  for (let offset = 0; offset < 20000; offset += PAGE) {
+    const response = await fetch(
+      `${ENDPOINT}?resource=${resource}&limit=${PAGE}&offset=${offset}`,
+      { headers: await authHeaders() },
+    );
+    if (!response.ok) {
+      // An operator who is not signed in, or a server that refuses, gets
+      // nothing rather than the invented seed rows.
+      if (offset === 0) throw new Error(await refusal(response));
+      break;
+    }
+    const payload = (await response.json()) as { rows?: T[]; total?: number };
+    const page = payload.rows ?? [];
+    rows.push(...page);
+    if (page.length < PAGE) break;
+  }
+  return rows;
+}
+
+async function refusal(response: Response): Promise<string> {
+  if (response.status === 401 || response.status === 403) {
+    return "Sign in as an operator to manage the catalogue.";
+  }
+  try {
+    const body = (await response.json()) as { error?: string };
+    return body.error ?? "The catalogue could not be read.";
+  } catch {
+    return "The catalogue could not be read.";
+  }
+}
+
+async function writeRow<T>(resource: string, id: string | undefined, values: Record<string, unknown>) {
+  const response = id
+    ? await fetch(ENDPOINT, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ resource, id, changes: values }),
+      })
+    : await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ resource, values }),
+      });
+  if (!response.ok) throw new Error(await refusal(response));
+  const payload = (await response.json()) as { row?: T };
+  if (!payload.row) throw new Error("The server did not return the saved row.");
+  return payload.row;
+}
+
+/** Take a row out of use. Nothing is removed; the server archives it. */
+async function retireRow(resource: string, id: string) {
+  const response = await fetch(
+    `${ENDPOINT}?resource=${resource}&id=${encodeURIComponent(id)}`,
+    { method: "DELETE", headers: await authHeaders() },
+  );
+  if (!response.ok) throw new Error(await refusal(response));
+  return { ok: true };
+}
+
 export async function listProductsAdmin(): Promise<Product[]> {
-  return sortBy(products.all());
+  return sortBy(await readAll<Product>("products"));
 }
 
 export async function upsertProduct(arg: { data: Partial<Product> }): Promise<Product> {
-  const input = arg.data;
-  const id = input.id ?? uid();
-  const existing = input.id ? products.find(input.id) : undefined;
-  const row: Product = {
-    ...(existing ?? {
-      id, slug: "", name: "", industry_label: null, icon: "Sparkles", price_label: "",
-      price_period: null, rating: 0, downloads: 0, downloads_label: null, badge: null,
-      is_featured: false, is_trending: false, is_new_release: false, is_best_seller: false,
-      is_ai: false, category_id: null, sort_order: products.all().length, visible: true,
-      publish_at: null, unpublish_at: null,
-    }),
-    ...input,
-    id,
-  };
-  row.slug = row.slug || slugify(row.name, "product");
-  return products.upsert(row);
+  const input = { ...arg.data };
+  const id = input.id;
+  delete input.id;
+  if (!input.slug && input.name) input.slug = slugify(input.name, "product");
+  return writeRow<Product>("products", id, input as Record<string, unknown>);
 }
 
+/** Archived, not removed - the row is still there to be put back. */
 export async function deleteProduct(arg: { data: { id: string } }) {
-  products.remove(arg.data.id);
-  return { ok: true };
+  return retireRow("products", arg.data.id);
 }
 
 export async function listCategoriesAdmin(): Promise<Category[]> {
-  return sortBy(categories.all());
+  return sortBy(await readAll<Category>("categories"));
 }
 
 export async function upsertCategory(arg: { data: Partial<Category> }): Promise<Category> {
-  const input = arg.data;
-  const id = input.id ?? uid();
-  const existing = input.id ? categories.find(input.id) : undefined;
-  const row: Category = {
-    ...(existing ?? {
-      id, slug: "", name: "", icon: "Layers", image_key: null, tone: null,
-      sort_order: categories.all().length, is_featured: false, is_hidden: false,
-    }),
-    ...input,
-    id,
-  };
-  row.slug = row.slug || slugify(row.name, "category");
-  return categories.upsert(row);
+  const input = { ...arg.data };
+  const id = input.id;
+  delete input.id;
+  if (!input.slug && input.name) input.slug = slugify(input.name, "category");
+  return writeRow<Category>("categories", id, input as Record<string, unknown>);
 }
 
+/** Hidden, not removed. */
 export async function deleteCategory(arg: { data: { id: string } }) {
-  categories.remove(arg.data.id);
-  return { ok: true };
+  return retireRow("categories", arg.data.id);
 }
 
+/**
+ * Homepage section order is still held in the browser. The real ordering of the
+ * rows the storefront draws lives in the categories themselves and is operated
+ * from the Homepage Rows panel, which reads and writes them through
+ * /api/marketplace/rows; this list is the designed layout beside it.
+ */
 export async function listSectionsAdmin(): Promise<Section[]> {
   return sortBy(sections.all());
 }

@@ -32,9 +32,11 @@ const HeroCarousel = () => {
 
   useEffect(() => {
     if (paused || total <= 1) return;
+    // `current` is a dependency on purpose: clicking an arrow or a dot restarts
+    // the countdown, so the slide a visitor just chose is not snatched away.
     const t = setInterval(next, 5500);
     return () => clearInterval(t);
-  }, [next, paused, total]);
+  }, [next, paused, total, current]);
 
   useEffect(() => {
     if (current >= total) setCurrent(0);

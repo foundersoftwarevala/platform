@@ -35,3 +35,12 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Timestamped safety copies made before in-place edits on the server,
+# and retained previous builds kept by the verified deploy script.
+*.bak-*
+*.backup-*
+.output.prev-*/
+.output.bak-*/
+.output.failed-*/
+.output.new-*/
