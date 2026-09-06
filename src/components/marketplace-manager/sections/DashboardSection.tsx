@@ -20,6 +20,11 @@ import {
 import { Card, EmptyHint, PageHeader, PillButton, SectionRow, StatCard } from "../ui";
 
 import { notBuilt } from "@/lib/ui/not-built";
+import { useQuery } from "@tanstack/react-query";
+import {
+  marketplaceControlSummary,
+  type MarketplaceDashboard,
+} from "@/lib/marketplace-manager/homepage-rows.functions";
 const WALLS = [
   "Featured Products",
   "Top Selling",
@@ -39,7 +44,43 @@ type NavId =
   | "layout-order" | "authors" | "vendors" | "orders" | "downloads"
   | "reviews" | "notifications";
 
+
+/**
+ * The control room's numbers, counted in one round trip.
+ *
+ * Kept in one hook so every card on this screen agrees with every other; two
+ * queries would let a KPI and its own queue disagree by a refresh.
+ */
+function useControlRoom() {
+  return useQuery<MarketplaceDashboard>({
+    queryKey: ["marketplace", "control-room"],
+    queryFn: () => marketplaceControlSummary(),
+    staleTime: 30_000,
+  });
+}
+
+/** A measured number, or an em dash while it is still being counted. */
+function num(v: number | null | undefined, loading: boolean): string {
+  if (loading) return "\u2014";
+  if (v === null || v === undefined) return "not tracked";
+  return new Intl.NumberFormat().format(v);
+}
+
+function money(v: number | null | undefined, currency: string, loading: boolean): string {
+  if (loading) return "\u2014";
+  if (v === null || v === undefined) return "not tracked";
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(v);
+  } catch {
+    return currency + " " + new Intl.NumberFormat().format(v);
+  }
+}
+
 export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => void } = {}) {
+  const room = useControlRoom();
+  const d = room.data;
+  const loading = room.isLoading;
+
   const go = (id: NavId) => onNavigate?.(id);
   return (
     <div className="px-4 py-8 md:px-8">
@@ -101,10 +142,28 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
 
           <div className="grid grid-cols-2 gap-3">
             {[
-              { l: "Revenue Today", tone: "text-accent", bar: "bg-accent" },
-              { l: "Active Listings", tone: "text-success", bar: "bg-success" },
-              { l: "Pending Approvals", tone: "text-warning", bar: "bg-warning" },
-              { l: "Marketplace Score", tone: "text-premium", bar: "bg-premium" },
+              {
+                l: "Revenue Today", tone: "text-accent", bar: "bg-accent",
+                v: d && !d.revenue.has_transactions
+                  ? "No transactions yet"
+                  : money(d?.revenue.today, d?.revenue.currency ?? "INR", loading),
+                note: d ? `${money(d.revenue.all_time, d.revenue.currency, loading)} all time` : "Counting…",
+              },
+              {
+                l: "Active Listings", tone: "text-success", bar: "bg-success",
+                v: num(d?.products.published, loading),
+                note: d ? `of ${num(d.products.total, loading)} in the catalogue` : "Counting…",
+              },
+              {
+                l: "Open Queues", tone: "text-warning", bar: "bg-warning",
+                v: num(d?.queues.filter((q) => q.count > 0).length, loading),
+                note: d ? `${num(d.queues.reduce((n, q) => n + q.count, 0), loading)} records waiting` : "Counting…",
+              },
+              {
+                l: "Marketplace Score", tone: "text-premium", bar: "bg-premium",
+                v: loading ? "—" : (d?.score?.score ?? null) === null ? "not scored" : String(d?.score?.score),
+                note: d ? `from ${d.score?.factors?.length ?? 0} measured factors` : "Counting…",
+              },
             ].map((m) => (
               <div
                 key={m.l}
@@ -113,11 +172,11 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
                 <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
                   {m.l}
                 </div>
-                <div className={`mt-3 font-mono text-2xl font-bold tabular ${m.tone}`}>—</div>
+                <div className={`mt-3 font-mono text-2xl font-bold tabular ${m.tone}`}>{m.v}</div>
                 <div className="mt-3 h-px w-full bg-border">
                   <div className={`h-full w-1/3 ${m.bar} opacity-70`} />
                 </div>
-                <div className="mt-2 text-[10px] text-muted-foreground">Awaiting live data</div>
+                <div className="mt-2 text-[10px] text-muted-foreground">{m.note}</div>
               </div>
             ))}
           </div>
@@ -127,18 +186,44 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
       {/* KPI Zone */}
       <SectionRow title="Marketplace KPIs" cta="Open Analytics" onCta={() => go("analytics")}>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          <StatCard label="Total Products" value="—" delta="Live from catalog" icon={<Package className="h-4 w-4" />} />
-          <StatCard label="Active" value="—" tone="success" icon={<CheckCircle2 className="h-4 w-4" />} />
-          <StatCard label="Pending" value="—" tone="warning" icon={<Clock3 className="h-4 w-4" />} />
-          <StatCard label="Authors" value="—" icon={<Users2 className="h-4 w-4" />} />
-          <StatCard label="Vendors" value="—" icon={<Store className="h-4 w-4" />} />
-          <StatCard label="Orders" value="—" icon={<ShoppingCart className="h-4 w-4" />} />
-          <StatCard label="Downloads" value="—" icon={<Download className="h-4 w-4" />} />
-          <StatCard label="Revenue" value="—" tone="premium" icon={<DollarSign className="h-4 w-4" />} />
-          <StatCard label="Refunds" value="—" tone="destructive" icon={<RotateCcw className="h-4 w-4" />} />
-          <StatCard label="Conversion" value="—" icon={<TrendingUp className="h-4 w-4" />} />
-          <StatCard label="Health" value="—" tone="success" icon={<Activity className="h-4 w-4" />} />
-          <StatCard label="MP Score" value="—" tone="premium" icon={<Sparkles className="h-4 w-4" />} />
+          <StatCard label="Total Products" value={num(d?.products.total, loading)}
+                    delta={`${num(d?.products.categories, loading)} categories`}
+                    icon={<Package className="h-4 w-4" />} />
+          <StatCard label="Active" value={num(d?.products.published, loading)} tone="success"
+                    icon={<CheckCircle2 className="h-4 w-4" />} />
+          <StatCard label="Pending" value={num(d?.products.draft, loading)} tone="warning"
+                    delta="draft or unpublished"
+                    icon={<Clock3 className="h-4 w-4" />} />
+          {/* There is no authors table in this database. Sellers is the real
+              equivalent the catalogue records, so it is labelled as such
+              rather than dressed up as an author count. */}
+          <StatCard label="Sellers" value={num(d?.products.sellers, loading)}
+                    icon={<Users2 className="h-4 w-4" />} />
+          <StatCard label="With a demo" value={num(d?.products.with_demo, loading)}
+                    tone={d && d.products.with_demo === 0 ? "destructive" : "default"}
+                    icon={<Store className="h-4 w-4" />} />
+          <StatCard label="Orders" value={num(d?.commerce.orders, loading)}
+                    delta={`${num(d?.commerce.paid, loading)} paid`}
+                    icon={<ShoppingCart className="h-4 w-4" />} />
+          <StatCard label="Downloads" value={num(d?.commerce.downloads, loading)}
+                    icon={<Download className="h-4 w-4" />} />
+          <StatCard label="Revenue"
+                    value={d && !d.revenue.has_transactions
+                      ? "No transactions yet"
+                      : money(d?.revenue.all_time, d?.revenue.currency ?? "INR", loading)}
+                    tone="premium" icon={<DollarSign className="h-4 w-4" />} />
+          <StatCard label="Refunds" value={num(d?.commerce.refunds, loading)} tone="destructive"
+                    delta={d ? money(d.revenue.refunded, d.revenue.currency, loading) : undefined}
+                    icon={<RotateCcw className="h-4 w-4" />} />
+          <StatCard label="Net revenue"
+                    value={money(d?.revenue.net, d?.revenue.currency ?? "INR", loading)}
+                    icon={<TrendingUp className="h-4 w-4" />} />
+          <StatCard label="Health checks" value={num(d?.health?.length, loading)} tone="success"
+                    delta={d ? `${d.health.filter((h) => h.affected > 0).length} need attention` : undefined}
+                    icon={<Activity className="h-4 w-4" />} />
+          <StatCard label="MP Score"
+                    value={loading ? "—" : (d?.score?.score ?? null) === null ? "not scored" : String(d?.score?.score)}
+                    tone="premium" icon={<Sparkles className="h-4 w-4" />} />
         </div>
       </SectionRow>
 
@@ -193,14 +278,28 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
             </span>
           </div>
           <ul className="divide-y divide-border">
-            {["Pending Products", "Pending Updates", "Pending Vendors", "Pending Authors", "Pending Collections", "Pending Campaigns"].map((t) => (
-              <li key={t} className="flex items-center justify-between py-3">
-                <span className="text-sm">{t}</span>
+            {loading && (
+              <li className="py-3 text-sm text-muted-foreground">Counting the queues…</li>
+            )}
+            {!loading && (d?.queues ?? []).length === 0 && (
+              <li className="py-3 text-sm text-muted-foreground">Nothing is waiting for review.</li>
+            )}
+            {(d?.queues ?? []).map((q) => (
+              <li key={q.key} className="flex items-center justify-between py-3">
+                <span className="text-sm">{q.label}</span>
                 <div className="flex items-center gap-2">
-                  <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">—</span>
-                  <button
-        type="button"
-        onClick={() => notBuilt("Review")} className="text-xs font-semibold text-accent hover:text-cyan-glow">Review</button>
+                  <span className={`rounded px-2 py-0.5 text-xs ${
+                    q.count > 0 ? "bg-warning/15 text-warning" : "bg-secondary text-muted-foreground"
+                  }`}>
+                    {new Intl.NumberFormat().format(q.count)}
+                  </span>
+                  {/* Opens the exact set of records the number counted. */}
+                  <a href={q.destination}
+                     className={`text-xs font-semibold ${
+                       q.count > 0 ? "text-accent hover:text-cyan-glow" : "text-muted-foreground"
+                     }`}>
+                    Review
+                  </a>
                 </div>
               </li>
             ))}
