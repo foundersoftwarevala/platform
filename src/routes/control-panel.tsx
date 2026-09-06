@@ -208,6 +208,10 @@ function Index() {
                 void navigate({ to: "/dashboard/$role", params: { role: dashRole } });
                 return;
               }
+              if (roleId === "legal_manager") {
+                void navigate({ to: "/legal-manager" });
+                return;
+              }
               if (roleId === "assist_manager") {
                 void navigate({ to: "/assist-manager" });
                 return;
@@ -298,7 +302,6 @@ function Index() {
               const NOT_BUILT: Record<string, string> = {
                 continent_super_admin: "Continent Admin",
                 country_head: "Country Admin",
-                legal_manager: "Legal Manager",
                 pro_manager: "Pro Manager",
                 pro_user_dashboard: "Pro User Dashboard",
                 basic_user_dashboard: "Basic User Dashboard",

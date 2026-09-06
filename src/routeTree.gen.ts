@@ -15,6 +15,7 @@ import { Route as AiApiManagerRouteImport } from './routes/ai-api-manager'
 import { Route as AiCeoRouteImport } from './routes/ai-ceo'
 import { Route as AmsRouteImport } from './routes/ams'
 import { Route as AmsManagerRouteImport } from './routes/ams-manager'
+import { Route as AssistManagerRouteImport } from './routes/assist-manager'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BossRouteImport } from './routes/boss'
 import { Route as ChatRouteImport } from './routes/chat'
@@ -32,6 +33,7 @@ import { Route as InfluencerManagerRouteImport } from './routes/influencer-manag
 import { Route as InternalSupportAiRouteImport } from './routes/internal-support-ai'
 import { Route as KeywordsRouteImport } from './routes/keywords'
 import { Route as LeadManagerRouteImport } from './routes/lead-manager'
+import { Route as LegalManagerRouteImport } from './routes/legal-manager'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ManagerRouteImport } from './routes/manager'
 import { Route as MarketingRouteImport } from './routes/marketing'
@@ -40,6 +42,7 @@ import { Route as MarketplaceManagerRouteImport } from './routes/marketplace-man
 import { Route as MarketplaceRecoveryRouteImport } from './routes/marketplace-recovery'
 import { Route as PagesRouteImport } from './routes/pages'
 import { Route as ProductDemoManagerRouteImport } from './routes/product-demo-manager'
+import { Route as PromiseTrackerRouteImport } from './routes/promise-tracker'
 import { Route as ResellerManagerRouteImport } from './routes/reseller-manager'
 import { Route as SalesCrmRouteImport } from './routes/sales-crm'
 import { Route as SalesSupportManagerRouteImport } from './routes/sales-support-manager'
@@ -188,6 +191,19 @@ import { Route as MarketingTargetingRouteImport } from './routes/marketing.targe
 import { Route as MarketplaceIndexRouteImport } from './routes/marketplace.index'
 import { Route as PaymentFailRouteImport } from './routes/payment/fail'
 import { Route as PaymentSuccessRouteImport } from './routes/payment/success'
+import { Route as PromiseTrackerIndexRouteImport } from './routes/promise-tracker.index'
+import { Route as PromiseTrackerActiveRouteImport } from './routes/promise-tracker.active'
+import { Route as PromiseTrackerAllRouteImport } from './routes/promise-tracker.all'
+import { Route as PromiseTrackerAuditLogsRouteImport } from './routes/promise-tracker.audit-logs'
+import { Route as PromiseTrackerBrokenRouteImport } from './routes/promise-tracker.broken'
+import { Route as PromiseTrackerCategoriesRouteImport } from './routes/promise-tracker.categories'
+import { Route as PromiseTrackerCreateRouteImport } from './routes/promise-tracker.create'
+import { Route as PromiseTrackerDelayedRouteImport } from './routes/promise-tracker.delayed'
+import { Route as PromiseTrackerEscalationsRouteImport } from './routes/promise-tracker.escalations'
+import { Route as PromiseTrackerFulfilledRouteImport } from './routes/promise-tracker.fulfilled'
+import { Route as PromiseTrackerInsightsRouteImport } from './routes/promise-tracker.insights'
+import { Route as PromiseTrackerRulesRouteImport } from './routes/promise-tracker.rules'
+import { Route as PromiseTrackerSettingsRouteImport } from './routes/promise-tracker.settings'
 import { Route as SitemapProductsPageDotxmlRouteImport } from './routes/sitemap-products/$page[.]xml'
 import { Route as ValaAiIndexRouteImport } from './routes/vala-ai.index'
 import { Route as ValaAiCreditsRouteImport } from './routes/vala-ai.credits'
@@ -299,6 +315,11 @@ const AmsManagerRoute = AmsManagerRouteImport.update({
   path: '/ams-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AssistManagerRoute = AssistManagerRouteImport.update({
+  id: '/assist-manager',
+  path: '/assist-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -384,6 +405,11 @@ const LeadManagerRoute = LeadManagerRouteImport.update({
   path: '/lead-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LegalManagerRoute = LegalManagerRouteImport.update({
+  id: '/legal-manager',
+  path: '/legal-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -422,6 +448,11 @@ const PagesRoute = PagesRouteImport.update({
 const ProductDemoManagerRoute = ProductDemoManagerRouteImport.update({
   id: '/product-demo-manager',
   path: '/product-demo-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PromiseTrackerRoute = PromiseTrackerRouteImport.update({
+  id: '/promise-tracker',
+  path: '/promise-tracker',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResellerManagerRoute = ResellerManagerRouteImport.update({
@@ -1185,6 +1216,73 @@ const PaymentSuccessRoute = PaymentSuccessRouteImport.update({
   path: '/payment/success',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PromiseTrackerIndexRoute = PromiseTrackerIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PromiseTrackerRoute,
+} as any)
+const PromiseTrackerActiveRoute = PromiseTrackerActiveRouteImport.update({
+  id: '/active',
+  path: '/active',
+  getParentRoute: () => PromiseTrackerRoute,
+} as any)
+const PromiseTrackerAllRoute = PromiseTrackerAllRouteImport.update({
+  id: '/all',
+  path: '/all',
+  getParentRoute: () => PromiseTrackerRoute,
+} as any)
+const PromiseTrackerAuditLogsRoute = PromiseTrackerAuditLogsRouteImport.update({
+  id: '/audit-logs',
+  path: '/audit-logs',
+  getParentRoute: () => PromiseTrackerRoute,
+} as any)
+const PromiseTrackerBrokenRoute = PromiseTrackerBrokenRouteImport.update({
+  id: '/broken',
+  path: '/broken',
+  getParentRoute: () => PromiseTrackerRoute,
+} as any)
+const PromiseTrackerCategoriesRoute =
+  PromiseTrackerCategoriesRouteImport.update({
+    id: '/categories',
+    path: '/categories',
+    getParentRoute: () => PromiseTrackerRoute,
+  } as any)
+const PromiseTrackerCreateRoute = PromiseTrackerCreateRouteImport.update({
+  id: '/create',
+  path: '/create',
+  getParentRoute: () => PromiseTrackerRoute,
+} as any)
+const PromiseTrackerDelayedRoute = PromiseTrackerDelayedRouteImport.update({
+  id: '/delayed',
+  path: '/delayed',
+  getParentRoute: () => PromiseTrackerRoute,
+} as any)
+const PromiseTrackerEscalationsRoute =
+  PromiseTrackerEscalationsRouteImport.update({
+    id: '/escalations',
+    path: '/escalations',
+    getParentRoute: () => PromiseTrackerRoute,
+  } as any)
+const PromiseTrackerFulfilledRoute = PromiseTrackerFulfilledRouteImport.update({
+  id: '/fulfilled',
+  path: '/fulfilled',
+  getParentRoute: () => PromiseTrackerRoute,
+} as any)
+const PromiseTrackerInsightsRoute = PromiseTrackerInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => PromiseTrackerRoute,
+} as any)
+const PromiseTrackerRulesRoute = PromiseTrackerRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => PromiseTrackerRoute,
+} as any)
+const PromiseTrackerSettingsRoute = PromiseTrackerSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => PromiseTrackerRoute,
+} as any)
 const SitemapProductsPageDotxmlRoute =
   SitemapProductsPageDotxmlRouteImport.update({
     id: '/sitemap-products/$page.xml',
@@ -1606,6 +1704,7 @@ export interface FileRoutesByFullPath {
   '/ai-ceo': typeof AiCeoRouteWithChildren
   '/ams': typeof AmsRouteWithChildren
   '/ams-manager': typeof AmsManagerRoute
+  '/assist-manager': typeof AssistManagerRoute
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
   '/chat': typeof ChatRoute
@@ -1623,6 +1722,7 @@ export interface FileRoutesByFullPath {
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
   '/lead-manager': typeof LeadManagerRouteWithChildren
+  '/legal-manager': typeof LegalManagerRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRouteWithChildren
   '/marketing': typeof MarketingRouteWithChildren
@@ -1631,6 +1731,7 @@ export interface FileRoutesByFullPath {
   '/marketplace-recovery': typeof MarketplaceRecoveryRoute
   '/pages': typeof PagesRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
+  '/promise-tracker': typeof PromiseTrackerRouteWithChildren
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -1770,6 +1871,18 @@ export interface FileRoutesByFullPath {
   '/marketing/targeting': typeof MarketingTargetingRoute
   '/payment/fail': typeof PaymentFailRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/promise-tracker/active': typeof PromiseTrackerActiveRoute
+  '/promise-tracker/all': typeof PromiseTrackerAllRoute
+  '/promise-tracker/audit-logs': typeof PromiseTrackerAuditLogsRoute
+  '/promise-tracker/broken': typeof PromiseTrackerBrokenRoute
+  '/promise-tracker/categories': typeof PromiseTrackerCategoriesRoute
+  '/promise-tracker/create': typeof PromiseTrackerCreateRoute
+  '/promise-tracker/delayed': typeof PromiseTrackerDelayedRoute
+  '/promise-tracker/escalations': typeof PromiseTrackerEscalationsRoute
+  '/promise-tracker/fulfilled': typeof PromiseTrackerFulfilledRoute
+  '/promise-tracker/insights': typeof PromiseTrackerInsightsRoute
+  '/promise-tracker/rules': typeof PromiseTrackerRulesRoute
+  '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
   '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
@@ -1790,6 +1903,7 @@ export interface FileRoutesByFullPath {
   '/manager/': typeof ManagerIndexRoute
   '/marketing/': typeof MarketingIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
+  '/promise-tracker/': typeof PromiseTrackerIndexRoute
   '/vala-ai/': typeof ValaAiIndexRoute
   '/proxy/demo/': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
@@ -1864,6 +1978,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-api-manager': typeof AiApiManagerRoute
   '/ams-manager': typeof AmsManagerRoute
+  '/assist-manager': typeof AssistManagerRoute
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
   '/chat': typeof ChatRoute
@@ -1880,6 +1995,7 @@ export interface FileRoutesByTo {
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
+  '/legal-manager': typeof LegalManagerRoute
   '/login': typeof LoginRoute
   '/marketplace-manager': typeof MarketplaceManagerRoute
   '/marketplace-recovery': typeof MarketplaceRecoveryRoute
@@ -2022,6 +2138,18 @@ export interface FileRoutesByTo {
   '/marketing/targeting': typeof MarketingTargetingRoute
   '/payment/fail': typeof PaymentFailRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/promise-tracker/active': typeof PromiseTrackerActiveRoute
+  '/promise-tracker/all': typeof PromiseTrackerAllRoute
+  '/promise-tracker/audit-logs': typeof PromiseTrackerAuditLogsRoute
+  '/promise-tracker/broken': typeof PromiseTrackerBrokenRoute
+  '/promise-tracker/categories': typeof PromiseTrackerCategoriesRoute
+  '/promise-tracker/create': typeof PromiseTrackerCreateRoute
+  '/promise-tracker/delayed': typeof PromiseTrackerDelayedRoute
+  '/promise-tracker/escalations': typeof PromiseTrackerEscalationsRoute
+  '/promise-tracker/fulfilled': typeof PromiseTrackerFulfilledRoute
+  '/promise-tracker/insights': typeof PromiseTrackerInsightsRoute
+  '/promise-tracker/rules': typeof PromiseTrackerRulesRoute
+  '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
   '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
@@ -2042,6 +2170,7 @@ export interface FileRoutesByTo {
   '/manager': typeof ManagerIndexRoute
   '/marketing': typeof MarketingIndexRoute
   '/marketplace': typeof MarketplaceIndexRoute
+  '/promise-tracker': typeof PromiseTrackerIndexRoute
   '/vala-ai': typeof ValaAiIndexRoute
   '/proxy/demo': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
@@ -2120,6 +2249,7 @@ export interface FileRoutesById {
   '/ai-ceo': typeof AiCeoRouteWithChildren
   '/ams': typeof AmsRouteWithChildren
   '/ams-manager': typeof AmsManagerRoute
+  '/assist-manager': typeof AssistManagerRoute
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
   '/chat': typeof ChatRoute
@@ -2137,6 +2267,7 @@ export interface FileRoutesById {
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
   '/lead-manager': typeof LeadManagerRouteWithChildren
+  '/legal-manager': typeof LegalManagerRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRouteWithChildren
   '/marketing': typeof MarketingRouteWithChildren
@@ -2145,6 +2276,7 @@ export interface FileRoutesById {
   '/marketplace-recovery': typeof MarketplaceRecoveryRoute
   '/pages': typeof PagesRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
+  '/promise-tracker': typeof PromiseTrackerRouteWithChildren
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2284,6 +2416,18 @@ export interface FileRoutesById {
   '/marketing/targeting': typeof MarketingTargetingRoute
   '/payment/fail': typeof PaymentFailRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/promise-tracker/active': typeof PromiseTrackerActiveRoute
+  '/promise-tracker/all': typeof PromiseTrackerAllRoute
+  '/promise-tracker/audit-logs': typeof PromiseTrackerAuditLogsRoute
+  '/promise-tracker/broken': typeof PromiseTrackerBrokenRoute
+  '/promise-tracker/categories': typeof PromiseTrackerCategoriesRoute
+  '/promise-tracker/create': typeof PromiseTrackerCreateRoute
+  '/promise-tracker/delayed': typeof PromiseTrackerDelayedRoute
+  '/promise-tracker/escalations': typeof PromiseTrackerEscalationsRoute
+  '/promise-tracker/fulfilled': typeof PromiseTrackerFulfilledRoute
+  '/promise-tracker/insights': typeof PromiseTrackerInsightsRoute
+  '/promise-tracker/rules': typeof PromiseTrackerRulesRoute
+  '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
   '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
@@ -2304,6 +2448,7 @@ export interface FileRoutesById {
   '/manager/': typeof ManagerIndexRoute
   '/marketing/': typeof MarketingIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
+  '/promise-tracker/': typeof PromiseTrackerIndexRoute
   '/vala-ai/': typeof ValaAiIndexRoute
   '/proxy/demo/': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
@@ -2383,6 +2528,7 @@ export interface FileRouteTypes {
     | '/ai-ceo'
     | '/ams'
     | '/ams-manager'
+    | '/assist-manager'
     | '/auth'
     | '/boss'
     | '/chat'
@@ -2400,6 +2546,7 @@ export interface FileRouteTypes {
     | '/internal-support-ai'
     | '/keywords'
     | '/lead-manager'
+    | '/legal-manager'
     | '/login'
     | '/manager'
     | '/marketing'
@@ -2408,6 +2555,7 @@ export interface FileRouteTypes {
     | '/marketplace-recovery'
     | '/pages'
     | '/product-demo-manager'
+    | '/promise-tracker'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -2547,6 +2695,18 @@ export interface FileRouteTypes {
     | '/marketing/targeting'
     | '/payment/fail'
     | '/payment/success'
+    | '/promise-tracker/active'
+    | '/promise-tracker/all'
+    | '/promise-tracker/audit-logs'
+    | '/promise-tracker/broken'
+    | '/promise-tracker/categories'
+    | '/promise-tracker/create'
+    | '/promise-tracker/delayed'
+    | '/promise-tracker/escalations'
+    | '/promise-tracker/fulfilled'
+    | '/promise-tracker/insights'
+    | '/promise-tracker/rules'
+    | '/promise-tracker/settings'
     | '/sitemap-products/$page.xml'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
@@ -2567,6 +2727,7 @@ export interface FileRouteTypes {
     | '/manager/'
     | '/marketing/'
     | '/marketplace/'
+    | '/promise-tracker/'
     | '/vala-ai/'
     | '/proxy/demo/'
     | '/affiliate-manager/affiliates/$id'
@@ -2641,6 +2802,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-api-manager'
     | '/ams-manager'
+    | '/assist-manager'
     | '/auth'
     | '/boss'
     | '/chat'
@@ -2657,6 +2819,7 @@ export interface FileRouteTypes {
     | '/influencer-manager'
     | '/internal-support-ai'
     | '/keywords'
+    | '/legal-manager'
     | '/login'
     | '/marketplace-manager'
     | '/marketplace-recovery'
@@ -2799,6 +2962,18 @@ export interface FileRouteTypes {
     | '/marketing/targeting'
     | '/payment/fail'
     | '/payment/success'
+    | '/promise-tracker/active'
+    | '/promise-tracker/all'
+    | '/promise-tracker/audit-logs'
+    | '/promise-tracker/broken'
+    | '/promise-tracker/categories'
+    | '/promise-tracker/create'
+    | '/promise-tracker/delayed'
+    | '/promise-tracker/escalations'
+    | '/promise-tracker/fulfilled'
+    | '/promise-tracker/insights'
+    | '/promise-tracker/rules'
+    | '/promise-tracker/settings'
     | '/sitemap-products/$page.xml'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
@@ -2819,6 +2994,7 @@ export interface FileRouteTypes {
     | '/manager'
     | '/marketing'
     | '/marketplace'
+    | '/promise-tracker'
     | '/vala-ai'
     | '/proxy/demo'
     | '/affiliate-manager/affiliates/$id'
@@ -2896,6 +3072,7 @@ export interface FileRouteTypes {
     | '/ai-ceo'
     | '/ams'
     | '/ams-manager'
+    | '/assist-manager'
     | '/auth'
     | '/boss'
     | '/chat'
@@ -2913,6 +3090,7 @@ export interface FileRouteTypes {
     | '/internal-support-ai'
     | '/keywords'
     | '/lead-manager'
+    | '/legal-manager'
     | '/login'
     | '/manager'
     | '/marketing'
@@ -2921,6 +3099,7 @@ export interface FileRouteTypes {
     | '/marketplace-recovery'
     | '/pages'
     | '/product-demo-manager'
+    | '/promise-tracker'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -3060,6 +3239,18 @@ export interface FileRouteTypes {
     | '/marketing/targeting'
     | '/payment/fail'
     | '/payment/success'
+    | '/promise-tracker/active'
+    | '/promise-tracker/all'
+    | '/promise-tracker/audit-logs'
+    | '/promise-tracker/broken'
+    | '/promise-tracker/categories'
+    | '/promise-tracker/create'
+    | '/promise-tracker/delayed'
+    | '/promise-tracker/escalations'
+    | '/promise-tracker/fulfilled'
+    | '/promise-tracker/insights'
+    | '/promise-tracker/rules'
+    | '/promise-tracker/settings'
     | '/sitemap-products/$page.xml'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
@@ -3080,6 +3271,7 @@ export interface FileRouteTypes {
     | '/manager/'
     | '/marketing/'
     | '/marketplace/'
+    | '/promise-tracker/'
     | '/vala-ai/'
     | '/proxy/demo/'
     | '/affiliate-manager/affiliates/$id'
@@ -3158,6 +3350,7 @@ export interface RootRouteChildren {
   AiCeoRoute: typeof AiCeoRouteWithChildren
   AmsRoute: typeof AmsRouteWithChildren
   AmsManagerRoute: typeof AmsManagerRoute
+  AssistManagerRoute: typeof AssistManagerRoute
   AuthRoute: typeof AuthRoute
   BossRoute: typeof BossRoute
   ChatRoute: typeof ChatRoute
@@ -3175,6 +3368,7 @@ export interface RootRouteChildren {
   InternalSupportAiRoute: typeof InternalSupportAiRoute
   KeywordsRoute: typeof KeywordsRoute
   LeadManagerRoute: typeof LeadManagerRouteWithChildren
+  LegalManagerRoute: typeof LegalManagerRoute
   LoginRoute: typeof LoginRoute
   ManagerRoute: typeof ManagerRouteWithChildren
   MarketingRoute: typeof MarketingRouteWithChildren
@@ -3183,6 +3377,7 @@ export interface RootRouteChildren {
   MarketplaceRecoveryRoute: typeof MarketplaceRecoveryRoute
   PagesRoute: typeof PagesRoute
   ProductDemoManagerRoute: typeof ProductDemoManagerRoute
+  PromiseTrackerRoute: typeof PromiseTrackerRouteWithChildren
   ResellerManagerRoute: typeof ResellerManagerRoute
   SalesCrmRoute: typeof SalesCrmRoute
   SalesSupportManagerRoute: typeof SalesSupportManagerRoute
@@ -3299,6 +3494,13 @@ declare module '@tanstack/react-router' {
       path: '/ams-manager'
       fullPath: '/ams-manager'
       preLoaderRoute: typeof AmsManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assist-manager': {
+      id: '/assist-manager'
+      path: '/assist-manager'
+      fullPath: '/assist-manager'
+      preLoaderRoute: typeof AssistManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -3420,6 +3622,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LeadManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/legal-manager': {
+      id: '/legal-manager'
+      path: '/legal-manager'
+      fullPath: '/legal-manager'
+      preLoaderRoute: typeof LegalManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -3474,6 +3683,13 @@ declare module '@tanstack/react-router' {
       path: '/product-demo-manager'
       fullPath: '/product-demo-manager'
       preLoaderRoute: typeof ProductDemoManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/promise-tracker': {
+      id: '/promise-tracker'
+      path: '/promise-tracker'
+      fullPath: '/promise-tracker'
+      preLoaderRoute: typeof PromiseTrackerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reseller-manager': {
@@ -4512,6 +4728,97 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PaymentSuccessRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/promise-tracker/': {
+      id: '/promise-tracker/'
+      path: '/'
+      fullPath: '/promise-tracker/'
+      preLoaderRoute: typeof PromiseTrackerIndexRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/active': {
+      id: '/promise-tracker/active'
+      path: '/active'
+      fullPath: '/promise-tracker/active'
+      preLoaderRoute: typeof PromiseTrackerActiveRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/all': {
+      id: '/promise-tracker/all'
+      path: '/all'
+      fullPath: '/promise-tracker/all'
+      preLoaderRoute: typeof PromiseTrackerAllRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/audit-logs': {
+      id: '/promise-tracker/audit-logs'
+      path: '/audit-logs'
+      fullPath: '/promise-tracker/audit-logs'
+      preLoaderRoute: typeof PromiseTrackerAuditLogsRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/broken': {
+      id: '/promise-tracker/broken'
+      path: '/broken'
+      fullPath: '/promise-tracker/broken'
+      preLoaderRoute: typeof PromiseTrackerBrokenRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/categories': {
+      id: '/promise-tracker/categories'
+      path: '/categories'
+      fullPath: '/promise-tracker/categories'
+      preLoaderRoute: typeof PromiseTrackerCategoriesRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/create': {
+      id: '/promise-tracker/create'
+      path: '/create'
+      fullPath: '/promise-tracker/create'
+      preLoaderRoute: typeof PromiseTrackerCreateRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/delayed': {
+      id: '/promise-tracker/delayed'
+      path: '/delayed'
+      fullPath: '/promise-tracker/delayed'
+      preLoaderRoute: typeof PromiseTrackerDelayedRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/escalations': {
+      id: '/promise-tracker/escalations'
+      path: '/escalations'
+      fullPath: '/promise-tracker/escalations'
+      preLoaderRoute: typeof PromiseTrackerEscalationsRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/fulfilled': {
+      id: '/promise-tracker/fulfilled'
+      path: '/fulfilled'
+      fullPath: '/promise-tracker/fulfilled'
+      preLoaderRoute: typeof PromiseTrackerFulfilledRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/insights': {
+      id: '/promise-tracker/insights'
+      path: '/insights'
+      fullPath: '/promise-tracker/insights'
+      preLoaderRoute: typeof PromiseTrackerInsightsRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/rules': {
+      id: '/promise-tracker/rules'
+      path: '/rules'
+      fullPath: '/promise-tracker/rules'
+      preLoaderRoute: typeof PromiseTrackerRulesRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
+    '/promise-tracker/settings': {
+      id: '/promise-tracker/settings'
+      path: '/settings'
+      fullPath: '/promise-tracker/settings'
+      preLoaderRoute: typeof PromiseTrackerSettingsRouteImport
+      parentRoute: typeof PromiseTrackerRoute
+    }
     '/sitemap-products/$page.xml': {
       id: '/sitemap-products/$page.xml'
       path: '/sitemap-products/$page.xml'
@@ -5463,6 +5770,42 @@ const MarketplaceRouteWithChildren = MarketplaceRoute._addFileChildren(
   MarketplaceRouteChildren,
 )
 
+interface PromiseTrackerRouteChildren {
+  PromiseTrackerActiveRoute: typeof PromiseTrackerActiveRoute
+  PromiseTrackerAllRoute: typeof PromiseTrackerAllRoute
+  PromiseTrackerAuditLogsRoute: typeof PromiseTrackerAuditLogsRoute
+  PromiseTrackerBrokenRoute: typeof PromiseTrackerBrokenRoute
+  PromiseTrackerCategoriesRoute: typeof PromiseTrackerCategoriesRoute
+  PromiseTrackerCreateRoute: typeof PromiseTrackerCreateRoute
+  PromiseTrackerDelayedRoute: typeof PromiseTrackerDelayedRoute
+  PromiseTrackerEscalationsRoute: typeof PromiseTrackerEscalationsRoute
+  PromiseTrackerFulfilledRoute: typeof PromiseTrackerFulfilledRoute
+  PromiseTrackerInsightsRoute: typeof PromiseTrackerInsightsRoute
+  PromiseTrackerRulesRoute: typeof PromiseTrackerRulesRoute
+  PromiseTrackerSettingsRoute: typeof PromiseTrackerSettingsRoute
+  PromiseTrackerIndexRoute: typeof PromiseTrackerIndexRoute
+}
+
+const PromiseTrackerRouteChildren: PromiseTrackerRouteChildren = {
+  PromiseTrackerActiveRoute: PromiseTrackerActiveRoute,
+  PromiseTrackerAllRoute: PromiseTrackerAllRoute,
+  PromiseTrackerAuditLogsRoute: PromiseTrackerAuditLogsRoute,
+  PromiseTrackerBrokenRoute: PromiseTrackerBrokenRoute,
+  PromiseTrackerCategoriesRoute: PromiseTrackerCategoriesRoute,
+  PromiseTrackerCreateRoute: PromiseTrackerCreateRoute,
+  PromiseTrackerDelayedRoute: PromiseTrackerDelayedRoute,
+  PromiseTrackerEscalationsRoute: PromiseTrackerEscalationsRoute,
+  PromiseTrackerFulfilledRoute: PromiseTrackerFulfilledRoute,
+  PromiseTrackerInsightsRoute: PromiseTrackerInsightsRoute,
+  PromiseTrackerRulesRoute: PromiseTrackerRulesRoute,
+  PromiseTrackerSettingsRoute: PromiseTrackerSettingsRoute,
+  PromiseTrackerIndexRoute: PromiseTrackerIndexRoute,
+}
+
+const PromiseTrackerRouteWithChildren = PromiseTrackerRoute._addFileChildren(
+  PromiseTrackerRouteChildren,
+)
+
 interface ValaAiRouteChildren {
   ValaAiCreditsRoute: typeof ValaAiCreditsRoute
   ValaAiErrorsRoute: typeof ValaAiErrorsRoute
@@ -5499,6 +5842,7 @@ const rootRouteChildren: RootRouteChildren = {
   AiCeoRoute: AiCeoRouteWithChildren,
   AmsRoute: AmsRouteWithChildren,
   AmsManagerRoute: AmsManagerRoute,
+  AssistManagerRoute: AssistManagerRoute,
   AuthRoute: AuthRoute,
   BossRoute: BossRoute,
   ChatRoute: ChatRoute,
@@ -5516,6 +5860,7 @@ const rootRouteChildren: RootRouteChildren = {
   InternalSupportAiRoute: InternalSupportAiRoute,
   KeywordsRoute: KeywordsRoute,
   LeadManagerRoute: LeadManagerRouteWithChildren,
+  LegalManagerRoute: LegalManagerRoute,
   LoginRoute: LoginRoute,
   ManagerRoute: ManagerRouteWithChildren,
   MarketingRoute: MarketingRouteWithChildren,
@@ -5524,6 +5869,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarketplaceRecoveryRoute: MarketplaceRecoveryRoute,
   PagesRoute: PagesRoute,
   ProductDemoManagerRoute: ProductDemoManagerRoute,
+  PromiseTrackerRoute: PromiseTrackerRouteWithChildren,
   ResellerManagerRoute: ResellerManagerRoute,
   SalesCrmRoute: SalesCrmRoute,
   SalesSupportManagerRoute: SalesSupportManagerRoute,

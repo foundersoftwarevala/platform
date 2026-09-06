@@ -101,6 +101,76 @@ export function PageBanner({
 }
 
 /** Horizontal pill nav that replaces per-module top bars. */
+/**
+ * Hero banner with headline figures, used by modules that lead with numbers.
+ *
+ * PageBanner covers the common case; this is the variant that also carries a
+ * row of figures under the title, which is what the Legal Manager screens and
+ * the legal dashboard expect.
+ */
+export function ModuleHero({
+  eyebrow,
+  title,
+  description,
+  icon: Icon,
+  actions,
+  meta,
+}: {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  icon?: LucideIcon;
+  actions?: ReactNode;
+  meta?: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <section className="hero-surface enter-soft relative overflow-hidden p-5 sm:p-7 lg:p-8">
+      <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -left-10 h-56 w-56 rounded-full bg-accent-pink/30 blur-3xl" />
+
+      <div className="relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-5 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
+          {Icon ? (
+            <div className="hidden h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/25 bg-white/15 backdrop-blur sm:grid">
+              <Icon className="h-6 w-6" />
+            </div>
+          ) : null}
+          <div className="min-w-0">
+            {eyebrow ? (
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-foreground/75">
+                {eyebrow}
+              </p>
+            ) : null}
+            <h1 className="mt-1 truncate text-xl font-semibold tracking-tight sm:text-2xl lg:text-[28px]">
+              {title}
+            </h1>
+            {description ? (
+              <p className="mt-1.5 max-w-2xl text-sm text-primary-foreground/80">{description}</p>
+            ) : null}
+          </div>
+        </div>
+        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+      </div>
+
+      {meta && meta.length > 0 ? (
+        <div className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {meta.map((item) => (
+            <div
+              key={item.label}
+              className="rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 backdrop-blur"
+            >
+              <p className="text-[11px] uppercase tracking-wide text-primary-foreground/70">
+                {item.label}
+              </p>
+              <p className="mt-0.5 truncate text-base font-semibold">{item.value}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export function SectionPills<T extends string>({
   sections,
   active,
