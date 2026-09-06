@@ -12,3 +12,6 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+# Where the crawlable index of this site lives.
+Sitemap: https://softwarevala.net/sitemap.xml
