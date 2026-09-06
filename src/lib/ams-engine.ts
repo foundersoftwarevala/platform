@@ -514,7 +514,10 @@ export type AmsUserState = {
   verified: boolean;
 };
 
-const LS_KEY = (role: RoleKey) => `sv.ams.${role}.v1`;
+// Keyed by the person as well as the role. Without the user in the key,
+// two accounts on one browser shared a single AMS identity.
+const LS_KEY = (role: RoleKey, scope?: string | null) =>
+  `sv.ams.${scope ?? "anon"}.${role}.v1`;
 
 function fresh(role: RoleKey): AmsUserState {
   const seed = role.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -528,10 +531,10 @@ function fresh(role: RoleKey): AmsUserState {
   };
 }
 
-export function loadAmsState(role: RoleKey): AmsUserState {
+export function loadAmsState(role: RoleKey, scope?: string | null): AmsUserState {
   if (typeof window === "undefined") return fresh(role);
   try {
-    const raw = window.localStorage.getItem(LS_KEY(role));
+    const raw = window.localStorage.getItem(LS_KEY(role, scope));
     if (!raw) return fresh(role);
     return { ...fresh(role), ...(JSON.parse(raw) as Partial<AmsUserState>) };
   } catch {
@@ -539,9 +542,9 @@ export function loadAmsState(role: RoleKey): AmsUserState {
   }
 }
 
-export function saveAmsState(role: RoleKey, s: AmsUserState) {
+export function saveAmsState(role: RoleKey, s: AmsUserState, scope?: string | null) {
   if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(LS_KEY(role), JSON.stringify(s)); } catch { /* ignore */ }
+  try { window.localStorage.setItem(LS_KEY(role, scope), JSON.stringify(s)); } catch { /* ignore */ }
 }
 
 export function sectionsForLevel(level: number) {

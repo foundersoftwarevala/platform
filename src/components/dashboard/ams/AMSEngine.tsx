@@ -1,4 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   ArrowLeft, Lock, ShieldCheck, QrCode, Download, Share2, Copy,
@@ -11,6 +13,7 @@ import {
   loadAmsState, saveAmsState, sectionsForLevel,
   type AmsSectionKey, type AmsUserState, type AmsRoleConfig, type AmsItem,
 } from "@/lib/ams-engine";
+import { getAmsStanding } from "@/lib/ams/user-state.functions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/dashboard/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -20,11 +23,41 @@ import { cn } from "@/lib/utils";
 
 export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => void }) {
   const cfg = AMS_ROLE[role.key as RoleKey];
+
+  // The person's real AMS record — the same tables AMS Manager reads. This
+  // used to come from localStorage keyed by role, so it persisted nowhere,
+  // the manager could not see it, and two accounts on one browser shared it.
+  const fetchStanding = useServerFn(getAmsStanding);
+  const standing = useQuery({
+    queryKey: ["ams", "standing"],
+    queryFn: () => fetchStanding(),
+    staleTime: 60_000,
+  });
+  const scope = standing.data?.userId ?? null;
+
   const [state, setState] = useState<AmsUserState>(() => loadAmsState(role.key as RoleKey));
   const [section, setSection] = useState<AmsSectionKey>("home");
   const [search, setSearch] = useState("");
 
-  useEffect(() => { saveAmsState(role.key as RoleKey, state); }, [role.key, state]);
+  // The database wins. Local state is only a cache for this session.
+  useEffect(() => {
+    const s = standing.data;
+    if (!s?.authenticated) return;
+    setState((prev) => ({
+      ...loadAmsState(role.key as RoleKey, s.userId),
+      ...prev,
+      xp: s.xp,
+      earnedAwards: s.earnedAchievements,
+      earnedBadges: s.earnedBadges,
+      earnedTrophies: s.earnedTrophies,
+      earnedMissions: s.completedMissions,
+      claimedRewards: s.claimedRewards,
+      passportId: s.passportId ?? prev.passportId,
+      joinedAt: s.joinedAt ?? prev.joinedAt,
+    }));
+  }, [standing.data, role.key]);
+
+  useEffect(() => { saveAmsState(role.key as RoleKey, state, scope); }, [role.key, state, scope]);
 
   const lvl = levelForXp(state.xp);
   const nextBand = LEVELS.find((l) => l.level === lvl.level + 1);
