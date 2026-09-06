@@ -12,7 +12,8 @@ import {
   listHomepageRows, getRowProducts, getRowAnalytics, searchRowProducts,
   assignSlot, removeSlot, moveSlot, pinSlot, configureRow, reorderRows,
   createRow, assignSlotsBulk, clearRowSlots, getRowAudit,
-  type HomepageRow, type RowSlot,
+  listHomepageSections, configureSection,
+  type HomepageRow, type RowSlot, type HomepageSection,
 } from "@/lib/marketplace-manager/rows.functions";
 
 /**
@@ -194,12 +195,194 @@ function Field({ label, hint, children }: {
   );
 }
 
+
+/* ------------------------------------------------------ section inventory -- */
+
+/** Where a section's content is actually managed. */
+const OWNER_ROUTE: Record<string, { label: string; href: string }> = {
+  "marketplace-manager": { label: "Marketplace Manager", href: "/marketplace-manager" },
+  "hero-slides-manager": { label: "Hero Slides", href: "/marketplace-manager?section=hero-banner" },
+  "marketing-manager":   { label: "Marketing Manager", href: "/marketing" },
+  "content-studio":      { label: "Content Studio", href: "/marketplace-manager?section=product-content" },
+  "ai-manager":          { label: "AI Manager", href: "/ams/ai" },
+  "ams-manager":         { label: "AMS Manager", href: "/ams-manager" },
+};
+
+/**
+ * Every section the homepage renders, in render order.
+ *
+ * Twenty-three of them, discovered by reading HomeIndex.tsx rather than by
+ * trusting this screen's own previous list of sixteen.
+ */
+function SectionInventory() {
+  const qc = useQueryClient();
+  const [showArchived, setShowArchived] = useState(false);
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["marketplace", "homepage-sections"],
+    queryFn: () => listHomepageSections(),
+    staleTime: 30_000,
+  });
+
+  const save = useMutation({
+    mutationFn: (v: { key: string; patch: Record<string, unknown> }) =>
+      configureSection({ data: v }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["marketplace", "homepage-sections"] });
+      toast.success("Section updated");
+    },
+    onError: (e: Error) => toast.error("That change was refused", { description: e.message }),
+  });
+
+  const all = data?.sections ?? [];
+  const sections = all.filter((x) => showArchived || x.status !== "archived");
+  const live = all.filter((x) => x.live_now).length;
+  const external = new Set(all.filter((x) => x.owner !== "marketplace-manager").map((x) => x.owner));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Homepage sections" value={isLoading ? "\u2014" : String(all.length)} />
+        <StatCard label="Published" value={isLoading ? "\u2014" : String(live)}
+                  tone={live ? "success" : "warning"} />
+        <StatCard label="Category walls behind one section"
+                  value={isLoading ? "\u2014"
+                    : String(all.find((x) => x.key === "catalog-rows")?.child_rows ?? 0)} />
+        <StatCard label="Owned by another module"
+                  value={isLoading ? "\u2014" : String(external.size)} />
+      </div>
+
+      <div className="rounded-lg border border-border bg-muted/10 p-3 text-[11px] text-muted-foreground">
+        This is the homepage read top to bottom from its own source, so it is 23 sections rather than
+        the 16 this screen used to list. Marketplace Manager controls placement, order, visibility and
+        publication for all of them; a section&rsquo;s content is edited wherever it is owned.
+      </div>
+
+      {isError && (
+        <Card>
+          <div className="p-4 text-sm text-destructive">{(error as Error)?.message}</div>
+        </Card>
+      )}
+      {isLoading && <EmptyHint text="Reading the homepage inventory\u2026" />}
+
+      <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+        <input type="checkbox" checked={showArchived}
+               onChange={(e) => setShowArchived(e.target.checked)} />
+        Show archived sections
+      </label>
+
+      <div className="space-y-2">
+        {sections.map((x: HomepageSection) => {
+          const owner = OWNER_ROUTE[x.owner] ?? OWNER_ROUTE["marketplace-manager"];
+          const mine = x.owner === "marketplace-manager";
+          return (
+            <Card key={x.key}>
+              <div className="flex flex-wrap items-center gap-3 p-3">
+                <span className="w-7 shrink-0 text-center font-mono text-[11px] text-muted-foreground">
+                  {x.sort_order}
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="truncate text-sm font-medium">{x.title}</span>
+                    <code className="rounded bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {x.key}
+                    </code>
+                    <span className="rounded-full bg-muted/40 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {x.row_type}
+                    </span>
+                    {x.live_now
+                      ? <span className="rounded-full bg-success/15 px-2 py-0.5 text-[10px] uppercase text-success">live</span>
+                      : <span className="rounded-full bg-muted/50 px-2 py-0.5 text-[10px] uppercase text-muted-foreground">{x.status}</span>}
+                  </div>
+                  <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    {x.component ?? "component not recorded"}
+                    {x.child_rows ? ` \u00b7 expands into ${x.child_rows} category walls` : ""}
+                    {x.data_source ? ` \u00b7 ${x.data_source}` : ""}
+                    {x.archived_reason ? ` \u00b7 ${x.archived_reason}` : ""}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {!mine && (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+                      content owned by {owner.label}
+                    </span>
+                  )}
+                  <PillButton
+                    onClick={() => save.mutate({
+                      key: x.key,
+                      patch: { status: x.status === "published" ? "draft" : "published",
+                               enabled: x.status !== "published" },
+                    })}
+                  >
+                    {x.status === "published" ? "Unpublish" : "Publish"}
+                  </PillButton>
+                  <PillButton
+                    onClick={() => save.mutate({
+                      key: x.key, patch: { visible_mobile: !x.visible_mobile },
+                    })}
+                  >
+                    <Smartphone className="h-3.5 w-3.5" /> {x.visible_mobile ? "on" : "off"}
+                  </PillButton>
+                  {x.key === "catalog-rows" ? (
+                    <PillButton onClick={() => {
+                      const el = document.getElementById("mm-rows-view");
+                      el?.click();
+                    }}>
+                      <Layers className="h-3.5 w-3.5" /> Manage 91 walls
+                    </PillButton>
+                  ) : (
+                    <a href={owner.href}
+                       className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11px] hover:bg-muted/40">
+                      <ExternalLink className="h-3.5 w-3.5" /> Manage
+                    </a>
+                  )}
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ list -- */
 
 export function HomepageRowsSection() {
   const [open, setOpen] = useState<string | null>(null);
+  // Sections is the default, because it is the homepage. Rows is the detail
+  // behind one of its sections.
+  const [view, setView] = useState<"sections" | "rows">("sections");
+
   if (open) return <RowWorkspace rowKey={open} onBack={() => setOpen(null)} />;
-  return <RowList onOpen={setOpen} />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          onClick={() => setView("sections")}
+          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            view === "sections" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Homepage sections
+        </button>
+        <button
+          id="mm-rows-view"
+          onClick={() => setView("rows")}
+          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            view === "rows" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Category product walls
+        </button>
+      </div>
+
+      {view === "sections" ? <SectionInventory /> : <RowList onOpen={setOpen} />}
+    </div>
+  );
 }
 
 function RowList({ onOpen }: { onOpen: (key: string) => void }) {

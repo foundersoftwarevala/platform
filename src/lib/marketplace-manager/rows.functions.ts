@@ -410,3 +410,83 @@ export const getRowAudit = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return { ok: true as const, entries: entries ?? [] };
   });
+
+/* ------------------------------------------------------------------------ */
+/* The complete homepage section inventory — sections 3, 12 and 24.          */
+/* ------------------------------------------------------------------------ */
+
+export type HomepageSection = {
+  key: string;
+  title: string;
+  row_type: string;
+  source: string | null;
+  sort_order: number;
+  status: string;
+  enabled: boolean;
+  visible_desktop: boolean;
+  visible_mobile: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  component: string | null;
+  file: string | null;
+  /** Which module owns this section's content. */
+  owner: string;
+  data_source: string | null;
+  archived_reason: string | null;
+  live_now: boolean;
+  /** For catalog-rows, how many category walls it expands into. */
+  child_rows: number | null;
+};
+
+/**
+ * Every section the marketplace homepage renders, in render order.
+ *
+ * Built by reading HomeIndex.tsx top to bottom rather than by trusting the
+ * manager's own list, which is why it is 23 sections and not 16. Only one of
+ * them — catalog-rows — expands into the per-category product walls that
+ * "Homepage Rows" has been managing; the other twenty-two are the hero,
+ * banners, content blocks, curated product rows and the footer.
+ *
+ * `owner` matters: Marketplace Manager controls placement, order, visibility
+ * and publication, but the content of a section frequently belongs to another
+ * module — hero slides to the Hero Slides Manager, the offer banner to
+ * Marketing, FAQ and Vala TV to Content Studio, awards to AMS. The manager
+ * routes there rather than growing a second copy of each.
+ */
+export const listHomepageSections = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ ok: true; sections: HomepageSection[] }> => {
+    const rows = await callAsUser<HomepageSection[]>("mm_homepage_sections", {});
+    return { ok: true as const, sections: rows ?? [] };
+  },
+);
+
+/** Placement, order and publication for a homepage section. */
+export const configureSection = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z.object({
+      key: z.string().min(1).max(120),
+      patch: z.record(z.string(), z.unknown()),
+    }).parse(i),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const allowed = [
+      "status", "enabled", "sort_order", "visible_desktop", "visible_mobile",
+      "starts_at", "ends_at", "title", "subtitle", "cta_label", "cta_href",
+    ] as const;
+    const patch: Record<string, unknown> = {};
+    for (const k of allowed) {
+      if (k in data.patch) patch[k] = data.patch[k as string];
+    }
+    if (!Object.keys(patch).length) {
+      throw new Error("Nothing in that change is editable from here.");
+    }
+    patch.updated_at = new Date().toISOString();
+
+    const { error } = await supabaseAdmin
+      .from("marketplace_homepage_sections")
+      .update(patch)
+      .eq("key", data.key);
+    if (error) throw new Error(error.message);
+    return { ok: true as const, message: "Section updated" };
+  });
