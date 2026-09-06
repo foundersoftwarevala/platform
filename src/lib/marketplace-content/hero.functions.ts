@@ -18,7 +18,14 @@ export type HeroSlide = {
   unpublish_at: string | null;
 };
 
-/** Default slides used when no hero_slides content is available. */
+/**
+ * Safety net for the homepage hero.
+ *
+ * Served only when the query against home_hero_slides fails or comes back
+ * empty. These are not the content the manager edits — that lives in the
+ * table — and if you are seeing these on the site, the query is the thing to
+ * look at.
+ */
 export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
   {
     id: "hero-1",
@@ -365,12 +372,23 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
 /** Public hero slides for the homepage carousel (falls back to defaults). */
 export async function listHeroSlidesPublic(): Promise<HeroSlide[]> {
   try {
+    const nowIso = new Date().toISOString();
     const { data, error } = await (supabase as any)
-      .from("hero_slides")
+      .from("home_hero_slides")
       .select("*")
+      // Only slides the manager has actually made visible.
+      .eq("visible", true)
+      // And only inside their schedule. A null bound means "no bound", so a
+      // slide with neither dates set is simply always in window.
+      .or(`published_at.is.null,published_at.lte.${nowIso}`)
+      .or(`unpublish_at.is.null,unpublish_at.gt.${nowIso}`)
       .order("position", { ascending: true });
+
     if (error) return FALLBACK_HERO_SLIDES;
     const rows = (data ?? []) as HeroSlide[];
+    // The fallback is a safety net for a failed or empty query, not a default.
+    // The hero is the first thing on a protected page and an empty carousel
+    // there is worse than a stale one.
     return rows.length ? rows : FALLBACK_HERO_SLIDES;
   } catch {
     return FALLBACK_HERO_SLIDES;
