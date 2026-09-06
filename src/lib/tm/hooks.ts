@@ -87,8 +87,42 @@ export function useRealtimeTasks(): void {
     }
 
     channel.subscribe();
+
+    /*
+     * A second, deliberately blunt channel.
+     *
+     * `tm_tasks_read` lets a member see an unassigned task and their own work,
+     * and nothing else. That is the right rule, but it has a consequence that
+     * is easy to miss: the instant somebody claims a task from the pool, every
+     * other member stops satisfying the policy, and Realtime therefore refuses
+     * to deliver them the UPDATE. Their cached row keeps whatever it last had
+     * - including a live buzzer - and nothing on their screen ever corrects it.
+     *
+     * So the database also broadcasts the task's id, and nothing more, on a
+     * topic every signed-in member may hear. Receiving it, a client simply
+     * re-runs its own queries; whatever it is still entitled to see comes back,
+     * and what it no longer may see disappears. No row data travels on this
+     * channel, so it grants nobody sight of anything they could not fetch.
+     */
+    const pool = supabase.channel("tm:pool", { config: { private: true } });
+    pool.on("broadcast", { event: "pool_changed" }, (message) => {
+      queryClient.invalidateQueries({ queryKey: tmKeys.tasks });
+      queryClient.invalidateQueries({ queryKey: tmKeys.activity });
+      // These two have no ownership of their own: their policies ask the same
+      // question of tm_tasks, so they go blind at the same instant it does.
+      queryClient.invalidateQueries({ queryKey: tmKeys.escalations });
+      queryClient.invalidateQueries({ queryKey: tmKeys.notifications });
+      const payload = (message as { payload?: Record<string, unknown> }).payload ?? {};
+      const taskId = payload["task_id"];
+      if (typeof taskId === "string") {
+        queryClient.invalidateQueries({ queryKey: tmKeys.task(taskId) });
+      }
+    });
+    pool.subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(pool);
     };
   }, [queryClient]);
 }

@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { RouteAccessGate } from "@/components/auth/RouteAccessGate";
+import { useRealtimeAuth } from "@/integrations/supabase/realtime-auth";
 import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { TooltipProvider } from "../components/ui/tooltip";
@@ -119,6 +120,10 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
+  // Without this the realtime socket carries only the publishable key, and
+  // every row-level-secured table silently delivers nothing.
+  useRealtimeAuth();
+
   const { queryClient } = Route.useRouteContext();
 
   return (
