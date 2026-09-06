@@ -54,6 +54,9 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   // Executive only: this console carries platform-wide revenue, risk and
   // customer data. An empty role list means operators and nobody else.
   { prefix: "/ai-ceo", roles: [], label: "AI CEO" },
+  // Infrastructure is operator-level. The database enforces the same thing
+  // independently through row-level security on all 25 server_* tables.
+  { prefix: "/server-manager", roles: ["developer"], label: "Server Manager" },
   { prefix: "/keywords", roles: ["seo", "marketing"], label: "Keywords" },
   { prefix: "/pages", roles: ["seo", "marketing"], label: "Pages" },
 ];

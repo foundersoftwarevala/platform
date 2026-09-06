@@ -43,6 +43,7 @@ import { Route as ResellerManagerRouteImport } from './routes/reseller-manager'
 import { Route as SalesCrmRouteImport } from './routes/sales-crm'
 import { Route as SalesSupportManagerRouteImport } from './routes/sales-support-manager'
 import { Route as SeoManagerRouteImport } from './routes/seo-manager'
+import { Route as ServerManagerRouteImport } from './routes/server-manager'
 import { Route as SitemapCategoriesDotxmlRouteImport } from './routes/sitemap-categories[.]xml'
 import { Route as SitemapCountriesDotxmlRouteImport } from './routes/sitemap-countries[.]xml'
 import { Route as SitemapPagesDotxmlRouteImport } from './routes/sitemap-pages[.]xml'
@@ -434,6 +435,11 @@ const SalesSupportManagerRoute = SalesSupportManagerRouteImport.update({
 const SeoManagerRoute = SeoManagerRouteImport.update({
   id: '/seo-manager',
   path: '/seo-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ServerManagerRoute = ServerManagerRouteImport.update({
+  id: '/server-manager',
+  path: '/server-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SitemapCategoriesDotxmlRoute = SitemapCategoriesDotxmlRouteImport.update({
@@ -1616,6 +1622,7 @@ export interface FileRoutesByFullPath {
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
+  '/server-manager': typeof ServerManagerRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
   '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
   '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
@@ -1867,6 +1874,7 @@ export interface FileRoutesByTo {
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
+  '/server-manager': typeof ServerManagerRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
   '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
   '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
@@ -2124,6 +2132,7 @@ export interface FileRoutesById {
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
+  '/server-manager': typeof ServerManagerRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
   '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
   '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
@@ -2384,6 +2393,7 @@ export interface FileRouteTypes {
     | '/sales-crm'
     | '/sales-support-manager'
     | '/seo-manager'
+    | '/server-manager'
     | '/sitemap-categories.xml'
     | '/sitemap-countries.xml'
     | '/sitemap-pages.xml'
@@ -2635,6 +2645,7 @@ export interface FileRouteTypes {
     | '/sales-crm'
     | '/sales-support-manager'
     | '/seo-manager'
+    | '/server-manager'
     | '/sitemap-categories.xml'
     | '/sitemap-countries.xml'
     | '/sitemap-pages.xml'
@@ -2891,6 +2902,7 @@ export interface FileRouteTypes {
     | '/sales-crm'
     | '/sales-support-manager'
     | '/seo-manager'
+    | '/server-manager'
     | '/sitemap-categories.xml'
     | '/sitemap-countries.xml'
     | '/sitemap-pages.xml'
@@ -3150,6 +3162,7 @@ export interface RootRouteChildren {
   SalesCrmRoute: typeof SalesCrmRoute
   SalesSupportManagerRoute: typeof SalesSupportManagerRoute
   SeoManagerRoute: typeof SeoManagerRoute
+  ServerManagerRoute: typeof ServerManagerRoute
   SitemapCategoriesDotxmlRoute: typeof SitemapCategoriesDotxmlRoute
   SitemapCountriesDotxmlRoute: typeof SitemapCountriesDotxmlRoute
   SitemapPagesDotxmlRoute: typeof SitemapPagesDotxmlRoute
@@ -3456,6 +3469,13 @@ declare module '@tanstack/react-router' {
       path: '/seo-manager'
       fullPath: '/seo-manager'
       preLoaderRoute: typeof SeoManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/server-manager': {
+      id: '/server-manager'
+      path: '/server-manager'
+      fullPath: '/server-manager'
+      preLoaderRoute: typeof ServerManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sitemap-categories.xml': {
@@ -5467,6 +5487,7 @@ const rootRouteChildren: RootRouteChildren = {
   SalesCrmRoute: SalesCrmRoute,
   SalesSupportManagerRoute: SalesSupportManagerRoute,
   SeoManagerRoute: SeoManagerRoute,
+  ServerManagerRoute: ServerManagerRoute,
   SitemapCategoriesDotxmlRoute: SitemapCategoriesDotxmlRoute,
   SitemapCountriesDotxmlRoute: SitemapCountriesDotxmlRoute,
   SitemapPagesDotxmlRoute: SitemapPagesDotxmlRoute,

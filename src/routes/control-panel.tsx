@@ -264,7 +264,9 @@ function Index() {
                   customer_support_management: "/support",
                   assist_manager: "/support-agent",
                   product_manager: "/product-demo-manager",
-                  server_manager: "/manager/monitoring",
+                  // The button existed; it pointed at the API usage monitor because
+                  // no Server Manager module existed to open. It does now.
+                  server_manager: "/server-manager",
                   security: "/manager/security",
                   settings: "/manager/settings",
                   home: "/",
