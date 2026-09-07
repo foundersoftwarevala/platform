@@ -110,7 +110,7 @@ const HeroCarousel = () => {
                 {product.cta_primary}
               </a>
               <a
-                href="/demos"
+                href={product.cta_secondary_link || "/marketplace"}
                 className="sv-btn sv-btn-hero-glass !h-14 !rounded-2xl !px-8 !text-base"
               >
                 <ShoppingCart className="w-5 h-5" />
