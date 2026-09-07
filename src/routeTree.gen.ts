@@ -260,6 +260,7 @@ import { Route as ApiMarketplaceLeadRouteImport } from './routes/api/marketplace
 import { Route as ApiMarketplaceProofRouteImport } from './routes/api/marketplace/proof'
 import { Route as ApiMarketplaceRowsRouteImport } from './routes/api/marketplace/rows'
 import { Route as ApiMarketplaceSearchRouteImport } from './routes/api/marketplace/search'
+import { Route as ApiMarketplaceTrackRouteImport } from './routes/api/marketplace/track'
 import { Route as ApiMarketplaceTranslateRouteImport } from './routes/api/marketplace/translate'
 import { Route as ApiPartnerQuoteRouteImport } from './routes/api/partner/quote'
 import { Route as ApiPaymentInitiateRouteImport } from './routes/api/payment/initiate'
@@ -1571,6 +1572,11 @@ const ApiMarketplaceSearchRoute = ApiMarketplaceSearchRouteImport.update({
   path: '/api/marketplace/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMarketplaceTrackRoute = ApiMarketplaceTrackRouteImport.update({
+  id: '/api/marketplace/track',
+  path: '/api/marketplace/track',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMarketplaceTranslateRoute = ApiMarketplaceTranslateRouteImport.update({
   id: '/api/marketplace/translate',
   path: '/api/marketplace/translate',
@@ -1944,6 +1950,7 @@ export interface FileRoutesByFullPath {
   '/api/marketplace/proof': typeof ApiMarketplaceProofRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/marketplace/track': typeof ApiMarketplaceTrackRoute
   '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
@@ -2211,6 +2218,7 @@ export interface FileRoutesByTo {
   '/api/marketplace/proof': typeof ApiMarketplaceProofRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/marketplace/track': typeof ApiMarketplaceTrackRoute
   '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
@@ -2489,6 +2497,7 @@ export interface FileRoutesById {
   '/api/marketplace/proof': typeof ApiMarketplaceProofRoute
   '/api/marketplace/rows': typeof ApiMarketplaceRowsRoute
   '/api/marketplace/search': typeof ApiMarketplaceSearchRoute
+  '/api/marketplace/track': typeof ApiMarketplaceTrackRoute
   '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
@@ -2768,6 +2777,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/proof'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/marketplace/track'
     | '/api/marketplace/translate'
     | '/api/partner/quote'
     | '/api/payment/initiate'
@@ -3035,6 +3045,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/proof'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/marketplace/track'
     | '/api/marketplace/translate'
     | '/api/partner/quote'
     | '/api/payment/initiate'
@@ -3312,6 +3323,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/proof'
     | '/api/marketplace/rows'
     | '/api/marketplace/search'
+    | '/api/marketplace/track'
     | '/api/marketplace/translate'
     | '/api/partner/quote'
     | '/api/payment/initiate'
@@ -3440,6 +3452,7 @@ export interface RootRouteChildren {
   ApiMarketplaceProofRoute: typeof ApiMarketplaceProofRoute
   ApiMarketplaceRowsRoute: typeof ApiMarketplaceRowsRoute
   ApiMarketplaceSearchRoute: typeof ApiMarketplaceSearchRoute
+  ApiMarketplaceTrackRoute: typeof ApiMarketplaceTrackRoute
   ApiMarketplaceTranslateRoute: typeof ApiMarketplaceTranslateRoute
   ApiPartnerQuoteRoute: typeof ApiPartnerQuoteRoute
   ApiPaymentInitiateRoute: typeof ApiPaymentInitiateRoute
@@ -5211,6 +5224,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMarketplaceSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/marketplace/track': {
+      id: '/api/marketplace/track'
+      path: '/api/marketplace/track'
+      fullPath: '/api/marketplace/track'
+      preLoaderRoute: typeof ApiMarketplaceTrackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/marketplace/translate': {
       id: '/api/marketplace/translate'
       path: '/api/marketplace/translate'
@@ -5932,6 +5952,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketplaceProofRoute: ApiMarketplaceProofRoute,
   ApiMarketplaceRowsRoute: ApiMarketplaceRowsRoute,
   ApiMarketplaceSearchRoute: ApiMarketplaceSearchRoute,
+  ApiMarketplaceTrackRoute: ApiMarketplaceTrackRoute,
   ApiMarketplaceTranslateRoute: ApiMarketplaceTranslateRoute,
   ApiPartnerQuoteRoute: ApiPartnerQuoteRoute,
   ApiPaymentInitiateRoute: ApiPaymentInitiateRoute,
