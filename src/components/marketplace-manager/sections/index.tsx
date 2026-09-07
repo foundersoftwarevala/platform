@@ -76,7 +76,14 @@ export function WallsSection() {
 }
 
 // ---------- PRODUCT PLACEMENT ----------
-export function PlacementSection() {
+// The real, database-backed console lives in ./MerchandisingConsole.tsx and is
+// exported under this section's name below. The static version that used to
+// stand here is kept as PlacementSectionStatic: it renders eight titles over
+// empty squares and touches nothing, which is worth being able to look at next
+// to what replaced it.
+export { MerchandisingConsole as PlacementSection } from "./MerchandisingConsole";
+
+export function PlacementSectionStatic() {
   const cells = [
     "Homepage Featured", "Trending Placement", "Top Selling Placement",
     "Recommended Placement", "Collection Placement", "Category Placement",

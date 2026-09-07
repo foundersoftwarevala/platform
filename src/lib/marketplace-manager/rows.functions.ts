@@ -490,3 +490,38 @@ export const configureSection = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true as const, message: "Section updated" };
   });
+
+
+/* ------------------------------------------------------------------------ */
+/* Recommendation engines — read-only, for Recommended Placement.            */
+/* ------------------------------------------------------------------------ */
+
+export type RecommendationEngine = {
+  key: string;
+  title: string;
+  description: string | null;
+  strategy: string;
+  enabled: boolean;
+  /** Whether the data this engine needs actually exists right now. */
+  can_run: boolean;
+  /** Why it cannot, in words, when it cannot. */
+  blocked_reason: string | null;
+  max_results: number;
+  recency_days: number;
+};
+
+/**
+ * Every recommendation engine, with the database's own answer to whether it can
+ * run. An engine whose signal is missing reports the reason instead of quietly
+ * returning nothing, which is what lets the console say "blocked, and here is
+ * why" rather than showing an empty list that looks broken.
+ */
+export const listRecommendationEngines = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ ok: true; engines: RecommendationEngine[] }> => {
+    const engines = await callAsUser<RecommendationEngine[]>(
+      "mm_recommendation_engines",
+      {},
+    );
+    return { ok: true as const, engines: engines ?? [] };
+  },
+);

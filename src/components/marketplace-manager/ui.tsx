@@ -183,10 +183,13 @@ export function PillButton({
   children,
   variant = "ghost",
   onClick,
+  disabled = false,
 }: {
   children: ReactNode;
   variant?: "primary" | "ghost" | "premium";
   onClick?: () => void;
+  /** Optional, so every existing caller keeps working unchanged. */
+  disabled?: boolean;
 }) {
   const map = {
     primary:
@@ -199,8 +202,9 @@ export function PillButton({
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       style={variant === "premium" ? { background: "var(--gradient-premium)", boxShadow: "var(--shadow-premium)" } : undefined}
-      className={`rounded-full px-5 py-2 text-[12px] font-bold tracking-tight transition-all active:scale-[0.98] ${map[variant]}`}
+      className={`rounded-full px-5 py-2 text-[12px] font-bold tracking-tight transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${map[variant]}`}
     >
       {children}
     </button>
