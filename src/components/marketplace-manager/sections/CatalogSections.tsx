@@ -221,7 +221,13 @@ export function DownloadsSection() {
   );
 }
 
-export function CustomersSection() {
+// The real, database-backed screen lives in ./CustomerManager.tsx and is
+// exported under this section's name below. The static version that used to
+// stand here is kept as CustomersSectionStatic: ten feature labels over four
+// stat cards that carried no values.
+export { CustomersSection } from "./CustomerManager";
+
+export function CustomersSectionStatic() {
   return (
     <ModulePage
       eyebrow="Customers" title="Customers"

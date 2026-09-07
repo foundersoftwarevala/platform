@@ -2236,6 +2236,51 @@ const RELEASES = [
   { v: "3.9.7",        p: "Vala Restaurant",  tag: "Deprecated", when: "1 year",     by: "boss",        tone: "danger" as const },
 ];
 
+/**
+ * The release figures, counted from marketplace_product_versions.
+ *
+ * These were four literals — 482 releases, 128 stable, 14 beta, 41 deprecated
+ * — written against a table that holds no rows. They read zero now, and the
+ * note underneath says what is genuinely absent rather than letting a zero
+ * imply that releases exist and are simply not counted.
+ */
+function ReleaseStats() {
+  const overview = useQuery({
+    queryKey: ["marketplace", "release-overview"],
+    queryFn: () => getReleaseOverview(),
+    staleTime: 30_000,
+  });
+
+  const d = overview.data as {
+    ok?: boolean; total?: number; published?: number; draft?: number;
+    products_with_versions?: number; downloads?: number;
+    unavailable?: Record<string, string>;
+  } | undefined;
+
+  const n = (v?: number) => (overview.isLoading ? "…" : String(v ?? 0));
+  const missing = Object.entries(d?.unavailable ?? {});
+
+  return (
+    <>
+      <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MiniStat label="Versions" value={n(d?.total)} tone="premium" icon={Rocket} />
+        <MiniStat label="Published" value={n(d?.published)} tone="success" icon={BadgeCheck} />
+        <MiniStat label="Draft" value={n(d?.draft)} tone="warning" icon={GitCommit} />
+        <MiniStat label="Downloads" value={n(d?.downloads)} tone="destructive" icon={AlertTriangle} />
+      </div>
+      {missing.length > 0 && (
+        <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
+          <b>No release exists yet.</b> marketplace_product_versions is the version
+          table this schema has, and it holds no rows. Also absent:{" "}
+          {missing.map(([k]) => k).join(", ")}. The timeline, changelog, roadmap,
+          beta programme and deprecation tabs below are the original layout and are
+          not reading data.
+        </div>
+      )}
+    </>
+  );
+}
+
 export function ReleasesSection() {
   const [tab, setTab] = useState("Timeline");
   return (
@@ -2252,12 +2297,7 @@ export function ReleasesSection() {
         }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <MiniStat label="Releases (all time)" value="482"                        tone="premium" icon={Rocket} />
-        <MiniStat label="Stable"              value="128"                        tone="success" icon={BadgeCheck} />
-        <MiniStat label="Beta channel"        value="14"                         tone="warning" icon={GitCommit} />
-        <MiniStat label="Deprecated"          value="41"     delta="sunset plan" tone="destructive" icon={AlertTriangle} />
-      </div>
+      <ReleaseStats />
 
       <SubNav items={["Timeline","Changelog","Roadmap","Beta Program","Deprecations"]} active={tab} onChange={setTab} />
 
