@@ -3352,6 +3352,42 @@ const allDemos: Demo[] = [
 // Master Categories for filtering (55 rows — matches actual data values)
 const masterCategories = ["All", ...allMasterCategories55];
 
+
+/**
+ * Which homepage sections Layout Order says should render.
+ *
+ * Returns a predicate rather than a list, so a section whose key the registry
+ * does not know — or every section, if the request failed — still renders. The
+ * homepage must never be emptied by a configuration lookup.
+ */
+function useSectionVisibility(): (key: string) => boolean {
+  const [disabled, setDisabled] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { supabase } = await import("@/integrations/supabase/client");
+        // Through the function rather than the table: the table's public policy
+        // only exposes enabled rows, so a gate reading it directly could never
+        // see the disabled section it is supposed to hide.
+        const { data, error } = await supabase.rpc("mm_homepage_sections");
+        if (cancelled || error || !Array.isArray(data) || data.length === 0) return;
+        const off = new Set<string>();
+        for (const row of data as { key: string; live_now?: boolean }[]) {
+          if (row.live_now === false) off.add(row.key);
+        }
+        setDisabled(off);
+      } catch {
+        /* leave everything rendering */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return (key: string) => (disabled ? !disabled.has(key) : true);
+}
+
 const Index = () => {
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -3360,6 +3396,7 @@ const Index = () => {
   const search = useDebouncedValue(searchQuery, 220);
   // Favourites survive a refresh instead of being thrown away.
   const { favorites, toggle: toggleFavorite } = useFavorites();
+  const visible = useSectionVisibility();
 
   const filteredDemos = allDemos.filter(demo => {
     const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
@@ -3397,40 +3434,52 @@ const Index = () => {
       </header>
 
       {/* Utility strip — clone of the feature strip, different subject */}
-      <SectionBoundary label="The utility bar" fallback={null}>
+      {visible("utility-bar") && (
+        <SectionBoundary label="The utility bar" fallback={null}>
         <UtilityStrip favoritesCount={favorites.length} />
       </SectionBoundary>
+      )}
 
       {/* Running offer ticker sits between the two strips */}
-      <SectionBoundary label="The offer banner" fallback={null}>
+      {visible("offer-banner") && (
+        <SectionBoundary label="The offer banner" fallback={null}>
         <FestiveBanner />
       </SectionBoundary>
+      )}
 
-      <SectionBoundary label="The feature strip" fallback={null}>
+      {visible("feature-strip") && (
+        <SectionBoundary label="The feature strip" fallback={null}>
         <FeatureStrip />
       </SectionBoundary>
+      )}
 
 
 
       {/* The hero reads its slides from Supabase with a suspense query — it is
           the one section that can throw during render, so it carries its own
           boundary and the rest of the marketplace survives a failed request. */}
-      <SectionBoundary label="The featured carousel">
+      {visible("hero-carousel") && (
+        <SectionBoundary label="The featured carousel">
         <HeroCarousel />
       </SectionBoundary>
+      )}
 
       {/* Industry Grid */}
       <div className="max-w-7xl mx-auto">
+        {visible("shop-by-industry") && (
         <SectionBoundary label="Shop by Industry" fallback={null}>
           <IndustryGrid />
         </SectionBoundary>
+      )}
       </div>
 
 
       {/* Category Slider (auto-scroll) */}
-      <SectionBoundary label="The category slider" fallback={null}>
+      {visible("category-slider") && (
+        <SectionBoundary label="The category slider" fallback={null}>
         <CategorySlider />
       </SectionBoundary>
+      )}
 
 
 
@@ -3506,21 +3555,41 @@ const Index = () => {
 
       {/* Reference marketplace sections (added below product grid, keeping design intact) */}
       <div className="max-w-7xl mx-auto">
+        {visible("ai-zone") && (
         <SectionBoundary label="AI Zone"><AIZone /></SectionBoundary>
+      )}
+        {visible("success-stories") && (
         <SectionBoundary label="Success Stories"><SuccessStories /></SectionBoundary>
+      )}
+        {visible("awards-champions") && (
         <SectionBoundary label="Awards"><AwardsRow /></SectionBoundary>
+      )}
+        {visible("live-activity") && (
         <SectionBoundary label="Live Activity"><LiveActivity /></SectionBoundary>
+      )}
+        {visible("vala-tv") && (
         <SectionBoundary label="Vala TV"><ValaTV /></SectionBoundary>
+      )}
+        {visible("vala-academy") && (
         <SectionBoundary label="Vala Academy"><ValaAcademy /></SectionBoundary>
+      )}
+        {visible("partner-ecosystem") && (
         <SectionBoundary label="Partner Ecosystem"><PartnerEcosystem /></SectionBoundary>
+      )}
+        {visible("faq") && (
         <SectionBoundary label="The FAQ section"><FaqSection /></SectionBoundary>
+      )}
+        {visible("enterprise-cta") && (
         <SectionBoundary label="The enterprise panel"><EnterpriseCTA /></SectionBoundary>
+      )}
       </div>
 
       {/* Footer */}
-      <SectionBoundary label="The footer" fallback={null}>
+      {visible("footer") && (
+        <SectionBoundary label="The footer" fallback={null}>
         <SiteFooter />
       </SectionBoundary>
+      )}
     </div>
   );
 };
