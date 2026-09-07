@@ -533,6 +533,11 @@ export { BrandProtection as FaviconProtectionSection } from "./BrandProtection";
 // authenticate. The stand it replaces is kept above as DemoDomainSectionStatic.
 export { DemoDomainManager as DemoDomainSection } from "./DemoDomainManager";
 
+// Sandbox controls, extending the demo domain module. Isolation, database
+// reset and infrastructure cleanup are reported as unavailable rather than
+// claimed. The stand it replaces is kept above as DemoSandboxSectionStatic.
+export { SandboxControls as DemoSandboxSection } from "./SandboxControls";
+
 // Enterprise-grade commerce (License / Downloads / Pricing / Orders / Payments / Releases)
 export {
   LicenseSection, DownloadsSection, PricingSection,
@@ -544,7 +549,8 @@ export {
 // Quality gate / Product analytics / Audit log)
 export {
   AuthorApprovalSection as AuthorApprovalSectionStatic,
-  ModerationSection as ModerationSectionStatic, DemoSandboxSection,
+  ModerationSection as ModerationSectionStatic,
+  DemoSandboxSection as DemoSandboxSectionStatic,
   DemoDomainSection as DemoDomainSectionStatic,
   ProductUrlSection, SeoAutomationSection, LeadsSection,
   FaviconProtectionSection as FaviconProtectionSectionStatic,
