@@ -12,6 +12,7 @@ import { embedUrl, hasPlayableVideo, listPublishedVideos } from "@/lib/site-cont
 import { listCourses } from "@/lib/site-content/academy";
 import { listAwards } from "@/lib/site-content/awards";
 import { listStories } from "@/lib/site-content/stories";
+import { useMatch } from "@tanstack/react-router";
 
 const sectionTitle = (title: string, href?: string, subtitle?: string) => (
   <div className="mb-5 flex items-end justify-between px-6">
