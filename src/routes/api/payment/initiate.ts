@@ -172,6 +172,7 @@ export const Route = createFileRoute("/api/payment/initiate")({
                 reason: attributed.reason ?? null,
                 affiliate_partner_id: attribution.affiliatePartnerId ?? null,
                 influencer_profile_id: attribution.influencerProfileId ?? null,
+                reseller_id: attribution.resellerId ?? null,
                 self_referral: selfReferral,
               });
             }

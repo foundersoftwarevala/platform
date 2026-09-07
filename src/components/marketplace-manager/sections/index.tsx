@@ -480,7 +480,8 @@ export {
   CustomersSection,
   AuthorsSection as AuthorsSectionStatic,
   VendorsSection as VendorsSectionStatic,
-  ResellersSection, AffiliateSection, QrSection,
+  AffiliateSection, QrSection,
+  ResellersSection as ResellersSectionStatic,
   InfluencerSection as InfluencerSectionStatic,
   SupportSection, MediaLibrarySection, AiProvidersSection, ApiSection,
   ReportsSection, MarketingSection, AutomationSection, SecuritySection,
@@ -499,6 +500,10 @@ export {
   AuthorsManager as AuthorsSection,
   VendorsManager as VendorsSection,
 } from "./SellerManager";
+
+// Resellers, on the reseller plans and the canonical referral engine. The
+// stand it replaces is kept above as ResellersSectionStatic.
+export { ResellerManager as ResellersSection } from "./ResellerManager";
 
 // Enterprise-grade commerce (License / Downloads / Pricing / Orders / Payments / Releases)
 export {

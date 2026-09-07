@@ -156,17 +156,26 @@ export async function generateUniqueCode(prefix = "SV"): Promise<string | null> 
 
 /** A referral code row, resolved for tracking. Only active codes attribute. */
 export async function resolveCode(code: string): Promise<
-  { id: string; code: string; affiliate_partner_id: string | null; influencer_profile_id: string | null } | null
+  {
+    id: string; code: string;
+    affiliate_partner_id: string | null;
+    influencer_profile_id: string | null;
+    reseller_id: string | null;
+  } | null
 > {
   const clean = code.trim().toUpperCase().slice(0, 64);
   if (!clean) return null;
   const response = await rest(
-    `marketplace_referral_codes?select=id,code,affiliate_partner_id,influencer_profile_id` +
+    `marketplace_referral_codes?select=id,code,affiliate_partner_id,influencer_profile_id,reseller_id` +
       `&code=eq.${encodeURIComponent(clean)}&active=is.true&limit=1`,
   );
   if (!response.ok) return null;
-  const rows = (await response.json()) as
-    { id: string; code: string; affiliate_partner_id: string | null; influencer_profile_id: string | null }[];
+  const rows = (await response.json()) as {
+    id: string; code: string;
+    affiliate_partner_id: string | null;
+    influencer_profile_id: string | null;
+    reseller_id: string | null;
+  }[];
   return rows[0] ?? null;
 }
 
@@ -214,6 +223,7 @@ export type ResolvedAttribution = {
   referralCodeId: string | null;
   affiliatePartnerId: string | null;
   influencerProfileId: string | null;
+  resellerId: string | null;
   method: string;
   firstSeenAt: string;
 };
@@ -228,13 +238,14 @@ export type ResolvedAttribution = {
 export async function attributionForSession(sessionKey: string): Promise<ResolvedAttribution | null> {
   if (!sessionKey) return null;
   const response = await rest(
-    `marketplace_referral_sessions?select=id,referral_code_id,affiliate_partner_id,influencer_profile_id,first_seen_at,last_seen_at` +
+    `marketplace_referral_sessions?select=id,referral_code_id,affiliate_partner_id,influencer_profile_id,reseller_id,first_seen_at,last_seen_at` +
       `&session_key=eq.${encodeURIComponent(sessionKey)}&order=last_seen_at.desc&limit=1`,
   );
   if (!response.ok) return null;
   const rows = (await response.json()) as {
     id: string; referral_code_id: string | null; affiliate_partner_id: string | null;
-    influencer_profile_id: string | null; first_seen_at: string; last_seen_at: string;
+    influencer_profile_id: string | null; reseller_id: string | null;
+    first_seen_at: string; last_seen_at: string;
   }[];
   const session = rows[0];
   if (!session) return null;
@@ -248,6 +259,7 @@ export async function attributionForSession(sessionKey: string): Promise<Resolve
     referralCodeId: session.referral_code_id,
     affiliatePartnerId: session.affiliate_partner_id,
     influencerProfileId: session.influencer_profile_id,
+    resellerId: session.reseller_id,
     // The database constrains this column to its own vocabulary; `referral_code`
     // is the value that means "attributed through a referral code". The window
     // that made it eligible is recorded alongside it, on the attribution row.
@@ -284,6 +296,7 @@ export async function attributeOrder(
       referral_code_id: attribution.referralCodeId,
       affiliate_partner_id: attribution.affiliatePartnerId,
       influencer_profile_id: attribution.influencerProfileId,
+      reseller_id: attribution.resellerId,
       attribution_method: attribution.method,
       attributed_at: new Date().toISOString(),
       metadata: {

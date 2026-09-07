@@ -107,6 +107,7 @@ export const Route = createFileRoute("/api/track/ref")({
             referral_code_id: referral.id,
             affiliate_partner_id: referral.affiliate_partner_id,
             influencer_profile_id: referral.influencer_profile_id,
+            reseller_id: referral.reseller_id,
             landing_url: landing,
             product_id: productId,
             first_seen_at: now,
