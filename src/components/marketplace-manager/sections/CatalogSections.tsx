@@ -459,7 +459,14 @@ export function ReportsSection() {
   );
 }
 
-export function MarketingSection() {
+// The real screen lives in ./MarketingOverview.tsx and is exported under this
+// section's name below. It does not duplicate the Marketing Manager at
+// /marketing — it reports the seed/real split and the provider connections,
+// and links into the module that already exists. The static version that used
+// to stand here is kept as MarketingSectionStatic.
+export { MarketingSection } from "./MarketingOverview";
+
+export function MarketingSectionStatic() {
   return (
     <ModulePage
       eyebrow="Marketing Suite" title="Marketing"
