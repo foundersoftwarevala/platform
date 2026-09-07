@@ -518,6 +518,11 @@ export {
 // stand it replaces is kept above as AuthorApprovalSectionStatic.
 export { ApprovalWorkflow as AuthorApprovalSection } from "./ApprovalWorkflow";
 
+// The moderation centre, on the canonical catalogue with a real duplicate
+// scan and a purge that never destroys an order, licence, review or merge
+// record. The stand it replaces is kept above as ModerationSectionStatic.
+export { ModerationCenter as ModerationSection } from "./ModerationCenter";
+
 // Enterprise-grade commerce (License / Downloads / Pricing / Orders / Payments / Releases)
 export {
   LicenseSection, DownloadsSection, PricingSection,
@@ -528,7 +533,8 @@ export {
 // Favicon protection / SEO automation / Leads / AI content / Security scan /
 // Quality gate / Product analytics / Audit log)
 export {
-  AuthorApprovalSection as AuthorApprovalSectionStatic, ModerationSection, DemoDomainSection, DemoSandboxSection,
+  AuthorApprovalSection as AuthorApprovalSectionStatic,
+  ModerationSection as ModerationSectionStatic, DemoDomainSection, DemoSandboxSection,
   ProductUrlSection, FaviconProtectionSection, SeoAutomationSection, LeadsSection,
   AiContentSection, SecurityScanSection, QualityCheckSection, ProductAnalyticsSection,
   AuditLogSection,
