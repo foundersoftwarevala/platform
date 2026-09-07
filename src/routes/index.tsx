@@ -4,6 +4,7 @@ import "@/styles/marketplace-home.css";
 import HomeIndex from "@/components/marketplace-home/HomeIndex";
 import { HomeBoundary, HomeShellFallback } from "@/components/marketplace-home/SectionBoundary";
 import { getHomeCatalog, type HomeCatalogSeed } from "@/lib/marketplace/home-catalog.functions";
+import { getHomeLayout, type HomeLayout } from "@/lib/marketplace/home-layout.functions";
 import { absoluteUrl } from "@/lib/seo/site-url";
 
 export const Route = createFileRoute("/")({
@@ -14,12 +15,20 @@ export const Route = createFileRoute("/")({
    * followed. A failure here returns nothing and the browser asks for the rows
    * itself, exactly as it did before.
    */
-  loader: async (): Promise<{ seed: HomeCatalogSeed }> => {
-    try {
-      return { seed: await getHomeCatalog() };
-    } catch {
-      return { seed: null };
-    }
+  loader: async (): Promise<{ seed: HomeCatalogSeed; layout: HomeLayout }> => {
+    // Settled rather than all, so one failing lookup cannot take the other
+    // with it. The catalogue and the layout are unrelated questions and the
+    // page has a safe answer for each of them missing.
+    const [seed, layout] = await Promise.allSettled([
+      getHomeCatalog(),
+      getHomeLayout(),
+    ]);
+    return {
+      seed: seed.status === "fulfilled" ? seed.value : null,
+      // Null means "registry unreadable", which renders the built-in order —
+      // never an empty page.
+      layout: layout.status === "fulfilled" ? layout.value : null,
+    };
   },
 
   head: () => ({

@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { SiteFooter } from "@/components/marketplace-home/SiteFooter";
 
 import { motion } from "framer-motion";
@@ -3353,39 +3353,145 @@ const allDemos: Demo[] = [
 const masterCategories = ["All", ...allMasterCategories55];
 
 
-/**
- * Which homepage sections Layout Order says should render.
+/* ------------------------------------------------------------------ *
+ * Layout Order
  *
- * Returns a predicate rather than a list, so a section whose key the registry
- * does not know — or every section, if the request failed — still renders. The
- * homepage must never be emptied by a configuration lookup.
+ * Which sections the home page shows, and in what order, is a decision the
+ * Marketplace Manager makes and this file carries out. Nothing below reads the
+ * position of the JSX in this file to decide where a section goes.
+ *
+ * Every path through this code fails toward rendering. An unreadable registry,
+ * an unknown key, a section the registry has never heard of - each of them ends
+ * with the section on the page in its built-in position. The home page is a
+ * protected route and a configuration lookup must never be able to empty it.
+ * ------------------------------------------------------------------ */
+
+/**
+ * One section as the registry describes it.
+ *
+ * Declared here rather than imported so that the server module holding the
+ * loader function stays out of the browser bundle.
  */
-function useSectionVisibility(): (key: string) => boolean {
-  const [disabled, setDisabled] = useState<Set<string> | null>(null);
+type SectionLayout = {
+  key: string;
+  sortOrder: number;
+  /** enabled, published and inside its schedule window, folded into one flag. */
+  liveNow: boolean;
+  visibleMobile: boolean;
+  visibleDesktop: boolean;
+};
+
+/** Read the RPC's rows into the shape above, tolerating anything missing. */
+function toSectionLayout(raw: unknown): SectionLayout[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const rows: SectionLayout[] = [];
+  for (const item of raw as Record<string, unknown>[]) {
+    const key = typeof item.key === "string" ? item.key : "";
+    if (!key) continue;
+    rows.push({
+      key,
+      sortOrder: Number(item.sort_order ?? 0),
+      liveNow: item.live_now !== false,
+      visibleMobile: item.visible_mobile !== false,
+      visibleDesktop: item.visible_desktop !== false,
+    });
+  }
+  if (rows.length === 0) return null;
+  rows.sort((a, b) => a.sortOrder - b.sortOrder);
+  return rows;
+}
+
+/**
+ * The layout the page should render with.
+ *
+ * Prefers the copy the route loader resolved on the server, so the composition
+ * is already correct in the HTML and nothing reshuffles after hydration. This
+ * component is also drawn by the /marketplace layout, where there is no home
+ * route match to read; there it asks for the layout itself.
+ */
+function useHomeLayout(): SectionLayout[] | null {
+  const homeMatch = useMatch({ from: "/", shouldThrow: false });
+  const fromServer =
+    (homeMatch?.loaderData as { layout?: SectionLayout[] | null } | undefined)
+      ?.layout ?? null;
+
+  const [fromClient, setFromClient] = useState<SectionLayout[] | null>(null);
 
   useEffect(() => {
+    if (fromServer) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const { supabase } = await import("@/integrations/supabase/client");
         // Through the function rather than the table: the table's public policy
         // only exposes enabled rows, so a gate reading it directly could never
         // see the disabled section it is supposed to hide.
         const { data, error } = await supabase.rpc("mm_homepage_sections");
-        if (cancelled || error || !Array.isArray(data) || data.length === 0) return;
-        const off = new Set<string>();
-        for (const row of data as { key: string; live_now?: boolean }[]) {
-          if (row.live_now === false) off.add(row.key);
-        }
-        setDisabled(off);
+        if (cancelled || error) return;
+        const parsed = toSectionLayout(data);
+        if (parsed) setFromClient(parsed);
       } catch {
-        /* leave everything rendering */
+        /* built-in order */
       }
     })();
-    return () => { cancelled = true; };
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [fromServer]);
 
-  return (key: string) => (disabled ? !disabled.has(key) : true);
+  return fromServer ?? fromClient;
+}
+
+/**
+ * Hide a section on the devices the manager has switched it off for.
+ *
+ * Rendered and hidden with a breakpoint class rather than dropped from the
+ * tree, because the server does not know the width of the screen it is
+ * rendering for. Off on both devices is the one case that renders nothing.
+ */
+function deviceWrap(mobile: boolean, desktop: boolean, node: ReactNode): ReactNode {
+  if (mobile && desktop) return node;
+  if (!mobile && !desktop) return null;
+  return <div className={mobile ? "md:hidden" : "hidden md:block"}>{node}</div>;
+}
+
+/**
+ * Compose the page from the registry.
+ *
+ * `nodes` supplies both the sections this file knows how to draw and, by the
+ * order its keys are written in, the fallback order used when the registry
+ * cannot be read. The registry's own numbering was seeded from that same order,
+ * so a section the registry has never heard of can be placed on the same scale
+ * as the ones it has.
+ */
+function renderSections(
+  layout: SectionLayout[] | null,
+  nodes: Record<string, ReactNode>,
+): ReactNode {
+  const byKey = new Map((layout ?? []).map((s) => [s.key, s]));
+
+  const items = Object.keys(nodes).map((key, index) => {
+    const reg = byKey.get(key);
+    return {
+      key,
+      order: reg ? reg.sortOrder : index + 1,
+      live: reg ? reg.liveNow : true,
+      mobile: reg ? reg.visibleMobile : true,
+      desktop: reg ? reg.visibleDesktop : true,
+      // Keeps the built-in order stable when two sections share a number.
+      tie: index,
+    };
+  });
+
+  items.sort((a, b) => a.order - b.order || a.tie - b.tie);
+
+  return items
+    .filter((s) => s.live)
+    .map((s) => (
+      <Fragment key={s.key}>
+        {deviceWrap(s.mobile, s.desktop, nodes[s.key])}
+      </Fragment>
+    ));
 }
 
 const Index = () => {
@@ -3396,7 +3502,7 @@ const Index = () => {
   const search = useDebouncedValue(searchQuery, 220);
   // Favourites survive a refresh instead of being thrown away.
   const { favorites, toggle: toggleFavorite } = useFavorites();
-  const visible = useSectionVisibility();
+  const layout = useHomeLayout();
 
   const filteredDemos = allDemos.filter(demo => {
     const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
@@ -3433,60 +3539,44 @@ const Index = () => {
         </div>
       </header>
 
-      {/* Utility strip — clone of the feature strip, different subject */}
-      {visible("utility-bar") && (
-        <SectionBoundary label="The utility bar" fallback={null}>
-        <UtilityStrip favoritesCount={favorites.length} />
-      </SectionBoundary>
-      )}
-
-      {/* Running offer ticker sits between the two strips */}
-      {visible("offer-banner") && (
-        <SectionBoundary label="The offer banner" fallback={null}>
-        <FestiveBanner />
-      </SectionBoundary>
-      )}
-
-      {visible("feature-strip") && (
-        <SectionBoundary label="The feature strip" fallback={null}>
-        <FeatureStrip />
-      </SectionBoundary>
-      )}
-
-
-
-      {/* The hero reads its slides from Supabase with a suspense query — it is
-          the one section that can throw during render, so it carries its own
-          boundary and the rest of the marketplace survives a failed request. */}
-      {visible("hero-carousel") && (
-        <SectionBoundary label="The featured carousel">
-        <HeroCarousel />
-      </SectionBoundary>
-      )}
-
-      {/* Industry Grid */}
-      <div className="max-w-7xl mx-auto">
-        {visible("shop-by-industry") && (
-        <SectionBoundary label="Shop by Industry" fallback={null}>
-          <IndustryGrid />
-        </SectionBoundary>
-      )}
-      </div>
-
-
-      {/* Category Slider (auto-scroll) */}
-      {visible("category-slider") && (
-        <SectionBoundary label="The category slider" fallback={null}>
-        <CategorySlider />
-      </SectionBoundary>
-      )}
-
-
-
-
-
-
-      {/* Category Filter - Master Categories */}
+      {/* The page is composed here, not laid out here. Which of these
+          sections appear, and in what order, comes from Layout Order in
+          the Marketplace Manager; the order the keys are written in below
+          is only the fallback used when the registry cannot be read. */}
+      {renderSections(layout, {
+        "utility-bar": (
+            <SectionBoundary label="The utility bar" fallback={null}>
+              <UtilityStrip favoritesCount={favorites.length} />
+            </SectionBoundary>
+        ),
+        "offer-banner": (
+            <SectionBoundary label="The offer banner" fallback={null}>
+              <FestiveBanner />
+            </SectionBoundary>
+        ),
+        "feature-strip": (
+            <SectionBoundary label="The feature strip" fallback={null}>
+              <FeatureStrip />
+            </SectionBoundary>
+        ),
+        "hero-carousel": (
+            <SectionBoundary label="The featured carousel">
+              <HeroCarousel />
+            </SectionBoundary>
+        ),
+        "shop-by-industry": (
+          <div className="max-w-7xl mx-auto">
+            <SectionBoundary label="Shop by Industry" fallback={null}>
+              <IndustryGrid />
+            </SectionBoundary>
+          </div>
+        ),
+        "category-slider": (
+            <SectionBoundary label="The category slider" fallback={null}>
+              <CategorySlider />
+            </SectionBoundary>
+        ),
+        "search-bar": (
       <div className="bg-[#0d1e36]/80 backdrop-blur-sm border-b border-cyan-500/20 py-4 px-4 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-4 mb-4">
@@ -3505,8 +3595,8 @@ const Index = () => {
           </div>
         </div>
       </div>
-
-      {/* Demo Cards Grid */}
+        ),
+        "catalog-rows": (
       <section id={GRID_ANCHOR} className="scroll-mt-24 py-8 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Group by Master Category when "All" is selected */}
@@ -3552,44 +3642,76 @@ const Index = () => {
           )}
         </div>
       </section>
-
-      {/* Reference marketplace sections (added below product grid, keeping design intact) */}
-      <div className="max-w-7xl mx-auto">
-        {visible("ai-zone") && (
-        <SectionBoundary label="AI Zone"><AIZone /></SectionBoundary>
-      )}
-        {visible("success-stories") && (
-        <SectionBoundary label="Success Stories"><SuccessStories /></SectionBoundary>
-      )}
-        {visible("awards-champions") && (
-        <SectionBoundary label="Awards"><AwardsRow /></SectionBoundary>
-      )}
-        {visible("live-activity") && (
-        <SectionBoundary label="Live Activity"><LiveActivity /></SectionBoundary>
-      )}
-        {visible("vala-tv") && (
-        <SectionBoundary label="Vala TV"><ValaTV /></SectionBoundary>
-      )}
-        {visible("vala-academy") && (
-        <SectionBoundary label="Vala Academy"><ValaAcademy /></SectionBoundary>
-      )}
-        {visible("partner-ecosystem") && (
-        <SectionBoundary label="Partner Ecosystem"><PartnerEcosystem /></SectionBoundary>
-      )}
-        {visible("faq") && (
-        <SectionBoundary label="The FAQ section"><FaqSection /></SectionBoundary>
-      )}
-        {visible("enterprise-cta") && (
-        <SectionBoundary label="The enterprise panel"><EnterpriseCTA /></SectionBoundary>
-      )}
-      </div>
-
-      {/* Footer */}
-      {visible("footer") && (
-        <SectionBoundary label="The footer" fallback={null}>
-        <SiteFooter />
-      </SectionBoundary>
-      )}
+        ),
+        "ai-zone": (
+          <div className="max-w-7xl mx-auto">
+            <SectionBoundary label="AI Zone">
+              <AIZone />
+            </SectionBoundary>
+          </div>
+        ),
+        "success-stories": (
+          <div className="max-w-7xl mx-auto">
+            <SectionBoundary label="Success Stories">
+              <SuccessStories />
+            </SectionBoundary>
+          </div>
+        ),
+        "awards-champions": (
+          <div className="max-w-7xl mx-auto">
+            <SectionBoundary label="Awards">
+              <AwardsRow />
+            </SectionBoundary>
+          </div>
+        ),
+        "live-activity": (
+          <div className="max-w-7xl mx-auto">
+            <SectionBoundary label="Live Activity">
+              <LiveActivity />
+            </SectionBoundary>
+          </div>
+        ),
+        "vala-tv": (
+          <div className="max-w-7xl mx-auto">
+            <SectionBoundary label="Vala TV">
+              <ValaTV />
+            </SectionBoundary>
+          </div>
+        ),
+        "vala-academy": (
+          <div className="max-w-7xl mx-auto">
+            <SectionBoundary label="Vala Academy">
+              <ValaAcademy />
+            </SectionBoundary>
+          </div>
+        ),
+        "partner-ecosystem": (
+          <div className="max-w-7xl mx-auto">
+            <SectionBoundary label="Partner Ecosystem">
+              <PartnerEcosystem />
+            </SectionBoundary>
+          </div>
+        ),
+        "faq": (
+          <div className="max-w-7xl mx-auto">
+            <SectionBoundary label="The FAQ section">
+              <FaqSection />
+            </SectionBoundary>
+          </div>
+        ),
+        "enterprise-cta": (
+          <div className="max-w-7xl mx-auto">
+            <SectionBoundary label="The enterprise panel">
+              <EnterpriseCTA />
+            </SectionBoundary>
+          </div>
+        ),
+        "footer": (
+            <SectionBoundary label="The footer" fallback={null}>
+              <SiteFooter />
+            </SectionBoundary>
+        ),
+      })}
     </div>
   );
 };

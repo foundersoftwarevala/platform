@@ -894,12 +894,17 @@ export const setSectionEnabled = createServerFn({ method: "POST" })
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
 
-    const { error } = await context.supabase
-      .from("marketplace_homepage_sections")
-      .update({ enabled: data.enabled })
-      .eq("key", data.key);
+    // Through the function rather than the table. It refuses out loud when the
+    // caller may not write - a filtered update reports zero rows, not an error,
+    // so the old direct write reported success while changing nothing - and it
+    // publishes a draft it is asked to enable, since a section that is enabled
+    // but unpublished is still not live.
+    const { data: row, error } = await context.supabase.rpc(
+      "mm_section_set_enabled",
+      { p_key: data.key, p_enabled: data.enabled },
+    );
     if (error) throw new Error(error.message);
-    return { ok: true };
+    return { ok: true, section: row };
   });
 
 export const reorderSections = createServerFn({ method: "POST" })
@@ -910,14 +915,15 @@ export const reorderSections = createServerFn({ method: "POST" })
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
 
-    for (const row of data.order) {
-      const { error } = await context.supabase
-        .from("marketplace_homepage_sections")
-        .update({ sort_order: row.sort_order })
-        .eq("key", row.key);
-      if (error) throw new Error(error.message);
-    }
-    return { ok: true };
+    // One statement rather than one update per section, so a failure partway
+    // through cannot leave the page in an order nobody chose. Unknown or
+    // repeated keys are rejected rather than quietly skipped.
+    const { data: moved, error } = await context.supabase.rpc(
+      "mm_sections_reorder",
+      { p_order: data.order },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true, moved: typeof moved === "number" ? moved : 0 };
   });
 
 export const listSectionsAdmin = createServerFn({ method: "GET" })
