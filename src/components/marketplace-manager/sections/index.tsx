@@ -478,12 +478,17 @@ export {
   ProductsSection, ProductContentSection, ProductMediaSection,
   BlogSection,
   CustomersSection, AuthorsSection, VendorsSection,
-  ResellersSection, AffiliateSection, InfluencerSection, QrSection,
+  ResellersSection, AffiliateSection, QrSection,
+  InfluencerSection as InfluencerSectionStatic,
   SupportSection, MediaLibrarySection, AiProvidersSection, ApiSection,
   ReportsSection, MarketingSection, AutomationSection, SecuritySection,
   SystemSection, IntegrationsSection, ExtraSection,
 } from "./CatalogSections";
 export { DemoUrlManagerSection as DemoSection } from "./DemoUrlManager";
+
+// Influencer, on the real influencer tables and the referral engine that is
+// already running. The stand it replaces is kept above as InfluencerSectionStatic.
+export { InfluencerManager as InfluencerSection } from "./InfluencerManager";
 
 // Enterprise-grade commerce (License / Downloads / Pricing / Orders / Payments / Releases)
 export {

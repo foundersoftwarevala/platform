@@ -3,6 +3,9 @@ import {
   newTxnId, payuAmount, payuConfig, requestHash, usdToInr,
 } from "@/lib/commerce/payu";
 import { logPaymentEvent } from "@/lib/commerce/fulfilment";
+import {
+  REFERRAL_COOKIE, attributeOrder, attributionForSession, readCookie, rest,
+} from "@/lib/affiliate/core";
 
 /**
  * Start a payment.
@@ -127,6 +130,58 @@ export const Route = createFileRoute("/api/payment/initiate")({
             updated_at: new Date().toISOString(),
           }),
         });
+
+        // Credit whoever referred this sale, while their cookie is still on the
+        // request. The webhook that confirms the payment comes from PayU and
+        // carries no cookies at all, so this is the only point at which the
+        // referral can still be resolved.
+        //
+        // Nothing here may block a payment. An order that cannot be attributed
+        // is simply an unattributed order, which is what every order is today.
+        try {
+          const sessionKey = readCookie(request, REFERRAL_COOKIE);
+          if (sessionKey) {
+            const attribution = await attributionForSession(sessionKey);
+            if (attribution) {
+              // An affiliate buying through their own link is recorded and
+              // flagged rather than quietly credited, so a person can decide.
+              let selfReferral = false;
+              if (attribution.affiliatePartnerId) {
+                const partner = await rest(
+                  `marketplace_affiliate_partners?select=user_id` +
+                    `&id=eq.${encodeURIComponent(attribution.affiliatePartnerId)}&limit=1`,
+                );
+                if (partner.ok) {
+                  const rows = (await partner.json()) as { user_id: string | null }[];
+                  selfReferral = rows[0]?.user_id === user.id;
+                }
+              }
+              const attributed = await attributeOrder(orderId, attribution, {
+                buyer_id: user.id,
+                order_total: amountUsd,
+                currency: "USD",
+                self_referral: selfReferral,
+                risk: selfReferral ? "REVIEW" : "NORMAL",
+                risk_reason: selfReferral
+                  ? "buyer owns the referring affiliate account"
+                  : null,
+                stamped_at: "payment_initiate",
+              });
+              await logPaymentEvent(orderId, "referral_attributed", {
+                created: attributed.created,
+                reason: attributed.reason ?? null,
+                affiliate_partner_id: attribution.affiliatePartnerId ?? null,
+                influencer_profile_id: attribution.influencerProfileId ?? null,
+                self_referral: selfReferral,
+              });
+            }
+          }
+        } catch (error) {
+          // Logged, never raised — a referral problem is not a payment problem.
+          await logPaymentEvent(orderId, "referral_attribution_failed", {
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
 
         const hash = requestHash(config, { txnid, amount, productinfo, firstname, email: user.email });
 
