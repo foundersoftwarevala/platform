@@ -1,4 +1,5 @@
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { getLicenseOverview } from "@/lib/marketplace-manager/license.functions";
 import {
   KeyRound, Download, ShoppingBag, Receipt, CreditCard, Wallet, Banknote,
   QrCode, Rocket, Copy, RefreshCw, ShieldCheck, Fingerprint, Cpu, Globe2,
@@ -139,6 +140,59 @@ const STATUS_TONE = {
   expired: "danger"  as const,
 };
 
+/**
+ * The licence figures, counted from marketplace_licenses.
+ *
+ * These were six literals before — 12,847 active keys and so on — written while
+ * every licence table in the database was empty. Two of them are still zero and
+ * say why rather than showing a confident number: there is no activation
+ * endpoint in this project, so there is nothing to count.
+ */
+function LicenseStats() {
+  const overview = useQuery({
+    queryKey: ["marketplace", "license-overview"],
+    queryFn: () => getLicenseOverview(),
+    staleTime: 30_000,
+  });
+
+  const d = overview.data as {
+    ok?: boolean;
+    active_keys?: number; in_trial?: number; expiring_30d?: number;
+    revoked?: number; entitlements?: number; paid_order_items?: number;
+    activations_available?: boolean;
+  } | undefined;
+
+  const n = (v?: number) => (overview.isLoading ? "…" : (v ?? 0).toLocaleString());
+
+  return (
+    <>
+      {d?.ok === false && (
+        <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          The licence figures could not be read.
+        </div>
+      )}
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+        <MiniStat label="Active Keys"  value={n(d?.active_keys)} tone="success" icon={KeyRound} />
+        <MiniStat label="In Trial"     value={n(d?.in_trial)} tone="premium" icon={Timer} />
+        <MiniStat label="Expiring 30d" value={n(d?.expiring_30d)} tone="warning" icon={AlertTriangle} />
+        <MiniStat label="Revoked"      value={n(d?.revoked)} tone="destructive" icon={Ban} />
+        <MiniStat label="Entitlements" value={n(d?.entitlements)} tone="success" icon={CheckCircle2} />
+        <MiniStat
+          label="Activations"
+          value={d?.activations_available ? n(0) : "n/a"}
+          delta="no activation endpoint yet"
+          tone="premium"
+          icon={ShieldCheck}
+        />
+      </div>
+      <p className="mb-4 text-[11px] text-muted-foreground">
+        Counted from the licence tables. A licence is issued when an order is paid —
+        {" "}{n(d?.paid_order_items)} paid order items, {n(d?.active_keys)} active keys.
+      </p>
+    </>
+  );
+}
+
 export function LicenseSection() {
   const [tab, setTab] = useState<typeof LICENSE_TABS[number]>("Overview");
 
@@ -156,14 +210,7 @@ export function LicenseSection() {
         }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
-        <MiniStat label="Active Keys"  value="12,847" delta="+318 this week" tone="success" icon={KeyRound} />
-        <MiniStat label="In Trial"     value="1,204"                          tone="premium" icon={Timer} />
-        <MiniStat label="Expiring 30d" value="486"    delta="renewal risk"    tone="warning" icon={AlertTriangle} />
-        <MiniStat label="Revoked"      value="72"                             tone="destructive" icon={Ban} />
-        <MiniStat label="Activations"  value="38,912"                         tone="success" icon={CheckCircle2} />
-        <MiniStat label="Verification" value="99.98%" delta="last 24h SLA"    tone="premium" icon={ShieldCheck} />
-      </div>
+      <LicenseStats />
 
       <SubNav items={[...LICENSE_TABS]} active={tab} onChange={(v) => setTab(v as any)} />
 
