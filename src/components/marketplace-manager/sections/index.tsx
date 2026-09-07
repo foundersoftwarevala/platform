@@ -477,7 +477,9 @@ export { CardManagerSection } from "./CardManagerSection";
 export {
   ProductsSection, ProductContentSection, ProductMediaSection,
   BlogSection,
-  CustomersSection, AuthorsSection, VendorsSection,
+  CustomersSection,
+  AuthorsSection as AuthorsSectionStatic,
+  VendorsSection as VendorsSectionStatic,
   ResellersSection, AffiliateSection, QrSection,
   InfluencerSection as InfluencerSectionStatic,
   SupportSection, MediaLibrarySection, AiProvidersSection, ApiSection,
@@ -489,6 +491,14 @@ export { DemoUrlManagerSection as DemoSection } from "./DemoUrlManager";
 // Influencer, on the real influencer tables and the referral engine that is
 // already running. The stand it replaces is kept above as InfluencerSectionStatic.
 export { InfluencerManager as InfluencerSection } from "./InfluencerManager";
+
+// Authors and Vendors, on marketplace_sellers and the commission, ledger and
+// payout engine already running behind it. The stands they replace are kept
+// above as AuthorsSectionStatic and VendorsSectionStatic.
+export {
+  AuthorsManager as AuthorsSection,
+  VendorsManager as VendorsSection,
+} from "./SellerManager";
 
 // Enterprise-grade commerce (License / Downloads / Pricing / Orders / Payments / Releases)
 export {
