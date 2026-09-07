@@ -82,6 +82,8 @@ export type StorefrontChrome = {
   videos: StorefrontVideo[];
   /** Published FAQs, in category then position order. */
   faqs: StorefrontFaq[];
+  /** schema.org FAQPage built from those same rows. Null when there are none. */
+  faqSchema: unknown | null;
 };
 
 export type StorefrontFaq = {
@@ -121,6 +123,23 @@ function url() {
 function admin() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
   return { apikey: key, Authorization: `Bearer ${key}` };
+}
+
+/** The FAQ structured data, built from the same published rows. */
+async function liveFaqSchema(): Promise<unknown | null> {
+  const base = url();
+  if (!base) return null;
+  try {
+    const res = await fetch(`${base}/rest/v1/rpc/sf_faq_schema`, {
+      method: "POST",
+      headers: { ...admin(), "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 /** Published FAQs. Empty on any failure, which leaves the section unrendered. */
@@ -207,12 +226,13 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
     const now = Date.now();
     if (cached && now - cached.at < CACHE_MS) return cached.payload;
 
-    const [footer, floating, offers, videos, faqs] = await Promise.allSettled([
+    const [footer, floating, offers, videos, faqs, faqSchema] = await Promise.allSettled([
       liveConfig("footer"),
       liveConfig("floating"),
       liveOffers(),
       liveVideos(),
       liveFaqs(),
+      liveFaqSchema(),
     ]);
 
     const payload: StorefrontChrome = {
@@ -228,6 +248,7 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
       // Empty is the normal state and means the Vala TV section does not render.
       videos: (videos.status === "fulfilled" ? videos.value : []) as StorefrontVideo[],
       faqs: (faqs.status === "fulfilled" ? faqs.value : []) as StorefrontFaq[],
+      faqSchema: faqSchema.status === "fulfilled" ? faqSchema.value : null,
     };
     cached = { at: now, payload };
     return payload;

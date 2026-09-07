@@ -1,15 +1,20 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Check, Download, History, Info, RefreshCw, Search, Send, ShieldCheck, Star, X,
+  Check, Download, History, Info, RefreshCw, Search, Send, ShieldCheck,
+  Sparkles, Star, X,
 } from "lucide-react";
 
 import { Card, EmptyHint, PageHeader, StatCard } from "../ui";
 import {
   getFaqs, getReviews, getTrustBadges, moderateReview, replyToReview,
   resolveReport, rollbackFaq, saveFaq, setTrustBadge, transitionFaq,
+  getReviewAnalytics,
   type FaqOverview, type FaqRow, type ReviewOverview, type TrustBadge,
 } from "@/lib/marketplace-manager/trust.functions";
+import {
+  generateFaqDrafts, getFaqFacts, type SystemFact,
+} from "@/lib/marketplace-manager/faq-ai.functions";
 
 /**
  * Reviews, Trust and FAQ — the three screens that already existed, connected.
@@ -55,9 +60,15 @@ function Stars({ n }: { n: number }) {
   );
 }
 
+const WINDOWS = [
+  { days: 7, label: "7D" }, { days: 30, label: "30D" },
+  { days: 90, label: "90D" }, { days: 365, label: "1Y" },
+] as const;
+
 export function ReviewsManager() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("queue");
+  const [days, setDays] = useState<number>(30);
   const [search, setSearch] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -68,6 +79,13 @@ export function ReviewsManager() {
     staleTime: 10_000,
   });
   const d = q.data as ReviewOverview | undefined;
+
+  const analytics = useQuery({
+    queryKey: ["marketplace", "reviews", "analytics", days],
+    queryFn: () => getReviewAnalytics({ data: { days } }),
+    staleTime: 30_000,
+  });
+  const a = analytics.data;
 
   const settled = (res: { ok: boolean; reason?: string; message?: string }) => {
     setNote(res.ok ? null : res.message ?? `That did not work (${res.reason ?? "unknown"})`);
@@ -138,6 +156,89 @@ export function ReviewsManager() {
           value={d?.approval_rate === null || d?.approval_rate === undefined ? "—" : `${d.approval_rate}%`}
         />
       </div>
+
+      <Card className="mt-4">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-bold">Analytics</h3>
+          <div className="ml-auto flex items-center gap-1">
+            {WINDOWS.map((w) => (
+              <button
+                key={w.days}
+                onClick={() => setDays(w.days)}
+                className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                  days === w.days ? "bg-foreground text-background" : "hover:bg-muted"
+                }`}
+              >
+                {w.label}
+              </button>
+            ))}
+            <input
+              type="number"
+              min={1}
+              max={3650}
+              value={days}
+              onChange={(e) => setDays(Math.max(1, Math.min(3650, Number(e.target.value) || 1)))}
+              className="w-20 rounded-lg border border-border bg-background px-2 py-1 text-[11px]"
+              aria-label="Custom window in days"
+            />
+            <span className="text-[11px] text-muted-foreground">days</span>
+          </div>
+        </div>
+
+        {/* A rate with nothing behind it reads as a dash, never as 0%. */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard label="Reviews in window" value={String(a?.volume ?? "—")} />
+          <StatCard
+            label="Average rating"
+            value={a?.average_rating ? String(a.average_rating) : "—"}
+          />
+          <StatCard
+            label="Verified purchases"
+            value={a?.verified_percent === null || a?.verified_percent === undefined
+              ? "—" : `${a.verified_percent}%`}
+            tone="success"
+          />
+          <StatCard
+            label="Report rate"
+            value={a?.report_rate === null || a?.report_rate === undefined
+              ? "—" : `${a.report_rate}%`}
+          />
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard
+            label="Approval rate"
+            value={a?.approval_rate === null || a?.approval_rate === undefined
+              ? "—" : `${a.approval_rate}%`}
+          />
+          <StatCard
+            label="Rejection rate"
+            value={a?.rejection_rate === null || a?.rejection_rate === undefined
+              ? "—" : `${a.rejection_rate}%`}
+          />
+          <StatCard
+            label="Response rate"
+            value={a?.response_rate === null || a?.response_rate === undefined
+              ? "—" : `${a.response_rate}%`}
+          />
+          <StatCard label="Products reviewed" value={String(a?.by_product?.length ?? "—")} />
+        </div>
+
+        {(a?.by_product?.length ?? 0) > 0 && (
+          <div className="mt-3 space-y-1">
+            {a?.by_product?.slice(0, 8).map((row) => (
+              <div
+                key={row.product_id}
+                className="flex items-center gap-3 rounded-lg border border-border/60 px-3 py-1.5 text-xs"
+              >
+                <span className="flex-1 truncate">{row.product ?? row.product_id}</span>
+                <Stars n={Math.round(row.average)} />
+                <span className="font-semibold">{row.average}</span>
+                <span className="text-muted-foreground">{row.reviews} review(s)</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <Card className="mt-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -469,6 +570,8 @@ const FAQ_STATUS: FaqRow["status"][] = [
 
 export function FaqManager() {
   const qc = useQueryClient();
+  const [showFacts, setShowFacts] = useState(false);
+  const [topic, setTopic] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"" | FaqRow["status"]>("");
   const [editing, setEditing] = useState<string | null>(null);
@@ -504,6 +607,37 @@ export function FaqManager() {
   const rollback = useMutation({
     mutationFn: (v: { id: string; version: number }) => rollbackFaq({ data: v }),
     onSuccess: settled,
+    onError: (e: Error) => setNote(e.message),
+  });
+
+  // The facts an FAQ is allowed to state, counted from the live system. Worth
+  // reading even when the model is unavailable: it is the list a person writing
+  // an answer by hand should be working from.
+  const facts = useQuery({
+    queryKey: ["marketplace", "faq-facts"],
+    queryFn: () => getFaqFacts(),
+    staleTime: 60_000,
+  });
+
+  const generate = useMutation({
+    mutationFn: () => generateFaqDrafts({ data: { topic: topic || undefined, count: 5 } }),
+    onSuccess: (res) => {
+      if (res.ok) {
+        setNote(
+          `${res.created ?? 0} draft(s) added. They are flagged as AI-generated and stay that way until a person publishes them.`,
+        );
+        setTopic("");
+        void qc.invalidateQueries({ queryKey: ["marketplace", "faqs"] });
+      } else if (res.needsConfiguration) {
+        setNote(
+          "No AI credential is configured in this environment, so nothing was generated. " +
+            "Add one in AI API Manager. The verified facts below are still usable for writing an answer by hand.",
+        );
+        setShowFacts(true);
+      } else {
+        setNote(res.error ?? "The generator did not return anything usable.");
+      }
+    },
     onError: (e: Error) => setNote(e.message),
   });
 
@@ -571,6 +705,26 @@ export function FaqManager() {
           >
             New question
           </button>
+          <input
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="Topic for the generator (optional)"
+            className="w-56 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs"
+          />
+          <button
+            onClick={() => generate.mutate()}
+            disabled={generate.isPending}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted disabled:opacity-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {generate.isPending ? "Generating…" : "Generate with AI"}
+          </button>
+          <button
+            onClick={() => setShowFacts((v) => !v)}
+            className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"
+          >
+            {showFacts ? "Hide facts" : "System facts"}
+          </button>
           <div className="relative ml-auto min-w-[180px] flex-1">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -604,6 +758,47 @@ export function FaqManager() {
             <Download className="h-3.5 w-3.5" /> Export
           </button>
         </div>
+
+        {showFacts && (
+          <div className="mb-3 rounded-xl border border-border px-3 py-2.5">
+            <h4 className="mb-1 text-xs font-bold">
+              What an answer may state, counted from the live system
+            </h4>
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              The generator is given only these. It is told not to add prices, delivery
+              times, refund terms, guarantees or certifications that are not here, and to
+              answer "Source information required." rather than invent one.
+            </p>
+            <div className="space-y-1">
+              {(facts.data?.facts ?? []).map((f: SystemFact) => (
+                <div key={f.key} className="rounded-lg bg-muted px-2.5 py-1.5">
+                  <div className="text-[11px]">{f.statement}</div>
+                  <div className="text-[10px] text-muted-foreground">source: {f.source}</div>
+                </div>
+              ))}
+            </div>
+            {(facts.data?.unverifiable?.length ?? 0) > 0 && (
+              <>
+                <h4 className="mb-1 mt-2 text-xs font-bold">
+                  Cannot be verified from this system
+                </h4>
+                <div className="space-y-1">
+                  {facts.data?.unverifiable?.map((u) => (
+                    <div
+                      key={u.key}
+                      className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5"
+                    >
+                      <div className="text-[11px] font-semibold capitalize">
+                        {u.key.replace(/_/g, " ")}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">{u.note}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {editing === "new" && (
           <div className="mb-3 rounded-xl border border-border px-3 py-2.5">

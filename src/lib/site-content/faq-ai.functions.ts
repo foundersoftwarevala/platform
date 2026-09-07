@@ -19,7 +19,10 @@ Answers must be 1-3 sentences, factual, no marketing fluff, no invented metrics.
 export const generateFaqs = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => (d ?? {}) as GenInput)
   .handler(async ({ data }): Promise<GenOutput> => {
-        if (!key) return { items: [], error: "AI is not configured yet." };
+    // `key` was never defined here, so every call threw a ReferenceError
+    // before reaching the model. The gateway resolves and checks the
+    // credential itself and throws a described error when there is none,
+    // which the catch below turns into a message an operator can act on.
     const count = Math.min(Math.max(data.count ?? 6, 1), 12);
     try {
       const __ai = await aiComplete({

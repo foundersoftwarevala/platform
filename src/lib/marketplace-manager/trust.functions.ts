@@ -127,6 +127,22 @@ export const resolveReport = createServerFn({ method: "POST" })
     }),
   );
 
+/** Review analytics over a window, for the 7D/30D/90D/1Y filters. */
+export const getReviewAnalytics = createServerFn({ method: "GET" })
+  .inputValidator((i: unknown) =>
+    z.object({ days: z.number().int().min(1).max(3650).optional() }).parse(i ?? {}),
+  )
+  .handler(async ({ data }): Promise<{
+    ok: boolean; reason?: string; days?: number; volume?: number; published?: number;
+    average_rating?: number | null; distribution?: Record<string, number>;
+    verified_percent?: number | null; approval_rate?: number | null;
+    rejection_rate?: number | null; report_rate?: number | null;
+    response_rate?: number | null;
+    by_day?: { day: string; reviews: number; average: number | null }[];
+    by_product?: { product_id: string; product: string | null; reviews: number; average: number }[];
+    by_seller?: { seller_id: string; seller: string; kind: string | null; reviews: number; average: number }[];
+  }> => callAsUser("mm_review_analytics", { p_days: data.days ?? 30 }));
+
 /* ----------------------------------------------------------------- trust */
 
 export type TrustBadge = {

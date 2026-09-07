@@ -592,9 +592,23 @@ function usePublishedFaqs() {
   });
 }
 
+/**
+ * The schema.org FAQPage for these questions.
+ *
+ * Built server-side from the same published rows the section renders, so the
+ * structured data can never describe questions the page does not show — which
+ * is the thing that gets a site penalised for it.
+ */
+function useFaqSchema() {
+  const home = useMatch({ from: "/", shouldThrow: false });
+  return (home?.loaderData as { chrome?: { faqSchema?: unknown } } | undefined)?.chrome
+    ?.faqSchema ?? null;
+}
+
 // FAQ — content managed from Marketplace Manager -> Growth -> FAQ
 export const FaqSection = () => {
   const faqs = usePublishedFaqs();
+  const faqSchema = useFaqSchema();
   const categories = useMemo(
     () => Array.from(new Set(faqs.map((f) => f.category))),
     [faqs],
@@ -607,6 +621,14 @@ export const FaqSection = () => {
 
   return (
     <section id="faq" className="py-10">
+      {faqSchema ? (
+        <script
+          type="application/ld+json"
+          // The payload is built by the database from published FAQs; no user
+          // input reaches it.
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        />
+      ) : null}
       {sectionTitle("Frequently Asked Questions", undefined, `Everything about the ${LIFETIME_PRICE} lifetime licence, delivery, demos and partners`)}
       <div className="mb-4 flex flex-wrap gap-2 px-6">
         {["All", ...categories].map((c) => (
