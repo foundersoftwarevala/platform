@@ -142,8 +142,8 @@ def check_once(url):
 
 def open_alerts():
     """Alert types already open, so a failing demo is not re-reported hourly."""
-    rows = rest("demo_alerts?select=demo_id,alert_type&is_resolved=eq.false")
-    return {(r.get("demo_id"), r.get("alert_type")) for r in rows}
+    rows = rest("demo_alerts?select=demo_url_id,alert_type&is_resolved=eq.false")
+    return {(r.get("demo_url_id"), r.get("alert_type")) for r in rows}
 
 
 def raise_alert(existing, demo_id, alert_type, severity, message):
@@ -153,7 +153,9 @@ def raise_alert(existing, demo_id, alert_type, severity, message):
         "demo_alerts",
         method="POST",
         body=[{
-            "demo_id": demo_id,
+            # demo_alerts.demo_id references `demos`, which is empty; every real
+            # demo lives in product_demo_urls, so the alert names that instead.
+            "demo_url_id": demo_id,
             "alert_type": alert_type,
             "severity": severity,
             "message": message,
@@ -169,7 +171,7 @@ def resolve_alerts(demo_id, alert_types):
     """A recovered demo closes its own alerts rather than leaving them open."""
     for alert_type in alert_types:
         rest(
-            "demo_alerts?demo_id=eq.%s&alert_type=eq.%s&is_resolved=eq.false"
+            "demo_alerts?demo_url_id=eq.%s&alert_type=eq.%s&is_resolved=eq.false"
             % (demo_id, alert_type),
             method="PATCH",
             body={"is_resolved": True, "resolved_at": "now()"},
