@@ -523,6 +523,11 @@ export { ApprovalWorkflow as AuthorApprovalSection } from "./ApprovalWorkflow";
 // record. The stand it replaces is kept above as ModerationSectionStatic.
 export { ModerationCenter as ModerationSection } from "./ModerationCenter";
 
+// Brand protection, on the one canonical asset that actually exists and a
+// registry that says which rules can enforce. The stand it replaces is kept
+// above as FaviconProtectionSectionStatic.
+export { BrandProtection as FaviconProtectionSection } from "./BrandProtection";
+
 // Enterprise-grade commerce (License / Downloads / Pricing / Orders / Payments / Releases)
 export {
   LicenseSection, DownloadsSection, PricingSection,
@@ -535,7 +540,8 @@ export {
 export {
   AuthorApprovalSection as AuthorApprovalSectionStatic,
   ModerationSection as ModerationSectionStatic, DemoDomainSection, DemoSandboxSection,
-  ProductUrlSection, FaviconProtectionSection, SeoAutomationSection, LeadsSection,
+  ProductUrlSection, SeoAutomationSection, LeadsSection,
+  FaviconProtectionSection as FaviconProtectionSectionStatic,
   AiContentSection, SecurityScanSection, QualityCheckSection, ProductAnalyticsSection,
   AuditLogSection,
 } from "./EnterpriseGovernance";
