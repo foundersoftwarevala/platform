@@ -5,6 +5,7 @@ import HomeIndex from "@/components/marketplace-home/HomeIndex";
 import { HomeBoundary, HomeShellFallback } from "@/components/marketplace-home/SectionBoundary";
 import { getHomeCatalog, type HomeCatalogSeed } from "@/lib/marketplace/home-catalog.functions";
 import { getHomeLayout, type HomeLayout } from "@/lib/marketplace/home-layout.functions";
+import { getStorefrontChrome, type StorefrontChrome } from "@/lib/storefront/chrome.functions";
 import { absoluteUrl } from "@/lib/seo/site-url";
 
 export const Route = createFileRoute("/")({
@@ -15,19 +16,27 @@ export const Route = createFileRoute("/")({
    * followed. A failure here returns nothing and the browser asks for the rows
    * itself, exactly as it did before.
    */
-  loader: async (): Promise<{ seed: HomeCatalogSeed; layout: HomeLayout }> => {
-    // Settled rather than all, so one failing lookup cannot take the other
-    // with it. The catalogue and the layout are unrelated questions and the
-    // page has a safe answer for each of them missing.
-    const [seed, layout] = await Promise.allSettled([
+  loader: async (): Promise<{
+    seed: HomeCatalogSeed;
+    layout: HomeLayout;
+    chrome: StorefrontChrome | null;
+  }> => {
+    // Settled rather than all, so one failing lookup cannot take the others
+    // with it. The catalogue, the layout and the chrome are unrelated
+    // questions and the page has a safe answer for each of them missing.
+    const [seed, layout, chrome] = await Promise.allSettled([
       getHomeCatalog(),
       getHomeLayout(),
+      getStorefrontChrome(),
     ]);
     return {
       seed: seed.status === "fulfilled" ? seed.value : null,
       // Null means "registry unreadable", which renders the built-in order —
       // never an empty page.
       layout: layout.status === "fulfilled" ? layout.value : null,
+      // Null means "nothing published or unreadable", which renders the
+      // footer this build ships with and no floating elements at all.
+      chrome: chrome.status === "fulfilled" ? chrome.value : null,
     };
   },
 

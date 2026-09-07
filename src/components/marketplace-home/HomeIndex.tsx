@@ -1,5 +1,6 @@
 import { Fragment, memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { SiteFooter } from "@/components/marketplace-home/SiteFooter";
+import { FloatingElements } from "@/components/marketplace-home/FloatingElements";
 
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -3709,6 +3710,11 @@ const Index = () => {
         "footer": (
             <SectionBoundary label="The footer" fallback={null}>
               <SiteFooter />
+            </SectionBoundary>
+        ),
+        "floating-elements": (
+            <SectionBoundary label="The floating elements" fallback={null}>
+              <FloatingElements scope="home" />
             </SectionBoundary>
         ),
       })}

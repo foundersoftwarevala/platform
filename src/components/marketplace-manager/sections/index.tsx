@@ -505,7 +505,13 @@ export {
 } from "./ExtraSections";
 
 // ---------- STICKY ----------
-export function StickySection() {
+// The real, database-backed screen lives in ./StorefrontChrome.tsx and is
+// exported under this section's name below. The static version that used to
+// stand here is kept as StickySectionStatic: four titles and a Switch that had
+// no handler, touching nothing.
+export { StickySection } from "./StorefrontChrome";
+
+export function StickySectionStatic() {
   const items = ["AI Chat","Support Button","Request Demo","Floating Actions"];
   return (
     <div className="px-4 py-8 md:px-8">

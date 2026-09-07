@@ -215,7 +215,14 @@ function ModuleGrid({
   );
 }
 
-export function FooterSection() {
+// The real, database-backed footer manager lives in ./StorefrontChrome.tsx
+// and is exported under this section's name below. The static version that
+// used to stand here is kept as FooterSectionStatic: hardcoded columns, a
+// "+ Link" that called notBuilt(), inputs with no state and a Publish button
+// with no handler.
+export { FooterSection } from "./StorefrontChrome";
+
+export function FooterSectionStatic() {
   const columns = [
     ["Company", ["About", "Careers", "Blog", "Press", "Contact"]],
     ["Marketplace", ["All Products", "Categories", "Top Selling", "New Launches", "Offers"]],
