@@ -41,20 +41,71 @@ const INDUSTRIES = [
   { name: "Manufacturing", href: "/marketplace/category/manufacturing", icon: Factory, color: "from-violet-500/20 to-indigo-500/10", text: "text-violet-300", count: 14 },
 ];
 
-export const IndustryGrid = () => (
+/**
+ * The industries to show.
+ *
+ * Featured categories, in the manager's order, with their real product counts.
+ * Falls back to the six written above when the request fails or returns
+ * nothing — the grid must not disappear because a lookup did.
+ */
+function useIndustries() {
+  const [rows, setRows] = useState<typeof INDUSTRIES | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/marketplace/rows");
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          rows?: {
+            title?: string; href?: string; products?: number;
+            featured?: boolean; hidden?: boolean;
+          }[];
+        };
+        const featured = (data.rows ?? [])
+          .filter((r) => r.featured && !r.hidden && r.title && r.href)
+          .slice(0, 6)
+          .map((r, index) => ({
+            name: String(r.title),
+            href: String(r.href),
+            // The palette is kept by position, so the section looks unchanged.
+            icon: INDUSTRIES[index % INDUSTRIES.length]!.icon,
+            color: INDUSTRIES[index % INDUSTRIES.length]!.color,
+            text: INDUSTRIES[index % INDUSTRIES.length]!.text,
+            count: Number(r.products ?? 0),
+          }));
+        if (!cancelled && featured.length > 0) setRows(featured);
+      } catch {
+        /* keep the built-in six */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // The second value says whether these counts came from the catalogue.
+  return { items: rows ?? INDUSTRIES, countsAreReal: rows !== null };
+}
+
+export const IndustryGrid = () => {
+  const { items: industries, countsAreReal } = useIndustries();
+  return (
   <section className="pt-2 pb-6">
     {sectionTitle("Shop by Industry", "/marketplace", "Pre-built suites for every sector")}
     <div className="grid grid-cols-2 gap-4 px-6 sm:grid-cols-3 lg:grid-cols-6">
-      {INDUSTRIES.map((i) => (
+      {industries.map((i) => (
         <a key={i.name} href={i.href} aria-label={`Browse ${i.name} software`} className={`group relative overflow-hidden rounded-xl border border-white/[0.07] bg-gradient-to-br ${i.color} p-4 transition-colors hover:border-cyan-400/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 motion-safe:transition-all motion-safe:hover:-translate-y-1 motion-safe:hover:shadow-[0_18px_40px_-18px_rgba(34,211,238,0.5)]`}>
           <i.icon className={`h-7 w-7 ${i.text}`} />
           <div className="mt-3 text-sm font-bold text-white">{i.name}</div>
-          <div className="mt-0.5 text-[10px] uppercase tracking-wider text-white/60">{i.count}+ products</div>
+          {countsAreReal && (
+            <div className="mt-0.5 text-[10px] uppercase tracking-wider text-white/60">{i.count} products</div>
+          )}
         </a>
       ))}
     </div>
   </section>
-);
+  );
+};
 
 // AI Zone
 // Each tool opens a real page that searches the live catalogue.
