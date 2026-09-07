@@ -58,7 +58,13 @@ const TONE_CLS: Record<string,string> = {
   premium: "border-premium/40 bg-premium/10 text-premium",
 };
 
-export function CardManagerSection() {
+// The real, registry-backed screen lives in ./CardManagerReal.tsx and is
+// exported under this section's name below. The static version that used to
+// stand here is kept as CardManagerSectionStatic: three hardcoded arrays and
+// a template count of 6 that counted nothing.
+export { CardManagerSection } from "./CardManagerReal";
+
+export function CardManagerSectionStatic() {
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader

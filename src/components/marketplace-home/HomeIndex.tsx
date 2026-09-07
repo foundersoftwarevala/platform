@@ -3738,6 +3738,10 @@ type CatalogCard = {
   rating: number | null; downloads: string | null; badge: string | null;
   featured: boolean; trending: boolean; bestSeller: boolean; newRelease: boolean;
   country: string | null; href: string;
+  // Real product copy and capability, which the card used to invent.
+  description: string | null; features: string[]; tech: string[];
+  license: string | null; platform: string | null; subcategory: string | null;
+  hasDemo: boolean;
 };
 
 type CatalogRow = {
@@ -3779,20 +3783,30 @@ function toDemo(card: CatalogCard, index: number): Demo {
   return {
     id: card.id,
     name: card.name,
-    category: card.industry ?? "",
+    category: card.subcategory ?? card.industry ?? "",
     masterCategory: card.industry ?? "",
-    description: card.industry
-      ? `${card.industry}${card.country ? ` · targeted at ${card.country}` : ""}`
-      : "",
+    // The product's own description. This used to be a sentence built out of
+    // the industry name because the description was never fetched.
+    description:
+      card.description ??
+      (card.industry
+        ? `${card.industry}${card.country ? ` · targeted at ${card.country}` : ""}`
+        : ""),
     url: card.href,
     icon: Package,
-    status: "ACTIVE",
-    features: [],
-    frontend: [],
+    // Twelve products in the catalogue have a demo. This used to say ACTIVE
+    // for all of them.
+    status: card.hasDemo ? "ACTIVE" : "LISTED",
+    features: card.features ?? [],
+    frontend: card.tech ?? [],
     backend: [],
     color: CARD_COLORS[index % CARD_COLORS.length]!,
-    price: card.price ?? LIFETIME_MRP,
-    discountPrice: LIFETIME_PRICE,
+    price: card.price ?? LIFETIME_PRICE,
+    discountPrice: card.price ?? LIFETIME_PRICE,
+    rating: card.rating,
+    license: card.license,
+    platform: card.platform,
+    hasDemo: card.hasDemo,
   } as unknown as Demo;
 }
 
@@ -4041,6 +4055,7 @@ const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                     COMING SOON
                   </Badge>
                 )}
+                {/* Only for a product that actually has one. */}
                 {demo.status === "ACTIVE" && (
                   <Badge className="bg-emerald-500/90 text-white font-bold text-xs flex items-center gap-1">
                     <span className="sv-live-dot" />
@@ -4090,7 +4105,10 @@ const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
             </p>
             <p className="text-gray-400 text-[13px] leading-relaxed mb-3 line-clamp-2">{demo.description}</p>
 
-            {/* Interactive Tabs */}
+            {/* Interactive Tabs — drawn only when there is something to put in
+                them. Both panels were empty on every catalogue card, because
+                toDemo passed empty arrays. */}
+            {(demo.features.length > 0 || demo.frontend.length > 0 || demo.backend.length > 0) && (
             <div className="mb-3">
               <div className="flex gap-1 mb-2">
                 <button
@@ -4129,22 +4147,37 @@ const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 )}
               </div>
             </div>
+            )}
 
-            {/* Price — one fixed lifetime price across the whole ecosystem */}
-            <div className="mb-4">
-              <div className="flex items-baseline gap-2">
-                <span className="text-gray-500 line-through text-[13px]">{LIFETIME_MRP}</span>
-                <span className="sv-price text-emerald-300 font-black text-[22px] tracking-[-0.02em]">
-                  {LIFETIME_PRICE}
-                </span>
-                <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-[10px] font-bold">
-                  {LIFETIME_DISCOUNT}
-                </Badge>
-              </div>
-              <p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-cyan-300/80">
-                One-time payment · Lifetime access
-              </p>
-            </div>
+            {/* Price, from the product record.
+                Almost every product carries the standard lifetime price, and
+                for those the was-price and the discount are shown as before.
+                The handful priced "Custom" or "Contact" were being shown $249
+                and a 75% discount that did not apply to them. */}
+            {(() => {
+              const price = (demo as unknown as { price?: string }).price || LIFETIME_PRICE;
+              const standard = price === LIFETIME_PRICE;
+              return (
+                <div className="mb-4">
+                  <div className="flex items-baseline gap-2">
+                    {standard && (
+                      <span className="text-gray-500 line-through text-[13px]">{LIFETIME_MRP}</span>
+                    )}
+                    <span className="sv-price text-emerald-300 font-black text-[22px] tracking-[-0.02em]">
+                      {price}
+                    </span>
+                    {standard && (
+                      <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-[10px] font-bold">
+                        {LIFETIME_DISCOUNT}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-cyan-300/80">
+                    {standard ? "One-time payment · Lifetime access" : "Pricing on request"}
+                  </p>
+                </div>
+              );
+            })()}
 
             {/* Enhanced Actions */}
             <div className="flex gap-2 mt-auto">
@@ -4155,47 +4188,64 @@ const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                       <Play className="h-4 w-4 mr-2" /> Live Demo
                     </Button>
                   </a>
-                  <Button 
-                    className="sv-btn sv-btn-emerald flex-1"
-                    onClick={() => toast.success("🎉 Redirecting to purchase...", { description: `${demo.name} — ${LIFETIME_PRICE} lifetime` })}
-                  >
-                    <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
-                  </Button>
+                  {/* There is no checkout in this project. This opens the
+                      product page, where the purchase conversation actually
+                      starts, instead of reporting a redirect that never
+                      happened. */}
+                  <a href={demo.url} className="flex-1">
+                    <Button className="sv-btn sv-btn-emerald w-full">
+                      <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
+                    </Button>
+                  </a>
                 </>
               ) : (
                 <>
-                  <Button 
-                    className="sv-btn sv-btn-muted flex-1"
-                    disabled
-                  >
-                    <Clock className="h-4 w-4 mr-2" /> Coming Soon
-                  </Button>
-                  <Button 
-                    className="sv-btn sv-btn-gold flex-1"
-                    onClick={() => toast.info("📧 We'll notify you when this is available!", { description: demo.name })}
-                  >
-                    <Bell className="h-4 w-4 mr-2" /> Notify Me
-                  </Button>
+                  <a href={demo.url} className="flex-1">
+                    <Button className="sv-btn sv-btn-cyan w-full">
+                      <Eye className="h-4 w-4 mr-2" /> View details
+                    </Button>
+                  </a>
+                  <a href={demo.url} className="flex-1">
+                    <Button className="sv-btn sv-btn-emerald w-full">
+                      <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
+                    </Button>
+                  </a>
                 </>
               )}
             </div>
             
-            {/* Quick Stats on hover */}
-            <div className="sv-card-stats mt-3 pt-3 border-t border-cyan-500/10 grid grid-cols-3 gap-2">
-              <div className="text-center">
-                <p className="text-cyan-400 text-lg font-bold">{50 + (stableSeed(demo.id) % 50)}+</p>
-                <p className="text-gray-500 text-[10px]">Clients</p>
-              </div>
-              <div className="text-center">
-                <p className="text-emerald-400 text-lg font-bold">4.{7 + (stableSeed(demo.id + "r") % 3)}</p>
-                <p className="text-gray-500 text-[10px]">Rating</p>
-              </div>
-              <div className="text-center">
-                <p className="text-purple-400 text-lg font-bold">{5 + (stableSeed(demo.id + "d") % 10)}h</p>
-                <p className="text-gray-500 text-[10px]">Delivery</p>
-              </div>
-
-            </div>
+            {/* Facts the catalogue actually holds.
+                This strip used to show a client count, a rating and a delivery
+                time computed from a hash of the product id — invented numbers
+                presented as business metrics. Eight products in the catalogue
+                have a real rating; none has a client count or a delivery time.
+                Whatever is real is shown, and when nothing is, the strip is
+                not drawn. */}
+            {(() => {
+              const d = demo as unknown as {
+                rating?: number | null; license?: string | null; platform?: string | null;
+              };
+              const cells: { value: string; label: string; tone: string }[] = [];
+              if (typeof d.rating === "number" && d.rating > 0) {
+                cells.push({ value: d.rating.toFixed(1), label: "Rating", tone: "text-emerald-400" });
+              }
+              if (d.license) cells.push({ value: d.license, label: "Licence", tone: "text-cyan-400" });
+              if (d.platform) cells.push({ value: d.platform, label: "Deployment", tone: "text-purple-400" });
+              if (cells.length === 0) return null;
+              return (
+                <div
+                  className="sv-card-stats mt-3 pt-3 border-t border-cyan-500/10 grid gap-2"
+                  style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}
+                >
+                  {cells.map((c) => (
+                    <div key={c.label} className="text-center">
+                      <p className={`${c.tone} text-sm font-bold truncate`}>{c.value}</p>
+                      <p className="text-gray-500 text-[10px]">{c.label}</p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </CardContent>
       </Card>

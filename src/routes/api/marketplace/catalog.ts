@@ -24,7 +24,15 @@ const cache = new Map<string, { at: number; payload: unknown }>();
 const CARD_FIELDS =
   "id,slug,name,icon,industry_label,price_label,price_period,rating," +
   "downloads_label,badge,is_featured,is_trending,is_best_seller,is_new_release," +
-  "search_keywords";
+  "search_keywords," +
+  // The card used to be given none of this and invented substitutes for it.
+  // Coverage across the published catalogue: description 100%, features 67%,
+  // tech_stack / licence / deployment / subcategory 67%.
+  "description,features,tech_stack,license,deployment,subcategory," +
+  // Whether a demo exists — twelve products in the whole catalogue have one,
+  // and the card was claiming a live demo for all of them. The address itself
+  // is still never sent.
+  "product_demo_urls(url,status)";
 
 function url() {
   return process.env.SUPABASE_URL?.trim() ?? "";
@@ -69,6 +77,32 @@ function toCard(row: Row) {
     newRelease: Boolean(row.is_new_release),
     country: countryOf(row.search_keywords),
     href: `/marketplace/product/${String(row.slug ?? "")}`,
+
+    // Real product copy, rather than a sentence assembled from the industry
+    // name. Trimmed here so the payload stays small; the card clamps it again.
+    description:
+      typeof row.description === "string" && row.description.trim()
+        ? row.description.trim().slice(0, 240)
+        : null,
+    features: Array.isArray(row.features)
+      ? (row.features as unknown[]).slice(0, 6).map(String).filter(Boolean)
+      : [],
+    tech: Array.isArray(row.tech_stack)
+      ? (row.tech_stack as unknown[]).slice(0, 6).map(String).filter(Boolean)
+      : [],
+    license: row.license == null ? null : String(row.license),
+    platform: row.deployment == null ? null : String(row.deployment),
+    subcategory: row.subcategory == null ? null : String(row.subcategory),
+
+    // A demo counts only if it is switched on and actually has an address.
+    hasDemo: Array.isArray(row.product_demo_urls)
+      ? (row.product_demo_urls as { url?: unknown; status?: unknown }[]).some(
+          (d) =>
+            typeof d?.url === "string" &&
+            d.url.trim() !== "" &&
+            d?.status === "active",
+        )
+      : false,
   };
 }
 
