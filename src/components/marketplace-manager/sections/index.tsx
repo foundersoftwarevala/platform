@@ -538,6 +538,12 @@ export { DemoDomainManager as DemoDomainSection } from "./DemoDomainManager";
 // claimed. The stand it replaces is kept above as DemoSandboxSectionStatic.
 export { SandboxControls as DemoSandboxSection } from "./SandboxControls";
 
+// Product URLs, short links and QR. The canonical pattern is validated
+// against the routes this application actually serves, and short links
+// resolve at /s/{code}. The stand it replaces is kept above as
+// ProductUrlSectionStatic.
+export { ProductUrlManager as ProductUrlSection } from "./ProductUrlManager";
+
 // Enterprise-grade commerce (License / Downloads / Pricing / Orders / Payments / Releases)
 export {
   LicenseSection, DownloadsSection, PricingSection,
@@ -552,7 +558,8 @@ export {
   ModerationSection as ModerationSectionStatic,
   DemoSandboxSection as DemoSandboxSectionStatic,
   DemoDomainSection as DemoDomainSectionStatic,
-  ProductUrlSection, SeoAutomationSection, LeadsSection,
+  SeoAutomationSection, LeadsSection,
+  ProductUrlSection as ProductUrlSectionStatic,
   FaviconProtectionSection as FaviconProtectionSectionStatic,
   AiContentSection, SecurityScanSection, QualityCheckSection, ProductAnalyticsSection,
   AuditLogSection,
