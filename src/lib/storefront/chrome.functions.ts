@@ -78,6 +78,22 @@ export type StorefrontChrome = {
   floating: FloatingSnapshot;
   /** Offers the manager has published. Empty is the normal state. */
   offers: StorefrontOffer[];
+  /** Published Vala TV videos. Empty means the section does not render. */
+  videos: StorefrontVideo[];
+};
+
+export type StorefrontVideo = {
+  id: string;
+  title: string;
+  description: string | null;
+  url: string | null;
+  thumbnail: string | null;
+  duration: string | null;
+  category: string | null;
+  featured: boolean;
+  product_slug: string | null;
+  /** Counted from recorded views. Null when nothing has been recorded. */
+  views: number | null;
 };
 
 /* ------------------------------------------------------------- public read */
@@ -95,6 +111,24 @@ function url() {
 function admin() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
   return { apikey: key, Authorization: `Bearer ${key}` };
+}
+
+/** Published Vala TV videos. Empty on any failure. */
+async function liveVideos(): Promise<unknown[]> {
+  const base = url();
+  if (!base) return [];
+  try {
+    const res = await fetch(`${base}/rest/v1/rpc/sf_vala_tv`, {
+      method: "POST",
+      headers: { ...admin(), "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as unknown;
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Published, in-window, non-seed offers. Empty on any failure. */
@@ -145,10 +179,11 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
     const now = Date.now();
     if (cached && now - cached.at < CACHE_MS) return cached.payload;
 
-    const [footer, floating, offers] = await Promise.allSettled([
+    const [footer, floating, offers, videos] = await Promise.allSettled([
       liveConfig("footer"),
       liveConfig("floating"),
       liveOffers(),
+      liveVideos(),
     ]);
 
     const payload: StorefrontChrome = {
@@ -161,6 +196,8 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
       // No published offer is the normal state, and it simply means the banner
       // shows the standing partner programmes on their own.
       offers: (offers.status === "fulfilled" ? offers.value : []) as StorefrontOffer[],
+      // Empty is the normal state and means the Vala TV section does not render.
+      videos: (videos.status === "fulfilled" ? videos.value : []) as StorefrontVideo[],
     };
     cached = { at: now, payload };
     return payload;

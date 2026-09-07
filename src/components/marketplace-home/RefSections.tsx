@@ -399,9 +399,45 @@ export const LiveActivity = () => {
   );
 };
 
+/**
+ * Published Vala TV videos, from the database.
+ *
+ * This used to read a client-side store seeded with six videos that all
+ * pointed at the same placeholder YouTube id and carried invented view counts.
+ * It reads vala_tv_videos now, through the storefront chrome the home loader
+ * already resolves, so nothing appears here that a manager has not published.
+ *
+ * On a route without the home loader there is no match and the list is empty,
+ * which the section below already treats as "do not render".
+ */
+function usePublishedVideos() {
+  const home = useMatch({ from: "/", shouldThrow: false });
+  const chrome = (home?.loaderData as { chrome?: { videos?: unknown[] } } | undefined)?.chrome;
+  const rows = Array.isArray(chrome?.videos) ? chrome.videos : [];
+  return rows.map((row) => {
+    const v = row as {
+      id?: string; title?: string; url?: string | null;
+      thumbnail?: string | null; duration?: string | null;
+      category?: string | null; views?: number | null;
+    };
+    return {
+      id: String(v.id ?? ""),
+      title: String(v.title ?? ""),
+      url: v.url ?? "",
+      thumbnail: v.thumbnail ?? "",
+      duration: v.duration ?? "",
+      category: v.category ?? "",
+      // Counted from recorded views; omitted rather than shown as a zero.
+      views: typeof v.views === "number" ? String(v.views) : "",
+      published: true,
+      order: 0,
+    };
+  });
+}
+
 // Vala TV — videos are managed from Marketplace Manager -> Growth -> Vala TV
 export const ValaTV = () => {
-  const videos = useMemo(() => listPublishedVideos(), []);
+  const videos = usePublishedVideos();
   const [playing, setPlaying] = useState<string | null>(null);
 
   if (videos.length === 0) return null;
