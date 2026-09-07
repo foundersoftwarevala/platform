@@ -2,6 +2,9 @@
 import type { ComponentType } from "react";
 
 import { DashboardSection } from "./sections/DashboardSection";
+// FaqManagerSection is the earlier editor over a browser-local store. It is
+// kept imported and unused rather than removed; FAQ now resolves to the
+// connected screen in sections/index.
 import { FaqManagerSection, ValaTvSection } from "./sections/ContentStudio";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
@@ -63,7 +66,7 @@ const designedSections: Record<string, SectionComponent> = {
   Resellers: S.ResellersSection,
   Reviews: S.ReviewsSection,
   Trust: S.TrustSection,
-  FAQ: FaqManagerSection,
+  FAQ: S.FaqSection,
   Contact: S.ContactSection,
   "QR System": S.QrSection,
 

@@ -80,6 +80,16 @@ export type StorefrontChrome = {
   offers: StorefrontOffer[];
   /** Published Vala TV videos. Empty means the section does not render. */
   videos: StorefrontVideo[];
+  /** Published FAQs, in category then position order. */
+  faqs: StorefrontFaq[];
+};
+
+export type StorefrontFaq = {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+  slug: string | null;
 };
 
 export type StorefrontVideo = {
@@ -111,6 +121,24 @@ function url() {
 function admin() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
   return { apikey: key, Authorization: `Bearer ${key}` };
+}
+
+/** Published FAQs. Empty on any failure, which leaves the section unrendered. */
+async function liveFaqs(): Promise<unknown[]> {
+  const base = url();
+  if (!base) return [];
+  try {
+    const res = await fetch(`${base}/rest/v1/rpc/sf_faqs`, {
+      method: "POST",
+      headers: { ...admin(), "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as unknown;
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Published Vala TV videos. Empty on any failure. */
@@ -179,11 +207,12 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
     const now = Date.now();
     if (cached && now - cached.at < CACHE_MS) return cached.payload;
 
-    const [footer, floating, offers, videos] = await Promise.allSettled([
+    const [footer, floating, offers, videos, faqs] = await Promise.allSettled([
       liveConfig("footer"),
       liveConfig("floating"),
       liveOffers(),
       liveVideos(),
+      liveFaqs(),
     ]);
 
     const payload: StorefrontChrome = {
@@ -198,6 +227,7 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
       offers: (offers.status === "fulfilled" ? offers.value : []) as StorefrontOffer[],
       // Empty is the normal state and means the Vala TV section does not render.
       videos: (videos.status === "fulfilled" ? videos.value : []) as StorefrontVideo[],
+      faqs: (faqs.status === "fulfilled" ? faqs.value : []) as StorefrontFaq[],
     };
     cached = { at: now, payload };
     return payload;

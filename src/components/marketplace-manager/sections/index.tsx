@@ -290,7 +290,7 @@ export function PartnersSection() {
 }
 
 // ---------- TRUST ----------
-export function TrustSection() {
+export function TrustSectionStatic() {
   const items = ["Verified Product","Verified Vendor","Verified Author","Verified Reviews","Instant Delivery","Secure Purchase"];
   return (
     <div className="px-4 py-8 md:px-8">
@@ -314,7 +314,7 @@ export function TrustSection() {
 }
 
 // ---------- REVIEWS ----------
-export function ReviewsSection() {
+export function ReviewsSectionStatic() {
   const [tab, setTab] = useState("Queue");
   return (
     <div className="px-4 py-8 md:px-8">
@@ -347,7 +347,7 @@ export function ReviewsSection() {
 }
 
 // ---------- FAQ ----------
-export function FaqSection() {
+export function FaqSectionStatic() {
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader eyebrow="FAQ Manager" title="Help Center" description="Notion-style FAQ blocks with categories and ordering." actions={<PillButton variant="primary">+ Question</PillButton>} />
@@ -504,6 +504,15 @@ export {
 // Resellers, on the reseller plans and the canonical referral engine. The
 // stand it replaces is kept above as ResellersSectionStatic.
 export { ResellerManager as ResellersSection } from "./ResellerManager";
+
+// Reviews, Trust and FAQ, on marketplace_reviews, the trust rule engine and
+// the faqs table the storefront now reads. The stands they replace are kept
+// above as ReviewsSectionStatic and TrustSectionStatic.
+export {
+  ReviewsManager as ReviewsSection,
+  TrustManager as TrustSection,
+  FaqManager as FaqSection,
+} from "./ReviewTrustFaq";
 
 // Enterprise-grade commerce (License / Downloads / Pricing / Orders / Payments / Releases)
 export {

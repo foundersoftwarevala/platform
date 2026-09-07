@@ -562,9 +562,39 @@ export const PartnerEcosystem = () => (
   </section>
 );
 
+/**
+ * Published FAQs, from the database.
+ *
+ * This used to read a client-side store seeded from a TypeScript file, which
+ * meant Marketplace Manager could edit the storefront FAQ and no visitor would
+ * ever see the change. The same twenty-eight questions now live in the faqs
+ * table, and this reads whatever is published there.
+ *
+ * On a route without the home loader there is no match and the list is empty,
+ * which the section below already treats as "do not render".
+ */
+function usePublishedFaqs() {
+  const home = useMatch({ from: "/", shouldThrow: false });
+  const chrome = (home?.loaderData as { chrome?: { faqs?: unknown[] } } | undefined)?.chrome;
+  const rows = Array.isArray(chrome?.faqs) ? chrome.faqs : [];
+  return rows.map((row) => {
+    const f = row as {
+      id?: string; question?: string; answer?: string; category?: string;
+    };
+    return {
+      id: String(f.id ?? ""),
+      question: String(f.question ?? ""),
+      answer: String(f.answer ?? ""),
+      category: String(f.category ?? "General"),
+      published: true,
+      order: 0,
+    };
+  });
+}
+
 // FAQ — content managed from Marketplace Manager -> Growth -> FAQ
 export const FaqSection = () => {
-  const faqs = useMemo(() => listPublishedFaqs(), []);
+  const faqs = usePublishedFaqs();
   const categories = useMemo(
     () => Array.from(new Set(faqs.map((f) => f.category))),
     [faqs],
