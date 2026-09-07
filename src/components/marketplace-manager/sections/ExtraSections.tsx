@@ -302,7 +302,14 @@ export function FooterSectionStatic() {
 }
 
 // ---------- FILTER MANAGER ----------
-export function FiltersSection() {
+// The real, catalogue-backed screen lives in ./StorefrontFilters.tsx and is
+// exported under this section's name below. The static version that used to
+// stand here is kept as FiltersSectionStatic: eight groups whose values were
+// typed into the file — ten categories against a catalogue holding 91 — with
+// a Switch that had no handler.
+export { StorefrontFiltersSection as FiltersSection } from "./StorefrontFilters";
+
+export function FiltersSectionStatic() {
   const groups = [
     ["Category", ["ERP", "CRM", "HRMS", "POS", "School", "Hospital", "Hotel", "Restaurant", "Real Estate", "Inventory"]],
     ["Industry", ["Healthcare", "Education", "Retail", "Hospitality", "Manufacturing", "NGO", "Finance"]],
