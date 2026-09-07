@@ -3,6 +3,10 @@ import { useParams, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, ArrowLeft, Heart, Share2, Download, ExternalLink, ShoppingCart } from "lucide-react";
 import { getPublicProduct, type PublicProduct } from "@/lib/marketplace.functions";
+import {
+  getPublishedProductContent,
+  type PublishedContent,
+} from "@/lib/marketplace-content.functions";
 import { addMarketplaceCartItem } from "@/lib/marketplace-commerce.functions";
 import { useServerFn } from "@/lib/serverFn";
 import { Button } from "@/components/ui/button";
@@ -203,6 +207,12 @@ export function ProductDetail() {
                 </div>
               </div>
             )}
+            {/* Published product content. Approved copy from the AI Content
+                Generator is written into the product record, the SEO record,
+                the keywords and the FAQ table; the long-form blocks had no
+                consumer at all until this was added, so publishing them meant
+                nothing a visitor could see. */}
+            <PublishedProductContent slug={slug} description={product.description} />
           </div>
 
           {/* Sidebar */}
@@ -272,6 +282,141 @@ export function ProductDetail() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The long-form copy this page never rendered.
+ *
+ * The route already selected `description` and `features` and drew neither, so
+ * a product with a written description showed nothing but its price and rating.
+ * This renders the product's own description alongside whatever the AI Content
+ * Generator has published for it, and labels the generated blocks as generated
+ * rather than letting them read as verified fact.
+ *
+ * Nothing here can break the page: an error or an empty answer renders nothing.
+ */
+function PublishedProductContent({
+  slug,
+  description,
+}: {
+  slug: string;
+  description?: string | null;
+}) {
+  const load = useServerFn(getPublishedProductContent);
+  const { data } = useQuery({
+    queryKey: ["product-content", slug],
+    queryFn: () => load({ data: { slug } }),
+    staleTime: 300_000,
+    retry: false,
+  });
+
+  const content = (data ?? {}) as PublishedContent;
+  const overview = content.long_description?.content || content.summary?.content || description || "";
+  const features = Array.isArray(content.features?.items)
+    ? (content.features!.items as { text?: string; source?: string }[])
+    : [];
+  const benefits = Array.isArray(content.benefits?.items)
+    ? (content.benefits!.items as string[])
+    : [];
+  const useCases = Array.isArray(content.use_cases?.items)
+    ? (content.use_cases!.items as { title?: string; description?: string }[])
+    : [];
+  const faq = Array.isArray(content.faq?.items)
+    ? (content.faq!.items as { question?: string; answer?: string }[])
+    : [];
+
+  if (!overview && !features.length && !benefits.length && !useCases.length && !faq.length) {
+    return null;
+  }
+
+  const generated = Boolean(content.long_description || content.summary);
+
+  return (
+    <div className="mb-8 space-y-8">
+      {overview && (
+        <section>
+          <div className="mb-3 flex items-center gap-3">
+            <h2 className="text-xl font-bold">About this software</h2>
+            {generated && (
+              <span className="rounded-full border border-white/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                AI generated, reviewed before publication
+              </span>
+            )}
+          </div>
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{overview}</div>
+        </section>
+      )}
+
+      {features.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-xl font-bold">Features</h2>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {features.map((f, i) => (
+              <li
+                key={i}
+                className="flex items-start justify-between gap-2 rounded-lg border border-cyan-500/20 bg-white/5 px-3 py-2 text-sm"
+              >
+                <span className="text-slate-200">{f.text}</span>
+                {f.source !== "PRODUCT_DATA" && (
+                  <span className="shrink-0 text-[10px] uppercase tracking-wider text-amber-300/80">
+                    suggested
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {benefits.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-xl font-bold">Benefits</h2>
+          <ul className="space-y-2">
+            {benefits.map((b, i) => (
+              <li key={i} className="rounded-lg border border-emerald-500/20 bg-white/5 px-3 py-2 text-sm text-slate-200">
+                {String(b)}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {useCases.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center gap-3">
+            <h2 className="text-xl font-bold">Where it is used</h2>
+            <span className="rounded-full border border-white/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+              Suggested scenarios, not customer references
+            </span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {useCases.map((u, i) => (
+              <div key={i} className="rounded-lg border border-cyan-500/20 bg-white/5 px-3 py-2">
+                <div className="text-sm font-semibold text-white">{u.title}</div>
+                {u.description && (
+                  <div className="mt-1 text-xs text-muted-foreground">{u.description}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {faq.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-xl font-bold">Questions</h2>
+          <div className="space-y-2">
+            {faq.map((f, i) => (
+              <details key={i} className="rounded-lg border border-cyan-500/20 bg-white/5 px-3 py-2">
+                <summary className="cursor-pointer text-sm font-semibold text-white">{f.question}</summary>
+                <div className="mt-2 text-sm text-slate-300">{f.answer}</div>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

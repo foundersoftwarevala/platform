@@ -561,9 +561,19 @@ export {
   SeoAutomationSection, LeadsSection,
   ProductUrlSection as ProductUrlSectionStatic,
   FaviconProtectionSection as FaviconProtectionSectionStatic,
-  AiContentSection, SecurityScanSection, QualityCheckSection, ProductAnalyticsSection,
+  AiContentSection as AiContentSectionStatic,
+  SecurityScanSection, QualityCheckSection, ProductAnalyticsSection,
   AuditLogSection,
 } from "./EnterpriseGovernance";
+
+// ---------- AI CONTENT GENERATOR ----------
+// The real screen is ./AiContentGenerator.tsx: it reads the product record,
+// runs a real provider request (and says AI PROVIDER NOT CONFIGURED when there
+// is no credential rather than inventing anything), validates, versions and
+// governs the result. The static screen it replaces is kept above as
+// AiContentSectionStatic: four invented numbers, nine toggles with no handler
+// and a preview of a product that is not in the catalogue.
+export { AiContentGenerator as AiContentSection } from "./AiContentGenerator";
 
 export {
   StorefrontTopBarSection,
