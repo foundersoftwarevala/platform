@@ -528,6 +528,11 @@ export { ModerationCenter as ModerationSection } from "./ModerationCenter";
 // above as FaviconProtectionSectionStatic.
 export { BrandProtection as FaviconProtectionSection } from "./BrandProtection";
 
+// Demo domains, on the real slug and hostname engine, the eligibility gates
+// other modules own, and provider status that cannot claim what does not
+// authenticate. The stand it replaces is kept above as DemoDomainSectionStatic.
+export { DemoDomainManager as DemoDomainSection } from "./DemoDomainManager";
+
 // Enterprise-grade commerce (License / Downloads / Pricing / Orders / Payments / Releases)
 export {
   LicenseSection, DownloadsSection, PricingSection,
@@ -539,7 +544,8 @@ export {
 // Quality gate / Product analytics / Audit log)
 export {
   AuthorApprovalSection as AuthorApprovalSectionStatic,
-  ModerationSection as ModerationSectionStatic, DemoDomainSection, DemoSandboxSection,
+  ModerationSection as ModerationSectionStatic, DemoSandboxSection,
+  DemoDomainSection as DemoDomainSectionStatic,
   ProductUrlSection, SeoAutomationSection, LeadsSection,
   FaviconProtectionSection as FaviconProtectionSectionStatic,
   AiContentSection, SecurityScanSection, QualityCheckSection, ProductAnalyticsSection,
