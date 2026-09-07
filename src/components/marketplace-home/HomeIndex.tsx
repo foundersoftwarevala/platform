@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { SiteFooter } from "@/components/marketplace-home/SiteFooter";
 import { FloatingElements } from "@/components/marketplace-home/FloatingElements";
 
@@ -3355,6 +3355,45 @@ const masterCategories = ["All", ...allMasterCategories55];
 
 
 /* ------------------------------------------------------------------ *
+ * Card composition
+ *
+ * Which fields, actions and badges a product card draws. The Product Card
+ * Manager writes this and the card reads it, so a switch there changes what a
+ * customer sees rather than only a row in a table.
+ *
+ * A null set means "not configured, or unreadable", and every `shows()` call
+ * then returns true — the card renders as it always has. A configuration
+ * lookup must never be able to strip a card down to nothing.
+ * ------------------------------------------------------------------ */
+
+export type CardComposition = {
+  visual: string[]; metadata: string[]; action: string[];
+  badge: string[]; platform: string[];
+};
+
+const CardCompositionContext = createContext<CardComposition | null>(null);
+
+export function CardCompositionProvider({
+  value, children,
+}: { value: CardComposition | null; children: ReactNode }) {
+  return (
+    <CardCompositionContext.Provider value={value}>
+      {children}
+    </CardCompositionContext.Provider>
+  );
+}
+
+/** Whether the card should draw this key. Unknown keys and no config: yes. */
+function useShows(): (kind: keyof CardComposition, key: string) => boolean {
+  const composition = useContext(CardCompositionContext);
+  return (kind, key) => {
+    const list = composition?.[kind];
+    if (!Array.isArray(list)) return true;
+    return list.includes(key);
+  };
+}
+
+/* ------------------------------------------------------------------ *
  * Layout Order
  *
  * Which sections the home page shows, and in what order, is a decision the
@@ -3410,6 +3449,15 @@ function toSectionLayout(raw: unknown): SectionLayout[] | null {
  * component is also drawn by the /marketplace layout, where there is no home
  * route match to read; there it asks for the layout itself.
  */
+/** The card composition the loader resolved, if this route carries one. */
+function useHomeComposition(): CardComposition | null {
+  const homeMatch = useMatch({ from: "/", shouldThrow: false });
+  return (
+    (homeMatch?.loaderData as { composition?: CardComposition | null } | undefined)
+      ?.composition ?? null
+  );
+}
+
 function useHomeLayout(): SectionLayout[] | null {
   const homeMatch = useMatch({ from: "/", shouldThrow: false });
   const fromServer =
@@ -3504,6 +3552,7 @@ const Index = () => {
   // Favourites survive a refresh instead of being thrown away.
   const { favorites, toggle: toggleFavorite } = useFavorites();
   const layout = useHomeLayout();
+  const composition = useHomeComposition();
 
   const filteredDemos = allDemos.filter(demo => {
     const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
@@ -3524,6 +3573,7 @@ const Index = () => {
   };
 
   return (
+    <CardCompositionProvider value={composition}>
     <div className="min-h-screen bg-gradient-to-br from-[#0a1628] via-[#0d1e36] to-[#0a1628]">
       {/* Premium Header */}
       <header className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-500 py-4 px-4 shadow-2xl">
@@ -3540,6 +3590,7 @@ const Index = () => {
         </div>
       </header>
 
+      {/* Every product card below reads the composition from here. */}
       {/* The page is composed here, not laid out here. Which of these
           sections appear, and in what order, comes from Layout Order in
           the Marketplace Manager; the order the keys are written in below
@@ -3719,6 +3770,7 @@ const Index = () => {
         ),
       })}
     </div>
+    </CardCompositionProvider>
   );
 };
 
@@ -3732,7 +3784,7 @@ const Index = () => {
  * handed the whole catalogue at once.
  * ------------------------------------------------------------------ */
 
-type CatalogCard = {
+export type CatalogCard = {
   id: string; slug: string; name: string; icon: string | null;
   industry: string | null; price: string | null; period: string | null;
   rating: number | null; downloads: string | null; badge: string | null;
@@ -3779,7 +3831,7 @@ const CARD_COLORS = [
 ];
 
 /** A catalogue row shaped like the cards this page already draws. */
-function toDemo(card: CatalogCard, index: number): Demo {
+export function toDemo(card: CatalogCard, index: number): Demo {
   return {
     id: card.id,
     name: card.name,
@@ -4030,13 +4082,14 @@ const stableSeed = (key: string) => {
   return Math.abs(h);
 };
 
-const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
+export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
   demo: Demo; 
   index: number; 
   isFavorite: boolean;
   onToggleFavorite: () => void;
 }) => {
   const Icon = demo.icon;
+  const shows = useShows();
   const [activeTab, setActiveTab] = useState<'features' | 'tech'>('features');
 
   return (
@@ -4093,17 +4146,23 @@ const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
           {/* Content */}
           <div className="p-5 flex-1 flex flex-col">
             <div className="flex items-start justify-between mb-1">
-              <h3 className="text-[17px] font-extrabold tracking-[-0.01em] text-white leading-snug">{demo.name}</h3>
+              {shows("metadata", "product-name") && (
+                <h3 className="text-[17px] font-extrabold tracking-[-0.01em] text-white leading-snug">{demo.name}</h3>
+              )}
               {demo.status === "ACTIVE" && (
                 <Badge className="bg-cyan-500/20 text-cyan-300 text-[10px] shrink-0 ml-2">
                   #{index + 1}
                 </Badge>
               )}
             </div>
-            <p className="text-cyan-300/90 text-[11px] font-semibold uppercase tracking-[0.08em] mb-2 flex items-center gap-1">
-              <Award className="h-3 w-3" /> {demo.category}
-            </p>
-            <p className="text-gray-400 text-[13px] leading-relaxed mb-3 line-clamp-2">{demo.description}</p>
+            {shows("metadata", "category") && demo.category && (
+              <p className="text-cyan-300/90 text-[11px] font-semibold uppercase tracking-[0.08em] mb-2 flex items-center gap-1">
+                <Award className="h-3 w-3" /> {demo.category}
+              </p>
+            )}
+            {shows("metadata", "short-description") && (
+              <p className="text-gray-400 text-[13px] leading-relaxed mb-3 line-clamp-2">{demo.description}</p>
+            )}
 
             {/* Interactive Tabs — drawn only when there is something to put in
                 them. Both panels were empty on every catalogue card, because
@@ -4154,7 +4213,7 @@ const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 for those the was-price and the discount are shown as before.
                 The handful priced "Custom" or "Contact" were being shown $249
                 and a 75% discount that did not apply to them. */}
-            {(() => {
+            {shows("metadata", "price") && (() => {
               const price = (demo as unknown as { price?: string }).price || LIFETIME_PRICE;
               const standard = price === LIFETIME_PRICE;
               return (
@@ -4183,11 +4242,13 @@ const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
             <div className="flex gap-2 mt-auto">
               {demo.status === "ACTIVE" ? (
                 <>
-                  <a href={demo.url} className="flex-1">
-                    <Button className="sv-btn sv-btn-cyan w-full">
-                      <Play className="h-4 w-4 mr-2" /> Live Demo
-                    </Button>
-                  </a>
+                  {shows("action", "live-demo") && (
+                    <a href={demo.url} className="flex-1">
+                      <Button className="sv-btn sv-btn-cyan w-full">
+                        <Play className="h-4 w-4 mr-2" /> Live Demo
+                      </Button>
+                    </a>
+                  )}
                   {/* There is no checkout in this project. This opens the
                       product page, where the purchase conversation actually
                       starts, instead of reporting a redirect that never
@@ -4226,11 +4287,13 @@ const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 rating?: number | null; license?: string | null; platform?: string | null;
               };
               const cells: { value: string; label: string; tone: string }[] = [];
-              if (typeof d.rating === "number" && d.rating > 0) {
+              if (shows("metadata", "rating") && typeof d.rating === "number" && d.rating > 0) {
                 cells.push({ value: d.rating.toFixed(1), label: "Rating", tone: "text-emerald-400" });
               }
-              if (d.license) cells.push({ value: d.license, label: "Licence", tone: "text-cyan-400" });
-              if (d.platform) cells.push({ value: d.platform, label: "Deployment", tone: "text-purple-400" });
+              if (shows("metadata", "license") && d.license)
+                cells.push({ value: d.license, label: "Licence", tone: "text-cyan-400" });
+              if (shows("platform", "platform-web") && d.platform)
+                cells.push({ value: d.platform, label: "Deployment", tone: "text-purple-400" });
               if (cells.length === 0) return null;
               return (
                 <div

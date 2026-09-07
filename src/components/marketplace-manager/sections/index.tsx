@@ -113,7 +113,13 @@ export function PlacementSectionStatic() {
 }
 
 // ---------- PRODUCT CARD MANAGER ----------
-export function CardsSection() {
+// The real, registry-backed Card Composition lives in ./CardComposition.tsx and
+// is exported under this section's name below. The static version that used to
+// stand here is kept as CardsSectionStatic: four hardcoded arrays of toggles
+// with no handlers and a hand-drawn preview card.
+export { CardComposition as CardsSection } from "./CardComposition";
+
+export function CardsSectionStatic() {
   const fields = [
     "Premium Thumbnail","Thumbnail Gallery","Hover Preview","3D Thumbnail",
     "Software Name","Category","Industry","Version","Last Updated","Product Status",

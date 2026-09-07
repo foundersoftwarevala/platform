@@ -35,6 +35,7 @@ export type CardField = {
   label: string;
   enabled: boolean;
   position: number;
+  priority: number;
   hint: string | null;
   requires: string | null;
   data_column: string | null;
@@ -67,6 +68,28 @@ export const setCardField = createServerFn({ method: "POST" })
         result?.reason === "not_permitted"
           ? "Changing the product card needs marketplace operator rights."
           : "The change was refused.",
+      );
+    }
+    return { ok: true as const };
+  });
+
+export const reorderCardFields = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z.object({
+      kind: z.enum(["visual", "metadata", "action", "badge", "platform"]),
+      keys: z.array(z.string().min(1).max(80)).min(1).max(60),
+    }).parse(i),
+  )
+  .handler(async ({ data }) => {
+    const result = await callAsUser<{ ok?: boolean; reason?: string }>(
+      "mm_card_reorder",
+      { p_kind: data.kind, p_keys: data.keys },
+    );
+    if (!result?.ok) {
+      throw new Error(
+        result?.reason === "not_permitted"
+          ? "Changing the product card needs marketplace operator rights."
+          : "The order was refused.",
       );
     }
     return { ok: true as const };

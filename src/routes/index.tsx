@@ -6,6 +6,7 @@ import { HomeBoundary, HomeShellFallback } from "@/components/marketplace-home/S
 import { getHomeCatalog, type HomeCatalogSeed } from "@/lib/marketplace/home-catalog.functions";
 import { getHomeLayout, type HomeLayout } from "@/lib/marketplace/home-layout.functions";
 import { getStorefrontChrome, type StorefrontChrome } from "@/lib/storefront/chrome.functions";
+import { getCardComposition, type CardComposition } from "@/lib/marketplace/card-composition.functions";
 import { absoluteUrl } from "@/lib/seo/site-url";
 
 export const Route = createFileRoute("/")({
@@ -20,14 +21,16 @@ export const Route = createFileRoute("/")({
     seed: HomeCatalogSeed;
     layout: HomeLayout;
     chrome: StorefrontChrome | null;
+    composition: CardComposition | null;
   }> => {
     // Settled rather than all, so one failing lookup cannot take the others
     // with it. The catalogue, the layout and the chrome are unrelated
     // questions and the page has a safe answer for each of them missing.
-    const [seed, layout, chrome] = await Promise.allSettled([
+    const [seed, layout, chrome, composition] = await Promise.allSettled([
       getHomeCatalog(),
       getHomeLayout(),
       getStorefrontChrome(),
+      getCardComposition(),
     ]);
     return {
       seed: seed.status === "fulfilled" ? seed.value : null,
@@ -37,6 +40,9 @@ export const Route = createFileRoute("/")({
       // Null means "nothing published or unreadable", which renders the
       // footer this build ships with and no floating elements at all.
       chrome: chrome.status === "fulfilled" ? chrome.value : null,
+      // Null renders every card field, which is what the card does without
+      // any configuration at all.
+      composition: composition.status === "fulfilled" ? composition.value : null,
     };
   },
 
