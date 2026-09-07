@@ -514,6 +514,10 @@ export {
   FaqManager as FaqSection,
 } from "./ReviewTrustFaq";
 
+// The approval workflow, on author_submissions and the publishing gate. The
+// stand it replaces is kept above as AuthorApprovalSectionStatic.
+export { ApprovalWorkflow as AuthorApprovalSection } from "./ApprovalWorkflow";
+
 // Enterprise-grade commerce (License / Downloads / Pricing / Orders / Payments / Releases)
 export {
   LicenseSection, DownloadsSection, PricingSection,
@@ -524,7 +528,7 @@ export {
 // Favicon protection / SEO automation / Leads / AI content / Security scan /
 // Quality gate / Product analytics / Audit log)
 export {
-  AuthorApprovalSection, ModerationSection, DemoDomainSection, DemoSandboxSection,
+  AuthorApprovalSection as AuthorApprovalSectionStatic, ModerationSection, DemoDomainSection, DemoSandboxSection,
   ProductUrlSection, FaviconProtectionSection, SeoAutomationSection, LeadsSection,
   AiContentSection, SecurityScanSection, QualityCheckSection, ProductAnalyticsSection,
   AuditLogSection,
