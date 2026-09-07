@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useMatch } from "@tanstack/react-router";
 
 import { usePersistentState } from "@/lib/marketplace-home/persistentState";
 
@@ -27,18 +28,43 @@ const announcements = [
   { icon: PartyPopper, title: "🎉 Mega Software Sale —", badge: "Flat $249 Lifetime", text: "Every product $249 one-time — lifetime access." },
 ];
 
+/**
+ * Offers the Offer Manager has published, ahead of the standing programmes.
+ *
+ * This component is drawn on routes without the home loader, so the match is
+ * requested without throwing; its absence just means no published offer is
+ * known and the built-in announcements rotate on their own.
+ */
+function usePublishedOffers() {
+  const home = useMatch({ from: "/", shouldThrow: false });
+  const chrome = (home?.loaderData as { chrome?: { offers?: unknown[] } } | undefined)?.chrome;
+  const offers = Array.isArray(chrome?.offers) ? chrome.offers : [];
+  return offers.map((o) => {
+    const offer = o as { title?: string; badge?: string | null; code?: string | null };
+    return {
+      icon: PartyPopper,
+      title: String(offer.title ?? ""),
+      badge: offer.badge ?? offer.code ?? "Offer",
+      text: offer.code ? `Use code ${offer.code} at checkout.` : "",
+    };
+  });
+}
+
 const FestiveBanner = () => {
   // Closing the banner used to last until the next page load.
+  const published = usePublishedOffers();
+  // Published offers first; the standing programmes keep rotating behind them.
+  const items = published.length ? [...published, ...announcements] : announcements;
   const [dismissed, setDismissed] = usePersistentState("sv.home.offerBanner.dismissed.v1", false);
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
-    const t = setInterval(() => setIndex((i) => (i + 1) % announcements.length), 4200);
+    const t = setInterval(() => setIndex((i) => (i + 1) % items.length), 4200);
     return () => clearInterval(t);
   }, []);
 
   if (dismissed) return null;
-  const item = announcements[index]!;
+  const item = items[index]!;
   const Icon = item.icon;
   const color = COLORS[index % COLORS.length];
 

@@ -65,9 +65,19 @@ export type FloatingElement = {
 
 export type FloatingSnapshot = { published: boolean; elements?: FloatingElement[] };
 
+export type StorefrontOffer = {
+  title: string;
+  badge: string | null;
+  code: string | null;
+  href: string | null;
+  ends_at: string | null;
+};
+
 export type StorefrontChrome = {
   footer: FooterSnapshot;
   floating: FloatingSnapshot;
+  /** Offers the manager has published. Empty is the normal state. */
+  offers: StorefrontOffer[];
 };
 
 /* ------------------------------------------------------------- public read */
@@ -85,6 +95,24 @@ function url() {
 function admin() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
   return { apikey: key, Authorization: `Bearer ${key}` };
+}
+
+/** Published, in-window, non-seed offers. Empty on any failure. */
+async function liveOffers(): Promise<unknown[]> {
+  const base = url();
+  if (!base) return [];
+  try {
+    const res = await fetch(`${base}/rest/v1/rpc/sf_active_offers`, {
+      method: "POST",
+      headers: { ...admin(), "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as unknown;
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
 }
 
 async function liveConfig(kind: "footer" | "floating"): Promise<Record<string, unknown>> {
@@ -117,9 +145,10 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
     const now = Date.now();
     if (cached && now - cached.at < CACHE_MS) return cached.payload;
 
-    const [footer, floating] = await Promise.allSettled([
+    const [footer, floating, offers] = await Promise.allSettled([
       liveConfig("footer"),
       liveConfig("floating"),
+      liveOffers(),
     ]);
 
     const payload: StorefrontChrome = {
@@ -129,6 +158,9 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
       floating: (floating.status === "fulfilled"
         ? floating.value
         : { published: false }) as FloatingSnapshot,
+      // No published offer is the normal state, and it simply means the banner
+      // shows the standing partner programmes on their own.
+      offers: (offers.status === "fulfilled" ? offers.value : []) as StorefrontOffer[],
     };
     cached = { at: now, payload };
     return payload;
