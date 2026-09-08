@@ -896,7 +896,15 @@ export function AiContentSection() {
    SECURITY SCAN
    ===================================================================== */
 
-export function SecurityScanSection() {
+/**
+ * The original Upload Security Scanner stand.
+ *
+ * Kept exactly as it was rather than removed. Its numbers - 1,428 scans,
+ * 14 threats blocked, a 99.1% clean rate - were written into the file, and
+ * `Upload Scanner` now resolves to sections/SecurityScanner.tsx, which
+ * counts them from security_scan_jobs and security_findings.
+ */
+export function SecurityScanSectionStatic() {
   const scans = [
     { k: "Malware", tone: "success", v: "0 detected" },
     { k: "Dangerous Scripts", tone: "success", v: "0 detected" },

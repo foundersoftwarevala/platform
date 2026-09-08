@@ -518,6 +518,11 @@ export {
 // stand it replaces is kept above as AuthorApprovalSectionStatic.
 export { ApprovalWorkflow as AuthorApprovalSection } from "./ApprovalWorkflow";
 
+// The upload scanner, on security_scan_jobs, security_findings,
+// security_quarantine and security_scanner_settings. The stand it replaces
+// is kept as SecurityScanSectionStatic.
+export { SecurityScanner as SecurityScanSection } from "./SecurityScanner";
+
 // The moderation centre, on the canonical catalogue with a real duplicate
 // scan and a purge that never destroys an order, licence, review or merge
 // record. The stand it replaces is kept above as ModerationSectionStatic.
@@ -562,7 +567,8 @@ export {
   ProductUrlSection as ProductUrlSectionStatic,
   FaviconProtectionSection as FaviconProtectionSectionStatic,
   AiContentSection as AiContentSectionStatic,
-  SecurityScanSection, QualityCheckSection, ProductAnalyticsSection,
+  SecurityScanSectionStatic,
+  QualityCheckSection, ProductAnalyticsSection,
   AuditLogSection,
 } from "./EnterpriseGovernance";
 
