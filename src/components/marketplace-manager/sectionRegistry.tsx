@@ -10,6 +10,7 @@ import { StoriesAwardsSection } from "./sections/StoriesAwards";
 import { RoleMatrix } from "./sections/RoleMatrix";
 import { AutomationConsole } from "./sections/AutomationConsole";
 import { MicroInteractions } from "./sections/MicroInteractions";
+import { MediaLibrary } from "./sections/MediaLibrary";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
 
@@ -104,7 +105,10 @@ const designedSections: Record<string, SectionComponent> = {
   // screen below keeps its eight cards, its labels and its surface chips, and
   // makes the switches and Save Configuration real.
   "Micro-Features": MicroInteractions,
-  "Media Library": S.MediaLibrarySection,
+  // S.MediaLibrarySection is the designed shell and is still exported. The
+  // screen below keeps its five tabs and its four counters, and fills them
+  // from real storage objects and the asset tables that exist.
+  "Media Library": MediaLibrary,
   "AI Providers": S.AiProvidersSection,
   API: S.ApiSection,
   Integrations: S.IntegrationsSection,

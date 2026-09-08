@@ -40,7 +40,11 @@ export type Permission =
   // marketplace.audit.view, which already exists - guarding one thing with
   // two names is how a matrix starts disagreeing with itself.
   | "marketplace.micro.view" | "marketplace.micro.edit"
-  | "marketplace.micro.manage" | "marketplace.micro.analytics";
+  | "marketplace.micro.manage" | "marketplace.micro.analytics"
+  // Section 38 of the Media brief. Its export and audit permissions are
+  // marketplace.export and marketplace.audit.view, which already exist.
+  | "marketplace.media.view" | "marketplace.media.upload"
+  | "marketplace.media.download" | "marketplace.media.manage";
 
 export const ALL_PERMISSIONS: Permission[] = [
   "marketplace.view", "marketplace.create", "marketplace.edit", "marketplace.delete",
@@ -58,6 +62,8 @@ export const ALL_PERMISSIONS: Permission[] = [
   "marketplace.automation.manage", "marketplace.backup.restore",
   "marketplace.micro.view", "marketplace.micro.edit",
   "marketplace.micro.manage", "marketplace.micro.analytics",
+  "marketplace.media.view", "marketplace.media.upload",
+  "marketplace.media.download", "marketplace.media.manage",
 ];
 
 /**
@@ -100,6 +106,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "marketplace.audit.view", "marketplace.settings.view",
     "marketplace.automation.view",
     "marketplace.micro.view", "marketplace.micro.edit", "marketplace.micro.analytics",
+    "marketplace.media.view", "marketplace.media.upload", "marketplace.media.download",
   ],
   seo: [
     "marketplace.view", "marketplace.edit",
@@ -108,6 +115,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "marketplace.audit.view", "marketplace.settings.view",
     "marketplace.automation.view",
     "marketplace.micro.view", "marketplace.micro.analytics",
+    "marketplace.media.view", "marketplace.media.download",
   ],
 };
 
@@ -147,6 +155,10 @@ export const ACTION_PERMISSION: Record<string, Permission> = {
   micro_edit: "marketplace.micro.edit",
   micro_manage: "marketplace.micro.manage",
   micro_analytics: "marketplace.micro.analytics",
+  media_view: "marketplace.media.view",
+  media_upload: "marketplace.media.upload",
+  media_download: "marketplace.media.download",
+  media_manage: "marketplace.media.manage",
 };
 
 /** Actions nobody but the owner tier may take, whatever the matrix says. */
