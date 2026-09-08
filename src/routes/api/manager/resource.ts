@@ -449,6 +449,39 @@ const RESOURCES: Record<string, Resource> = {
     order: "id.asc",
     label: "Quality Gate",
   },
+  // Vala TV. The home page reads these through sf_vala_tv; until now the only
+  // screen that could edit them wrote to browser storage, so nothing an
+  // operator typed ever left their own machine.
+  vala_tv_videos: {
+    table: "vala_tv_videos",
+    select: ["id", "title", "url", "thumbnail_url", "duration", "description",
+      "category_id", "product_id", "status", "featured", "position",
+      "language", "country", "seo_title", "seo_description",
+      "publish_at", "published_at", "created_at", "updated_at"],
+    editable: ["title", "url", "thumbnail_url", "duration", "description",
+      "category_id", "product_id", "status", "featured", "position",
+      "language", "country", "seo_title", "seo_description", "publish_at"],
+    searchable: ["title", "description"],
+    creatable: ["title", "url", "category_id", "status", "position"],
+    required: ["title"],
+    order: "position.asc",
+    retirable: true,
+    label: "Vala TV video",
+  },
+
+  vala_tv_categories: {
+    table: "vala_tv_categories",
+    select: ["id", "name", "slug", "position", "visible", "archived",
+      "created_at", "updated_at"],
+    editable: ["name", "slug", "position", "visible", "archived"],
+    searchable: ["name", "slug"],
+    creatable: ["name", "slug", "position"],
+    required: ["name"],
+    order: "position.asc",
+    retirable: true,
+    label: "Vala TV category",
+  },
+
   products: {
     table: "marketplace_products",
     select: ["id", "name", "slug", "industry_label", "price_label", "rating", "downloads_label",
