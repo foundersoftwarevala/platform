@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { resolveAction } from "@/lib/marketplace/permission-guard";
 import { loadMatrix, recordDenial, rolesOf } from "@/lib/marketplace/permission-store.server";
+import { describeCron, nextRun, parseCron, previousRun } from "@/lib/marketplace/cron";
 
 /**
  * The Automation Engine console.
@@ -240,9 +241,24 @@ const SCHEDULED = [
 async function schedulerHealth() {
   return Promise.all(
     SCHEDULED.map(async (task) => {
+      // Section 6: the expression is validated here, not taken on trust, and
+      // the times it implies are computed rather than described.
+      const cron = parseCron(task.cron);
+      const expectedLast = previousRun(task.cron);
+      const expectedNext = nextRun(task.cron);
+      const timing = {
+        cron_valid: cron.ok,
+        cron_error: cron.ok ? null : cron.error,
+        cron_description: describeCron(task.cron),
+        timezone: "UTC",
+        expected_last_run: expectedLast ? expectedLast.toISOString() : null,
+        next_run: expectedNext ? expectedNext.toISOString() : null,
+      };
+
       if (!task.evidence || !task.column) {
         return {
           ...task,
+          ...timing,
           last_seen: null,
           age_minutes: null,
           state: "NO_SIGNAL",
@@ -254,21 +270,30 @@ async function schedulerHealth() {
       );
       const seen = latest[0]?.[task.column] as string | undefined;
       if (!seen) {
-        return { ...task, last_seen: null, age_minutes: null, state: "NEVER_RAN", note: `${task.evidence} has no rows.` };
+        return {
+          ...task, ...timing, last_seen: null, age_minutes: null,
+          state: "NEVER_RAN", note: `${task.evidence} has no rows.`,
+        };
       }
       const age = Math.round((Date.now() - Date.parse(seen)) / 60000);
-      // Two missed cadences before it is called missed, so one slow pass is
-      // not an alarm.
-      const state = age > task.everyMinutes * 2 + 2 ? "MISSED" : "HEALTHY";
+
+      // Section 42, with an actual expected time. One cadence of grace, so a
+      // pass that is still running is not called missed a second after it was
+      // due.
+      const dueBy = expectedLast
+        ? expectedLast.getTime() - task.everyMinutes * 60000
+        : null;
+      const state = dueBy !== null && Date.parse(seen) < dueBy ? "MISSED" : "HEALTHY";
       return {
         ...task,
+        ...timing,
         last_seen: seen,
         age_minutes: age,
         state,
         note:
           state === "MISSED"
-            ? `Expected every ${task.everyMinutes} minute(s); the newest row in ${task.evidence} is ${age} minutes old.`
-            : `Newest row in ${task.evidence} is ${age} minute(s) old.`,
+            ? `It should have run at ${expectedLast?.toISOString().slice(11, 16)} UTC. The newest row in ${task.evidence} is ${age} minutes old.`
+            : `Newest row in ${task.evidence} is ${age} minute(s) old. Next due ${expectedNext?.toISOString().slice(11, 16)} UTC.`,
       };
     }),
   );
@@ -490,6 +515,7 @@ export const Route = createFileRoute("/api/marketplace/automation")({
         if (!gate.ok) return gate.response;
         if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
 
+        const wantsCsv = new URL(request.url).searchParams.get("format") === "csv";
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
         const may = (action: string) => {
@@ -506,6 +532,52 @@ export const Route = createFileRoute("/api/marketplace/automation")({
             { ok: false, reason: "permission_denied", message: "Permission marketplace.automation.view is required." },
             { status: 403 },
           );
+        }
+
+        // Section 19: an automation health report, from the same rows the
+        // screen counts. Export permission, not merely being an operator.
+        if (wantsCsv) {
+          const exporter = resolveAction({
+            roles: caller.roles, action: "export", permissions: matrix,
+          });
+          if (!exporter.visible || !exporter.enabled) {
+            await recordDenial(request, {
+              action: "automation_report", permission: "marketplace.export",
+              roles: caller.roles, entityType: "automation", recordId: null,
+              why: `${exporter.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
+            });
+            return Response.json(
+              { ok: false, reason: "permission_denied", message: exporter.reason },
+              { status: 403 },
+            );
+          }
+          const [reportJobs, reportSchedule] = await Promise.all([collectJobs(), schedulerHealth()]);
+          const cell = (v: unknown) => {
+            const text = v === null || v === undefined ? "" : String(v);
+            return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+          };
+          const lines: string[] = [];
+          lines.push("section,name,state,detail,at");
+          for (const t of reportSchedule) {
+            lines.push([
+              "schedule", cell(t.name), cell(t.state), cell(t.note), cell(t.last_seen),
+            ].join(","));
+          }
+          for (const j of reportJobs) {
+            lines.push([
+              "job", cell(j.automation), cell(j.status),
+              cell(j.error ?? j.summary ?? ""), cell(j.started_at),
+            ].join(","));
+          }
+          await auditRun(request, "Automation health report exported",
+            { rows: lines.length - 1, jobs: reportJobs.length, schedules: reportSchedule.length },
+            "Automation health exported as CSV from the Marketplace Manager.");
+          return new Response(lines.join("\n"), {
+            headers: {
+              "Content-Type": "text/csv; charset=utf-8",
+              "Content-Disposition": `attachment; filename="automation-health-${new Date().toISOString().slice(0, 10)}.csv"`,
+            },
+          });
         }
 
         const [jobs, scheduler, defs, ai, backupJobs, backupSchedules] = await Promise.all([

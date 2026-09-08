@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Clock, Loader2, Play, RefreshCw, Zap } from "lucide-react";
+import { AlertTriangle, Clock, Download, Loader2, Play, RefreshCw, Search, X, Zap } from "lucide-react";
 
 import { authHeaders } from "@/lib/auth/operator-fetch";
 import { Card, LoadFailure, PageHeader, PillButton, StatCard, SubNav } from "../ui";
@@ -32,6 +32,8 @@ type Scheduled = {
   id: string; name: string; cron: string; everyMinutes: number; what: string;
   evidence: string | null; last_seen: string | null; age_minutes: number | null;
   state: string; note: string;
+  cron_valid: boolean; cron_error: string | null; cron_description: string;
+  timezone: string; expected_last_run: string | null; next_run: string | null;
 };
 
 type Definition = {
@@ -119,6 +121,10 @@ export function AutomationConsole() {
   const [tab, setTab] = useState(TABS[0]);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [jobQuery, setJobQuery] = useState("");
+  const [jobStatus, setJobStatus] = useState("all");
+  const [jobSource, setJobSource] = useState("all");
+  const [openJob, setOpenJob] = useState<Job | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -168,6 +174,53 @@ export function AutomationConsole() {
     [load],
   );
 
+  /** Section 19. The same rows the screen counts, as a file. */
+  const exportHealth = useCallback(async () => {
+    setBusy("report");
+    setNote(null);
+    try {
+      const response = await fetch("/api/marketplace/automation?format=csv", {
+        headers: await authHeaders(),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        setNote(payload?.message ?? payload?.error ?? `The report was refused (${response.status}).`);
+        return;
+      }
+      const blob = await response.blob();
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = `automation-health-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(href);
+      setNote("Automation health exported. The export is on the audit trail.");
+    } catch (cause) {
+      setNote(cause instanceof Error ? cause.message : "The report could not be downloaded.");
+    } finally {
+      setBusy(null);
+    }
+  }, []);
+
+  /** Sections 31 and 32, over the executions rather than over everything. */
+  const executions = useMemo(() => {
+    if (!data) return [];
+    return data.jobs.filter((j) => !data.metrics.excluded.sources.includes(j.source));
+  }, [data]);
+
+  const visibleJobs = useMemo(() => {
+    const q = jobQuery.trim().toLowerCase();
+    return executions.filter((j) => {
+      if (jobStatus !== "all" && j.status !== jobStatus) return false;
+      if (jobSource !== "all" && j.source !== jobSource) return false;
+      if (!q) return true;
+      return [j.automation, j.source, j.status, j.summary, j.error, j.target, j.job_id]
+        .some((v) => String(v ?? "").toLowerCase().includes(q));
+    });
+  }, [executions, jobQuery, jobStatus, jobSource]);
+
   const featureState = useMemo(() => {
     if (!data) return {};
     const translate = data.ai.routing.find((r) => r.modality === "translate");
@@ -215,7 +268,14 @@ export function AutomationConsole() {
         eyebrow="Automation Engine"
         title="Automation"
         description="Every figure here is a count of rows that exist. Definitions nothing executes are listed separately and counted in nothing."
-        actions={<PillButton onClick={load}><RefreshCw className="mr-1 h-3.5 w-3.5" /> Refresh</PillButton>}
+        actions={
+          <>
+            <PillButton onClick={exportHealth} disabled={busy === "report"}>
+              <Download className="mr-1 h-3.5 w-3.5" /> Export health
+            </PillButton>
+            <PillButton onClick={load}><RefreshCw className="mr-1 h-3.5 w-3.5" /> Refresh</PillButton>
+          </>
+        }
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -278,6 +338,41 @@ export function AutomationConsole() {
             <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Recent jobs — real executions
             </div>
+            <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
+              <div className="relative min-w-[200px] flex-1">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <input
+                  value={jobQuery}
+                  onChange={(e) => setJobQuery(e.target.value)}
+                  placeholder="Search a job, an automation or an error"
+                  aria-label="Search jobs"
+                  className="w-full rounded-md border border-border bg-background py-2 pl-8 pr-3 text-sm"
+                />
+              </div>
+              <select
+                value={jobStatus} onChange={(e) => setJobStatus(e.target.value)}
+                aria-label="Filter by status"
+                className="rounded-md border border-border bg-background px-2 py-2 text-sm"
+              >
+                <option value="all">Any status</option>
+                {[...new Set(executions.map((j) => j.status))].map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+              <select
+                value={jobSource} onChange={(e) => setJobSource(e.target.value)}
+                aria-label="Filter by automation"
+                className="rounded-md border border-border bg-background px-2 py-2 text-sm"
+              >
+                <option value="all">Any automation</option>
+                {[...new Set(executions.map((j) => j.source))].map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+              <span className="text-xs text-muted-foreground">
+                {visibleJobs.length} of {executions.length}
+              </span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-left text-xs text-muted-foreground">
@@ -288,8 +383,12 @@ export function AutomationConsole() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.jobs.filter((j) => !m.excluded.sources.includes(j.source)).map((j) => (
-                    <tr key={j.job_id} className="border-b border-border/60">
+                  {visibleJobs.map((j) => (
+                    <tr
+                      key={j.job_id}
+                      onClick={() => setOpenJob(j)}
+                      className="cursor-pointer border-b border-border/60 hover:bg-muted/40"
+                    >
                       <td className="px-4 py-2">{j.automation}</td>
                       <td className="px-4 py-2"><Tag value={j.status} /></td>
                       <td className="whitespace-nowrap px-4 py-2 text-xs text-muted-foreground">{when(j.started_at)}</td>
@@ -300,8 +399,58 @@ export function AutomationConsole() {
                   ))}
                 </tbody>
               </table>
+              {visibleJobs.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">No job matches those filters.</div>
+              ) : null}
             </div>
           </Card>
+
+          {/* Section 35: opening a job shows what it did, not just that it
+              happened. Nothing here is computed for display - every field is
+              the field the job table holds. */}
+          {openJob ? (
+            <Card className="overflow-hidden p-0">
+              <div className="flex items-center justify-between border-b border-border px-4 py-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Job {openJob.job_id.slice(0, 8)}
+                </div>
+                <button onClick={() => setOpenJob(null)} aria-label="Close job details" className="text-muted-foreground hover:text-foreground">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <dl className="grid gap-x-6 gap-y-2 p-4 text-sm sm:grid-cols-2">
+                {[
+                  ["Automation", openJob.automation],
+                  ["Source table", openJob.source],
+                  ["Trigger", openJob.trigger],
+                  ["Target", openJob.target ?? "—"],
+                  ["Status", openJob.status],
+                  ["Attempt", String(openJob.attempt)],
+                  ["Created", when(openJob.created_at)],
+                  ["Started", when(openJob.started_at)],
+                  ["Finished", when(openJob.finished_at)],
+                  ["Duration", dur(openJob.duration_ms)],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex justify-between gap-3 border-b border-border/40 pb-1">
+                    <dt className="text-muted-foreground">{k}</dt>
+                    <dd className="text-right">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+              {openJob.error ? (
+                <div className="border-t border-border px-4 py-3">
+                  <div className="text-xs font-medium text-rose-500">Error</div>
+                  <div className="mt-1 text-sm text-muted-foreground">{openJob.error}</div>
+                </div>
+              ) : null}
+              {openJob.summary ? (
+                <div className="border-t border-border px-4 py-3">
+                  <div className="text-xs font-medium text-muted-foreground">Result</div>
+                  <div className="mt-1 text-sm">{openJob.summary}</div>
+                </div>
+              ) : null}
+            </Card>
+          ) : null}
 
           <Card className="overflow-hidden p-0">
             <div className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -437,7 +586,14 @@ export function AutomationConsole() {
                   <span>{when(s.last_seen)}</span>
                 </div>
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">{s.note}</div>
+              <div className="mt-2 grid gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-3">
+                <span>Cadence: {s.cron_description}</span>
+                <span>Next run: {when(s.next_run)}</span>
+                <span>Timezone: {s.timezone}</span>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {s.cron_valid ? s.note : `This expression does not parse: ${s.cron_error}`}
+              </div>
             </div>
           ))}
         </Card>
