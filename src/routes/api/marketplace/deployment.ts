@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { readFile, readdir, stat } from "node:fs/promises";
+import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { createFileRoute } from "@tanstack/react-router";
@@ -155,6 +157,216 @@ function providerCredentials() {
   ];
 }
 
+/**
+ * What this repository is, read from its own files.
+ *
+ * Section 39 asks for detection from actual repository files, and section 7
+ * says never to invent a Node version. Everything below is either found in a
+ * file or reported as absent; nothing is guessed to fill a field.
+ */
+async function detectBuildConfig() {
+  const read = async (name: string): Promise<string | null> => {
+    try {
+      return await readFile(join(REPO_DIR, name), "utf8");
+    } catch {
+      return null;
+    }
+  };
+  const exists = async (name: string): Promise<boolean> => {
+    try {
+      await stat(join(REPO_DIR, name));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const [pkgRaw, nvmrc, nodeVersionFile] = await Promise.all([
+    read("package.json"), read(".nvmrc"), read(".node-version"),
+  ]);
+
+  let pkg: Record<string, unknown> = {};
+  try {
+    pkg = pkgRaw ? (JSON.parse(pkgRaw) as Record<string, unknown>) : {};
+  } catch {
+    pkg = {};
+  }
+  const scripts = (pkg.scripts ?? {}) as Record<string, string>;
+  const deps = {
+    ...((pkg.dependencies ?? {}) as Record<string, string>),
+    ...((pkg.devDependencies ?? {}) as Record<string, string>),
+  };
+
+  // Framework, from what is actually installed rather than from a guess at the
+  // project's name.
+  const framework =
+    "@tanstack/react-start" in deps ? "TanStack Start"
+      : "next" in deps ? "Next.js"
+        : "nuxt" in deps ? "Nuxt"
+          : "astro" in deps ? "Astro"
+            : "vite" in deps ? "Vite"
+              : "react" in deps ? "React" : null;
+
+  const [hasPnpm, hasYarn, hasNpm, hasBun] = await Promise.all([
+    exists("pnpm-lock.yaml"), exists("yarn.lock"),
+    exists("package-lock.json"), exists("bun.lockb"),
+  ]);
+  const packageManager =
+    (pkg.packageManager as string | undefined) ??
+    (hasPnpm ? "pnpm" : hasYarn ? "yarn" : hasBun ? "bun" : hasNpm ? "npm" : null);
+
+  // Section 7: declared and running are different facts and both are given.
+  const engines = (pkg.engines ?? {}) as Record<string, string>;
+  const declaredNode =
+    nvmrc?.trim() || nodeVersionFile?.trim() || engines.node || null;
+
+  // Which output directory is actually on disk, with its size.
+  const candidates = [".output", "dist", "build", "out", ".next", "public"];
+  const found: { dir: string; bytes: number | null }[] = [];
+  for (const dir of candidates) {
+    if (!(await exists(dir))) continue;
+    let bytes: number | null = null;
+    try {
+      const entries = await readdir(join(REPO_DIR, dir), { withFileTypes: true });
+      bytes = entries.length;
+    } catch {
+      bytes = null;
+    }
+    found.push({ dir, bytes });
+  }
+
+  return {
+    framework,
+    package_manager: packageManager,
+    package_manager_evidence: {
+      "pnpm-lock.yaml": hasPnpm, "yarn.lock": hasYarn,
+      "package-lock.json": hasNpm, "bun.lockb": hasBun,
+    },
+    node: {
+      declared: declaredNode,
+      declared_in: nvmrc ? ".nvmrc" : nodeVersionFile ? ".node-version" : engines.node ? "package.json engines" : null,
+      running: process.version,
+      note: declaredNode
+        ? null
+        : "This repository does not declare a Node version — no .nvmrc, no .node-version and no engines field. The running version is reported instead of a number invented to fill the field.",
+    },
+    build_command: scripts.build ?? null,
+    build_scripts: Object.fromEntries(
+      Object.entries(scripts).filter(([k]) => /^(build|dev|start|preview)/.test(k)),
+    ),
+    output_dir: found[0]?.dir ?? null,
+    output_candidates: found,
+    detected_from: "package.json, lockfiles and the working tree on the host",
+  };
+}
+
+/**
+ * The environment this application actually needs.
+ *
+ * Scanned out of the source rather than typed into a list, so a variable that
+ * a new endpoint starts reading turns up here without anybody remembering to
+ * add it. Names and whether they are set - never a value.
+ */
+async function requiredEnvironment() {
+  const names = new Set<string>();
+  const walk = async (dir: string, depth = 0): Promise<void> => {
+    if (depth > 6) return;
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(full, depth + 1);
+      } else if (/\.(ts|tsx)$/.test(entry.name)) {
+        try {
+          const text = await readFile(full, "utf8");
+          for (const match of text.matchAll(/process\.env\.([A-Z][A-Z0-9_]{2,})/g)) {
+            names.add(match[1]);
+          }
+        } catch {
+          /* unreadable file, skipped */
+        }
+      }
+    }
+  };
+  await walk(join(REPO_DIR, "src"));
+
+  return [...names].sort().map((name) => ({
+    name,
+    set: Boolean(process.env[name]?.trim()),
+    secret: /KEY|TOKEN|SALT|SECRET|PASSWORD/.test(name),
+  }));
+}
+
+/* --------------------------------------------------------------- logs */
+
+/**
+ * Sanitise before anything leaves the server.
+ *
+ * Two passes. Known secret values are replaced by the name of the variable
+ * they came from, which catches a credential however it was printed. Then
+ * anything token-shaped is masked, which catches the ones this process never
+ * knew about. Sections 12 and 37 both hang on this function, so it runs on
+ * every line without exception.
+ */
+function sanitise(text: string): string {
+  let out = text;
+  for (const [name, value] of Object.entries(process.env)) {
+    if (!value || value.length < 12) continue;
+    if (!/KEY|TOKEN|SALT|SECRET|PASSWORD|DSN|URL/.test(name)) continue;
+    out = out.split(value).join(`[redacted:${name}]`);
+  }
+  return out
+    .replace(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}/g, "[redacted:jwt]")
+    .replace(/\b(sb_secret|sb_publishable|sk_live|sk_test|rk_live|ghp|gho|glpat)_[A-Za-z0-9_-]{8,}/g, "[redacted:token]")
+    .replace(/(authorization|apikey|api-key|cookie)(\s*[:=]\s*)\S+/gi, "$1$2[redacted]");
+}
+
+const LOG_FILES = [
+  { name: "out", path: "/root/.pm2/logs/softwarevala-staging-out.log" },
+  { name: "error", path: "/root/.pm2/logs/softwarevala-staging-error.log" },
+];
+
+/**
+ * The runtime log, from the process manager that is the build and runtime
+ * system here. No provider streams logs into this application, so section 16's
+ * empty state is the honest answer for a build log and this is what does exist.
+ */
+async function runtimeLogs(lines: number) {
+  const out: { file: string; entries: { severity: string; message: string }[]; error?: string }[] = [];
+  for (const file of LOG_FILES) {
+    try {
+      const text = await readFile(file.path, "utf8");
+      const tail = sanitise(text)
+        // Strip terminal colour so the panel shows text rather than escapes.
+        .replace(/\u001b\[[0-9;]*m/g, "")
+        .split("\n")
+        .filter((l) => l.trim())
+        .slice(-lines);
+      out.push({
+        file: file.name,
+        entries: tail.map((message) => ({
+          severity: /error|fatal|exception/i.test(message) ? "ERROR"
+            : /warn/i.test(message) ? "WARN"
+              : /success|ready|listening/i.test(message) ? "SUCCESS" : "INFO",
+          message,
+        })),
+      });
+    } catch (error) {
+      out.push({
+        file: file.name, entries: [],
+        error: error instanceof Error ? error.message : "unreadable",
+      });
+    }
+  }
+  return out;
+}
+
 /** Section 21: availability checked by requesting it, not assumed. */
 async function healthCheck(target: string) {
   const started = Date.now();
@@ -234,7 +446,20 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
           );
         }
 
-        const [repo, instances, deployments, demoDeployments, demoDomains, history, health] =
+        const panel = new URL(request.url).searchParams.get("panel");
+        if (panel === "logs") {
+          const lines = Math.min(500, Math.max(20, Number(new URL(request.url).searchParams.get("lines") ?? 120)));
+          return Response.json({
+            ok: true,
+            source: "pm2",
+            what:
+              "These are the process manager's own logs for the running application. No deployment provider streams build logs here, so there are none to show; section 16's empty state is the honest answer for a build log.",
+            sanitised: true,
+            logs: await runtimeLogs(lines),
+          });
+        }
+
+        const [repo, instances, deployments, demoDeployments, demoDomains, history, health, buildConfig, requiredEnv] =
           await Promise.all([
             repository(),
             rows<Record<string, unknown>>(
@@ -249,6 +474,8 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
               "marketplace_audit_logs?select=action,actor,actor_role,reason,created_at&entity_type=eq.deployment&order=created_at.desc&limit=20",
             ),
             Promise.all(DOMAINS.map(healthCheck)),
+            detectBuildConfig(),
+            requiredEnvironment(),
           ]);
 
         const credentials = providerCredentials();
@@ -289,6 +516,8 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
             repo_dir: REPO_DIR,
           },
           repository: repo,
+          build_config: buildConfig,
+          required_environment: requiredEnv,
           providers: credentials,
           environment,
           domains: health.map((h) => ({
@@ -315,6 +544,12 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
             },
             health_check: { available: true, reason: null },
             repository_read: { available: true, reason: null },
+            config_detection: { available: true, reason: null },
+            runtime_logs: {
+              available: true,
+              reason:
+                "Logs from the process manager that runs this application, sanitised. Not build logs: no provider produces those here.",
+            },
           },
           permissions: { view: true, check: may("settings_manage"), export: may("export") },
         });
@@ -349,11 +584,57 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
           );
         }
 
+        /**
+         * Section 14, run for real.
+         *
+         * Every gate is checked and the answer is the answer; the run stops at
+         * the provider gate because that is where it genuinely stops. Reporting
+         * a deployment as started when no provider can receive it would be the
+         * one thing this brief forbids most plainly.
+         */
+        if (body.action === "validate") {
+          const [repo, config, required] = await Promise.all([
+            repository(), detectBuildConfig(), requiredEnvironment(),
+          ]);
+          const providers = providerCredentials();
+          const target = providers.find((p) => p.kind === "target" && p.connectable) ?? null;
+          const missingRequired = required.filter((v) => !v.set);
+
+          const gates = [
+            { gate: "Repository exists", pass: repo.connected, detail: repo.remote ?? "no git remote" },
+            { gate: "Provider connected", pass: providers.some((p) => p.kind === "git" && p.connectable), detail: "No GITHUB_TOKEN or GITLAB_TOKEN is set. The checkout is readable on the host, but no provider API can be called." },
+            { gate: "Branch exists", pass: Boolean(repo.current_branch), detail: repo.current_branch ?? "no branch" },
+            { gate: "Build command", pass: Boolean(config.build_command), detail: config.build_command ?? "none in package.json" },
+            { gate: "Output directory", pass: Boolean(config.output_dir), detail: config.output_dir ?? "none on disk" },
+            { gate: "Required environment", pass: missingRequired.length === 0, detail: missingRequired.length ? `${missingRequired.length} of ${required.length} not set: ${missingRequired.slice(0, 6).map((v) => v.name).join(", ")}${missingRequired.length > 6 ? "…" : ""}` : `all ${required.length} set` },
+            { gate: "Working tree clean", pass: repo.working_tree_clean, detail: repo.working_tree_clean ? "clean" : `${repo.uncommitted_files} uncommitted file(s)` },
+            { gate: "Deployment target connected", pass: Boolean(target), detail: target ? target.name : "None of Vercel, Netlify, Railway or Cloudflare has a usable credential." },
+          ];
+
+          const failed = gates.filter((g) => !g.pass);
+          await audit(request, "Deployment validation", { gates, failed: failed.length },
+            failed.length === 0
+              ? "Every pre-deployment gate passed."
+              : `Validation stopped: ${failed.map((g) => g.gate).join(", ")}.`);
+
+          return Response.json({
+            ok: true,
+            action: "validate",
+            gates,
+            passed: gates.length - failed.length,
+            failed: failed.length,
+            can_deploy: failed.length === 0,
+            message: failed.length === 0
+              ? "Every gate passed."
+              : `Deployment would stop here. ${failed.length} gate(s) did not pass, and nothing was started.`,
+          });
+        }
+
         if (body.action !== "health_check") {
           return Response.json(
             {
               ok: false, reason: "unsupported_action",
-              message: "Only health_check runs from here. Deploying and rolling back need a provider credential this environment does not have, and the real pipeline runs on the host.",
+              message: "Only health_check and validate run from here. Deploying and rolling back need a provider credential this environment does not have, and the real pipeline runs on the host.",
             },
             { status: 400 },
           );
