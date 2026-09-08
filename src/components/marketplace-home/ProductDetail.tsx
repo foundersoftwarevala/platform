@@ -31,6 +31,22 @@ export function ProductDetail() {
       queryClient.invalidateQueries({ queryKey: ["marketplace-cart"] });
       void navigate({ to: "/checkout" });
     },
+    // The cart belongs to a signed-in buyer, so this refuses for anyone who is
+    // not. It used to refuse silently: the button did nothing at all and the
+    // visitor had no way to know why. Send them to sign in and bring them back
+    // to this product afterwards.
+    onError: (error: Error) => {
+      const message = String(error?.message ?? "");
+      if (/unauthor|sign in|jwt|not authenticated|401/i.test(message)) {
+        toast.error("Please sign in to buy.");
+        void navigate({
+          to: "/login",
+          search: { redirect: `/marketplace/product/${slug}` } as never,
+        });
+        return;
+      }
+      toast.error(message || "That did not work. Nothing was added to your cart.");
+    },
   });
 
   const { data, isLoading, error } = useQuery({
