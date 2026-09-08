@@ -171,7 +171,16 @@ export function CardsSectionStatic() {
 }
 
 // ---------- PRODUCT ACTION MANAGER ----------
-export function ActionsSection() {
+/**
+ * The original action layer stand.
+ *
+ * Kept as it was. Ten actions, each with a switch hardcoded on and wired to
+ * nothing, under a description promising enable, disable, reorder and theme -
+ * none of which did anything. `Actions` now resolves to ./ActionLayer.tsx,
+ * which stores the registry in system_settings and resolves it through one
+ * function.
+ */
+export function ActionsSectionStatic() {
   const actions = [
     ["View Details", Eye],["Buy Now", ShoppingCart],["Add to Cart", ShoppingCart],
     ["Wishlist", Heart],["Compare", TrendingUp],["Share", Share2],["Notify Me", Bell],
@@ -539,6 +548,10 @@ export { ProductAnalytics as ProductAnalyticsSection } from "./ProductAnalytics"
 // Activity, audit and version history, read from marketplace_audit_logs. The
 // stand it replaces is kept as AuditLogSectionStatic.
 export { AuditHistory as AuditLogSection } from "./AuditHistory";
+
+// The action layer, stored in system_settings and resolved by one function.
+// The stand it replaces is kept above as ActionsSectionStatic.
+export { ActionLayer as ActionsSection } from "./ActionLayer";
 
 // The moderation centre, on the canonical catalogue with a real duplicate
 // scan and a purge that never destroys an order, licence, review or merge
