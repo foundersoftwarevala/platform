@@ -70,6 +70,32 @@ export function ProductDetail() {
     initialData: seededProduct as never,
   });
 
+  // A card's Buy Now arrives here as ?buy=1. Run the page's own Add to cart
+  // once, then strip the marker so a refresh cannot add the same product
+  // twice. Everything after this - the sign-in redirect, the move to
+  // /checkout - is the mutation's existing behaviour.
+  const [buyStarted, setBuyStarted] = useState(false);
+  useEffect(() => {
+    if (buyStarted) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("buy") !== "1") return;
+    const product = (data as { id?: string } | undefined) ?? undefined;
+    if (!product?.id) return;
+    setBuyStarted(true);
+    params.delete("buy");
+    const rest = params.toString();
+    window.history.replaceState(
+      {},
+      "",
+      window.location.pathname + (rest ? `?${rest}` : ""),
+    );
+    cartMutation.mutate(product.id);
+    // cartMutation is stable for the life of the component; data and the guard
+    // are what decide whether this runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, buyStarted]);
+
   useEffect(() => {
     if (!data?.product) return;
     const seo = data.seo;

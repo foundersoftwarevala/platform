@@ -4353,22 +4353,33 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 Layer - whether the marketplace offers the action at all. A
                 second switch here would be the duplicate the brief warns
                 about, so there is none: allowed() is the resolver's answer. */}
+            {(() => {
+              // The card's own product page, and the demo it actually has.
+              // demo.url is the product page for catalogue cards and a /demo
+              // path for the seeded ones, so both are honoured.
+              const d = demo as unknown as {
+                url?: string; href?: string; slug?: string;
+                hasDemo?: boolean; demoUrl?: string | null;
+              };
+              const productHref = d.href ?? d.url ?? (d.slug ? `/marketplace/product/${d.slug}` : "#");
+              const demoHref = d.demoUrl ?? (d.hasDemo ? productHref : d.url && d.url.startsWith("/demo/") ? d.url : null);
+              const buyHref = `${productHref}${productHref.includes("?") ? "&" : "?"}buy=1`;
+              return (
             <div className="flex gap-2 mt-auto">
               {demo.status === "ACTIVE" ? (
                 <>
-                  {shows("action", "live-demo") && allowed("LIVE_DEMO") && (
-                    <a href={demo.url} className="flex-1">
+                  {/* Only offered when there is a demo to open. */}
+                  {shows("action", "live-demo") && allowed("LIVE_DEMO") && demoHref && (
+                    <a href={demoHref} className="flex-1" target={demoHref.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
                       <Button className="sv-btn sv-btn-cyan w-full">
                         <Play className="h-4 w-4 mr-2" /> Live Demo
                       </Button>
                     </a>
                   )}
-                  {/* There is no checkout in this project. This opens the
-                      product page, where the purchase conversation actually
-                      starts, instead of reporting a redirect that never
-                      happened. */}
+                  {/* Goes to the product page ready to buy. The Add to cart
+                      mutation and the sign-in redirect already live there. */}
                   {allowed("BUY_NOW") && (
-                    <a href={demo.url} className="flex-1">
+                    <a href={buyHref} className="flex-1">
                       <Button className="sv-btn sv-btn-emerald w-full">
                         <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
                       </Button>
@@ -4378,13 +4389,13 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
               ) : (
                 <>
                   {allowed("VIEW_DETAILS") && (
-                    <a href={demo.url} className="flex-1">
+                    <a href={productHref} className="flex-1">
                       <Button className="sv-btn sv-btn-cyan w-full">
                         <Eye className="h-4 w-4 mr-2" /> View details
                       </Button>
                     </a>
                   )}
-                  <a href={demo.url} className="flex-1">
+                  <a href={buyHref} className="flex-1">
                     <Button className="sv-btn sv-btn-emerald w-full">
                       <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
                     </Button>
@@ -4392,6 +4403,8 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 </>
               )}
             </div>
+              );
+            })()}
             
             {/* Facts the catalogue actually holds.
                 This strip used to show a client count, a rating and a delivery
