@@ -228,6 +228,33 @@ export const setApprovalSla = createServerFn({ method: "POST" })
     callAsUser("mm_approval_sla_set", { p_patch: data }),
   );
 
+/**
+ * Record that approval records left the console.
+ *
+ * Section 31 asks for the export itself to be auditable. It is written through
+ * mm_audit into marketplace_audit_logs, which is append-only, so the fact that
+ * somebody took a copy of the queue is as permanent as the decisions in it.
+ */
+export const logApprovalExport = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z.object({
+      rows: z.number().int().min(0).max(100000),
+      status: z.string().max(40).optional(),
+      search: z.string().max(120).optional(),
+    }).parse(i),
+  )
+  .handler(async ({ data }): Promise<{ ok: boolean; id?: string }> => {
+    const id = await callAsUser<string>("mm_audit", {
+      p_action: "Approval Records Exported",
+      p_entity_type: "author_submission",
+      p_entity_id: null,
+      p_before: null,
+      p_after: { rows: data.rows, status: data.status ?? "all", search: data.search ?? "" },
+      p_reason: "CSV export from the Author Approval console",
+    });
+    return { ok: true, id };
+  });
+
 /** Find and escalate SLA breaches, from the submissions' own timestamps. */
 export const runSlaSweep = createServerFn({ method: "POST" }).handler(
   async (): Promise<{

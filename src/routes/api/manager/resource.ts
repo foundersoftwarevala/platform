@@ -104,6 +104,18 @@ const RESOURCES: Record<string, Resource> = {
     creatable: ["demo_url_id", "action", "actor_email", "metadata"],
     required: ["action"],
   },
+  // The approval trail. Append-only in the database and read-only here:
+  // a history that could be edited from a console is not a history.
+  approval_history: {
+    table: "author_approval_history",
+    select: ["id", "submission_id", "revision", "action", "from_status", "to_status",
+      "actor_id", "actor_role", "reason", "comment", "created_at"],
+    editable: [],
+    searchable: ["action", "from_status", "to_status", "reason"],
+    order: "created_at.desc",
+    label: "Approval history",
+  },
+
   /* ----------------------------------------------------------------
      The tables behind the sections that used to draw hardcoded arrays.
      Columns come from the database's own schema. Money, audit trails and

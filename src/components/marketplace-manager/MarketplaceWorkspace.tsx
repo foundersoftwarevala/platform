@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bot } from "lucide-react";
 
 import { Toaster } from "@/components/ui/sonner";
@@ -17,6 +17,14 @@ export function MarketplaceWorkspace() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [active, setActive] = useState("Dashboard");
   const [aiOpen, setAiOpen] = useState(false);
+
+  // A section can ask for the assistant that is already mounted here,
+  // rather than each screen carrying a panel of its own.
+  useEffect(() => {
+    const open = () => setAiOpen(true);
+    window.addEventListener("sv:open-vala-ai", open);
+    return () => window.removeEventListener("sv:open-vala-ai", open);
+  }, []);
 
   const Section = sectionRegistry[active] ?? DashboardFallback;
 

@@ -6,9 +6,10 @@ import {
 } from "lucide-react";
 
 import { Card, EmptyHint, LoadFailure, PageHeader, StatCard } from "../ui";
+import { LiveTable } from "../LiveTable";
 import {
   addEvidence, bulkTransition, createSubmission, getSubmissionDetail, getSubmissions,
-  runSlaSweep, setApprovalRule, setApprovalSla, transitionSubmission,
+  logApprovalExport, runSlaSweep, setApprovalRule, setApprovalSla, transitionSubmission,
   type ApprovalRule, type SubmissionQueue, type SubmissionRow, type SubmissionStatus,
   type TrustedAuthor,
 } from "@/lib/marketplace-manager/approvals.functions";
@@ -447,15 +448,26 @@ export function ApprovalWorkflow() {
   const [tab, setTab] = useState<"" | SubmissionStatus>("");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest" | "risk" | "sla">("newest");
+  const [risk, setRisk] = useState<"" | "low" | "medium" | "high" | "critical">("");
+  const [type, setType] = useState<"" | "new" | "update">("");
+  const [showHistory, setShowHistory] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const [note, setNote] = useState<string | null>(null);
 
   const q = useQuery({
-    queryKey: ["marketplace", "submissions", tab, search, sort],
+    queryKey: ["marketplace", "submissions", tab, search, sort, risk, type],
     queryFn: () =>
       getSubmissions({
-        data: { status: tab || undefined, search: search || undefined, sort },
+        data: {
+          status: tab || undefined,
+          search: search || undefined,
+          sort,
+          // mm_submissions has always accepted these two; the screen
+          // simply never sent them, so the filters existed only in the API.
+          risk: risk || undefined,
+          type: type || undefined,
+        },
       }),
     // The queue is shared between reviewers, so it is refetched often enough
     // that two people are unlikely to be looking at different worlds. The
@@ -524,6 +536,11 @@ export function ApprovalWorkflow() {
   );
 
   const exportCsv = () => {
+    // Recorded before the file is built, so a failed write is not hidden
+    // by a download that already happened.
+    void logApprovalExport({
+      data: { rows: rows.length, status: tab || undefined, search: search || undefined },
+    }).catch(() => setNote("The export was not recorded in the audit log."));
     const head = [
       "submission_no", "product", "author", "type", "status", "revision",
       "risk_score", "risk_level", "sla_state", "submitted_at", "decided_at",
@@ -575,6 +592,20 @@ export function ApprovalWorkflow() {
         actions={
           <>
             <button
+              onClick={() => setShowHistory((v) => !v)}
+              className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"
+            >
+              {showHistory ? "Hide history" : "Approval History"}
+            </button>
+            <button
+              // The assistant the workspace already mounts. Opening it from here
+              // rather than adding a second panel to this screen.
+              onClick={() => window.dispatchEvent(new CustomEvent("sv:open-vala-ai"))}
+              className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"
+            >
+              Vala AI
+            </button>
+            <button
               onClick={() => sweep.mutate()}
               disabled={sweep.isPending}
               className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted disabled:opacity-50"
@@ -595,6 +626,21 @@ export function ApprovalWorkflow() {
       {note && (
         <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
           {note}
+        </div>
+      )}
+
+      {showHistory && (
+        <div className="mb-4">
+          <LiveTable
+            resource="approval_history"
+            title="Approval history"
+            columns={["created_at", "action", "from_status", "to_status", "actor_role", "reason"]}
+            description="Reading the approval trail…"
+          />
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            Every transition ever made, append-only. Nothing here can be edited or removed,
+            including by this console.
+          </p>
         </div>
       )}
 
@@ -697,6 +743,28 @@ export function ApprovalWorkflow() {
               className="w-full rounded-lg border border-border bg-background py-1.5 pl-8 pr-3 text-xs"
             />
           </div>
+          <select
+            value={risk}
+            onChange={(e) => setRisk(e.target.value as typeof risk)}
+            aria-label="Filter by risk"
+            className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs"
+          >
+            <option value="">Any risk</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as typeof type)}
+            aria-label="Filter by submission type"
+            className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs"
+          >
+            <option value="">New and updates</option>
+            <option value="new">New only</option>
+            <option value="update">Updates only</option>
+          </select>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as typeof sort)}
