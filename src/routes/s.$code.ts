@@ -90,6 +90,11 @@ export const Route = createFileRoute("/s/$code")({
 
         const ua = request.headers.get("user-agent") ?? "";
         const incoming = new URL(request.url);
+        // A scan arrives through the same URL as a click, distinguished only
+        // by the marker the printed code carries. Recorded in addition to the
+        // click, never instead of it, and it cannot change the destination.
+        const qrCode = (incoming.searchParams.get("qr") ?? "").slice(0, 64);
+
         const utm: Record<string, string> = {};
         for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]) {
           const v = incoming.searchParams.get(key);
@@ -120,6 +125,24 @@ export const Route = createFileRoute("/s/$code")({
           result = (await res.json()) as typeof result;
         } catch {
           return GONE("Temporarily unavailable", "Please try again shortly.", 503);
+        }
+
+        // Counted only once the link itself resolved, so a scan is never
+        // recorded for a code that went nowhere. A failure here is swallowed:
+        // section 40 says analytics must not stop a working link from working.
+        if (result.ok && qrCode) {
+          void fetch(`${url()}/rest/v1/rpc/mm_qr_scan`, {
+            method: "POST",
+            headers: admin(),
+            body: JSON.stringify({
+              p_qr_code: qrCode,
+              p_country: request.headers.get("cf-ipcountry"),
+              p_device: device(ua),
+              p_browser: browser(ua),
+              p_visitor_hash: visitorHash(request),
+              p_campaign: utm.utm_campaign ?? null,
+            }),
+          }).catch(() => undefined);
         }
 
         if (result.ok && result.destination) {

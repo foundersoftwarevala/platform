@@ -62,6 +62,20 @@ export const Route = createFileRoute("/api/qr/$code")({
 
         if (!row) return Response.json({ error: "No such QR code" }, { status: 404 });
 
+        // What the printed code actually carries. The stored target_url is
+        // untouched; this adds the QR's own identity so the resolver can count
+        // a scan separately from an ordinary click. A resolver that does not
+        // understand the parameter simply ignores it.
+        const encodedTarget = (() => {
+          try {
+            const t = new URL(row.target_url);
+            t.searchParams.set("qr", code);
+            return t.toString();
+          } catch {
+            return row.target_url;
+          }
+        })();
+
         const QR = await import("qrcode");
         const options = {
           errorCorrectionLevel: (row.error_correction ?? "M") as "L" | "M" | "Q" | "H",
@@ -72,7 +86,7 @@ export const Route = createFileRoute("/api/qr/$code")({
 
         try {
           if (svg) {
-            const markup = await QR.toString(row.target_url, { ...options, type: "svg" });
+            const markup = await QR.toString(encodedTarget, { ...options, type: "svg" });
             return new Response(markup, {
               headers: {
                 "content-type": "image/svg+xml; charset=utf-8",
@@ -82,7 +96,7 @@ export const Route = createFileRoute("/api/qr/$code")({
               },
             });
           }
-          const png = await QR.toBuffer(row.target_url, { ...options, type: "png" });
+          const png = await QR.toBuffer(encodedTarget, { ...options, type: "png" });
           return new Response(new Uint8Array(png), {
             headers: {
               "content-type": "image/png",
