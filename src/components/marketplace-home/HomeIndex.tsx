@@ -3696,6 +3696,33 @@ const Index = () => {
         </div>
       </section>
         ),
+        // The four curated rows the registry has always carried. Each one
+        // draws only when its flag matches something, and its position on the
+        // page is whatever Layout Order says.
+        "featured-software": (
+          <CuratedRow
+            title="Featured Software" flag="featured" limit={8}
+            favorites={favorites} onToggleFavorite={toggleFavorite}
+          />
+        ),
+        "trending-now": (
+          <CuratedRow
+            title="Trending Now" flag="trending" limit={12}
+            favorites={favorites} onToggleFavorite={toggleFavorite}
+          />
+        ),
+        "top-selling": (
+          <CuratedRow
+            title="Top Selling" flag="bestSeller" limit={12}
+            favorites={favorites} onToggleFavorite={toggleFavorite}
+          />
+        ),
+        "new-releases": (
+          <CuratedRow
+            title="New Releases" flag="newRelease" limit={12}
+            favorites={favorites} onToggleFavorite={toggleFavorite}
+          />
+        ),
         "ai-zone": (
           <div className="max-w-7xl mx-auto">
             <SectionBoundary label="AI Zone">
@@ -3955,6 +3982,70 @@ function CatalogRowStrip({
         </div>
       )}
     </CategoryRow>
+  );
+}
+
+/**
+ * A curated row: one flag, one rail.
+ *
+ * The registry names these rows by the product flag behind them, so the flag is
+ * the only thing that varies. Everything visual is the catalogue's own
+ * CategoryRow and DemoCard, at the same card width, so a curated row is
+ * indistinguishable from a category row except for its heading.
+ *
+ * Returns null when the flag matches nothing. A heading with an empty rail
+ * under it reads as broken, and an operator publishing a row should see it
+ * appear only when it has something in it.
+ */
+function CuratedRow({
+  title,
+  flag,
+  limit,
+  favorites,
+  onToggleFavorite,
+}: {
+  title: string;
+  flag: "featured" | "trending" | "bestSeller" | "newRelease";
+  limit: number;
+  favorites: string[];
+  onToggleFavorite: (id: string) => void;
+}) {
+  // The same rows the server already seeded for the catalogue, flattened. No
+  // extra request: whatever the page has, these rows pick from.
+  const homeMatch = useMatch({ from: "/", shouldThrow: false });
+  const seeded =
+    (homeMatch?.loaderData as { seed?: CatalogSeed } | undefined)?.seed ?? null;
+  const picked = useMemo(() => {
+    const rows = (seeded?.rows as CatalogRow[] | undefined) ?? [];
+    const out: Demo[] = [];
+    const seen = new Set<string>();
+    for (const row of rows) {
+      for (const card of (row.cards ?? []) as Demo[]) {
+        if (seen.has(card.id)) continue;
+        if (!(card as unknown as Record<string, boolean>)[flag]) continue;
+        seen.add(card.id);
+        out.push(card);
+        if (out.length >= limit) return out;
+      }
+    }
+    return out;
+  }, [seeded, flag, limit]);
+  if (picked.length === 0) return null;
+  return (
+    <div className="max-w-7xl mx-auto px-4">
+      <CategoryRow title={title} count={picked.length}>
+        {picked.map((demo, index) => (
+          <div key={demo.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
+            <DemoCard
+              demo={demo}
+              index={index}
+              isFavorite={favorites.includes(demo.id)}
+              onToggleFavorite={() => onToggleFavorite(demo.id)}
+            />
+          </div>
+        ))}
+      </CategoryRow>
+    </div>
   );
 }
 
