@@ -1051,7 +1051,16 @@ export function QualityCheckSection() {
    PRODUCT ANALYTICS
    ===================================================================== */
 
-export function ProductAnalyticsSection() {
+/**
+ * The original Per-Product Analytics stand.
+ *
+ * Kept as it was. Its numbers - 128k views, 14.2k demo clicks, 3.1%
+ * conversion, 27% bounce, revenue of Rs 42L, and a table led by a written-in
+ * "Vala ERP Pro" with 48.2k views and a trending score of 92 - were all in this
+ * file. `Product Analytics` now resolves to sections/ProductAnalytics.tsx,
+ * which counts marketplace_events, paid orders and their line items.
+ */
+export function ProductAnalyticsSectionStatic() {
   const rows = [
     { name: "Vala ERP Pro", views: "48.2k", demo: "5.4k", buy: "1.2k", dl: "18.4k", conv: "3.8%", wish: "2.1k", ctr: "6.2%", bounce: "24%", session: "4m 28s", rev: "₹18.4L", trend: 92 },
     { name: "InvoiceMint", views: "22.7k", demo: "1.9k", buy: "612", dl: "6.2k", conv: "2.7%", wish: "804", ctr: "4.4%", bounce: "31%", session: "3m 12s", rev: "₹6.1L", trend: 74 },

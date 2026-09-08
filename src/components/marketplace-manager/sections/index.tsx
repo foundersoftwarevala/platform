@@ -531,6 +531,11 @@ export { SeoAutoGenerator as SeoAutomationSection } from "./SeoAutoGenerator";
 // CRM. The stand it replaces is kept as LeadsSectionStatic.
 export { LeadOps as LeadsSection } from "./LeadOps";
 
+// Per-product analytics, counted from marketplace_events, paid orders and
+// their line items. The stand it replaces is kept as
+// ProductAnalyticsSectionStatic.
+export { ProductAnalytics as ProductAnalyticsSection } from "./ProductAnalytics";
+
 // The moderation centre, on the canonical catalogue with a real duplicate
 // scan and a purge that never destroys an order, licence, review or merge
 // record. The stand it replaces is kept above as ModerationSectionStatic.
@@ -576,7 +581,7 @@ export {
   FaviconProtectionSection as FaviconProtectionSectionStatic,
   AiContentSection as AiContentSectionStatic,
   SecurityScanSectionStatic,
-  QualityCheckSection, ProductAnalyticsSection,
+  QualityCheckSection, ProductAnalyticsSectionStatic,
   AuditLogSection,
 } from "./EnterpriseGovernance";
 
