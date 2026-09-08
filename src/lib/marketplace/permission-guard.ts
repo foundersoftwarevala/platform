@@ -31,7 +31,11 @@ export type Permission =
   | "marketplace.actions.configure" | "marketplace.colors.configure"
   | "marketplace.permissions.configure"
   | "marketplace.audit.view" | "marketplace.audit.export"
-  | "marketplace.settings.view" | "marketplace.settings.manage";
+  | "marketplace.settings.view" | "marketplace.settings.manage"
+  // Section 30 of the Automation brief. Same matrix, same guard - an
+  // automation permission is not a different kind of permission.
+  | "marketplace.automation.view" | "marketplace.automation.run"
+  | "marketplace.automation.manage" | "marketplace.backup.restore";
 
 export const ALL_PERMISSIONS: Permission[] = [
   "marketplace.view", "marketplace.create", "marketplace.edit", "marketplace.delete",
@@ -45,6 +49,8 @@ export const ALL_PERMISSIONS: Permission[] = [
   "marketplace.permissions.configure",
   "marketplace.audit.view", "marketplace.audit.export",
   "marketplace.settings.view", "marketplace.settings.manage",
+  "marketplace.automation.view", "marketplace.automation.run",
+  "marketplace.automation.manage", "marketplace.backup.restore",
 ];
 
 /**
@@ -57,14 +63,23 @@ export const ALL_PERMISSIONS: Permission[] = [
  * Marketplace Manager permission at all, which is what the route gate already
  * enforces - this simply agrees with it rather than contradicting it.
  */
+/** Held back from the administrative tier. Owner only. */
+const ADMIN_WITHHELD: Permission[] = [
+  "marketplace.permissions.configure",
+  "marketplace.backup.restore",
+];
+
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   boss: ALL_PERMISSIONS,
   boss_owner: ALL_PERMISSIONS,
 
-  admin: ALL_PERMISSIONS.filter((p) => p !== "marketplace.permissions.configure"),
-  super_admin: ALL_PERMISSIONS.filter((p) => p !== "marketplace.permissions.configure"),
-  founder: ALL_PERMISSIONS.filter((p) => p !== "marketplace.permissions.configure"),
-  owner: ALL_PERMISSIONS.filter((p) => p !== "marketplace.permissions.configure"),
+  // Everything operational. Not permission configuration, and not restore:
+  // rolling the marketplace back to an earlier state is the owner's decision,
+  // which is what section 22 of the Automation brief means by protected.
+  admin: ALL_PERMISSIONS.filter((p) => !ADMIN_WITHHELD.includes(p)),
+  super_admin: ALL_PERMISSIONS.filter((p) => !ADMIN_WITHHELD.includes(p)),
+  founder: ALL_PERMISSIONS.filter((p) => !ADMIN_WITHHELD.includes(p)),
+  owner: ALL_PERMISSIONS.filter((p) => !ADMIN_WITHHELD.includes(p)),
 
   // Operational, not configurational. No delete, no permission or colour
   // configuration - section 5.
@@ -76,12 +91,14 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "marketplace.export", "marketplace.category",
     "marketplace.feature", "marketplace.pin",
     "marketplace.audit.view", "marketplace.settings.view",
+    "marketplace.automation.view",
   ],
   seo: [
     "marketplace.view", "marketplace.edit",
     "marketplace.publish", "marketplace.unpublish",
     "marketplace.export", "marketplace.category",
     "marketplace.audit.view", "marketplace.settings.view",
+    "marketplace.automation.view",
   ],
 };
 
@@ -113,10 +130,17 @@ export const ACTION_PERMISSION: Record<string, Permission> = {
   configure_actions: "marketplace.actions.configure",
   configure_colors: "marketplace.colors.configure",
   configure_permissions: "marketplace.permissions.configure",
+  automation_view: "marketplace.automation.view",
+  automation_run: "marketplace.automation.run",
+  automation_manage: "marketplace.automation.manage",
+  backup_restore: "marketplace.backup.restore",
 };
 
 /** Actions nobody but the owner tier may take, whatever the matrix says. */
-export const OWNER_ONLY: Permission[] = ["marketplace.permissions.configure"];
+export const OWNER_ONLY: Permission[] = [
+  "marketplace.permissions.configure",
+  "marketplace.backup.restore",
+];
 
 export type Decision = {
   /** False means the role has no business knowing this exists - section 11. */

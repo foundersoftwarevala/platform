@@ -8,6 +8,7 @@ import { DashboardSection } from "./sections/DashboardSection";
 import { FaqManagerSection, ValaTvSection } from "./sections/ContentStudio";
 import { StoriesAwardsSection } from "./sections/StoriesAwards";
 import { RoleMatrix } from "./sections/RoleMatrix";
+import { AutomationConsole } from "./sections/AutomationConsole";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
 
@@ -94,7 +95,10 @@ const designedSections: Record<string, SectionComponent> = {
   // Operations
   Actions: S.ActionsSection,
   "Action Toolkit": S.ToolkitSection,
-  Automation: S.AutomationSection,
+  // S.AutomationSection is the designed shell and is still exported. The
+  // console below keeps its four tabs and its ten features, and fills the
+  // counters from real job rows instead of leaving them blank.
+  Automation: AutomationConsole,
   "Micro-Features": S.MicroFeaturesSection,
   "Media Library": S.MediaLibrarySection,
   "AI Providers": S.AiProvidersSection,
