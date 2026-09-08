@@ -585,9 +585,32 @@ export const Route = createFileRoute("/api/manager/resource")({
         const offset = Math.max(Number(params.get("offset") ?? 0) || 0, 0);
         const search = (params.get("search") ?? "").trim().slice(0, 120);
 
+        // Section 5. Only a column this resource already returns may be sorted
+        // on, so a crafted request cannot order by something the whitelist was
+        // written to keep out of reach.
+        const askedSort = (params.get("sort") ?? "").trim();
+        const sortable = resource.select.includes(askedSort) ? askedSort : null;
+        const direction = params.get("dir") === "desc" ? "desc" : "asc";
+        const order = sortable ? `${sortable}.${direction}` : resource.order;
+
+        // Section 4. Same rule: a filter names a column the resource exposes,
+        // an operator from a fixed list, and a value that is clipped. Anything
+        // else is dropped rather than passed through to the database.
+        const OPERATORS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is"]);
+        const filters: string[] = [];
+        for (const raw of params.getAll("filter")) {
+          const [column, operator, ...rest] = String(raw).split(".");
+          const value = rest.join(".");
+          if (!resource.select.includes(column)) continue;
+          if (!OPERATORS.has(operator)) continue;
+          if (!value || value.length > 200) continue;
+          filters.push(`${column}=${operator}.${encodeURIComponent(value)}`);
+        }
+
         let query =
           `${resource.table}?select=${resource.select.join(",")}` +
-          `&order=${resource.order}&limit=${limit}&offset=${offset}`;
+          `&order=${order}&limit=${limit}&offset=${offset}`;
+        for (const clause of filters) query += `&${clause}`;
         if (search && resource.searchable.length) {
           const term = search.replace(/[(),*]/g, " ").trim();
           const or = resource.searchable.map((c) => `${c}.ilike.*${term}*`).join(",");
@@ -609,6 +632,12 @@ export const Route = createFileRoute("/api/manager/resource")({
             label: resource.label,
             columns: resource.select,
             editable: resource.editable,
+            // What the toolbar may offer, from the resource itself rather than
+            // from a list the client keeps its own copy of.
+            sortable: resource.select,
+            sorted_by: sortable ?? resource.order.split(".")[0],
+            sort_direction: sortable ? direction : resource.order.split(".")[1] ?? "asc",
+            filters_applied: filters.length,
             // What the console is allowed to offer. Without these it could
             // only ever edit rows that already existed, which is why two
             // home-page sections had no way to get their first row.

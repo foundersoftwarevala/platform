@@ -30,6 +30,8 @@ type Payload = {
   required?: string[];
   /** Whether this resource names a way to take a row out of use. */
   retirable?: boolean;
+  /** Columns the server will sort on. */
+  sortable?: string[];
   rows: Row[];
   total: number;
   limit: number;
@@ -81,6 +83,20 @@ export function LiveTable({
   const [notice, setNotice] = useState<string | null>(null);
   const [adding, setAdding] = useState<Record<string, string> | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  // Per viewer, not shared: which columns somebody likes to see is a
+  // preference. Section 6 asks it to persist, not to be global.
+  const prefKey = `sv_table_cols_v1_${resource}`;
+  const [hidden, setHidden] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return JSON.parse(window.localStorage.getItem(prefKey) ?? "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
+  const [showColumns, setShowColumns] = useState(false);
   const [plan, setPlan] = useState<{ operation: string; records: number; operation_id: string; changes: unknown } | null>(null);
   const [result, setResult] = useState<{
     status: string; done: number; failed: number; invalid: number; unauthorized: number;
@@ -94,7 +110,8 @@ export function LiveTable({
       try {
         const response = await fetch(
           `/api/manager/resource?resource=${encodeURIComponent(resource)}` +
-            `&limit=${PAGE}&offset=${offset}&search=${encodeURIComponent(term)}`,
+            `&limit=${PAGE}&offset=${offset}&search=${encodeURIComponent(term)}` +
+            (sortBy ? `&sort=${encodeURIComponent(sortBy)}&dir=${sortDir}` : ""),
           { headers: await authHeaders() },
         );
         const payload = (await response.json()) as Payload;
@@ -113,7 +130,7 @@ export function LiveTable({
         setData(null);
       }
     },
-    [resource],
+    [resource, sortBy, sortDir],
   );
 
   useEffect(() => {
@@ -132,10 +149,81 @@ export function LiveTable({
     };
   }, [search, load]);
 
-  const columns = useMemo(
+  const allColumns = useMemo(
     () => orderColumns(data?.columns ?? [], preferred).filter((c) => c !== "id"),
     [data?.columns, preferred],
   );
+  const columns = useMemo(
+    () => allColumns.filter((c) => !hidden.includes(c)),
+    [allColumns, hidden],
+  );
+
+  const toggleColumn = (column: string) =>
+    setHidden((current) => {
+      const next = current.includes(column)
+        ? current.filter((c) => c !== column)
+        : [...current, column];
+      try {
+        window.localStorage.setItem(prefKey, JSON.stringify(next));
+      } catch {
+        /* a blocked store just means the preference is not remembered */
+      }
+      return next;
+    });
+
+  const sortOn = (column: string) => {
+    if (!(data?.sortable ?? []).includes(column)) return;
+    if (sortBy === column) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortBy(column);
+      setSortDir("asc");
+    }
+    setPage(0);
+  };
+
+  /**
+   * Export what is on screen, with what produced it named in the file, and the
+   * export recorded before the file is built.
+   */
+  const exportCsv = async () => {
+    if (!data?.rows.length) return;
+    try {
+      await fetch("/api/manager/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({
+          resource, ids: data.rows.map((r) => String(r.id)),
+          operation: "update", preview: true,
+          reason: `Exported ${data.rows.length} ${data.label} row(s) as CSV.`,
+        }),
+      }).catch(() => undefined);
+    } catch {
+      /* the export still happens; the note below says what it covered */
+    }
+    const head = columns;
+    const body = data.rows.map((r) =>
+      head
+        .map((c) => {
+          const v = r[c];
+          const text = v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
+          return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+        })
+        .join(","),
+    );
+    const meta =
+      `# ${data.label} — page ${page + 1}, ${data.rows.length} of ${data.total} matching` +
+      `\n# search="${search}" sort=${sortBy ?? data.sorted_by ?? "default"} ${sortDir}` +
+      `\n# generated ${new Date().toISOString()}`;
+    const blob = new Blob([[meta, head.join(","), ...body].join("\n")], {
+      type: "text/csv;charset=utf-8",
+    });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${resource}-page${page + 1}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    setNotice(`Exported ${data.rows.length} row(s) from this page.`);
+  };
 
   const save = async (id: string, column: string, value: unknown) => {
     setBusy(id);
@@ -337,6 +425,24 @@ export function LiveTable({
           )}
           <button
             type="button"
+            onClick={() => setShowColumns((v) => !v)}
+            aria-label="Choose columns"
+            aria-expanded={showColumns}
+            className="rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-accent/40 hover:text-accent"
+          >
+            Columns{hidden.length ? ` (${hidden.length} hidden)` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => void exportCsv()}
+            disabled={!data?.rows.length}
+            aria-label="Export this page as CSV"
+            className="rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-accent/40 hover:text-accent disabled:opacity-40"
+          >
+            Export
+          </button>
+          <button
+            type="button"
             onClick={() => void load(search, page * PAGE)}
             aria-label="Refresh"
             className="grid h-8 w-8 place-items-center rounded-md border border-border bg-background/60 text-muted-foreground hover:border-accent/40 hover:text-accent"
@@ -345,6 +451,42 @@ export function LiveTable({
           </button>
         </div>
       </div>
+
+      {showColumns && data && (
+        <div className="mb-3 rounded-xl border border-border bg-background/60 p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Columns
+            </span>
+            <button
+              onClick={() => {
+                setHidden([]);
+                try { window.localStorage.removeItem(prefKey); } catch { /* ignore */ }
+              }}
+              className="ml-auto rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold hover:bg-muted"
+            >
+              Reset
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {allColumns.map((c) => (
+              <button
+                key={c}
+                onClick={() => toggleColumn(c)}
+                aria-pressed={!hidden.includes(c)}
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  hidden.includes(c) ? "bg-secondary text-muted-foreground" : "bg-accent/15 text-accent"
+                }`}
+              >
+                {humanise(c)}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-muted-foreground">
+            Remembered in this browser only — which columns you like to see is a preference, not shared state.
+          </p>
+        </div>
+      )}
 
       {notice && (
         <p role="status" className="mb-2 rounded-md border border-border bg-background/60 px-3 py-1.5 text-[11px] text-muted-foreground">
@@ -490,7 +632,18 @@ export function LiveTable({
                     scope="col"
                     className="whitespace-nowrap border-b border-border px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
                   >
-                    {humanise(column)}
+                    {(data.sortable ?? []).includes(column) ? (
+                      <button
+                        onClick={() => sortOn(column)}
+                        aria-label={`Sort by ${humanise(column)}`}
+                        className="hover:text-accent"
+                      >
+                        {humanise(column)}
+                        {sortBy === column ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                      </button>
+                    ) : (
+                      humanise(column)
+                    )}
                     {data.editable.includes(column) && (
                       <span className="ml-1 text-accent" title="Editable">·</span>
                     )}
