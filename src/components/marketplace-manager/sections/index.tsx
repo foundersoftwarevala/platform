@@ -527,6 +527,10 @@ export { SecurityScanner as SecurityScanSection } from "./SecurityScanner";
 // product page. The stand it replaces is kept as SeoAutomationSectionStatic.
 export { SeoAutoGenerator as SeoAutomationSection } from "./SeoAutoGenerator";
 
+// Lead operations, read from the tables Lead Manager writes - not a second
+// CRM. The stand it replaces is kept as LeadsSectionStatic.
+export { LeadOps as LeadsSection } from "./LeadOps";
+
 // The moderation centre, on the canonical catalogue with a real duplicate
 // scan and a purge that never destroys an order, licence, review or merge
 // record. The stand it replaces is kept above as ModerationSectionStatic.
@@ -567,7 +571,7 @@ export {
   ModerationSection as ModerationSectionStatic,
   DemoSandboxSection as DemoSandboxSectionStatic,
   DemoDomainSection as DemoDomainSectionStatic,
-  SeoAutomationSectionStatic, LeadsSection,
+  SeoAutomationSectionStatic, LeadsSectionStatic,
   ProductUrlSection as ProductUrlSectionStatic,
   FaviconProtectionSection as FaviconProtectionSectionStatic,
   AiContentSection as AiContentSectionStatic,

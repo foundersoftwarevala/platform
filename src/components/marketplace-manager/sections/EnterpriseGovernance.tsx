@@ -731,7 +731,15 @@ const LEADS = [
   { id: "LD-8839", name: "Sneha Iyer", company: "Cognify", src: "Enterprise Inquiry", product: "TicketRouter AI", score: 88, status: "Converted", owner: "Riya" },
 ];
 
-export function LeadsSection() {
+/**
+ * The original Lead Ops stand.
+ *
+ * Kept as it was. Its five numbers - 1,284 leads, 42 new today, 318 qualified,
+ * 87 converted, average score 71 - were written into this file; there are 129
+ * leads. `Leads` now resolves to sections/LeadOps.tsx, which reads the tables
+ * Lead Manager writes.
+ */
+export function LeadsSectionStatic() {
   const [tab, setTab] = useState("Pipeline");
   return (
     <div className="px-4 py-8 md:px-8">
