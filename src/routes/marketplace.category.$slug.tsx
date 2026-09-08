@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { siteUrl } from "@/lib/seo/site-url";
 import { CategoryDetail } from "@/components/marketplace-home/CategoryDetail";
+import { getPublicProductsByCategory } from "@/lib/marketplace.functions";
 import { getCategorySeo, type CategorySeo } from "@/lib/seo/category-seo";
 
 /**
@@ -32,17 +33,27 @@ function countryPhrase(countries: string[]): string {
 export const Route = createFileRoute("/marketplace/category/$slug")({
   component: CategoryDetail,
 
-  loader: async ({ params }): Promise<CategorySeo | null> => {
-    try {
-      return await getCategorySeo({ data: { slug: params.slug } });
-    } catch (error) {
-      console.error("[category head] could not load", params.slug, error);
-      return null;
+  /**
+   * The SEO and the products are separate lookups, so one failing must not cost
+   * the other. The products are fetched here so the page renders on the server
+   * instead of shipping a spinner to a search engine.
+   */
+  loader: async ({ params }): Promise<{ seo: CategorySeo | null; products: unknown }> => {
+    const [seo, products] = await Promise.allSettled([
+      getCategorySeo({ data: { slug: params.slug } }),
+      getPublicProductsByCategory({ data: { category_slug: params.slug } }),
+    ]);
+    if (seo.status === "rejected") {
+      console.error("[category head] could not load", params.slug, seo.reason);
     }
+    return {
+      seo: seo.status === "fulfilled" ? seo.value : null,
+      products: products.status === "fulfilled" ? products.value : null,
+    };
   },
 
   head: ({ loaderData, params }) => {
-    const data = loaderData as CategorySeo | null;
+    const data = (loaderData as { seo?: CategorySeo | null } | null)?.seo ?? null;
     if (!data) {
       return {
         meta: [{ title: GENERIC.title }, { name: "description", content: GENERIC.description }],

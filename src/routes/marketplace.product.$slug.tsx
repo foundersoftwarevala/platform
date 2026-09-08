@@ -3,6 +3,7 @@ import { siteUrl } from "@/lib/seo/site-url";
 import { ProductDetail } from "@/components/marketplace-home/ProductDetail";
 import { resolveSeoOverride } from "@/lib/seo/page-overrides";
 import { getProductSeo } from "@/lib/seo/category-seo";
+import { getPublicProduct } from "@/lib/marketplace.functions";
 
 /**
  * Every product page used to send the same title and description, so all 3,700+
@@ -24,6 +25,12 @@ type Loaded = {
   deployment?: string | null;
   /** What the SEO Manager says about this page, when it has been given a record. */
   override?: import("@/lib/seo/page-overrides").SeoOverride | null;
+  /**
+   * The product itself, so the page renders on the server instead of shipping
+   * a spinner. Null when it cannot be loaded, which leaves the component to
+   * fetch it exactly as it did before.
+   */
+  product?: unknown;
 };
 
 
@@ -43,9 +50,17 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
   component: ProductDetail,
 
   loader: async ({ params }): Promise<Loaded> => {
+    // The product and its SEO are unrelated lookups, so one failing must not
+    // cost the other. Settled, not all.
+    const [seoResult, productResult] = await Promise.allSettled([
+      getProductSeo({ data: { slug: params.slug } }),
+      getPublicProduct({ data: { slug: params.slug } }),
+    ]);
+    const product =
+      productResult.status === "fulfilled" ? productResult.value : null;
     try {
-      const seo = await getProductSeo({ data: { slug: params.slug } });
-      if (!seo) return {};
+      const seo = seoResult.status === "fulfilled" ? seoResult.value : null;
+      if (!seo) return { product };
       // What the SEO Manager says about this page, if anything. A record it has
       // never been given simply resolves to null and the product speaks for
       // itself, exactly as before.
@@ -68,10 +83,11 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
         slug: params.slug,
         deployment: seo.deployment,
         override,
+        product,
       };
     } catch (error) {
       console.error("[product head] could not load", params.slug, error);
-      return {};
+      return { product };
     }
   },
 

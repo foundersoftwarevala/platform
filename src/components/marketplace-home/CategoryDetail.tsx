@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams, Link, useNavigate } from "@tanstack/react-router";
+import { useParams, Link, useNavigate, useLoaderData } from "@tanstack/react-router";
 import { Loader2, ArrowLeft, Heart, Eye, Play, ShoppingCart } from "lucide-react";
 import { getPublicProductsByCategory } from "@/lib/marketplace.functions";
 import { useServerFn } from "@/lib/serverFn";
@@ -15,12 +15,21 @@ export function CategoryDetail() {
   const getCategoryFn = useServerFn(getPublicProductsByCategory);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
+  // What the route already loaded. With it the first render has the products
+  // in hand, so the page leaves the server complete rather than as a spinner.
+  const loaded = useLoaderData({
+    from: "/marketplace/category/$slug",
+    shouldThrow: false,
+  }) as { products?: unknown } | undefined;
+  const seededProducts = loaded?.products ?? undefined;
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["category", slug],
     queryFn: async () => {
       const result = await getCategoryFn({ data: { category_slug: slug } });
       return result;
     },
+    initialData: seededProducts as never,
   });
 
   if (isLoading) {
