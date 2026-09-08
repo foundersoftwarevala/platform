@@ -223,6 +223,7 @@ import { Route as AmsAwardsIdRouteImport } from './routes/ams.awards.$id'
 import { Route as AmsAwardsAuditRouteImport } from './routes/ams.awards.audit'
 import { Route as AmsAwardsCategoriesRouteImport } from './routes/ams.awards.categories'
 import { Route as AmsAwardsEffectsRouteImport } from './routes/ams.awards.effects'
+import { Route as AmsAwardsNewRouteImport } from './routes/ams.awards.new'
 import { Route as AmsCollectionIndexRouteImport } from './routes/ams.collection.index'
 import { Route as AmsCollectionTypeRouteImport } from './routes/ams.collection.$type'
 import { Route as AmsMuseumIndexRouteImport } from './routes/ams.museum.index'
@@ -233,6 +234,7 @@ import { Route as AmsRoleShowcaseIndexRouteImport } from './routes/ams.role-show
 import { Route as AmsRoleShowcaseSlugRouteImport } from './routes/ams.role-showcase.$slug'
 import { Route as AmsTicketsIndexRouteImport } from './routes/ams.tickets.index'
 import { Route as AmsTicketsIdRouteImport } from './routes/ams.tickets.$id'
+import { Route as AmsTicketsNewRouteImport } from './routes/ams.tickets.new'
 import { Route as ApiAccountPurchasesRouteImport } from './routes/api/account/purchases'
 import { Route as ApiActionsConfigRouteImport } from './routes/api/actions/config'
 import { Route as ApiActionsRegistryRouteImport } from './routes/api/actions/registry'
@@ -1403,6 +1405,11 @@ const AmsAwardsEffectsRoute = AmsAwardsEffectsRouteImport.update({
   path: '/awards/effects',
   getParentRoute: () => AmsRoute,
 } as any)
+const AmsAwardsNewRoute = AmsAwardsNewRouteImport.update({
+  id: '/awards/new',
+  path: '/awards/new',
+  getParentRoute: () => AmsRoute,
+} as any)
 const AmsCollectionIndexRoute = AmsCollectionIndexRouteImport.update({
   id: '/collection/',
   path: '/collection/',
@@ -1451,6 +1458,11 @@ const AmsTicketsIndexRoute = AmsTicketsIndexRouteImport.update({
 const AmsTicketsIdRoute = AmsTicketsIdRouteImport.update({
   id: '/tickets/$id',
   path: '/tickets/$id',
+  getParentRoute: () => AmsRoute,
+} as any)
+const AmsTicketsNewRoute = AmsTicketsNewRouteImport.update({
+  id: '/tickets/new',
+  path: '/tickets/new',
   getParentRoute: () => AmsRoute,
 } as any)
 const ApiAccountPurchasesRoute = ApiAccountPurchasesRouteImport.update({
@@ -2055,11 +2067,13 @@ export interface FileRoutesByFullPath {
   '/ams/awards/audit': typeof AmsAwardsAuditRoute
   '/ams/awards/categories': typeof AmsAwardsCategoriesRoute
   '/ams/awards/effects': typeof AmsAwardsEffectsRoute
+  '/ams/awards/new': typeof AmsAwardsNewRoute
   '/ams/collection/$type': typeof AmsCollectionTypeRoute
   '/ams/museum/$showcase': typeof AmsMuseumShowcaseRoute
   '/ams/role-manager/$slug': typeof AmsRoleManagerSlugRoute
   '/ams/role-showcase/$slug': typeof AmsRoleShowcaseSlugRoute
   '/ams/tickets/$id': typeof AmsTicketsIdRoute
+  '/ams/tickets/new': typeof AmsTicketsNewRoute
   '/api/account/purchases': typeof ApiAccountPurchasesRoute
   '/api/actions/config': typeof ApiActionsConfigRoute
   '/api/actions/registry': typeof ApiActionsRegistryRoute
@@ -2345,11 +2359,13 @@ export interface FileRoutesByTo {
   '/ams/awards/audit': typeof AmsAwardsAuditRoute
   '/ams/awards/categories': typeof AmsAwardsCategoriesRoute
   '/ams/awards/effects': typeof AmsAwardsEffectsRoute
+  '/ams/awards/new': typeof AmsAwardsNewRoute
   '/ams/collection/$type': typeof AmsCollectionTypeRoute
   '/ams/museum/$showcase': typeof AmsMuseumShowcaseRoute
   '/ams/role-manager/$slug': typeof AmsRoleManagerSlugRoute
   '/ams/role-showcase/$slug': typeof AmsRoleShowcaseSlugRoute
   '/ams/tickets/$id': typeof AmsTicketsIdRoute
+  '/ams/tickets/new': typeof AmsTicketsNewRoute
   '/api/account/purchases': typeof ApiAccountPurchasesRoute
   '/api/actions/config': typeof ApiActionsConfigRoute
   '/api/actions/registry': typeof ApiActionsRegistryRoute
@@ -2646,11 +2662,13 @@ export interface FileRoutesById {
   '/ams/awards/audit': typeof AmsAwardsAuditRoute
   '/ams/awards/categories': typeof AmsAwardsCategoriesRoute
   '/ams/awards/effects': typeof AmsAwardsEffectsRoute
+  '/ams/awards/new': typeof AmsAwardsNewRoute
   '/ams/collection/$type': typeof AmsCollectionTypeRoute
   '/ams/museum/$showcase': typeof AmsMuseumShowcaseRoute
   '/ams/role-manager/$slug': typeof AmsRoleManagerSlugRoute
   '/ams/role-showcase/$slug': typeof AmsRoleShowcaseSlugRoute
   '/ams/tickets/$id': typeof AmsTicketsIdRoute
+  '/ams/tickets/new': typeof AmsTicketsNewRoute
   '/api/account/purchases': typeof ApiAccountPurchasesRoute
   '/api/actions/config': typeof ApiActionsConfigRoute
   '/api/actions/registry': typeof ApiActionsRegistryRoute
@@ -2948,11 +2966,13 @@ export interface FileRouteTypes {
     | '/ams/awards/audit'
     | '/ams/awards/categories'
     | '/ams/awards/effects'
+    | '/ams/awards/new'
     | '/ams/collection/$type'
     | '/ams/museum/$showcase'
     | '/ams/role-manager/$slug'
     | '/ams/role-showcase/$slug'
     | '/ams/tickets/$id'
+    | '/ams/tickets/new'
     | '/api/account/purchases'
     | '/api/actions/config'
     | '/api/actions/registry'
@@ -3238,11 +3258,13 @@ export interface FileRouteTypes {
     | '/ams/awards/audit'
     | '/ams/awards/categories'
     | '/ams/awards/effects'
+    | '/ams/awards/new'
     | '/ams/collection/$type'
     | '/ams/museum/$showcase'
     | '/ams/role-manager/$slug'
     | '/ams/role-showcase/$slug'
     | '/ams/tickets/$id'
+    | '/ams/tickets/new'
     | '/api/account/purchases'
     | '/api/actions/config'
     | '/api/actions/registry'
@@ -3538,11 +3560,13 @@ export interface FileRouteTypes {
     | '/ams/awards/audit'
     | '/ams/awards/categories'
     | '/ams/awards/effects'
+    | '/ams/awards/new'
     | '/ams/collection/$type'
     | '/ams/museum/$showcase'
     | '/ams/role-manager/$slug'
     | '/ams/role-showcase/$slug'
     | '/ams/tickets/$id'
+    | '/ams/tickets/new'
     | '/api/account/purchases'
     | '/api/actions/config'
     | '/api/actions/registry'
@@ -5258,6 +5282,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AmsAwardsEffectsRouteImport
       parentRoute: typeof AmsRoute
     }
+    '/ams/awards/new': {
+      id: '/ams/awards/new'
+      path: '/awards/new'
+      fullPath: '/ams/awards/new'
+      preLoaderRoute: typeof AmsAwardsNewRouteImport
+      parentRoute: typeof AmsRoute
+    }
     '/ams/collection/': {
       id: '/ams/collection/'
       path: '/collection'
@@ -5326,6 +5357,13 @@ declare module '@tanstack/react-router' {
       path: '/tickets/$id'
       fullPath: '/ams/tickets/$id'
       preLoaderRoute: typeof AmsTicketsIdRouteImport
+      parentRoute: typeof AmsRoute
+    }
+    '/ams/tickets/new': {
+      id: '/ams/tickets/new'
+      path: '/tickets/new'
+      fullPath: '/ams/tickets/new'
+      preLoaderRoute: typeof AmsTicketsNewRouteImport
       parentRoute: typeof AmsRoute
     }
     '/api/account/purchases': {
@@ -6047,10 +6085,12 @@ interface AmsRouteChildren {
   AmsAwardsAuditRoute: typeof AmsAwardsAuditRoute
   AmsAwardsCategoriesRoute: typeof AmsAwardsCategoriesRoute
   AmsAwardsEffectsRoute: typeof AmsAwardsEffectsRoute
+  AmsAwardsNewRoute: typeof AmsAwardsNewRoute
   AmsCollectionTypeRoute: typeof AmsCollectionTypeRoute
   AmsMuseumShowcaseRoute: typeof AmsMuseumShowcaseRoute
   AmsRoleShowcaseSlugRoute: typeof AmsRoleShowcaseSlugRoute
   AmsTicketsIdRoute: typeof AmsTicketsIdRoute
+  AmsTicketsNewRoute: typeof AmsTicketsNewRoute
   AmsAwardsIndexRoute: typeof AmsAwardsIndexRoute
   AmsCollectionIndexRoute: typeof AmsCollectionIndexRoute
   AmsMuseumIndexRoute: typeof AmsMuseumIndexRoute
@@ -6124,10 +6164,12 @@ const AmsRouteChildren: AmsRouteChildren = {
   AmsAwardsAuditRoute: AmsAwardsAuditRoute,
   AmsAwardsCategoriesRoute: AmsAwardsCategoriesRoute,
   AmsAwardsEffectsRoute: AmsAwardsEffectsRoute,
+  AmsAwardsNewRoute: AmsAwardsNewRoute,
   AmsCollectionTypeRoute: AmsCollectionTypeRoute,
   AmsMuseumShowcaseRoute: AmsMuseumShowcaseRoute,
   AmsRoleShowcaseSlugRoute: AmsRoleShowcaseSlugRoute,
   AmsTicketsIdRoute: AmsTicketsIdRoute,
+  AmsTicketsNewRoute: AmsTicketsNewRoute,
   AmsAwardsIndexRoute: AmsAwardsIndexRoute,
   AmsCollectionIndexRoute: AmsCollectionIndexRoute,
   AmsMuseumIndexRoute: AmsMuseumIndexRoute,
