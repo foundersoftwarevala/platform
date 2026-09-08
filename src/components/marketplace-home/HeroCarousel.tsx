@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { useMatch } from "@tanstack/react-router";
 import {
   Play, ChevronLeft, ChevronRight, ShoppingCart, Sparkles,
   Boxes, Crown, Rocket, Zap, ShieldCheck, Clock, BadgeCheck, Lock, Globe2,
@@ -15,7 +16,21 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 const HeroCarousel = () => {
-  const { data: slides } = useSuspenseQuery(heroPublicQuery());
+  // What the route already loaded. On the home page this is always present, so
+  // the carousel renders on the server with real slides in the HTML rather
+  // than suspending and taking the whole page down to a spinner.
+  const homeMatch = useMatch({ from: "/", shouldThrow: false });
+  const seeded = (homeMatch?.loaderData as { slides?: unknown } | undefined)?.slides;
+  const initial = Array.isArray(seeded) && seeded.length > 0 ? seeded : undefined;
+
+  // useQuery, not useSuspenseQuery: this must never suspend. With initial data
+  // it has nothing to fetch; without it - the /marketplace layout draws this
+  // carousel too, where there is no home route to read - it fetches as before.
+  const { data } = useQuery({
+    ...heroPublicQuery(),
+    initialData: initial as never,
+  });
+  const slides = (data ?? []) as NonNullable<typeof data>;
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(1);
   const [paused, setPaused] = useState(false);

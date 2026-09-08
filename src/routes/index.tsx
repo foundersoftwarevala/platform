@@ -7,6 +7,7 @@ import { getHomeCatalog, type HomeCatalogSeed } from "@/lib/marketplace/home-cat
 import { getHomeLayout, type HomeLayout } from "@/lib/marketplace/home-layout.functions";
 import { getStorefrontChrome, type StorefrontChrome } from "@/lib/storefront/chrome.functions";
 import { getCardComposition, type CardComposition } from "@/lib/marketplace/card-composition.functions";
+import { listHeroSlidesPublic, type HeroSlide } from "@/lib/marketplace-content/hero.functions";
 import { absoluteUrl } from "@/lib/seo/site-url";
 
 export const Route = createFileRoute("/")({
@@ -22,15 +23,21 @@ export const Route = createFileRoute("/")({
     layout: HomeLayout;
     chrome: StorefrontChrome | null;
     composition: CardComposition | null;
+    slides: HeroSlide[] | null;
   }> => {
     // Settled rather than all, so one failing lookup cannot take the others
     // with it. The catalogue, the layout and the chrome are unrelated
     // questions and the page has a safe answer for each of them missing.
-    const [seed, layout, chrome, composition] = await Promise.allSettled([
+    const [seed, layout, chrome, composition, slides] = await Promise.allSettled([
       getHomeCatalog(),
       getHomeLayout(),
       getStorefrontChrome(),
       getCardComposition(),
+      // Fetched here so the carousel never suspends during the server render.
+      // It was the one thing on the page that did, and because the page also
+      // sits inside a Suspense, that single suspend replaced the whole document
+      // with a spinner.
+      listHeroSlidesPublic(),
     ]);
     return {
       seed: seed.status === "fulfilled" ? seed.value : null,
@@ -43,6 +50,8 @@ export const Route = createFileRoute("/")({
       // Null renders every card field, which is what the card does without
       // any configuration at all.
       composition: composition.status === "fulfilled" ? composition.value : null,
+      // Null means the carousel fetches them itself, as it did before.
+      slides: slides.status === "fulfilled" ? slides.value : null,
     };
   },
 

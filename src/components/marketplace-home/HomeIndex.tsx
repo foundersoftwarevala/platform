@@ -1,4 +1,4 @@
-import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type ReactNode, useMemo } from "react";
 import { SiteFooter } from "@/components/marketplace-home/SiteFooter";
 import { FloatingElements } from "@/components/marketplace-home/FloatingElements";
 
@@ -4276,7 +4276,7 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
             {/* Interactive Tabs — drawn only when there is something to put in
                 them. Both panels were empty on every catalogue card, because
                 toDemo passed empty arrays. */}
-            {(demo.features.length > 0 || demo.frontend.length > 0 || demo.backend.length > 0) && (
+            {((demo.features?.length ?? 0) > 0 || (demo.frontend?.length ?? 0) > 0 || (demo.backend?.length ?? 0) > 0) && (
             <div className="mb-3">
               <div className="flex gap-1 mb-2">
                 <button
@@ -4298,7 +4298,7 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
               <div className="min-h-[52px] sv-fade-swap" key={activeTab}>
                 {activeTab === 'features' ? (
                   <div className="flex flex-wrap gap-1">
-                    {demo.features.map((feature) => (
+                    {(demo.features ?? []).map((feature) => (
                       <Badge key={feature} variant="outline" className="sv-chip text-[10px] border-cyan-500/30 text-cyan-300 bg-cyan-500/10">
                         {feature}
                       </Badge>
