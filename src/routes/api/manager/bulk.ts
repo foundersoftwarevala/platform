@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { resolveAction } from "@/lib/marketplace/permission-guard";
+import { loadMatrix, recordDenial, rolesOf } from "@/lib/marketplace/permission-store.server";
 
 /**
  * The bulk operation engine.
@@ -97,6 +99,36 @@ export const Route = createFileRoute("/api/manager/bulk")({
 
         const resourceName = String(body.resource ?? "").trim();
         const operation = body.operation === "retire" ? "retire" : "update";
+
+        // Section 38: a bulk operation is held to the same permission a single
+        // one is. Doing it to four hundred records at once is not a way around
+        // not being allowed to do it to one, and the refusal happens before the
+        // selection is even looked at.
+        const bulkAction = operation === "retire" ? "delete" : "edit";
+        const { matrix } = await loadMatrix();
+        const caller = await rolesOf(request);
+        const allowed = resolveAction({
+          roles: caller.roles, action: bulkAction, permissions: matrix,
+        });
+        if (!allowed.visible || !allowed.enabled) {
+          await recordDenial(request, {
+            action: `bulk_${operation}`,
+            permission: operation === "retire" ? "marketplace.delete" : "marketplace.edit",
+            roles: caller.roles,
+            entityType: "bulk_operation",
+            recordId: null,
+            why: `${allowed.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}]. Selection of ${Array.isArray(body.ids) ? body.ids.length : 0} record(s) was not touched.`,
+          });
+          return Response.json(
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: allowed.reason,
+              visibility: allowed.visible ? "disabled" : "hidden",
+            },
+            { status: 403 },
+          );
+        }
         const preview = body.preview !== false; // preview unless told otherwise
         const ids = (body.ids ?? []).filter((id) => UUID.test(String(id)));
 

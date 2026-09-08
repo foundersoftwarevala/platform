@@ -7,6 +7,7 @@ import { DashboardSection } from "./sections/DashboardSection";
 // connected screen in sections/index.
 import { FaqManagerSection, ValaTvSection } from "./sections/ContentStudio";
 import { StoriesAwardsSection } from "./sections/StoriesAwards";
+import { RoleMatrix } from "./sections/RoleMatrix";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
 
@@ -101,7 +102,11 @@ const designedSections: Record<string, SectionComponent> = {
   Integrations: S.IntegrationsSection,
   Deployment: S.DeploymentSection,
   Integrity: S.IntegritySection,
-  Security: S.SecuritySection,
+  // S.SecuritySection is the designed shell and is still exported - its
+  // Sessions, 2FA and IP allowlist tabs have nothing behind them yet. The
+  // Roles and Permissions half does, so Security opens on the connected
+  // matrix the server actually enforces.
+  Security: RoleMatrix,
   System: S.SystemSection,
   Support: S.SupportSection,
   Extra: S.ExtraSection,

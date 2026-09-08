@@ -5,6 +5,7 @@ import {
   type RowActionId,
 } from "@/lib/marketplace/row-actions";
 import { ACTION_PERMISSION, resolveAction } from "@/lib/marketplace/permission-guard";
+import { loadMatrix } from "@/lib/marketplace/permission-store.server";
 
 /**
  * Row actions, executed on the server.
@@ -180,7 +181,11 @@ export const Route = createFileRoute("/api/manager/row-action")({
         // Permission first, from the database. Sections 15 and 33: the button
         // is not the boundary.
         const { roles, via } = await rolesOf(request);
-        const decision = resolveAction({ roles, action });
+        // The matrix as it stands now, not as it shipped. A permission revoked
+        // in the Role Matrix screen is in force on this request - section 45
+        // asks the backend to enforce immediately whatever any UI believes.
+        const { matrix } = await loadMatrix();
+        const decision = resolveAction({ roles, action, permissions: matrix });
         if (!decision.visible || !decision.enabled) {
           await recordDenial(request, {
             action, permission: ACTION_PERMISSION[action] ?? null, roles, recordId: id,

@@ -5,6 +5,8 @@ import {
   defaultPalette, hexToRgb, normaliseHex,
   type Token, type TokenKey,
 } from "@/lib/marketplace/color";
+import { resolveAction } from "@/lib/marketplace/permission-guard";
+import { loadMatrix, recordDenial, rolesOf } from "@/lib/marketplace/permission-store.server";
 
 /**
  * The Marketplace palette: read, save, reset.
@@ -109,6 +111,36 @@ export const Route = createFileRoute("/api/marketplace/colour")({
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
         if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
+
+        // Section 26: the palette is configuration, so changing it takes
+        // marketplace.colors.configure and not merely being an operator.
+        // Reading it stays open to any operator - the colours are on every
+        // screen they can already see, so guarding the read would protect
+        // nothing.
+        const { matrix } = await loadMatrix();
+        const caller = await rolesOf(request);
+        const allowed = resolveAction({
+          roles: caller.roles, action: "configure_colors", permissions: matrix,
+        });
+        if (!allowed.visible || !allowed.enabled) {
+          await recordDenial(request, {
+            action: "configure_colors",
+            permission: "marketplace.colors.configure",
+            roles: caller.roles,
+            entityType: "colour_palette",
+            recordId: null,
+            why: `${allowed.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
+          });
+          return Response.json(
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: allowed.reason,
+              visibility: allowed.visible ? "disabled" : "hidden",
+            },
+            { status: 403 },
+          );
+        }
 
         let body: { tokens?: Record<string, string>; reset?: boolean; reason?: string };
         try {
