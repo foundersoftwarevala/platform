@@ -1,3 +1,6 @@
+import { readFile, readdir } from "node:fs/promises";
+import { join } from "node:path";
+
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { resolveAction } from "@/lib/marketplace/permission-guard";
@@ -57,6 +60,55 @@ async function count(path: string): Promise<number | null> {
   } catch {
     return null;
   }
+}
+
+const CONSOLE_DIR =
+  process.env.DEPLOY_REPO_DIR?.trim()
+    ? join(process.env.DEPLOY_REPO_DIR.trim(), "src/components/marketplace-manager")
+    : join(process.cwd(), "src/components/marketplace-manager");
+
+/**
+ * Section 12, turned on the console itself.
+ *
+ * A metric typed into a component is the one kind of invented number no
+ * database check can catch, so the source is read and any StatCard whose value
+ * is a literal is reported with the file it lives in. Backups and .bak copies
+ * are skipped - they render nothing.
+ */
+async function scanConsole() {
+  const hits: { file: string; values: string[] }[] = [];
+  const literal = /<StatCard[^>]*?value=\{?["']([0-9][0-9,.]*[KMB+%]?)["']\}?/gs;
+
+  const walk = async (dir: string, depth = 0): Promise<void> => {
+    if (depth > 4) return;
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(full, depth + 1);
+        continue;
+      }
+      if (!entry.name.endsWith(".tsx")) continue;
+      if (entry.name.includes(".bak") || entry.name.includes(".backup")) continue;
+      try {
+        const text = await readFile(full, "utf8");
+        const values = [...text.matchAll(literal)].map((m) => m[1]);
+        if (values.length) {
+          hits.push({ file: full.slice(full.indexOf("marketplace-manager")), values });
+        }
+      } catch {
+        /* unreadable file, skipped */
+      }
+    }
+  };
+
+  await walk(CONSOLE_DIR);
+  return hits.sort((a, b) => b.values.length - a.values.length);
 }
 
 type Policy = {
@@ -234,6 +286,27 @@ export const Route = createFileRoute("/api/marketplace/integrity")({
           },
         ];
 
+        // Section 12 covers the whole console, so the console is scanned too.
+        const hardcoded = await scanConsole();
+        const hardcodedCount = hardcoded.reduce((n, h) => n + h.values.length, 0);
+
+        policies.push({
+          id: "numeric_metric_rule",
+          title: "Numeric Metric Rule",
+          description: "No placeholders, no demo numbers, no inflated counters — anywhere in this console.",
+          source: "The console's own source, scanned for StatCards with a literal value",
+          status: hardcodedCount > 0 ? "VIOLATED" : "ENFORCED",
+          evidence:
+            hardcodedCount > 0
+              ? `${hardcodedCount} metric(s) across ${hardcoded.length} component(s) are numbers written into the component rather than read from a source.`
+              : "Every StatCard in the console takes its value from a source.",
+          violations: hardcoded.map((h) => ({
+            what: h.file,
+            count: h.values.length,
+            sample: h.values.slice(0, 8),
+          })),
+        });
+
         const violated = policies.filter((p) => p.status === "VIOLATED");
 
         return Response.json({
@@ -287,6 +360,13 @@ export const Route = createFileRoute("/api/marketplace/integrity")({
                 : null,
             ].filter(Boolean),
             note: "Nothing here is adjusted to make the numbers agree. A mismatch is reported as a mismatch.",
+          },
+          console_scan: {
+            components: hardcoded.length,
+            metrics: hardcodedCount,
+            findings: hardcoded,
+            what:
+              "A number typed into a component never reaches a database check, so the console's own source is read on every request. Files ending .bak or .backup are skipped because they render nothing.",
           },
           view_integrity: {
             events: events.length,

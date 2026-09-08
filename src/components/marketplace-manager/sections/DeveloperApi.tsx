@@ -197,8 +197,10 @@ export function DeveloperApi() {
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Endpoints" value={String(data.endpoints.length)} />
-        <StatCard label="Issued keys" value="0" tone="premium" />
-        <StatCard label="Rate limits" value="0" tone="warning" />
+        {/* Section 11: there is no key-issuing system and no limiter here, so
+            there is no measurement to report. Zero would claim one. */}
+        <StatCard label="Issued keys" value="—" tone="premium" />
+        <StatCard label="Rate limits" value="—" tone="warning" />
         <StatCard label="Denied attempts" value={String(data.telemetry.denied_attempts)} tone="destructive" />
       </div>
 
