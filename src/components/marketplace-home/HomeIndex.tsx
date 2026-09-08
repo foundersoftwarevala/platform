@@ -4323,15 +4323,24 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 cells.push({ value: d.platform, label: "Deployment", tone: "text-purple-400" });
               if (cells.length === 0) return null;
               return (
-                <div
-                  className="sv-card-stats mt-3 pt-3 border-t border-cyan-500/10 grid gap-2"
-                  style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}
-                >
+                // One slim strip instead of a stacked grid: the same facts and
+                // the same tone colours, on a single line inside a glass pill.
+                // Value and label sit side by side, so three facts cost one line
+                // of height rather than four.
+                <div className="sv-card-stats mt-2 flex flex-wrap items-center gap-1.5">
                   {cells.map((c) => (
-                    <div key={c.label} className="text-center">
-                      <p className={`${c.tone} text-sm font-bold truncate`}>{c.value}</p>
-                      <p className="text-gray-500 text-[10px]">{c.label}</p>
-                    </div>
+                    <span
+                      key={c.label}
+                      title={`${c.label}: ${c.value}`}
+                      className="inline-flex min-w-0 items-baseline gap-1 rounded-full border border-cyan-500/15 bg-gradient-to-r from-white/[0.06] to-white/[0.02] px-2 py-[3px] backdrop-blur-sm"
+                    >
+                      <span className={`${c.tone} truncate text-[11px] font-bold leading-none`}>
+                        {c.value}
+                      </span>
+                      <span className="shrink-0 text-[9px] uppercase tracking-wide text-gray-500">
+                        {c.label}
+                      </span>
+                    </span>
                   ))}
                 </div>
               );
