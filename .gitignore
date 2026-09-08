@@ -44,3 +44,6 @@ yarn-error.log*
 .output.bak-*/
 .output.failed-*/
 .output.new-*/
+
+# archived legacy copies (kept on disk, out of the source tree)
+_archive/

@@ -647,3 +647,114 @@
 /* Slimmer, and they keep whatever colour the row already defines. */
 .sv-row-scroll::-webkit-scrollbar { height: 6px; }
 .sv-row-scroll::-webkit-scrollbar-thumb { border-radius: 999px; }
+
+
+/* ==================================================================== */
+/* SV DEPTH LAYER                                                       */
+/* Density and richness only. No hue is changed anywhere below - every  */
+/* rule raises saturation, contrast or depth on colours already in use. */
+/* Appended last so nothing above needs editing.                        */
+/* ==================================================================== */
+
+/* Glass surfaces: more pigment, less grey film. The blur is unchanged; the
+   saturation and a touch of contrast are what make the colour read as
+   material rather than as a wash. */
+.sv-card,
+.glass,
+.sv-chip {
+  backdrop-filter: blur(12px) saturate(165%) contrast(104%);
+  -webkit-backdrop-filter: blur(12px) saturate(165%) contrast(104%);
+}
+
+/* Cards gain a second, wider shadow and a brighter rim. One shadow makes a
+   box; two at different spreads make a surface with air under it. */
+.sv-card {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.14),
+    0 1px 2px oklch(0 0 0 / 0.28),
+    0 12px 24px -14px var(--premium-shadow, oklch(0.055 0.03 255 / 0.72)),
+    0 32px 64px -32px oklch(0.05 0.04 255 / 0.55);
+}
+
+/* On hover the rim brightens and the far shadow deepens, so the lift is felt
+   rather than just seen. */
+.sv-card:hover {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.22),
+    0 2px 4px oklch(0 0 0 / 0.32),
+    0 18px 34px -16px var(--premium-shadow, oklch(0.055 0.03 255 / 0.72)),
+    0 44px 88px -36px oklch(0.05 0.04 255 / 0.66);
+}
+
+/* Large dark panels go muddy without a gradient across them. This is a very
+   slight vertical wash in the panel's own colour - it adds no hue. */
+.hero-premium::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, oklch(1 0 0 / 0.055) 0%, transparent 42%, oklch(0 0 0 / 0.14) 100%),
+    radial-gradient(120% 80% at 50% -10%, oklch(1 0 0 / 0.09) 0%, transparent 62%);
+  mix-blend-mode: soft-light;
+  z-index: 0;
+}
+
+/* Hero text sits above the wash and keeps its own weight. */
+.hero-premium .hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Accent text carries a faint glow of its own colour, which reads as richness
+   at 4K where thin type otherwise looks washed out. currentColor means the hue
+   is always the element's own. */
+.sv-card .text-cyan-300,
+.sv-card .text-cyan-400,
+.sv-card .text-emerald-400,
+.sv-card .text-purple-400,
+.sv-card .text-amber-300 {
+  text-shadow: 0 0 14px color-mix(in oklab, currentColor 26%, transparent);
+}
+
+/* Chips and pills: a denser fill so they hold their colour against the card
+   instead of dissolving into it. */
+.sv-chip {
+  background-image: linear-gradient(180deg, oklch(1 0 0 / 0.07), oklch(1 0 0 / 0.02));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.10), 0 1px 2px oklch(0 0 0 / 0.22);
+}
+
+/* Buttons keep their colour and gain body: a top rim, a grounded shadow and a
+   faint inner gradient. */
+.sv-btn {
+  background-image: linear-gradient(180deg, oklch(1 0 0 / 0.10), oklch(0 0 0 / 0.06));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.26),
+    inset 0 -1px 0 oklch(0 0 0 / 0.20),
+    0 6px 16px -8px oklch(0.05 0.04 255 / 0.7);
+}
+.sv-btn:hover {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.34),
+    inset 0 -1px 0 oklch(0 0 0 / 0.22),
+    0 10px 24px -10px oklch(0.05 0.04 255 / 0.8);
+}
+
+/* Section headings gain a little optical weight at large sizes without a size
+   change, so nothing reflows. */
+.sv-card h3,
+.sv-card h4 {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Everything above is decoration. Anyone who has asked for less motion gets
+   the colour depth and none of the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .sv-card,
+  .sv-card:hover,
+  .sv-btn,
+  .sv-btn:hover {
+    transition: none;
+  }
+}
