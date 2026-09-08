@@ -116,8 +116,28 @@ export const Route = createFileRoute("/api/analytics/products")({
           return a;
         };
 
+        // Counted only where the event actually carries them. Events recorded
+        // before the tracking endpoint derived country and device have neither,
+        // and saying how many is the difference between a breakdown and a guess.
+        const byCountry = new Map<string, number>();
+        const byDevice = new Map<string, number>();
+        let withCountry = 0;
+        let withDevice = 0;
+
         let viewsWithoutProduct = 0;
         for (const e of events) {
+          const meta = (e.metadata ?? {}) as Record<string, unknown>;
+          if (meta.country) {
+            const c = String(meta.country);
+            byCountry.set(c, (byCountry.get(c) ?? 0) + 1);
+            withCountry++;
+          }
+          if (meta.device) {
+            const d = String(meta.device);
+            byDevice.set(d, (byDevice.get(d) ?? 0) + 1);
+            withDevice++;
+          }
+
           const id = e.product_id ? String(e.product_id) : null;
           if (!id) { if (e.event_type === "product_view") viewsWithoutProduct++; continue; }
           const a = acc(id);
@@ -194,13 +214,33 @@ export const Route = createFileRoute("/api/analytics/products")({
             views_without_a_product: viewsWithoutProduct,
           },
           products: rows,
+          countries: {
+            counted_from: withCountry,
+            of_events: events.length,
+            top: [...byCountry.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
+              .map(([country, events]) => ({ country, events })),
+            note: withCountry === 0
+              ? "No event carries a country yet. The tracking endpoint records one from this point on; the events already in the table have none."
+              : `Counted from the ${withCountry} of ${events.length} events that carry a country. The rest predate the change and have none.`,
+          },
+          devices: {
+            counted_from: withDevice,
+            of_events: events.length,
+            breakdown: [...byDevice.entries()].sort((a, b) => b[1] - a[1])
+              .map(([device, count]) => ({
+                device,
+                events: count,
+                share: withDevice ? Math.round((count / withDevice) * 1000) / 10 : null,
+              })),
+            note: withDevice === 0
+              ? "No event carries a device yet, for the same reason."
+              : `Shares are of the ${withDevice} events that carry a device, not of all ${events.length}.`,
+          },
           // Said plainly rather than shown as 0.
           unavailable: {
             bounce_rate: "Not captured. marketplace_events carries no session start or end, so a single-engagement session cannot be identified.",
             session_duration: "Not captured, for the same reason.",
-            countries: "Not captured. The metadata column is empty on the existing events, so no country was ever recorded.",
-            devices: "Not captured, for the same reason.",
-            search_ranking: "Not captured. Search result positions and result clicks are not written to marketplace_events.",
+            search_ranking: "Recorded from this point on: the tracking endpoint now accepts search_result_click with a query and a position. Nothing has been recorded yet.",
             wishlist: "Favourites are held in the browser by the storefront, so no wishlist event reaches the database.",
           },
           reconciliation: {
