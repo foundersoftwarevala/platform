@@ -141,6 +141,46 @@ export function EmptyHint({ text }: { text: string }) {
   );
 }
 
+/**
+ * A read that failed, said out loud.
+ *
+ * Every panel here used to render a refused or failed read exactly like an
+ * empty one: a spinner that never resolved, or a table with no rows and no
+ * explanation. An operator could not tell "there is nothing" from "we were not
+ * allowed to look". This says which it was, and shows the reason the server
+ * actually gave.
+ */
+export function LoadFailure({
+  error,
+  what = "this panel",
+  onRetry,
+}: {
+  error: unknown;
+  what?: string;
+  onRetry?: () => void;
+}) {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const denied = /unauthor|not[_ ]permitted|forbidden|sign in|permission|denied/i.test(raw);
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-600">
+      <div className="font-semibold">
+        {denied
+          ? "Signed in, but this account is not allowed to read " + what + "."
+          : "Could not load " + what + "."}
+      </div>
+      <div className="mt-1 break-words text-amber-600/80">{raw || "The request failed."}</div>
+      {onRetry ? (
+        <button
+          onClick={onRetry}
+          className="mt-2 rounded-lg border border-amber-500/40 px-2.5 py-1 font-semibold hover:bg-amber-500/10"
+        >
+          Try again
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function SectionRow({
   title,
   count,

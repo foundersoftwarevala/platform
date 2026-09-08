@@ -10,7 +10,7 @@ import {
   listCategoriesAdmin, upsertCategory, deleteCategory,
   listSectionsAdmin, setSectionEnabled, reorderSections,
 } from "@/lib/marketplace-manager/catalog";
-import { Card, PageHeader, PillButton } from "../ui";
+import { Card, LoadFailure, PageHeader, PillButton } from "../ui";
 
 type Category = {
   id: string; slug: string; name: string; icon: string | null; image_key: string | null;
@@ -41,7 +41,7 @@ export function ProductsAdmin() {
   const upsertFn = useServerFn(upsertProduct);
   const deleteFn = useServerFn(deleteProduct);
 
-  const { data = [], isLoading } = useQuery<Product[]>({
+  const { data = [], isLoading, isError, error, refetch } = useQuery<Product[]>({
     queryKey: ["mp_products_admin"], queryFn: async () => (await listFn()) as unknown as Product[],
   });
 
@@ -80,7 +80,9 @@ export function ProductsAdmin() {
         }
       />
 
-      {isLoading ? (
+      {isError ? (
+        <LoadFailure error={error} what="the product catalogue" onRetry={() => void refetch()} />
+      ) : isLoading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
       ) : data.length === 0 ? (
         <Card><div className="text-sm text-muted-foreground">No products yet. Create your first product — it will appear on the marketplace homepage automatically.</div></Card>
@@ -208,7 +210,7 @@ export function CategoriesAdmin() {
   const upsertFn = useServerFn(upsertCategory);
   const deleteFn = useServerFn(deleteCategory);
 
-  const { data = [], isLoading } = useQuery<Category[]>({
+  const { data = [], isLoading, isError, error, refetch } = useQuery<Category[]>({
     queryKey: ["mp_categories_admin"], queryFn: async () => (await listFn()) as unknown as Category[],
   });
 
@@ -245,7 +247,9 @@ export function CategoriesAdmin() {
           </PillButton>
         }
       />
-      {isLoading ? (
+      {isError ? (
+        <LoadFailure error={error} what="the categories" onRetry={() => void refetch()} />
+      ) : isLoading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin"/> Loading…</div>
       ) : data.length === 0 ? (
         <Card><div className="text-sm text-muted-foreground">No categories yet. Add one — it will appear in the Industry grid on the homepage.</div></Card>
@@ -328,7 +332,7 @@ export function LayoutOrderAdmin() {
   const toggleFn = useServerFn(setSectionEnabled);
   const reorderFn = useServerFn(reorderSections);
 
-  const { data = [], isLoading } = useQuery<Section[]>({
+  const { data = [], isLoading, isError, error, refetch } = useQuery<Section[]>({
     queryKey: ["mp_sections_admin"], queryFn: async () => (await listFn()) as unknown as Section[],
   });
 
@@ -368,7 +372,9 @@ export function LayoutOrderAdmin() {
         title="Layout Order"
         description="Enable, disable and reorder every marketplace homepage section. Live and instant."
       />
-      {isLoading ? (
+      {isError ? (
+        <LoadFailure error={error} what="the homepage sections" onRetry={() => void refetch()} />
+      ) : isLoading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin"/> Loading…</div>
       ) : (
         <div className="grid gap-2">

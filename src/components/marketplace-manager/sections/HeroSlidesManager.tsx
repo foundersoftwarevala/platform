@@ -6,7 +6,7 @@ import {
   Plus, Calendar, Eye, Edit3, Trash2, ChevronUp, ChevronDown, Save, X,
   CheckCircle2, Clock, FileText, Archive, Power, Loader2, ArrowRight,
 } from "lucide-react";
-import { Card, PageHeader, PillButton, StatCard, SubNav } from "../ui";
+import { Card, LoadFailure, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import {
   fetchAllHeroSlides, createHeroSlide, updateHeroSlide, deleteHeroSlide,
   reorderHeroSlides, isSlideLive, iconFromName, HERO_ICON_CHOICES,
@@ -46,7 +46,7 @@ export function HeroBannerSection() {
   const [editing, setEditing] = useState<HeroSlideRow | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const { data: slides = [], isLoading } = useQuery({
+  const { data: slides = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["hero_slides", "all"],
     queryFn: fetchAllHeroSlides,
   });
@@ -141,7 +141,9 @@ export function HeroBannerSection() {
         <StatCard label="Drafts" value={String(stats.drafts)} icon={<Edit3 className="h-3.5 w-3.5" />} />
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <Card><LoadFailure error={error} what="the hero slides" onRetry={() => void refetch()} /></Card>
+      ) : isLoading ? (
         <Card><div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading slides…</div></Card>
       ) : filtered.length === 0 ? (
         <Card><div className="py-8 text-center text-sm text-muted-foreground">No slides in this view. Click <b>New Slide</b> to create one.</div></Card>

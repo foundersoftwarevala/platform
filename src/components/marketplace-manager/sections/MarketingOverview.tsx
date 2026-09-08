@@ -1,7 +1,7 @@
 import { AlertTriangle, ArrowUpRight, FlaskConical, Plug } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-import { Card, EmptyHint, PageHeader, StatCard } from "../ui";
+import { Card, EmptyHint, LoadFailure, PageHeader, StatCard } from "../ui";
 import { getMarketingProviders, type ProviderStatus } from "@/lib/marketing/providers.functions";
 import { getMarketingSummary } from "@/lib/marketing/summary.functions";
 
@@ -65,6 +65,8 @@ export function MarketingSection() {
     queryFn: () => getMarketingSummary(),
     staleTime: 60_000,
   });
+
+  const failed = summary.isError ? summary.error : providers.isError ? providers.error : null;
 
   const s = summary.data as {
     ok?: boolean;
@@ -138,6 +140,13 @@ export function MarketingSection() {
             Checked on the server against the environment. Only the setting names are
             shown here — never a value.
           </p>
+          {failed ? (
+            <LoadFailure
+              error={failed}
+              what="the marketing console"
+              onRetry={() => { void summary.refetch(); void providers.refetch(); }}
+            />
+          ) : null}
           {providers.isLoading && <EmptyHint text="Checking the providers…" />}
           <div className="grid gap-1.5 sm:grid-cols-2">
             {(p?.providers ?? []).map((prov) => (

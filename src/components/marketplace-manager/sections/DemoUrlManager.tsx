@@ -15,7 +15,7 @@ import {
 } from "@/lib/marketplace-manager/demo";
 import { listProductsAdmin } from "@/lib/marketplace-manager/catalog";
 
-import { Card, PageHeader, PillButton } from "../ui";
+import { Card, LoadFailure, PageHeader, PillButton } from "../ui";
 
 const EMPTY: Partial<DemoUrl> = {
   demo_name: "", role_name: "User", url: "", username: "", password: "",
@@ -41,7 +41,7 @@ export function DemoUrlManagerSection() {
   const auditFn = useServerFn(listDemoAuditLog);
 
 
-  const { data: rows = [], isLoading } = useQuery<DemoUrl[]>({
+  const { data: rows = [], isLoading, isError, error, refetch } = useQuery<DemoUrl[]>({
     queryKey: ["demo_urls"],
     queryFn: async () => (await listFn()) as unknown as DemoUrl[],
   });
@@ -165,7 +165,9 @@ export function DemoUrlManagerSection() {
         ))}
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <LoadFailure error={error} what="the demo URLs" onRetry={() => void refetch()} />
+      ) : isLoading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin"/> Loading…</div>
       ) : filtered.length === 0 ? (
         <Card><div className="text-sm text-muted-foreground">No demo URLs. Add your first demo — supports unlimited role-based credentials per product.</div></Card>

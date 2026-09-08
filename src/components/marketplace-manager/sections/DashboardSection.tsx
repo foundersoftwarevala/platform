@@ -17,7 +17,7 @@ import {
   Sparkles,
   ArrowUpRight,
 } from "lucide-react";
-import { Card, EmptyHint, PageHeader, PillButton, SectionRow, StatCard } from "../ui";
+import { Card, EmptyHint, LoadFailure, PageHeader, PillButton, SectionRow, StatCard } from "../ui";
 
 import { notBuilt } from "@/lib/ui/not-built";
 import { useQuery } from "@tanstack/react-query";
@@ -84,6 +84,11 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
   const go = (id: NavId) => onNavigate?.(id);
   return (
     <div className="px-4 py-8 md:px-8">
+      {room.isError ? (
+        <div className="mb-4">
+          <LoadFailure error={room.error} what="the control room" onRetry={() => void room.refetch()} />
+        </div>
+      ) : null}
       <PageHeader
         eyebrow="Marketplace Control Center"
         title="Welcome back to your marketplace"

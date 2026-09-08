@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   ChevronUp, ChevronDown, Eye, EyeOff, Loader2, Plus, Trash2, Save, Layers, Sparkles,
 } from "lucide-react";
-import { Card, PillButton, StatCard } from "../ui";
+import { Card, LoadFailure, PillButton, StatCard } from "../ui";
 import {
   fetchHomepageSections, updateHomepageSection, reorderHomepageSectionRows,
   fetchFeatureStripItems, updateFeatureStripItem, createFeatureStripItem,
@@ -74,8 +74,17 @@ export function HomepageContentEditor() {
 
   const loading = sectionsQ.isLoading || stripQ.isLoading;
 
+  const failed = sectionsQ.isError ? sectionsQ.error : stripQ.isError ? stripQ.error : null;
+
   return (
     <div className="mb-8 space-y-4">
+      {failed ? (
+        <LoadFailure
+          error={failed}
+          what="the homepage content"
+          onRetry={() => { void sectionsQ.refetch(); void stripQ.refetch(); }}
+        />
+      ) : null}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Live Sections" value={String(sections.filter((s) => s.visible).length)} tone="success" />
         <StatCard label="Hidden Sections" value={String(sections.filter((s) => !s.visible).length)} />

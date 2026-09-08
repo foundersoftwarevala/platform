@@ -5,7 +5,7 @@ import {
   History, RefreshCw, Search, ShieldAlert, X,
 } from "lucide-react";
 
-import { Card, EmptyHint, PageHeader, StatCard } from "../ui";
+import { Card, EmptyHint, LoadFailure, PageHeader, StatCard } from "../ui";
 import {
   addEvidence, bulkTransition, createSubmission, getSubmissionDetail, getSubmissions,
   runSlaSweep, setApprovalRule, setApprovalSla, transitionSubmission,
@@ -546,6 +546,15 @@ export function ApprovalWorkflow() {
 
   if (open) return <ReviewPacket id={open} onBack={() => setOpen(null)} />;
 
+  if (q.isError) {
+    return (
+      <div className="px-4 py-8 md:px-8">
+        <PageHeader eyebrow="Governance · Author Approval" title="Author Approval Workflow" />
+        <LoadFailure error={q.error} what="the approval queue" onRetry={() => void q.refetch()} />
+      </div>
+    );
+  }
+
   if (d && d.ok === false) {
     return (
       <div className="px-4 py-8 md:px-8">
@@ -867,7 +876,7 @@ export function ApprovalWorkflow() {
           not from a toggle on this screen.
         </p>
         {(d?.trusted_authors?.length ?? 0) === 0 ? (
-          <EmptyHint text="No sellers are registered yet." />
+          <EmptyHint text="No author has a submission on record yet, so no trust level has been earned. Registered sellers themselves live in Author Manager." />
         ) : (
           <div className="space-y-1">
             {d?.trusted_authors?.map((a: TrustedAuthor) => (

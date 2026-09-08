@@ -6,7 +6,7 @@ import {
   Wand2, XCircle,
 } from "lucide-react";
 
-import { Card, EmptyHint, PageHeader, PillButton, StatCard, SubNav } from "../ui";
+import { Card, EmptyHint, LoadFailure, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import {
   approveContent, archiveContent, cancelBulkJob, createBulkJob, editContent,
   generateContent, getAiContentConsole, getAiContentProducts, getItemVersions,
@@ -318,6 +318,17 @@ export function AiContentGenerator() {
   const stats = (d?.stats ?? {}) as Record<string, number>;
   const state = d?.provider_state;
 
+  if (console_.isError) {
+    return (
+      <div className="px-4 py-8 md:px-8">
+        <LoadFailure
+          error={console_.error}
+          what="the content generator"
+          onRetry={() => void console_.refetch()}
+        />
+      </div>
+    );
+  }
   if (console_.isLoading) {
     return (
       <div className="flex items-center gap-2 px-4 py-16 text-sm text-muted-foreground md:px-8">
