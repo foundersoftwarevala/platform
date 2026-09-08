@@ -523,6 +523,10 @@ export { ApprovalWorkflow as AuthorApprovalSection } from "./ApprovalWorkflow";
 // is kept as SecurityScanSectionStatic.
 export { SecurityScanner as SecurityScanSection } from "./SecurityScanner";
 
+// The SEO auto-generator, counting from the catalogue and reading the live
+// product page. The stand it replaces is kept as SeoAutomationSectionStatic.
+export { SeoAutoGenerator as SeoAutomationSection } from "./SeoAutoGenerator";
+
 // The moderation centre, on the canonical catalogue with a real duplicate
 // scan and a purge that never destroys an order, licence, review or merge
 // record. The stand it replaces is kept above as ModerationSectionStatic.
@@ -563,7 +567,7 @@ export {
   ModerationSection as ModerationSectionStatic,
   DemoSandboxSection as DemoSandboxSectionStatic,
   DemoDomainSection as DemoDomainSectionStatic,
-  SeoAutomationSection, LeadsSection,
+  SeoAutomationSectionStatic, LeadsSection,
   ProductUrlSection as ProductUrlSectionStatic,
   FaviconProtectionSection as FaviconProtectionSectionStatic,
   AiContentSection as AiContentSectionStatic,

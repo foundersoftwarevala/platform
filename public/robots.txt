@@ -10,8 +10,66 @@ Allow: /
 User-agent: facebookexternalhit
 Allow: /
 
+# Everything else. The marketplace is public; the operator side is not.
 User-agent: *
 Allow: /
+
+# The Control Panel and every manager console behind it. These are all behind
+# role checks, so nothing is exposed by opening one - but an "Access
+# restricted" page has no business in a search index, and the list of consoles
+# is not something to publish.
+Disallow: /control-panel
+Disallow: /boss
+Disallow: /manager
+Disallow: /admin
+Disallow: /marketplace-manager
+Disallow: /marketplace-recovery
+Disallow: /finance-manager
+Disallow: /reseller-manager
+Disallow: /franchise-manager
+Disallow: /influencer-manager
+Disallow: /affiliate-manager
+Disallow: /vendor-manager
+Disallow: /creator-manager
+Disallow: /lead-manager
+Disallow: /seo-manager
+Disallow: /ai-api-manager
+Disallow: /ams-manager
+Disallow: /ams
+Disallow: /demo-manager
+Disallow: /demo-ops
+Disallow: /demo-workspace
+Disallow: /product-demo-manager
+Disallow: /sales-crm
+Disallow: /sales-support-manager
+Disallow: /support-agent
+Disallow: /support-chatbot
+Disallow: /internal-support-ai
+Disallow: /chat-manager
+Disallow: /server-manager
+Disallow: /dev-manager
+Disallow: /task-manager
+Disallow: /legal-manager
+Disallow: /assist-manager
+Disallow: /promise-tracker
+Disallow: /ai-ceo
+Disallow: /vala-ai
+Disallow: /marketing
+Disallow: /keywords
+Disallow: /pages
+
+# Endpoints, not pages. Some answer only to an operator token; none of them are
+# something a crawler should be fetching.
+Disallow: /api/
+
+# Short links resolve with a redirect and already answer x-robots-tag noindex.
+# Keeping them out of the crawl means the canonical product URL is the one that
+# gets indexed, which is the whole point of having a canonical.
+Disallow: /s/
+
+# Sign-in and account surfaces.
+Disallow: /auth
+Disallow: /account/
 
 # Where the crawlable index of this site lives.
 Sitemap: https://softwarevala.net/sitemap.xml

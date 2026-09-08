@@ -638,7 +638,16 @@ export function FaviconProtectionSection() {
    SEO AUTOMATION
    ===================================================================== */
 
-export function SeoAutomationSection() {
+/**
+ * The original SEO Auto-Generator stand.
+ *
+ * Kept as it was rather than removed. Its four numbers - 98% coverage, 1,842
+ * schemas, 12,406 sitemap URLs, 34 robots rules - were written into this file,
+ * and its preview showed an invented product on the testing domain.
+ * `SEO Automation` now resolves to sections/SeoAutoGenerator.tsx, which counts
+ * from the catalogue and reads the live page.
+ */
+export function SeoAutomationSectionStatic() {
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
