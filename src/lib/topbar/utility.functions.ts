@@ -149,8 +149,115 @@ export async function translateTexts(
 }
 
 /** Storefront AI assistant — needs a server-side AI key, not available in this SPA build. */
+/** Words that carry no meaning in a product search. */
+const STOP = new Set([
+  "i", "we", "you", "a", "an", "the", "is", "are", "do", "does", "have", "has",
+  "want", "need", "looking", "for", "any", "some", "me", "my", "our", "your",
+  "can", "could", "would", "please", "show", "find", "get", "give", "tell",
+  "about", "with", "and", "or", "of", "to", "in", "on", "at", "it", "this",
+  "that", "there", "hi", "hello", "hey", "software", "system", "solution",
+  "product", "products", "app", "application", "price", "cost", "how", "much",
+]);
+
+/**
+ * The catalogue, searched for real.
+ *
+ * Uses the same public search endpoint the storefront's own search box uses, so
+ * a visitor asking the assistant and a visitor typing in the search bar get the
+ * same answer from the same source. Nothing is cached and nothing is invented.
+ */
+async function searchCatalogueForChat(terms: string): Promise<
+  { name: string; slug: string; price: string | null; industry: string | null }[]
+> {
+  const base = process.env.SUPABASE_URL?.trim();
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ??
+    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ??
+    "";
+  if (!base || !key || !terms) return [];
+  const pattern = encodeURIComponent(`*${terms}*`);
+  try {
+    const response = await fetch(
+      `${base}/rest/v1/marketplace_products` +
+        `?select=name,slug,price_label,industry_label` +
+        `&visible=eq.true&content_status=eq.published` +
+        `&or=(name.ilike.${pattern},industry_label.ilike.${pattern},description.ilike.${pattern})` +
+        `&limit=5`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } },
+    );
+    if (!response.ok) return [];
+    const rows = (await response.json()) as Record<string, unknown>[];
+    return rows.map((r) => ({
+      name: String(r.name ?? ""),
+      slug: String(r.slug ?? ""),
+      price: (r.price_label as string) ?? null,
+      industry: (r.industry_label as string) ?? null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The storefront assistant.
+ *
+ * This used to return "AI assistant is not configured yet" to every question,
+ * which made the AI Chat button on the front page do nothing for everybody.
+ * There is still no AI provider credential here, and answering without one by
+ * making things up is not an option. What is available is the catalogue, and
+ * the question a visitor actually asks this box is whether the catalogue has
+ * something for them - so that is what it answers, from real rows.
+ *
+ * A question that is not a search gets an honest description of what this
+ * assistant can do, not a generated guess.
+ */
 export async function askStorefrontAi(
-  _arg?: Arg<{ messages: { role: "user" | "assistant"; content: string }[] }>,
+  arg?: Arg<{ messages: { role: "user" | "assistant"; content: string }[] }>,
 ): Promise<ChatResult> {
-  return { reply: "", error: "AI assistant is not configured yet." };
+  const messages = arg?.data?.messages ?? [];
+  const last = [...messages].reverse().find((m) => m.role === "user");
+  const question = (last?.content ?? "").trim();
+  if (!question) {
+    return { reply: "Ask me what you are looking for — a category, an industry or a product name." };
+  }
+
+  const words = question
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP.has(w));
+
+  // Try the most specific phrasing first, then each word on its own.
+  const attempts = [words.join(" "), ...words].filter(Boolean);
+  let found: Awaited<ReturnType<typeof searchCatalogueForChat>> = [];
+  for (const attempt of attempts) {
+    found = await searchCatalogueForChat(attempt);
+    if (found.length > 0) break;
+  }
+
+  if (found.length > 0) {
+    const lines = found.map((p) => {
+      const price = p.price ? ` — ${p.price}` : "";
+      const industry = p.industry ? ` (${p.industry})` : "";
+      return `• ${p.name}${industry}${price}\n  /marketplace/product/${p.slug}`;
+    });
+    return {
+      reply:
+        `Here is what the catalogue has:\n\n${lines.join("\n")}\n\n` +
+        `Open any of them for the live demo and the licence. ` +
+        `Every product is a one-time purchase with lifetime access.`,
+    };
+  }
+
+  // Nothing matched. Say so, and say what this assistant can actually do.
+  return {
+    reply:
+      words.length > 0
+        ? `I could not find anything in the catalogue for "${words.join(" ")}". ` +
+          `Try an industry — retail, healthcare, education, logistics, hospitality — or a product name. ` +
+          `You can also browse everything at /marketplace.`
+        : `I search the live catalogue of 80+ categories. Tell me an industry or a product ` +
+          `and I will show you what exists. For payment, licence or delivery questions, ` +
+          `use "Talk to a human" above — those are answered by the team, not by me.`,
+  };
 }
