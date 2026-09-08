@@ -141,11 +141,54 @@ export async function getHolidays(
 }
 
 /** UI translation — needs a server-side AI key, not available in this SPA build. */
+/**
+ * Translate storefront strings.
+ *
+ * Calls the application's own translator, which holds a cache of everything it
+ * has already translated and routes the rest through the AI API Manager. This
+ * function used to return "Live translation is not configured" to every request,
+ * which is why the language picker changed nothing.
+ *
+ * When no provider has a credential the endpoint says so, and that reason is
+ * passed back rather than swallowed - the picker can then say why the page did
+ * not change instead of appearing broken. Once a key exists this works with no
+ * further change, and previously translated strings come from the cache without
+ * a provider call at all.
+ */
 export async function translateTexts(
   arg?: Arg<{ texts: string[]; targetLanguage: string }>,
 ): Promise<TranslateResult> {
   const texts = arg?.data?.texts ?? [];
-  return { texts, error: "Live translation is not configured." };
+  const locale = (arg?.data?.targetLanguage ?? "").trim();
+  if (texts.length === 0) return { texts };
+  if (!locale) return { texts, error: "Which language?" };
+
+  const base = process.env.APP_BASE_URL?.trim() || process.env.SITE_URL?.trim() || "";
+  const url = `${base}/api/marketplace/translate`;
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texts, locale }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      translations?: Record<string, string>;
+      error?: string;
+    };
+    if (!response.ok || payload.error) {
+      // Passed through, not hidden: the picker can say why nothing changed.
+      return { texts, error: payload.error ?? `Translation unavailable (${response.status}).` };
+    }
+    const map = payload.translations ?? {};
+    // Anything the translator did not return keeps its original wording rather
+    // than becoming blank.
+    return { texts: texts.map((t) => map[t] ?? t) };
+  } catch (error) {
+    return {
+      texts,
+      error: error instanceof Error ? error.message : "Translation could not be reached.",
+    };
+  }
 }
 
 /** Storefront AI assistant — needs a server-side AI key, not available in this SPA build. */
