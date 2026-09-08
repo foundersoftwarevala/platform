@@ -53,6 +53,12 @@ const RESOURCES: Record<string, Resource> = {
     searchable: ["company", "author", "product"],
     order: "sort_order.asc",
     label: "Success stories",
+    // A story could be edited but never added, so the home page section
+    // that reads this table could never show anything at all.
+    creatable: ["company", "quote", "author", "role", "metric", "metric_label",
+      "product", "product_slug", "published", "sort_order"],
+    required: ["company", "quote"],
+    archive: { published: false },
   },
   awards: {
     table: "marketplace_awards",
@@ -62,6 +68,9 @@ const RESOURCES: Record<string, Resource> = {
     searchable: ["category", "winner"],
     order: "sort_order.asc",
     label: "Awards",
+    creatable: ["category", "winner", "product_slug", "year", "published", "sort_order"],
+    required: ["category", "winner"],
+    archive: { published: false },
   },
   // The addresses themselves. These never appear in a public response - the
   // catalogue's one stealable asset - but an operator has to be able to see and
@@ -255,6 +264,12 @@ export const Route = createFileRoute("/api/manager/resource")({
             label: resource.label,
             columns: resource.select,
             editable: resource.editable,
+            // What the console is allowed to offer. Without these it could
+            // only ever edit rows that already existed, which is why two
+            // home-page sections had no way to get their first row.
+            creatable: resource.creatable ?? [],
+            required: resource.required ?? [],
+            retirable: Boolean(resource.archive),
             rows,
             total: Number(range.split("/")[1]) || (rows as unknown[]).length,
             limit,

@@ -23,7 +23,13 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/control-panel", roles: ["developer", "finance", "support", "sales_support_manager"], label: "Control Panel" },
   { prefix: "/boss", roles: [], label: "Boss Console" },
   { prefix: "/manager", roles: ["developer", "finance", "support", "sales_support_manager"], label: "Manager" },
-  { prefix: "/marketplace-manager", roles: ["finance", "support", "sales_support_manager"], label: "Marketplace Manager" },
+  // These are the roles public.mm_is_operator() honours, on top of the
+  // platform operators RequireRole always admits. The list used to be
+  // finance/support/sales_support_manager, none of which that function
+  // accepts: they reached the console and every read it makes was refused,
+  // which is what an empty Marketplace Manager actually was. Marketing and
+  // SEO, which the database does accept, were kept out of it entirely.
+  { prefix: "/marketplace-manager", roles: ["marketing", "seo"], label: "Marketplace Manager" },
   { prefix: "/marketplace-recovery", roles: ["developer"], label: "Marketplace Recovery" },
   { prefix: "/reseller-manager", roles: ["finance", "support", "sales_support_manager"], label: "Reseller Manager" },
   { prefix: "/franchise-manager", roles: ["finance", "support", "sales_support_manager"], label: "Franchise Manager" },

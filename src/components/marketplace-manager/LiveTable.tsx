@@ -24,6 +24,12 @@ type Payload = {
   label: string;
   columns: string[];
   editable: string[];
+  /** Columns that may be given a value when a row is created. */
+  creatable?: string[];
+  /** Of those, the ones that must not be blank. */
+  required?: string[];
+  /** Whether this resource names a way to take a row out of use. */
+  retirable?: boolean;
   rows: Row[];
   total: number;
   limit: number;
@@ -73,6 +79,7 @@ export function LiveTable({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [adding, setAdding] = useState<Record<string, string> | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(
@@ -158,6 +165,75 @@ export function LiveTable({
     }
   };
 
+  /**
+   * Add a row.
+   *
+   * Only the columns the server named creatable are offered, and the server
+   * checks them again; this form cannot invent a field. A refusal is shown as
+   * a refusal - nothing is added to the table on screen that is not in the
+   * database.
+   */
+  const create = async () => {
+    if (!adding) return;
+    setBusy("new");
+    setNotice(null);
+    try {
+      const response = await fetch("/api/manager/resource", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ resource, values: adding }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(
+          response.status === 401 || response.status === 403
+            ? "Sign in as an operator to add this."
+            : (payload?.error ?? "That row was not added."),
+        );
+        return;
+      }
+      setAdding(null);
+      setNotice("Added");
+      setTimeout(() => setNotice(null), 2500);
+      await load(search, page * PAGE);
+    } catch {
+      setNotice("Could not reach the server. Nothing was added.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** Take a row out of use. Nothing here is deleted; the server decides how. */
+  const retire = async (id: string) => {
+    if (!window.confirm("Take this row out of use? It stays in the database and can be put back.")) return;
+    setBusy(id);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        `/api/manager/resource?resource=${encodeURIComponent(resource)}&id=${encodeURIComponent(id)}`,
+        { method: "DELETE", headers: await authHeaders() },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(
+          response.status === 401 || response.status === 403
+            ? "Sign in as an operator to retire this."
+            : (payload?.error ?? "That row was not retired."),
+        );
+        return;
+      }
+      setNotice("Retired");
+      setTimeout(() => setNotice(null), 2500);
+      await load(search, page * PAGE);
+    } catch {
+      setNotice("Could not reach the server. Nothing was changed.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const canCreate = (data?.creatable?.length ?? 0) > 0;
+  const canRetire = Boolean(data?.retirable);
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE)) : 1;
 
   return (
@@ -186,6 +262,21 @@ export function LiveTable({
               className="w-40 rounded-md border border-border bg-background/60 py-1.5 pl-8 pr-2 text-xs focus:outline-none focus:ring-1 focus:ring-accent sm:w-56"
             />
           </div>
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() =>
+                setAdding((current) =>
+                  current
+                    ? null
+                    : Object.fromEntries((data?.creatable ?? []).map((c) => [c, ""])),
+                )
+              }
+              className="rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-accent/40 hover:text-accent"
+            >
+              {adding ? "Cancel" : "Add row"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void load(search, page * PAGE)}
@@ -201,6 +292,37 @@ export function LiveTable({
         <p role="status" className="mb-2 rounded-md border border-border bg-background/60 px-3 py-1.5 text-[11px] text-muted-foreground">
           {notice}
         </p>
+      )}
+
+      {adding && data && (
+        <div className="mb-3 rounded-xl border border-accent/30 bg-accent/[0.04] p-3">
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-accent">
+            New {data.label.replace(/s$/, "")}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {(data.creatable ?? []).map((column) => (
+              <label key={column} className="block">
+                <span className="mb-0.5 block text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {humanise(column)}
+                  {(data.required ?? []).includes(column) && <span className="ml-1 text-accent">required</span>}
+                </span>
+                <input
+                  value={adding[column] ?? ""}
+                  onChange={(e) => setAdding({ ...adding, [column]: e.target.value })}
+                  className="w-full rounded-md border border-border bg-background/60 px-2 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={busy === "new"}
+            onClick={() => void create()}
+            className="mt-3 rounded-md bg-accent px-3 py-1.5 text-[11px] font-bold text-background disabled:opacity-40"
+          >
+            {busy === "new" ? "Adding…" : "Add"}
+          </button>
+        </div>
       )}
 
       {error ? (
@@ -232,6 +354,11 @@ export function LiveTable({
                     )}
                   </th>
                 ))}
+                {canRetire && (
+                  <th scope="col" className="border-b border-border px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Row
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -323,6 +450,19 @@ export function LiveTable({
                         </td>
                       );
                     })}
+                    {canRetire && (
+                      <td className="px-2 py-1.5 text-right align-top">
+                        <button
+                          type="button"
+                          disabled={busy === id}
+                          onClick={() => void retire(id)}
+                          className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-accent disabled:opacity-40"
+                          title="Take this row out of use. It is not deleted."
+                        >
+                          Retire
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

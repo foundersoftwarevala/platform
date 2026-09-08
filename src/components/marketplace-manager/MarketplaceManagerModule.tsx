@@ -1,6 +1,7 @@
 import { Component, Suspense, useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, Loader2, RotateCw } from "lucide-react";
 import { type SectionId } from "./TopBar";
+import { MarketplaceWorkspace } from "./MarketplaceWorkspace";
 import { AppSidebar, useSidebarState } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
 import { PageShell, SectionBanner } from "./PageShell";
@@ -22,7 +23,23 @@ import {
   AiContentSection, SecurityScanSection, QualityCheckSection, ProductAnalyticsSection, AuditLogSection,
 } from "./sections";
 
+/**
+ * There is one Marketplace Manager, and it is MarketplaceWorkspace.
+ *
+ * This file used to export a second, complete manager shell - its own sidebar,
+ * its own header, its own section router keyed by SectionId - that nothing
+ * imported. Two shells over the same sections is how they drift apart, and the
+ * one the Control Panel sidebar opens at /marketplace-manager has always been
+ * the workspace. So this name now resolves to that single manager.
+ *
+ * The original implementation is untouched below under its own name. Nothing is
+ * deleted here; it simply is not the Marketplace Manager any more.
+ */
 export function MarketplaceManagerModule() {
+  return <MarketplaceWorkspace />;
+}
+
+export function LegacyMarketplaceManagerModule() {
   const [section, setSection] = useState<SectionId>("dashboard");
   const navigate = (id: SectionId) => setSection(id);
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebarState();
