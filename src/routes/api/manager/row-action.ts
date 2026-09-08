@@ -4,6 +4,7 @@ import {
   ACTION_TARGET, resolveRowActions, transitionAllowed,
   type RowActionId,
 } from "@/lib/marketplace/row-actions";
+import { ACTION_PERMISSION, resolveAction } from "@/lib/marketplace/permission-guard";
 
 /**
  * Row actions, executed on the server.
@@ -38,6 +39,76 @@ function admin() {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The caller's roles, from the database rather than from the request.
+ *
+ * Read with their own token, so what comes back is what user_roles says that
+ * account is - a claim in a header could say anything. An internal-token call
+ * has no user, and is treated as the owner tier because it is a script an
+ * operator ran deliberately; that is recorded as such in any denial.
+ */
+async function rolesOf(request: Request): Promise<{ roles: string[]; via: string }> {
+  const authorization = request.headers.get("authorization");
+  const publishable =
+    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim();
+  if (!authorization || !publishable) return { roles: ["boss"], via: "internal token" };
+  try {
+    const who = await fetch(`${url()}/auth/v1/user`, {
+      headers: { apikey: publishable, Authorization: authorization },
+    });
+    if (!who.ok) return { roles: [], via: "unknown" };
+    const user = (await who.json()) as { id?: string };
+    if (!user?.id) return { roles: [], via: "unknown" };
+    const rows = await fetch(
+      `${url()}/rest/v1/user_roles?select=role&user_id=eq.${encodeURIComponent(user.id)}`,
+      { headers: admin() },
+    )
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => []);
+    return {
+      roles: (rows as { role: string }[]).map((r) => String(r.role)),
+      via: `user:${user.id}`,
+    };
+  } catch {
+    return { roles: [], via: "unknown" };
+  }
+}
+
+/**
+ * Record a refusal.
+ *
+ * Section 25: a denied attempt is a security event. Written through mm_audit
+ * with the caller's own token where there is one, so the record names them.
+ */
+async function recordDenial(
+  request: Request,
+  detail: { action: string; permission: string | null; roles: string[]; recordId: string; why: string },
+): Promise<void> {
+  try {
+    const authorization = request.headers.get("authorization");
+    const anon =
+      process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
+    const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+    const asOperator = Boolean(authorization && anon);
+    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+      method: "POST",
+      headers: asOperator
+        ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
+        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        p_action: `Action denied: ${detail.action}`,
+        p_entity_type: "products",
+        p_entity_id: detail.recordId,
+        p_before: null,
+        p_after: { result: "DENIED", roles: detail.roles, permission_required: detail.permission },
+        p_reason: detail.why,
+      }),
+    });
+  } catch (error) {
+    console.error("[row-action] denial not recorded", error);
+  }
+}
 
 function forwardAuth(request: Request): Record<string, string> {
   const headers: Record<string, string> = {};
@@ -105,6 +176,28 @@ export const Route = createFileRoute("/api/manager/row-action")({
           .catch(() => []);
         const record = (rows as Record<string, unknown>[])[0];
         if (!record) return Response.json({ error: "No such product" }, { status: 404 });
+
+        // Permission first, from the database. Sections 15 and 33: the button
+        // is not the boundary.
+        const { roles, via } = await rolesOf(request);
+        const decision = resolveAction({ roles, action });
+        if (!decision.visible || !decision.enabled) {
+          await recordDenial(request, {
+            action, permission: ACTION_PERMISSION[action] ?? null, roles, recordId: id,
+            why: `${decision.reason ?? "Refused."} Caller ${via} holds [${roles.join(", ") || "no role"}].`,
+          });
+          return Response.json(
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: decision.reason,
+              // Section 11: an action the role may not know about is hidden,
+              // one it may take but cannot right now is disabled.
+              visibility: decision.visible ? "disabled" : "hidden",
+            },
+            { status: 403 },
+          );
+        }
 
         // Re-resolved here. What the browser believed is not consulted.
         const resolved = resolveRowActions(record as never).find((a) => a.id === action);
