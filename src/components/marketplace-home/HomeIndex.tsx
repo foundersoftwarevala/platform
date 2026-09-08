@@ -34,6 +34,7 @@ import {
 import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { buildRow } from "@/data/rowFill";
 import { GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
+import { useProductActions } from "@/lib/marketplace/useActionLayer";
 import { useDebouncedValue, useFavorites } from "@/lib/marketplace-home/persistentState";
 import { useMatch } from "@tanstack/react-router";
 import CategoryRow from "@/components/marketplace-home/CategoryRow";
@@ -4088,6 +4089,23 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
   isFavorite: boolean;
   onToggleFavorite: () => void;
 }) => {
+  // The Action Layer's answer for this product. One shared fetch backs every
+  // card on the page, so a grid of hundreds costs a single request.
+  const { actions: layerActions } = useProductActions({
+    id: (demo as unknown as { id?: string }).id ?? null,
+    slug: (demo as unknown as { slug?: string }).slug ?? null,
+    demo_url: (demo as unknown as { url?: string }).url ?? null,
+    visible: true,
+    price_label: (demo as unknown as { discountPrice?: string }).discountPrice ?? null,
+    content_status: null,
+  });
+  const allowed = (key: string) => {
+    const a = layerActions.find((x) => x.key === key);
+    // Unknown to the registry means "not governed here" — the card keeps its
+    // existing behaviour rather than losing a button to a missing entry.
+    return a ? a.enabled && a.visibility !== "HIDDEN" : true;
+  };
+
   const Icon = demo.icon;
   const shows = useShows();
   const [activeTab, setActiveTab] = useState<'features' | 'tech'>('features');
@@ -4238,11 +4256,16 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
               );
             })()}
 
-            {/* Enhanced Actions */}
+            {/* Enhanced Actions
+                Two gates, deliberately. `shows()` is the card composition -
+                whether this card displays the button. `allowed()` is the Action
+                Layer - whether the marketplace offers the action at all. A
+                second switch here would be the duplicate the brief warns
+                about, so there is none: allowed() is the resolver's answer. */}
             <div className="flex gap-2 mt-auto">
               {demo.status === "ACTIVE" ? (
                 <>
-                  {shows("action", "live-demo") && (
+                  {shows("action", "live-demo") && allowed("LIVE_DEMO") && (
                     <a href={demo.url} className="flex-1">
                       <Button className="sv-btn sv-btn-cyan w-full">
                         <Play className="h-4 w-4 mr-2" /> Live Demo
@@ -4253,19 +4276,23 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                       product page, where the purchase conversation actually
                       starts, instead of reporting a redirect that never
                       happened. */}
-                  <a href={demo.url} className="flex-1">
-                    <Button className="sv-btn sv-btn-emerald w-full">
-                      <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
-                    </Button>
-                  </a>
+                  {allowed("BUY_NOW") && (
+                    <a href={demo.url} className="flex-1">
+                      <Button className="sv-btn sv-btn-emerald w-full">
+                        <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
+                      </Button>
+                    </a>
+                  )}
                 </>
               ) : (
                 <>
-                  <a href={demo.url} className="flex-1">
-                    <Button className="sv-btn sv-btn-cyan w-full">
-                      <Eye className="h-4 w-4 mr-2" /> View details
-                    </Button>
-                  </a>
+                  {allowed("VIEW_DETAILS") && (
+                    <a href={demo.url} className="flex-1">
+                      <Button className="sv-btn sv-btn-cyan w-full">
+                        <Eye className="h-4 w-4 mr-2" /> View details
+                      </Button>
+                    </a>
+                  )}
                   <a href={demo.url} className="flex-1">
                     <Button className="sv-btn sv-btn-emerald w-full">
                       <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
