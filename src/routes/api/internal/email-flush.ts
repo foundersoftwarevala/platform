@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
-import { providerConfigured, sendQueued } from "@/lib/commerce/mailer";
+import { MAX_ATTEMPTS, providerConfigured, requeueFailed, sendQueued } from "@/lib/commerce/mailer";
 
 /**
  * The outbound mail queue.
@@ -43,8 +43,11 @@ export const Route = createFileRoute("/api/internal/email-flush")({
         if (!gate.ok) return gate.response;
         return Response.json({
           provider: providerConfigured() ?? "none configured",
+          max_attempts: MAX_ATTEMPTS,
           pending: await countByStatus("pending"),
           sent: await countByStatus("sent"),
+          // Reachable now. Before the queue counted its attempts this could
+          // only ever have been zero.
           failed: await countByStatus("failed"),
         });
       },
@@ -52,6 +55,25 @@ export const Route = createFileRoute("/api/internal/email-flush")({
       POST: async ({ request }) => {
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
+
+        // POST {"requeue": true} puts messages that gave up back in the queue,
+        // for when the reason they failed has been dealt with.
+        let body: { requeue?: boolean } = {};
+        try {
+          body = (await request.json()) as typeof body;
+        } catch {
+          body = {};
+        }
+        if (body.requeue) {
+          const back = await requeueFailed(200);
+          return Response.json({
+            provider: providerConfigured() ?? "none configured",
+            requeued: back.requeued,
+            pending_after: await countByStatus("pending"),
+            failed_after: await countByStatus("failed"),
+          });
+        }
+
         const result = await sendQueued(50);
         return Response.json({
           provider: providerConfigured() ?? "none configured",

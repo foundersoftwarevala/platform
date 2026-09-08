@@ -98,6 +98,45 @@ export async function logPaymentEvent(
  * and it must already be marked paid — this function never decides that a
  * payment succeeded, it only acts on one that did.
  */
+type OrderLine = {
+  product_id: string | null;
+  product_name: string | null;
+  seller_id: string | null;
+};
+
+/**
+ * What the customer actually bought. marketplace_order_items is the canonical
+ * line record and it is populated; order.metadata is not.
+ */
+async function orderLines(orderId: string): Promise<OrderLine[]> {
+  const response = await rest(
+    `marketplace_order_items?select=product_id,product_name,seller_id` +
+      `&order_id=eq.${encodeURIComponent(orderId)}`,
+  );
+  if (!response.ok) return [];
+  return (await response.json()) as OrderLine[];
+}
+
+/**
+ * Where to send the licence. Read from the buyer's profile rather than hoping
+ * the checkout copied an address into the order metadata.
+ */
+async function buyerContact(userId: string): Promise<{ email: string; name: string }> {
+  if (!userId) return { email: "", name: "" };
+  const response = await rest(
+    `profiles?select=email,full_name,username&id=eq.${encodeURIComponent(userId)}&limit=1`,
+  );
+  if (!response.ok) return { email: "", name: "" };
+  const rows = (await response.json()) as
+    { email: string | null; full_name: string | null; username: string | null }[];
+  const row = rows[0];
+  if (!row) return { email: "", name: "" };
+  return {
+    email: String(row.email ?? "").trim(),
+    name: String(row.full_name ?? row.username ?? "").trim(),
+  };
+}
+
 export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   if (!supabaseUrl() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return { ok: false, error: "Fulfilment is not configured", status: 503 };
@@ -118,11 +157,23 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   const userId = String(order.user_id ?? order.buyer_id ?? "");
   if (!userId) return { ok: false, error: "Order has no owner", status: 409 };
 
-  // The product the order is for. Orders carry it in their metadata payload.
+  // The product the order is for. The order lines are the record of what was
+  // bought; metadata is honoured first only because a checkout may have set it
+  // deliberately, and it is empty on every order currently in the table.
   const metadata = (order.metadata ?? {}) as Record<string, unknown>;
+  const lines = await orderLines(orderId);
   const productId = String(
-    metadata.product_id ?? (metadata as { meta?: Record<string, unknown> }).meta?.product_id ?? "",
+    metadata.product_id ??
+      (metadata as { meta?: Record<string, unknown> }).meta?.product_id ??
+      lines.find((line) => line.product_id)?.product_id ??
+      "",
   );
+  const productName = String(
+    metadata.product_name ??
+      lines.find((line) => line.product_name)?.product_name ??
+      "Software Vala lifetime licence",
+  );
+  const contact = await buyerContact(userId);
 
   // Already fulfilled? Return what exists — webhooks are retried.
   const existingResponse = await rest(
@@ -177,14 +228,21 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   const licence = ((await licenceResponse.json()) as { id: string }[])[0];
 
   // The entitlement is what actually unlocks the product for this customer.
+  // An order with several distinct products gets one for each of them; before,
+  // a single metadata field decided, so a multi-product order unlocked at most
+  // one of the things it paid for.
+  const purchased = Array.from(
+    new Set([productId, ...lines.map((line) => line.product_id ?? "")].filter(Boolean)),
+  );
   let entitlementId: string | null = null;
-  if (productId) {
+  const entitlementIds: string[] = [];
+  for (const product of purchased) {
     const entitlementResponse = await rest("entitlements", {
       method: "POST",
       headers: { Prefer: "return=representation,resolution=merge-duplicates" },
       body: JSON.stringify({
         user_id: userId,
-        product_id: productId,
+        product_id: product,
         order_id: orderId,
         license_id: licence.id,
         status: "active",
@@ -193,17 +251,20 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
     });
     if (entitlementResponse.ok) {
       const rows = (await entitlementResponse.json()) as { id: string }[];
-      entitlementId = rows[0]?.id ?? null;
+      if (rows[0]?.id) entitlementIds.push(rows[0].id);
     } else {
       console.error("[fulfilment] entitlement insert failed", await entitlementResponse.text());
     }
   }
+  entitlementId = entitlementIds[0] ?? null;
 
   await logPaymentEvent(orderId, "fulfilled", {
     licence_id: licence.id,
     fingerprint: licenceFingerprint(licenceKey),
     product_id: productId || null,
     entitlement_id: entitlementId,
+    entitlements: entitlementIds.length,
+    products: purchased.length,
   });
 
   // The document for the customer and for the accounts.
@@ -215,8 +276,8 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
     orderId,
     amount: chargedAmount,
     currency: chargedCurrency,
-    productName: String(metadata.product_name ?? "Software Vala lifetime licence"),
-    clientName: String(metadata.buyer_name ?? metadata.email ?? "Marketplace customer"),
+    productName: productName,
+    clientName: String(metadata.buyer_name ?? contact.name ?? contact.email ?? "Marketplace customer"),
     status: "paid",
   });
   await logPaymentEvent(orderId, invoice.invoice ? "invoice_ready" : "invoice_failed", {
@@ -228,12 +289,15 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   // Tell the buyer. Queued regardless of whether a provider is configured, so
   // nothing bought goes uncommunicated once credentials exist.
   const buyerEmail = String(
-    metadata.email ?? (metadata as { meta?: Record<string, unknown> }).meta?.email ?? "",
+    metadata.email ??
+      (metadata as { meta?: Record<string, unknown> }).meta?.email ??
+      contact.email ??
+      "",
   ).trim();
   if (buyerEmail) {
     const message = licenceEmail({
-      name: String(metadata.buyer_name ?? buyerEmail.split("@")[0]),
-      productName: String(metadata.product_name ?? "your Software Vala licence"),
+      name: String(metadata.buyer_name ?? contact.name ?? buyerEmail.split("@")[0]),
+      productName: productName,
       licenceKey,
       orderNo: (order.order_no as string | null) ?? null,
     });
@@ -243,7 +307,7 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
     });
   } else {
     await logPaymentEvent(orderId, "licence_email_skipped", {
-      reason: "the order carries no buyer email",
+      reason: "neither the order metadata nor the buyer's profile carries an email",
     });
   }
 

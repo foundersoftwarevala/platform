@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import {
+  leadAcknowledgementEmail,
+  leadNotificationEmail,
+  operatorRecipients,
+  send as sendMail,
+} from "@/lib/commerce/mailer";
+
 /**
  * Marketplace lead capture — demo requests, enquiries, notify-me and callbacks.
  *
@@ -106,7 +113,7 @@ export const Route = createFileRoute("/api/marketplace/lead")({
               apikey: serviceKey,
               Authorization: `Bearer ${serviceKey}`,
               "Content-Type": "application/json",
-              Prefer: "return=minimal",
+              Prefer: "return=representation",
             },
             body: JSON.stringify(row),
           });
@@ -114,6 +121,41 @@ export const Route = createFileRoute("/api/marketplace/lead")({
             console.error("[lead] insert failed", response.status, await response.text());
             return Response.json({ error: "We could not save that. Please try again." }, { status: 502 });
           }
+
+          const saved = (await response.json().catch(() => [])) as { id?: string }[];
+          const leadId = saved[0]?.id ?? null;
+
+          // The lead is saved. Neither message below may change that, so a mail
+          // problem is logged and swallowed rather than being reported to the
+          // visitor as a failure to record their request.
+          try {
+            await sendMail({
+              ...leadAcknowledgementEmail({ name, productName: productName || null, action: ctaAction }),
+              to: email,
+              context: { kind: "lead_acknowledgement", lead_id: leadId, action: ctaAction },
+            });
+
+            const operators = await operatorRecipients();
+            if (operators.length === 0) {
+              console.warn(
+                "[lead] no operator notified: LEADS_NOTIFY_EMAIL is unset and no boss account has an email",
+              );
+            }
+            for (const operator of operators) {
+              await sendMail({
+                ...leadNotificationEmail({
+                  name, email, phone, productName: productName || null,
+                  action: ctaAction, sourcePage: sourcePage || null,
+                  requirements: String(row.requirements ?? ""), leadId,
+                }),
+                to: operator,
+                context: { kind: "lead_notification", lead_id: leadId },
+              });
+            }
+          } catch (problem) {
+            console.error("[lead] saved, but the notifications could not be queued", problem);
+          }
+
           return Response.json({ ok: true });
         } catch (error) {
           console.error("[lead] threw", error);

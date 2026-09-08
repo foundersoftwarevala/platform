@@ -74,7 +74,7 @@ export const Route = createFileRoute("/api/payment/initiate")({
         // The order, and its owner, come from the database — not the request.
         const orderResponse = await fetch(
           `${url()}/rest/v1/marketplace_orders` +
-            `?select=id,buyer_id,user_id,status,total,currency,txnid,metadata` +
+            `?select=id,buyer_id,user_id,status,total,currency,currency_charged,txnid,metadata` +
             `&id=eq.${encodeURIComponent(orderId)}&limit=1`,
           { headers: admin() },
         );
@@ -97,12 +97,31 @@ export const Route = createFileRoute("/api/payment/initiate")({
           return Response.json({ error: "That order has no amount" }, { status: 409 });
         }
 
-        // PayU settles in rupees, so the fixed USD price is converted here.
-        const converted = await usdToInr(amountUsd);
+        // PayU settles in rupees. An order already priced in rupees needs no
+        // conversion at all - putting it through the lookup made it depend on
+        // an exchange-rate source it has no use for.
+        const orderCurrency = String(order.currency_charged ?? order.currency ?? "USD")
+          .trim()
+          .toUpperCase();
+        const converted =
+          orderCurrency === "INR"
+            ? { rate: 1, amount: amountUsd }
+            : await usdToInr(amountUsd);
         if (!converted) {
-          await logPaymentEvent(orderId, "fx_lookup_failed", { amount_usd: amountUsd });
+          await logPaymentEvent(orderId, "fx_lookup_failed", {
+            amount_usd: amountUsd,
+            currency: orderCurrency,
+            configured: Boolean(process.env.FX_API_URL?.trim()),
+          });
           return Response.json(
-            { error: "We could not work out today's exchange rate. Please try again shortly." },
+            {
+              error: "We could not work out today's exchange rate, so this payment was not started.",
+              // Named so an operator reading the response knows what to set,
+              // rather than being told to try again against a wall.
+              detail: process.env.FX_API_URL?.trim()
+                ? "The exchange-rate service did not answer."
+                : "No exchange-rate source is configured (FX_API_URL).",
+            },
             { status: 503 },
           );
         }
@@ -111,8 +130,27 @@ export const Route = createFileRoute("/api/payment/initiate")({
         // who retries does not create a second transaction for one order.
         const txnid = String(order.txnid ?? "") || newTxnId();
         const amount = payuAmount(converted.amount);
+        // The description the customer sees on the PayU page, and one of the
+        // fields hashed into the request. It comes from the order line, because
+        // order.metadata is empty on every order this table holds.
+        let lineName: string | null = null;
+        try {
+          const lineResponse = await fetch(
+            `${url()}/rest/v1/marketplace_order_items?select=product_name` +
+              `&order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
+            { headers: admin() },
+          );
+          if (lineResponse.ok) {
+            const rows = (await lineResponse.json()) as { product_name: string | null }[];
+            lineName = rows[0]?.product_name ?? null;
+          }
+        } catch {
+          lineName = null;
+        }
         const productinfo = String(
-          (order.metadata as { product_name?: string })?.product_name ?? "Software Vala licence",
+          (order.metadata as { product_name?: string })?.product_name ??
+            lineName ??
+            "Software Vala licence",
         ).slice(0, 100);
         const firstname = String(body.firstname ?? user.email.split("@")[0] ?? "Customer").slice(0, 60);
 
