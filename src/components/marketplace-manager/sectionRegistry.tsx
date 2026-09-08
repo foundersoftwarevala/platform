@@ -16,6 +16,7 @@ import { IntegrationsHub } from "./sections/IntegrationsHub";
 import { DeploymentCenter } from "./sections/DeploymentCenter";
 import { IntegrityPolicy } from "./sections/IntegrityPolicy";
 import { SecurityCenter } from "./sections/SecurityCenter";
+import { SystemHealth } from "./sections/SystemHealth";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
 
@@ -141,7 +142,10 @@ const designedSections: Record<string, SectionComponent> = {
   // below rather than replaced - there is one permission matrix on this
   // platform, and a second copy would start disagreeing with the first.
   Security: SecurityCenter,
-  System: S.SystemSection,
+  // S.SystemSection is the designed shell and is still exported. The screen
+  // below keeps its five tabs and its four counters, and computes them from
+  // the telemetry this machine writes about itself every five minutes.
+  System: SystemHealth,
   Support: S.SupportSection,
   Extra: S.ExtraSection,
   Settings: S.SettingsSection,
