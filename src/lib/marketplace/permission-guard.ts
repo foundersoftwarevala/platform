@@ -35,7 +35,12 @@ export type Permission =
   // Section 30 of the Automation brief. Same matrix, same guard - an
   // automation permission is not a different kind of permission.
   | "marketplace.automation.view" | "marketplace.automation.run"
-  | "marketplace.automation.manage" | "marketplace.backup.restore";
+  | "marketplace.automation.manage" | "marketplace.backup.restore"
+  // Section 21 of the Micro-Interactions brief. Its "audit" permission is
+  // marketplace.audit.view, which already exists - guarding one thing with
+  // two names is how a matrix starts disagreeing with itself.
+  | "marketplace.micro.view" | "marketplace.micro.edit"
+  | "marketplace.micro.manage" | "marketplace.micro.analytics";
 
 export const ALL_PERMISSIONS: Permission[] = [
   "marketplace.view", "marketplace.create", "marketplace.edit", "marketplace.delete",
@@ -51,6 +56,8 @@ export const ALL_PERMISSIONS: Permission[] = [
   "marketplace.settings.view", "marketplace.settings.manage",
   "marketplace.automation.view", "marketplace.automation.run",
   "marketplace.automation.manage", "marketplace.backup.restore",
+  "marketplace.micro.view", "marketplace.micro.edit",
+  "marketplace.micro.manage", "marketplace.micro.analytics",
 ];
 
 /**
@@ -92,6 +99,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "marketplace.feature", "marketplace.pin",
     "marketplace.audit.view", "marketplace.settings.view",
     "marketplace.automation.view",
+    "marketplace.micro.view", "marketplace.micro.edit", "marketplace.micro.analytics",
   ],
   seo: [
     "marketplace.view", "marketplace.edit",
@@ -99,6 +107,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "marketplace.export", "marketplace.category",
     "marketplace.audit.view", "marketplace.settings.view",
     "marketplace.automation.view",
+    "marketplace.micro.view", "marketplace.micro.analytics",
   ],
 };
 
@@ -134,6 +143,10 @@ export const ACTION_PERMISSION: Record<string, Permission> = {
   automation_run: "marketplace.automation.run",
   automation_manage: "marketplace.automation.manage",
   backup_restore: "marketplace.backup.restore",
+  micro_view: "marketplace.micro.view",
+  micro_edit: "marketplace.micro.edit",
+  micro_manage: "marketplace.micro.manage",
+  micro_analytics: "marketplace.micro.analytics",
 };
 
 /** Actions nobody but the owner tier may take, whatever the matrix says. */

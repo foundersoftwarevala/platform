@@ -9,6 +9,7 @@ import { FaqManagerSection, ValaTvSection } from "./sections/ContentStudio";
 import { StoriesAwardsSection } from "./sections/StoriesAwards";
 import { RoleMatrix } from "./sections/RoleMatrix";
 import { AutomationConsole } from "./sections/AutomationConsole";
+import { MicroInteractions } from "./sections/MicroInteractions";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
 
@@ -99,7 +100,10 @@ const designedSections: Record<string, SectionComponent> = {
   // console below keeps its four tabs and its ten features, and fills the
   // counters from real job rows instead of leaving them blank.
   Automation: AutomationConsole,
-  "Micro-Features": S.MicroFeaturesSection,
+  // S.MicroFeaturesSection is the designed shell and is still exported. The
+  // screen below keeps its eight cards, its labels and its surface chips, and
+  // makes the switches and Save Configuration real.
+  "Micro-Features": MicroInteractions,
   "Media Library": S.MediaLibrarySection,
   "AI Providers": S.AiProvidersSection,
   API: S.ApiSection,
