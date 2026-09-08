@@ -536,6 +536,10 @@ export { LeadOps as LeadsSection } from "./LeadOps";
 // ProductAnalyticsSectionStatic.
 export { ProductAnalytics as ProductAnalyticsSection } from "./ProductAnalytics";
 
+// Activity, audit and version history, read from marketplace_audit_logs. The
+// stand it replaces is kept as AuditLogSectionStatic.
+export { AuditHistory as AuditLogSection } from "./AuditHistory";
+
 // The moderation centre, on the canonical catalogue with a real duplicate
 // scan and a purge that never destroys an order, licence, review or merge
 // record. The stand it replaces is kept above as ModerationSectionStatic.
@@ -582,7 +586,7 @@ export {
   AiContentSection as AiContentSectionStatic,
   SecurityScanSectionStatic,
   QualityCheckSection, ProductAnalyticsSectionStatic,
-  AuditLogSection,
+  AuditLogSectionStatic,
 } from "./EnterpriseGovernance";
 
 // ---------- AI CONTENT GENERATOR ----------

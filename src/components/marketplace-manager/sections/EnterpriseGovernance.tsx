@@ -1179,7 +1179,16 @@ const AUDIT = [
   { t: "3h", actor: "Aman", act: "Rolled back", target: "Vala ERP Pro → v4.1", tone: "warning" as const },
 ];
 
-export function AuditLogSection() {
+/**
+ * The original Activity, Audit & Version History stand.
+ *
+ * Kept as it was. Its numbers - 1,284 events today, 18 scheduled, 42 backups,
+ * 6 rollbacks - and its version list of V4.2, V4.1, V4.0 and V3.9 were written
+ * into this file. There are 87 audit rows, no versions, nothing scheduled and
+ * no backup system. `Audit & History` now resolves to
+ * sections/AuditHistory.tsx.
+ */
+export function AuditLogSectionStatic() {
   const [tab, setTab] = useState("Activity");
   return (
     <div className="px-4 py-8 md:px-8">
