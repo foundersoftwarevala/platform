@@ -14,6 +14,7 @@ import { MediaLibrary } from "./sections/MediaLibrary";
 import { DeveloperApi } from "./sections/DeveloperApi";
 import { IntegrationsHub } from "./sections/IntegrationsHub";
 import { DeploymentCenter } from "./sections/DeploymentCenter";
+import { IntegrityPolicy } from "./sections/IntegrityPolicy";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
 
@@ -126,7 +127,11 @@ const designedSections: Record<string, SectionComponent> = {
   // deployment that actually happens instead of drawing providers that
   // cannot connect.
   Deployment: DeploymentCenter,
-  Integrity: S.IntegritySection,
+  // S.IntegritySection is the designed shell and is still exported. It
+  // printed ENFORCED on all six cards; the screen below computes each
+  // status from the records, which is the only way the badge can mean
+  // anything.
+  Integrity: IntegrityPolicy,
   // S.SecuritySection is the designed shell and is still exported - its
   // Sessions, 2FA and IP allowlist tabs have nothing behind them yet. The
   // Roles and Permissions half does, so Security opens on the connected
