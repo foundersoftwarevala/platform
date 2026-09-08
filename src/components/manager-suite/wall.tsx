@@ -5,13 +5,14 @@
  * actions, row actions, create/edit drawer, delete) rendered entirely with
  * this project's own UI primitives and design tokens.
  */
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDownUp, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, PageHeader, PillButton, StatCard } from "@/components/marketplace-manager/ui";
 import { createTable, uid } from "@/lib/marketplace-manager/store";
 import { downloadCsv, stampedName } from "@/lib/export/download";
+import { authHeaders } from "@/lib/auth/operator-fetch";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -71,6 +72,13 @@ export type WallConfig = {
   icon: React.ComponentType<{ className?: string }>;
   primaryLabel: string;
   route?: string;
+  /**
+   * A resource name from /api/manager/resource. When set, this wall reads and
+   * writes the real table through that endpoint - guarded, permission-checked
+   * and audited like every other manager write. When absent the wall keeps its
+   * browser-local behaviour and nothing changes for it.
+   */
+  resource?: string;
   seed: any[];
   columns: WallColumn[];
   filters: WallFilterDef[];
@@ -167,8 +175,42 @@ const PAGE_SIZE = 10;
 
 export function ManagerWall({ config }: { config: WallConfig }) {
   const table = useMemo(() => createTable<WallRow>(`wall:${config.scope}`, config.seed as WallRow[]), [config]);
+  const remote = config.resource ?? null;
 
-  const [rows, setRows] = useState<WallRow[]>(() => table.all());
+  const [rows, setRows] = useState<WallRow[]>(() => (remote ? [] : table.all()));
+  // A read that fails must say so. An empty table with no message reads as
+  // "nothing here yet", which is a different and much worse claim.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(Boolean(remote));
+
+  /** Read the real rows. Only used when the wall names a resource. */
+  const reload = useCallback(async () => {
+    if (!remote) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const response = await fetch(
+        `/api/manager/resource?resource=${encodeURIComponent(remote)}&limit=200`,
+        { headers: await authHeaders() },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setLoadError(payload?.error ?? `Could not read these records (${response.status}).`);
+        setRows([]);
+        return;
+      }
+      setRows((payload.rows ?? []) as WallRow[]);
+    } catch (cause) {
+      setLoadError(cause instanceof Error ? cause.message : "Could not reach the server.");
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [remote]);
+
+  useEffect(() => {
+    if (remote) void reload();
+  }, [remote, reload]);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -189,9 +231,49 @@ export function ManagerWall({ config }: { config: WallConfig }) {
   }, [table]);
 
   const commit = (next: WallRow[]) => {
-    table.replace(next);
+    // Browser-local walls keep their existing behaviour exactly.
+    if (!remote) {
+      table.replace(next);
+      setRows(next);
+      return;
+    }
+    // A resource-backed wall must not pretend. The rows are shown optimistically
+    // and then re-read from the server, so what ends up on screen is what the
+    // database actually holds.
     setRows(next);
+    void reload();
   };
+
+  /**
+   * One record, written to the real table.
+   *
+   * Used by resource-backed walls. Every write goes through the same audited
+   * endpoint as the rest of the console, and the wall re-reads afterwards
+   * rather than trusting its own optimistic copy.
+   */
+  const writeRemote = useCallback(
+    async (method: "POST" | "PATCH" | "DELETE", body: Record<string, unknown>) => {
+      if (!remote) return false;
+      try {
+        const response = await fetch("/api/manager/resource", {
+          method,
+          headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+          body: JSON.stringify({ resource: remote, ...body }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload?.ok === false) {
+          toast.error(payload?.error ?? payload?.message ?? `That change was not saved (${response.status}).`);
+          return false;
+        }
+        await reload();
+        return true;
+      } catch (cause) {
+        toast.error(cause instanceof Error ? cause.message : "That change did not reach the server.");
+        return false;
+      }
+    },
+    [remote, reload],
+  );
 
   const filtered = useMemo(() => {
     let out = rows;

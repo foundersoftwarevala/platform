@@ -10,6 +10,9 @@ const RS_STATUS = ["pending", "active", "suspended", "rejected"] as const;
 const KYC = ["unverified", "submitted", "verified", "rejected"] as const;
 
 export const resellersConfig: WallConfig = {
+  // Reads the real resellers table through the audited manager endpoint.
+  // The columns below already match its schema exactly.
+  resource: "resellers",
   scope: "resellers",
   entity: "reseller",
   eyebrow: "Network",
