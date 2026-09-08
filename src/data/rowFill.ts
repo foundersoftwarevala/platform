@@ -97,10 +97,28 @@ function slug(value: string) {
 }
 
 /**
- * Returns the row items for one master category: the real products first,
- * then related sub-category modules until the row reaches `target` cards.
+ * The row for one master category: the products that actually exist, and
+ * nothing else.
+ *
+ * This used to pad every row to forty cards from the generic module list
+ * below - "Healthcare Billing Suite", "Retail CRM Pro" - each with a price, a
+ * written description and `url: "#"`. None of them existed in
+ * marketplace_products, so a visitor who clicked one went nowhere, and the row
+ * count was a number the page had made up about its own catalogue.
+ *
+ * A row now shows the real products and stops. A short row is the truth about
+ * what is in the catalogue today; a full one built from invented software is
+ * not. The padding is kept below as padRowWithModules, unused, rather than
+ * deleted.
  */
-export function buildRow<T extends RowDemo>(masterCategory: string, real: T[], target = ROW_TARGET): RowDemo[] {
+export function buildRow<T extends RowDemo>(masterCategory: string, real: T[], _target = ROW_TARGET): RowDemo[] {
+  void masterCategory;
+  void _target;
+  return [...real];
+}
+
+/** The former padding. Retained for reference; nothing calls it. */
+export function padRowWithModules<T extends RowDemo>(masterCategory: string, real: T[], target = ROW_TARGET): RowDemo[] {
   const rows: RowDemo[] = [...real];
   const base = slug(masterCategory);
   let i = 0;

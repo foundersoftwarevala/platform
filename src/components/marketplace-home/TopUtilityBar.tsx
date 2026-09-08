@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLanguage } from "@/lib/language-catalog";
 import { Link } from "@tanstack/react-router";
 import { listNotifications, markAllRead, subscribe as subscribeApps } from "@/lib/applications/store";
 import {
@@ -158,7 +159,30 @@ const BAR_STRINGS = [
   "Register",
 ];
 
+/**
+ * The storefront's language, from the one provider that holds it.
+ *
+ * This bar used to run a second language system of its own: its own list, its
+ * own storage key (`sv_lang`, where the rest of the site reads
+ * `sv_lang_current_v1`), its own cache and its own call to translateTexts, for
+ * the sixteen strings in BAR_STRINGS and nothing else. So the selector on the
+ * home page changed the bar and left the page it sits on in English, and the
+ * two systems disagreed about which language was even chosen.
+ *
+ * It now reads and writes the shared LanguageProvider. Choosing a language here
+ * is choosing it for everything that asks the provider for a string, and the
+ * provider is what talks to the translation service. The old implementation is
+ * kept below as useBarTranslationLegacy rather than removed.
+ */
 function useBarTranslation() {
+  const { lang, setLanguage, translate } = useLanguage();
+  const apply = useCallback((code: string) => setLanguage(code), [setLanguage]);
+  // The picker below matches on lowercase two-letter codes; the provider holds
+  // the catalogue's uppercase code.
+  return { lang: lang.toLowerCase(), t: translate, apply, busy: false };
+}
+
+function useBarTranslationLegacy() {
   const [lang, setLang] = useState("en");
   const [dict, setDict] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);

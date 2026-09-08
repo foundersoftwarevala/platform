@@ -1,4 +1,4 @@
-import { createContext, createElement, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 export type LanguageEntry = {
   code: string;
@@ -1099,22 +1099,110 @@ export function translateText(key: string, lang: string) {
   return TRANSLATIONS[normalized]?.[key] ?? TRANSLATIONS.EN[key] ?? key;
 }
 
+/* ------------------------------------------------------------------ remote */
+
+/** Where a language's fetched strings are remembered between visits. */
+const REMOTE_PREFIX = "sv_lang_remote_v1_";
+
+/** How many strings go in one request. The endpoint refuses more than 40. */
+const BATCH = 30;
+
+type RemoteState = {
+  /** source string -> translation, for one language. */
+  held: Record<string, string>;
+  /** Strings asked for and not yet answered. */
+  pending: Set<string>;
+  /** False once the service has said it has no provider. */
+  serviceReady: boolean;
+  reason: string | null;
+};
+
+function loadRemote(code: string): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(REMOTE_PREFIX + code);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveRemote(code: string, held: Record<string, string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(REMOTE_PREFIX + code, JSON.stringify(held));
+  } catch {
+    /* a full or blocked store is not a reason to break the page */
+  }
+}
+
+/**
+ * Ask the translation service for a batch.
+ *
+ * Returns what it got. An empty result with `ready: false` means AI API
+ * Manager has no active provider - the caller stops asking rather than
+ * retrying every render, and nothing is invented in the meantime.
+ */
+async function fetchTranslations(
+  texts: string[],
+  locale: string,
+): Promise<{ translations: Record<string, string>; ready: boolean; reason: string | null }> {
+  try {
+    const response = await fetch("/api/marketplace/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texts, locale }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      translations?: Record<string, string>;
+      error?: string;
+      reason?: string;
+    };
+    if (!response.ok) {
+      return {
+        translations: {},
+        // Only a missing provider is permanent; a rate limit or a bad batch is not.
+        ready: payload.reason !== "ai_not_configured",
+        reason: payload.error ?? "Translation service refused the request.",
+      };
+    }
+    return { translations: payload.translations ?? {}, ready: true, reason: null };
+  } catch {
+    return { translations: {}, ready: true, reason: "Could not reach the translation service." };
+  }
+}
+
 type LanguageContextValue = {
   lang: string;
   setLanguage: (code: string) => void;
   translate: (key: string) => string;
+  /** False when the translation service has no provider configured. */
+  serviceReady: boolean;
+  /** Why it is not available, when it is not. */
+  serviceReason: string | null;
 };
 
 const LanguageContext = createContext<LanguageContextValue>({
   lang: "EN",
   setLanguage: () => undefined,
   translate: (key) => key,
+  serviceReady: true,
+  serviceReason: null,
 });
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   // Always start with "EN" on both server and client for hydration safety
   const [lang, setLangState] = useState<string>("EN");
   const [version, setVersion] = useState(0);
+
+  // One entry per language, so switching back to a language already read does
+  // not ask for the same strings a second time.
+  const remote = useRef<Record<string, RemoteState>>({});
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [service, setService] = useState<{ ready: boolean; reason: string | null }>({
+    ready: true,
+    reason: null,
+  });
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -1163,11 +1251,88 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     setVersion((v) => v + 1);
   }, []);
 
-  const translate = useCallback((key: string) => translateText(key, lang), [lang]);
+  /**
+   * Send whatever has piled up for the current language.
+   *
+   * Runs on a short timer so a screenful of strings becomes one or two
+   * requests rather than one per label, and each string is asked for once:
+   * the answer is kept in the browser and in marketplace_translations, so the
+   * second visit costs nothing at all.
+   */
+  const drain = useCallback((code: string) => {
+    const state = remote.current[code];
+    if (!state || !state.serviceReady || state.pending.size === 0) return;
+
+    const batch = Array.from(state.pending).slice(0, BATCH);
+    batch.forEach((text) => state.pending.delete(text));
+
+    void fetchTranslations(batch, code).then(({ translations, ready, reason }) => {
+      const current = remote.current[code];
+      if (!current) return;
+      if (!ready) {
+        current.serviceReady = false;
+        current.reason = reason;
+        current.pending.clear();
+        setService({ ready: false, reason });
+        return;
+      }
+      let changed = false;
+      for (const [source, translated] of Object.entries(translations)) {
+        if (translated && translated !== current.held[source]) {
+          current.held[source] = translated;
+          changed = true;
+        }
+      }
+      if (changed) {
+        saveRemote(code, current.held);
+        setVersion((v) => v + 1);
+      }
+      if (current.pending.size > 0) {
+        timer.current = setTimeout(() => drain(code), 200);
+      }
+    });
+  }, []);
+
+  /**
+   * The string to show.
+   *
+   * The static dictionary first - it is hand written and always right. Then
+   * whatever the service has already given us. Anything else is queued and
+   * rendered in English until an answer arrives, which is honest: an English
+   * label is a label, an invented one is a lie.
+   */
+  const translate = useCallback(
+    (key: string) => {
+      const fromDictionary = translateText(key, lang);
+      if (lang === "EN") return fromDictionary;
+      // translateText falls back to the English entry, then to the key itself,
+      // so "it gave me something other than the source" means a real hit.
+      if (fromDictionary !== key && fromDictionary !== TRANSLATIONS.EN[key]) return fromDictionary;
+
+      const english = TRANSLATIONS.EN[key] ?? key;
+      if (typeof window === "undefined") return english;
+
+      let state = remote.current[lang];
+      if (!state) {
+        state = { held: loadRemote(lang), pending: new Set(), serviceReady: true, reason: null };
+        remote.current[lang] = state;
+      }
+      const held = state.held[english];
+      if (held) return held;
+
+      if (state.serviceReady && !state.pending.has(english)) {
+        state.pending.add(english);
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => drain(lang), 120);
+      }
+      return english;
+    },
+    [lang, drain, version],
+  );
 
   const value = useMemo(
-    () => ({ lang, setLanguage, translate, version }),
-    [lang, setLanguage, translate, version],
+    () => ({ lang, setLanguage, translate, version, serviceReady: service.ready, serviceReason: service.reason }),
+    [lang, setLanguage, translate, version, service],
   );
 
   return createElement(LanguageContext.Provider, { value }, children);

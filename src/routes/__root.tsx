@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { RouteAccessGate } from "@/components/auth/RouteAccessGate";
+import { LanguageProvider } from "@/lib/language-catalog";
 import { useRealtimeAuth } from "@/integrations/supabase/realtime-auth";
 import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -128,6 +129,13 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/*
+        The language the visitor chose. This provider was defined and never
+        mounted, so every useLanguage() in the app read the default context and
+        translate() handed the key straight back - the selector changed the
+        document direction and no text at all.
+      */}
+      <LanguageProvider>
       <TooltipProvider>
         <CelebrationProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
@@ -139,6 +147,7 @@ function RootComponent() {
           </RouteAccessGate>
         </CelebrationProvider>
       </TooltipProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }
