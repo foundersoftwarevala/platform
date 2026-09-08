@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "@tanstack/react-router";
+import { useProductActions } from "@/lib/marketplace/useActionLayer";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, ArrowLeft, Heart, Share2, Download, ExternalLink, ShoppingCart } from "lucide-react";
 import { getPublicProduct, type PublicProduct } from "@/lib/marketplace.functions";
@@ -241,47 +242,14 @@ export function ProductDetail() {
                 <div className="text-sm text-muted-foreground mb-4">per {product.price_period}</div>
               )}
 
-              <div className="space-y-2">
-                <a
-                  href={`#contact-sales`}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white font-semibold transition"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Request Demo
-                </a>
-                <button
-                  type="button"
-                  disabled={cartMutation.isPending}
-                  onClick={() => cartMutation.mutate(product.id)}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-emerald-500/40 text-emerald-300 hover:border-emerald-500/70 disabled:opacity-50"
-                >
-                  <ShoppingCart className="h-4 w-4" />
-                  {cartMutation.isPending ? "Adding..." : "Add to cart"}
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    // A customer pressing Share on the storefront got nothing
-                    // back at all. Share the page they are looking at.
-                    const url = window.location.href;
-                    if (navigator.share) {
-                      try {
-                        await navigator.share({ title: product.name, url });
-                        return;
-                      } catch {
-                        /* the sheet was dismissed; fall through to copying */
-                      }
-                    }
-                    const { copyText } = await import("@/lib/export/download");
-                    if (await copyText(url)) toast.success("Link copied");
-                    else toast.error("Could not copy the link");
-                  }}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-cyan-500/40 hover:border-cyan-500/60 text-cyan-300 hover:text-cyan-200 font-semibold transition"
-                >
-                  <Share2 className="h-4 w-4" />
-                  Share
-                </button>
-              </div>
+              {/* Drawn from the Action Layer, not from this file. The resolver
+                  decides which of these appear, in what order and with which
+                  label; an action it refuses shows the reason instead. */}
+              <ProductActionButtons
+                product={product}
+                adding={cartMutation.isPending}
+                onAddToCart={() => cartMutation.mutate(product.id)}
+              />
             </Card>
 
             {/* Product Info */}
@@ -433,6 +401,119 @@ function PublishedProductContent({
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * The product's actions, as the Action Layer resolves them.
+ *
+ * Order, label, style and whether the action appears at all come from the
+ * registry. The behaviour behind each one is unchanged - Request Demo still
+ * scrolls to the enquiry form, Add to cart still calls the same mutation,
+ * Share still uses the native sheet and falls back to copying - so nothing a
+ * customer could already do has been taken away.
+ */
+function ProductActionButtons({
+  product,
+  adding,
+  onAddToCart,
+}: {
+  product: { id: string; name: string; slug?: string | null; demo_url?: string | null;
+    visible?: boolean | null; price_label?: string | null; content_status?: string | null };
+  adding: boolean;
+  onAddToCart: () => void;
+}) {
+  const { actions } = useProductActions({
+    id: product.id,
+    slug: product.slug ?? null,
+    demo_url: product.demo_url ?? null,
+    visible: product.visible ?? true,
+    price_label: product.price_label ?? null,
+    content_status: product.content_status ?? null,
+  });
+
+  const share = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: product.name, url });
+        return;
+      } catch {
+        /* the sheet was dismissed; fall through to copying */
+      }
+    }
+    const { copyText } = await import("@/lib/export/download");
+    if (await copyText(url)) toast.success("Link copied");
+    else toast.error("Could not copy the link");
+  };
+
+  const style = (variant: string) =>
+    variant === "primary"
+      ? "bg-cyan-500 hover:bg-cyan-600 text-white"
+      : variant === "outline"
+        ? "border border-emerald-500/40 text-emerald-300 hover:border-emerald-500/70"
+        : "border border-cyan-500/40 text-cyan-300 hover:border-cyan-500/60 hover:text-cyan-200";
+
+  const shown = actions.filter((a) =>
+    ["REQUEST_DEMO", "ADD_TO_CART", "BUY_NOW", "SHARE", "LIVE_DEMO"].includes(a.key),
+  );
+
+  return (
+    <div className="space-y-2">
+      {shown.map((a) => {
+        const base = `w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${style(a.variant)}`;
+
+        // Refused, and saying why. Better than a button that cannot finish.
+        if (!a.available) {
+          if (a.visibility === "HIDDEN" || !a.enabled) return null;
+          return (
+            <div
+              key={a.key}
+              title={a.reason ?? undefined}
+              className="w-full rounded-lg border border-border/60 px-4 py-2.5 text-center text-xs text-muted-foreground"
+            >
+              {a.label} — unavailable
+              <div className="mt-0.5 text-[10px] opacity-80">{a.reason}</div>
+            </div>
+          );
+        }
+
+        if (a.key === "LIVE_DEMO" && a.href) {
+          return (
+            <a key={a.key} href={a.href} target="_blank" rel="noopener noreferrer" className={base}>
+              <ExternalLink className="h-4 w-4" aria-hidden />
+              {a.label}
+            </a>
+          );
+        }
+        if (a.key === "REQUEST_DEMO") {
+          return (
+            <a key={a.key} href="#contact-sales" className={base}>
+              <ExternalLink className="h-4 w-4" aria-hidden />
+              {a.label}
+            </a>
+          );
+        }
+        if (a.key === "ADD_TO_CART" || a.key === "BUY_NOW") {
+          return (
+            <button key={a.key} type="button" disabled={adding} onClick={onAddToCart}
+              className={`${base} disabled:opacity-50`}>
+              <ShoppingCart className="h-4 w-4" aria-hidden />
+              {adding ? "Adding..." : a.label}
+            </button>
+          );
+        }
+        if (a.key === "SHARE") {
+          return (
+            <button key={a.key} type="button" onClick={() => void share()} className={`${base} py-2`}>
+              <Share2 className="h-4 w-4" aria-hidden />
+              {a.label}
+            </button>
+          );
+        }
+        return null;
+      })}
     </div>
   );
 }
