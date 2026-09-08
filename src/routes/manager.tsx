@@ -1,4 +1,5 @@
 import { Link, Outlet, createFileRoute, useLocation } from "@tanstack/react-router";
+import { pageHead } from "@/lib/seo-head";
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -19,6 +20,7 @@ import { useManyRecords } from "@/lib/manager-queries";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/manager")({
+  head: pageHead("AI API Manager", "Providers, models, keys, usage and billing for every AI call the platform makes."),
   component: ManagerLayout,
 });
 

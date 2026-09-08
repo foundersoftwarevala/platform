@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { pageHead } from "@/lib/seo-head";
 
 /**
  * The layout every /marketplace page sits inside.
@@ -11,5 +12,6 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
  * through its own index route.
  */
 export const Route = createFileRoute("/marketplace")({
+  head: pageHead("Marketplace", "Browse ready-to-deploy software with live demos, full source code and lifetime access."),
   component: () => <Outlet />,
 });

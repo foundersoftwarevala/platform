@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { pageHead } from "@/lib/seo-head";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, Loader2, LockKeyhole, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +12,7 @@ import {
 import { useServerFn } from "@/lib/serverFn";
 
 export const Route = createFileRoute("/checkout")({
+  head: pageHead("Checkout", "Complete your purchase. One fixed price, lifetime access, full source code."),
   component: CheckoutPage,
 });
 

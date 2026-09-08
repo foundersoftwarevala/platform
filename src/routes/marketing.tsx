@@ -1,4 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { pageHead } from "@/lib/seo-head";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Bell, ChevronDown, Menu, PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-react";
 import { useState } from "react";
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { RequireRole } from "@/components/auth/RequireRole";
 
 export const Route = createFileRoute("/marketing")({
+  head: pageHead("Marketing Manager", "Campaigns, creatives, offers, targeting and performance."),
   component: MarketingLayout,
 });
 

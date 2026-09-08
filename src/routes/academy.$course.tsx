@@ -1,4 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import { pageHead } from "@/lib/seo-head";
 import { Check, GraduationCap } from "lucide-react";
 import { getCourse } from "@/lib/site-content/academy";
 import "@/styles/marketplace-home.css";
@@ -77,5 +78,6 @@ function CoursePage() {
 }
 
 export const Route = createFileRoute("/academy/$course")({
+  head: pageHead("Academy", "Course material and walkthroughs from the Software Vala academy."),
   component: CoursePage,
 });

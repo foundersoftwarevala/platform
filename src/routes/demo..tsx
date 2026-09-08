@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { pageHead } from "@/lib/seo-head";
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { resolveDemoUrl, BRANDING_CONFIG } from "@/lib/demo-gateway";
@@ -7,6 +8,7 @@ import { useServerFn } from "@/lib/serverFn";
 import { AlertCircle, Loader, ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/demo/")({
+  head: pageHead("Live Demos", "Working demos of the Software Vala catalogue."),
   component: DemoBrandedGatewayPage,
 });
 

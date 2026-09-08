@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { pageHead } from "@/lib/seo-head";
 import { useState } from "react";
 import { importSupplied16Demos } from "@/lib/marketplace-import-16-demos";
 import { toast } from "sonner";
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/import")({
+  head: pageHead("Catalogue Import", "Bulk import tool for the Software Vala product catalogue."),
   component: AdminImportPage,
 });
 
