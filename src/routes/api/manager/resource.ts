@@ -482,6 +482,88 @@ const RESOURCES: Record<string, Resource> = {
     label: "Vala TV category",
   },
 
+  // ---------------------------------------------------------------- reseller
+  // Eleven reseller tables existed and no screen read any of them. These are
+  // the ones a manager screen has business editing.
+  reseller_membership_plans: {
+    table: "reseller_membership_plans",
+    select: ["id", "code", "name", "price_usd", "profit_percent", "validity_days",
+      "features", "enabled", "recommended", "sort_order", "created_at", "updated_at"],
+    editable: ["name", "price_usd", "profit_percent", "validity_days", "features",
+      "enabled", "recommended", "sort_order"],
+    arrays: ["features"],
+    searchable: ["code", "name"],
+    creatable: ["code", "name", "price_usd", "profit_percent", "validity_days", "sort_order"],
+    required: ["code", "name", "price_usd"],
+    order: "sort_order.asc",
+    retirable: false,
+    label: "Reseller membership plan",
+  },
+
+  reseller_commission_rules: {
+    table: "reseller_commission_rules",
+    select: ["id", "reseller_id", "plan_code", "product_id", "category_id",
+      "rate_percent", "fixed_amount", "currency", "min_volume", "priority",
+      "active", "created_at", "updated_at"],
+    editable: ["plan_code", "rate_percent", "fixed_amount", "currency",
+      "min_volume", "priority", "active"],
+    searchable: ["plan_code", "currency"],
+    creatable: ["plan_code", "rate_percent", "currency", "priority", "active"],
+    required: ["plan_code"],
+    order: "priority.asc",
+    retirable: true,
+    label: "Commission rule",
+  },
+
+  // Money. Readable here, written only by the flow that earns it.
+  reseller_commissions: {
+    table: "reseller_commissions",
+    select: ["id", "reseller_id", "order_id", "order_item_id", "gross_amount",
+      "commission_amount", "currency", "status", "payout_id", "created_at"],
+    editable: [],
+    searchable: ["currency", "status"],
+    order: "created_at.desc",
+    retirable: false,
+    label: "Commission",
+  },
+
+  reseller_payouts: {
+    table: "reseller_payouts",
+    select: ["id", "reseller_id", "amount", "currency", "status", "payment_method",
+      "provider_reference", "failure_reason", "requested_at", "approved_at",
+      "processed_at", "completed_at", "created_at"],
+    // Only the decision is editable from a screen; the amounts are not.
+    editable: ["status", "payment_method", "failure_reason"],
+    searchable: ["status", "currency", "provider_reference"],
+    order: "created_at.desc",
+    retirable: false,
+    label: "Payout",
+  },
+
+  reseller_memberships: {
+    table: "reseller_memberships",
+    select: ["id", "reseller_id", "plan_code", "membership_state", "order_id",
+      "activated_at", "expires_at", "renewal_at", "created_at"],
+    editable: ["membership_state", "expires_at", "renewal_at"],
+    searchable: ["plan_code", "membership_state"],
+    order: "created_at.desc",
+    retirable: false,
+    label: "Reseller membership",
+  },
+
+  reseller_notifications: {
+    table: "reseller_notifications",
+    select: ["id", "reseller_id", "audience", "type", "title", "body", "status",
+      "scheduled_at", "created_at", "updated_at"],
+    editable: ["audience", "type", "title", "body", "status", "scheduled_at"],
+    searchable: ["title", "body", "audience"],
+    creatable: ["audience", "type", "title", "body", "status", "scheduled_at"],
+    required: ["title", "body"],
+    order: "created_at.desc",
+    retirable: true,
+    label: "Reseller notification",
+  },
+
   products: {
     table: "marketplace_products",
     select: ["id", "name", "slug", "industry_label", "price_label", "rating", "downloads_label",
