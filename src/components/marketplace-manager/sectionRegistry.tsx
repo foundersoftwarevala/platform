@@ -11,6 +11,7 @@ import { RoleMatrix } from "./sections/RoleMatrix";
 import { AutomationConsole } from "./sections/AutomationConsole";
 import { MicroInteractions } from "./sections/MicroInteractions";
 import { MediaLibrary } from "./sections/MediaLibrary";
+import { DeveloperApi } from "./sections/DeveloperApi";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
 
@@ -110,7 +111,10 @@ const designedSections: Record<string, SectionComponent> = {
   // from real storage objects and the asset tables that exist.
   "Media Library": MediaLibrary,
   "AI Providers": S.AiProvidersSection,
-  API: S.ApiSection,
+  // S.ApiSection is the designed shell and is still exported. Developer API
+  // stays a section of this manager - the screen below keeps its five tabs
+  // and fills them from the endpoints this manager really serves.
+  API: DeveloperApi,
   Integrations: S.IntegrationsSection,
   Deployment: S.DeploymentSection,
   Integrity: S.IntegritySection,
