@@ -132,9 +132,27 @@ export const resetSandbox = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{
     ok: boolean; reason?: string; message?: string; outcome?: string;
     stages?: Record<string, string>;
-  }> => callAsUser("mm_sandbox_reset", {
-    p_sandbox: data.id, p_trigger: data.trigger ?? "manual",
-  }));
+  }> => {
+    try {
+      return await callAsUser("mm_sandbox_reset", {
+        p_sandbox: data.id, p_trigger: data.trigger ?? "manual",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // 23505 on the job's idempotency key means a reset for this sandbox is
+      // already in flight in the same window. That is the guard in section 24
+      // working, so it is reported as a refusal rather than as a database
+      // error the operator has to decode.
+      if (/duplicate key|23505|idempotency_key/i.test(message)) {
+        return {
+          ok: false,
+          reason: "reset_in_progress",
+          message: "A reset for this sandbox is already running. Nothing was started twice.",
+        };
+      }
+      throw error;
+    }
+  });
 
 /**
  * Rotate a demo credential.
