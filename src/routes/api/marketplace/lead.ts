@@ -37,6 +37,70 @@ function rateLimited(key: string): boolean {
   return recent.length > RATE_MAX;
 }
 
+/**
+ * Which product this lead is about.
+ *
+ * Tried in order of certainty: the id if the caller sent one, then the slug in
+ * the page the visitor was on - /marketplace/product/<slug> is the canonical
+ * product URL so it is exact - then the name, but only when it matches exactly
+ * one product. A name matching two products resolves to neither, because
+ * attributing the lead to whichever row came back first is worse than leaving
+ * it unattributed and saying so.
+ */
+async function resolveProduct(
+  base: string,
+  headers: Record<string, string>,
+  opts: { id: string; sourcePage: string; name: string },
+): Promise<{ id: string | null; category: string | null; how: string }> {
+  const one = async (query: string) => {
+    try {
+      const response = await fetch(`${base}/rest/v1/marketplace_products?${query}`, { headers });
+      if (!response.ok) return [];
+      return (await response.json()) as { id: string; category_id: string | null; industry_label: string | null }[];
+    } catch {
+      return [];
+    }
+  };
+
+  if (UUID_RE.test(opts.id)) {
+    const rows = await one(
+      `select=id,category_id,industry_label&id=eq.${encodeURIComponent(opts.id)}&limit=1`,
+    );
+    if (rows[0]) return { id: rows[0].id, category: rows[0].industry_label ?? null, how: "id" };
+  }
+
+  const slug = opts.sourcePage.match(/\/marketplace\/product\/([A-Za-z0-9-]{1,200})/)?.[1];
+  if (slug) {
+    const rows = await one(
+      `select=id,category_id,industry_label&slug=eq.${encodeURIComponent(slug)}&limit=1`,
+    );
+    if (rows[0]) return { id: rows[0].id, category: rows[0].industry_label ?? null, how: "slug" };
+  }
+
+  if (opts.name) {
+    // Two rows back means the name is ambiguous, so nothing is linked.
+    const exact = await one(
+      `select=id,category_id,industry_label&name=eq.${encodeURIComponent(opts.name)}&limit=2`,
+    );
+    if (exact.length === 1) {
+      return { id: exact[0].id, category: exact[0].industry_label ?? null, how: "name" };
+    }
+    if (exact.length === 0) {
+      const loose = await one(
+        `select=id,category_id,industry_label&name=ilike.${encodeURIComponent(opts.name)}&limit=2`,
+      );
+      if (loose.length === 1) {
+        return { id: loose[0].id, category: loose[0].industry_label ?? null, how: "name_ci" };
+      }
+      if (loose.length > 1) return { id: null, category: null, how: "ambiguous_name" };
+    } else {
+      return { id: null, category: null, how: "ambiguous_name" };
+    }
+  }
+
+  return { id: null, category: null, how: opts.name ? "no_match" : "no_product_given" };
+}
+
 export const Route = createFileRoute("/api/marketplace/lead")({
   server: {
     handlers: {
@@ -104,7 +168,28 @@ export const Route = createFileRoute("/api/marketplace/lead")({
           status: "new",
           ip_address: sourceIp === "unknown" ? null : sourceIp,
         };
-        if (UUID_RE.test(productIdRaw)) row.product_id = productIdRaw;
+        const resolved = await resolveProduct(url, {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+        }, {
+          id: productIdRaw,
+          sourcePage,
+          name: productName,
+        });
+        if (resolved.id) {
+          row.product_id = resolved.id;
+          // The product's own category is not copied here. `leads.category`
+          // holds what kind of enquiry this is - enterprise_client, franchise,
+          // product_buyer - and the product's category is one join away
+          // through product_id. Writing one into the other loses both.
+        } else if (needsProduct) {
+          // Visible rather than silent: an operator can see which leads could
+          // not be attributed and why, instead of finding a null and guessing.
+          row.requirements = [row.requirements, `[unlinked: ${resolved.how}]`]
+            .filter(Boolean)
+            .join("\n")
+            .slice(0, 4000);
+        }
 
         try {
           const response = await fetch(`${url}/rest/v1/leads`, {
