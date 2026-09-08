@@ -20,8 +20,14 @@ import {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// The lead sources section 1 lists. Anything outside this set still becomes
+// a lead - it is recorded as a generic enquiry rather than refused - but each
+// of these keeps its own identity, so the source analytics in section 44 can
+// tell a WhatsApp lead from a brochure download.
 const ALLOWED_ACTIONS = new Set([
   "request_demo", "notify_me", "enquiry", "callback", "buy_intent",
+  "whatsapp", "email_lead", "contact_sales", "brochure",
+  "meeting", "live_demo", "consultation", "enterprise",
 ]);
 
 const RATE_WINDOW_MS = 60_000;
@@ -209,6 +215,25 @@ export const Route = createFileRoute("/api/marketplace/lead")({
 
           const saved = (await response.json().catch(() => [])) as { id?: string }[];
           const leadId = saved[0]?.id ?? null;
+
+          // Section 8: capture is only the first step. Deduplicate, score,
+          // route, assign and set the first-contact SLA - all on the server,
+          // all against the tables Lead Manager already owns. Every stage is
+          // independent and best-effort: a lead is never lost because a later
+          // stage failed, and nothing here can turn a saved lead into an error
+          // the visitor sees.
+          if (leadId) {
+            try {
+              const { runLeadIntake } = await import("@/lib/marketplace/lead-intake");
+              await runLeadIntake(
+                url,
+                { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+                { ...row, id: leadId },
+              );
+            } catch (error) {
+              console.error("[lead] intake failed", error);
+            }
+          }
 
           // The lead is saved. Neither message below may change that, so a mail
           // problem is logged and swallowed rather than being reported to the
