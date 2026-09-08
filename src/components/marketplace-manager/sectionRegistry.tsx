@@ -12,6 +12,7 @@ import { AutomationConsole } from "./sections/AutomationConsole";
 import { MicroInteractions } from "./sections/MicroInteractions";
 import { MediaLibrary } from "./sections/MediaLibrary";
 import { DeveloperApi } from "./sections/DeveloperApi";
+import { IntegrationsHub } from "./sections/IntegrationsHub";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
 
@@ -115,7 +116,10 @@ const designedSections: Record<string, SectionComponent> = {
   // stays a section of this manager - the screen below keeps its five tabs
   // and fills them from the endpoints this manager really serves.
   API: DeveloperApi,
-  Integrations: S.IntegrationsSection,
+  // S.IntegrationsSection is the designed shell and is still exported. The
+  // hub below keeps its four tabs and its four counters, and checks each
+  // connection instead of printing the status column.
+  Integrations: IntegrationsHub,
   Deployment: S.DeploymentSection,
   Integrity: S.IntegritySection,
   // S.SecuritySection is the designed shell and is still exported - its

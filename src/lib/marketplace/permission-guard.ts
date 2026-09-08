@@ -159,6 +159,8 @@ export const ACTION_PERMISSION: Record<string, Permission> = {
   media_upload: "marketplace.media.upload",
   media_download: "marketplace.media.download",
   media_manage: "marketplace.media.manage",
+  settings_view: "marketplace.settings.view",
+  settings_manage: "marketplace.settings.manage",
 };
 
 /** Actions nobody but the owner tier may take, whatever the matrix says. */
