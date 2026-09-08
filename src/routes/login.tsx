@@ -14,6 +14,6 @@ function destination(): string | undefined {
 }
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Software Vala — Nexus OS Login" }] }),
+  head: () => ({ meta: [{ title: "Sign in — Software Vala™" }] }),
   component: () => <CanonicalLogin redirectTo={destination()} />,
 });

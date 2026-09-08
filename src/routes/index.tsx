@@ -49,13 +49,13 @@ export const Route = createFileRoute("/")({
   head: () => ({
     links: [{ rel: "canonical", href: absoluteUrl("/") }],
     meta: [
-      { title: "Software Vala — 12,000+ Software Solutions Marketplace" },
+      { title: "Software Vala™ — The Name of Trust" },
       {
         name: "description",
         content:
           "Browse 12,000+ ready-to-deploy software solutions across 80+ master categories with live demos, full source code and lifetime access.",
       },
-      { property: "og:title", content: "Software Vala — 12,000+ Software Solutions Marketplace" },
+      { property: "og:title", content: "Software Vala™ — The Name of Trust" },
       {
         property: "og:description",
         content:

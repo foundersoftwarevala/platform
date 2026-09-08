@@ -3582,7 +3582,7 @@ const Index = () => {
             <div className="flex items-center gap-4">
               <img src={softwareValaLogo} alt="Software Vala" className="h-14 w-14 rounded-full object-cover border-2 border-white shadow-lg" />
               <div>
-                <h1 className="text-white font-bold text-2xl">Software Vala</h1>
+                <h1 className="text-white font-bold text-2xl">Software Vala™</h1>
                 <p className="text-white/90 text-sm">- The Name of Trust</p>
               </div>
             </div>

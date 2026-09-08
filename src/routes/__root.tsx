@@ -82,14 +82,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Software Vala™ — The Name of Trust" },
+      { name: "description", content: "Software Vala™ — The Name of Trust. A global marketplace of ready-to-deploy software with live demos, full source code and lifetime access." },
+      { name: "author", content: "Software Vala" },
+      { property: "og:title", content: "Software Vala™ — The Name of Trust" },
+      { property: "og:description", content: "Software Vala™ — The Name of Trust. A global marketplace of ready-to-deploy software with live demos, full source code and lifetime access." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      { property: "og:site_name", content: "Software Vala™" },
     ],
     links: [
       {

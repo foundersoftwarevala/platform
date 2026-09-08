@@ -240,7 +240,7 @@ export const SiteFooter = () => {
 
         <div className="mt-4 border-t border-white/10 pt-6 text-center">
           <p className="text-gray-400">
-            © {new Date().getFullYear()} Software Vala - The Name of Trust. All rights reserved.
+            © {new Date().getFullYear()} Software Vala™ - The Name of Trust. All rights reserved.
           </p>
           <p className="mt-2 text-cyan-400">
             {SITE_STATS.categories} Master Categories • {SITE_STATS.solutions} Software Solutions • Live Demos Ready

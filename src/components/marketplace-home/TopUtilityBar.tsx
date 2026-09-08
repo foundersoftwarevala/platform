@@ -974,9 +974,6 @@ function Favorites({ count }: { count: number }) {
 /* ------------------------------------------------------------------ */
 
 function LoginPill({ t }: { t: (s: string) => string }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -987,55 +984,39 @@ function LoginPill({ t }: { t: (s: string) => string }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const signIn = async () => {
-    setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) toast.error(error.message);
-    else toast.success("Signed in");
-  };
+  // Signed out, this is a link and nothing more. The sign-in screen is /login:
+  // the owl, the real Supabase call and the role routing all live there. The
+  // form that used to sit in this panel was a second authentication path to
+  // keep correct, and it skipped the role routing entirely - it signed you in
+  // and left you standing on the home page.
+  if (!userEmail) {
+    return (
+      <Link to="/login" className={TRIGGER} aria-label={t("Login")}>
+        <LogIn className="h-3.5 w-3.5 text-emerald-300 transition-transform duration-300 group-hover:translate-x-0.5" />
+        <span className="hidden sm:inline">{t("Login")}</span>
+      </Link>
+    );
+  }
 
   return (
     <Popover>
       <PopoverTrigger className={TRIGGER}>
         <LogIn className="h-3.5 w-3.5 text-emerald-300 transition-transform duration-300 group-hover:translate-x-0.5" />
-        <span className="hidden sm:inline">{userEmail ? userEmail.split("@")[0] : t("Login")}</span>
+        <span className="hidden sm:inline">{userEmail.split("@")[0]}</span>
       </PopoverTrigger>
       <PopoverContent align="end" className={PANEL}>
-        <PanelHead icon={LogIn} title={t("Login")} note={userEmail ?? "Sign in to your account"} />
+        <PanelHead icon={LogIn} title={t("Login")} note={userEmail} />
         <div className="space-y-2 p-3">
-          {userEmail ? (
-            <Button
-              className="w-full"
-              variant="secondary"
-              onClick={async () => {
-                await supabase.auth.signOut();
-                toast.success("Signed out");
-              }}
-            >
-              Sign out
-            </Button>
-          ) : (
-            <>
-              <Input
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-9 border-white/15 bg-white/5 text-[12.5px] text-white placeholder:text-white/40"
-              />
-              <Input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-9 border-white/15 bg-white/5 text-[12.5px] text-white placeholder:text-white/40"
-              />
-              <Button className="w-full" disabled={busy || !email || !password} onClick={signIn}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t("Login")}
-              </Button>
-            </>
-          )}
+          <Button
+            className="w-full"
+            variant="secondary"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              toast.success("Signed out");
+            }}
+          >
+            Sign out
+          </Button>
         </div>
       </PopoverContent>
     </Popover>
