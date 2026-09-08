@@ -15,6 +15,7 @@ import { DeveloperApi } from "./sections/DeveloperApi";
 import { IntegrationsHub } from "./sections/IntegrationsHub";
 import { DeploymentCenter } from "./sections/DeploymentCenter";
 import { IntegrityPolicy } from "./sections/IntegrityPolicy";
+import { SecurityCenter } from "./sections/SecurityCenter";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
 
@@ -136,7 +137,10 @@ const designedSections: Record<string, SectionComponent> = {
   // Sessions, 2FA and IP allowlist tabs have nothing behind them yet. The
   // Roles and Permissions half does, so Security opens on the connected
   // matrix the server actually enforces.
-  Security: RoleMatrix,
+  // RoleMatrix is still the Roles tab and is rendered inside the centre
+  // below rather than replaced - there is one permission matrix on this
+  // platform, and a second copy would start disagreeing with the first.
+  Security: SecurityCenter,
   System: S.SystemSection,
   Support: S.SupportSection,
   Extra: S.ExtraSection,
