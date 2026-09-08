@@ -144,6 +144,13 @@ export function DemoDomainManager() {
         title="Demo Domain Manager"
         description="Isolated demo subdomains on Software Vala infrastructure — generation, DNS, SSL, deployment, health, expiry and branding."
         actions={
+          <>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("sv:open-vala-ai"))}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"
+          >
+            Vala AI
+          </button>
           <button
             onClick={() => expiry.mutate()}
             disabled={expiry.isPending}
@@ -152,6 +159,7 @@ export function DemoDomainManager() {
             <Timer className="h-3.5 w-3.5" />
             {expiry.isPending ? "Running…" : "Run expiry sweep"}
           </button>
+          </>
         }
       />
 

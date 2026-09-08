@@ -141,6 +141,13 @@ export function BrandProtection() {
         title="Favicon & Branding Protection"
         description="Author-supplied branding on marketplace surfaces is detected and replaced with the canonical Software Vala identity. Downloadable package contents are never touched."
         actions={
+          <>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("sv:open-vala-ai"))}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"
+          >
+            Vala AI
+          </button>
           <button
             onClick={() => enforce.mutate()}
             disabled={enforce.isPending || s?.policy_state === "disabled"}
@@ -149,6 +156,7 @@ export function BrandProtection() {
             <ShieldCheck className="h-3.5 w-3.5" />
             {enforce.isPending ? "Running…" : "Enforce now"}
           </button>
+          </>
         }
       />
 
