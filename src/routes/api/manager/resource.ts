@@ -40,6 +40,87 @@ type Resource = {
   archive?: Record<string, unknown>;
 };
 
+/**
+ * A stable fingerprint of a row.
+ *
+ * Keys are sorted so the same content always hashes the same way, whatever
+ * order the database returned it in. Two equal hashes either side of a write
+ * mean the write changed nothing - section 48.
+ */
+async function contentHash(row: unknown): Promise<string> {
+  const stable = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === "object") {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .filter(([k]) => k !== "updated_at")
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([k, v]) => [k, stable(v)]),
+      );
+    }
+    return value;
+  };
+  const text = JSON.stringify(stable(row) ?? null);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 32);
+}
+
+/**
+ * Write the change to marketplace_audit_logs.
+ *
+ * Called with the operator's own Authorization header where there is one, so
+ * mm_audit's auth.uid() resolves to the person who made the change rather than
+ * to the service role. A failure is logged and never raised: losing the change
+ * would be worse than losing the record of it, and the operator is told about
+ * neither by being shown a false error.
+ */
+async function recordAudit(
+  request: Request,
+  entry: {
+    action: string; entityType: string; entityId: string | null;
+    before: unknown; after: unknown; reason: string;
+  },
+): Promise<void> {
+  try {
+    const authorization = request.headers.get("authorization");
+    const anon =
+      process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
+    const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+    const asOperator = Boolean(authorization && anon);
+
+    const [beforeHash, afterHash] = await Promise.all([
+      entry.before === null || entry.before === undefined ? Promise.resolve(null) : contentHash(entry.before),
+      entry.after === null || entry.after === undefined ? Promise.resolve(null) : contentHash(entry.after),
+    ]);
+
+    const response = await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+      method: "POST",
+      headers: asOperator
+        ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
+        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        p_action: entry.action,
+        p_entity_type: entry.entityType,
+        p_entity_id: entry.entityId,
+        p_before: entry.before === undefined ? null : { row: entry.before, content_hash: beforeHash },
+        p_after: entry.after === undefined ? null : { row: entry.after, content_hash: afterHash },
+        p_reason:
+          beforeHash && afterHash && beforeHash === afterHash
+            ? `${entry.reason} (content unchanged — the hashes match)`
+            : entry.reason,
+      }),
+    });
+    if (!response.ok) {
+      console.error("[manager] audit rejected", response.status, await response.text());
+    }
+  } catch (error) {
+    console.error("[manager] audit threw", error);
+  }
+}
+
 const RESOURCES: Record<string, Resource> = {
   // Customer stories and awards shown on the home page. Nothing appears there
   // until an operator sets `published`, which is what stopped the written-in
@@ -607,6 +688,14 @@ export const Route = createFileRoute("/api/manager/resource")({
             );
           }
           const rows = (await response.json()) as Record<string, unknown>[];
+          await recordAudit(request, {
+            action: `${resource.label} created`,
+            entityType: String(body.resource ?? ""),
+            entityId: rows[0]?.id ? String(rows[0].id) : null,
+            before: null,
+            after: rows[0] ?? null,
+            reason: "Row created from the Marketplace Manager.",
+          });
           return Response.json({ ok: true, row: rows[0] ?? null });
         } catch (error) {
           console.error("[manager] create threw", error);
@@ -651,6 +740,14 @@ export const Route = createFileRoute("/api/manager/resource")({
             return Response.json({ error: "That row was not retired" }, { status: 502 });
           }
           const rows = (await response.json()) as Record<string, unknown>[];
+          await recordAudit(request, {
+            action: `${resource.label} retired`,
+            entityType: String(params.get("resource") ?? ""),
+            entityId: id,
+            before: null,
+            after: rows[0] ?? null,
+            reason: `Taken out of use from the Marketplace Manager: ${JSON.stringify(resource.archive)}`,
+          });
           return Response.json({ ok: true, row: rows[0] ?? null, retired: resource.archive });
         } catch (error) {
           console.error("[manager] retire threw", error);
@@ -704,6 +801,20 @@ export const Route = createFileRoute("/api/manager/resource")({
         }
 
         try {
+          // Read before the change, so before_state is the row as it actually
+          // was rather than a guess reconstructed from the request.
+          let before: Record<string, unknown> | null = null;
+          try {
+            const prior = await fetch(
+              `${url()}/rest/v1/${resource.table}?id=eq.${encodeURIComponent(id)}` +
+                `&select=${resource.select.join(",")}&limit=1`,
+              { headers: admin() },
+            );
+            if (prior.ok) before = ((await prior.json()) as Record<string, unknown>[])[0] ?? null;
+          } catch {
+            /* the change still proceeds; the audit simply has no before */
+          }
+
           const response = await fetch(
             `${url()}/rest/v1/${resource.table}?id=eq.${encodeURIComponent(id)}` +
               `&select=${resource.select.join(",")}`,
@@ -716,6 +827,14 @@ export const Route = createFileRoute("/api/manager/resource")({
             return Response.json({ error: "That change was not saved" }, { status: 502 });
           }
           const rows = (await response.json()) as Record<string, unknown>[];
+          await recordAudit(request, {
+            action: `${resource.label} updated`,
+            entityType: String(body.resource ?? ""),
+            entityId: id,
+            before,
+            after: rows[0] ?? null,
+            reason: `Changed from the Marketplace Manager: ${Object.keys(changes).join(", ")}`,
+          });
           return Response.json({ ok: true, row: rows[0] ?? null, changed: Object.keys(changes) });
         } catch (error) {
           console.error("[manager] write threw", error);
