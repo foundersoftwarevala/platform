@@ -28,6 +28,28 @@ function admin() {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * How long the computed rows are held.
+ *
+ * Building them reads every visible product to count them per category, which
+ * is eight round trips today and twelve at the catalogue's target size. Rows
+ * change when an operator changes them and not otherwise, so a minute is long
+ * enough to matter and short enough that nobody is looking at yesterday.
+ */
+const ROWS_CACHE_MS = 60_000;
+
+type RowSummary = {
+  id: string; position: number; sort_order: number; title: string; slug: string;
+  icon: unknown; products: number; hidden: boolean; featured: boolean; href: string;
+};
+
+let rowsCache: { at: number; rows: RowSummary[] } | null = null;
+
+/** Called by every write here, so an operator's own change is never cached over. */
+function dropRowsCache() {
+  rowsCache = null;
+}
+
 export const Route = createFileRoute("/api/marketplace/rows")({
   server: {
     handlers: {
@@ -36,6 +58,18 @@ export const Route = createFileRoute("/api/marketplace/rows")({
           return Response.json({ rows: [], error: "Not configured" }, { status: 503 });
         }
         try {
+          const fresh = rowsCache && Date.now() - rowsCache.at < ROWS_CACHE_MS
+            ? rowsCache.rows
+            : null;
+          if (fresh) {
+            const gate = await requireInternalOperator(request);
+            const visible = gate.ok ? fresh : fresh.filter((r) => !r.hidden);
+            return Response.json(
+              { rows: visible, total: visible.length, live: visible.filter((r) => !r.hidden).length },
+              { headers: { "Cache-Control": "public, max-age=30" } },
+            );
+          }
+
           const categoryResponse = await fetch(
             `${url()}/rest/v1/marketplace_categories` +
               `?select=id,name,slug,icon,sort_order,is_hidden,is_featured&order=sort_order.asc&limit=200`,
@@ -62,7 +96,7 @@ export const Route = createFileRoute("/api/marketplace/rows")({
             if (page.length < 1000) break;
           }
 
-          const rows = categories.map((category, index) => ({
+          const rows: RowSummary[] = categories.map((category, index) => ({
             id: String(category.id),
             position: index + 1,
             sort_order: Number(category.sort_order ?? index),
@@ -79,14 +113,19 @@ export const Route = createFileRoute("/api/marketplace/rows")({
           // page, so an ordinary visitor should not be able to read it back
           // out of this endpoint. An operator sees every row, because hiding
           // and unhiding is the whole point of the panel that calls this.
+          rowsCache = { at: Date.now(), rows };
+
           const gate = await requireInternalOperator(request);
           const visible = gate.ok ? rows : rows.filter((r) => !r.hidden);
 
-          return Response.json({
-            rows: visible,
-            total: visible.length,
-            live: visible.filter((r) => !r.hidden).length,
-          });
+          return Response.json(
+            {
+              rows: visible,
+              total: visible.length,
+              live: visible.filter((r) => !r.hidden).length,
+            },
+            { headers: { "Cache-Control": "public, max-age=30" } },
+          );
         } catch (error) {
           console.error("[rows] read failed", error);
           return Response.json({ rows: [], error: "Could not load rows" }, { status: 502 });
@@ -122,6 +161,7 @@ export const Route = createFileRoute("/api/marketplace/rows")({
           console.error("[rows] patch failed", response.status, await response.text());
           return Response.json({ error: "Could not save that change" }, { status: 502 });
         }
+        dropRowsCache();
         const rows = (await response.json()) as Record<string, unknown>[];
         return Response.json({ ok: true, row: rows[0] ?? null });
       },
@@ -152,6 +192,7 @@ export const Route = createFileRoute("/api/marketplace/rows")({
           );
           if (response.ok) saved++;
         }
+        dropRowsCache();
         return Response.json({ ok: saved === order.length, saved, of: order.length });
       },
     },
