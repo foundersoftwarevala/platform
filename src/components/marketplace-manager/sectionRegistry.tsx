@@ -13,6 +13,7 @@ import { MicroInteractions } from "./sections/MicroInteractions";
 import { MediaLibrary } from "./sections/MediaLibrary";
 import { DeveloperApi } from "./sections/DeveloperApi";
 import { IntegrationsHub } from "./sections/IntegrationsHub";
+import { DeploymentCenter } from "./sections/DeploymentCenter";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
 
@@ -120,7 +121,11 @@ const designedSections: Record<string, SectionComponent> = {
   // hub below keeps its four tabs and its four counters, and checks each
   // connection instead of printing the status column.
   Integrations: IntegrationsHub,
-  Deployment: S.DeploymentSection,
+  // S.DeploymentSection is the designed shell and is still exported. The
+  // centre below keeps its eight tabs and both top actions, and reads the
+  // deployment that actually happens instead of drawing providers that
+  // cannot connect.
+  Deployment: DeploymentCenter,
   Integrity: S.IntegritySection,
   // S.SecuritySection is the designed shell and is still exported - its
   // Sessions, 2FA and IP allowlist tabs have nothing behind them yet. The
