@@ -80,6 +80,12 @@ export function LiveTable({
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [adding, setAdding] = useState<Record<string, string> | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [plan, setPlan] = useState<{ operation: string; records: number; operation_id: string; changes: unknown } | null>(null);
+  const [result, setResult] = useState<{
+    status: string; done: number; failed: number; invalid: number; unauthorized: number;
+    total: number; outcomes: { id: string; status: string; reason?: string }[];
+  } | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(
@@ -232,6 +238,58 @@ export function LiveTable({
     }
   };
 
+  /**
+   * Ask the engine what a run would do. Nothing is changed by this.
+   */
+  const previewBulk = async (operation: "retire") => {
+    setNotice(null);
+    setResult(null);
+    try {
+      const response = await fetch("/api/manager/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ resource, ids: picked, operation, preview: true }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload?.error ?? "That selection could not be previewed.");
+        return;
+      }
+      setPlan(payload);
+    } catch {
+      setNotice("Could not reach the server. Nothing was changed.");
+    }
+  };
+
+  /** Run the plan that was previewed, under the same operation id. */
+  const runBulk = async () => {
+    if (!plan) return;
+    setBusy("bulk");
+    try {
+      const response = await fetch("/api/manager/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({
+          resource, ids: picked, operation: plan.operation,
+          preview: false, operationId: plan.operation_id,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload?.error ?? "That run did not start.");
+        return;
+      }
+      setResult(payload);
+      setPlan(null);
+      setPicked([]);
+      await load(search, page * PAGE);
+    } catch {
+      setNotice("Could not reach the server mid-run. Refresh to see what completed.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const canCreate = (data?.creatable?.length ?? 0) > 0;
   const canRetire = Boolean(data?.retirable);
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE)) : 1;
@@ -294,6 +352,77 @@ export function LiveTable({
         </p>
       )}
 
+      {picked.length > 0 && (
+        <div className="mb-3 rounded-xl border border-accent/30 bg-accent/[0.06] px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold">
+              {picked.length} selected of {data?.rows.length ?? 0} on this page
+            </span>
+            {/* Section 14: this says what it covers. Selecting every matching
+                record across pages is not offered, because it is not built. */}
+            <span className="text-[10px] text-muted-foreground">
+              this page only — {data?.total?.toLocaleString() ?? 0} match in total
+            </span>
+            <button
+              onClick={() => setPicked([])}
+              className="ml-auto rounded-md border border-border px-2 py-1 text-[10px] font-semibold hover:bg-muted"
+            >
+              Clear
+            </button>
+            {canRetire && (
+              <button
+                onClick={() => void previewBulk("retire")}
+                className="rounded-md border border-border px-2.5 py-1 text-[10px] font-semibold hover:bg-muted"
+              >
+                Retire selected…
+              </button>
+            )}
+          </div>
+
+          {plan && (
+            <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-600">
+              <div className="font-semibold">
+                This would {plan.operation} {plan.records} record(s). Nothing has changed yet.
+              </div>
+              <div className="mt-1 font-mono text-[10px] opacity-80">operation {plan.operation_id}</div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  disabled={busy === "bulk"}
+                  onClick={() => void runBulk()}
+                  className="rounded-md bg-amber-500 px-2.5 py-1 text-[10px] font-bold text-background disabled:opacity-40"
+                >
+                  {busy === "bulk" ? "Running…" : "Run it"}
+                </button>
+                <button
+                  onClick={() => setPlan(null)}
+                  className="rounded-md border border-amber-500/40 px-2.5 py-1 text-[10px] font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {result && (
+            <div className="mt-2 rounded-lg border border-border bg-background/60 px-3 py-2 text-[11px]">
+              {/* Section 26: partial is reported as partial, with the reason
+                  for each record that did not go through. */}
+              <div className="font-semibold">
+                {result.status} — {result.done} of {result.total} done
+                {result.failed ? `, ${result.failed} failed` : ""}
+                {result.invalid ? `, ${result.invalid} invalid` : ""}
+                {result.unauthorized ? `, ${result.unauthorized} refused` : ""}
+              </div>
+              {result.outcomes.filter((o) => o.status !== "done").slice(0, 6).map((o) => (
+                <div key={o.id} className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                  {o.id.slice(0, 8)} · {o.status} · {o.reason}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {adding && data && (
         <div className="mb-3 rounded-xl border border-accent/30 bg-accent/[0.04] p-3">
           <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-accent">
@@ -342,6 +471,19 @@ export function LiveTable({
           <table className="w-full min-w-[640px] border-collapse text-[12px]">
             <thead>
               <tr>
+                {canRetire && (
+                  <th scope="col" className="border-b border-border px-2 py-2 text-left">
+                    <input
+                      type="checkbox"
+                      aria-label="Select every row on this page"
+                      className="accent-accent"
+                      checked={Boolean(data.rows.length) && picked.length === data.rows.length}
+                      onChange={(e) =>
+                        setPicked(e.target.checked ? data.rows.map((r) => String(r.id)) : [])
+                      }
+                    />
+                  </th>
+                )}
                 {columns.map((column) => (
                   <th
                     key={column}
@@ -366,6 +508,19 @@ export function LiveTable({
                 const id = String(row.id);
                 return (
                   <tr key={id} className="border-b border-border/60 last:border-0 hover:bg-white/[0.02]">
+                    {canRetire && (
+                      <td className="px-2 py-1.5">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select row ${id}`}
+                          className="accent-accent"
+                          checked={picked.includes(id)}
+                          onChange={(e) =>
+                            setPicked((p) => (e.target.checked ? [...p, id] : p.filter((x) => x !== id)))
+                          }
+                        />
+                      </td>
+                    )}
                     {columns.map((column) => {
                       const editable = data.editable.includes(column);
                       const value = row[column];
