@@ -71,12 +71,71 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
+/**
+ * One entry in the ledger, written once.
+ *
+ * Every money movement in Finance Manager posts through here, keyed on a code
+ * derived from the record that caused it — an invoice number, a refund code, a
+ * payout code, or the row id for the tables that carry no code of their own.
+ * Re-running the same action finds the entry that exists rather than posting a
+ * second one, which is what makes an operator's double click, a retried
+ * request and a replayed webhook all safe.
+ */
+async function recordLedgerOnce(entry: {
+  txnCode: string;
+  direction: "credit" | "debit";
+  amount: number;
+  counterparty: string;
+  counterpartyType: string;
+  category: string;
+  method: string;
+  notes: string;
+  gateway?: string;
+}): Promise<void> {
+  if (!entry.txnCode || !(entry.amount > 0)) return;
+  const { data: existing } = await supabaseAdmin
+    .from("finance_transactions")
+    .select("id")
+    .eq("txn_code", entry.txnCode)
+    .limit(1);
+  if ((existing ?? []).length) return;
+
+  await supabaseAdmin.from("finance_transactions").insert({
+    txn_code: entry.txnCode,
+    direction: entry.direction,
+    amount: entry.amount,
+    counterparty: entry.counterparty,
+    counterparty_type: entry.counterpartyType,
+    category: entry.category,
+    gateway: entry.gateway ?? "manual",
+    method: entry.method,
+    status: "completed",
+    occurred_at: new Date().toISOString(),
+    notes: entry.notes,
+  } as never);
+}
+
 export async function updatePayoutStatus(input: {
   id: string;
   status: "approved" | "rejected" | "processing" | "paid" | "on_hold";
   actor: string;
   note?: string | undefined;
 }) {
+  const { data: payoutBefore } = await supabaseAdmin
+    .from("finance_payouts")
+    .select("payout_code, recipient_name, recipient_type, amount, method, status")
+    .eq("id", input.id)
+    .maybeSingle();
+  const priorPayout = payoutBefore as unknown as {
+    payout_code: string;
+    recipient_name: string | null;
+    recipient_type: string | null;
+    amount: number | string;
+    method: string | null;
+    status: string;
+  } | null;
+  if (priorPayout?.status === "paid" && input.status === "paid") return ok(priorPayout);
+
   const patch: Json = { status: input.status, reviewer_note: input.note ?? null };
   if (input.status === "paid") patch["processed_at"] = new Date().toISOString();
 
@@ -87,6 +146,20 @@ export async function updatePayoutStatus(input: {
     .select("*")
     .single();
   if (error) fail(error.message);
+
+  // Money leaving for a partner is a ledger event.
+  if (input.status === "paid" && priorPayout) {
+    await recordLedgerOnce({
+      txnCode: priorPayout.payout_code,
+      direction: "debit",
+      amount: Number(priorPayout.amount ?? 0),
+      counterparty: priorPayout.recipient_name ?? "Partner",
+      counterpartyType: priorPayout.recipient_type ?? "partner",
+      category: "Payout",
+      method: priorPayout.method ?? "Manual",
+      notes: `Payout ${priorPayout.payout_code} to ${priorPayout.recipient_name ?? "partner"}`,
+    });
+  }
 
   await writeAudit({
     actor: input.actor,
@@ -623,6 +696,22 @@ export async function updateExpenseStatus(input: {
   status: "pending" | "approved" | "rejected" | "reimbursed";
   actor: string;
 }) {
+  const { data: expenseBefore } = await supabaseAdmin
+    .from("finance_expenses")
+    .select("id, vendor, category, amount, status")
+    .eq("id", input.id)
+    .maybeSingle();
+  const priorExpense = expenseBefore as unknown as {
+    id: string;
+    vendor: string | null;
+    category: string | null;
+    amount: number | string;
+    status: string;
+  } | null;
+  if (priorExpense?.status === "reimbursed" && input.status === "reimbursed") {
+    return ok(priorExpense);
+  }
+
   const { data, error } = await supabaseAdmin
     .from("finance_expenses")
     .update({ status: input.status } as never)
@@ -630,6 +719,20 @@ export async function updateExpenseStatus(input: {
     .select("*")
     .single();
   if (error) fail(error.message);
+
+  // A reimbursed expense is money that has actually left.
+  if (input.status === "reimbursed" && priorExpense) {
+    await recordLedgerOnce({
+      txnCode: `EXP-${priorExpense.id.replace(/-/g, "").slice(0, 12).toUpperCase()}`,
+      direction: "debit",
+      amount: Number(priorExpense.amount ?? 0),
+      counterparty: priorExpense.vendor ?? "Vendor",
+      counterpartyType: "vendor",
+      category: `Expense · ${priorExpense.category ?? "general"}`,
+      method: "Manual",
+      notes: `Expense reimbursed to ${priorExpense.vendor ?? "vendor"}`,
+    });
+  }
 
   await writeAudit({
     actor: input.actor,
@@ -787,6 +890,21 @@ export async function updateCommissionStatus(input: {
   status: "pending" | "approved" | "paid" | "reversed";
   actor: string;
 }) {
+  const { data: commissionBefore } = await supabaseAdmin
+    .from("finance_commissions")
+    .select("id, partner_name, partner_type, commission_amount, period, status")
+    .eq("id", input.id)
+    .maybeSingle();
+  const priorCommission = commissionBefore as unknown as {
+    id: string;
+    partner_name: string | null;
+    partner_type: string | null;
+    commission_amount: number | string;
+    period: string | null;
+    status: string;
+  } | null;
+  if (priorCommission?.status === "paid" && input.status === "paid") return ok(priorCommission);
+
   const { data, error } = await supabaseAdmin
     .from("finance_commissions")
     .update({ status: input.status } as never)
@@ -794,6 +912,22 @@ export async function updateCommissionStatus(input: {
     .select("*")
     .single();
   if (error) fail(error.message);
+
+  // Commission paid out is money leaving, against the partner it went to.
+  if (input.status === "paid" && priorCommission) {
+    await recordLedgerOnce({
+      txnCode: `CMS-${priorCommission.id.replace(/-/g, "").slice(0, 12).toUpperCase()}`,
+      direction: "debit",
+      amount: Number(priorCommission.commission_amount ?? 0),
+      counterparty: priorCommission.partner_name ?? "Partner",
+      counterpartyType: priorCommission.partner_type ?? "partner",
+      category: "Commission",
+      method: "Manual",
+      notes:
+        `Commission paid to ${priorCommission.partner_name ?? "partner"}` +
+        (priorCommission.period ? ` for ${priorCommission.period}` : ""),
+    });
+  }
 
   await writeAudit({
     actor: input.actor,
