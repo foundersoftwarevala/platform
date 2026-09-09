@@ -107,10 +107,19 @@ export function resolveProductActions(
           return { ...a, available: true, reason: null, href: product.demo_url };
 
         case "BUY_NOW":
-          // Buy Now begins a payment, so it genuinely cannot work without a
-          // provider. It refuses rather than pretending to succeed.
+          // Buy Now leads to checkout, and checkout creates the order before it
+          // ever reaches a gateway - marketplace_create_checkout does not know
+          // whether one exists. /api/payment/initiate is what needs the
+          // credentials, and without them it already answers 503 "Online payment
+          // is not configured yet", which the checkout page reports as "the order
+          // is saved and nothing was charged".
+          //
+          // So the payment step refuses at the payment step. Refusing here as
+          // well removed a step that works to prevent a later one that already
+          // prevents itself, and it contradicted how this business sells: payment
+          // arrives by Wise, bank, UPI or Binance and is confirmed by hand, so an
+          // order awaiting payment is the normal path, not a failure.
           if (!purchasable) return off("This product is not purchasable — it has no price, or it is hidden or archived.");
-          if (!env.paymentConfigured) return off("No payment provider is configured, so a purchase cannot complete.");
           if (!env.signedIn) return { ...a, available: true, reason: null, href: "/login" };
           return { ...a, available: true, reason: null, href: "/checkout" };
 
