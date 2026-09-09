@@ -1,0 +1,93 @@
+export type FinanceView =
+  // 1. Finance Overview
+  | "overview_total_balance"
+  | "overview_today_inflow"
+  | "overview_today_outflow"
+  | "overview_net_profit"
+  | "overview_pending"
+  // 2. Wallet Management
+  | "wallet_master"
+  | "wallet_franchise"
+  | "wallet_reseller"
+  | "wallet_user"
+  | "wallet_topup"
+  | "wallet_deduction"
+  | "wallet_low_balance"
+  // 3. Payment Management
+  | "payment_incoming"
+  | "payment_outgoing"
+  | "payment_failed"
+  | "payment_pending"
+  | "payment_partial"
+  // 4. Payment Gateways
+  | "gateway_upi"
+  | "gateway_bank"
+  | "gateway_payu"
+  | "gateway_stripe"
+  | "gateway_paypal"
+  | "gateway_crypto"
+  // 5. Invoice Management
+  | "invoice_generate"
+  | "invoice_auto"
+  | "invoice_franchise"
+  | "invoice_reseller"
+  | "invoice_tax"
+  | "invoice_credit_note"
+  | "invoice_debit_note"
+  // 6. Subscription & Plans
+  | "plan_active"
+  | "plan_expired"
+  | "plan_renewal"
+  | "plan_upgrade"
+  | "plan_downgrade"
+  // 7. Commission Management
+  | "commission_franchise"
+  | "commission_reseller"
+  | "commission_influencer"
+  | "commission_rules"
+  | "commission_auto_deduct"
+  // 8. Cost & Expense
+  | "cost_server"
+  | "cost_ai_api"
+  | "cost_marketing"
+  | "cost_support"
+  | "cost_manual_entry"
+  // 9. AI/API Billing
+  | "ai_usage_cost"
+  | "api_usage_cost"
+  | "ai_spike_alert"
+  | "ai_stop_resume"
+  | "ai_budget_limit"
+  // 10. Refund & Adjustment
+  | "refund_requests"
+  | "refund_approved"
+  | "refund_rejected"
+  | "refund_wallet_adjust"
+  // 11. Compliance & Tax
+  | "tax_gst_vat"
+  | "tax_tds"
+  | "tax_country_wise"
+  | "tax_audit_reports"
+  // 12. Reports & Analytics
+  | "report_daily"
+  | "report_monthly"
+  | "report_yearly"
+  | "report_export"
+  // 13. Alerts & Approval
+  | "alert_high_amount"
+  | "alert_manual_override"
+  | "alert_risky_transaction"
+  // 14. Logs & Security
+  | "log_transactions"
+  | "log_activity"
+  | "log_masked_view"
+  | "log_fraud_detection"
+  // Legacy consoles
+  | "revenue"
+  | "payouts"
+  | "wallets"
+  | "commissions"
+  | "invoices"
+  | "heatmap"
+  | "fraud"
+  | "audit";

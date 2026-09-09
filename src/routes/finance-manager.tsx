@@ -14,10 +14,23 @@ import { FinanceManager } from "@/components/finance/FinanceManager";
  * name the part of the module it means.
  */
 
+/**
+ * The module now names its own views — overview_total_balance, wallet_master,
+ * log_activity and the rest — so ?view= is passed straight through and the
+ * module decides whether it knows the name. The three names this route used to
+ * accept still work: they map onto their equivalents so older links keep
+ * landing somewhere sensible instead of silently opening the default.
+ */
+const LEGACY_VIEWS: Record<string, string> = {
+  billing: "invoice_generate",
+  wallet: "wallet_master",
+  audit: "log_activity",
+};
+
 function view(): string {
-  if (typeof window === "undefined") return "billing";
+  if (typeof window === "undefined") return "overview_total_balance";
   const asked = new URLSearchParams(window.location.search).get("view") ?? "";
-  return ["billing", "wallet", "audit"].includes(asked) ? asked : "billing";
+  return LEGACY_VIEWS[asked] ?? asked;
 }
 
 export const Route = createFileRoute("/finance-manager")({
