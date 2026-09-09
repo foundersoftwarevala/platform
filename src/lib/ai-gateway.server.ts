@@ -1,5 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 
+import {
+  AiPolicyError,
+  consumeProductQuota,
+  evaluateAiPolicy,
+  recordPolicyDenial,
+  type PolicyInput,
+} from "./ai-policy.server";
+
 /**
  * One way in and out of an AI provider.
  *
@@ -30,6 +38,9 @@ export type AiTarget = {
   providerSlug: string;
   modelId: string | null;
   modelRowId: string | null;
+  /** Provider list price for this model, as configured in AI API Manager. */
+  inputCostPer1k: number | null;
+  outputCostPer1k: number | null;
   isAnthropic: boolean;
 };
 
@@ -131,7 +142,7 @@ export async function resolveAiTarget(
 
   const { data: model } = await db
     .from("ai_models")
-    .select("id, model_id")
+    .select("id, model_id, input_cost_per_1k, output_cost_per_1k")
     .eq("provider_id", row["provider_id"] as string)
     .eq("status", "active")
     .eq("is_default", true)
@@ -171,8 +182,36 @@ export async function resolveAiTarget(
     providerSlug,
     modelId: (model as { model_id?: string } | null)?.model_id ?? null,
     modelRowId: (model as { id?: string } | null)?.id ?? null,
+    inputCostPer1k: numberOrNull((model as Record<string, unknown> | null)?.["input_cost_per_1k"]),
+    outputCostPer1k: numberOrNull(
+      (model as Record<string, unknown> | null)?.["output_cost_per_1k"],
+    ),
     isAnthropic: providerSlug.includes("anthropic"),
   };
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * What the provider will charge for this call, from the price the operator
+ * configured on the model.
+ *
+ * ai_models already carried input_cost_per_1k and output_cost_per_1k and the
+ * console already displayed them; meter() never used them, so every usage row
+ * the gateway wrote had cost_usd 0 while the dashboard added those zeros up and
+ * presented the total as spend. Where a model has no price configured the cost
+ * stays null rather than being guessed, which is what "NOT AVAILABLE" means
+ * here — an invented number would be worse than an absent one.
+ */
+function providerCost(target: AiTarget, tokensIn: number, tokensOut: number): number | null {
+  if (target.inputCostPer1k === null && target.outputCostPer1k === null) return null;
+  const inCost = ((target.inputCostPer1k ?? 0) * tokensIn) / 1000;
+  const outCost = ((target.outputCostPer1k ?? 0) * tokensOut) / 1000;
+  return Number((inCost + outCost).toFixed(6));
 }
 
 async function meter(
@@ -185,13 +224,17 @@ async function meter(
 ) {
   try {
     const db = serverClient();
+    const tokensIn = Number(usage?.["input_tokens"] ?? usage?.["prompt_tokens"] ?? 0);
+    const tokensOut = Number(usage?.["output_tokens"] ?? usage?.["completion_tokens"] ?? 0);
+    const cost = providerCost(target, tokensIn, tokensOut);
     await db.from("usage_events").insert({
       service_id: target.serviceId,
       model_id: target.modelRowId,
       product: module,
       requests: 1,
-      tokens_in: Number(usage?.["input_tokens"] ?? usage?.["prompt_tokens"] ?? 0),
-      tokens_out: Number(usage?.["output_tokens"] ?? usage?.["completion_tokens"] ?? 0),
+      tokens_in: tokensIn,
+      tokens_out: tokensOut,
+      ...(cost === null ? {} : { cost_usd: cost }),
       latency_ms: Date.now() - started,
       status_code: status,
       success: ok,
@@ -224,6 +267,21 @@ export async function aiComplete(options: {
     ...(options.serviceId ? { serviceId: options.serviceId } : {}),
     ...(options.serviceName ? { serviceName: options.serviceName } : {}),
   });
+
+  // Product policy, quota, rate limit and the emergency kill switch, all of
+  // which AI API Manager already stored and none of which anything read.
+  const policyInput: PolicyInput = {
+    product: options.module,
+    serviceId: target.serviceId,
+    serviceName: target.serviceName,
+    modelRowId: target.modelRowId,
+  };
+  const decision = await evaluateAiPolicy(policyInput);
+  if (!decision.allowed) {
+    await recordPolicyDenial(policyInput, decision);
+    throw new AiPolicyError(decision.code, decision.reason, decision.httpStatus);
+  }
+
   const started = Date.now();
 
   const system = options.messages.find((m) => m.role === "system")?.content;
@@ -263,6 +321,7 @@ export async function aiComplete(options: {
     : result.choices?.[0]?.message?.content;
 
   await meter(target, options.module, started, response.status, response.ok, result.usage);
+  if (response.ok && text) await consumeProductQuota(decision.mapping);
 
   if (!response.ok || !text) {
     throw new Error(
@@ -292,6 +351,24 @@ export async function aiStream(options: {
   serviceName?: string;
 }): Promise<Response> {
   const target = await resolveAiTarget(options.serviceName);
+
+  // The streamed path passes the same gate. A refused stream returns the
+  // policy status to the browser instead of opening an event stream.
+  const policyInput: PolicyInput = {
+    product: options.module,
+    serviceId: target.serviceId,
+    serviceName: target.serviceName,
+    modelRowId: target.modelRowId,
+  };
+  const decision = await evaluateAiPolicy(policyInput);
+  if (!decision.allowed) {
+    await recordPolicyDenial(policyInput, decision);
+    return new Response(decision.reason, {
+      status: decision.httpStatus,
+      headers: { "X-Policy-Denial": decision.code },
+    });
+  }
+
   const started = Date.now();
 
   const headers: Record<string, string> = { "content-type": "application/json" };
@@ -324,6 +401,7 @@ export async function aiStream(options: {
   });
 
   void meter(target, options.module, started, upstream.status, upstream.ok);
+  if (upstream.ok) void consumeProductQuota(decision.mapping);
 
   if (!upstream.ok || !upstream.body) {
     const detail = await upstream.text().catch(() => "");

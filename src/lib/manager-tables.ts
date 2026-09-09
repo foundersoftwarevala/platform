@@ -38,6 +38,11 @@ export const MANAGER_TABLES = [
   "cache_entries",
   "failover_events",
   "finance_payment_rails",
+  // Saved customer payment methods. The table already existed with exactly the
+  // shape the console needs; it was simply unreachable, which is why every
+  // button on the Payment Methods tab did nothing. details_json never leaves
+  // the server - see SERVER_ONLY_COLUMNS in manager-data.functions.ts.
+  "payment_methods",
   "finance_customers",
   "finance_invoices",
   "finance_invoice_items",

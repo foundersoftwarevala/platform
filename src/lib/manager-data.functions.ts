@@ -87,6 +87,10 @@ type ManagerDb = Awaited<ReturnType<typeof admin>> & { managerActor: ManagerActo
  */
 const SERVER_ONLY_COLUMNS: Record<string, readonly string[]> = {
   api_keys: ["secret_encrypted"],
+  // A saved payment method's raw detail - account number, UPI id, wallet
+  // address - is written from the browser but never read back to it. The list
+  // shows the label and the last four characters the server stored alongside.
+  payment_methods: ["details_json"],
 };
 
 function redactRows(table: string, rows: Row[]): Row[] {
@@ -164,6 +168,51 @@ async function writeAudit(
   });
 }
 
+/** Tables where a change is a policy decision worth diffing, not bulk data. */
+const AUDIT_BEFORE_AFTER_TABLES = new Set(["product_apis", "role_api_permissions", "rate_limits"]);
+
+/**
+ * The audit event names the Product-wise API Control specification asks for.
+ *
+ * The generic layer used to record `product_apis.updated` for every change, so
+ * enabling an API, moving it to another provider and raising a quota were
+ * indistinguishable in the audit trail. The columns being written decide the
+ * name; anything not covered keeps the generic form.
+ */
+function productApiEventName(values: Record<string, unknown>): string {
+  if ("enabled" in values) {
+    return values["enabled"] ? "PRODUCT_API_ENABLED" : "PRODUCT_API_DISABLED";
+  }
+  if ("model_id" in values) return "PRODUCT_API_MODEL_CHANGED";
+  if ("fallback_service_id" in values) return "PRODUCT_API_FALLBACK_CHANGED";
+  if ("service_id" in values || "provider_id" in values) return "PRODUCT_API_PROVIDER_CHANGED";
+  if (
+    [
+      "quota_monthly",
+      "quota_daily",
+      "token_quota_monthly",
+      "budget_monthly_usd",
+      "budget_daily_usd",
+      "max_concurrent",
+    ].some((k) => k in values)
+  ) {
+    return "PRODUCT_API_LIMIT_CHANGED";
+  }
+  return "PRODUCT_API_POLICY_CHANGED";
+}
+
+/** The row as it stands before a write, so the audit can carry before and after. */
+async function readBefore(
+  db: ManagerDb,
+  table: string,
+  id: string,
+): Promise<Record<string, unknown> | null> {
+  if (!AUDIT_BEFORE_AFTER_TABLES.has(table)) return null;
+  const { data } = await db.from(table).select("*").eq("id", id).maybeSingle();
+  const row = (data as Record<string, unknown> | null) ?? null;
+  return row ? (redactRows(table, [row])[0] as Record<string, unknown>) : null;
+}
+
 export const listRecords = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => listSchema.parse(data))
   .handler(async ({ data }) => runList(await requireManager(), data));
@@ -180,6 +229,7 @@ export const updateRecord = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => mutateSchema.parse(data))
   .handler(async ({ data }) => {
     const db = await requireManager();
+    const before = await readBefore(db, data.table, data.id);
     const { data: row, error } = await db
       .from(data.table)
       .update(data.values as never)
@@ -189,10 +239,13 @@ export const updateRecord = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     await writeAudit(
       db,
-      `${data.table}.updated`,
+      data.table === "product_apis" ? productApiEventName(data.values) : `${data.table}.updated`,
       data.table,
       data.id,
-      redactValues(data.table, data.values),
+      {
+        ...redactValues(data.table, data.values),
+        ...(before ? { before, after: redactRows(data.table, [row as Row])[0] } : {}),
+      },
     );
     return redactRows(data.table, [row as Row])[0] as Row;
   });
@@ -209,7 +262,7 @@ export const insertRecord = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     await writeAudit(
       db,
-      `${data.table}.created`,
+      data.table === "product_apis" ? "PRODUCT_API_MAPPED" : `${data.table}.created`,
       data.table,
       (row as { id?: string } | null)?.id ?? null,
       redactValues(data.table, data.values),
