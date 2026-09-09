@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "@tanstack/react-router";
 import { useProductActions } from "@/lib/marketplace/useActionLayer";
+import { DemoForm } from "@/components/marketplace-home/FloatingElements";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, ArrowLeft, Heart, Share2, Download, ExternalLink, ShoppingCart } from "lucide-react";
 import { getPublicProduct, type PublicProduct } from "@/lib/marketplace.functions";
@@ -462,6 +463,10 @@ function ProductActionButtons({
   adding: boolean;
   onAddToCart: () => void;
 }) {
+  // Request Demo opens the demo form that already exists on the home page,
+  // carrying this product with it, instead of the dead #contact-sales anchor.
+  const [demoOpen, setDemoOpen] = useState(false);
+
   const { actions } = useProductActions({
     id: product.id,
     slug: product.slug ?? null,
@@ -527,10 +532,16 @@ function ProductActionButtons({
         }
         if (a.key === "REQUEST_DEMO") {
           return (
-            <a key={a.key} href="#contact-sales" className={base}>
+            <button
+              key={a.key}
+              type="button"
+              aria-expanded={demoOpen}
+              onClick={() => setDemoOpen((open) => !open)}
+              className={base}
+            >
               <ExternalLink className="h-4 w-4" aria-hidden />
               {a.label}
-            </a>
+            </button>
           );
         }
         if (a.key === "ADD_TO_CART" || a.key === "BUY_NOW") {
@@ -552,6 +563,16 @@ function ProductActionButtons({
         }
         return null;
       })}
+
+      {/* The home page's own demo form, carrying this product with it. */}
+      {demoOpen && (
+        <div className="pt-1">
+          <DemoForm
+            onClose={() => setDemoOpen(false)}
+            product={{ id: product.id, name: product.name }}
+          />
+        </div>
+      )}
     </div>
   );
 }

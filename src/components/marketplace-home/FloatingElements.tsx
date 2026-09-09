@@ -114,7 +114,19 @@ function deviceClasses(el: FloatingElement): string {
  * correctly refuses an anonymous insert. Nothing here is a second lead system,
  * and there is no success message that is not a real answer from the server.
  */
-function DemoForm({ onClose }: { onClose: () => void }) {
+export function DemoForm({
+  onClose,
+  product,
+}: {
+  onClose: () => void;
+  /**
+   * The product this request is about, when there is one. A product page passes
+   * it; the floating button on the home page does not, and that request goes in
+   * as a general enquiry - which is the endpoint's own distinction, not a
+   * workaround for it.
+   */
+  product?: { id?: string | null; name?: string | null };
+}) {
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -143,12 +155,22 @@ function DemoForm({ onClose }: { onClose: () => void }) {
               const res = await fetch("/api/marketplace/lead", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                // The field names the endpoint actually reads. It read none
+                // of the three this form used to send, which is why every
+                // request came back "Product could not be identified" and why
+                // the visitor's message never arrived.
                 body: JSON.stringify({
-                  action: "request_demo",
+                  ctaAction: product?.name ? "request_demo" : "enquiry",
                   name: form.get("name"),
                   email: form.get("email"),
                   phone: form.get("phone"),
-                  message: form.get("message"),
+                  requirements: form.get("message"),
+                  productName: product?.name ?? "",
+                  productId: product?.id ?? "",
+                  // The endpoint resolves the product from this exactly when it
+                  // is a /marketplace/product/<slug> path.
+                  sourcePage:
+                    typeof window === "undefined" ? "" : window.location.pathname,
                 }),
               });
               if (!res.ok) {
