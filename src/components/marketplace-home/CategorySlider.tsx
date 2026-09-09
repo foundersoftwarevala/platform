@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { anchorClick, categoryHref, GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
 import {
   Sparkles, GraduationCap, Stethoscope, Utensils, Hotel, Home, Car, Plane,
@@ -35,6 +36,21 @@ const CATEGORIES = [
 const LOOP = [...CATEGORIES, ...CATEGORIES];
 
 type Chip = { name: string; link: string; icon: typeof Sparkles; color: string };
+
+/**
+ * The real category page a chip points at, or null when it only carries one of
+ * the written fallback fragments.
+ *
+ * Live chips are built with `/marketplace/category/<slug>` from the same rows
+ * the Marketplace Manager controls, so this is the category's own page with its
+ * own products. The fallback list still uses `/#Education` style fragments, and
+ * those keep the in-page scroll they have always had.
+ */
+function categoryRoute(chip: Chip): string | null {
+  if (chip.name === "All") return null; // "All" scrolls to the grid on this page.
+  const link = typeof chip.link === "string" ? chip.link : "";
+  return link.startsWith("/") && !link.startsWith("/#") ? link : null;
+}
 
 /**
  * The rows the marketplace actually has, as chips.
@@ -98,6 +114,7 @@ function useCategoryChips(): Chip[] {
 }
 
 const CategorySlider = () => {
+  const navigate = useNavigate();
   const chips = useCategoryChips();
   const loop = useMemo(() => [...chips, ...chips], [chips]);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -222,9 +239,22 @@ const CategorySlider = () => {
             return (
               <a
                 key={`${cat.name}-${i}`}
-                href={cat.name === "All" ? `#${GRID_ANCHOR}` : categoryHref(cat.name)}
+                href={
+                  cat.name === "All"
+                    ? `#${GRID_ANCHOR}`
+                    : categoryRoute(cat) ?? categoryHref(cat.name)
+                }
                 onClick={(e) => {
+                  // A drag is not a click, and never navigates.
                   if (movedRef.current) { e.preventDefault(); return; }
+                  const route = categoryRoute(cat);
+                  if (route) {
+                    // The category's own page, with its own products. Through the
+                    // router, so it does not reload the whole application.
+                    e.preventDefault();
+                    void navigate({ to: route });
+                    return;
+                  }
                   const target = cat.name === "All" ? `#${GRID_ANCHOR}` : categoryHref(cat.name);
                   anchorClick(target.slice(1))(e);
                 }}
