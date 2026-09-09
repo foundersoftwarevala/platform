@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
-  actorSchema,
   aiControlSchema,
   adjustWalletSchema,
   approvalSchema,
@@ -22,117 +21,185 @@ import {
 export const payoutStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => payoutSchema.parse(d))
   .handler(async ({ data }) => {
-    const { updatePayoutStatus } = await import("./finance.server");
-    return updatePayoutStatus(data);
+    const { updatePayoutStatus, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return updatePayoutStatus({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
   });
 
 export const refundStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => refundSchema.parse(d))
   .handler(async ({ data }) => {
-    const { updateRefundStatus } = await import("./finance.server");
-    return updateRefundStatus(data);
+    const { updateRefundStatus, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return updateRefundStatus({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
   });
 
 export const approvalDecisionFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => approvalSchema.parse(d))
   .handler(async ({ data }) => {
-    const { decideApproval } = await import("./finance.server");
-    return decideApproval(data);
+    const { decideApproval, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return decideApproval({ ...(data as object), actor: operator.email ?? operator.id } as never);
   });
 
 export const invoiceStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => invoiceStatusSchema.parse(d))
   .handler(async ({ data }) => {
-    const { updateInvoiceStatus } = await import("./finance.server");
-    return updateInvoiceStatus(data);
+    const { updateInvoiceStatus, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return updateInvoiceStatus({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
   });
 
 export const createInvoiceFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => createInvoiceSchema.parse(d))
   .handler(async ({ data }) => {
-    const { createInvoice } = await import("./finance.server");
-    return createInvoice(data);
+    const { createInvoice, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return createInvoice({ ...(data as object), actor: operator.email ?? operator.id } as never);
   });
 
 export const adjustWalletFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => adjustWalletSchema.parse(d))
   .handler(async ({ data }) => {
-    const { adjustWallet } = await import("./finance.server");
-    return adjustWallet(data);
+    const { adjustWallet, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return adjustWallet({ ...(data as object), actor: operator.email ?? operator.id } as never);
   });
 
 export const walletFreezeFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => walletFreezeSchema.parse(d))
   .handler(async ({ data }) => {
-    const { toggleWalletFreeze } = await import("./finance.server");
-    return toggleWalletFreeze(data);
+    const { toggleWalletFreeze, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return toggleWalletFreeze({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
   });
 
 export const gatewayToggleFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => gatewaySchema.parse(d))
   .handler(async ({ data }) => {
-    const { setGatewayEnabled } = await import("./finance.server");
-    return setGatewayEnabled(data);
+    const { setGatewayEnabled, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return setGatewayEnabled({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
   });
 
 export const createExpenseFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => createExpenseSchema.parse(d))
   .handler(async ({ data }) => {
-    const { createExpense } = await import("./finance.server");
-    return createExpense(data);
+    const { createExpense, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return createExpense({ ...(data as object), actor: operator.email ?? operator.id } as never);
   });
 
 export const expenseStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => expenseStatusSchema.parse(d))
   .handler(async ({ data }) => {
-    const { updateExpenseStatus } = await import("./finance.server");
-    return updateExpenseStatus(data);
+    const { updateExpenseStatus, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return updateExpenseStatus({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
   });
 
 export const subscriptionStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => subscriptionSchema.parse(d))
   .handler(async ({ data }) => {
-    const { updateSubscriptionStatus } = await import("./finance.server");
-    return updateSubscriptionStatus(data);
+    const { updateSubscriptionStatus, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return updateSubscriptionStatus({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
   });
 
 export const aiControlFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => aiControlSchema.parse(d))
   .handler(async ({ data }) => {
-    const { updateAiControl } = await import("./finance.server");
-    return updateAiControl(data);
+    const { updateAiControl, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return updateAiControl({ ...(data as object), actor: operator.email ?? operator.id } as never);
   });
 
 export const taxStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => taxSchema.parse(d))
   .handler(async ({ data }) => {
-    const { updateTaxRecordStatus } = await import("./finance.server");
-    return updateTaxRecordStatus(data);
+    const { updateTaxRecordStatus, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return updateTaxRecordStatus({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
   });
 
 export const fraudStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => fraudStatusSchema.parse(d))
   .handler(async ({ data }) => {
-    const { updateFraudAlertStatus } = await import("./finance.server");
-    return updateFraudAlertStatus(data);
+    const { updateFraudAlertStatus, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return updateFraudAlertStatus({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
   });
 
 export const alertStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
-    z.object({ id: z.string().uuid(), status: z.enum(["open", "acknowledged", "resolved"]) }).parse(d),
+    z
+      .object({ id: z.string().uuid(), status: z.enum(["open", "acknowledged", "resolved"]) })
+      .parse(d),
   )
   .handler(async ({ data }) => {
-    const { updateAlertStatus } = await import("./finance.server");
-    return updateAlertStatus(data);
+    const { updateAlertStatus, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return updateAlertStatus({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
   });
 
 export const commissionStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => commissionSchema.parse(d))
   .handler(async ({ data }) => {
-    const { updateCommissionStatus } = await import("./finance.server");
-    return updateCommissionStatus(data);
+    const { updateCommissionStatus, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return updateCommissionStatus({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
   });
 
-export const actorFn = createServerFn({ method: "GET" })
-  .inputValidator((d: unknown) => actorSchema.parse(d))
-  .handler(async ({ data }) => ({ actor: data.actor }));
+/**
+ * Who the console is acting as.
+ *
+ * This used to hand back whatever string the caller passed in, which is what
+ * let the browser decide the name recorded against every financial change. It
+ * now answers with the authenticated operator, so the console displays the
+ * identity the server will actually write to the audit log.
+ */
+export const actorFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireFinanceOperator } = await import("./finance.server");
+  const operator = await requireFinanceOperator();
+  return { actor: operator.email ?? operator.id, role: operator.role };
+});
+
+/** What each payment gateway can actually do, read from the code and the server. */
+export const gatewayReadinessFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { gatewayReadiness, requireFinanceOperator } = await import("./finance.server");
+  await requireFinanceOperator();
+  return gatewayReadiness();
+});

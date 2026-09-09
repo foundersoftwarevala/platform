@@ -1,9 +1,49 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { getRequestHeader } from "@tanstack/react-start/server";
+
+export type FinanceOperator = { id: string; email: string | null; role: string };
+
+/**
+ * Who is allowed to move money.
+ *
+ * Every function in this file runs on the service-role client, which bypasses
+ * row level security, and all seventeen of them are reachable from the browser
+ * through finance.functions.ts. Before this guard none of them checked anything
+ * at all: an unauthenticated request could credit any wallet by any amount,
+ * freeze a wallet, flip a payment gateway or approve a payout, and the `actor`
+ * recorded against it was a string the caller supplied — so the audit trail
+ * named whoever the caller wanted it to name.
+ *
+ * The check is the same one the Control Panel data layer already uses, against
+ * the same has_role function, so this introduces no second permission system.
+ */
+export async function requireFinanceOperator(): Promise<FinanceOperator> {
+  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) throw new Error("Finance authentication required");
+
+  const { data: user, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !user.user) throw new Error("Finance authentication required");
+
+  const [{ data: isFinance }, { data: isAdmin }, { data: isBoss }] = await Promise.all([
+    supabaseAdmin.rpc("has_role", { _user_id: user.user.id, _role: "finance" }),
+    supabaseAdmin.rpc("has_role", { _user_id: user.user.id, _role: "admin" }),
+    supabaseAdmin.rpc("has_role", { _user_id: user.user.id, _role: "boss" }),
+  ]);
+  if (!isFinance && !isAdmin && !isBoss) throw new Error("Finance permission required");
+
+  return {
+    id: user.user.id,
+    email: user.user.email ?? null,
+    role: isBoss ? "boss" : isAdmin ? "admin" : "finance",
+  };
+}
 
 type Json = Record<string, unknown>;
 
 async function writeAudit(entry: {
   actor: string;
+  actor_role?: string;
   action: string;
   entity: string;
   entity_ref: string;
@@ -12,7 +52,7 @@ async function writeAudit(entry: {
 }) {
   await supabaseAdmin.from("finance_audit_logs").insert({
     actor: entry.actor,
-    actor_role: "finance_manager",
+    actor_role: entry.actor_role ?? "finance_manager",
     action: entry.action,
     entity: entry.entity,
     entity_ref: entry.entity_ref,
@@ -38,7 +78,7 @@ export async function updatePayoutStatus(input: {
   note?: string | undefined;
 }) {
   const patch: Json = { status: input.status, reviewer_note: input.note ?? null };
-  if (input.status === "paid") patch['processed_at'] = new Date().toISOString();
+  if (input.status === "paid") patch["processed_at"] = new Date().toISOString();
 
   const { data, error } = await supabaseAdmin
     .from("finance_payouts")
@@ -66,7 +106,7 @@ export async function updateRefundStatus(input: {
   note?: string | undefined;
 }) {
   const patch: Json = { status: input.status, reviewer_note: input.note ?? null };
-  if (input.status === "processed") patch['processed_at'] = new Date().toISOString();
+  if (input.status === "processed") patch["processed_at"] = new Date().toISOString();
 
   const { data, error } = await supabaseAdmin
     .from("finance_refunds")
@@ -122,7 +162,7 @@ export async function updateInvoiceStatus(input: {
   actor: string;
 }) {
   const patch: Json = { status: input.status };
-  if (input.status === "paid") patch['paid_at'] = new Date().toISOString();
+  if (input.status === "paid") patch["paid_at"] = new Date().toISOString();
 
   const { data, error } = await supabaseAdmin
     .from("finance_invoices")
@@ -149,29 +189,122 @@ export async function adjustWallet(input: {
   reason: string;
   actor: string;
 }) {
-  const { data, error } = await supabaseAdmin
-    .rpc("finance_adjust_wallet_atomic", {
-      p_wallet_id: input.walletId,
-      p_amount: input.amount,
-      p_entry_type: input.entryType,
-      p_reason: input.reason,
-      p_actor: input.actor,
-      p_reference: `ADJ-${Date.now().toString(36).toUpperCase()}`,
-    });
-  if (error) fail(error.message);
+  const reference = `ADJ-${Date.now().toString(36).toUpperCase()}`;
+
+  // The module was written against finance_adjust_wallet_atomic, which locks
+  // the wallet row and writes the ledger entry in one transaction. That
+  // function does not exist in this project's database — PostgREST answers
+  // PGRST202 — so every top-up and every deduction failed the moment it was
+  // used. The migration that creates it ships alongside this change; until it
+  // is applied the same work is done here with a compare-and-set, which is
+  // safe against a concurrent adjustment because the update only lands if the
+  // balance is still the one that was read.
+  const viaRpc = await supabaseAdmin.rpc("finance_adjust_wallet_atomic", {
+    p_wallet_id: input.walletId,
+    p_amount: input.amount,
+    p_entry_type: input.entryType,
+    p_reason: input.reason,
+    p_actor: input.actor,
+    p_reference: reference,
+  });
+
+  let wallet: Record<string, unknown>;
+
+  if (!viaRpc.error) {
+    wallet = viaRpc.data as unknown as Record<string, unknown>;
+  } else if (!/PGRST202|could not find|does not exist/i.test(viaRpc.error.message)) {
+    fail(viaRpc.error.message);
+  } else {
+    wallet = await adjustWalletWithoutRpc({ ...input, reference });
+  }
 
   await writeAudit({
     actor: input.actor,
     action: `wallet.${input.entryType}`,
     entity: "finance_wallets",
-    entity_ref: data.owner_code,
+    entity_ref: String(wallet["owner_code"] ?? wallet["id"] ?? input.walletId),
     severity: "warning",
-    details: { amount: input.amount, reason: input.reason, balance_after: data.balance },
+    details: {
+      amount: input.amount,
+      reason: input.reason,
+      reference,
+      balance_after: wallet["balance"],
+    },
   });
-  return ok(data);
+  return ok(wallet);
 }
 
-export async function toggleWalletFreeze(input: { walletId: string; frozen: boolean; actor: string }) {
+/**
+ * The same adjustment without the stored procedure.
+ *
+ * Validation matches the function's exactly — a positive amount, a known entry
+ * type, a reason, no adjustment on a frozen wallet and no balance below zero —
+ * and the ledger row carries the same columns. The write is conditional on the
+ * balance that was read, so two adjustments arriving together cannot both
+ * succeed against the same starting balance; the loser retries against the new
+ * one.
+ */
+async function adjustWalletWithoutRpc(input: {
+  walletId: string;
+  amount: number;
+  entryType: "credit" | "debit";
+  reason: string;
+  actor: string;
+  reference: string;
+}): Promise<Record<string, unknown>> {
+  if (!(input.amount > 0)) fail("Amount must be greater than zero");
+  if (input.entryType !== "credit" && input.entryType !== "debit") fail("Invalid entry type");
+  if (!input.reason.trim()) fail("A reason is required");
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const { data: current, error: readError } = await supabaseAdmin
+      .from("finance_wallets")
+      .select("*")
+      .eq("id", input.walletId)
+      .maybeSingle();
+    if (readError) fail(readError.message);
+    if (!current) fail("Wallet not found");
+
+    const row = current as unknown as Record<string, unknown>;
+    if (row["status"] === "frozen") fail("Frozen wallets cannot be adjusted");
+
+    const balance = Number(row["balance"] ?? 0);
+    const next = input.entryType === "credit" ? balance + input.amount : balance - input.amount;
+    if (next < 0) fail("Adjustment would push the wallet balance below zero");
+
+    const { data: updated, error: writeError } = await supabaseAdmin
+      .from("finance_wallets")
+      .update({ balance: next, last_activity_at: new Date().toISOString() } as never)
+      .eq("id", input.walletId)
+      .eq("balance", balance)
+      .select("*")
+      .maybeSingle();
+    if (writeError) fail(writeError.message);
+    if (!updated) continue; // somebody else moved the balance; read it again
+
+    const { error: ledgerError } = await supabaseAdmin.from("finance_wallet_transactions").insert({
+      wallet_id: input.walletId,
+      entry_type: input.entryType,
+      amount: input.amount,
+      balance_after: next,
+      reference: input.reference,
+      note: input.reason,
+      status: "completed",
+      performed_by: input.actor,
+    } as never);
+    if (ledgerError) fail(ledgerError.message);
+
+    return updated as unknown as Record<string, unknown>;
+  }
+
+  fail("The wallet was being changed by someone else. Try again.");
+}
+
+export async function toggleWalletFreeze(input: {
+  walletId: string;
+  frozen: boolean;
+  actor: string;
+}) {
   const { data, error } = await supabaseAdmin
     .from("finance_wallets")
     .update({ status: input.frozen ? "frozen" : "active" } as never)
@@ -190,7 +323,71 @@ export async function toggleWalletFreeze(input: { walletId: string; frozen: bool
   return ok(data);
 }
 
+export type GatewayReadiness = {
+  adapter: boolean;
+  credentials: boolean;
+  state: "READY" | "NOT_CONFIGURED" | "NOT_IMPLEMENTED";
+  detail: string;
+};
+
+/**
+ * What each gateway can actually do, as opposed to what its row says.
+ *
+ * finance_gateways.status is seeded 'active' for UPI, bank transfer, PayU and
+ * Stripe, and the console read that column alone — so four gateways presented
+ * themselves as live while nothing in this codebase could take a payment
+ * through any of them. Only PayU has a real adapter here
+ * (lib/commerce/payu.ts, with hash generation, the verify call and the webhook
+ * that checks it four ways), and even that has no credentials on this server.
+ *
+ * This answers from the code and the environment, never from the row, so the
+ * console can show the truth without its layout changing.
+ */
+export async function gatewayReadiness(): Promise<Record<string, GatewayReadiness>> {
+  const { payuConfig } = await import("@/lib/commerce/payu");
+  const payuReady = Boolean(payuConfig());
+
+  const notImplemented = (name: string): GatewayReadiness => ({
+    adapter: false,
+    credentials: false,
+    state: "NOT_IMPLEMENTED",
+    detail: `No server-side ${name} adapter exists in this project yet.`,
+  });
+
+  return {
+    payu: {
+      adapter: true,
+      credentials: payuReady,
+      state: payuReady ? "READY" : "NOT_CONFIGURED",
+      detail: payuReady
+        ? "Adapter, verification and webhook are in place."
+        : "Adapter and webhook exist; PAYU_MERCHANT_KEY and PAYU_MERCHANT_SALT are not set on this server.",
+    },
+    upi: notImplemented("UPI"),
+    bank: notImplemented("bank transfer"),
+    stripe: notImplemented("Stripe"),
+    paypal: notImplemented("PayPal"),
+    crypto: notImplemented("crypto"),
+  };
+}
+
 export async function setGatewayEnabled(input: { id: string; enabled: boolean; actor: string }) {
+  if (input.enabled) {
+    // Enabling a gateway that has no adapter or no credentials would put a
+    // live-looking payment route in front of an operator that cannot complete
+    // a single payment.
+    const { data: row } = await supabaseAdmin
+      .from("finance_gateways")
+      .select("code")
+      .eq("id", input.id)
+      .maybeSingle();
+    const code = String((row as { code?: string } | null)?.code ?? "");
+    const readiness = (await gatewayReadiness())[code];
+    if (readiness && readiness.state !== "READY") {
+      fail(`${code.toUpperCase()} cannot be enabled: ${readiness.detail}`);
+    }
+  }
+
   const { data, error } = await supabaseAdmin
     .from("finance_gateways")
     .update({ status: input.enabled ? "active" : "disabled" } as never)
@@ -274,11 +471,15 @@ export async function updateSubscriptionStatus(input: {
 }) {
   const patch: Json = { status: input.status };
   if (input.planId) {
-    const { data: plan, error: planError } = await supabaseAdmin.from("finance_plans").select("id, name, price").eq("id", input.planId).single();
+    const { data: plan, error: planError } = await supabaseAdmin
+      .from("finance_plans")
+      .select("id, name, price")
+      .eq("id", input.planId)
+      .single();
     if (planError) fail(planError.message);
-    patch['plan_id'] = plan.id;
-    patch['amount'] = plan.price;
-    patch['previous_plan'] = plan.name;
+    patch["plan_id"] = plan.id;
+    patch["amount"] = plan.price;
+    patch["previous_plan"] = plan.name;
   }
   const { data, error } = await supabaseAdmin
     .from("finance_subscriptions")
@@ -307,14 +508,29 @@ export async function updateAiControl(input: {
   autoStopPercent?: number | undefined;
   actor: string;
 }) {
-  const patch: Json = { provider: input.provider, service: input.service, updated_at: new Date().toISOString() };
-  if (input.status !== undefined) patch['status'] = input.status;
-  if (input.budget !== undefined) patch['budget'] = input.budget;
-  if (input.spikeThreshold !== undefined) patch['spike_threshold'] = input.spikeThreshold;
-  if (input.autoStopPercent !== undefined) patch['auto_stop_percent'] = input.autoStopPercent;
-  const { data, error } = await supabaseAdmin.from("finance_ai_controls").upsert(patch as never, { onConflict: "provider,service" }).select("*").single();
+  const patch: Json = {
+    provider: input.provider,
+    service: input.service,
+    updated_at: new Date().toISOString(),
+  };
+  if (input.status !== undefined) patch["status"] = input.status;
+  if (input.budget !== undefined) patch["budget"] = input.budget;
+  if (input.spikeThreshold !== undefined) patch["spike_threshold"] = input.spikeThreshold;
+  if (input.autoStopPercent !== undefined) patch["auto_stop_percent"] = input.autoStopPercent;
+  const { data, error } = await supabaseAdmin
+    .from("finance_ai_controls")
+    .upsert(patch as never, { onConflict: "provider,service" })
+    .select("*")
+    .single();
   if (error) fail(error.message);
-  await writeAudit({ actor: input.actor, action: "ai_billing.control_update", entity: "finance_ai_controls", entity_ref: `${input.provider}/${input.service}`, severity: "warning", details: patch });
+  await writeAudit({
+    actor: input.actor,
+    action: "ai_billing.control_update",
+    entity: "finance_ai_controls",
+    entity_ref: `${input.provider}/${input.service}`,
+    severity: "warning",
+    details: patch,
+  });
   return ok(data);
 }
 
@@ -324,7 +540,8 @@ export async function updateTaxRecordStatus(input: {
   actor: string;
 }) {
   const patch: Json = { filing_status: input.status };
-  if (input.status === "filed" || input.status === "paid") patch['filed_at'] = new Date().toISOString();
+  if (input.status === "filed" || input.status === "paid")
+    patch["filed_at"] = new Date().toISOString();
 
   const { data, error } = await supabaseAdmin
     .from("finance_tax_records")
@@ -351,7 +568,7 @@ export async function updateFraudAlertStatus(input: {
 }) {
   const patch: Json = { status: input.status };
   if (input.status === "resolved" || input.status === "false_positive") {
-    patch['resolved_at'] = new Date().toISOString();
+    patch["resolved_at"] = new Date().toISOString();
   }
 
   const { data, error } = await supabaseAdmin
@@ -373,7 +590,10 @@ export async function updateFraudAlertStatus(input: {
   return ok(data);
 }
 
-export async function updateAlertStatus(input: { id: string; status: "open" | "acknowledged" | "resolved" }) {
+export async function updateAlertStatus(input: {
+  id: string;
+  status: "open" | "acknowledged" | "resolved";
+}) {
   const { data, error } = await supabaseAdmin
     .from("finance_alerts")
     .update({ status: input.status } as never)

@@ -12,8 +12,17 @@ import {
 
 import { gatewaysQuery, transactionsQuery } from "@/lib/finance/queries";
 import { useToggleGateway } from "@/lib/finance/mutations";
+import { useServerFn } from "@tanstack/react-start";
+import { gatewayReadinessFn } from "@/lib/finance/finance.functions";
 import type { FinanceView } from "@/lib/finance/views";
-import { PanelCard, QueryState, SectionShell, StatCard, StatGrid, StatusBadge } from "@/components/finance/ui-kit";
+import {
+  PanelCard,
+  QueryState,
+  SectionShell,
+  StatCard,
+  StatGrid,
+  StatusBadge,
+} from "@/components/finance/ui-kit";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { formatCompact, formatDateTime, formatPercent } from "@/lib/finance/format";
@@ -28,7 +37,7 @@ const GATEWAY_META: Record<string, { code: string; label: string; icon: LucideIc
 };
 
 export default function GatewaySections({ view }: { view: FinanceView }) {
-  const meta = GATEWAY_META[view] ?? GATEWAY_META['gateway_upi']!;
+  const meta = GATEWAY_META[view] ?? GATEWAY_META["gateway_upi"]!;
   const gatewaysState = useQuery(gatewaysQuery());
   const gateway = useMemo(
     () => gatewaysState.data?.find((g) => g.code === meta.code),
@@ -37,14 +46,31 @@ export default function GatewaySections({ view }: { view: FinanceView }) {
   const txnState = useQuery(transactionsQuery({ gateway: meta.code, limit: 100 }));
   const toggleGateway = useToggleGateway();
 
+  // finance_gateways.status says four of these are active. It is seeded, and
+  // only PayU has an adapter in this codebase. This asks the server what each
+  // gateway can really do so the card cannot claim to be live when no payment
+  // could complete through it.
+  const readinessFn = useServerFn(gatewayReadinessFn);
+  const readinessState = useQuery({
+    queryKey: ["finance", "gateway-readiness"],
+    queryFn: () => readinessFn(),
+    staleTime: 60_000,
+  });
+  const readiness = readinessState.data?.[meta.code];
+  const canGoLive = readiness?.state === "READY";
+
   const Icon = meta.icon;
 
   const txnRows = txnState.data ?? [];
   const volume = useMemo(() => txnRows.reduce((sum, t) => sum + Number(t.amount), 0), [txnRows]);
-  const successCount = useMemo(() => txnRows.filter((t) => t.status === "success").length, [txnRows]);
+  const successCount = useMemo(
+    () => txnRows.filter((t) => t.status === "success").length,
+    [txnRows],
+  );
   const successRate = txnRows.length ? (successCount / txnRows.length) * 100 : 0;
 
-  const isEnabled = gateway ? gateway.status !== "inactive" && gateway.status !== "disabled" : false;
+  const isEnabled =
+    canGoLive && gateway ? gateway.status !== "inactive" && gateway.status !== "disabled" : false;
 
   return (
     <SectionShell
@@ -52,13 +78,31 @@ export default function GatewaySections({ view }: { view: FinanceView }) {
       description="Live configuration, health and recent transactions for this payment gateway"
       icon={Icon}
     >
-      <QueryState isLoading={gatewaysState.isLoading} error={gatewaysState.error} isEmpty={!gateway} emptyLabel="Gateway not configured yet">
+      <QueryState
+        isLoading={gatewaysState.isLoading}
+        error={gatewaysState.error}
+        isEmpty={!gateway}
+        emptyLabel="Gateway not configured yet"
+      >
         {gateway ? (
           <div className="space-y-6">
             <StatGrid>
-              <StatCard label="Success Rate" value={formatPercent(gateway.success_rate)} icon={Activity} tone="success" />
-              <StatCard label="Fee %" value={formatPercent(gateway.fee_percent, 2)} tone="warning" />
-              <StatCard label="Monthly Volume" value={formatCompact(gateway.monthly_volume)} tone="info" />
+              <StatCard
+                label="Success Rate"
+                value={formatPercent(gateway.success_rate)}
+                icon={Activity}
+                tone="success"
+              />
+              <StatCard
+                label="Fee %"
+                value={formatPercent(gateway.fee_percent, 2)}
+                tone="warning"
+              />
+              <StatCard
+                label="Monthly Volume"
+                value={formatCompact(gateway.monthly_volume)}
+                tone="info"
+              />
               <StatCard label="Settlement Cycle" value={gateway.settlement_cycle} tone="default" />
             </StatGrid>
 
@@ -66,12 +110,27 @@ export default function GatewaySections({ view }: { view: FinanceView }) {
               title="Configuration"
               actions={
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{isEnabled ? "Enabled" : "Disabled"}</span>
+                  {readiness && readiness.state !== "READY" ? (
+                    <Badge
+                      variant="outline"
+                      className="border-status-warning/40 text-status-warning"
+                      title={readiness.detail}
+                    >
+                      {readiness.state === "NOT_IMPLEMENTED" ? "NOT IMPLEMENTED" : "NOT CONFIGURED"}
+                    </Badge>
+                  ) : null}
+                  <span className="text-xs text-muted-foreground">
+                    {isEnabled ? "Enabled" : "Disabled"}
+                  </span>
                   <Switch
                     checked={isEnabled}
-                    disabled={toggleGateway.isPending}
+                    disabled={toggleGateway.isPending || !canGoLive}
                     onCheckedChange={(checked) =>
-                      toggleGateway.mutate({ id: gateway.id, enabled: checked, actor: "finance_manager" })
+                      toggleGateway.mutate({
+                        id: gateway.id,
+                        enabled: checked,
+                        actor: "finance_manager",
+                      })
                     }
                   />
                 </div>
@@ -84,7 +143,10 @@ export default function GatewaySections({ view }: { view: FinanceView }) {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Status</p>
-                  <StatusBadge status={gateway.status} />
+                  <StatusBadge status={canGoLive ? gateway.status : "not configured"} />
+                  {readiness && readiness.state !== "READY" ? (
+                    <p className="mt-1 text-xs text-muted-foreground">{readiness.detail}</p>
+                  ) : null}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Monthly Txns</p>
@@ -102,7 +164,9 @@ export default function GatewaySections({ view }: { view: FinanceView }) {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Last Sync</p>
-                  <p className="font-medium text-foreground">{formatDateTime(gateway.last_sync_at)}</p>
+                  <p className="font-medium text-foreground">
+                    {formatDateTime(gateway.last_sync_at)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Sample success rate (recent txns)</p>
@@ -116,7 +180,12 @@ export default function GatewaySections({ view }: { view: FinanceView }) {
             </PanelCard>
 
             <PanelCard title="Recent Transactions">
-              <QueryState isLoading={txnState.isLoading} error={txnState.error} isEmpty={txnRows.length === 0} emptyLabel="No transactions for this gateway yet">
+              <QueryState
+                isLoading={txnState.isLoading}
+                error={txnState.error}
+                isEmpty={txnRows.length === 0}
+                emptyLabel="No transactions for this gateway yet"
+              >
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -135,11 +204,15 @@ export default function GatewaySections({ view }: { view: FinanceView }) {
                           <td className="py-2 font-mono text-primary">{t.txn_code}</td>
                           <td className="py-2 text-foreground">{t.counterparty}</td>
                           <td className="py-2 capitalize text-muted-foreground">{t.direction}</td>
-                          <td className="py-2 font-semibold text-foreground">{formatCompact(t.amount)}</td>
+                          <td className="py-2 font-semibold text-foreground">
+                            {formatCompact(t.amount)}
+                          </td>
                           <td className="py-2">
                             <StatusBadge status={t.status} />
                           </td>
-                          <td className="py-2 text-muted-foreground">{formatDateTime(t.occurred_at)}</td>
+                          <td className="py-2 text-muted-foreground">
+                            {formatDateTime(t.occurred_at)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
