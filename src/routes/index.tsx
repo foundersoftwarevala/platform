@@ -3,57 +3,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import "@/styles/marketplace-home.css";
 import HomeIndex from "@/components/marketplace-home/HomeIndex";
 import { HomeBoundary, HomeShellFallback } from "@/components/marketplace-home/SectionBoundary";
-import { getHomeCatalog, type HomeCatalogSeed } from "@/lib/marketplace/home-catalog.functions";
-import { getHomeLayout, type HomeLayout } from "@/lib/marketplace/home-layout.functions";
-import { getStorefrontChrome, type StorefrontChrome } from "@/lib/storefront/chrome.functions";
-import { getCardComposition, type CardComposition } from "@/lib/marketplace/card-composition.functions";
-import { listHeroSlidesPublic, type HeroSlide } from "@/lib/marketplace-content/hero.functions";
+import {
+  loadHomeRouteData,
+  type HomeRouteData,
+} from "@/lib/marketplace/home-route-data";
 import { absoluteUrl } from "@/lib/seo/site-url";
 
 export const Route = createFileRoute("/")({
   /**
-   * Fetch the first rows before the page is sent, so the HTML that leaves the
-   * server carries real category and product links. Without this the front
-   * door of the catalogue was an empty document and nothing below it could be
-   * followed. A failure here returns nothing and the browser asks for the rows
-   * itself, exactly as it did before.
+   * Fetch the first rows before the page is sent. The body lives in
+   * home-route-data so /marketplace/, which renders the same component, runs
+   * exactly the same loader rather than a copy of it.
    */
-  loader: async (): Promise<{
-    seed: HomeCatalogSeed;
-    layout: HomeLayout;
-    chrome: StorefrontChrome | null;
-    composition: CardComposition | null;
-    slides: HeroSlide[] | null;
-  }> => {
-    // Settled rather than all, so one failing lookup cannot take the others
-    // with it. The catalogue, the layout and the chrome are unrelated
-    // questions and the page has a safe answer for each of them missing.
-    const [seed, layout, chrome, composition, slides] = await Promise.allSettled([
-      getHomeCatalog(),
-      getHomeLayout(),
-      getStorefrontChrome(),
-      getCardComposition(),
-      // Fetched here so the carousel never suspends during the server render.
-      // It was the one thing on the page that did, and because the page also
-      // sits inside a Suspense, that single suspend replaced the whole document
-      // with a spinner.
-      listHeroSlidesPublic(),
-    ]);
-    return {
-      seed: seed.status === "fulfilled" ? seed.value : null,
-      // Null means "registry unreadable", which renders the built-in order —
-      // never an empty page.
-      layout: layout.status === "fulfilled" ? layout.value : null,
-      // Null means "nothing published or unreadable", which renders the
-      // footer this build ships with and no floating elements at all.
-      chrome: chrome.status === "fulfilled" ? chrome.value : null,
-      // Null renders every card field, which is what the card does without
-      // any configuration at all.
-      composition: composition.status === "fulfilled" ? composition.value : null,
-      // Null means the carousel fetches them itself, as it did before.
-      slides: slides.status === "fulfilled" ? slides.value : null,
-    };
-  },
+  loader: async (): Promise<HomeRouteData> => loadHomeRouteData(),
 
   head: () => ({
     links: [{ rel: "canonical", href: absoluteUrl("/") }],

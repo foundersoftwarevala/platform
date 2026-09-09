@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { useMatch } from "@tanstack/react-router";
+import { useHomeRouteData } from "@/lib/marketplace/home-route-data";
 import {
   Play, ChevronLeft, ChevronRight, ShoppingCart, Sparkles,
   Boxes, Crown, Rocket, Zap, ShieldCheck, Clock, BadgeCheck, Lock, Globe2,
@@ -19,8 +19,7 @@ const HeroCarousel = () => {
   // What the route already loaded. On the home page this is always present, so
   // the carousel renders on the server with real slides in the HTML rather
   // than suspending and taking the whole page down to a spinner.
-  const homeMatch = useMatch({ from: "/", shouldThrow: false });
-  const seeded = (homeMatch?.loaderData as { slides?: unknown } | undefined)?.slides;
+  const seeded = useHomeRouteData()?.slides;
   const initial = Array.isArray(seeded) && seeded.length > 0 ? seeded : undefined;
 
   // useQuery, not useSuspenseQuery: this must never suspend. With initial data

@@ -1,4 +1,4 @@
-import { useMatch } from "@tanstack/react-router";
+import { useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
 import { SITE_STATS } from "@/lib/site-content/constants";
 import type { FooterSnapshot } from "@/lib/storefront/chrome.functions";
 
@@ -91,7 +91,7 @@ const SOCIAL = [
  * the file ships with".
  */
 function usePublishedFooter(): FooterSnapshot | null {
-  const home = useMatch({ from: "/", shouldThrow: false });
+  const home = useHomeRouteMatch();
   const chrome = (home?.loaderData as { chrome?: { footer?: FooterSnapshot } } | undefined)?.chrome;
   const footer = chrome?.footer;
   return footer?.published ? footer : null;

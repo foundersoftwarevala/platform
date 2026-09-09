@@ -37,6 +37,7 @@ import { GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
 import { useProductActions } from "@/lib/marketplace/useActionLayer";
 import { useDebouncedValue, useFavorites } from "@/lib/marketplace-home/persistentState";
 import { useMatch } from "@tanstack/react-router";
+import { useHomeRouteData, useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
 import CategoryRow from "@/components/marketplace-home/CategoryRow";
 import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE, SITE_STATS } from "@/lib/site-content/constants";
 
@@ -3452,15 +3453,13 @@ function toSectionLayout(raw: unknown): SectionLayout[] | null {
  */
 /** The card composition the loader resolved, if this route carries one. */
 function useHomeComposition(): CardComposition | null {
-  const homeMatch = useMatch({ from: "/", shouldThrow: false });
   return (
-    (homeMatch?.loaderData as { composition?: CardComposition | null } | undefined)
-      ?.composition ?? null
+    useHomeRouteData()?.composition ?? null
   );
 }
 
 function useHomeLayout(): SectionLayout[] | null {
-  const homeMatch = useMatch({ from: "/", shouldThrow: false });
+  const homeMatch = useHomeRouteMatch();
   const fromServer =
     (homeMatch?.loaderData as { layout?: SectionLayout[] | null } | undefined)
       ?.layout ?? null;
@@ -4012,9 +4011,7 @@ function CuratedRow({
 }) {
   // The same rows the server already seeded for the catalogue, flattened. No
   // extra request: whatever the page has, these rows pick from.
-  const homeMatch = useMatch({ from: "/", shouldThrow: false });
-  const seeded =
-    (homeMatch?.loaderData as { seed?: CatalogSeed } | undefined)?.seed ?? null;
+  const seeded = (useHomeRouteData()?.seed as CatalogSeed | undefined) ?? null;
   const picked = useMemo(() => {
     const rows = (seeded?.rows as CatalogRow[] | undefined) ?? [];
     const out: Demo[] = [];
@@ -4065,7 +4062,7 @@ function CatalogRows({
   // arrived as an empty shell that only filled in once its JavaScript ran. So
   // the match is requested without throwing, and its absence simply means
   // nothing was seeded and the rows are fetched as before.
-  const homeMatch = useMatch({ from: "/", shouldThrow: false });
+  const homeMatch = useHomeRouteMatch();
   const seeded =
     (homeMatch?.loaderData as { seed?: CatalogSeed } | undefined)?.seed ?? null;
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMatch } from "@tanstack/react-router";
+import { useHomeRouteData } from "@/lib/marketplace/home-route-data";
 import { Bot, MessageCircle, Plus, Sparkles, X } from "lucide-react";
 import type { FloatingElement, FloatingSnapshot } from "@/lib/storefront/chrome.functions";
 
@@ -51,9 +51,7 @@ const CORNER: Record<string, string> = {
 };
 
 function useFloating(): FloatingElement[] {
-  const home = useMatch({ from: "/", shouldThrow: false });
-  const chrome = (home?.loaderData as { chrome?: { floating?: FloatingSnapshot } } | undefined)
-    ?.chrome;
+  const chrome = useHomeRouteData()?.chrome as { floating?: FloatingSnapshot } | undefined;
   const snapshot = chrome?.floating;
   return snapshot?.published ? (snapshot.elements ?? []) : [];
 }

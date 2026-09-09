@@ -12,7 +12,7 @@ import { embedUrl, hasPlayableVideo, listPublishedVideos } from "@/lib/site-cont
 import { listCourses } from "@/lib/site-content/academy";
 import { listAwards } from "@/lib/site-content/awards";
 import { listStories } from "@/lib/site-content/stories";
-import { useMatch } from "@tanstack/react-router";
+import { useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
 
 const sectionTitle = (title: string, href?: string, subtitle?: string) => (
   <div className="mb-5 flex items-end justify-between px-6">
@@ -412,7 +412,7 @@ export const LiveActivity = () => {
  * which the section below already treats as "do not render".
  */
 function usePublishedVideos() {
-  const home = useMatch({ from: "/", shouldThrow: false });
+  const home = useHomeRouteMatch();
   const chrome = (home?.loaderData as { chrome?: { videos?: unknown[] } } | undefined)?.chrome;
   const rows = Array.isArray(chrome?.videos) ? chrome.videos : [];
   return rows.map((row) => {
@@ -575,7 +575,7 @@ export const PartnerEcosystem = () => (
  * which the section below already treats as "do not render".
  */
 function usePublishedFaqs() {
-  const home = useMatch({ from: "/", shouldThrow: false });
+  const home = useHomeRouteMatch();
   const chrome = (home?.loaderData as { chrome?: { faqs?: unknown[] } } | undefined)?.chrome;
   const rows = Array.isArray(chrome?.faqs) ? chrome.faqs : [];
   return rows.map((row) => {
@@ -601,7 +601,7 @@ function usePublishedFaqs() {
  * is the thing that gets a site penalised for it.
  */
 function useFaqSchema() {
-  const home = useMatch({ from: "/", shouldThrow: false });
+  const home = useHomeRouteMatch();
   return (home?.loaderData as { chrome?: { faqSchema?: unknown } } | undefined)?.chrome
     ?.faqSchema ?? null;
 }

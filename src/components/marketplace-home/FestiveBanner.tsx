@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMatch } from "@tanstack/react-router";
+import { useHomeRouteData } from "@/lib/marketplace/home-route-data";
 
 import { usePersistentState } from "@/lib/marketplace-home/persistentState";
 
@@ -36,8 +36,7 @@ const announcements = [
  * known and the built-in announcements rotate on their own.
  */
 function usePublishedOffers() {
-  const home = useMatch({ from: "/", shouldThrow: false });
-  const chrome = (home?.loaderData as { chrome?: { offers?: unknown[] } } | undefined)?.chrome;
+  const chrome = useHomeRouteData()?.chrome as { offers?: unknown[] } | undefined;
   const offers = Array.isArray(chrome?.offers) ? chrome.offers : [];
   return offers.map((o) => {
     const offer = o as { title?: string; badge?: string | null; code?: string | null };
