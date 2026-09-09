@@ -52,6 +52,18 @@ function useSidebarState() {
   return { collapsed, toggleCollapsed, mobileOpen, setMobileOpen };
 }
 
+/** The search box narrows child rows too, exactly as the source console does. */
+function matchingChildren(
+  group: (typeof MANAGER_NAV)[number],
+  filtered: typeof MANAGER_NAV | null,
+  query: string,
+) {
+  if (!filtered) return group.children;
+  const q = query.trim().toLowerCase();
+  if (group.label.toLowerCase().includes(q)) return group.children;
+  return group.children.filter((child) => child.label.toLowerCase().includes(q));
+}
+
 function SidebarContent({
   collapsed,
   onToggleCollapsed,
@@ -191,7 +203,7 @@ function SidebarContent({
 
               {!collapsed && open ? (
                 <div className="mt-0.5 ml-4 space-y-0.5 border-l border-sidebar-border pl-2">
-                  {group.children.map((child) => {
+                  {matchingChildren(group, filtered, query).map((child) => {
                     const ChildIcon = child.icon;
                     const childActive = isActive && activeView === child.id;
                     return (
@@ -253,7 +265,7 @@ function TopBar({ onOpenMobile }: { onOpenMobile: () => void }) {
     "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium";
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-xl sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-3 backdrop-blur-xl lg:px-5">
       <button
         onClick={onOpenMobile}
         className="icon3d grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground hover:text-foreground lg:hidden"

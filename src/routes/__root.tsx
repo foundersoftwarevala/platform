@@ -15,6 +15,7 @@ import { LanguageProvider } from "@/lib/language-catalog";
 import { useRealtimeAuth } from "@/integrations/supabase/realtime-auth";
 import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { installClientErrorMonitor, reportBoundaryError } from "../lib/client-error-monitor";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { CelebrationProvider } from "../components/ams/effects/Celebration";
 
@@ -45,6 +46,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    // Same failure, recorded into error_events so AI API Manager -> Alerts -> Error Monitor sees it.
+    reportBoundaryError(error);
   }, [error]);
 
   return (
@@ -124,6 +127,12 @@ function RootComponent() {
   // Without this the realtime socket carries only the publishable key, and
   // every row-level-secured table silently delivers nothing.
   useRealtimeAuth();
+
+  // Browser errors, unhandled rejections and console.error calls are forwarded
+  // to error_events, which is what AI API Manager -> Alerts -> Error Monitor reads.
+  useEffect(() => {
+    installClientErrorMonitor();
+  }, []);
 
   const { queryClient } = Route.useRouteContext();
 

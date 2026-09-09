@@ -79,6 +79,23 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-red: var(--brand-red);
   --color-surface-2: var(--surface-2);
+  /* AI API Manager (Sapphire Nexus source) status + neon tokens — values in :root below */
+  --color-status-success: var(--status-success);
+  --color-status-warning: var(--status-warning);
+  --color-status-error: var(--status-error);
+  --color-status-info: var(--status-info);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-neon-cyan: var(--neon-cyan);
+  --color-neon-teal: var(--neon-teal);
+  --color-neon-green: var(--neon-green);
+  --color-neon-violet: var(--neon-violet);
+  --color-neon-orange: var(--neon-orange);
+  --color-neon-red: var(--neon-red);
+  --color-neon-purple: var(--neon-purple);
+  --color-neon-blue: var(--neon-blue);
+  --color-neon-pink: var(--neon-pink);
+  --color-neon-gold: var(--neon-gold);
 }
 
 
@@ -116,6 +133,25 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+
+  /* ---- AI API Manager palette, imported verbatim from Sapphire Nexus ----
+     Fixed brand values in both light and dark, exactly as the source defines them. */
+  --status-success: hsl(160 62% 46%);
+  --status-warning: hsl(42 85% 63%);
+  --status-error: hsl(360 76% 58%);
+  --status-info: hsl(208 91% 56%);
+  --info: hsl(208 91% 56%);
+  --info-foreground: hsl(0 0% 100%);
+  --neon-cyan: hsl(195 85% 55%);
+  --neon-teal: hsl(175 65% 45%);
+  --neon-green: hsl(160 62% 46%);
+  --neon-violet: hsl(262 55% 71%);
+  --neon-orange: hsl(25 85% 60%);
+  --neon-red: hsl(360 76% 58%);
+  --neon-purple: hsl(262 55% 71%);
+  --neon-blue: hsl(208 91% 56%);
+  --neon-pink: hsl(320 60% 68%);
+  --neon-gold: hsl(42 85% 63%);
 }
 
 .dark {
