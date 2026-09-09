@@ -129,7 +129,21 @@ export async function getHolidays(
   try {
     const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${countryCode}`);
     if (!res.ok) return { countryCode, year, holidays: [], error: `No holiday data (${res.status}).` };
-    const json = (await res.json()) as { date: string; localName: string; name: string }[];
+    // The provider answers 204 with an empty body for a country it does not
+    // cover - India among them, in every year. 204 passes res.ok, so this used
+    // to run res.json() on nothing and show the visitor a raw
+    // "Unexpected end of JSON input" where the truth is simply that this
+    // calendar has no holidays for their country.
+    const body = (await res.text()).trim();
+    if (!body) {
+      return {
+        countryCode,
+        year,
+        holidays: [],
+        error: `No public holidays are published for ${countryCode} in ${year}.`,
+      };
+    }
+    const json = JSON.parse(body) as { date: string; localName: string; name: string }[];
     return {
       countryCode,
       year,
