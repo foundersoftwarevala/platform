@@ -267,11 +267,69 @@ export async function decideApproval(input: {
   return ok(data);
 }
 
+/**
+ * An invoice's ledger entry. Idempotent on txn_code, which is the invoice
+ * number, so the marketplace settlement path and an operator marking the same
+ * invoice paid cannot both post it.
+ */
+async function recordInvoiceLedgerEntry(invoice: {
+  invoice_no: string;
+  total: number;
+  client_name: string | null;
+  client_type: string | null;
+}): Promise<void> {
+  const { data: existing } = await supabaseAdmin
+    .from("finance_transactions")
+    .select("id")
+    .eq("txn_code", invoice.invoice_no)
+    .limit(1);
+  if ((existing ?? []).length) return;
+
+  await supabaseAdmin.from("finance_transactions").insert({
+    txn_code: invoice.invoice_no,
+    direction: "credit",
+    amount: invoice.total,
+    counterparty: invoice.client_name ?? "Customer",
+    counterparty_type: invoice.client_type ?? "user",
+    category: "Invoice Settlement",
+    gateway: "manual",
+    method: "Manual",
+    status: "completed",
+    occurred_at: new Date().toISOString(),
+    notes: `Invoice ${invoice.invoice_no} marked paid in Finance Manager`,
+  } as never);
+}
+
 export async function updateInvoiceStatus(input: {
   id: string;
   status: "draft" | "unpaid" | "paid" | "overdue" | "cancelled";
   actor: string;
 }) {
+  // Marking an invoice paid used to change a column and nothing else. The
+  // document said settled while finance_transactions had no record of the
+  // money, which is the same break that left the ledger empty behind a hundred
+  // and twenty-three invoices.
+  const { data: current, error: readError } = await supabaseAdmin
+    .from("finance_invoices")
+    .select("*")
+    .eq("id", input.id)
+    .maybeSingle();
+  if (readError) fail(readError.message);
+  if (!current) fail("Invoice not found");
+
+  const before = current as unknown as {
+    invoice_no: string;
+    status: string;
+    total: number | string;
+    client_name: string | null;
+    client_type: string | null;
+  };
+
+  if (before.status === "paid" && input.status === "paid") return ok(current);
+  if (before.status === "cancelled" && input.status !== "cancelled") {
+    fail("A cancelled invoice cannot be reopened. Raise a new document instead.");
+  }
+
   const patch: Json = { status: input.status };
   if (input.status === "paid") patch["paid_at"] = new Date().toISOString();
 
@@ -283,12 +341,21 @@ export async function updateInvoiceStatus(input: {
     .single();
   if (error) fail(error.message);
 
+  if (input.status === "paid") {
+    await recordInvoiceLedgerEntry({
+      invoice_no: before.invoice_no,
+      total: Number(before.total ?? 0),
+      client_name: before.client_name,
+      client_type: before.client_type,
+    });
+  }
+
   await writeAudit({
     actor: input.actor,
     action: `invoice.${input.status}`,
     entity: "finance_invoices",
     entity_ref: data.invoice_no,
-    details: { total: data.total },
+    details: { total: data.total, previous_status: before.status },
   });
   return ok(data);
 }
