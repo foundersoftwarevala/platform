@@ -99,12 +99,107 @@ export async function updatePayoutStatus(input: {
   return ok(data);
 }
 
+/**
+ * A refund's ledger entry. Idempotent on txn_code, which is the refund code,
+ * so approving twice or a retried request cannot debit the business twice.
+ */
+async function recordRefundLedgerEntry(refund: {
+  refund_code: string;
+  amount: number;
+  customer_name: string | null;
+  invoice_no: string | null;
+  mode: string | null;
+}): Promise<void> {
+  const { data: existing } = await supabaseAdmin
+    .from("finance_transactions")
+    .select("id")
+    .eq("txn_code", refund.refund_code)
+    .limit(1);
+  if ((existing ?? []).length) return;
+
+  await supabaseAdmin.from("finance_transactions").insert({
+    txn_code: refund.refund_code,
+    direction: "debit",
+    amount: refund.amount,
+    counterparty: refund.customer_name ?? "Customer",
+    counterparty_type: "user",
+    category: "Refund",
+    gateway: "manual",
+    method: refund.mode ?? "Original Source",
+    status: "completed",
+    occurred_at: new Date().toISOString(),
+    notes: refund.invoice_no ? `Refund against invoice ${refund.invoice_no}` : "Refund",
+  } as never);
+}
+
 export async function updateRefundStatus(input: {
   id: string;
   status: "approved" | "rejected" | "processed";
   actor: string;
   note?: string | undefined;
 }) {
+  // Read what is being changed before changing it. Marking a refund processed
+  // used to flip a column and write an audit line: no check that the refund had
+  // not already been paid out, no check that it was within what the customer
+  // actually paid, and no entry in the ledger, so refunded money never left the
+  // books.
+  const { data: current, error: readError } = await supabaseAdmin
+    .from("finance_refunds")
+    .select("*")
+    .eq("id", input.id)
+    .maybeSingle();
+  if (readError) fail(readError.message);
+  if (!current) fail("Refund not found");
+
+  const refund = current as unknown as {
+    refund_code: string;
+    invoice_no: string | null;
+    customer_name: string | null;
+    amount: number | string;
+    mode: string | null;
+    status: string;
+  };
+  const amount = Number(refund.amount ?? 0);
+
+  if (refund.status === "processed" && input.status === "processed") {
+    // Already paid out. Saying so is better than paying it again.
+    return ok(current);
+  }
+  if (refund.status === "processed" && input.status !== "processed") {
+    fail("A processed refund cannot be changed.");
+  }
+
+  // A refund can never exceed what was invoiced, counting refunds already
+  // processed against the same invoice.
+  if (input.status === "approved" || input.status === "processed") {
+    if (refund.invoice_no) {
+      const { data: invoice } = await supabaseAdmin
+        .from("finance_invoices")
+        .select("total")
+        .eq("invoice_no", refund.invoice_no)
+        .maybeSingle();
+      const invoiceTotal = Number((invoice as { total?: number } | null)?.total ?? 0);
+      if (invoiceTotal > 0) {
+        const { data: siblings } = await supabaseAdmin
+          .from("finance_refunds")
+          .select("id, amount, status")
+          .eq("invoice_no", refund.invoice_no);
+        const alreadyRefunded = (siblings ?? [])
+          .filter((r) => {
+            const row = r as unknown as { id: string; status: string };
+            return row.id !== input.id && row.status === "processed";
+          })
+          .reduce((sum, r) => sum + Number((r as unknown as { amount: number }).amount ?? 0), 0);
+        if (alreadyRefunded + amount > invoiceTotal + 0.005) {
+          fail(
+            `Refund would exceed invoice ${refund.invoice_no}: ` +
+              `${alreadyRefunded + amount} against a total of ${invoiceTotal}.`,
+          );
+        }
+      }
+    }
+  }
+
   const patch: Json = { status: input.status, reviewer_note: input.note ?? null };
   if (input.status === "processed") patch["processed_at"] = new Date().toISOString();
 
@@ -116,13 +211,29 @@ export async function updateRefundStatus(input: {
     .single();
   if (error) fail(error.message);
 
+  // Money actually leaving is a ledger event.
+  if (input.status === "processed") {
+    await recordRefundLedgerEntry({
+      refund_code: refund.refund_code,
+      amount,
+      customer_name: refund.customer_name,
+      invoice_no: refund.invoice_no,
+      mode: refund.mode,
+    });
+  }
+
   await writeAudit({
     actor: input.actor,
     action: `refund.${input.status}`,
     entity: "finance_refunds",
     entity_ref: data.refund_code,
     severity: "warning",
-    details: { amount: data.amount },
+    details: {
+      amount,
+      invoice_no: refund.invoice_no,
+      previous_status: refund.status,
+      note: input.note ?? null,
+    },
   });
   return ok(data);
 }
