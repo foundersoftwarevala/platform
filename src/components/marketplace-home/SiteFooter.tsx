@@ -44,7 +44,10 @@ const COLUMNS: Array<{ heading: string; links: Array<{ label: string; href: stri
     links: [
       { label: "Vala TV", href: "/vala-tv" },
       { label: "Vala Academy", href: "/academy" },
-      { label: "Frequently asked questions", href: "/#faq-faq-1" },
+      // The FAQ section renders as id="faq". "/#faq-faq-1" looks like the
+      // section anchor joined to a question id from site-content/faq.ts, and
+      // no element with that id is ever rendered, so this link went nowhere.
+      { label: "Frequently asked questions", href: "/#faq" },
     ],
   },
   {
