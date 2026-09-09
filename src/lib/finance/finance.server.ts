@@ -1001,3 +1001,66 @@ export async function financeExportRows(input: {
 
   return { rows, truncated, total: rows.length };
 }
+
+export type PaymentTotals = {
+  incoming: number;
+  outgoing: number;
+  failed: number;
+  pending: number;
+  partial: number;
+  transactions: number;
+  truncated: boolean;
+};
+
+/**
+ * The five payment figures, summed over the whole table.
+ *
+ * Payment Management computed these from the newest five hundred rows the
+ * browser had fetched. With four hundred transactions that is the whole table
+ * and the numbers are right; past that they under-report without saying so,
+ * which is the worst way for a financial figure to be wrong. The sums are done
+ * here, in pages, and only the totals travel.
+ */
+export async function financePaymentTotals(): Promise<PaymentTotals> {
+  const pageSize = 1000;
+  const maxPages = 200;
+  const totals: PaymentTotals = {
+    incoming: 0,
+    outgoing: 0,
+    failed: 0,
+    pending: 0,
+    partial: 0,
+    transactions: 0,
+    truncated: false,
+  };
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const from = page * pageSize;
+    const { data, error } = await supabaseAdmin
+      .from("finance_transactions")
+      .select("direction, amount, status")
+      .range(from, from + pageSize - 1);
+    if (error) fail(error.message);
+    const rows = (data ?? []) as unknown as {
+      direction: string;
+      amount: number | string;
+      status: string;
+    }[];
+    for (const row of rows) {
+      const value = Number(row.amount ?? 0);
+      totals.transactions += 1;
+      if (row.direction === "credit") totals.incoming += value;
+      else if (row.direction === "debit") totals.outgoing += value;
+      if (row.status === "failed") totals.failed += value;
+      else if (row.status === "pending") totals.pending += value;
+      else if (row.status === "partial") totals.partial += value;
+    }
+    if (rows.length < pageSize) break;
+    if (page === maxPages - 1) totals.truncated = true;
+  }
+
+  for (const key of ["incoming", "outgoing", "failed", "pending", "partial"] as const) {
+    totals[key] = Number(totals[key].toFixed(2));
+  }
+  return totals;
+}

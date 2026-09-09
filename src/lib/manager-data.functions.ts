@@ -168,6 +168,48 @@ async function writeAudit(
   });
 }
 
+/**
+ * Evidence. It may be added to and never edited or erased from here.
+ *
+ * audit_logs, finance_audit_logs and error_events were all reachable through
+ * the generic update and delete functions, which meant an operator could
+ * rewrite the record of what an operator did. An audit trail that the audited
+ * can edit is not an audit trail. Corrections belong in a new entry.
+ */
+const APPEND_ONLY_TABLES = new Set(["audit_logs", "finance_audit_logs", "error_events"]);
+
+/**
+ * Money does not move through the generic data layer.
+ *
+ * The AI API Manager's wallet screen credited a wallet by inserting a
+ * transaction row and then writing the new balance itself, from the browser,
+ * with a reference it made up — no payment, no verification, no idempotency,
+ * and two separate writes that a second tab could interleave. Balance and
+ * ledger movements now have to go through Finance Manager's own server
+ * functions, which hold the checks. Everything else on those screens — a
+ * threshold, a lock, auto top-up — still writes normally.
+ */
+const WALLET_BALANCE_COLUMNS = new Set(["balance", "reserved", "available", "spent"]);
+const WALLET_LEDGER_TABLES = new Set(["wallet_transactions", "finance_wallet_transactions"]);
+
+function refuseFinancialWrite(table: string, values: Record<string, unknown>): void {
+  if (WALLET_LEDGER_TABLES.has(table)) {
+    throw new Error(
+      "Wallet ledger entries are written by Finance Manager, not from the console. " +
+        "Use the wallet top-up or deduction action so the balance, the entry and the audit stay together.",
+    );
+  }
+  if (table === "wallets" || table === "finance_wallets") {
+    const touched = Object.keys(values).filter((k) => WALLET_BALANCE_COLUMNS.has(k));
+    if (touched.length) {
+      throw new Error(
+        `A wallet balance cannot be set directly (${touched.join(", ")}). ` +
+          "Use Finance Manager's top-up or deduction, which records the entry and the audit with it.",
+      );
+    }
+  }
+}
+
 /** Tables where a change is a policy decision worth diffing, not bulk data. */
 const AUDIT_BEFORE_AFTER_TABLES = new Set(["product_apis", "role_api_permissions", "rate_limits"]);
 
@@ -228,6 +270,10 @@ export const listManyRecords = createServerFn({ method: "POST" })
 export const updateRecord = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => mutateSchema.parse(data))
   .handler(async ({ data }) => {
+    if (APPEND_ONLY_TABLES.has(data.table)) {
+      throw new Error(`${data.table} is append-only. Record a correcting entry instead.`);
+    }
+    refuseFinancialWrite(data.table, data.values);
     const db = await requireManager();
     const before = await readBefore(db, data.table, data.id);
     const { data: row, error } = await db
@@ -253,6 +299,7 @@ export const updateRecord = createServerFn({ method: "POST" })
 export const insertRecord = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => insertSchema.parse(data))
   .handler(async ({ data }) => {
+    refuseFinancialWrite(data.table, data.values);
     const db = await requireManager();
     const { data: row, error } = await db
       .from(data.table)
@@ -273,6 +320,12 @@ export const insertRecord = createServerFn({ method: "POST" })
 export const deleteRecord = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => deleteSchema.parse(data))
   .handler(async ({ data }) => {
+    if (APPEND_ONLY_TABLES.has(data.table)) {
+      throw new Error(`${data.table} is append-only and cannot be deleted from.`);
+    }
+    if (WALLET_LEDGER_TABLES.has(data.table)) {
+      throw new Error("A wallet ledger entry cannot be deleted. Record a reversal instead.");
+    }
     const db = await requireManager();
     const { error } = await db.from(data.table).delete().eq("id", data.id);
     if (error) throw new Error(error.message);

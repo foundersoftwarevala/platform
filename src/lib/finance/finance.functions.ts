@@ -235,3 +235,10 @@ export const financeExportRowsFn = createServerFn({ method: "GET" })
     await requireFinanceOperator();
     return financeExportRows(data);
   });
+
+/** Incoming, outgoing, failed, pending and partial totals over the whole table. */
+export const financePaymentTotalsFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { financePaymentTotals, requireFinanceOperator } = await import("./finance.server");
+  await requireFinanceOperator();
+  return financePaymentTotals();
+});
