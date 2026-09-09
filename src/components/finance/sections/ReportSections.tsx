@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { financeExportRowsFn } from "@/lib/finance/finance.functions";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
@@ -22,20 +25,56 @@ import {
   Legend,
 } from "recharts";
 
-import { dailyMetricsQuery, transactionsQuery, expensesQuery, invoicesQuery } from "@/lib/finance/queries";
+import {
+  dailyMetricsQuery,
+  transactionsQuery,
+  expensesQuery,
+  invoicesQuery,
+} from "@/lib/finance/queries";
 import type { FinanceView } from "@/lib/finance/views";
 import type { DailyMetric } from "@/lib/finance/types";
-import { PanelCard, QueryState, SectionShell, StatCard, StatGrid } from "@/components/finance/ui-kit";
+import {
+  PanelCard,
+  QueryState,
+  SectionShell,
+  StatCard,
+  StatGrid,
+} from "@/components/finance/ui-kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { downloadCsv, formatCompact, formatCurrency, formatPercent, percentChange } from "@/lib/finance/format";
+import {
+  downloadCsv,
+  formatCompact,
+  formatCurrency,
+  formatPercent,
+  percentChange,
+} from "@/lib/finance/format";
 
-const VIEW_META: Record<string, { title: string; description: string; bucket: "day" | "month" | "year" }> = {
-  report_daily: { title: "Daily Finance Report", description: "Revenue, expenses and profit trend by day", bucket: "day" },
-  report_monthly: { title: "Monthly Report", description: "Revenue, expenses and profit trend by month", bucket: "month" },
-  report_yearly: { title: "Yearly Report", description: "Revenue, expenses and profit trend by year", bucket: "year" },
-  report_export: { title: "Export Reports", description: "Download finance datasets for a chosen date range", bucket: "month" },
+const VIEW_META: Record<
+  string,
+  { title: string; description: string; bucket: "day" | "month" | "year" }
+> = {
+  report_daily: {
+    title: "Daily Finance Report",
+    description: "Revenue, expenses and profit trend by day",
+    bucket: "day",
+  },
+  report_monthly: {
+    title: "Monthly Report",
+    description: "Revenue, expenses and profit trend by month",
+    bucket: "month",
+  },
+  report_yearly: {
+    title: "Yearly Report",
+    description: "Revenue, expenses and profit trend by year",
+    bucket: "year",
+  },
+  report_export: {
+    title: "Export Reports",
+    description: "Download finance datasets for a chosen date range",
+    bucket: "month",
+  },
 };
 
 function bucketKey(dateStr: string, bucket: "day" | "month" | "year") {
@@ -46,10 +85,29 @@ function bucketKey(dateStr: string, bucket: "day" | "month" | "year") {
 }
 
 function aggregate(metrics: DailyMetric[], bucket: "day" | "month" | "year") {
-  const map = new Map<string, { key: string; revenue: number; expenses: number; profit: number; inflow: number; outflow: number; txn_count: number }>();
+  const map = new Map<
+    string,
+    {
+      key: string;
+      revenue: number;
+      expenses: number;
+      profit: number;
+      inflow: number;
+      outflow: number;
+      txn_count: number;
+    }
+  >();
   metrics.forEach((m) => {
     const key = bucketKey(m.metric_date, bucket);
-    const entry = map.get(key) ?? { key, revenue: 0, expenses: 0, profit: 0, inflow: 0, outflow: 0, txn_count: 0 };
+    const entry = map.get(key) ?? {
+      key,
+      revenue: 0,
+      expenses: 0,
+      profit: 0,
+      inflow: 0,
+      outflow: 0,
+      txn_count: 0,
+    };
     entry.revenue += Number(m.revenue);
     entry.expenses += Number(m.expenses);
     entry.profit += Number(m.profit);
@@ -62,11 +120,14 @@ function aggregate(metrics: DailyMetric[], bucket: "day" | "month" | "year") {
 }
 
 function ReportView({ view }: { view: FinanceView }) {
-  const meta = VIEW_META[view] ?? VIEW_META['report_daily']!;
+  const meta = VIEW_META[view] ?? VIEW_META["report_daily"]!;
   const days = meta.bucket === "day" ? 60 : meta.bucket === "month" ? 730 : 1825;
   const metricsState = useQuery(dailyMetricsQuery(days));
 
-  const buckets = useMemo(() => aggregate(metricsState.data ?? [], meta.bucket), [metricsState.data, meta.bucket]);
+  const buckets = useMemo(
+    () => aggregate(metricsState.data ?? [], meta.bucket),
+    [metricsState.data, meta.bucket],
+  );
   const chartData = useMemo(() => buckets.slice(-30), [buckets]);
 
   const latest = buckets[buckets.length - 1];
@@ -112,7 +173,12 @@ function ReportView({ view }: { view: FinanceView }) {
         </StatGrid>
 
         <PanelCard title="Revenue vs Expenses vs Profit">
-          <QueryState isLoading={metricsState.isLoading} error={metricsState.error} isEmpty={!chartData.length} emptyLabel="No metrics recorded yet">
+          <QueryState
+            isLoading={metricsState.isLoading}
+            error={metricsState.error}
+            isEmpty={!chartData.length}
+            emptyLabel="No metrics recorded yet"
+          >
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData}>
@@ -121,9 +187,26 @@ function ReportView({ view }: { view: FinanceView }) {
                   <YAxis tickFormatter={(v) => formatCompact(v)} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} />
                   <Legend />
-                  <Bar dataKey="expenses" name="Expenses" className="fill-warning" radius={[4, 4, 0, 0]} />
-                  <Area dataKey="revenue" name="Revenue" className="fill-primary/20 stroke-primary" type="monotone" />
-                  <Line dataKey="profit" name="Profit" className="stroke-success" type="monotone" strokeWidth={2} dot={false} />
+                  <Bar
+                    dataKey="expenses"
+                    name="Expenses"
+                    className="fill-warning"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Area
+                    dataKey="revenue"
+                    name="Revenue"
+                    className="fill-primary/20 stroke-primary"
+                    type="monotone"
+                  />
+                  <Line
+                    dataKey="profit"
+                    name="Profit"
+                    className="stroke-success"
+                    type="monotone"
+                    strokeWidth={2}
+                    dot={false}
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -150,10 +233,55 @@ function ExportView() {
     return true;
   };
 
-  const filteredMetrics = useMemo(() => (metricsState.data ?? []).filter((m) => inRange(m.metric_date)), [metricsState.data, from, to]);
-  const filteredTxns = useMemo(() => (txnState.data ?? []).filter((t) => inRange(t.occurred_at)), [txnState.data, from, to]);
-  const filteredExpenses = useMemo(() => (expensesState.data ?? []).filter((e) => inRange(e.expense_date)), [expensesState.data, from, to]);
-  const filteredInvoices = useMemo(() => (invoicesState.data ?? []).filter((i) => inRange(i.issue_date)), [invoicesState.data, from, to]);
+  const filteredMetrics = useMemo(
+    () => (metricsState.data ?? []).filter((m) => inRange(m.metric_date)),
+    [metricsState.data, from, to],
+  );
+  const filteredTxns = useMemo(
+    () => (txnState.data ?? []).filter((t) => inRange(t.occurred_at)),
+    [txnState.data, from, to],
+  );
+  const filteredExpenses = useMemo(
+    () => (expensesState.data ?? []).filter((e) => inRange(e.expense_date)),
+    [expensesState.data, from, to],
+  );
+  const filteredInvoices = useMemo(
+    () => (invoicesState.data ?? []).filter((i) => inRange(i.issue_date)),
+    [invoicesState.data, from, to],
+  );
+
+  // The counts above describe what the browser is holding. The file itself is
+  // queried for the chosen range, because the fetched window would otherwise
+  // decide what a date range means and silently leave rows out of the export.
+  const exportFn = useServerFn(financeExportRowsFn);
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  async function runExport(dataset: string) {
+    setExporting(dataset);
+    try {
+      const result = await exportFn({
+        data: {
+          dataset: dataset as "transactions" | "expenses" | "invoices" | "daily-metrics",
+          ...(from ? { from } : {}),
+          ...(to ? { to } : {}),
+        },
+      });
+      if (!result.rows.length) {
+        toast.info("Nothing to export for that range.");
+        return;
+      }
+      downloadCsv(`${dataset}.csv`, result.rows);
+      toast.success(
+        result.truncated
+          ? `Exported the first ${result.total} rows — the range holds more than the export cap.`
+          : `Exported ${result.total} rows.`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setExporting(null);
+    }
+  }
 
   const datasets = [
     {
@@ -187,7 +315,11 @@ function ExportView() {
   ];
 
   return (
-    <SectionShell title="Export Reports" description="Download real finance datasets for a chosen date range" icon={Download}>
+    <SectionShell
+      title="Export Reports"
+      description="Download real finance datasets for a chosen date range"
+      icon={Download}
+    >
       <div className="space-y-6">
         <PanelCard title="Date Range">
           <div className="flex flex-wrap items-end gap-4">
@@ -200,7 +332,14 @@ function ExportView() {
               <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
             </div>
             {(from || to) && (
-              <Button variant="ghost" size="sm" onClick={() => { setFrom(""); setTo(""); }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setFrom("");
+                  setTo("");
+                }}
+              >
                 Clear
               </Button>
             )}
@@ -228,11 +367,11 @@ function ExportView() {
                     variant="outline"
                     size="sm"
                     className="mt-3 w-full gap-1"
-                    disabled={!d.count}
-                    onClick={() => downloadCsv(`${d.key}.csv`, d.rows as unknown as Record<string, unknown>[])}
+                    disabled={exporting !== null}
+                    onClick={() => void runExport(d.key)}
                   >
                     <Download className="h-3 w-3" />
-                    Export CSV
+                    {exporting === d.key ? "Exporting…" : "Export CSV"}
                   </Button>
                 </div>
               );

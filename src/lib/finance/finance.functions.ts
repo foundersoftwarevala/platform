@@ -218,3 +218,20 @@ export const financeDayTotalsFn = createServerFn({ method: "GET" })
     await requireFinanceOperator();
     return financeDayTotals(data);
   });
+
+/** Export rows for a date range, queried rather than filtered in the browser. */
+export const financeExportRowsFn = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        dataset: z.enum(["transactions", "expenses", "invoices", "daily-metrics"]),
+        from: z.string().optional(),
+        to: z.string().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { financeExportRows, requireFinanceOperator } = await import("./finance.server");
+    await requireFinanceOperator();
+    return financeExportRows(data);
+  });

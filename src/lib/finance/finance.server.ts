@@ -940,3 +940,64 @@ export async function financeDayTotals(input?: {
     truncated,
   };
 }
+
+/**
+ * Rows for an export, taken from the database for the range that was asked
+ * for.
+ *
+ * The export panel filtered whatever the browser already held — the newest
+ * five hundred transactions, two hundred expenses, two hundred invoices — so
+ * choosing a range older than that window produced a file that was missing
+ * rows and said nothing about it. An export that quietly drops records is
+ * worse than one that refuses.
+ *
+ * The range is applied in the query, the rows are paged here, and the caller
+ * is told whether the cap was reached instead of being handed a short file.
+ */
+export type ExportDataset = "transactions" | "expenses" | "invoices" | "daily-metrics";
+
+const EXPORT_SOURCES: Record<ExportDataset, { table: string; dateColumn: string }> = {
+  transactions: { table: "finance_transactions", dateColumn: "occurred_at" },
+  expenses: { table: "finance_expenses", dateColumn: "expense_date" },
+  invoices: { table: "finance_invoices", dateColumn: "issue_date" },
+  "daily-metrics": { table: "finance_daily_metrics", dateColumn: "metric_date" },
+};
+
+export async function financeExportRows(input: {
+  dataset: ExportDataset;
+  from?: string | undefined;
+  to?: string | undefined;
+}): Promise<{ rows: Record<string, unknown>[]; truncated: boolean; total: number }> {
+  const source = EXPORT_SOURCES[input.dataset];
+  if (!source) fail("Unknown export dataset");
+
+  const pageSize = 1000;
+  const maxRows = 50_000;
+  const rows: Record<string, unknown>[] = [];
+  let truncated = false;
+
+  for (let page = 0; page * pageSize < maxRows; page += 1) {
+    let query = supabaseAdmin
+      .from(source.table)
+      .select("*")
+      .order(source.dateColumn, { ascending: false })
+      .range(page * pageSize, page * pageSize + pageSize - 1);
+    if (input.from) query = query.gte(source.dateColumn, input.from);
+    if (input.to) {
+      // The picker gives a day; include everything that happened inside it.
+      const end = new Date(new Date(input.to).getTime() + 86_400_000).toISOString();
+      query = query.lt(source.dateColumn, end);
+    }
+    const { data, error } = await query;
+    if (error) fail(error.message);
+    const batch = (data ?? []) as unknown as Record<string, unknown>[];
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+    if (rows.length >= maxRows) {
+      truncated = true;
+      break;
+    }
+  }
+
+  return { rows, truncated, total: rows.length };
+}
