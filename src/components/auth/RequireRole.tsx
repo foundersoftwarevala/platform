@@ -66,7 +66,7 @@ export function RequireRole({ role, children, allowOperators = true }: {
         <section className="max-w-md space-y-3">
           <h1 className="text-xl font-semibold">Access restricted</h1>
           <p className="text-sm text-muted-foreground">This authenticated account does not have the required Control Panel role.</p>
-          <button type="button" onClick={() => void navigate({ to: "/auth" })} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Return to sign in</button>
+          <button type="button" onClick={() => void navigate({ to: "/login" })} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Return to sign in</button>
         </section>
       </main>
     );

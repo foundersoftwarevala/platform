@@ -71,7 +71,7 @@ export function ChatWorkspace() {
   const [aiThinking, setAiThinking] = useState(false);
 
   useEffect(() => {
-    if (!sessionLoading && !userId) void navigate({ to: "/auth" });
+    if (!sessionLoading && !userId) void navigate({ to: "/login" });
   }, [sessionLoading, userId, navigate]);
 
   const conversationsQuery = useConversations(userId);
@@ -359,7 +359,7 @@ export function ChatWorkspace() {
                   onClick={async () => {
                     await supabase.auth.signOut();
                     queryClient.clear();
-                    void navigate({ to: "/auth" });
+                    void navigate({ to: "/login" });
                   }}
                 >
                   <LogOut className="size-4" />

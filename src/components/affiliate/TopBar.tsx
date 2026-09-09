@@ -145,7 +145,7 @@ export function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
             <div className="ml-0.5 size-9 animate-pulse rounded-xl bg-muted" aria-hidden="true" />
           ) : !user ? (
             <Button asChild size="sm" variant="secondary" className="ml-1 h-9 rounded-xl">
-              <Link to="/auth">Sign in</Link>
+              <Link to="/login">Sign in</Link>
             </Button>
           ) : (
             <DropdownMenu>
@@ -190,7 +190,7 @@ export function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
                       console.error("Logout failed:", error);
                       toast.error("Failed to sign out");
                     } finally {
-                      navigate({ to: "/auth", replace: true });
+                      navigate({ to: "/login", replace: true });
                     }
                   }}
                 >

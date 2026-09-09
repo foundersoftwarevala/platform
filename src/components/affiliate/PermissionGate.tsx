@@ -34,7 +34,7 @@ export function PermissionGate({
           icon={Lock}
           title="Sign in required"
           description="Sign in with a boss-panel operator account to view this workspace."
-          primaryAction={{ label: "Sign in", onClick: () => navigate({ to: "/auth" }) }}
+          primaryAction={{ label: "Sign in", onClick: () => navigate({ to: "/login" }) }}
         />
       </div>
     );

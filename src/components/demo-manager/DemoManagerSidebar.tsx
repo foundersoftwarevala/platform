@@ -262,7 +262,7 @@ const DemoManagerSidebar = ({ activeView, onViewChange }: DemoManagerSidebarProp
 
   const handleLogout = async () => {
     await signOut();
-    navigate('/auth');
+    navigate('/login');
   };
 
   const toggleSection = (sectionId: string) => {

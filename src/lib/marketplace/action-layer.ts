@@ -107,9 +107,21 @@ export function resolveProductActions(
           return { ...a, available: true, reason: null, href: product.demo_url };
 
         case "BUY_NOW":
-        case "ADD_TO_CART":
+          // Buy Now begins a payment, so it genuinely cannot work without a
+          // provider. It refuses rather than pretending to succeed.
           if (!purchasable) return off("This product is not purchasable — it has no price, or it is hidden or archived.");
           if (!env.paymentConfigured) return off("No payment provider is configured, so a purchase cannot complete.");
+          if (!env.signedIn) return { ...a, available: true, reason: null, href: "/login" };
+          return { ...a, available: true, reason: null, href: "/checkout" };
+
+        case "ADD_TO_CART":
+          // Adding to a cart is not a payment. It writes to marketplace_cart_items
+          // through marketplace_add_to_cart, which exists and works, so this must
+          // not be switched off by a missing gateway - doing so threw away the one
+          // thing a ready buyer could still do. The payment gate stays where the
+          // payment is, on Buy Now and at checkout.
+          if (!purchasable) return off("This product is not purchasable — it has no price, or it is hidden or archived.");
+          // A cart belongs to an account, so a signed-out visitor signs in first.
           if (!env.signedIn) return { ...a, available: true, reason: null, href: "/login" };
           return { ...a, available: true, reason: null, href: "/checkout" };
 
