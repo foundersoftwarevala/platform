@@ -203,3 +203,18 @@ export const gatewayReadinessFn = createServerFn({ method: "GET" }).handler(asyn
   await requireFinanceOperator();
   return gatewayReadiness();
 });
+
+/**
+ * Income and expense for one business day, decided on the server in the
+ * configured timezone and summed over the whole day rather than over a window
+ * of rows the browser happened to hold.
+ */
+export const financeDayTotalsFn = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) =>
+    z.object({ date: z.string().optional(), timezone: z.string().optional() }).parse(d ?? {}),
+  )
+  .handler(async ({ data }) => {
+    const { financeDayTotals, requireFinanceOperator } = await import("./finance.server");
+    await requireFinanceOperator();
+    return financeDayTotals(data);
+  });

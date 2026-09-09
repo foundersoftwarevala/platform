@@ -785,3 +785,158 @@ export async function createInvoice(input: {
   });
   return ok(data);
 }
+
+/* ------------------------------------------------------------------ *
+ * Business dates
+ *
+ * "Today's Income" was decided by the browser: the section filtered a list of
+ * the newest three hundred transactions with getFullYear/getMonth/getDate
+ * against the viewer's own clock. Two things were wrong with that. The
+ * timestamps in finance_transactions are UTC, so an operator in Asia/Kolkata
+ * saw every transaction after 18:30 UTC counted as tomorrow's, and an operator
+ * in America/New_York saw a different figure for the same day. And three
+ * hundred rows is not a day — it is whatever happened to be newest.
+ *
+ * The business day is now decided on the server, in the timezone the platform
+ * is configured with, and the total is summed over every transaction inside
+ * that day rather than over a window of rows. The timezone is read from
+ * system_settings, the table the Settings screen already edits, so it is not
+ * hardcoded to IST or to UTC and can differ per deployment.
+ * ------------------------------------------------------------------ */
+
+const BUSINESS_TIMEZONE_KEY = "finance.business_timezone";
+
+/** Milliseconds between UTC and the named zone at that instant. */
+function zoneOffsetMs(at: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? "0");
+  const asIfUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+  return asIfUtc - at.getTime();
+}
+
+/** The UTC instants that bound one business day in the given zone. */
+export function businessDayRange(
+  dateIso: string,
+  timeZone: string,
+): { start: string; end: string } {
+  const [y, m, d] = dateIso.split("-").map(Number);
+  const startGuess = Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1);
+  const endGuess = startGuess + 24 * 60 * 60 * 1000;
+  const start = startGuess - zoneOffsetMs(new Date(startGuess), timeZone);
+  const end = endGuess - zoneOffsetMs(new Date(endGuess), timeZone);
+  return { start: new Date(start).toISOString(), end: new Date(end).toISOString() };
+}
+
+/** The date, in the configured zone, that "today" means for the business. */
+function todayInZone(timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return parts;
+}
+
+async function businessTimezone(): Promise<string> {
+  const { data } = await supabaseAdmin
+    .from("system_settings")
+    .select("value")
+    .eq("key", BUSINESS_TIMEZONE_KEY)
+    .maybeSingle();
+  const configured = (data as { value?: unknown } | null)?.value;
+  const zone = typeof configured === "string" && configured.trim() ? configured.trim() : "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return zone;
+  } catch {
+    return "UTC";
+  }
+}
+
+export type DayTotals = {
+  date: string;
+  timezone: string;
+  windowStart: string;
+  windowEnd: string;
+  income: number;
+  expense: number;
+  net: number;
+  transactions: number;
+  truncated: boolean;
+};
+
+/**
+ * Income and expense for one business day, summed over every transaction in
+ * that day. Rows are read here in pages and never sent to the browser; only
+ * the totals are.
+ */
+export async function financeDayTotals(input?: {
+  date?: string | undefined;
+  timezone?: string | undefined;
+}): Promise<DayTotals> {
+  const timezone = input?.timezone?.trim() || (await businessTimezone());
+  const date = input?.date?.trim() || todayInZone(timezone);
+  const { start, end } = businessDayRange(date, timezone);
+
+  const pageSize = 1000;
+  const maxPages = 50; // 50,000 transactions in one day before we say so
+  let income = 0;
+  let expense = 0;
+  let count = 0;
+  let truncated = false;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const from = page * pageSize;
+    const { data, error } = await supabaseAdmin
+      .from("finance_transactions")
+      .select("direction, amount, status")
+      .gte("occurred_at", start)
+      .lt("occurred_at", end)
+      .range(from, from + pageSize - 1);
+    if (error) fail(error.message);
+    const rows = (data ?? []) as unknown as {
+      direction: string;
+      amount: number | string;
+      status: string;
+    }[];
+    for (const row of rows) {
+      // Only money that actually moved counts towards the day.
+      if (row.status !== "completed" && row.status !== "success") continue;
+      const value = Number(row.amount ?? 0);
+      if (row.direction === "credit") income += value;
+      else if (row.direction === "debit") expense += value;
+      count += 1;
+    }
+    if (rows.length < pageSize) break;
+    if (page === maxPages - 1) truncated = true;
+  }
+
+  return {
+    date,
+    timezone,
+    windowStart: start,
+    windowEnd: end,
+    income: Number(income.toFixed(2)),
+    expense: Number(expense.toFixed(2)),
+    net: Number((income - expense).toFixed(2)),
+    transactions: count,
+    truncated,
+  };
+}
