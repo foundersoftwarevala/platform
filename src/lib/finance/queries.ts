@@ -338,3 +338,43 @@ export const commissionRulesQuery = () =>
           .limit(200) as never,
       ),
   });
+
+export type MarketplaceCommission = {
+  id: string;
+  order_item_id: string | null;
+  seller_id: string | null;
+  gross_amount: number;
+  commission_amount: number;
+  seller_amount: number;
+  rule_snapshot: Record<string, unknown> | null;
+  status: string;
+  payout_id: string | null;
+  created_at: string;
+};
+
+/**
+ * Commission from actual sales.
+ *
+ * finance_commissions is a roll-up per partner per month and every row in it
+ * was seeded on 20 August. The commission a real sale produces is written by
+ * lib/commerce/commission.ts into marketplace_commissions, with the order item,
+ * the seller, the gross, the commission, the seller's share and a snapshot of
+ * the rule that decided it — and Finance Manager could not see any of it.
+ *
+ * Finance reads those records rather than keeping a second copy of them. The
+ * two tables are not merged here: their grain is different, and rolling per-sale
+ * rows into a monthly partner figure is an accounting decision, not a
+ * refactor.
+ */
+export const marketplaceCommissionsQuery = () =>
+  queryOptions({
+    queryKey: financeKeys.entity("marketplace-commissions"),
+    queryFn: () =>
+      unwrap<MarketplaceCommission[]>(
+        supabase
+          .from("marketplace_commissions")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(200) as never,
+      ),
+  });

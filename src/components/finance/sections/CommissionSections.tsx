@@ -12,7 +12,12 @@ import {
   Download,
 } from "lucide-react";
 
-import { commissionsQuery, payoutsQuery, commissionRulesQuery } from "@/lib/finance/queries";
+import {
+  commissionsQuery,
+  payoutsQuery,
+  commissionRulesQuery,
+  marketplaceCommissionsQuery,
+} from "@/lib/finance/queries";
 import { useUpdateCommission, useUpdatePayout } from "@/lib/finance/mutations";
 import type { FinanceView } from "@/lib/finance/views";
 import type { Commission } from "@/lib/finance/types";
@@ -78,6 +83,10 @@ export default function CommissionSections({ view }: { view: FinanceView }) {
   const commissionsState = useQuery(commissionsQuery(meta.partnerType));
   const payoutsState = useQuery(payoutsQuery());
   const rulesState = useQuery(commissionRulesQuery());
+  // What real sales actually produced. finance_commissions is a monthly
+  // partner roll-up that was seeded in one second on 20 August; these are the
+  // commissions the marketplace wrote when an order settled.
+  const saleCommissionsState = useQuery(marketplaceCommissionsQuery());
   const updateCommission = useUpdateCommission();
   const updatePayout = useUpdatePayout();
   const [search, setSearch] = useState("");
@@ -269,6 +278,55 @@ export default function CommissionSections({ view }: { view: FinanceView }) {
               </QueryState>
             </PanelCard>
           )}
+
+          <PanelCard title="Commission from real sales">
+            <QueryState
+              isLoading={saleCommissionsState.isLoading}
+              error={saleCommissionsState.error}
+              isEmpty={(saleCommissionsState.data ?? []).length === 0}
+              emptyLabel="No sale has produced a commission yet"
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+                      <th className="py-2 pr-4">Product</th>
+                      <th className="py-2 pr-4">Gross</th>
+                      <th className="py-2 pr-4">Commission</th>
+                      <th className="py-2 pr-4">Seller keeps</th>
+                      <th className="py-2 pr-4">Rate</th>
+                      <th className="py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(saleCommissionsState.data ?? []).slice(0, 25).map((row) => {
+                      const snapshot = (row.rule_snapshot ?? {}) as Record<string, unknown>;
+                      return (
+                        <tr key={row.id} className="border-b border-border/50">
+                          <td className="py-2 pr-4 text-foreground">
+                            {String(snapshot["product_name"] ?? "—")}
+                          </td>
+                          <td className="py-2 pr-4">{formatCurrency(Number(row.gross_amount))}</td>
+                          <td className="py-2 pr-4 font-medium text-success">
+                            {formatCurrency(Number(row.commission_amount))}
+                          </td>
+                          <td className="py-2 pr-4">{formatCurrency(Number(row.seller_amount))}</td>
+                          <td className="py-2 pr-4">
+                            {snapshot["rate_percent"] != null
+                              ? formatPercent(Number(snapshot["rate_percent"]))
+                              : "—"}
+                          </td>
+                          <td className="py-2">
+                            <StatusBadge status={row.status} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </QueryState>
+          </PanelCard>
 
           {view === "commission_rules" && (
             <>
