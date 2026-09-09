@@ -1,7 +1,7 @@
 import { randomBytes, createHash } from "node:crypto";
 import { recordCommissionsForOrder } from "./commission";
 import { licenceEmail, send as sendMail } from "./mailer";
-import { createInvoiceForOrder } from "./invoices";
+import { createInvoiceForOrder, recordLedgerEntryForInvoice } from "./invoices";
 
 /**
  * Turning a paid order into access.
@@ -56,7 +56,13 @@ export function licenceFingerprint(key: string): string {
 }
 
 export type FulfilmentResult =
-  | { ok: true; created: boolean; licenceKey: string; licenceId: string; entitlementId: string | null }
+  | {
+      ok: true;
+      created: boolean;
+      licenceKey: string;
+      licenceId: string;
+      entitlementId: string | null;
+    }
   | { ok: false; error: string; status: number };
 
 async function rest(path: string, init?: RequestInit) {
@@ -127,8 +133,11 @@ async function buyerContact(userId: string): Promise<{ email: string; name: stri
     `profiles?select=email,full_name,username&id=eq.${encodeURIComponent(userId)}&limit=1`,
   );
   if (!response.ok) return { email: "", name: "" };
-  const rows = (await response.json()) as
-    { email: string | null; full_name: string | null; username: string | null }[];
+  const rows = (await response.json()) as {
+    email: string | null;
+    full_name: string | null;
+    username: string | null;
+  }[];
   const row = rows[0];
   if (!row) return { email: "", name: "" };
   return {
@@ -145,7 +154,9 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   const orderResponse = await rest(
     `marketplace_orders?select=id,buyer_id,user_id,status,metadata,order_no,total,amount_inr,currency,currency_charged&id=eq.${encodeURIComponent(orderId)}&limit=1`,
   );
-  const orders = orderResponse.ok ? ((await orderResponse.json()) as Record<string, unknown>[]) : [];
+  const orders = orderResponse.ok
+    ? ((await orderResponse.json()) as Record<string, unknown>[])
+    : [];
   const order = orders[0];
   if (!order) return { ok: false, error: "Order not found", status: 404 };
 
@@ -215,13 +226,19 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
       const rows = raced.ok ? ((await raced.json()) as { id: string; license_key: string }[]) : [];
       if (rows[0]) {
         return {
-          ok: true, created: false,
-          licenceKey: rows[0].license_key, licenceId: rows[0].id, entitlementId: null,
+          ok: true,
+          created: false,
+          licenceKey: rows[0].license_key,
+          licenceId: rows[0].id,
+          entitlementId: null,
         };
       }
     }
     console.error("[fulfilment] licence insert failed", licenceResponse.status, detail);
-    await logPaymentEvent(orderId, "fulfilment_failed", { stage: "licence", detail: detail.slice(0, 500) });
+    await logPaymentEvent(orderId, "fulfilment_failed", {
+      stage: "licence",
+      detail: detail.slice(0, 500),
+    });
     return { ok: false, error: "Could not issue the licence", status: 502 };
   }
 
@@ -277,14 +294,39 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
     amount: chargedAmount,
     currency: chargedCurrency,
     productName: productName,
-    clientName: String(metadata.buyer_name ?? contact.name ?? contact.email ?? "Marketplace customer"),
+    clientName: String(
+      metadata.buyer_name ?? contact.name ?? contact.email ?? "Marketplace customer",
+    ),
     status: "paid",
   });
+  const invoiceNo = (invoice.invoice as { invoice_no?: string } | null)?.invoice_no ?? "";
   await logPaymentEvent(orderId, invoice.invoice ? "invoice_ready" : "invoice_failed", {
     created: invoice.created,
-    invoice_no: (invoice.invoice as { invoice_no?: string } | null)?.invoice_no ?? null,
+    invoice_no: invoiceNo || null,
     detail: invoice.error ?? null,
   });
+
+  // The money side of the same event. Without this a paid order produced an
+  // invoice and no ledger entry, so Finance Manager's ledger and its
+  // reconciliation had nothing behind the document.
+  if (invoiceNo) {
+    const ledger = await recordLedgerEntryForInvoice({
+      invoiceNo,
+      amount: chargedAmount,
+      currency: chargedCurrency,
+      counterparty: String(
+        metadata.buyer_name ?? contact.name ?? contact.email ?? "Marketplace customer",
+      ),
+      orderNo: String(order.order_no ?? orderId),
+      gateway: String(order.payment_gateway ?? "payu"),
+      providerTxnId: (order as { payu_txn_id?: string | null }).payu_txn_id ?? null,
+    });
+    await logPaymentEvent(orderId, ledger.error ? "ledger_failed" : "ledger_ready", {
+      created: ledger.created,
+      txn_code: invoiceNo,
+      detail: ledger.error ?? null,
+    });
+  }
 
   // Tell the buyer. Queued regardless of whether a provider is configured, so
   // nothing bought goes uncommunicated once credentials exist.
@@ -301,9 +343,14 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
       licenceKey,
       orderNo: (order.order_no as string | null) ?? null,
     });
-    const mail = await sendMail({ ...message, to: buyerEmail, context: { order_id: orderId, licence_id: licence.id } });
+    const mail = await sendMail({
+      ...message,
+      to: buyerEmail,
+      context: { order_id: orderId, licence_id: licence.id },
+    });
     await logPaymentEvent(orderId, mail.sent ? "licence_email_sent" : "licence_email_queued", {
-      to: buyerEmail, reason: mail.reason,
+      to: buyerEmail,
+      reason: mail.reason,
     });
   } else {
     await logPaymentEvent(orderId, "licence_email_skipped", {
@@ -315,16 +362,12 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   // This is deliberately after the licence: a commission problem must never
   // cost a paying customer the product they have already bought.
   const commission = await recordCommissionsForOrder(orderId);
-  await logPaymentEvent(
-    orderId,
-    commission.ok ? "commission_recorded" : "commission_failed",
-    {
-      created: commission.created,
-      skipped: commission.skipped,
-      unattributed: commission.unattributed,
-      detail: commission.error,
-    },
-  );
+  await logPaymentEvent(orderId, commission.ok ? "commission_recorded" : "commission_failed", {
+    created: commission.created,
+    skipped: commission.skipped,
+    unattributed: commission.unattributed,
+    detail: commission.error,
+  });
 
   return { ok: true, created: true, licenceKey, licenceId: licence.id, entitlementId };
 }

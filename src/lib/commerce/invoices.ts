@@ -158,3 +158,76 @@ export function toCustomerInvoice(row: Record<string, unknown>) {
     order_id: meta.order_id ?? null,
   };
 }
+
+/**
+ * The ledger entry for an invoice that has been issued.
+ *
+ * createInvoiceForOrder writes finance_invoices and stops there, so a paid
+ * order produced a document with nothing behind it: finance_transactions had
+ * no matching row, which is why the Finance Manager's ledger and its
+ * reconciliation had nothing real to work with. The entry is written here,
+ * against the same canonical table the rest of Finance uses — no second
+ * ledger.
+ *
+ * Idempotent on txn_code, which is the invoice number, so a retried webhook
+ * finds the entry that already exists instead of crediting the business twice.
+ */
+export async function recordLedgerEntryForInvoice(input: {
+  invoiceNo: string;
+  amount: number;
+  currency: string;
+  counterparty: string;
+  orderNo: string;
+  gateway: string;
+  providerTxnId?: string | null | undefined;
+}): Promise<{ created: boolean; error?: string }> {
+  if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { created: false, error: "Ledger is not configured" };
+  }
+  if (!input.invoiceNo) return { created: false, error: "No invoice number" };
+
+  try {
+    const existingResponse = await fetch(
+      `${url()}/rest/v1/finance_transactions?select=id` +
+        `&txn_code=eq.${encodeURIComponent(input.invoiceNo)}&limit=1`,
+      { headers: admin() },
+    );
+    if (existingResponse.ok) {
+      const rows = (await existingResponse.json()) as { id: string }[];
+      if (rows.length) return { created: false };
+    }
+
+    const response = await fetch(`${url()}/rest/v1/finance_transactions`, {
+      method: "POST",
+      headers: { ...admin(), Prefer: "return=minimal" },
+      body: JSON.stringify({
+        txn_code: input.invoiceNo,
+        direction: "credit",
+        amount: input.amount,
+        counterparty: input.counterparty,
+        counterparty_type: "user",
+        category: "Marketplace Sale",
+        gateway: input.gateway,
+        method: input.gateway === "payu" ? "PayU" : "Bank Transfer",
+        status: "completed",
+        occurred_at: new Date().toISOString(),
+        notes:
+          `Order ${input.orderNo}` +
+          (input.providerTxnId ? ` · provider txn ${input.providerTxnId}` : ""),
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      return {
+        created: false,
+        error: `Ledger insert failed (${response.status}) ${detail.slice(0, 200)}`,
+      };
+    }
+    return { created: true };
+  } catch (error) {
+    return {
+      created: false,
+      error: error instanceof Error ? error.message : "Ledger insert failed",
+    };
+  }
+}
