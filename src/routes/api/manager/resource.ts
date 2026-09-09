@@ -38,7 +38,50 @@ type Resource = {
    * names the change that takes a row out of use instead.
    */
   archive?: Record<string, unknown>;
+  /**
+   * Real column -> the name the screen uses for it.
+   *
+   * Several screens were built against a real table and call one or two of its
+   * columns something slightly different: the membership payments wall shows
+   * "amount" for amount_usd, the audit wall shows "entity" and "target" for
+   * entity_type and entity_id. Everything else about those screens already
+   * matched, so this translates the difference rather than rewriting a screen
+   * or leaving a real table with nothing able to read it.
+   *
+   * The whitelist above always names real columns, which is what keeps it
+   * safe. Only rows on the way out and changes on the way in are translated.
+   */
+  rename?: Record<string, string>;
 };
+
+/** The name a screen uses for a real column. Unrenamed columns pass through. */
+function outward(resource: Resource, column: string): string {
+  return resource.rename?.[column] ?? column;
+}
+
+/**
+ * The real column behind a name a screen used.
+ *
+ * Falls back to the name itself, so a screen that already uses real column
+ * names needs no map and behaves exactly as before. A name that matches
+ * nothing simply stays as it is and is then refused by the whitelist, which is
+ * the same answer an unknown column has always got.
+ */
+function inward(resource: Resource, key: string): string {
+  if (!resource.rename) return key;
+  for (const [column, alias] of Object.entries(resource.rename)) {
+    if (alias === key) return column;
+  }
+  return key;
+}
+
+/** One row, with its columns under the names the screen expects. */
+function toScreen(resource: Resource, row: Record<string, unknown>): Record<string, unknown> {
+  if (!resource.rename) return row;
+  const out: Record<string, unknown> = {};
+  for (const [column, value] of Object.entries(row)) out[outward(resource, column)] = value;
+  return out;
+}
 
 /**
  * A stable fingerprint of a row.
@@ -482,6 +525,38 @@ const RESOURCES: Record<string, Resource> = {
     label: "Vala TV category",
   },
 
+  // The membership payments wall was built for this table column for column -
+  // order number, plan, proof reference, currency, status, created - and only
+  // ever differed in calling amount_usd "amount".
+  reseller_membership_orders: {
+    table: "reseller_membership_orders",
+    select: ["id", "order_number", "plan_id", "amount_usd", "currency", "status",
+      "payment_status", "approval_status", "proof_reference", "reseller_id",
+      "membership_id", "created_at", "updated_at"],
+    // The decision, not the price. A membership order is priced by the server
+    // and nothing on a screen may retype what the buyer owes.
+    editable: ["payment_status", "approval_status", "status"],
+    rename: { amount_usd: "amount" },
+    searchable: ["order_number", "proof_reference", "payment_status"],
+    order: "created_at.desc",
+    label: "Reseller membership payment",
+  },
+
+  // The record of what happened. Ten real events, and until now no screen on
+  // the platform could read a single one of them.
+  audit_logs: {
+    table: "audit_logs",
+    select: ["id", "occurred_at", "actor", "action", "entity_type", "entity_id",
+      "ip", "severity", "metadata"],
+    // Only the triage flag. Who acted, what they did, on what, and from where
+    // are the whole point of an audit log and cannot be edited from a screen.
+    editable: ["severity"],
+    rename: { entity_type: "entity", entity_id: "target", occurred_at: "created_at" },
+    searchable: ["actor", "action", "entity_type", "entity_id"],
+    order: "occurred_at.desc",
+    label: "Audit event",
+  },
+
   // ---------------------------------------------------------------- reseller
   // Eleven reseller tables existed and no screen read any of them. These are
   // the ones a manager screen has business editing.
@@ -703,7 +778,8 @@ export const Route = createFileRoute("/api/manager/resource")({
         // Section 5. Only a column this resource already returns may be sorted
         // on, so a crafted request cannot order by something the whitelist was
         // written to keep out of reach.
-        const askedSort = (params.get("sort") ?? "").trim();
+        // A screen sorts by the name it displays, which may be a renamed one.
+        const askedSort = inward(resource, (params.get("sort") ?? "").trim());
         const sortable = resource.select.includes(askedSort) ? askedSort : null;
         const direction = params.get("dir") === "desc" ? "desc" : "asc";
         const order = sortable ? `${sortable}.${direction}` : resource.order;
@@ -714,8 +790,9 @@ export const Route = createFileRoute("/api/manager/resource")({
         const OPERATORS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is"]);
         const filters: string[] = [];
         for (const raw of params.getAll("filter")) {
-          const [column, operator, ...rest] = String(raw).split(".");
+          const [asked, operator, ...rest] = String(raw).split(".");
           const value = rest.join(".");
+          const column = inward(resource, asked);
           if (!resource.select.includes(column)) continue;
           if (!OPERATORS.has(operator)) continue;
           if (!value || value.length > 200) continue;
@@ -740,24 +817,27 @@ export const Route = createFileRoute("/api/manager/resource")({
             console.error("[manager] read failed", resource.table, response.status);
             return Response.json({ error: `Could not read ${resource.label}` }, { status: 502 });
           }
-          const rows = await response.json();
+          const returned = (await response.json()) as Record<string, unknown>[];
+          // Handed back under the names the screen renders, not the table's.
+          const rows = returned.map((row) => toScreen(resource, row));
+          const named = (list: string[]) => list.map((c) => outward(resource, c));
           const range = response.headers.get("content-range") ?? "";
           return Response.json({
             resource: name,
             label: resource.label,
-            columns: resource.select,
-            editable: resource.editable,
+            columns: named(resource.select),
+            editable: named(resource.editable),
             // What the toolbar may offer, from the resource itself rather than
             // from a list the client keeps its own copy of.
-            sortable: resource.select,
-            sorted_by: sortable ?? resource.order.split(".")[0],
+            sortable: named(resource.select),
+            sorted_by: outward(resource, sortable ?? resource.order.split(".")[0]),
             sort_direction: sortable ? direction : resource.order.split(".")[1] ?? "asc",
             filters_applied: filters.length,
             // What the console is allowed to offer. Without these it could
             // only ever edit rows that already existed, which is why two
             // home-page sections had no way to get their first row.
-            creatable: resource.creatable ?? [],
-            required: resource.required ?? [],
+            creatable: named(resource.creatable ?? []),
+            required: named(resource.required ?? []),
             retirable: Boolean(resource.archive),
             rows,
             total: Number(range.split("/")[1]) || (rows as unknown[]).length,
@@ -793,7 +873,10 @@ export const Route = createFileRoute("/api/manager/resource")({
 
         // Only whitelisted columns survive, the same as a change.
         const values: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(body.values ?? {})) {
+        for (const [sent, value] of Object.entries(body.values ?? {})) {
+          // A new row arrives under the names the screen uses, the same as a
+          // change does, and is translated before the whitelist sees it.
+          const key = inward(resource, sent);
           if (!resource.creatable.includes(key)) continue;
           if (resource.arrays?.includes(key) && typeof value === "string") {
             const NEWLINE = String.fromCharCode(10);
@@ -811,7 +894,10 @@ export const Route = createFileRoute("/api/manager/resource")({
         );
         if (missing.length) {
           return Response.json(
-            { error: `Missing: ${missing.join(", ")}`, required: resource.required },
+            {
+              error: `Missing: ${missing.map((c) => outward(resource, c)).join(", ")}`,
+              required: (resource.required ?? []).map((c) => outward(resource, c)),
+            },
             { status: 400 },
           );
         }
@@ -922,7 +1008,10 @@ export const Route = createFileRoute("/api/manager/resource")({
         // Only whitelisted columns survive. Anything else is dropped, not an error,
         // so a UI sending an extra field cannot fail the whole save.
         const changes: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(body.changes ?? {})) {
+        for (const [sent, value] of Object.entries(body.changes ?? {})) {
+          // Translated to the real column first, so the whitelist below is
+          // still deciding about real columns and nothing else.
+          const key = inward(resource, sent);
           if (!resource.editable.includes(key)) continue;
           // A list column arrives as the single line the table showed. One term
           // per line if the editor used lines, otherwise comma separated; empty
@@ -939,7 +1028,10 @@ export const Route = createFileRoute("/api/manager/resource")({
         }
         if (!Object.keys(changes).length) {
           return Response.json(
-            { error: "Nothing changeable was sent", editable: resource.editable },
+            {
+              error: "Nothing changeable was sent",
+              editable: resource.editable.map((c) => outward(resource, c)),
+            },
             { status: 400 },
           );
         }
@@ -979,7 +1071,11 @@ export const Route = createFileRoute("/api/manager/resource")({
             after: rows[0] ?? null,
             reason: `Changed from the Marketplace Manager: ${Object.keys(changes).join(", ")}`,
           });
-          return Response.json({ ok: true, row: rows[0] ?? null, changed: Object.keys(changes) });
+          return Response.json({
+            ok: true,
+            row: rows[0] ? toScreen(resource, rows[0]) : null,
+            changed: Object.keys(changes).map((c) => outward(resource, c)),
+          });
         } catch (error) {
           console.error("[manager] write threw", error);
           return Response.json({ error: "That change was not saved" }, { status: 502 });

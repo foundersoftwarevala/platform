@@ -255,10 +255,19 @@ export function ManagerWall({ config }: { config: WallConfig }) {
     async (method: "POST" | "PATCH" | "DELETE", body: Record<string, unknown>) => {
       if (!remote) return false;
       try {
-        const response = await fetch("/api/manager/resource", {
+        // Retiring a row is addressed by query string; creating and changing
+        // one carry a body. That is the endpoint's contract, not a preference.
+        const endpoint =
+          method === "DELETE"
+            ? `/api/manager/resource?resource=${encodeURIComponent(remote)}` +
+              `&id=${encodeURIComponent(String(body.id ?? ""))}`
+            : "/api/manager/resource";
+        const response = await fetch(endpoint, {
           method,
           headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-          body: JSON.stringify({ resource: remote, ...body }),
+          ...(method === "DELETE"
+            ? {}
+            : { body: JSON.stringify({ resource: remote, ...body }) }),
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload?.ok === false) {
@@ -313,12 +322,42 @@ export function ManagerWall({ config }: { config: WallConfig }) {
     setCreating(true);
   };
 
+  /**
+   * Save against the real table.
+   *
+   * Only the fields this form actually offers are sent, so a row that was read
+   * with more columns than the form shows cannot have the rest of itself
+   * overwritten with stale values. Returns whether the server accepted it.
+   */
+  const saveRemote = async (): Promise<boolean> => {
+    const fields: Record<string, unknown> = {};
+    for (const f of config.formFields) {
+      if (draft[f.key] !== undefined) fields[f.key] = draft[f.key];
+    }
+    return editing
+      ? writeRemote("PATCH", { id: editing.id, changes: fields })
+      : writeRemote("POST", { values: fields });
+  };
+
   const save = () => {
     const missing = config.formFields.filter((f) => f.required && !draft[f.key]);
     if (missing.length) {
       toast.error(`Missing: ${missing.map((m) => m.label).join(", ")}`);
       return;
     }
+
+    // A connected wall reports what the server did, not what was typed.
+    if (remote) {
+      const wasEditing = Boolean(editing);
+      void saveRemote().then((ok) => {
+        if (!ok) return; // writeRemote has already said why.
+        toast.success(`${cap(config.entity)} ${wasEditing ? "updated" : "created"}`);
+        setCreating(false);
+        setEditing(null);
+      });
+      return;
+    }
+
     if (editing) {
       commit(rows.map((r) => (r.id === editing.id ? ({ ...r, ...draft } as WallRow) : r)));
       toast.success(`${cap(config.entity)} updated`);
@@ -336,6 +375,29 @@ export function ManagerWall({ config }: { config: WallConfig }) {
   };
 
   const applyPatch = (ids: string[], patch?: Record<string, any>, remove?: boolean) => {
+    if (remote) {
+      // Nothing in this project is deleted. The endpoint retires a row when the
+      // resource says how; where it does not, that is said plainly rather than
+      // shown as a row vanishing from a table it is still in.
+      if (remove) {
+        void Promise.all(ids.map((id) => writeRemote("DELETE", { id }))).then((results) => {
+          const done = results.filter(Boolean).length;
+          if (done) toast.success(`${done} ${config.entity}(s) retired`);
+          setSelected(new Set());
+        });
+        return;
+      }
+      void Promise.all(
+        ids.map((id) => writeRemote("PATCH", { id, changes: patch ?? {} })),
+      ).then((results) => {
+        const done = results.filter(Boolean).length;
+        // Only the rows the server actually changed are counted.
+        if (done) toast.success(`${done} ${config.entity}(s) updated`);
+        setSelected(new Set());
+      });
+      return;
+    }
+
     if (remove) {
       commit(rows.filter((r) => !ids.includes(r.id)));
       toast.success(`${ids.length} ${config.entity}(s) deleted`);

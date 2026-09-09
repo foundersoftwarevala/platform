@@ -8,6 +8,10 @@ const STATUSES = ["scheduled", "active", "expired"] as const;
 const AUDIENCES = ["all", "resellers", "customers", "admins"] as const;
 
 export const config: WallConfig = {
+  // Reads and writes reseller_notifications, whose columns are exactly the
+  // five this wall renders. Empty today, and a notification written here is
+  // now a real row rather than one entry in one operator's browser.
+  resource: "reseller_notifications",
   scope: "notifications", entity: "notification", route: "/notifications",
   eyebrow: "Broadcast", title: "Notifications Wall",
   subtitle: "Announcements, alerts and system messages across every audience.",

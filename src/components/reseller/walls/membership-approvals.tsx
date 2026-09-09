@@ -3,6 +3,9 @@ import type { WallConfig } from "@/components/manager-suite/wall";
 import { StatusPill } from "@/components/manager-suite/wall";
 
 export const config: WallConfig = {
+  // Reads the real membership orders. Every column this wall renders is a
+  // column of reseller_membership_orders; only amount is renamed there.
+  resource: "reseller_membership_orders",
   scope: "membership-approvals",
   entity: "membership order",
   route: "/membership-approvals",

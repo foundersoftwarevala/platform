@@ -7,6 +7,9 @@ const SEVERITIES = ["info", "warning", "critical"] as const;
 const ENTITIES = ["reseller", "order", "customer", "product", "license", "kyc", "commission", "approval"] as const;
 
 export const config: WallConfig = {
+  // The real audit log. Read only apart from the severity flag, because a
+  // record of what happened must not be rewritable from a screen.
+  resource: "audit_logs",
   scope: "audit", entity: "event", route: "/audit",
   eyebrow: "Governance", title: "Audit Wall",
   subtitle: "Immutable record of every privileged action — actor, target and outcome.",
