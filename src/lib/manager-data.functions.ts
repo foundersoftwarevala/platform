@@ -61,7 +61,52 @@ async function requireManager() {
     db.rpc("has_role", { _user_id: user.user.id, _role: "finance" }),
   ]);
   if (!isAdmin && !isBoss && !isFinance) throw new Error("Manager permission required");
-  return db;
+  const role = isBoss ? "boss" : isAdmin ? "admin" : "finance";
+  return Object.assign(db, {
+    managerActor: { id: user.user.id, email: user.user.email ?? null, role },
+  });
+}
+
+/** The signed-in operator behind the current call, for the audit trail. */
+type ManagerActor = { id: string; email: string | null; role: string };
+type ManagerDb = Awaited<ReturnType<typeof admin>> & { managerActor: ManagerActor };
+
+/**
+ * Columns that must never leave the server, whatever the caller asks for.
+ *
+ * The generic list function defaults to select="*" and runs on the service-role
+ * client, so before this map a screen that asked for `api_keys` received the
+ * provider secret in the JSON response and in the React Query cache — the mask
+ * in the table was cosmetic. Redaction happens here, after the query, so it
+ * applies to reads, to the rows returned by insert/update, and to the values
+ * recorded in the audit log, no matter which screen made the call.
+ *
+ * A live scan of all 98 manager tables found exactly one secret-bearing column.
+ * `ai_providers.credential_env` holds the NAME of an environment variable, not
+ * a value, and stays visible because the console needs it.
+ */
+const SERVER_ONLY_COLUMNS: Record<string, readonly string[]> = {
+  api_keys: ["secret_encrypted"],
+};
+
+function redactRows(table: string, rows: Row[]): Row[] {
+  const hidden = SERVER_ONLY_COLUMNS[table];
+  if (!hidden || hidden.length === 0) return rows;
+  return rows.map((row) => {
+    const safe: Row = { ...row };
+    for (const column of hidden) delete safe[column];
+    return safe;
+  });
+}
+
+function redactValues(table: string, values: Record<string, unknown>): Record<string, unknown> {
+  const hidden = SERVER_ONLY_COLUMNS[table];
+  if (!hidden || hidden.length === 0) return values;
+  const safe: Record<string, unknown> = { ...values };
+  for (const column of hidden) {
+    if (column in safe) safe[column] = "[redacted]";
+  }
+  return safe;
 }
 
 type ListInput = z.infer<typeof listSchema>;
@@ -90,24 +135,32 @@ async function runList(db: Awaited<ReturnType<typeof admin>>, input: ListInput) 
     ({ data, error } = await query);
   }
   if (error) throw new Error(`${input.table}: ${error.message}`);
-  return (data ?? []) as Row[];
+  return redactRows(input.table, (data ?? []) as Row[]);
 }
 
 async function writeAudit(
-  db: Awaited<ReturnType<typeof admin>>,
+  db: ManagerDb,
   action: string,
   entityType: string,
   entityId: string | null,
   metadata: Record<string, unknown>,
   severity = "info",
 ) {
+  // The actor used to be the literal string console@softwarevala.com, so every
+  // privileged change in the platform was recorded against an account nobody
+  // owns. requireManager() has already resolved the real signed-in operator.
+  const actor = db.managerActor;
   await db.from("audit_logs").insert({
-    actor: "console@softwarevala.com",
+    actor: actor.email ?? actor.id,
     action,
     entity_type: entityType,
     entity_id: entityId,
     severity,
-    metadata: metadata as never,
+    metadata: {
+      ...(metadata as Record<string, unknown>),
+      actor_user_id: actor.id,
+      actor_role: actor.role,
+    } as never,
   });
 }
 
@@ -134,8 +187,14 @@ export const updateRecord = createServerFn({ method: "POST" })
       .select()
       .single();
     if (error) throw new Error(error.message);
-    await writeAudit(db, `${data.table}.updated`, data.table, data.id, data.values);
-    return row as Row;
+    await writeAudit(
+      db,
+      `${data.table}.updated`,
+      data.table,
+      data.id,
+      redactValues(data.table, data.values),
+    );
+    return redactRows(data.table, [row as Row])[0] as Row;
   });
 
 export const insertRecord = createServerFn({ method: "POST" })
@@ -153,9 +212,9 @@ export const insertRecord = createServerFn({ method: "POST" })
       `${data.table}.created`,
       data.table,
       (row as { id?: string } | null)?.id ?? null,
-      data.values,
+      redactValues(data.table, data.values),
     );
-    return row as Row;
+    return redactRows(data.table, [row as Row])[0] as Row;
   });
 
 export const deleteRecord = createServerFn({ method: "POST" })
@@ -168,4 +227,7 @@ export const deleteRecord = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const getManagerTables = createServerFn({ method: "GET" }).handler(async () => { await requireManager(); return MANAGER_TABLES; });
+export const getManagerTables = createServerFn({ method: "GET" }).handler(async () => {
+  await requireManager();
+  return MANAGER_TABLES;
+});

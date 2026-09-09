@@ -26,6 +26,7 @@ export type AiTarget = {
   serviceName: string;
   endpoint: string;
   credential: string;
+  providerName: string;
   providerSlug: string;
   modelId: string | null;
   modelRowId: string | null;
@@ -43,12 +44,35 @@ function serverClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-/** Anything registered in AI API Manager that can answer a chat completion. */
-export async function resolveAiTarget(serviceName?: string): Promise<AiTarget> {
+/**
+ * Anything registered in AI API Manager that can answer a chat completion.
+ *
+ * Accepts either a service name (the original signature, still used by every
+ * existing caller) or an explicit service id. The id form exists so that
+ * ai-api.functions.ts, which used to carry a second copy of this resolution,
+ * can delegate here instead of drifting away from it.
+ */
+export async function resolveAiTarget(
+  selector?: string | { serviceId?: string | undefined; serviceName?: string | undefined },
+): Promise<AiTarget> {
   const db = serverClient() as ReturnType<typeof createClient>;
+  const serviceName = typeof selector === "string" ? selector : selector?.serviceName;
+  const serviceId = typeof selector === "string" ? undefined : selector?.serviceId;
 
   let row: Record<string, unknown> | null = null;
-  if (serviceName) {
+  if (serviceId) {
+    const { data } = await db
+      .from("api_services")
+      .select("id, name, provider_id, endpoint_url, status, category")
+      .eq("id", serviceId)
+      .maybeSingle();
+    row = (data as Record<string, unknown>) ?? null;
+    if (!row) throw new Error("The selected AI service is not registered in AI API Manager.");
+    if (row["status"] !== "active") {
+      throw new Error(`AI service ${row["name"]} is not active in AI API Manager.`);
+    }
+  }
+  if (!row && serviceName) {
     const { data } = await db
       .from("api_services")
       .select("id, name, provider_id, endpoint_url, status, category")
@@ -141,6 +165,7 @@ export async function resolveAiTarget(serviceName?: string): Promise<AiTarget> {
   return {
     serviceId: String(row["id"]),
     serviceName: String(row["name"]),
+    providerName: (provider as { name?: string } | null)?.name ?? providerSlug,
     endpoint,
     credential,
     providerSlug,
@@ -183,12 +208,22 @@ export type AiMessage = { role: "system" | "user" | "assistant"; content: string
 export async function aiComplete(options: {
   module: string;
   messages: AiMessage[];
-  serviceName?: string;
-  temperature?: number;
-  maxTokens?: number;
-  json?: boolean;
-}): Promise<{ text: string; model: string | null; service: string }> {
-  const target = await resolveAiTarget(options.serviceName);
+  serviceName?: string | undefined;
+  serviceId?: string | undefined;
+  temperature?: number | undefined;
+  maxTokens?: number | undefined;
+  json?: boolean | undefined;
+}): Promise<{
+  text: string;
+  model: string | null;
+  service: string;
+  provider: string;
+  latencyMs: number;
+}> {
+  const target = await resolveAiTarget({
+    ...(options.serviceId ? { serviceId: options.serviceId } : {}),
+    ...(options.serviceName ? { serviceName: options.serviceName } : {}),
+  });
   const started = Date.now();
 
   const system = options.messages.find((m) => m.role === "system")?.content;
@@ -236,7 +271,13 @@ export async function aiComplete(options: {
         `The AI provider returned HTTP ${response.status}.`,
     );
   }
-  return { text: String(text), model: target.modelId, service: target.serviceName };
+  return {
+    text: String(text),
+    model: target.modelId,
+    service: target.serviceName,
+    provider: target.providerName,
+    latencyMs: Date.now() - started,
+  };
 }
 
 /**
