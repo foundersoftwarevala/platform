@@ -81,7 +81,7 @@ function fail(message: string): never {
  * second one, which is what makes an operator's double click, a retried
  * request and a replayed webhook all safe.
  */
-async function recordLedgerOnce(entry: {
+export async function recordLedgerOnce(entry: {
   txnCode: string;
   direction: "credit" | "debit";
   amount: number;
@@ -273,6 +273,26 @@ export async function updateRefundStatus(input: {
     }
   }
 
+  // Money leaves through the provider that took it, before anything here says
+  // it left. A card payment that is only marked REFUNDED in this database is a
+  // customer who was told they were refunded and never was.
+  let providerRefundId: string | null = null;
+  let providerName: string | null = null;
+  if (input.status === "processed") {
+    const { refundThroughProvider } = await import("@/lib/commerce/settlement");
+    const outcome = await refundThroughProvider({
+      invoiceNo: refund.invoice_no,
+      amount,
+    });
+    if ("ok" in outcome && !outcome.ok) {
+      fail(`The refund was not issued: ${outcome.error}`);
+    }
+    if ("ok" in outcome && outcome.ok) {
+      providerRefundId = outcome.providerRefundId;
+      providerName = outcome.provider;
+    }
+  }
+
   const patch: Json = { status: input.status, reviewer_note: input.note ?? null };
   if (input.status === "processed") patch["processed_at"] = new Date().toISOString();
 
@@ -306,6 +326,8 @@ export async function updateRefundStatus(input: {
       invoice_no: refund.invoice_no,
       previous_status: refund.status,
       note: input.note ?? null,
+      provider: providerName,
+      provider_refund_id: providerRefundId,
     },
   });
   return ok(data);
@@ -595,8 +617,11 @@ export type GatewayReadiness = {
  * console can show the truth without its layout changing.
  */
 export async function gatewayReadiness(): Promise<Record<string, GatewayReadiness>> {
-  const { payuConfig } = await import("@/lib/commerce/payu");
-  const payuReady = Boolean(payuConfig());
+  const { resolvePayuConfig } = await import("@/lib/commerce/payu");
+  const { CARD_ADAPTERS, CARD_GATEWAYS, resolveCardConfig } = await import(
+    "@/lib/commerce/card-gateways"
+  );
+  const payuReady = Boolean(await resolvePayuConfig());
 
   const notImplemented = (name: string): GatewayReadiness => ({
     adapter: false,
@@ -605,6 +630,27 @@ export async function gatewayReadiness(): Promise<Record<string, GatewayReadines
     detail: `No server-side ${name} adapter exists in this project yet.`,
   });
 
+  // Each hosted card provider now has a real adapter — a checkout it hosts, a
+  // verify call, signature checking and refunds — so its readiness is a
+  // question of credentials rather than of code.
+  const cards = await Promise.all(
+    CARD_GATEWAYS.map(async (code) => {
+      const ready = Boolean(await resolveCardConfig(code));
+      const name = CARD_ADAPTERS[code].displayName;
+      return [
+        code,
+        {
+          adapter: true,
+          credentials: ready,
+          state: ready ? ("READY" as const) : ("NOT_CONFIGURED" as const),
+          detail: ready
+            ? `Hosted checkout, server verification, signed webhook and refunds are in place for ${name}.`
+            : `Adapter and webhook exist. Add the secret key and webhook secret to the ${name} rail's configuration in Finance Manager, then enable the rail.`,
+        },
+      ] as const;
+    }),
+  );
+
   return {
     payu: {
       adapter: true,
@@ -612,14 +658,214 @@ export async function gatewayReadiness(): Promise<Record<string, GatewayReadines
       state: payuReady ? "READY" : "NOT_CONFIGURED",
       detail: payuReady
         ? "Adapter, verification and webhook are in place."
-        : "Adapter and webhook exist; PAYU_MERCHANT_KEY and PAYU_MERCHANT_SALT are not set on this server.",
+        : "Adapter and webhook exist. Add the merchant key and salt to the PayU rail's configuration in Finance Manager, or set them in the server environment.",
     },
+    ...Object.fromEntries(cards),
     upi: notImplemented("UPI"),
     bank: notImplemented("bank transfer"),
-    stripe: notImplemented("Stripe"),
     paypal: notImplemented("PayPal"),
     crypto: notImplemented("crypto"),
   };
+}
+
+/** Read a rail row over REST, on the service key, without the typed client. */
+async function railRest(path: string): Promise<unknown[]> {
+  const url = process.env.SUPABASE_URL?.trim() ?? "";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+  if (!url || !key) return [];
+  const response = await fetch(`${url}/rest/v1/${path}`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+  });
+  if (!response.ok) return [];
+  return (await response.json()) as unknown[];
+}
+
+/** Write to a rail row over REST, for the same reason. */
+async function railWrite(path: string, body: Record<string, unknown>): Promise<boolean> {
+  const url = process.env.SUPABASE_URL?.trim() ?? "";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+  if (!url || !key) return false;
+  const response = await fetch(`${url}/rest/v1/${path}`, {
+    method: "PATCH",
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify(body),
+  });
+  return response.ok;
+}
+
+/**
+ * What an operator may see about a card gateway's configuration.
+ *
+ * A secret that has been entered is reported as present and never returned.
+ * The whole point of keeping credentials in configuration_state.secrets is that
+ * they go in and do not come back out, so this says which fields are filled and
+ * stops there.
+ */
+export type CardGatewaySettings = {
+  code: string;
+  displayName: string;
+  enabled: boolean;
+  hasSecretKey: boolean;
+  hasPublicKey: boolean;
+  hasWebhookSecret: boolean;
+  apiBaseUrl: string;
+  appBaseUrl: string;
+  webhookUrl: string;
+  supportedCurrencies: string[];
+  supportedCountries: string[];
+};
+
+export async function cardGatewaySettings(): Promise<CardGatewaySettings[]> {
+  const { CARD_ADAPTERS, CARD_GATEWAYS } = await import("@/lib/commerce/card-gateways");
+  const codes = CARD_GATEWAYS as readonly string[];
+
+  // finance_payment_rails predates the generated Supabase types, so it is read
+  // over REST exactly as lib/commerce/payu.ts already reads it rather than by
+  // loosening the typed client for the whole application.
+  const data = await railRest(
+    `finance_payment_rails?select=code,display_name,enabled,configuration_state,` +
+      `supported_currencies,supported_countries&code=in.(${codes.join(",")})`,
+  );
+
+  const rows = (data ?? []) as unknown as {
+    code: string;
+    display_name: string | null;
+    enabled: boolean | null;
+    configuration_state: Record<string, unknown> | null;
+    supported_currencies: string[] | null;
+    supported_countries: string[] | null;
+  }[];
+
+  const appBase = process.env.APP_BASE_URL?.trim() || "https://softwarevala.net";
+
+  return CARD_GATEWAYS.map((code) => {
+    const row = rows.find((r) => r.code === code);
+    const state = (row?.configuration_state ?? {}) as Record<string, unknown>;
+    const secrets = (state["secrets"] ?? {}) as Record<string, unknown>;
+    const adapter = CARD_ADAPTERS[code];
+    return {
+      code,
+      displayName: String(row?.display_name ?? adapter.displayName),
+      enabled: Boolean(row?.enabled),
+      hasSecretKey: Boolean(String(secrets["secret_key"] ?? "").trim()),
+      hasPublicKey: Boolean(String(secrets["public_key"] ?? "").trim()),
+      hasWebhookSecret: Boolean(String(secrets["webhook_secret"] ?? "").trim()),
+      apiBaseUrl: String(state["api_base_url"] ?? "").trim() || adapter.defaultApiBaseUrl,
+      appBaseUrl: String(state["app_base_url"] ?? "").trim() || appBase,
+      // The address to paste into the provider's dashboard. There is one
+      // webhook endpoint for every provider; the query parameter is only a
+      // fallback for a provider that sends no identifying header.
+      webhookUrl: `${String(state["app_base_url"] ?? "").trim() || appBase}/api/payment/webhook?provider=${code}`,
+      supportedCurrencies: (row?.supported_currencies ?? []).map((c) => String(c)),
+      supportedCountries: (row?.supported_countries ?? []).map((c) => String(c)),
+    };
+  });
+}
+
+/**
+ * Store a card gateway's credentials on its rail.
+ *
+ * Secrets are merged, not replaced, so rotating one key does not silently wipe
+ * the others. They are written into configuration_state.secrets — the same
+ * place PayU's merchant key and salt live — which the data layer strips before
+ * any row reaches a browser. The values themselves are never echoed back and
+ * never written to the audit trail; the audit records which fields changed.
+ */
+export async function saveCardGatewayCredentials(input: {
+  code: string;
+  secretKey?: string | undefined;
+  publicKey?: string | undefined;
+  webhookSecret?: string | undefined;
+  apiBaseUrl?: string | undefined;
+  appBaseUrl?: string | undefined;
+  enabled?: boolean | undefined;
+  actor: string;
+}) {
+  const { CARD_ADAPTERS, isCardGateway } = await import("@/lib/commerce/card-gateways");
+  if (!isCardGateway(input.code)) fail("That is not a card gateway.");
+  const adapter = CARD_ADAPTERS[input.code];
+
+  const existing = await railRest(
+    `finance_payment_rails?select=id,configuration_state,enabled` +
+      `&code=eq.${encodeURIComponent(input.code)}&limit=1`,
+  );
+  const row = (existing[0] ?? null) as {
+    id: string;
+    configuration_state: Record<string, unknown> | null;
+    enabled: boolean | null;
+  } | null;
+  if (!row) {
+    fail(
+      `The ${adapter.displayName} rail does not exist yet. Run the card payment rails migration.`,
+    );
+  }
+
+  const state = { ...((row.configuration_state ?? {}) as Record<string, unknown>) };
+  const secrets = { ...((state["secrets"] ?? {}) as Record<string, unknown>) };
+  const changed: string[] = [];
+
+  const put = (key: string, value: string | undefined) => {
+    if (value === undefined) return;
+    const clean = value.trim();
+    if (clean) secrets[key] = clean;
+    else delete secrets[key];
+    changed.push(key);
+  };
+  put("secret_key", input.secretKey);
+  put("public_key", input.publicKey);
+  put("webhook_secret", input.webhookSecret);
+
+  if (input.apiBaseUrl !== undefined) {
+    state["api_base_url"] = input.apiBaseUrl.trim();
+    changed.push("api_base_url");
+  }
+  if (input.appBaseUrl !== undefined) {
+    state["app_base_url"] = input.appBaseUrl.trim();
+    changed.push("app_base_url");
+  }
+  state["secrets"] = secrets;
+
+  // A rail cannot be switched on without the two things a payment needs: a key
+  // to charge with and a secret to check the callback against. Enabling one
+  // without them puts a payment route in front of a customer that cannot
+  // complete and whose webhook could not be trusted if it did.
+  const nextEnabled = input.enabled ?? Boolean(row.enabled);
+  if (nextEnabled) {
+    if (!String(secrets["secret_key"] ?? "").trim()) {
+      fail(`${adapter.displayName} needs a secret key before it can be enabled.`);
+    }
+    if (!String(secrets["webhook_secret"] ?? "").trim()) {
+      fail(`${adapter.displayName} needs a webhook secret before it can be enabled.`);
+    }
+  }
+
+  const written = await railWrite(
+    `finance_payment_rails?id=eq.${encodeURIComponent(row.id)}`,
+    {
+      configuration_state: state,
+      enabled: nextEnabled,
+      health_status: nextEnabled ? "healthy" : "unconfigured",
+      updated_at: new Date().toISOString(),
+    },
+  );
+  if (!written) fail("The credentials could not be saved.");
+
+  await writeAudit({
+    actor: input.actor,
+    action: "gateway.credentials",
+    entity: "finance_payment_rails",
+    entity_ref: input.code,
+    severity: "critical",
+    // Which fields were touched, never what they were set to.
+    details: { fields: changed, enabled: nextEnabled },
+  });
+
+  return ok({ code: input.code, enabled: nextEnabled });
 }
 
 export async function setGatewayEnabled(input: { id: string; enabled: boolean; actor: string }) {

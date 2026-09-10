@@ -70,12 +70,12 @@ export function canViewModule(role: RoleKey | null | undefined, key: string | nu
 }
 
 /** Roles the signed-in user is allowed to open. Admin sees all. */
-export function accessibleRoles(sessionRole: RoleKey | null): RoleKey[] {
-  if (!sessionRole) return [...ROLE_ORDER]; // auth bridge not wired → preview mode
+export function accessibleRoles(sessionRole: RoleKey | null, sessionRoles: RoleKey[] = []): RoleKey[] {
+  if (!sessionRole) return [];
   if (can(sessionRole, "switch_role")) return [...ROLE_ORDER];
-  return [sessionRole];
+  return sessionRoles.length ? sessionRoles : [sessionRole];
 }
 
-export function canAccessRole(sessionRole: RoleKey | null, target: RoleKey): boolean {
-  return accessibleRoles(sessionRole).includes(target);
+export function canAccessRole(sessionRole: RoleKey | null, target: RoleKey, sessionRoles: RoleKey[] = []): boolean {
+  return accessibleRoles(sessionRole, sessionRoles).includes(target);
 }

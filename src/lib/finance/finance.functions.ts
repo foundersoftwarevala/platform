@@ -16,6 +16,7 @@ import {
   subscriptionSchema,
   taxSchema,
   walletFreezeSchema,
+  cardGatewayCredentialsSchema,
 } from "./schemas";
 
 export const payoutStatusFn = createServerFn({ method: "POST" })
@@ -242,3 +243,27 @@ export const financePaymentTotalsFn = createServerFn({ method: "GET" }).handler(
   await requireFinanceOperator();
   return financePaymentTotals();
 });
+
+/**
+ * A card gateway's configuration, as an operator may see it: which credential
+ * fields are filled, never what they contain.
+ */
+export const cardGatewaySettingsFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { cardGatewaySettings, requireFinanceOperator } = await import("./finance.server");
+  await requireFinanceOperator();
+  return cardGatewaySettings();
+});
+
+/** Store a card gateway's credentials on its rail in Finance Manager. */
+export const saveCardGatewayCredentialsFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => cardGatewayCredentialsSchema.parse(d))
+  .handler(async ({ data }) => {
+    const { saveCardGatewayCredentials, requireFinanceOperator } = await import(
+      "./finance.server"
+    );
+    const operator = await requireFinanceOperator();
+    return saveCardGatewayCredentials({
+      ...(data as object),
+      actor: operator.email ?? operator.id,
+    } as never);
+  });

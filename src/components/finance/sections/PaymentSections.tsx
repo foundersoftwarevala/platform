@@ -181,28 +181,28 @@ export default function PaymentSections({ view }: { view: FinanceView }) {
           value={formatCurrency(kpis.incoming)}
           icon={TrendingUp}
           tone={view === "payment_incoming" ? "info" : "success"}
-          loading={allTxnQ.isLoading}
+          loading={totalsQ.isLoading}
         />
         <StatCard
           label="Outgoing"
           value={formatCurrency(kpis.outgoing)}
           icon={TrendingDown}
           tone={view === "payment_outgoing" ? "info" : "danger"}
-          loading={allTxnQ.isLoading}
+          loading={totalsQ.isLoading}
         />
         <StatCard
           label="Failed"
           value={formatCurrency(kpis.failed)}
           icon={XCircle}
           tone={view === "payment_failed" ? "info" : "danger"}
-          loading={allTxnQ.isLoading}
+          loading={totalsQ.isLoading}
         />
         <StatCard
           label="Pending"
           value={formatCurrency(kpis.pending)}
           icon={Clock}
           tone={view === "payment_pending" ? "info" : "warning"}
-          loading={allTxnQ.isLoading}
+          loading={totalsQ.isLoading}
         />
       </StatGrid>
 

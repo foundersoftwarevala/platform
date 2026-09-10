@@ -95,13 +95,34 @@ const SERVER_ONLY_COLUMNS: Record<string, readonly string[]> = {
 
 function redactRows(table: string, rows: Row[]): Row[] {
   const hidden = SERVER_ONLY_COLUMNS[table];
-  if (!hidden || hidden.length === 0) return rows;
+  const nested = NESTED_SECRET_COLUMNS[table];
+  if ((!hidden || hidden.length === 0) && !nested) return rows;
   return rows.map((row) => {
     const safe: Row = { ...row };
-    for (const column of hidden) delete safe[column];
+    for (const column of hidden ?? []) delete safe[column];
+    if (nested) {
+      for (const column of nested) {
+        const value = safe[column];
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          const copy = { ...(value as Record<string, unknown>) };
+          delete copy["secrets"];
+          safe[column] = copy;
+        }
+      }
+    }
     return safe;
   });
 }
+
+/**
+ * A payment rail's settings are shown in Finance Manager — the Wise link, the
+ * account name, the bank name. Its credentials live under a `secrets` key
+ * inside the same column and are stripped here, so an operator can configure a
+ * provider from the console without the key ever travelling back to a browser.
+ */
+const NESTED_SECRET_COLUMNS: Record<string, readonly string[]> = {
+  finance_payment_rails: ["configuration_state"],
+};
 
 function redactValues(table: string, values: Record<string, unknown>): Record<string, unknown> {
   const hidden = SERVER_ONLY_COLUMNS[table];

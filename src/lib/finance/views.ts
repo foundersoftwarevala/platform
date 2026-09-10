@@ -24,8 +24,11 @@ export type FinanceView =
   | "gateway_bank"
   | "gateway_payu"
   | "gateway_stripe"
+  | "gateway_flutterwave"
+  | "gateway_paystack"
   | "gateway_paypal"
   | "gateway_crypto"
+  | "payment_methods"
   // 5. Invoice Management
   | "invoice_generate"
   | "invoice_auto"
@@ -82,6 +85,7 @@ export type FinanceView =
   | "log_activity"
   | "log_masked_view"
   | "log_fraud_detection"
+  | "log_reconciliation"
   // Legacy consoles
   | "revenue"
   | "payouts"

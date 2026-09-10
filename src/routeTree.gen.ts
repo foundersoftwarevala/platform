@@ -29,6 +29,7 @@ import { Route as DemoWorkspaceRouteImport } from './routes/demo-workspace'
 import { Route as DevManagerRouteImport } from './routes/dev-manager'
 import { Route as FinanceManagerRouteImport } from './routes/finance-manager'
 import { Route as FranchiseManagerRouteImport } from './routes/franchise-manager'
+import { Route as HealthRouteImport } from './routes/health'
 import { Route as InfluencerManagerRouteImport } from './routes/influencer-manager'
 import { Route as InternalSupportAiRouteImport } from './routes/internal-support-ai'
 import { Route as KeywordsRouteImport } from './routes/keywords'
@@ -43,6 +44,7 @@ import { Route as MarketplaceRecoveryRouteImport } from './routes/marketplace-re
 import { Route as PagesRouteImport } from './routes/pages'
 import { Route as ProductDemoManagerRouteImport } from './routes/product-demo-manager'
 import { Route as PromiseTrackerRouteImport } from './routes/promise-tracker'
+import { Route as ReadyRouteImport } from './routes/ready'
 import { Route as ResellerManagerRouteImport } from './routes/reseller-manager'
 import { Route as SalesCrmRouteImport } from './routes/sales-crm'
 import { Route as SalesSupportManagerRouteImport } from './routes/sales-support-manager'
@@ -253,6 +255,9 @@ import { Route as ApiInternalCredentialSetupRouteImport } from './routes/api/int
 import { Route as ApiInternalDbHealthRouteImport } from './routes/api/internal/db-health'
 import { Route as ApiInternalEmailFlushRouteImport } from './routes/api/internal/email-flush'
 import { Route as ApiInternalMarketplaceMigrationRouteImport } from './routes/api/internal/marketplace-migration'
+import { Route as ApiInternalPaymentHealthRouteImport } from './routes/api/internal/payment-health'
+import { Route as ApiInternalPaymentJobsRouteImport } from './routes/api/internal/payment-jobs'
+import { Route as ApiInternalPaymentReconcileRouteImport } from './routes/api/internal/payment-reconcile'
 import { Route as ApiInternalSellerAdminRouteImport } from './routes/api/internal/seller-admin'
 import { Route as ApiInternalSeoAuditRouteImport } from './routes/api/internal/seo-audit'
 import { Route as ApiInternalSeoPageRouteImport } from './routes/api/internal/seo-page'
@@ -284,9 +289,11 @@ import { Route as ApiMarketplaceTrackRouteImport } from './routes/api/marketplac
 import { Route as ApiMarketplaceTranslateRouteImport } from './routes/api/marketplace/translate'
 import { Route as ApiPartnerQuoteRouteImport } from './routes/api/partner/quote'
 import { Route as ApiPaymentInitiateRouteImport } from './routes/api/payment/initiate'
+import { Route as ApiPaymentMethodsRouteImport } from './routes/api/payment/methods'
 import { Route as ApiPaymentStatusRouteImport } from './routes/api/payment/status'
 import { Route as ApiPaymentWebhookRouteImport } from './routes/api/payment/webhook'
 import { Route as ApiQrCodeRouteImport } from './routes/api/qr/$code'
+import { Route as ApiResellerMetricsRouteImport } from './routes/api/reseller/metrics'
 import { Route as ApiSecurityConsoleRouteImport } from './routes/api/security/console'
 import { Route as ApiSecuritySettingsRouteImport } from './routes/api/security/settings'
 import { Route as ApiSellerMetricsRouteImport } from './routes/api/seller/metrics'
@@ -410,6 +417,11 @@ const FranchiseManagerRoute = FranchiseManagerRouteImport.update({
   path: '/franchise-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InfluencerManagerRoute = InfluencerManagerRouteImport.update({
   id: '/influencer-manager',
   path: '/influencer-manager',
@@ -478,6 +490,11 @@ const ProductDemoManagerRoute = ProductDemoManagerRouteImport.update({
 const PromiseTrackerRoute = PromiseTrackerRouteImport.update({
   id: '/promise-tracker',
   path: '/promise-tracker',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReadyRoute = ReadyRouteImport.update({
+  id: '/ready',
+  path: '/ready',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResellerManagerRoute = ResellerManagerRouteImport.update({
@@ -1560,6 +1577,23 @@ const ApiInternalMarketplaceMigrationRoute =
     path: '/api/internal/marketplace-migration',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiInternalPaymentHealthRoute =
+  ApiInternalPaymentHealthRouteImport.update({
+    id: '/api/internal/payment-health',
+    path: '/api/internal/payment-health',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalPaymentJobsRoute = ApiInternalPaymentJobsRouteImport.update({
+  id: '/api/internal/payment-jobs',
+  path: '/api/internal/payment-jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInternalPaymentReconcileRoute =
+  ApiInternalPaymentReconcileRouteImport.update({
+    id: '/api/internal/payment-reconcile',
+    path: '/api/internal/payment-reconcile',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiInternalSellerAdminRoute = ApiInternalSellerAdminRouteImport.update({
   id: '/api/internal/seller-admin',
   path: '/api/internal/seller-admin',
@@ -1721,6 +1755,11 @@ const ApiPaymentInitiateRoute = ApiPaymentInitiateRouteImport.update({
   path: '/api/payment/initiate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPaymentMethodsRoute = ApiPaymentMethodsRouteImport.update({
+  id: '/api/payment/methods',
+  path: '/api/payment/methods',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPaymentStatusRoute = ApiPaymentStatusRouteImport.update({
   id: '/api/payment/status',
   path: '/api/payment/status',
@@ -1734,6 +1773,11 @@ const ApiPaymentWebhookRoute = ApiPaymentWebhookRouteImport.update({
 const ApiQrCodeRoute = ApiQrCodeRouteImport.update({
   id: '/api/qr/$code',
   path: '/api/qr/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiResellerMetricsRoute = ApiResellerMetricsRouteImport.update({
+  id: '/api/reseller/metrics',
+  path: '/api/reseller/metrics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSecurityConsoleRoute = ApiSecurityConsoleRouteImport.update({
@@ -1873,6 +1917,7 @@ export interface FileRoutesByFullPath {
   '/dev-manager': typeof DevManagerRoute
   '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
+  '/health': typeof HealthRoute
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
@@ -1887,6 +1932,7 @@ export interface FileRoutesByFullPath {
   '/pages': typeof PagesRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
   '/promise-tracker': typeof PromiseTrackerRouteWithChildren
+  '/ready': typeof ReadyRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2092,6 +2138,9 @@ export interface FileRoutesByFullPath {
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/internal/payment-health': typeof ApiInternalPaymentHealthRoute
+  '/api/internal/payment-jobs': typeof ApiInternalPaymentJobsRoute
+  '/api/internal/payment-reconcile': typeof ApiInternalPaymentReconcileRoute
   '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
   '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
   '/api/internal/seo-page': typeof ApiInternalSeoPageRoute
@@ -2123,9 +2172,11 @@ export interface FileRoutesByFullPath {
   '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/methods': typeof ApiPaymentMethodsRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/api/qr/$code': typeof ApiQrCodeRoute
+  '/api/reseller/metrics': typeof ApiResellerMetricsRoute
   '/api/security/console': typeof ApiSecurityConsoleRoute
   '/api/security/settings': typeof ApiSecuritySettingsRoute
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
@@ -2172,6 +2223,7 @@ export interface FileRoutesByTo {
   '/dev-manager': typeof DevManagerRoute
   '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
+  '/health': typeof HealthRoute
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
@@ -2181,6 +2233,7 @@ export interface FileRoutesByTo {
   '/marketplace-recovery': typeof MarketplaceRecoveryRoute
   '/pages': typeof PagesRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
+  '/ready': typeof ReadyRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2384,6 +2437,9 @@ export interface FileRoutesByTo {
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/internal/payment-health': typeof ApiInternalPaymentHealthRoute
+  '/api/internal/payment-jobs': typeof ApiInternalPaymentJobsRoute
+  '/api/internal/payment-reconcile': typeof ApiInternalPaymentReconcileRoute
   '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
   '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
   '/api/internal/seo-page': typeof ApiInternalSeoPageRoute
@@ -2415,9 +2471,11 @@ export interface FileRoutesByTo {
   '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/methods': typeof ApiPaymentMethodsRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/api/qr/$code': typeof ApiQrCodeRoute
+  '/api/reseller/metrics': typeof ApiResellerMetricsRoute
   '/api/security/console': typeof ApiSecurityConsoleRoute
   '/api/security/settings': typeof ApiSecuritySettingsRoute
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
@@ -2468,6 +2526,7 @@ export interface FileRoutesById {
   '/dev-manager': typeof DevManagerRoute
   '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
+  '/health': typeof HealthRoute
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
@@ -2482,6 +2541,7 @@ export interface FileRoutesById {
   '/pages': typeof PagesRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
   '/promise-tracker': typeof PromiseTrackerRouteWithChildren
+  '/ready': typeof ReadyRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2687,6 +2747,9 @@ export interface FileRoutesById {
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/internal/payment-health': typeof ApiInternalPaymentHealthRoute
+  '/api/internal/payment-jobs': typeof ApiInternalPaymentJobsRoute
+  '/api/internal/payment-reconcile': typeof ApiInternalPaymentReconcileRoute
   '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
   '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
   '/api/internal/seo-page': typeof ApiInternalSeoPageRoute
@@ -2718,9 +2781,11 @@ export interface FileRoutesById {
   '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/methods': typeof ApiPaymentMethodsRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/api/qr/$code': typeof ApiQrCodeRoute
+  '/api/reseller/metrics': typeof ApiResellerMetricsRoute
   '/api/security/console': typeof ApiSecurityConsoleRoute
   '/api/security/settings': typeof ApiSecuritySettingsRoute
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
@@ -2772,6 +2837,7 @@ export interface FileRouteTypes {
     | '/dev-manager'
     | '/finance-manager'
     | '/franchise-manager'
+    | '/health'
     | '/influencer-manager'
     | '/internal-support-ai'
     | '/keywords'
@@ -2786,6 +2852,7 @@ export interface FileRouteTypes {
     | '/pages'
     | '/product-demo-manager'
     | '/promise-tracker'
+    | '/ready'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -2991,6 +3058,9 @@ export interface FileRouteTypes {
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/internal/payment-health'
+    | '/api/internal/payment-jobs'
+    | '/api/internal/payment-reconcile'
     | '/api/internal/seller-admin'
     | '/api/internal/seo-audit'
     | '/api/internal/seo-page'
@@ -3022,9 +3092,11 @@ export interface FileRouteTypes {
     | '/api/marketplace/translate'
     | '/api/partner/quote'
     | '/api/payment/initiate'
+    | '/api/payment/methods'
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/api/qr/$code'
+    | '/api/reseller/metrics'
     | '/api/security/console'
     | '/api/security/settings'
     | '/api/seller/metrics'
@@ -3071,6 +3143,7 @@ export interface FileRouteTypes {
     | '/dev-manager'
     | '/finance-manager'
     | '/franchise-manager'
+    | '/health'
     | '/influencer-manager'
     | '/internal-support-ai'
     | '/keywords'
@@ -3080,6 +3153,7 @@ export interface FileRouteTypes {
     | '/marketplace-recovery'
     | '/pages'
     | '/product-demo-manager'
+    | '/ready'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -3283,6 +3357,9 @@ export interface FileRouteTypes {
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/internal/payment-health'
+    | '/api/internal/payment-jobs'
+    | '/api/internal/payment-reconcile'
     | '/api/internal/seller-admin'
     | '/api/internal/seo-audit'
     | '/api/internal/seo-page'
@@ -3314,9 +3391,11 @@ export interface FileRouteTypes {
     | '/api/marketplace/translate'
     | '/api/partner/quote'
     | '/api/payment/initiate'
+    | '/api/payment/methods'
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/api/qr/$code'
+    | '/api/reseller/metrics'
     | '/api/security/console'
     | '/api/security/settings'
     | '/api/seller/metrics'
@@ -3366,6 +3445,7 @@ export interface FileRouteTypes {
     | '/dev-manager'
     | '/finance-manager'
     | '/franchise-manager'
+    | '/health'
     | '/influencer-manager'
     | '/internal-support-ai'
     | '/keywords'
@@ -3380,6 +3460,7 @@ export interface FileRouteTypes {
     | '/pages'
     | '/product-demo-manager'
     | '/promise-tracker'
+    | '/ready'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -3585,6 +3666,9 @@ export interface FileRouteTypes {
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/internal/payment-health'
+    | '/api/internal/payment-jobs'
+    | '/api/internal/payment-reconcile'
     | '/api/internal/seller-admin'
     | '/api/internal/seo-audit'
     | '/api/internal/seo-page'
@@ -3616,9 +3700,11 @@ export interface FileRouteTypes {
     | '/api/marketplace/translate'
     | '/api/partner/quote'
     | '/api/payment/initiate'
+    | '/api/payment/methods'
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/api/qr/$code'
+    | '/api/reseller/metrics'
     | '/api/security/console'
     | '/api/security/settings'
     | '/api/seller/metrics'
@@ -3669,6 +3755,7 @@ export interface RootRouteChildren {
   DevManagerRoute: typeof DevManagerRoute
   FinanceManagerRoute: typeof FinanceManagerRoute
   FranchiseManagerRoute: typeof FranchiseManagerRoute
+  HealthRoute: typeof HealthRoute
   InfluencerManagerRoute: typeof InfluencerManagerRoute
   InternalSupportAiRoute: typeof InternalSupportAiRoute
   KeywordsRoute: typeof KeywordsRoute
@@ -3683,6 +3770,7 @@ export interface RootRouteChildren {
   PagesRoute: typeof PagesRoute
   ProductDemoManagerRoute: typeof ProductDemoManagerRoute
   PromiseTrackerRoute: typeof PromiseTrackerRouteWithChildren
+  ReadyRoute: typeof ReadyRoute
   ResellerManagerRoute: typeof ResellerManagerRoute
   SalesCrmRoute: typeof SalesCrmRoute
   SalesSupportManagerRoute: typeof SalesSupportManagerRoute
@@ -3738,6 +3826,9 @@ export interface RootRouteChildren {
   ApiInternalDbHealthRoute: typeof ApiInternalDbHealthRoute
   ApiInternalEmailFlushRoute: typeof ApiInternalEmailFlushRoute
   ApiInternalMarketplaceMigrationRoute: typeof ApiInternalMarketplaceMigrationRoute
+  ApiInternalPaymentHealthRoute: typeof ApiInternalPaymentHealthRoute
+  ApiInternalPaymentJobsRoute: typeof ApiInternalPaymentJobsRoute
+  ApiInternalPaymentReconcileRoute: typeof ApiInternalPaymentReconcileRoute
   ApiInternalSellerAdminRoute: typeof ApiInternalSellerAdminRoute
   ApiInternalSeoAuditRoute: typeof ApiInternalSeoAuditRoute
   ApiInternalSeoPageRoute: typeof ApiInternalSeoPageRoute
@@ -3769,9 +3860,11 @@ export interface RootRouteChildren {
   ApiMarketplaceTranslateRoute: typeof ApiMarketplaceTranslateRoute
   ApiPartnerQuoteRoute: typeof ApiPartnerQuoteRoute
   ApiPaymentInitiateRoute: typeof ApiPaymentInitiateRoute
+  ApiPaymentMethodsRoute: typeof ApiPaymentMethodsRoute
   ApiPaymentStatusRoute: typeof ApiPaymentStatusRoute
   ApiPaymentWebhookRoute: typeof ApiPaymentWebhookRoute
   ApiQrCodeRoute: typeof ApiQrCodeRoute
+  ApiResellerMetricsRoute: typeof ApiResellerMetricsRoute
   ApiSecurityConsoleRoute: typeof ApiSecurityConsoleRoute
   ApiSecuritySettingsRoute: typeof ApiSecuritySettingsRoute
   ApiSellerMetricsRoute: typeof ApiSellerMetricsRoute
@@ -3924,6 +4017,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FranchiseManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/influencer-manager': {
       id: '/influencer-manager'
       path: '/influencer-manager'
@@ -4020,6 +4120,13 @@ declare module '@tanstack/react-router' {
       path: '/promise-tracker'
       fullPath: '/promise-tracker'
       preLoaderRoute: typeof PromiseTrackerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ready': {
+      id: '/ready'
+      path: '/ready'
+      fullPath: '/ready'
+      preLoaderRoute: typeof ReadyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reseller-manager': {
@@ -5492,6 +5599,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalMarketplaceMigrationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/payment-health': {
+      id: '/api/internal/payment-health'
+      path: '/api/internal/payment-health'
+      fullPath: '/api/internal/payment-health'
+      preLoaderRoute: typeof ApiInternalPaymentHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/payment-jobs': {
+      id: '/api/internal/payment-jobs'
+      path: '/api/internal/payment-jobs'
+      fullPath: '/api/internal/payment-jobs'
+      preLoaderRoute: typeof ApiInternalPaymentJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/payment-reconcile': {
+      id: '/api/internal/payment-reconcile'
+      path: '/api/internal/payment-reconcile'
+      fullPath: '/api/internal/payment-reconcile'
+      preLoaderRoute: typeof ApiInternalPaymentReconcileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/internal/seller-admin': {
       id: '/api/internal/seller-admin'
       path: '/api/internal/seller-admin'
@@ -5709,6 +5837,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPaymentInitiateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/payment/methods': {
+      id: '/api/payment/methods'
+      path: '/api/payment/methods'
+      fullPath: '/api/payment/methods'
+      preLoaderRoute: typeof ApiPaymentMethodsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/payment/status': {
       id: '/api/payment/status'
       path: '/api/payment/status'
@@ -5728,6 +5863,13 @@ declare module '@tanstack/react-router' {
       path: '/api/qr/$code'
       fullPath: '/api/qr/$code'
       preLoaderRoute: typeof ApiQrCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/reseller/metrics': {
+      id: '/api/reseller/metrics'
+      path: '/api/reseller/metrics'
+      fullPath: '/api/reseller/metrics'
+      preLoaderRoute: typeof ApiResellerMetricsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/security/console': {
@@ -6361,6 +6503,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevManagerRoute: DevManagerRoute,
   FinanceManagerRoute: FinanceManagerRoute,
   FranchiseManagerRoute: FranchiseManagerRoute,
+  HealthRoute: HealthRoute,
   InfluencerManagerRoute: InfluencerManagerRoute,
   InternalSupportAiRoute: InternalSupportAiRoute,
   KeywordsRoute: KeywordsRoute,
@@ -6375,6 +6518,7 @@ const rootRouteChildren: RootRouteChildren = {
   PagesRoute: PagesRoute,
   ProductDemoManagerRoute: ProductDemoManagerRoute,
   PromiseTrackerRoute: PromiseTrackerRouteWithChildren,
+  ReadyRoute: ReadyRoute,
   ResellerManagerRoute: ResellerManagerRoute,
   SalesCrmRoute: SalesCrmRoute,
   SalesSupportManagerRoute: SalesSupportManagerRoute,
@@ -6430,6 +6574,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInternalDbHealthRoute: ApiInternalDbHealthRoute,
   ApiInternalEmailFlushRoute: ApiInternalEmailFlushRoute,
   ApiInternalMarketplaceMigrationRoute: ApiInternalMarketplaceMigrationRoute,
+  ApiInternalPaymentHealthRoute: ApiInternalPaymentHealthRoute,
+  ApiInternalPaymentJobsRoute: ApiInternalPaymentJobsRoute,
+  ApiInternalPaymentReconcileRoute: ApiInternalPaymentReconcileRoute,
   ApiInternalSellerAdminRoute: ApiInternalSellerAdminRoute,
   ApiInternalSeoAuditRoute: ApiInternalSeoAuditRoute,
   ApiInternalSeoPageRoute: ApiInternalSeoPageRoute,
@@ -6461,9 +6608,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketplaceTranslateRoute: ApiMarketplaceTranslateRoute,
   ApiPartnerQuoteRoute: ApiPartnerQuoteRoute,
   ApiPaymentInitiateRoute: ApiPaymentInitiateRoute,
+  ApiPaymentMethodsRoute: ApiPaymentMethodsRoute,
   ApiPaymentStatusRoute: ApiPaymentStatusRoute,
   ApiPaymentWebhookRoute: ApiPaymentWebhookRoute,
   ApiQrCodeRoute: ApiQrCodeRoute,
+  ApiResellerMetricsRoute: ApiResellerMetricsRoute,
   ApiSecurityConsoleRoute: ApiSecurityConsoleRoute,
   ApiSecuritySettingsRoute: ApiSecuritySettingsRoute,
   ApiSellerMetricsRoute: ApiSellerMetricsRoute,

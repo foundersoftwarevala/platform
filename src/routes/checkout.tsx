@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { pageHead } from "@/lib/seo-head";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Loader2, LockKeyhole, ShoppingCart } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Loader2, LockKeyhole, ShieldCheck, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,29 +19,84 @@ export const Route = createFileRoute("/checkout")({
 });
 
 /**
- * Hand the order to PayU.
+ * Hand the order to whichever provider the customer picked.
  *
- * The browser sends an order id and nothing else. /api/payment/initiate reads
- * the price from that order, converts it server side and signs the request
- * with a salt this page never sees, so what the customer is charged is not
- * something the customer can choose. What comes back is the exact field set to
- * POST, which is submitted as a real form because that is how PayU's hosted
- * page is entered.
+ * The browser sends an order id and a method name. It never sends a price: the
+ * server reads that from the order, and for a card rail it signs nothing the
+ * browser can see. What comes back is one of two things.
+ *
+ * A card provider returns a URL to its own hosted checkout, and the browser is
+ * simply sent there — the card number, the CVV and any 3-D Secure step happen
+ * on the provider's page, inside the provider's PCI scope. Nothing on this page
+ * has a card field, and nothing on this site ever receives one.
+ *
+ * PayU returns the exact field set to POST, which is submitted as a real form
+ * because that is how PayU's hosted page is entered.
  */
-async function payWithPayU(orderId: string): Promise<{ ok: true } | { ok: false; message: string }> {
+type ManualHandoff = {
+  gateway: string;
+  displayName: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  payLink: string | null;
+  instructions: string;
+};
+
+async function startPayment(
+  orderId: string,
+  gateway: string | null,
+): Promise<
+  { ok: true } | { ok: true; manual: ManualHandoff } | { ok: false; message: string }
+> {
   const response = await fetch("/api/payment/initiate", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-    body: JSON.stringify({ orderId }),
+    body: JSON.stringify({ orderId, ...(gateway ? { gateway } : {}) }),
   });
   const payload = (await response.json().catch(() => ({}))) as {
+    mode?: string;
+    redirectUrl?: string;
     action?: string;
     method?: string;
     fields?: Record<string, string>;
     error?: string;
-  };
+    detail?: string;
+  } & Partial<ManualHandoff>;
 
-  if (!response.ok || !payload.action || !payload.fields) {
+  if (!response.ok) {
+    return {
+      ok: false,
+      message:
+        payload.error ??
+        "The payment could not be started. The order is saved and nothing was charged.",
+    };
+  }
+
+  if (payload.mode === "redirect" && payload.redirectUrl) {
+    window.location.assign(payload.redirectUrl);
+    return { ok: true };
+  }
+
+  // A rail a person settles. The customer gets the route and the reference; the
+  // order stays reserved until Finance confirms the money arrived. Returning
+  // from Wise is not proof of payment, so nothing is activated here.
+  if (payload.mode === "manual") {
+    return {
+      ok: true,
+      manual: {
+        gateway: String(payload.gateway ?? ""),
+        displayName: String(payload.displayName ?? payload.gateway ?? "This method"),
+        reference: String(payload.reference ?? ""),
+        amount: Number(payload.amount ?? 0),
+        currency: String(payload.currency ?? ""),
+        payLink: payload.payLink ?? null,
+        instructions: String(payload.instructions ?? ""),
+      },
+    };
+  }
+
+  if (!payload.action || !payload.fields) {
     return {
       ok: false,
       message:
@@ -66,6 +121,41 @@ async function payWithPayU(orderId: string): Promise<{ ok: true } | { ok: false;
   return { ok: true };
 }
 
+type PaymentOption = {
+  code: string;
+  displayName: string;
+  trustLabel: string | null;
+  kind: string;
+  ready: boolean;
+  reason: string;
+};
+
+/**
+ * Which methods this buyer can actually use, asked of the server rather than
+ * assumed from where they are. A method that could not complete is shown
+ * greyed with the real reason instead of being offered and then refusing.
+ */
+/**
+ * The only payment preference kept in the browser: which method last worked.
+ * Never a card number, never a token, nothing that could authorise a payment.
+ */
+function safeLastMethod(): string | null {
+  try {
+    return localStorage.getItem("sv.lastPaymentMethod");
+  } catch {
+    return null;
+  }
+}
+
+async function fetchPaymentOptions(): Promise<PaymentOption[]> {
+  const response = await fetch("/api/payment/methods", {
+    headers: { ...(await authHeaders()) },
+  });
+  if (!response.ok) return [];
+  const payload = (await response.json()) as { options?: PaymentOption[] };
+  return payload.options ?? [];
+}
+
 function createIdempotencyKey() {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
   const bytes = new Uint32Array(4);
@@ -86,6 +176,36 @@ function CheckoutPage() {
   const listOrders = useServerFn(listMarketplaceOrders);
   const [payNote, setPayNote] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
+  const [gateway, setGateway] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const [manual, setManual] = useState<ManualHandoff | null>(null);
+
+  // Asked before the choice is drawn, so nothing unusable is ever offered. The
+  // server ranks by what actually works for this buyer's country and currency;
+  // this page does not decide that a region means a method.
+  const methodsQuery = useQuery({
+    queryKey: ["payment-methods"],
+    queryFn: fetchPaymentOptions,
+    staleTime: 60_000,
+  });
+  const methods = methodsQuery.data ?? [];
+  const readyMethods = methods.filter((option) => option.ready);
+
+  // The method that worked last time, if it is still one of the real options.
+  // It is a preference and nothing more: it cannot skip a check, and the
+  // amount, the currency and the verification are decided on the server either
+  // way.
+  const remembered = typeof window === "undefined" ? null : safeLastMethod();
+  const primary =
+    readyMethods.find((option) => option.code === gateway) ??
+    readyMethods.find((option) => option.code === remembered) ??
+    readyMethods[0];
+  const alternatives = readyMethods.filter((option) => option.code !== primary?.code);
+
+  // Somebody arriving from a failed payment asked for the other options.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("methods") === "1") setShowAll(true);
+  }, []);
 
   const checkoutMutation = useMutation({
     mutationFn: () => checkout({ data: { idempotencyKey } }),
@@ -114,10 +234,13 @@ function CheckoutPage() {
         return;
       }
 
-      const handoff = await payWithPayU(orderId);
+      const handoff = await startPayment(orderId, primary?.code ?? null);
       if (!handoff.ok) {
         setPaying(false);
         setPayNote(handoff.message);
+      } else if ("manual" in handoff) {
+        setPaying(false);
+        setManual(handoff.manual);
       }
       // On success the browser is already on its way to PayU.
     },
@@ -159,18 +282,104 @@ function CheckoutPage() {
                   <span className="text-sm text-slate-300">{item.marketplace_products?.price_label ?? "Server-priced"}</span>
                 </div>
               ))}
-              <Button disabled={checkoutMutation.isPending || paying} onClick={() => checkoutMutation.mutate()} className="w-full bg-cyan-500 text-slate-950 hover:bg-cyan-400">
-                {checkoutMutation.isPending || paying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-2 h-4 w-4" />}
-                {paying ? "Opening secure payment…" : "Pay securely"}
+              {methodsQuery.isLoading ? (
+                <p className="flex items-center gap-2 text-sm text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Checking what is available
+                </p>
+              ) : readyMethods.length === 0 ? (
+                <p className="text-sm text-amber-300">
+                  No payment method is available for this order yet. Your cart is saved — please
+                  contact support and we will take the payment directly.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {/* One prominent method. The rest stay out of the way. */}
+                  <div className="flex items-center justify-between rounded-lg border border-cyan-400/60 bg-cyan-500/10 px-3 py-2.5 text-sm">
+                    <span className="flex items-center gap-2 font-medium text-white">
+                      <ShieldCheck className="h-4 w-4 text-cyan-300" />
+                      {primary?.displayName}
+                    </span>
+                    {alternatives.length > 0 && !showAll ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAll(true)}
+                        className="text-xs text-cyan-300 underline-offset-2 hover:underline"
+                      >
+                        More payment options
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {showAll && alternatives.length > 0 ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {alternatives.map((option) => (
+                        <button
+                          key={option.code}
+                          type="button"
+                          onClick={() => {
+                            setGateway(option.code);
+                            setShowAll(false);
+                          }}
+                          disabled={paying}
+                          className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2.5 text-left text-sm text-slate-300 transition hover:border-slate-600"
+                        >
+                          {option.displayName}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              <Button disabled={checkoutMutation.isPending || paying || !primary} onClick={() => checkoutMutation.mutate()} className="w-full bg-cyan-500 py-6 text-base font-semibold text-slate-950 hover:bg-cyan-400">
+                {checkoutMutation.isPending || paying ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LockKeyhole className="mr-2 h-5 w-5" />}
+                {paying ? "Processing payment…" : "Pay now"}
               </Button>
+
+              {/* Only ever the provider that is genuinely taking the payment. */}
+              {primary?.trustLabel ? (
+                <p className="flex items-center justify-center gap-1.5 text-xs text-slate-400">
+                  <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" /> {primary.trustLabel}
+                </p>
+              ) : null}
+
               <p className="text-xs text-slate-500">
-                The order is created here and the payment is taken on the provider's own page. Nothing on
-                this site decides that a payment succeeded — the provider's signed callback does, and it is
-                checked against the provider before an order is marked paid.
+                The order is created here and the payment is taken on the provider's own page. Your card
+                details are entered with the provider and never reach Software Vala. Nothing on this site
+                decides that a payment succeeded — the provider's signed callback does, and it is checked
+                against the provider before an order is marked paid.
               </p>
             </div>
           )}
         </section>
+
+        {manual && (
+          <section className="mt-6 rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-6">
+            <h2 className="font-semibold text-cyan-200">Pay with {manual.displayName}</h2>
+            <p className="mt-2 text-sm text-slate-300">
+              {manual.currency} {manual.amount}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              Use reference <span className="font-mono text-slate-200">{manual.reference}</span>
+            </p>
+            {manual.payLink && (
+              <a
+                href={manual.payLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-block rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
+              >
+                Open {manual.displayName}
+              </a>
+            )}
+            <p className="mt-4 text-xs text-slate-400">{manual.instructions}</p>
+            <p className="mt-2 text-xs text-amber-300">
+              Your order is reserved and shows as pending verification. It is activated once our
+              team confirms the payment arrived — coming back from {manual.displayName} is not by
+              itself proof that it did.
+            </p>
+          </section>
+        )}
 
         {payNote && (
           <section className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-6">

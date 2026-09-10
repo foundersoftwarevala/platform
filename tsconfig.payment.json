@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["vite/client", "node"] },
+  "include": [
+    "src/lib/commerce/**/*.ts",
+    "src/lib/finance/**/*.ts",
+    "src/routes/api/payment/**/*.ts",
+    "src/routes/api/internal/**/*.ts"
+  ]
+}

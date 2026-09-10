@@ -6,6 +6,7 @@ import {
   CreditCard,
   DollarSign,
   Bitcoin,
+  Globe,
   Activity,
   type LucideIcon,
 } from "lucide-react";
@@ -25,6 +26,8 @@ import {
 } from "@/components/finance/ui-kit";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { PaymentMethodsPanel } from "@/components/finance/PaymentMethodsPanel";
+import CardGatewayCredentials from "@/components/finance/CardGatewayCredentials";
 import { formatCompact, formatDateTime, formatPercent } from "@/lib/finance/format";
 
 const GATEWAY_META: Record<string, { code: string; label: string; icon: LucideIcon }> = {
@@ -32,9 +35,14 @@ const GATEWAY_META: Record<string, { code: string; label: string; icon: LucideIc
   gateway_bank: { code: "bank", label: "Bank Transfer", icon: Landmark },
   gateway_payu: { code: "payu", label: "PayU Gateway", icon: CreditCard },
   gateway_stripe: { code: "stripe", label: "Stripe Gateway", icon: CreditCard },
+  gateway_flutterwave: { code: "flutterwave", label: "Flutterwave Gateway", icon: Globe },
+  gateway_paystack: { code: "paystack", label: "Paystack Gateway", icon: Globe },
   gateway_paypal: { code: "paypal", label: "PayPal Gateway", icon: DollarSign },
   gateway_crypto: { code: "crypto", label: "Crypto (Binance/USDT)", icon: Bitcoin },
 };
+
+/** The rails whose card page is hosted by the provider, not by Software Vala. */
+const CARD_GATEWAYS = new Set(["flutterwave", "paystack", "stripe"]);
 
 export default function GatewaySections({ view }: { view: FinanceView }) {
   const meta = GATEWAY_META[view] ?? GATEWAY_META["gateway_upi"]!;
@@ -46,10 +54,10 @@ export default function GatewaySections({ view }: { view: FinanceView }) {
   const txnState = useQuery(transactionsQuery({ gateway: meta.code, limit: 100 }));
   const toggleGateway = useToggleGateway();
 
-  // finance_gateways.status says four of these are active. It is seeded, and
-  // only PayU has an adapter in this codebase. This asks the server what each
-  // gateway can really do so the card cannot claim to be live when no payment
-  // could complete through it.
+  // finance_gateways.status is seeded, and a seeded row says nothing about
+  // whether a payment could complete. This asks the server what each gateway
+  // can really do — is there an adapter, and are there credentials — so the
+  // card cannot claim to be live when nothing could be charged through it.
   const readinessFn = useServerFn(gatewayReadinessFn);
   const readinessState = useQuery({
     queryKey: ["finance", "gateway-readiness"],
@@ -72,12 +80,30 @@ export default function GatewaySections({ view }: { view: FinanceView }) {
   const isEnabled =
     canGoLive && gateway ? gateway.status !== "inactive" && gateway.status !== "disabled" : false;
 
+  // Payment Methods sits with the gateways because it is the same part of the
+  // module: how money reaches Software Vala. The panel is the one Finance
+  // already owns, rendered here rather than copied. The branch comes after
+  // every hook so the hook order never changes between views.
+  if (view === "payment_methods") return <PaymentMethodsPanel />;
+
   return (
     <SectionShell
       title={meta.label}
       description="Live configuration, health and recent transactions for this payment gateway"
       icon={Icon}
     >
+      {/*
+        The credentials panel sits outside the gateway lookup on purpose. A card
+        rail can exist with no finance_gateways row behind it, and if the keys
+        could only be entered from inside that lookup the provider could never
+        be configured at all.
+      */}
+      {CARD_GATEWAYS.has(meta.code) ? (
+        <div className="mb-6">
+          <CardGatewayCredentials code={meta.code} />
+        </div>
+      ) : null}
+
       <QueryState
         isLoading={gatewaysState.isLoading}
         error={gatewaysState.error}

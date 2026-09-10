@@ -259,13 +259,13 @@ function ExportView() {
   async function runExport(dataset: string) {
     setExporting(dataset);
     try {
-      const result = await exportFn({
+      const result = (await exportFn({
         data: {
           dataset: dataset as "transactions" | "expenses" | "invoices" | "daily-metrics",
           ...(from ? { from } : {}),
           ...(to ? { to } : {}),
         },
-      });
+      })) as { rows: Record<string, unknown>[]; truncated: boolean; total: number };
       if (!result.rows.length) {
         toast.info("Nothing to export for that range.");
         return;

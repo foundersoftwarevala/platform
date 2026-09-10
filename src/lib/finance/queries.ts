@@ -378,3 +378,47 @@ export const marketplaceCommissionsQuery = () =>
           .limit(200) as never,
       ),
   });
+
+/**
+ * Payment reconciliation: how each provider event lined up against the books.
+ *
+ * Read from finance_reconciliation_records — the table this platform already
+ * had for exactly this and which nothing was writing to — under the caller's
+ * own session, so row level security decides what a person may see rather than
+ * this query. Anything whose matching_status is not "matched" is an exception,
+ * and it stays on the list until somebody resolves it.
+ *
+ * The generated Supabase types predate these tables, so the client is widened
+ * for this one call rather than the whole app being loosened.
+ */
+export const reconciliationQuery = (only?: "exceptions") =>
+  queryOptions({
+    queryKey: financeKeys.entity("reconciliation", only ?? "all"),
+    queryFn: () => {
+      const client = supabase as unknown as {
+        from: (table: string) => {
+          select: (columns: string) => {
+            order: (
+              column: string,
+              options: { ascending: boolean },
+            ) => {
+              limit: (count: number) => PromiseLike<{
+                data: Record<string, unknown>[] | null;
+                error: { message: string } | null;
+              }>;
+            };
+          };
+        };
+      };
+      const q = client
+        .from("finance_reconciliation_records")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(300);
+      return unwrap<Record<string, unknown>[]>(q).then((data) =>
+        only === "exceptions"
+          ? data.filter((row) => String(row["matching_status"] ?? "") !== "matched")
+          : data,
+      );
+    },
+  });

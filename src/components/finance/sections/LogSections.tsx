@@ -31,6 +31,7 @@ import { auditLogsQuery, fraudAlertsQuery, transactionsQuery } from "@/lib/finan
 import { useUpdateFraudAlert } from "@/lib/finance/mutations";
 import type { FraudAlert } from "@/lib/finance/types";
 import type { FinanceView } from "@/lib/finance/views";
+import ReconciliationSection from "./ReconciliationSection";
 
 type Props = { view: FinanceView };
 
@@ -96,6 +97,13 @@ export default function LogSections({ view }: Props) {
       : 0;
     return { total: transactions.length + auditLogs.length, suspicious, failed, activeFraud, securityScore: Math.max(0, 100 - avgRisk) };
   }, [transactions, auditLogs, fraudAlerts]);
+
+  // Reconciliation belongs with the logs because it is the same question asked
+  // of money rather than of activity: what did the provider say, and did our
+  // books agree. It is rendered here rather than given a group of its own, so
+  // the existing navigation is unchanged. The branch comes after every hook so
+  // the hook order never changes between views.
+  if (view === "log_reconciliation") return <ReconciliationSection />;
 
   function exportTransactions() {
     if (filteredTransactions.length === 0) {

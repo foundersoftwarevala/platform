@@ -107,3 +107,21 @@ export const commissionSchema = z.object({
   status: z.enum(["pending", "approved", "paid", "reversed"]),
   actor,
 });
+
+/**
+ * Credentials for a hosted card gateway.
+ *
+ * Every field is optional because an operator often rotates one key without
+ * retyping the others, and an omitted field leaves what is stored alone. An
+ * empty string is how a key is deliberately cleared. Nothing here is ever read
+ * back out to a browser.
+ */
+export const cardGatewayCredentialsSchema = z.object({
+  code: z.enum(["flutterwave", "paystack", "stripe"]),
+  secretKey: z.string().max(500).optional(),
+  publicKey: z.string().max(500).optional(),
+  webhookSecret: z.string().max(500).optional(),
+  apiBaseUrl: z.string().max(300).optional(),
+  appBaseUrl: z.string().max(300).optional(),
+  enabled: z.boolean().optional(),
+});

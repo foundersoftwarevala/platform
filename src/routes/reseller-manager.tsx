@@ -6,7 +6,6 @@ import { PageShell } from "@/components/creator/PageShell";
 import { ManagerWorkspace } from "@/components/manager-suite/ManagerWorkspace";
 import { resellerGroups, resellerPrimary } from "@/components/reseller/navigation";
 import { resellerRegistry } from "@/components/reseller/sectionRegistry";
-import { moduleAnalyticsQueryOptions } from "@/lib/creator/analytics.functions";
 
 export const Route = createFileRoute("/reseller-manager")({
   head: () => ({
@@ -26,8 +25,6 @@ export const Route = createFileRoute("/reseller-manager")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(moduleAnalyticsQueryOptions("reseller", "7d")),
   // Billing, payment verification and reseller support — an operator console,
   // not a public page. It used to render in full to anonymous visitors.
   component: () => (

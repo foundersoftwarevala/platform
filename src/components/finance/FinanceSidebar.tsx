@@ -56,7 +56,6 @@ export function useSidebarState() {
 type Item = { id: FinanceView; label: string };
 type Group = { id: string; label: string; icon: LucideIcon; items: Item[] };
 
-
 export const FINANCE_GROUPS: Group[] = [
   {
     id: "overview",
@@ -105,8 +104,11 @@ export const FINANCE_GROUPS: Group[] = [
       { id: "gateway_bank", label: "Bank Transfer" },
       { id: "gateway_payu", label: "PayU / Razorpay" },
       { id: "gateway_stripe", label: "Stripe" },
+      { id: "gateway_flutterwave", label: "Flutterwave" },
+      { id: "gateway_paystack", label: "Paystack" },
       { id: "gateway_paypal", label: "PayPal" },
       { id: "gateway_crypto", label: "Crypto (optional)" },
+      { id: "payment_methods", label: "Payment Methods" },
     ],
   },
   {
@@ -220,6 +222,7 @@ export const FINANCE_GROUPS: Group[] = [
     icon: ShieldCheck,
     items: [
       { id: "log_transactions", label: "Transaction Logs" },
+      { id: "log_reconciliation", label: "Payment Reconciliation" },
       { id: "log_activity", label: "Activity Logs" },
       { id: "log_masked_view", label: "Masked Data View" },
       { id: "log_fraud_detection", label: "Fraud Detection" },
@@ -266,7 +269,8 @@ export function FinanceSidebar({
   // Keep the group containing the active view expanded, even when the view
   // changes programmatically (e.g. from the header search).
   useEffect(() => {
-    if (activeGroup) setOpen((prev) => (prev.includes(activeGroup) ? prev : [...prev, activeGroup]));
+    if (activeGroup)
+      setOpen((prev) => (prev.includes(activeGroup) ? prev : [...prev, activeGroup]));
   }, [activeGroup]);
 
   const toggle = (id: string) =>
@@ -300,7 +304,10 @@ export function FinanceSidebar({
         )}
       >
         {active && (
-          <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full bg-primary" aria-hidden="true" />
+          <span
+            className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full bg-primary"
+            aria-hidden="true"
+          />
         )}
         {!collapsed && <span className="truncate">{item.label}</span>}
         {collapsed && <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />}
@@ -413,7 +420,10 @@ export function FinanceSidebar({
                 </span>
                 <ChevronDown
                   aria-hidden="true"
-                  className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200", isOpen && "rotate-180")}
+                  className={cn(
+                    "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+                    isOpen && "rotate-180",
+                  )}
                 />
               </button>
               {isOpen ? (
@@ -446,4 +456,3 @@ export function FinanceSidebar({
     </div>
   );
 }
-
