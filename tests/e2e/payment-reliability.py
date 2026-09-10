@@ -411,7 +411,7 @@ def test_liveness_and_readiness(base: str) -> None:
     endpoint most easily gives away: version strings, hostnames, project ids,
     file paths, or the name of whatever just failed.
     """
-    status, _, text = call("GET", f"{base}/health")
+    status, text, _ = call(base, "/health")
     if status != 200:
         record("liveness answers", FAIL, f"HTTP {status}")
     else:
@@ -424,7 +424,7 @@ def test_liveness_and_readiness(base: str) -> None:
     else:
         record("liveness reveals no infrastructure", PASS, text.strip()[:80])
 
-    status, _, text = call("GET", f"{base}/ready")
+    status, text, _ = call(base, "/ready")
     if status == 200:
         record("readiness answers", PASS, "HTTP 200 — dependencies reachable")
     elif status == 503:
