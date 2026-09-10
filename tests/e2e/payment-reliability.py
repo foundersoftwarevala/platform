@@ -451,8 +451,7 @@ def main() -> int:
     print("Liveness and readiness")
     test_liveness_and_readiness(args.base)
 
-    print("
-Access")
+    print("\nAccess")
     test_internal_endpoints_refuse_strangers(args.base)
     test_initiate_requires_sign_in(args.base)
 
