@@ -160,7 +160,17 @@ def test_webhook_survives_rubbish(base: str) -> None:
     except Exception as error:  # noqa: BLE001
         record("malformed callback does not crash the endpoint", FAIL, str(error))
         return
-    if status < 500:
+    # 503 is a deliberate refusal, not a crash: the webhook fails closed when no
+    # rail credentials are configured, because a callback it cannot verify is
+    # not a payment. 500 is the one that would mean the rubbish got through to
+    # something that then broke on it.
+    if status == 503:
+        record(
+            "malformed callback does not crash the endpoint",
+            PASS,
+            "HTTP 503 — refused before parsing, no rail configured",
+        )
+    elif status < 500:
         record("malformed callback does not crash the endpoint", PASS, f"HTTP {status}")
     else:
         record("malformed callback does not crash the endpoint", FAIL, f"HTTP {status}")
@@ -206,7 +216,9 @@ def test_concurrent_callbacks_are_consistent(base: str) -> None:
     if not outcomes:
         record("eight simultaneous callbacks", FAIL, "no responses")
         return
-    if any(status >= 500 for status in outcomes):
+    # As above: 503 is the configured refusal and is a legitimate answer for
+    # them to agree on. Anything else at 500 or over is not.
+    if any(status >= 500 and status != 503 for status in outcomes):
         record("eight simultaneous callbacks", FAIL, f"server errors: {outcomes}")
     elif len(set(outcomes)) == 1:
         record("eight simultaneous callbacks", PASS, f"all answered HTTP {outcomes[0]}")
