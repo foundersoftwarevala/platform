@@ -9,6 +9,32 @@ import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { toast } from "sonner";
 
+/**
+ * The page's own "Category Not Found" card, for the route's notFoundComponent.
+ *
+ * The route now answers a real 404 for a slug the catalogue says has no public
+ * category, and renders this instead of the page - the same card the page draws
+ * when it has no category, so a visitor sees exactly what they saw before.
+ */
+export function CategoryNotFound({ slug }: { slug: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-slate-900 to-slate-950">
+      <Card className="max-w-md mx-auto border-red-500/30 bg-red-500/5 p-6">
+        <h2 className="text-lg font-semibold text-red-400 mb-2">Category Not Found</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          The category with slug "{slug}" could not be found.
+        </p>
+        <Link to="/marketplace" className="inline-block">
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Marketplace
+          </Button>
+        </Link>
+      </Card>
+    </div>
+  );
+}
+
 export function CategoryDetail() {
   const { slug } = useParams({ from: "/marketplace/category/$slug" });
   const navigate = useNavigate();
@@ -30,6 +56,10 @@ export function CategoryDetail() {
       return result;
     },
     initialData: seededProducts as never,
+    // The server just loaded these products. With the default staleTime of 0
+    // the seed was stale on arrival and the same lookup ran again right after
+    // hydration. Fresh for a minute when seeded; unchanged when not.
+    ...(seededProducts !== undefined ? { staleTime: 60_000 } : {}),
   });
 
   if (isLoading) {

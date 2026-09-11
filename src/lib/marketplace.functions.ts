@@ -121,7 +121,51 @@ export type PublicProductPageData = {
     canonical_url: string | null;
     schema_json: string | Record<string, unknown> | null;
   } | null;
+  /**
+   * True only when the catalogue answered and there is no public product at
+   * this slug. An outage never sets it, so the page route can answer 404 for a
+   * missing product without ever 404ing a real one the database could not reach.
+   */
+  not_found?: boolean;
 };
+
+/** The category page's answer, with the same "definitely absent" flag. */
+export type PublicCategoryPageData = {
+  category: Category | null;
+  products: PublicProduct[];
+  /** True only when the catalogue answered and no public category has this slug. */
+  not_found?: boolean;
+};
+
+// Product and category pages are the same for every visitor, so each is built
+// once a minute rather than on every request - the pattern the home catalogue
+// already uses. Only a successful public answer is kept: an error, an outage or
+// a missing slug is asked again next time. The size bound stops a crawl of the
+// whole catalogue from holding every page in memory indefinitely.
+const PUBLIC_PAGE_CACHE_MS = 60_000;
+const PUBLIC_PAGE_CACHE_MAX = 5_000;
+type PageCache<T> = Map<string, { at: number; payload: T }>;
+const productPageCache: PageCache<PublicProductPageData> = new Map();
+const categoryPageCache: PageCache<PublicCategoryPageData> = new Map();
+
+function readPageCache<T>(cache: PageCache<T>, key: string): T | null {
+  const hit = cache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at >= PUBLIC_PAGE_CACHE_MS) {
+    cache.delete(key);
+    return null;
+  }
+  return hit.payload;
+}
+
+function writePageCache<T>(cache: PageCache<T>, key: string, payload: T): void {
+  if (!cache.has(key) && cache.size >= PUBLIC_PAGE_CACHE_MAX) {
+    // A Map iterates in insertion order, so the first key is the oldest entry.
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+  cache.set(key, { at: Date.now(), payload });
+}
 
 function resolveSupabaseEnv() {
   const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
@@ -357,7 +401,10 @@ async function loadPublicProductsFromSupabase(sb: any) {
 async function loadPublicProductBySlugFromSupabase(sb: any, slug: string) {
   const marketplaceResult = await sb
     .from("marketplace_products")
-    .select("id, slug, name, industry_label, icon, price_label, price_period, rating, downloads, downloads_label, badge, visible, content_status, publish_at, unpublish_at, category_id, marketplace_categories(name)")
+    // `description` is the product's own copy. The page already draws it under
+    // "About this software", but it was never selected, so the server-rendered
+    // body carried a price and a rating and nothing about the product itself.
+    .select("id, slug, name, description, industry_label, icon, price_label, price_period, rating, downloads, downloads_label, badge, visible, content_status, publish_at, unpublish_at, category_id, marketplace_categories(name)")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -541,8 +588,16 @@ export const getMarketplace = createServerFn({ method: "GET" }).handler(
   },
 );
 
+// This reads the whole catalogue in thousand-row pages plus every demo, and it
+// answered anyone who called it: an anonymous request could trigger a full scan
+// at will. Nothing public calls it - its only caller is the operator-side
+// supplied-demos check - so it now asks for the same signed-in catalogue
+// operator as the Manager functions below. The check runs before the try, so a
+// refusal is never turned into the fallback catalogue.
 export const getPublicProducts = createServerFn({ method: "GET" })
-  .handler(async (): Promise<PublicProduct[]> => {
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<PublicProduct[]> => {
+    await requireCatalogOperator(context);
     try {
       const sb = publicClient();
       const { rows } = await loadPublicProductsFromSupabase(sb);
@@ -576,6 +631,8 @@ export const getPublicProducts = createServerFn({ method: "GET" })
 export const getPublicProduct = createServerFn({ method: "GET" })
   .validator((v) => z.object({ slug: z.string().min(1) }).parse(v ?? {}))
   .handler(async ({ data }): Promise<PublicProductPageData> => {
+    const cachedPage = readPageCache(productPageCache, data.slug);
+    if (cachedPage) return cachedPage;
     try {
       const sb = publicClient();
       const { row: productRow, source } = await loadPublicProductBySlugFromSupabase(sb, data.slug);
@@ -584,8 +641,10 @@ export const getPublicProduct = createServerFn({ method: "GET" })
         // The catalogue answered: this slug is either not a product or not a
         // public one. Serving the hardcoded supplied copy here is how draft
         // products such as blinkit-clone kept rendering at their own URL.
+        // `not_found` tells the page route it may answer 404; the outage path
+        // below never sets it.
         if (source !== "unavailable") {
-          return { product: null, active_demos: [], seo: null };
+          return { product: null, active_demos: [], seo: null, not_found: true };
         }
         const fallbackProduct = buildSuppliedCatalogFallback().find((product) => product.slug === data.slug);
         if (fallbackProduct) {
@@ -605,15 +664,20 @@ export const getPublicProduct = createServerFn({ method: "GET" })
         }),
       );
 
-      return {
+      const page: PublicProductPageData = {
         product: {
           ...mapProductRecord(productRow),
+          // Only this page carries the description; the listings that share
+          // mapProductRecord do not draw it and stay the size they were.
+          description: (productRow as { description?: string | null }).description ?? null,
           demo_count: activeDemos.length,
           demo_urls: activeDemos,
         },
         active_demos: activeDemos,
         seo: await loadPublicSeoForProduct(sb, productRow.id),
       };
+      writePageCache(productPageCache, data.slug, page);
+      return page;
     } catch (err) {
       console.error("getPublicProduct error:", err);
       const fallbackProduct = buildSuppliedCatalogFallback().find((product) => product.slug === data.slug);
@@ -674,7 +738,9 @@ export const getPublicFeatureStripItems = createServerFn({ method: "GET" })
 
 export const getPublicProductsByCategory = createServerFn({ method: "GET" })
   .validator((v) => z.object({ category_slug: z.string().min(1) }).parse(v ?? {}))
-  .handler(async ({ data }): Promise<{ category: Category | null; products: PublicProduct[] }> => {
+  .handler(async ({ data }): Promise<PublicCategoryPageData> => {
+    const cachedPage = readPageCache(categoryPageCache, data.category_slug);
+    if (cachedPage) return cachedPage;
     try {
       const sb = publicClient();
       
@@ -686,6 +752,11 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
         .eq("is_hidden", false)
         .maybeSingle();
       
+      // The catalogue answered and has no such public category: say so, so the
+      // page route can answer 404. A failed lookup keeps the old answer only.
+      if (!catError && !categoryData) {
+        return { category: null, products: [], not_found: true };
+      }
       if (catError || !categoryData) {
         return { category: null, products: [] };
       }
@@ -695,9 +766,16 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
       // the sitemap and the product page apply. Filtering on `visible` alone
       // put unpublished products on this page whose own link then answered
       // "Product not found": a card that led nowhere.
+      // PostgREST stops at a thousand rows without saying so, so the page asks
+      // for an explicit, bounded range instead (the largest category holds 69
+      // products, well inside it), and `id` breaks sort_order ties so the order
+      // is the same on every request.
       const { data: productRows, error: prodError } = await applyPublicProductFilter(
         sb.from("marketplace_products").select(PRODUCT_COLS).eq("category_id", categoryData.id) as any,
-      ).order("sort_order");
+      )
+        .order("sort_order")
+        .order("id")
+        .range(0, 499);
 
       if (prodError || !productRows) {
         return { category: categoryData as Category, products: [] };
@@ -744,10 +822,12 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
         } as PublicProduct;
       });
       
-      return {
+      const page: PublicCategoryPageData = {
         category: categoryData as Category,
         products: productsWithDemos,
       };
+      writePageCache(categoryPageCache, data.category_slug, page);
+      return page;
     } catch (err) {
       console.error("Failed to fetch category products:", err);
       return { category: null, products: [] };

@@ -52,11 +52,15 @@ export const Route = createFileRoute("/sitemap-categories.xml")({
           }[];
 
           // Which categories actually have something published in them.
+          // Paged by id so no row is skipped or repeated between pages (an
+          // unordered offset is not stable), and read until a short page
+          // rather than stopping at 8,000 - the catalogue is heading for 12,000.
+          // The bound is only a guard against a runaway loop.
           const populated = new Set<string>();
-          for (let offset = 0; offset < 8000; offset += 1000) {
+          for (let offset = 0; offset < 1_000_000; offset += 1000) {
             const productResponse = await fetch(
               `${url()}/rest/v1/marketplace_products?select=category_id` +
-                `${publicProductFilter()}&limit=1000&offset=${offset}`,
+                `${publicProductFilter()}&order=id.asc&limit=1000&offset=${offset}`,
               { headers: admin() },
             );
             if (!productResponse.ok) break;

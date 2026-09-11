@@ -21,6 +21,7 @@ import { Card } from "@/components/ui/card";
 // unnoticed until the page was finally drawn.
 import { useEffect, useState } from "react";
 import { trackMarketplaceEvent } from "@/lib/marketplace/track-client";
+import { absoluteUrl } from "@/lib/seo/site-url";
 
 export function ProductDetail() {
   const { slug } = useParams({ from: "/marketplace/product/$slug" });
@@ -72,6 +73,10 @@ export function ProductDetail() {
       return result;
     },
     initialData: seededProduct as never,
+    // The server just loaded this product. With the default staleTime of 0 the
+    // seed counted as stale on arrival and the query ran the same lookup again
+    // straight after hydration. Fresh for a minute when seeded; unchanged when not.
+    ...(seededProduct !== undefined ? { staleTime: 60_000 } : {}),
   });
 
   // A card's Buy Now arrives here as ?buy=1. Run the page's own Add to cart
@@ -115,10 +120,35 @@ export function ProductDetail() {
   useEffect(() => {
     if (!data?.product) return;
     const seo = data.seo;
+    // The route's head() has already rendered this page's title, description
+    // and canonical on the server. Without a seo_pages record for the product
+    // there is nothing to add, and rewriting them here replaced the product's
+    // own description with a generic line and pointed the canonical at
+    // whichever host the page happened to be opened on.
+    if (!seo) return;
     const title = seo?.meta_title || seo?.title || `${data.product.name} | Software Vala`;
     const description = seo?.meta_description || `Explore ${data.product.name} on Software Vala.`;
-    const canonical = seo?.canonical_url || `${window.location.origin}/marketplace/product/${slug}`;
-    document.title = title;
+    // The canonical is the configured site address, never window.location: a
+    // record's own canonical is kept unless it points at the testing domain
+    // (the rule the server-side resolver applies), and if the address cannot
+    // be worked out here the server-rendered canonical is left as it is.
+    const recordCanonical =
+      seo.canonical_url && /^https?:\/\//i.test(seo.canonical_url) && !seo.canonical_url.includes("softwarewala.net")
+        ? seo.canonical_url
+        : null;
+    let configuredCanonical: string | null = null;
+    try {
+      configuredCanonical = absoluteUrl(`/marketplace/product/${slug}`);
+    } catch {
+      configuredCanonical = null;
+    }
+    const canonical = recordCanonical || configuredCanonical;
+    // Only what the record actually says is applied. A record that sets, say,
+    // just a canonical must not swap the server's product title and
+    // description for the generic fallbacks above.
+    const hasTitle = Boolean(seo.meta_title || seo.title);
+    const hasDescription = Boolean(seo.meta_description);
+    if (hasTitle) document.title = title;
     const setMeta = (selector: string, attribute: string, value: string) => {
       let element = document.head.querySelector(selector) as HTMLMetaElement | null;
       if (!element) {
@@ -128,16 +158,16 @@ export function ProductDetail() {
       }
       element.content = value;
     };
-    setMeta('meta[name="description"]', "name", description);
-    setMeta('meta[property="og:title"]', "property", title);
-    setMeta('meta[property="og:description"]', "property", description);
+    if (hasDescription) setMeta('meta[name="description"]', "name", description);
+    if (hasTitle) setMeta('meta[property="og:title"]', "property", title);
+    if (hasDescription) setMeta('meta[property="og:description"]', "property", description);
     let link = document.head.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
-    if (!link) {
+    if (canonical && !link) {
       link = document.createElement("link");
       link.rel = "canonical";
       document.head.appendChild(link);
     }
-    link.href = canonical;
+    if (canonical && link) link.href = canonical;
     if (seo?.schema_json) {
       let script = document.head.querySelector('script[data-product-schema="true"]') as HTMLScriptElement | null;
       if (!script) {
@@ -320,6 +350,32 @@ export function ProductDetail() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The page's own "Product Not Found" card, for the route's notFoundComponent.
+ *
+ * The route now answers a real 404 for a slug the catalogue says has no public
+ * product, and renders this instead of the page. It is the same card the page
+ * draws when it has no product, so a visitor sees exactly what they saw before.
+ */
+export function ProductNotFound({ slug }: { slug: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950">
+      <Card className="max-w-md mx-auto border-red-500/30 bg-red-500/5 p-6">
+        <h2 className="text-lg font-semibold text-red-400 mb-2">Product Not Found</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          The product with slug "{slug}" could not be found.
+        </p>
+        <Link to="/marketplace" className="inline-block">
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Marketplace
+          </Button>
+        </Link>
+      </Card>
     </div>
   );
 }

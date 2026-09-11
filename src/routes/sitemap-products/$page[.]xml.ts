@@ -56,10 +56,12 @@ export const Route = createFileRoute("/sitemap-products/$page.xml")({
         const offset = (page - 1) * PAGE_SIZE;
 
         try {
+          // `id` settles products that share a sort order and a name, so the
+          // same product never lands on two pages or on none.
           const response = await fetch(
             `${url()}/rest/v1/marketplace_products?select=slug,updated_at` +
               `${publicProductFilter()}` +
-              `&order=sort_order.asc,name.asc&limit=${PAGE_SIZE}&offset=${offset}`,
+              `&order=sort_order.asc,name.asc,id.asc&limit=${PAGE_SIZE}&offset=${offset}`,
             { headers: admin() },
           );
           if (!response.ok) return new Response(`${open}\n${close}`, { headers });

@@ -10,6 +10,8 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import socialImage from "@/assets/software-vala-logo-transparent.png";
+import { absoluteUrl } from "@/lib/seo/site-url";
 import { RouteAccessGate } from "@/components/auth/RouteAccessGate";
 import { LanguageProvider } from "@/lib/language-catalog";
 import { useRealtimeAuth } from "@/integrations/supabase/realtime-auth";
@@ -81,6 +83,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+// The bundler hands back the built asset's path ("/assets/…png"); a share card
+// needs it absolute, on the configured site address. An already-absolute URL is
+// kept as it is.
+function socialImageUrl(): string {
+  return /^(https?:|data:)/i.test(socialImage) ? socialImage : absoluteUrl(socialImage);
+}
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
@@ -94,6 +103,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:site_name", content: "Software Vala™" },
+      // No page carried a share image, so a link pasted into WhatsApp, X or
+      // LinkedIn showed a bare text card. This is the brand logo the app already
+      // ships (1024x1024), on the configured site address. Any page that sets
+      // its own og:image overrides it.
+      { property: "og:image", content: socialImageUrl() },
+      { property: "og:image:width", content: "1024" },
+      { property: "og:image:height", content: "1024" },
+      { property: "og:image:alt", content: "Software Vala™ — The Name of Trust" },
+      { name: "twitter:image", content: socialImageUrl() },
     ],
     links: [
       {

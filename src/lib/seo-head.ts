@@ -1,3 +1,5 @@
+import { absoluteUrl } from "@/lib/seo/site-url";
+
 /** Shared head() builder so every SEO Manager route ships unique metadata. */
 export function seoHead(path: string, title: string, description: string) {
   const full = `${title} · Software Vala SEO Manager`;
@@ -20,7 +22,7 @@ export function seoHead(path: string, title: string, description: string) {
  * page name, so a browser tab that is too narrow to show all of it still shows
  * the part that tells you which page you are on.
  */
-export function pageHead(title: string, description: string) {
+export function pageHead(title: string, description: string, path?: string) {
   const full = `${title} \u2014 Software Vala\u2122`;
   return () => ({
     meta: [
@@ -31,5 +33,9 @@ export function pageHead(title: string, description: string) {
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
+    // A page that names its own path also gets a canonical on the configured
+    // site address. Optional, so every existing caller - and any layout route,
+    // whose children set their own canonical - keeps exactly the head it had.
+    ...(path ? { links: [{ rel: "canonical", href: absoluteUrl(path) }] } : {}),
   });
 }

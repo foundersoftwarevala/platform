@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound, useParams } from "@tanstack/react-router";
 import { siteUrl } from "@/lib/seo/site-url";
-import { ProductDetail } from "@/components/marketplace-home/ProductDetail";
+import { ProductDetail, ProductNotFound } from "@/components/marketplace-home/ProductDetail";
 import { resolveSeoOverride } from "@/lib/seo/page-overrides";
 import { getProductSeo } from "@/lib/seo/category-seo";
 import { getPublicProduct } from "@/lib/marketplace.functions";
@@ -46,8 +46,16 @@ function readCountry(keywords: string[]): string | undefined {
   return marker ? marker.slice("country:".length) : undefined;
 }
 
+function ProductNotFoundPage() {
+  const { slug } = useParams({ from: "/marketplace/product/$slug" });
+  return <ProductNotFound slug={slug} />;
+}
+
 export const Route = createFileRoute("/marketplace/product/$slug")({
   component: ProductDetail,
+  // The same "Product Not Found" card the page has always drawn, now rendered
+  // for a real 404 instead of inside a 200.
+  notFoundComponent: ProductNotFoundPage,
 
   loader: async ({ params }): Promise<Loaded> => {
     // The product and its SEO are unrelated lookups, so one failing must not
@@ -58,6 +66,13 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
     ]);
     const product =
       productResult.status === "fulfilled" ? productResult.value : null;
+    // Every unknown or non-public slug used to answer 200 - a soft 404 a
+    // search engine keeps crawling. The catalogue has to have answered "no such
+    // public product" for this to fire: a lookup that failed or could not reach
+    // the database leaves `not_found` unset and the page renders as before.
+    if (product?.not_found) {
+      throw notFound();
+    }
     try {
       const seo = seoResult.status === "fulfilled" ? seoResult.value : null;
       if (!seo) return { product };
@@ -91,7 +106,17 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
     }
   },
 
-  head: ({ loaderData }) => {
+  head: ({ loaderData, match }) => {
+    // The loader answered 404: there is no loader data, so without this the
+    // generic product copy below would be sent, indexable, for a missing page.
+    if (match.status === "notFound") {
+      return {
+        meta: [
+          { title: "Product not found — Software Vala" },
+          { name: "robots", content: "noindex, follow" },
+        ],
+      };
+    }
     const data = (loaderData ?? {}) as Loaded;
     // No public product behind this URL - an unknown slug, or one that is
     // hidden, a draft or outside its schedule. The page says "not found", so the

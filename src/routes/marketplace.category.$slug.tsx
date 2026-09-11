@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound, useParams } from "@tanstack/react-router";
 import { siteUrl } from "@/lib/seo/site-url";
-import { CategoryDetail } from "@/components/marketplace-home/CategoryDetail";
+import { CategoryDetail, CategoryNotFound } from "@/components/marketplace-home/CategoryDetail";
 import { getPublicProductsByCategory } from "@/lib/marketplace.functions";
 import { getCategorySeo, type CategorySeo } from "@/lib/seo/category-seo";
 
@@ -30,8 +30,16 @@ function countryPhrase(countries: string[]): string {
   return rest > 0 ? `${lead} and ${rest} more countries` : lead;
 }
 
+function CategoryNotFoundPage() {
+  const { slug } = useParams({ from: "/marketplace/category/$slug" });
+  return <CategoryNotFound slug={slug} />;
+}
+
 export const Route = createFileRoute("/marketplace/category/$slug")({
   component: CategoryDetail,
+  // The same "Category Not Found" card the page has always drawn, now rendered
+  // for a real 404 instead of inside a 200.
+  notFoundComponent: CategoryNotFoundPage,
 
   /**
    * The SEO and the products are separate lookups, so one failing must not cost
@@ -46,13 +54,30 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
     if (seo.status === "rejected") {
       console.error("[category head] could not load", params.slug, seo.reason);
     }
+    // A mistyped or hidden category used to answer 200. Only a catalogue that
+    // answered "no such public category" sets `not_found`; a lookup that failed
+    // leaves it unset and the page renders exactly as before.
+    if (products.status === "fulfilled" && products.value?.not_found) {
+      throw notFound();
+    }
     return {
       seo: seo.status === "fulfilled" ? seo.value : null,
       products: products.status === "fulfilled" ? products.value : null,
     };
   },
 
-  head: ({ loaderData, params }) => {
+  head: ({ loaderData, params, match }) => {
+    // The loader answered 404 and left no loader data; keep the page out of
+    // the index rather than falling through to the generic, indexable copy.
+    if (match.status === "notFound") {
+      return {
+        meta: [
+          { title: "Category not found — Software Vala" },
+          { name: "description", content: GENERIC.description },
+          { name: "robots", content: "noindex, follow" },
+        ],
+      };
+    }
     const data = (loaderData as { seo?: CategorySeo | null } | null)?.seo ?? null;
     const listing = (loaderData as {
       products?: { category?: unknown; products?: { slug?: string; name?: string }[] } | null;
