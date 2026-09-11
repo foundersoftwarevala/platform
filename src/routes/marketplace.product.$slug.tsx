@@ -70,7 +70,10 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
     // search engine keeps crawling. The catalogue has to have answered "no such
     // public product" for this to fire: a lookup that failed or could not reach
     // the database leaves `not_found` unset and the page renders as before.
-    if (product?.not_found) {
+    // Typed explicitly: the server function's inferred return type collapses
+    // to {} because PublicProduct carries `features?: unknown`, which the
+    // serialiser's types cannot prove serialisable.
+    if ((product as { not_found?: boolean } | null)?.not_found) {
       throw notFound();
     }
     try {

@@ -57,7 +57,12 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
     // A mistyped or hidden category used to answer 200. Only a catalogue that
     // answered "no such public category" sets `not_found`; a lookup that failed
     // leaves it unset and the page renders exactly as before.
-    if (products.status === "fulfilled" && products.value?.not_found) {
+    // Typed explicitly for the same reason as the product route: the server
+    // function's inferred return type collapses to {}.
+    if (
+      products.status === "fulfilled" &&
+      (products.value as { not_found?: boolean } | null)?.not_found
+    ) {
       throw notFound();
     }
     return {
