@@ -82,11 +82,17 @@ export function CanonicalLogin({ redirectTo }: Props) {
       navigate({ to: "/", replace: true });
       return;
     }
-    const { error: claimError } = await supabase.rpc("claim_influencer_profile");
-    if (claimError) {
-      toast.error(claimError.message);
-      navigate({ to: "/", replace: true });
-      return;
+    // Linking an influencer profile to the account is a side step, not a gate.
+    // The function does not exist in the live database, so this call failed for
+    // every sign-in without a redirect: the visitor saw the database's error in
+    // a toast and was sent to the home page, whatever their role - no one ever
+    // reached their own workspace. A failure here is recorded and the visitor
+    // carries on to the destination their role gives them.
+    try {
+      const { error: claimError } = await supabase.rpc("claim_influencer_profile");
+      if (claimError) console.warn("[login] influencer profile claim skipped:", claimError.message);
+    } catch (claimFailure) {
+      console.warn("[login] influencer profile claim skipped:", claimFailure);
     }
     const { data: roleRows } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).order("role", { ascending: true });
     const destination = ROLE_DESTINATIONS[String(roleRows?.[0]?.role ?? "").toLowerCase()];

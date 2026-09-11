@@ -9,6 +9,7 @@ import {
 } from "@/lib/commerce/settlement";
 import { requestAddress, takeRateSlot } from "@/lib/commerce/payment-guard";
 import { correlationId, log, since, withCorrelation } from "@/lib/commerce/observability";
+import { selectTolerant } from "@/lib/commerce/schema-tolerance";
 
 /**
  * What actually happened to a payment.
@@ -238,10 +239,15 @@ export const Route = createFileRoute("/api/payment/status")({
             recovered = await recoverPayment(txnid, viewer, correlation);
           }
 
-          const response = await fetch(
-            `${url()}/rest/v1/marketplace_orders` +
-              `?select=id,order_no,order_number,status,buyer_id,user_id,amount_inr,amount_charged,` +
-              `total,currency_charged,payment_gateway,card_last4,card_brand,payment_verified_at` +
+          // Columns from a migration production may not have are dropped rather
+          // than failing the read; a failed read answered "unknown" to every
+          // buyer, paid or not.
+          const response = await selectTolerant(
+            "marketplace_orders",
+            "id,order_no,order_number,status,buyer_id,user_id,amount_inr,amount_charged," +
+              "total,currency_charged,payment_gateway,card_last4,card_brand,payment_verified_at",
+            (select) =>
+              `${url()}/rest/v1/marketplace_orders?select=${select}` +
               `&txnid=eq.${encodeURIComponent(txnid)}&limit=1`,
             { headers: admin() },
           );

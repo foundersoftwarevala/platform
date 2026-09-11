@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { aiComplete } from "@/lib/ai-gateway.server";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { operatorRefusal } from "@/lib/auth/operator-check";
 
 type SeoInput = {
   topic: string;
@@ -50,9 +52,15 @@ function fallback(input: SeoInput): SeoOutput {
 }
 
 export const generateSeo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => d as SeoInput)
-  .handler(async ({ data }): Promise<SeoOutput> => {
-        if (!key) return fallback(data);
+  .handler(async ({ data, context }): Promise<SeoOutput> => {
+    // The guard here read an undeclared `key`, so Generate threw on every call.
+    // An operator is checked instead; with no AI provider configured the
+    // gateway throws and the catch below returns the template result.
+    const refusal = await operatorRefusal(context);
+    if (refusal) throw new Error(refusal);
+    if (typeof data?.topic !== "string") return fallback({ topic: "" });
 
     const sys = `You are an SEO specialist for a global software marketplace.
 Return STRICT JSON only, no markdown. Schema:

@@ -46,9 +46,24 @@ function terms(query: string): string[] {
         .toLowerCase()
         .replace(/[^a-z0-9\s+#.-]/g, " ")
         .split(/\s+/)
-        .filter((w) => w.length > 2 && !STOPWORDS.has(w)),
+        // Two-letter terms are kept: "ai", "hr", "hms", "crm" are exactly how
+        // people search this catalogue, and dropping them turned a search for
+        // "ai" into the default featured list. They are matched as whole words
+        // below, so "ai" does not match "maintenance".
+        .filter((w) => w.length >= 2 && !STOPWORDS.has(w)),
     ),
   ).slice(0, 6);
+}
+
+/** A two-letter term, matched only as a whole word. */
+function isShort(word: string) {
+  return word.length <= 2;
+}
+
+function containsWord(text: string, word: string) {
+  if (!isShort(word)) return text.includes(word);
+  const escaped = word.replace(/[.+#-]/g, (ch) => `\\${ch}`);
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`).test(text);
 }
 
 function escapeForFilter(value: string) {
@@ -70,10 +85,10 @@ function score(product: ProductRow, words: string[]) {
   let points = 0;
   const matched: string[] = [];
   for (const word of words) {
-    if (name.includes(word)) {
+    if (containsWord(name, word)) {
       points += 3;
       matched.push(word);
-    } else if (haystack.includes(word)) {
+    } else if (containsWord(haystack, word)) {
       points += 1;
       matched.push(word);
     }
@@ -216,7 +231,9 @@ export const Route = createFileRoute("/api/marketplace/search")({
           // ---- match a described requirement ---------------------------------
           const words = terms(query);
           if (!words.length) {
-            const response = await fetch(`${base}&is_featured=eq.true&limit=${limit}`, { headers: admin() });
+            const response = await fetch(`${base}${categoryFilter}&is_featured=eq.true&limit=${limit}`, {
+              headers: admin(),
+            });
             const rows = response.ok ? ((await response.json()) as ProductRow[]) : [];
             return Response.json({ products: await withPricing(url, rows), terms: [] });
           }
@@ -224,12 +241,25 @@ export const Route = createFileRoute("/api/marketplace/search")({
           const or = words
             .map((w) => {
               const safe = escapeForFilter(w);
+              if (isShort(safe)) {
+                // Whole word only: at the start, in the middle or at the end.
+                return [
+                  `name.ilike.${safe} *`, `name.ilike.* ${safe} *`, `name.ilike.* ${safe}`, `name.ilike.${safe}`,
+                  `industry_label.ilike.${safe} *`, `industry_label.ilike.* ${safe} *`, `industry_label.ilike.* ${safe}`,
+                  `search_text.ilike.* ${safe} *`,
+                ].join(",");
+              }
               return `name.ilike.*${safe}*,industry_label.ilike.*${safe}*,search_text.ilike.*${safe}*`;
             })
             .join(",");
 
+          // The category narrows a text search too; it was applied only to the
+          // popular list, so "school" in Education returned products from other
+          // categories. The candidates are also read in a fixed order, so the
+          // two hundred that get ranked are the same two hundred every time.
           const response = await fetch(
-            `${base}&or=(${encodeURIComponent(or)})&limit=200`,
+            `${base}${categoryFilter}&or=(${encodeURIComponent(or)})` +
+              `&order=is_best_seller.desc,is_featured.desc,sort_order.asc&limit=200`,
             { headers: admin() },
           );
           if (!response.ok) {

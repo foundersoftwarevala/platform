@@ -1,5 +1,45 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
+import { ticketFromRequest } from "@/lib/demo/ticket";
+
+/**
+ * This older address used to serve a demo to anyone who asked for it: no
+ * sign-in, no pass, straight from a hardcoded list. That undid the demo gate
+ * for every product on the list, including ones that are not published, since
+ * the canonical proxy (/api/proxy/demo/$) and the /demo/$slug page are the only
+ * places the visitor is actually checked.
+ *
+ * The address stays, so an old link still lands somewhere sensible, but it now
+ * hands everyone to the gate: a visitor without a pass for this product goes to
+ * /demo/<slug>, where they sign in; a visitor who already holds a pass is sent
+ * to the canonical proxy, which reads the demo from the catalogue and scopes
+ * the pass cookie to itself.
+ */
+function throughTheGate(request: Request, slug: string, path: string): Response | null {
+  const pass = ticketFromRequest(request);
+  if (!pass || pass.slug !== slug) {
+    const wantsPage = (request.headers.get("accept") ?? "").includes("text/html");
+    if (!wantsPage) {
+      return new Response(
+        JSON.stringify({ error: "Sign in to open this demo.", reason: "sign_in_required" }),
+        { status: 401, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } },
+      );
+    }
+    return new Response(null, {
+      status: 302,
+      headers: { Location: `/demo/${encodeURIComponent(slug)}`, "Cache-Control": "no-store" },
+    });
+  }
+  const t = new URL(request.url).searchParams.get("t");
+  const safePath = path.startsWith("/") ? path : `/${path}`;
+  const target =
+    `/api/proxy/demo/${encodeURIComponent(slug)}${safePath}` +
+    (t ? `${safePath.includes("?") ? "&" : "?"}t=${encodeURIComponent(t)}` : "");
+  return new Response(null, {
+    status: 302,
+    headers: { Location: target, "Cache-Control": "no-store" },
+  });
+}
 
 /**
  * Demo proxy API - simpler endpoint using query parameters
@@ -55,7 +95,10 @@ export const Route = createFileRoute('/proxy/demo/')({
               headers: { 'Content-Type': 'application/json' },
             });
           }
-          
+
+          const gated = throughTheGate(request, slug, path);
+          if (gated) return gated;
+
           const demo = SUPPLIED_DEMOS_16.find(d => d.slug === slug);
           if (!demo) {
             console.log(`[demo-proxy-api] Demo not found: ${slug}`);

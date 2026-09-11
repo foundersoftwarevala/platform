@@ -18,7 +18,19 @@
  * refused rather than left open: a misconfigured server must fail closed.
  */
 
-const OPERATOR_ROLES = new Set(["boss", "admin", "super_admin", "owner", "developer"]);
+// founder and boss_owner are owner-class roles: RequireRole lets them into the
+// Marketplace Manager and mm_is_operator accepts them for every database
+// function, but this list refused them, so every live table and every
+// API-backed section answered them 401. They are recognised here as well.
+const OPERATOR_ROLES = new Set([
+  "boss",
+  "admin",
+  "super_admin",
+  "owner",
+  "developer",
+  "founder",
+  "boss_owner",
+]);
 
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;

@@ -267,3 +267,48 @@ export const saveCardGatewayCredentialsFn = createServerFn({ method: "POST" })
       actor: operator.email ?? operator.id,
     } as never);
   });
+
+/** The four rails a person settles, as Finance Manager configures them. */
+export const manualRailSettingsFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { manualRailSettings, requireFinanceOperator } = await import("./finance.server");
+  await requireFinanceOperator();
+  return manualRailSettings();
+});
+
+const manualRailSchema = z.object({
+  code: z.enum(["wise", "upi", "bank_transfer", "binance"]),
+  enabled: z.boolean().optional(),
+  payLink: z.string().max(500).optional(),
+  instructions: z.string().max(1000).optional(),
+  accountName: z.string().max(120).optional(),
+  bankName: z.string().max(120).optional(),
+  accountLast4: z.string().max(8).optional(),
+});
+
+/** Switch a manual rail on or off and give it its pay link and instructions. */
+export const saveManualRailSettingsFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => manualRailSchema.parse(d))
+  .handler(async ({ data }) => {
+    const { saveManualRailSettings, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return saveManualRailSettings({ ...data, actor: operator.email ?? operator.id });
+  });
+
+const confirmManualSchema = z.object({
+  reference: z.string().min(1).max(80),
+  transactionId: z.string().min(1).max(200),
+  amount: z.number().positive().optional(),
+});
+
+/** Finance records that a manual payment arrived; the order is settled once. */
+export const confirmManualPaymentFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => confirmManualSchema.parse(d))
+  .handler(async ({ data }) => {
+    const { confirmManualPayment, requireFinanceOperator } = await import("./finance.server");
+    const operator = await requireFinanceOperator();
+    return confirmManualPayment({
+      ...data,
+      actor: operator.email ?? operator.id,
+      actorRole: operator.role,
+    });
+  });

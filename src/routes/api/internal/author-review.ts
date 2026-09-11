@@ -22,16 +22,32 @@ const QUEUE_FIELDS =
   "id,name,slug,description,demo_url,thumbnail_url,price_label,category_id,subcategory," +
   "seller_id,content_status,moderation_status,visible,created_at,updated_at,approved_at,approved_by";
 
-/** What a decision means for the two status columns and for visibility. */
-const EFFECTS: Record<string, { content: string; visible?: boolean; approved?: boolean }> = {
-  under_review: { content: "in_review" },
-  changes_requested: { content: "changes_requested" },
-  approved: { content: "approved", approved: true },
-  published: { content: "published", visible: true, approved: true },
-  rejected: { content: "rejected", visible: false },
-  suspended: { content: "suspended", visible: false },
-  archived: { content: "archived", visible: false },
+/**
+ * What a decision means for the two status columns and for visibility.
+ *
+ * `moderation` is what is written to moderation_status, whose check constraint
+ * (moderation_schema.sql) has no "published": writing the decision name there
+ * made every Publish fail with 502. A published product is moderation-approved
+ * and content-published - the pair every public read already checks.
+ */
+const EFFECTS: Record<
+  string,
+  { moderation: string; content: string; visible?: boolean; approved?: boolean }
+> = {
+  under_review: { moderation: "under_review", content: "in_review" },
+  changes_requested: { moderation: "changes_requested", content: "changes_requested" },
+  approved: { moderation: "approved", content: "approved", approved: true },
+  published: { moderation: "approved", content: "published", visible: true, approved: true },
+  rejected: { moderation: "rejected", content: "rejected", visible: false },
+  suspended: { moderation: "suspended", content: "suspended", visible: false },
+  archived: { moderation: "archived", content: "archived", visible: false },
 };
+
+/** Where a product stands in the review flow, from the two columns together. */
+function reviewState(moderation: string, content: string): string {
+  if (moderation === "approved" && content === "published") return "published";
+  return moderation || "draft";
+}
 
 export const Route = createFileRoute("/api/internal/author-review")({
   server: {
@@ -42,9 +58,13 @@ export const Route = createFileRoute("/api/internal/author-review")({
 
         const url = new URL(request.url);
         const state = url.searchParams.get("status");
+        // An approved submission waits here until it is published; it used to
+        // drop out of the queue the moment it was approved, leaving the Publish
+        // step with nothing to act on.
         const filter = state
           ? `moderation_status=eq.${encodeURIComponent(state)}`
-          : `moderation_status=in.(submitted,under_review,changes_requested)`;
+          : `or=(moderation_status.in.(submitted,under_review,changes_requested),` +
+            `and(moderation_status.eq.approved,content_status.neq.published))`;
 
         const response = await rest(
           `marketplace_products?select=${QUEUE_FIELDS}&${filter}` +
@@ -100,10 +120,10 @@ export const Route = createFileRoute("/api/internal/author-review")({
         }
 
         const currentResponse = await rest(
-          `marketplace_products?select=id,seller_id,moderation_status,name&id=eq.${encodeURIComponent(productId)}&limit=1`,
+          `marketplace_products?select=id,seller_id,moderation_status,content_status,name&id=eq.${encodeURIComponent(productId)}&limit=1`,
         );
         const current = ((await currentResponse.json()) as
-          { seller_id: string | null; moderation_status: string; name: string }[])[0];
+          { seller_id: string | null; moderation_status: string; content_status: string | null; name: string }[])[0];
         if (!current) return Response.json({ error: "No such product" }, { status: 404 });
         if (!current.seller_id) {
           return Response.json(
@@ -112,7 +132,10 @@ export const Route = createFileRoute("/api/internal/author-review")({
           );
         }
 
-        const from = String(current.moderation_status ?? "draft");
+        const from = reviewState(
+          String(current.moderation_status ?? "draft"),
+          String(current.content_status ?? ""),
+        );
         const allowed = REVIEW_TRANSITIONS[from] ?? [];
         if (!allowed.includes(decision)) {
           return Response.json(
@@ -123,7 +146,7 @@ export const Route = createFileRoute("/api/internal/author-review")({
 
         const effect = EFFECTS[decision];
         const patch: Record<string, unknown> = {
-          moderation_status: decision,
+          moderation_status: effect.moderation,
           content_status: effect.content,
           updated_at: new Date().toISOString(),
         };

@@ -171,7 +171,8 @@ export const getPublicDemoAvailability = createServerFn({ method: "GET" }).handl
       .from("product_demo_urls")
       .select("product_id, marketplace_products!inner(slug, visible)")
       .eq("status", "active")
-      .eq("marketplace_products.visible", true);
+      .eq("marketplace_products.visible", true)
+      .eq("marketplace_products.content_status", "published");
     if (error) throw error;
 
     return {
@@ -218,7 +219,10 @@ function buildSuppliedCatalogFallback(): PublicProduct[] {
       role_name: "Public",
       status: "active",
       environment: "production",
-      url: demo.demoUrl,
+      // This copy reaches browsers when the catalogue cannot be read, and the
+      // live address never travels to a browser (see withoutAddress). The demo
+      // is opened through the gate, which resolves the address on the server.
+      url: "",
     }],
   }));
 }
@@ -482,12 +486,21 @@ export const getMarketplace = createServerFn({ method: "GET" }).handler(
   async (): Promise<Marketplace> => {
     try {
       const sb = publicClient();
+      // Public payload: only products the public may see. These flag queries
+      // had no publish check and handed unpublished products to anyone who
+      // called this function.
+      const flagged = (flag: string) =>
+        (applyPublicProductFilter(
+          (sb.from("marketplace_products").select(PRODUCT_COLS) as any).eq(flag, true),
+        ) as any)
+          .order("sort_order")
+          .limit(24);
       const [featured, trending, best, fresh, ai, cats, vends, sections] = await Promise.all([
-        sb.from("marketplace_products").select(PRODUCT_COLS).eq("is_featured", true).order("sort_order").limit(24),
-        sb.from("marketplace_products").select(PRODUCT_COLS).eq("is_trending", true).order("sort_order").limit(24),
-        sb.from("marketplace_products").select(PRODUCT_COLS).eq("is_best_seller", true).order("sort_order").limit(24),
-        sb.from("marketplace_products").select(PRODUCT_COLS).eq("is_new_release", true).order("sort_order").limit(24),
-        sb.from("marketplace_products").select(PRODUCT_COLS).eq("is_ai", true).order("sort_order").limit(24),
+        flagged("is_featured"),
+        flagged("is_trending"),
+        flagged("is_best_seller"),
+        flagged("is_new_release"),
+        flagged("is_ai"),
         sb.from("marketplace_categories").select("id, slug, name, icon, image_key, tone, sort_order").order("sort_order"),
         sb.from("marketplace_vendors").select("id, slug, name, country, verified, rating, product_count").order("rating", { ascending: false }).limit(24),
         sb.from("marketplace_homepage_sections").select("key, title, enabled, sort_order").order("sort_order"),
@@ -677,48 +690,59 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
         return { category: null, products: [] };
       }
       
-      // Get products in this category
-      const { data: productRows, error: prodError } = await sb
-        .from("marketplace_products")
-        .select(PRODUCT_COLS)
-        .eq("category_id", categoryData.id)
-        .eq("visible", true)
-        .order("sort_order");
-      
+      // Get products in this category. Only what the public may see - visible,
+      // published and inside its schedule - the same rule the homepage, search,
+      // the sitemap and the product page apply. Filtering on `visible` alone
+      // put unpublished products on this page whose own link then answered
+      // "Product not found": a card that led nowhere.
+      const { data: productRows, error: prodError } = await applyPublicProductFilter(
+        sb.from("marketplace_products").select(PRODUCT_COLS).eq("category_id", categoryData.id) as any,
+      ).order("sort_order");
+
       if (prodError || !productRows) {
         return { category: categoryData as Category, products: [] };
       }
-      
-      // Education & Coaching is the public live-demo catalog. Include visible
-      // products with active demos even when older rows use a child category.
-      let catalogRows = productRows;
+
+      // Education & Coaching is the public live-demo catalog. Include public
+      // products with an active demo even when older rows use a child category.
+      // This used to load every visible product in the catalogue - a thousand
+      // rows, 3 MB and close to a minute - to find the dozen that have a demo.
+      // The demo table names them directly.
+      let catalogRows: any[] = productRows;
       if (categoryData.slug === "education-coaching") {
-        const { data: liveRows, error: liveError } = await sb
-          .from("marketplace_products")
-          .select(PRODUCT_COLS)
-          .eq("visible", true)
-          .order("sort_order");
-        if (!liveError && Array.isArray(liveRows)) catalogRows = liveRows;
+        const { data: demoRows } = await sb
+          .from("product_demo_urls")
+          .select("product_id")
+          .eq("status", "active")
+          .limit(1000);
+        const demoProductIds = Array.from(
+          new Set(((demoRows ?? []) as { product_id: string | null }[]).map((r) => r.product_id).filter(Boolean)),
+        ) as string[];
+        const known = new Set(productRows.map((row: any) => row.id));
+        const missing = demoProductIds.filter((id) => !known.has(id));
+        if (missing.length) {
+          const { data: liveRows, error: liveError } = await applyPublicProductFilter(
+            sb.from("marketplace_products").select(PRODUCT_COLS).in("id", missing.slice(0, 200)) as any,
+          ).order("sort_order");
+          if (!liveError && Array.isArray(liveRows)) catalogRows = [...productRows, ...liveRows];
+        }
       }
 
-      // Enrich products with demo URLs
-      const productsWithDemos = await Promise.all(
-        catalogRows.map(async (product: any) => {
-          const activeDemos = withoutAddress(
-            (await loadPublicDemosForProduct(sb, product.id)).filter((demo) => {
-              if (!demo.url) return false;
-              return /^https?:\/\//i.test(demo.url);
-            }),
-          );
-          
-          const mapped = mapProductRecord(product);
-          return {
-            ...mapped,
-            demo_count: activeDemos.length,
-            demo_urls: activeDemos,
-          } as PublicProduct;
-        }),
+      // Enrich products with their demos, in one query for the whole page
+      // rather than one per product.
+      const demosByProduct = await loadPublicDemosForProducts(
+        sb,
+        catalogRows.map((product: any) => product.id),
       );
+      const productsWithDemos = catalogRows.map((product: any) => {
+        const activeDemos = withoutAddress(demosByProduct.get(product.id) ?? []);
+        const mapped = mapProductRecord(product);
+        return {
+          ...mapped,
+          demo_count: activeDemos.length,
+          demo_urls: activeDemos,
+        } as PublicProduct;
+      });
       
       return {
         category: categoryData as Category,
@@ -731,6 +755,23 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
   });
 
 // ---------- Admin CRUD ----------
+
+/**
+ * Every write and admin read below runs as the signed-in caller, and used to
+ * check nothing more than that a caller was signed in - any buyer's session
+ * could call them, and the only thing standing between a buyer and the live
+ * catalogue was whatever the table policies happened to allow. The operator
+ * check the rest of the Marketplace Manager uses (mm_is_operator, evaluated
+ * with the caller's own token) now runs first, on the server.
+ */
+async function requireCatalogOperator(context: any): Promise<void> {
+  const sb = context?.supabase;
+  if (!sb) throw new Error("Unauthorized: sign in required.");
+  const { data, error } = await sb.rpc("mm_is_operator");
+  if (error) throw new Error(`Unauthorized: ${error.message}`);
+  if (data !== true) throw new Error("Forbidden: Marketplace operator access required.");
+}
+
 const productSchema = z.object({
   id: z.string().uuid().optional(),
   slug: z.string().min(1),
@@ -762,6 +803,7 @@ export const upsertProduct = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    await requireCatalogOperator(context);
 
     const { error, data: row } = await context.supabase
       .from("marketplace_products")
@@ -779,6 +821,7 @@ export const deleteProduct = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    await requireCatalogOperator(context);
 
     const { error } = await context.supabase.from("marketplace_products").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -792,6 +835,7 @@ export const listProductsAdmin = createServerFn({ method: "GET" })
       if (!context?.supabase) {
         throw new Error("Unauthorized: Supabase context is unavailable.");
       }
+      await requireCatalogOperator(context);
 
       const { data, error } = await context.supabase
         .from("marketplace_products")
@@ -819,6 +863,7 @@ export const listProductDemoBindings = createServerFn({ method: "GET" })
       if (!context?.supabase) {
         throw new Error("Unauthorized: Supabase context is unavailable.");
       }
+      await requireCatalogOperator(context);
 
       let query = context.supabase
         .from("product_demo_urls")
@@ -865,6 +910,7 @@ export const upsertCategory = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    await requireCatalogOperator(context);
 
     const { error, data: row } = await context.supabase
       .from("marketplace_categories")
@@ -882,6 +928,7 @@ export const deleteCategory = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    await requireCatalogOperator(context);
 
     const { error } = await context.supabase.from("marketplace_categories").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -894,6 +941,7 @@ export const listCategoriesAdmin = createServerFn({ method: "GET" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    await requireCatalogOperator(context);
 
     const { data, error } = await context.supabase
       .from("marketplace_categories")
@@ -911,6 +959,7 @@ export const setSectionEnabled = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    await requireCatalogOperator(context);
 
     // Through the function rather than the table. It refuses out loud when the
     // caller may not write - a filtered update reports zero rows, not an error,
@@ -932,6 +981,7 @@ export const reorderSections = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    await requireCatalogOperator(context);
 
     // One statement rather than one update per section, so a failure partway
     // through cannot leave the page in an order nobody chose. Unknown or
@@ -950,6 +1000,7 @@ export const listSectionsAdmin = createServerFn({ method: "GET" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    await requireCatalogOperator(context);
 
     const { data, error } = await context.supabase
       .from("marketplace_homepage_sections")
@@ -977,6 +1028,7 @@ export const addProductDemo = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    await requireCatalogOperator(context);
 
     const { data: result, error } = await context.supabase
       .from("product_demo_urls")
@@ -1013,6 +1065,7 @@ export const updateProductDemo = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    await requireCatalogOperator(context);
 
     const { id, ...updates } = data;
     const { data: result, error } = await context.supabase
@@ -1035,6 +1088,7 @@ export const deleteProductDemo = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    await requireCatalogOperator(context);
 
     const { error } = await context.supabase
       .from("product_demo_urls")
@@ -1060,10 +1114,9 @@ export const searchProducts = createServerFn({ method: "POST" })
     try {
       const sb = publicClient();
       const searchTerm = `%${data.query}%`;
-      const { data: results, error } = await sb
-        .from("marketplace_products")
-        .select(PRODUCT_COLS)
-        .eq("visible", true)
+      const { data: results, error } = await (applyPublicProductFilter(
+        sb.from("marketplace_products").select(PRODUCT_COLS) as any,
+      ) as any)
         .or(`name.ilike.${searchTerm},industry_label.ilike.${searchTerm}`)
         .limit(data.limit);
       if (error) {
@@ -1085,10 +1138,9 @@ export const filterByBadge = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       const sb = publicClient();
-      const { data: results, error } = await sb
-        .from("marketplace_products")
-        .select(PRODUCT_COLS)
-        .eq("visible", true)
+      const { data: results, error } = await (applyPublicProductFilter(
+        sb.from("marketplace_products").select(PRODUCT_COLS) as any,
+      ) as any)
         .eq("badge", data.badge)
         .limit(data.limit);
       if (error) {
@@ -1109,10 +1161,9 @@ export const sortByRating = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       const sb = publicClient();
-      const { data: results, error } = await sb
-        .from("marketplace_products")
-        .select(PRODUCT_COLS)
-        .eq("visible", true)
+      const { data: results, error } = await (applyPublicProductFilter(
+        sb.from("marketplace_products").select(PRODUCT_COLS) as any,
+      ) as any)
         .order("rating", { ascending: false })
         .limit(data.limit);
       if (error) {
@@ -1133,10 +1184,9 @@ export const sortByDownloads = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       const sb = publicClient();
-      const { data: results, error } = await sb
-        .from("marketplace_products")
-        .select(PRODUCT_COLS)
-        .eq("visible", true)
+      const { data: results, error } = await (applyPublicProductFilter(
+        sb.from("marketplace_products").select(PRODUCT_COLS) as any,
+      ) as any)
         .order("downloads", { ascending: false })
         .limit(data.limit);
       if (error) {
@@ -1150,9 +1200,15 @@ export const sortByDownloads = createServerFn({ method: "POST" })
     }
   });
 
+// Demo Manager's list. It returns the live demo addresses - the one thing the
+// rest of the storefront keeps on the server - so it had to stop answering
+// anyone who called it: with no sign-in it fell back to the service key and
+// handed every address, draft products' included, to an anonymous caller.
 export const listProductDemos = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const supabase = context?.supabase ?? publicClient();
+    await requireCatalogOperator(context);
+    const supabase = context.supabase;
     const { data: results, error } = await supabase
       .from("product_demo_urls")
       .select("*")
@@ -1164,9 +1220,13 @@ export const listProductDemos = createServerFn({ method: "GET" })
     return results ?? [];
   });
 
+// Writes into the live catalogue, so only an operator may run it. It used to
+// accept any caller and fall back to the service key.
 export const recoverMarketplaceData = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const supabase = context?.supabase ?? publicClient();
+    await requireCatalogOperator(context);
+    const supabase = context.supabase;
     console.log("[marketplace] Starting marketplace data recovery...");
     
     try {

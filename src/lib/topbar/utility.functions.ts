@@ -227,6 +227,29 @@ const STOP = new Set([
 async function searchCatalogueForChat(terms: string): Promise<
   { name: string; slug: string; price: string | null; industry: string | null }[]
 > {
+  // This runs in the browser, where the build compiles `process.env` to an
+  // empty object - so the lookup below had no address and no key, and the
+  // assistant answered "could not find" to every question. In the browser it
+  // asks the storefront's public search endpoint instead, which applies the
+  // same public-product rule and never returns a demo address.
+  if (typeof window !== "undefined") {
+    if (!terms) return [];
+    try {
+      const response = await fetch(
+        `/api/marketplace/search?q=${encodeURIComponent(terms)}&limit=5`,
+      );
+      if (!response.ok) return [];
+      const data = (await response.json()) as { products?: Record<string, unknown>[] };
+      return (data.products ?? []).map((r) => ({
+        name: String(r.name ?? ""),
+        slug: String(r.slug ?? ""),
+        price: (r.price_label as string) ?? null,
+        industry: (r.industry_label as string) ?? null,
+      }));
+    } catch {
+      return [];
+    }
+  }
   const base = process.env.SUPABASE_URL?.trim();
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ??

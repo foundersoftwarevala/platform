@@ -30,6 +30,7 @@ import {
   type Row,
 } from "@/lib/manager-queries";
 import { cn } from "@/lib/utils";
+import ManualRailsPanel from "@/components/finance/ManualRailsPanel";
 
 /* ------------------------------------------------------------------ *
  * Payment Methods
@@ -328,6 +329,10 @@ export function PaymentMethodsPanel() {
   return (
     <div className="space-y-6">
       <ReceivingDetails rails={rails} />
+
+      {/* The control the notice above points to: enable a rail, give it its
+          link and instructions, and confirm the payments that arrive on it. */}
+      <ManualRailsPanel />
 
       <GlassCard
         title="Saved Payment Methods"

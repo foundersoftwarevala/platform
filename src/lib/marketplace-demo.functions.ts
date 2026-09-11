@@ -4,6 +4,33 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+/**
+ * Demo Manager is run by Marketplace operators and by the developer and support
+ * teams (RouteAccessGate gives /demo-manager to both). Every function here used
+ * to check only that a caller was signed in, so any buyer's session could list
+ * or rewrite demo addresses, leaving it all to the table policies. The role is
+ * now checked on the server first, with the caller's own token.
+ */
+async function requireDemoOperator(context: any): Promise<void> {
+  const sb = context?.supabase;
+  if (!sb) throw new Error("Unauthorized: sign in required.");
+  const { data: isOperator } = await sb.rpc("mm_is_operator");
+  if (isOperator === true) return;
+  const userId = context?.userId;
+  if (userId) {
+    const checks = await Promise.all(
+      ["developer", "support", "owner"].map((role) =>
+        sb.rpc("has_role", { _user_id: userId, _role: role }).then(
+          (r: { data: unknown }) => r.data === true,
+          () => false,
+        ),
+      ),
+    );
+    if (checks.some(Boolean)) return;
+  }
+  throw new Error("Forbidden: Demo Manager access required.");
+}
+
 async function audit(
   context: any,
   action: string,
@@ -110,6 +137,7 @@ function mapDemoUrlRecord(row: any): DemoUrl {
 export const listDemoUrls = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    await requireDemoOperator(context);
     const { data, error } = await (context.supabase as any)
       .from("product_demo_urls")
       .select("*")
@@ -142,6 +170,7 @@ export const listCentralDemosServer = createServerFn({ method: "GET" })
     status: z.enum(["all", "active", "inactive"]).default("all"),
   }).parse(value ?? {}))
   .handler(async ({ data, context }): Promise<CentralDemoPage> => {
+    await requireDemoOperator(context);
     const from = (data.page - 1) * data.pageSize;
     const to = from + data.pageSize - 1;
     const searchTerm = data.search.trim().toLowerCase();
@@ -202,6 +231,7 @@ export const upsertDemoUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((v) => demoSchema.parse(v))
   .handler(async ({ data, context }) => {
+    await requireDemoOperator(context);
     const isUpdate = !!(data as any).id;
     const { error, data: row } = await (context.supabase as any)
       .from("product_demo_urls")
@@ -255,6 +285,7 @@ export const createProductWithDemo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((v) => intakeSchema.parse(v))
   .handler(async ({ data, context }) => {
+    await requireDemoOperator(context);
     const normalizedUrl = new URL(data.demo_url).toString();
     const { data: duplicate } = await (context.supabase as any)
       .from("product_demo_urls")
@@ -316,6 +347,7 @@ export const deleteDemoUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
+    await requireDemoOperator(context);
     const { data: prev } = await (context.supabase as any)
       .from("product_demo_urls").select("demo_name, url").eq("id", data.id).single();
     const { error } = await (context.supabase as any)
@@ -329,6 +361,7 @@ export const duplicateDemoUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
+    await requireDemoOperator(context);
     const { data: src, error: e1 } = await (context.supabase as any)
       .from("product_demo_urls").select("*").eq("id", data.id).single();
     if (e1 || !src) throw new Error(e1?.message ?? "Not found");
@@ -348,6 +381,7 @@ export const toggleDemoUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((v) => z.object({ id: z.string().uuid(), status: z.enum(["active", "inactive"]) }).parse(v))
   .handler(async ({ data, context }) => {
+    await requireDemoOperator(context);
     const { error } = await (context.supabase as any)
       .from("product_demo_urls").update({ status: data.status }).eq("id", data.id);
     if (error) {
@@ -397,6 +431,7 @@ export const testDemoUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
+    await requireDemoOperator(context);
     // NOTE: overrides earlier declaration was replaced above; keep single testDemoUrl block
     const { data: row, error } = await (context.supabase as any)
       .from("product_demo_urls").select("id, url").eq("id", data.id).single();
@@ -422,6 +457,7 @@ export const testDemoUrl = createServerFn({ method: "POST" })
 export const testAllDemoUrls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    await requireDemoOperator(context);
     const { data: rows, error } = await (context.supabase as any)
       .from("product_demo_urls").select("id, url").eq("status", "active");
     if (error) throw new Error(error.message);
@@ -459,6 +495,7 @@ export const listDemoAuditLog = createServerFn({ method: "GET" })
     }).parse(v ?? {}),
   )
   .handler(async ({ data, context }) => {
+    await requireDemoOperator(context);
     let q = (context.supabase as any)
       .from("demo_url_audit_log")
       .select("*")

@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { aiComplete } from "@/lib/ai-gateway.server";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { operatorRefusal } from "@/lib/auth/operator-check";
 
 type GenInput = { topic?: string; count?: number; category?: string };
 type GenOutput = {
@@ -17,8 +19,12 @@ Return STRICT JSON only: {"items":[{"question":"...","answer":"...","category":"
 Answers must be 1-3 sentences, factual, no marketing fluff, no invented metrics.`;
 
 export const generateFaqs = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => (d ?? {}) as GenInput)
-  .handler(async ({ data }): Promise<GenOutput> => {
+  .handler(async ({ data, context }): Promise<GenOutput> => {
+    // Spends the platform's AI credit, so only an operator may call it.
+    const refusal = await operatorRefusal(context);
+    if (refusal) return { items: [], error: refusal };
     // `key` was never defined here, so every call threw a ReferenceError
     // before reaching the model. The gateway resolves and checks the
     // credential itself and throws a described error when there is none,

@@ -20,12 +20,47 @@ Rules:
 - If the Boss asks to open a module (e.g. "open finance"), confirm the action in one line.
 - Never mention which model or provider powers you.`;
 
+/**
+ * This endpoint spends the platform's AI credit and answers any caller, so it
+ * is bounded: a caller gets a fixed number of answers a minute, and a message
+ * is clipped before it reaches the provider. It had no limit at all.
+ */
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX = 20;
+const MAX_MESSAGE_CHARS = 4_000;
+const recent = new Map<string, number[]>();
+
+function overLimit(key: string): boolean {
+  const now = Date.now();
+  const hits = (recent.get(key) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  hits.push(now);
+  recent.set(key, hits);
+  if (recent.size > 5_000) {
+    for (const [k, v] of recent) if (!v.some((t) => now - t < RATE_WINDOW_MS)) recent.delete(k);
+  }
+  return hits.length > RATE_MAX;
+}
+
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as { messages?: ChatMessage[] };
-        const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
+        const caller =
+          request.headers.get("cf-connecting-ip") ??
+          request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+          "unknown";
+        if (overLimit(caller)) {
+          return new Response("Too many requests. Please wait a moment.", { status: 429 });
+        }
+        let body: { messages?: ChatMessage[] };
+        try {
+          body = (await request.json()) as { messages?: ChatMessage[] };
+        } catch {
+          return new Response("Invalid request", { status: 400 });
+        }
+        const messages = (Array.isArray(body.messages) ? body.messages.slice(-20) : [])
+          .filter((m) => m && typeof m.content === "string" && m.role !== "system")
+          .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_MESSAGE_CHARS) }));
         if (messages.length === 0) {
           return new Response("Messages are required", { status: 400 });
         }

@@ -8,6 +8,7 @@ import {
 import { cardAdapter, isCardGateway, resolveCardConfig } from "@/lib/commerce/card-gateways";
 import { resolvePayuConfig, verifyWithPayu } from "@/lib/commerce/payu";
 import { log } from "@/lib/commerce/observability";
+import { selectTolerant } from "@/lib/commerce/schema-tolerance";
 
 /**
  * The consistency engine.
@@ -330,11 +331,24 @@ type SettledOrder = {
  */
 async function sweepSettled(findings: Finding[]): Promise<number> {
   const since = new Date(Date.now() - SETTLED_LOOKBACK_MS).toISOString();
-  const settled = await rows<SettledOrder>(
-    `marketplace_orders?select=id,txnid,order_number,payment_gateway,amount_charged,amount_inr,` +
-      `total,currency_charged,currency&status=eq.paid&txnid=not.is.null` +
-      `&updated_at=gte.${encodeURIComponent(since)}&order=updated_at.desc&limit=${BATCH}`,
-  );
+  // amount_charged may not exist yet in production; drop it rather than let
+  // the sweep read nothing at all.
+  let settled: SettledOrder[] = [];
+  if (url()) {
+    try {
+      const response = await selectTolerant(
+        "marketplace_orders",
+        "id,txnid,order_number,payment_gateway,amount_charged,amount_inr,total,currency_charged,currency",
+        (select) =>
+          `${url()}/rest/v1/marketplace_orders?select=${select}&status=eq.paid&txnid=not.is.null` +
+          `&updated_at=gte.${encodeURIComponent(since)}&order=updated_at.desc&limit=${BATCH}`,
+        { headers: admin() },
+      );
+      settled = response.ok ? ((await response.json()) as SettledOrder[]) : [];
+    } catch {
+      settled = [];
+    }
+  }
 
   for (const order of settled) {
     const reference = order.txnid ?? "";

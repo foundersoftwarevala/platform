@@ -6,6 +6,22 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+/**
+ * This import upserts sixteen products, their categories and their demo
+ * addresses into the live catalogue with the service key - overwriting a
+ * product that shares a slug. It used to run for any caller at all. It now
+ * requires a signed-in Marketplace operator, checked with the caller's own
+ * token through mm_is_operator, before the service key is touched.
+ */
+async function requireOperatorContext(context: any): Promise<void> {
+  const sb = context?.supabase;
+  if (!sb) throw new Error("Unauthorized: sign in required.");
+  const { data, error } = await sb.rpc("mm_is_operator");
+  if (error) throw new Error(`Unauthorized: ${error.message}`);
+  if (data !== true) throw new Error("Forbidden: Marketplace operator access required.");
+}
 
 // ============= EXACT 16 DEMO RECORDS =============
 const DEMO_CATALOG = [
@@ -216,7 +232,9 @@ const CATEGORIES_NEEDED = [
 
 // Use Supabase client from auth context OR service role (for dev/localhost)
 export const importSupplied16Demos = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .handler(async (ctx) => {
+    await requireOperatorContext(ctx.context);
     console.log("[import-16] Starting import of 16 supplied demos...");
 
     try {

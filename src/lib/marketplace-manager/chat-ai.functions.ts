@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { aiComplete } from "@/lib/ai-gateway.server";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { operatorRefusal } from "@/lib/auth/operator-check";
 
 export type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
 
@@ -12,13 +14,20 @@ Be concise (under 8 lines unless asked), use bullet points where useful, and ref
 Never invent metrics, revenue, ratings or downloads. If asked for live data you don't have, say so and suggest opening the relevant manager section.`;
 
 export const chatWithAi = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => d as ChatInput)
-  .handler(async ({ data }): Promise<ChatOutput> => {
-        if (!key) {
-      return {
-        reply: "",
-        error: "AI is not configured. Configure an AI provider in AI API Manager to enable Vala AI Chat.",
-      };
+  .handler(async ({ data, context }): Promise<ChatOutput> => {
+    // This guard read a variable `key` that was never declared, so every call
+    // threw before reaching the model and Vala AI Chat never answered. It also
+    // let any caller spend the platform's AI credit. The caller is now checked
+    // for operator access; whether a provider is configured is the gateway's
+    // question, and its described refusal comes back through the catch below.
+    const refusal = await operatorRefusal(context);
+    if (refusal) {
+      return { reply: "", error: refusal };
+    }
+    if (!Array.isArray(data?.messages)) {
+      return { reply: "", error: "Nothing to answer." };
     }
     try {
       const __ai = await aiComplete({

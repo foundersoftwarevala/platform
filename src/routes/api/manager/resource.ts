@@ -1031,7 +1031,13 @@ export const Route = createFileRoute("/api/manager/resource")({
           return Response.json({ error: `${resource.label} is read only` }, { status: 403 });
         }
         const id = String(body.id ?? "");
-        if (!UUID.test(id)) return Response.json({ error: "A row id is required" }, { status: 400 });
+        // product_moderation_policy is a single-row table whose key is the
+        // boolean `true` (moderation_schema.sql), so the Quality Gate row could
+        // never pass a UUID check and no setting on it could ever be saved.
+        const singletonPolicy = resource.table === "product_moderation_policy" && id === "true";
+        if (!UUID.test(id) && !singletonPolicy) {
+          return Response.json({ error: "A row id is required" }, { status: 400 });
+        }
 
         // Only whitelisted columns survive. Anything else is dropped, not an error,
         // so a UI sending an extra field cannot fail the whole save.

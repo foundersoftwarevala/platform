@@ -20,6 +20,7 @@ import { Card } from "@/components/ui/card";
 // rendered - the marketplace layout swallowed it - so the reference error sat
 // unnoticed until the page was finally drawn.
 import { useEffect, useState } from "react";
+import { trackMarketplaceEvent } from "@/lib/marketplace/track-client";
 
 export function ProductDetail() {
   const { slug } = useParams({ from: "/marketplace/product/$slug" });
@@ -96,11 +97,20 @@ export function ProductDetail() {
       "",
       window.location.pathname + (rest ? `?${rest}` : ""),
     );
+    trackMarketplaceEvent("buy_click", { productId: product.id, surface: "card_buy_now" });
     cartMutation.mutate(product.id);
     // cartMutation is stable for the life of the component; data and the guard
     // are what decide whether this runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, buyStarted]);
+
+  // One product view per product shown. The events feed the homepage activity
+  // feed, "Popular now" and Product Analytics, none of which had a producer.
+  const viewedId = (data as { product?: { id?: string } | null } | undefined)?.product?.id;
+  useEffect(() => {
+    if (!viewedId) return;
+    trackMarketplaceEvent("product_view", { productId: viewedId, surface: "product_page" });
+  }, [viewedId]);
 
   useEffect(() => {
     if (!data?.product) return;
@@ -529,7 +539,16 @@ function ProductActionButtons({
 
         if (a.key === "LIVE_DEMO" && a.href) {
           return (
-            <a key={a.key} href={a.href} target="_blank" rel="noopener noreferrer" className={base}>
+            <a
+              key={a.key}
+              href={a.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={base}
+              onClick={() =>
+                trackMarketplaceEvent("demo_click", { productId: product.id, surface: "product_page" })
+              }
+            >
               <ExternalLink className="h-4 w-4" aria-hidden />
               {a.label}
             </a>
@@ -551,7 +570,14 @@ function ProductActionButtons({
         }
         if (a.key === "ADD_TO_CART" || a.key === "BUY_NOW") {
           return (
-            <button key={a.key} type="button" disabled={adding} onClick={onAddToCart}
+            <button key={a.key} type="button" disabled={adding}
+              onClick={() => {
+                trackMarketplaceEvent(a.key === "BUY_NOW" ? "buy_click" : "add_to_cart", {
+                  productId: product.id,
+                  surface: "product_page",
+                });
+                onAddToCart();
+              }}
               className={`${base} disabled:opacity-50`}>
               <ShoppingCart className="h-4 w-4" aria-hidden />
               {adding ? "Adding..." : a.label}

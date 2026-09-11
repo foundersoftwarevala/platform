@@ -25,6 +25,7 @@ import {
 } from "@/lib/affiliate/core";
 import { mayStartPayment, requestAddress } from "@/lib/commerce/payment-guard";
 import { correlationId, log, since, withCorrelation } from "@/lib/commerce/observability";
+import { writeTolerant } from "@/lib/commerce/schema-tolerance";
 
 /**
  * Start a payment.
@@ -165,11 +166,30 @@ async function attributeReferral(
 }
 
 async function patchOrder(orderId: string, patch: Record<string, unknown>): Promise<void> {
-  await fetch(`${url()}/rest/v1/marketplace_orders?id=eq.${encodeURIComponent(orderId)}`, {
-    method: "PATCH",
-    headers: { ...admin(), Prefer: "return=minimal" },
-    body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
-  });
+  // The patch carries columns the production database may not have yet
+  // (amount_charged, intent_expires_at ...). One missing column used to fail
+  // the whole write in silence - the response was never looked at - so the
+  // txnid, the one thing the provider's callback finds the order by, was never
+  // saved. The write now drops only what the database says is absent, and a
+  // write that still fails is recorded instead of ignored.
+  const response = await writeTolerant(
+    "marketplace_orders",
+    { ...patch, updated_at: new Date().toISOString() },
+    (body) =>
+      fetch(`${url()}/rest/v1/marketplace_orders?id=eq.${encodeURIComponent(orderId)}`, {
+        method: "PATCH",
+        headers: { ...admin(), Prefer: "return=minimal" },
+        body: JSON.stringify(body),
+      }),
+  );
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    await logPaymentEvent(orderId, "order_update_failed", {
+      status: response.status,
+      detail: detail.slice(0, 300),
+      columns: Object.keys(patch),
+    });
+  }
 }
 
 /** A payment intent is good for an hour. After that the customer starts again. */

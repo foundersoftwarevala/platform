@@ -868,6 +868,218 @@ export async function saveCardGatewayCredentials(input: {
   return ok({ code: input.code, enabled: nextEnabled });
 }
 
+/* -------------------------------------------------------------------------- */
+/* Manual rails: Wise, bank transfer, UPI, Binance                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The rails a person settles. Checkout offers one only when it is enabled here
+ * (payment-routing.ts), and hands the customer its pay link and instructions
+ * (initiate.ts) - but nothing in Finance Manager could switch one on or give it
+ * a link. The Payment Methods screen said "not enabled in Finance Manager" with
+ * no control to change that, so checkout had no method to offer at all.
+ */
+export const MANUAL_RAIL_CODES = ["wise", "upi", "bank_transfer", "binance"] as const;
+export type ManualRailCode = (typeof MANUAL_RAIL_CODES)[number];
+
+export type ManualRailSettings = {
+  code: ManualRailCode;
+  displayName: string;
+  enabled: boolean;
+  payLink: string;
+  instructions: string;
+  /** Bank transfer only. Shown to operators; never the account number. */
+  accountName: string;
+  bankName: string;
+  accountLast4: string;
+};
+
+function isManualRail(code: string): code is ManualRailCode {
+  return (MANUAL_RAIL_CODES as readonly string[]).includes(code);
+}
+
+export async function manualRailSettings(): Promise<ManualRailSettings[]> {
+  const data = (await railRest(
+    `finance_payment_rails?select=code,display_name,enabled,configuration_state` +
+      `&code=in.(${MANUAL_RAIL_CODES.join(",")})`,
+  )) as {
+    code: string;
+    display_name: string | null;
+    enabled: boolean | null;
+    configuration_state: Record<string, unknown> | null;
+  }[];
+  return data
+    .filter((row) => isManualRail(row.code))
+    .map((row) => {
+      const state = (row.configuration_state ?? {}) as Record<string, unknown>;
+      const text = (key: string) => String(state[key] ?? "").trim();
+      return {
+        code: row.code as ManualRailCode,
+        displayName: String(row.display_name ?? row.code),
+        enabled: Boolean(row.enabled),
+        payLink: text("pay_link"),
+        instructions: text("instructions"),
+        accountName: text("account_name"),
+        bankName: text("bank_name"),
+        accountLast4: text("account_last4"),
+      };
+    })
+    .sort((a, b) => MANUAL_RAIL_CODES.indexOf(a.code) - MANUAL_RAIL_CODES.indexOf(b.code));
+}
+
+/**
+ * Save a manual rail's settings. The configuration is merged, never replaced,
+ * so anything else stored on the rail - including a `secrets` block - is kept.
+ * Only the last four characters of a bank account are ever stored here: the
+ * masked view is all Finance Manager shows, and support gives the rest.
+ */
+export async function saveManualRailSettings(input: {
+  code: string;
+  enabled?: boolean | undefined;
+  payLink?: string | undefined;
+  instructions?: string | undefined;
+  accountName?: string | undefined;
+  bankName?: string | undefined;
+  accountLast4?: string | undefined;
+  actor: string;
+}) {
+  if (!isManualRail(input.code)) fail("That is not a manual payment rail.");
+
+  const existing = (await railRest(
+    `finance_payment_rails?select=id,enabled,configuration_state` +
+      `&code=eq.${encodeURIComponent(input.code)}&limit=1`,
+  )) as { id: string; enabled: boolean | null; configuration_state: Record<string, unknown> | null }[];
+  const row = existing[0];
+  if (!row) fail("That rail does not exist.");
+
+  const state = { ...((row.configuration_state ?? {}) as Record<string, unknown>) };
+  const changed: string[] = [];
+  const put = (key: string, value: string | undefined, max: number) => {
+    if (value === undefined) return;
+    const clean = value.trim().slice(0, max);
+    if (clean) state[key] = clean;
+    else delete state[key];
+    changed.push(key);
+  };
+
+  if (input.payLink !== undefined) {
+    const link = input.payLink.trim();
+    if (link && !/^https:\/\/[^\s]+$/i.test(link)) fail("The pay link must be a full https:// address.");
+  }
+  if (input.accountLast4 !== undefined) {
+    const last4 = input.accountLast4.replace(/\s/g, "");
+    if (last4 && !/^[0-9A-Za-z]{2,4}$/.test(last4)) {
+      fail("Store only the last four characters of the account, never the full number.");
+    }
+  }
+  put("pay_link", input.payLink, 500);
+  put("instructions", input.instructions, 1000);
+  put("account_name", input.accountName, 120);
+  put("bank_name", input.bankName, 120);
+  put("account_last4", input.accountLast4?.replace(/\s/g, ""), 4);
+
+  // A rail is offered to customers only when they can actually pay on it:
+  // Wise needs its link; the others need a link or written instructions.
+  const nextEnabled = input.enabled ?? Boolean(row.enabled);
+  if (nextEnabled) {
+    const link = String(state["pay_link"] ?? "").trim();
+    const how = String(state["instructions"] ?? "").trim();
+    if (input.code === "wise" && !link) fail("Add the Wise pay link before enabling Wise.");
+    if (input.code !== "wise" && !link && !how) {
+      fail("Add a pay link or payment instructions before enabling this method.");
+    }
+  }
+
+  const written = await railWrite(`finance_payment_rails?id=eq.${encodeURIComponent(row.id)}`, {
+    configuration_state: state,
+    enabled: nextEnabled,
+    updated_at: new Date().toISOString(),
+  });
+  if (!written) fail("The payment method could not be saved.");
+
+  await writeAudit({
+    actor: input.actor,
+    action: "rail.manual_settings",
+    entity: "finance_payment_rails",
+    entity_ref: input.code,
+    severity: "critical",
+    details: { fields: changed, enabled: nextEnabled },
+  });
+  return ok({ code: input.code, enabled: nextEnabled });
+}
+
+/**
+ * Finance confirms that a manual payment arrived.
+ *
+ * The customer paid on Wise, a bank transfer, UPI or Binance using the order's
+ * reference; nothing on the site can see that money arrive, so the order sat
+ * at pending_payment for ever - there was no path by which a manual-rail order
+ * could become paid. An operator who has checked the receiving account now
+ * records the provider's own transaction id against the reference, and the
+ * order is settled through exactly the path a verified gateway payment takes:
+ * the amount is checked against the order, the payment row, licence, ledger and
+ * invoice are written once, and a second confirmation is a replay, not a
+ * second sale.
+ */
+export async function confirmManualPayment(input: {
+  reference: string;
+  transactionId: string;
+  amount?: number | undefined;
+  actor: string;
+  actorRole: string;
+}) {
+  const reference = input.reference.trim();
+  const transactionId = input.transactionId.trim();
+  if (!reference) fail("Enter the order's payment reference.");
+  if (transactionId.length < 4) {
+    fail("Enter the transaction id shown in Wise, the bank statement, UPI or Binance.");
+  }
+
+  const { orderForReference, settleVerifiedPayment } = await import("@/lib/commerce/settlement");
+  const order = await orderForReference(reference);
+  if (!order) fail("No order carries that payment reference.");
+  if (!isManualRail(order.gateway)) {
+    fail("That order was not placed on a manual payment method; its provider confirms it.");
+  }
+  if (order.status === "paid") return ok({ orderId: order.id, orderNumber: order.orderNumber, replay: true });
+  if (!["pending_payment", "pending", "payment_failed"].includes(order.status)) {
+    fail(`That order is ${order.status}; only an order awaiting payment can be confirmed.`);
+  }
+
+  const observed = input.amount ?? order.amountCharged;
+  const result = await settleVerifiedPayment({
+    order,
+    provider: order.gateway,
+    reference,
+    providerPaymentId: transactionId,
+    providerStatus: "manually_verified",
+    observedAmount: Number.isFinite(observed) ? Number(observed) : null,
+    observedCurrency: order.currencyCharged,
+    eventKey: `manual:${reference}`,
+    correlationId: null,
+  });
+
+  await writeAudit({
+    actor: input.actor,
+    actor_role: input.actorRole,
+    action: "payment.manual_confirmed",
+    entity: "marketplace_orders",
+    entity_ref: order.orderNumber,
+    severity: "critical",
+    details: {
+      reference,
+      gateway: order.gateway,
+      transaction_id: transactionId,
+      observed_amount: observed,
+      settled: result.ok,
+      reason: result.ok ? null : result.reason,
+    },
+  });
+
+  if (!result.ok) fail(result.reason);
+  return ok({ orderId: order.id, orderNumber: order.orderNumber, replay: result.replay });
+}
+
 export async function setGatewayEnabled(input: { id: string; enabled: boolean; actor: string }) {
   if (input.enabled) {
     // Enabling a gateway that has no adapter or no credentials would put a

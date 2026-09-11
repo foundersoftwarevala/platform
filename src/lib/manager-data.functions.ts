@@ -213,6 +213,64 @@ const APPEND_ONLY_TABLES = new Set(["audit_logs", "finance_audit_logs", "error_e
 const WALLET_BALANCE_COLUMNS = new Set(["balance", "reserved", "available", "spent"]);
 const WALLET_LEDGER_TABLES = new Set(["wallet_transactions", "finance_wallet_transactions"]);
 
+/**
+ * An order is paid, and a licence exists, only because a provider or a
+ * verified payment said so - never because a console row was edited.
+ *
+ * /api/manager/resource already refuses "paid" (resource.ts), but this generic
+ * layer reaches the same tables with the service key and checked nothing, so
+ * an admin, boss or finance session could mark an order paid, change what it
+ * cost, or mint a licence by hand. Those writes are refused here; everything
+ * else on these tables (notes, a cancellation, a revoke) still writes normally.
+ */
+const ORDER_SETTLEMENT_COLUMNS = new Set([
+  "total",
+  "subtotal",
+  "tax_total",
+  "discount_total",
+  "amount_inr",
+  "amount_usd",
+  "currency_charged",
+  "payu_status",
+  "payu_txn_id",
+  "txnid",
+]);
+const ISSUED_BY_PAYMENT_TABLES = new Set([
+  "licenses",
+  "entitlements",
+  "marketplace_licenses",
+  "finance_payments",
+]);
+
+function refuseSettlementWrite(
+  table: string,
+  values: Record<string, unknown>,
+  op: "insert" | "update",
+): void {
+  if (table === "marketplace_orders") {
+    if (String(values["status"] ?? "").toLowerCase() === "paid") {
+      throw new Error(
+        "An order is marked paid only by a verified payment, not from the console.",
+      );
+    }
+    const touched = Object.keys(values).filter((k) => ORDER_SETTLEMENT_COLUMNS.has(k));
+    if (touched.length) {
+      throw new Error(
+        `An order's amount and payment reference cannot be edited here (${touched.join(", ")}).`,
+      );
+    }
+  }
+  if (ISSUED_BY_PAYMENT_TABLES.has(table)) {
+    if (op === "insert") {
+      throw new Error(`${table} rows are issued by a verified payment, not created from the console.`);
+    }
+    const status = String(values["status"] ?? "").toLowerCase();
+    if (table === "finance_payments" && ["succeeded", "paid", "captured", "settled"].includes(status)) {
+      throw new Error("A payment is settled only by the provider's verified confirmation.");
+    }
+  }
+}
+
 function refuseFinancialWrite(table: string, values: Record<string, unknown>): void {
   if (WALLET_LEDGER_TABLES.has(table)) {
     throw new Error(
@@ -295,6 +353,7 @@ export const updateRecord = createServerFn({ method: "POST" })
       throw new Error(`${data.table} is append-only. Record a correcting entry instead.`);
     }
     refuseFinancialWrite(data.table, data.values);
+    refuseSettlementWrite(data.table, data.values, "update");
     const db = await requireManager();
     const before = await readBefore(db, data.table, data.id);
     const { data: row, error } = await db
@@ -321,6 +380,7 @@ export const insertRecord = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => insertSchema.parse(data))
   .handler(async ({ data }) => {
     refuseFinancialWrite(data.table, data.values);
+    refuseSettlementWrite(data.table, data.values, "insert");
     const db = await requireManager();
     const { data: row, error } = await db
       .from(data.table)

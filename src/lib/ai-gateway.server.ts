@@ -8,6 +8,11 @@ import {
   type PolicyInput,
 } from "./ai-policy.server";
 
+/** Longest a single completion may take before the provider is abandoned. */
+const COMPLETE_TIMEOUT_MS = 60_000;
+/** Longest a streamed answer may run, end to end. */
+const STREAM_TIMEOUT_MS = 180_000;
+
 /**
  * One way in and out of an AI provider.
  *
@@ -310,10 +315,13 @@ export async function aiComplete(options: {
     if (options.json) body.response_format = { type: "json_object" };
   }
 
+  // A provider that stops answering must not hold the request - and the
+  // server's connection - open indefinitely; there was no timeout at all.
   const response = await fetch(target.endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(COMPLETE_TIMEOUT_MS),
   });
   const result = (await response.json().catch(() => ({}))) as Record<string, any>;
   const text = target.isAnthropic
@@ -398,6 +406,7 @@ export async function aiStream(options: {
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(STREAM_TIMEOUT_MS),
   });
 
   void meter(target, options.module, started, upstream.status, upstream.ok);

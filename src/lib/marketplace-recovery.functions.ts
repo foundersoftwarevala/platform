@@ -1,5 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+/**
+ * Only a Marketplace operator may run this: it writes into the live catalogue.
+ * It used to accept any caller at all. The check runs with the caller's own
+ * token, through the same mm_is_operator the rest of the Manager uses.
+ */
+async function requireOperatorContext(context: any): Promise<void> {
+  const sb = context?.supabase;
+  if (!sb) throw new Error("Unauthorized: sign in required.");
+  const { data, error } = await sb.rpc("mm_is_operator");
+  if (error) throw new Error(`Unauthorized: ${error.message}`);
+  if (data !== true) throw new Error("Forbidden: Marketplace operator access required.");
+}
 
 /**
  * Marketplace Data Recovery Function
@@ -10,8 +24,10 @@ import { z } from "zod";
  */
 
 export const recoverMarketplaceData = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((v) => z.object({}).parse(v))
   .handler(async ({ context }) => {
+    await requireOperatorContext(context);
     console.log("[marketplace] Starting marketplace data recovery...");
     
     try {

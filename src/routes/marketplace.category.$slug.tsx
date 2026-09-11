@@ -54,6 +54,25 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
 
   head: ({ loaderData, params }) => {
     const data = (loaderData as { seo?: CategorySeo | null } | null)?.seo ?? null;
+    const listing = (loaderData as {
+      products?: { category?: unknown; products?: { slug?: string; name?: string }[] } | null;
+    } | null)?.products;
+
+    // The catalogue answered and there is no such category (or it is hidden).
+    // This page used to be a 200 with a generic title and nothing telling a
+    // search engine to leave it out - a soft 404 for every mistyped slug. It is
+    // now marked noindex. A catalogue that could not be read at all (listing
+    // null) is not treated as missing.
+    if (listing && !listing.category) {
+      return {
+        meta: [
+          { title: "Category not found — Software Vala" },
+          { name: "description", content: GENERIC.description },
+          { name: "robots", content: "noindex, follow" },
+        ],
+      };
+    }
+
     if (!data) {
       return {
         meta: [{ title: GENERIC.title }, { name: "description", content: GENERIC.description }],
@@ -106,7 +125,28 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
       url: canonical,
       isPartOf: { "@type": "WebSite", name: "Software Vala", url: siteUrl() },
       ...(count > 0
-        ? { mainEntity: { "@type": "ItemList", numberOfItems: count, name: `${data.name} software` } }
+        ? {
+            mainEntity: {
+              "@type": "ItemList",
+              numberOfItems: count,
+              name: `${data.name} software`,
+              // The products on the page, by address, so the list points
+              // somewhere rather than only stating a number.
+              ...(listing?.products?.length
+                ? {
+                    itemListElement: listing.products
+                      .filter((p) => p.slug)
+                      .slice(0, 50)
+                      .map((p, index) => ({
+                        "@type": "ListItem",
+                        position: index + 1,
+                        url: `${siteUrl()}/marketplace/product/${p.slug}`,
+                        name: p.name,
+                      })),
+                  }
+                : {}),
+            },
+          }
         : {}),
     };
 

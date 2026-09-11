@@ -125,9 +125,32 @@ export const Route = createFileRoute("/api/marketplace/lead")({
           return Response.json({ error: "Too many requests. Please wait a moment." }, { status: 429 });
         }
 
+        // The footer's newsletter form is a plain HTML form: it posts
+        // form-encoded data with an email and nothing else. This endpoint read
+        // only JSON and required a name, so every subscription answered 400.
+        // A form post is accepted as a newsletter sign-up (the name is taken
+        // from the address), and the visitor is sent back to the page they
+        // were on rather than left looking at a JSON response.
+        const contentType = request.headers.get("content-type") ?? "";
+        const isFormPost =
+          contentType.includes("application/x-www-form-urlencoded") ||
+          contentType.includes("multipart/form-data");
         let body: Record<string, unknown>;
         try {
-          body = (await request.json()) as Record<string, unknown>;
+          if (isFormPost) {
+            const form = await request.formData();
+            const formEmail = String(form.get("email") ?? "").trim();
+            body = {
+              name: String(form.get("name") ?? "").trim() || formEmail.split("@")[0] || "",
+              email: formEmail,
+              phone: String(form.get("phone") ?? "").trim(),
+              ctaAction: String(form.get("ctaAction") ?? "email_lead"),
+              sourcePage: String(form.get("sourcePage") ?? "footer_newsletter"),
+              requirements: String(form.get("requirements") ?? "Newsletter sign-up"),
+            };
+          } else {
+            body = (await request.json()) as Record<string, unknown>;
+          }
         } catch {
           return Response.json({ error: "Invalid request" }, { status: 400 });
         }
@@ -266,6 +289,21 @@ export const Route = createFileRoute("/api/marketplace/lead")({
             console.error("[lead] saved, but the notifications could not be queued", problem);
           }
 
+          if (isFormPost) {
+            // Back to the same-site page the form was on, marked as done.
+            const back = (() => {
+              try {
+                const referer = new URL(request.headers.get("referer") ?? "");
+                const here = new URL(request.url);
+                if (referer.host !== here.host) return "/";
+                referer.searchParams.set("subscribed", "1");
+                return referer.pathname + referer.search + referer.hash;
+              } catch {
+                return "/";
+              }
+            })();
+            return new Response(null, { status: 303, headers: { Location: back } });
+          }
           return Response.json({ ok: true });
         } catch (error) {
           console.error("[lead] threw", error);

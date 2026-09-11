@@ -129,7 +129,26 @@ export function CategoryDetail() {
                   >
                     <div className="bg-linear-to-r from-cyan-600 to-blue-600 p-4 flex justify-between items-start">
                       <div>
-                        <h3 className="text-lg font-bold text-white">{product.name}</h3>
+                        <h3 className="text-lg font-bold text-white">
+                          {/* A real link, so the product is reachable without
+                              running the card's script - by a search engine,
+                              a middle-click or a screen reader. The card's own
+                              click still does the navigation. */}
+                          <a
+                            href={`/marketplace/product/${product.slug}`}
+                            onClick={(e) => {
+                              // A plain click is left to the card; a modified one
+                              // (new tab, new window) is the browser's.
+                              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+                                e.stopPropagation();
+                                return;
+                              }
+                              e.preventDefault();
+                            }}
+                          >
+                            {product.name}
+                          </a>
+                        </h3>
                         <p className="text-xs text-cyan-100 opacity-75 mt-1">{category.name}</p>
                       </div>
                       <button

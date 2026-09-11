@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { PURCHASES_PAGE_SIZE } from "@/lib/portal/config";
+import { selectTolerant } from "@/lib/commerce/schema-tolerance";
 
 /**
  * What the signed-in customer has bought.
@@ -103,10 +104,15 @@ export const Route = createFileRoute("/api/account/purchases")({
         try {
           // Orders belonging to this customer, under either owner column.
           const owner = encodeURIComponent(user.id);
-          const orderResponse = await fetch(
-            `${url()}/rest/v1/marketplace_orders` +
-              `?select=id,order_no,order_number,status,total,currency,amount_inr,amount_charged,` +
-              `currency_charged,txnid,payment_gateway,created_at,metadata` +
+          // amount_charged comes from a migration production does not have yet.
+          // Naming it failed the whole read, so every signed-in buyer got 502
+          // here; a column the database does not have is now simply not read.
+          const orderResponse = await selectTolerant(
+            "marketplace_orders",
+            "id,order_no,order_number,status,total,currency,amount_inr,amount_charged," +
+              "currency_charged,txnid,payment_gateway,created_at,metadata",
+            (select) =>
+              `${url()}/rest/v1/marketplace_orders?select=${select}` +
               `&or=(buyer_id.eq.${owner},user_id.eq.${owner})` +
               `&order=created_at.desc&limit=${ORDER_LIMIT}`,
             { headers: admin() },
@@ -132,6 +138,44 @@ export const Route = createFileRoute("/api/account/purchases")({
                   status: String(row.status),
                   issued: String(row.issued_at),
                 });
+              }
+            }
+
+            // Licences are issued in two places: settlement writes `licenses`
+            // (read above), and the database trigger that fires when an order
+            // becomes paid writes `marketplace_licenses`, keyed by order line.
+            // Every licence that exists today was issued by the trigger, so a
+            // buyer reading only `licenses` was shown no key at all. Orders the
+            // first read did not answer for are looked up here, still scoped to
+            // this buyer.
+            const unanswered = ids.filter((id) => !licences.has(id));
+            if (unanswered.length) {
+              const itemResponse = await fetch(
+                `${url()}/rest/v1/marketplace_order_items?select=id,order_id` +
+                  `&order_id=in.(${unanswered.join(",")})`,
+                { headers: admin() },
+              );
+              const items = itemResponse.ok
+                ? ((await itemResponse.json()) as { id: string; order_id: string }[])
+                : [];
+              const orderOfItem = new Map(items.map((item) => [String(item.id), String(item.order_id)]));
+              if (orderOfItem.size) {
+                const marketplaceLicenceResponse = await fetch(
+                  `${url()}/rest/v1/marketplace_licenses?select=order_item_id,license_key,status,created_at` +
+                    `&order_item_id=in.(${Array.from(orderOfItem.keys()).join(",")})&buyer_id=eq.${owner}`,
+                  { headers: admin() },
+                );
+                if (marketplaceLicenceResponse.ok) {
+                  for (const row of (await marketplaceLicenceResponse.json()) as Record<string, unknown>[]) {
+                    const orderId = orderOfItem.get(String(row.order_item_id));
+                    if (!orderId || licences.has(orderId)) continue;
+                    licences.set(orderId, {
+                      key: String(row.license_key),
+                      status: String(row.status),
+                      issued: String(row.created_at),
+                    });
+                  }
+                }
               }
             }
           }

@@ -1,4 +1,5 @@
 import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type ReactNode, useMemo } from "react";
+import { trackMarketplaceEvent } from "@/lib/marketplace/track-client";
 import { SiteFooter } from "@/components/marketplace-home/SiteFooter";
 import { FloatingElements } from "@/components/marketplace-home/FloatingElements";
 
@@ -4163,6 +4164,9 @@ function CatalogSearchResults({
           cards: (data.products ?? []).map(searchResultToCard),
           error: null,
         });
+        // What visitors look for, recorded once per term per minute by the
+        // tracker's de-duplication. Search was never captured anywhere.
+        trackMarketplaceEvent("search", { query: q, surface: "homepage_search" });
       } catch (problem) {
         if (controller.signal.aborted) return;
         setState({

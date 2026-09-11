@@ -1,5 +1,6 @@
 import { fulfilOrder, logPaymentEvent } from "@/lib/commerce/fulfilment";
 import { recordLedgerOnce } from "@/lib/finance/finance.server";
+import { writeTolerant } from "@/lib/commerce/schema-tolerance";
 
 /**
  * The one place a verified payment becomes money in the books.
@@ -1005,11 +1006,17 @@ export async function settleVerifiedPayment(input: {
   if (input.last4) patch.card_last4 = String(input.last4).slice(-4);
   if (input.brand) patch.card_brand = String(input.brand).slice(0, 40);
 
-  const updated = await rest(`marketplace_orders?id=eq.${encodeURIComponent(order.id)}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify(patch),
-  });
+  // provider_status, payment_verified_at and the card columns come from a
+  // migration production does not have yet; without them the whole update was
+  // refused and a verified payment ended as settlement_write_failed. Only the
+  // absent columns are dropped - status and gateway are always written.
+  const updated = await writeTolerant("marketplace_orders", patch, (body) =>
+    rest(`marketplace_orders?id=eq.${encodeURIComponent(order.id)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(body),
+    }),
+  );
   if (!updated.ok) {
     await setIntentStatus(reference, "requires_review");
     await logPaymentEvent(

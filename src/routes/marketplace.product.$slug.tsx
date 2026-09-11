@@ -131,6 +131,7 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
       { property: "og:title", content: title },
       { property: "og:description", content: description },
       { property: "og:type", content: "product" },
+      { property: "og:url", content: override?.canonical ?? `${siteUrl()}/marketplace/product/${data.slug}` },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: title },
       { name: "twitter:description", content: description },
@@ -148,6 +149,27 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
     if (override?.noindex) {
       meta.push({ name: "robots", content: "noindex, follow" });
     }
+    // The product's own price, as the storefront shows it, becomes the offer.
+    // Without `offers` a SoftwareApplication is not eligible for rich results.
+    // Only a label that states an amount and a currency is used; "Custom" or
+    // "Contact" yields no offer rather than an invented one.
+    const priceLabel = String(
+      (publicProduct as { price_label?: string | null } | undefined)?.price_label ?? "",
+    );
+    const priceMatch = priceLabel.match(/^\s*([$₹€£])\s?([\d,]+(?:\.\d+)?)\s*$/);
+    const CURRENCY: Record<string, string> = { $: "USD", "₹": "INR", "€": "EUR", "£": "GBP" };
+    const offers = priceMatch
+      ? {
+          offers: {
+            "@type": "Offer",
+            price: priceMatch[2].replace(/,/g, ""),
+            priceCurrency: CURRENCY[priceMatch[1]],
+            availability: "https://schema.org/InStock",
+            url: canonical,
+          },
+        }
+      : {};
+
     const schema = {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
@@ -158,6 +180,7 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
       url: canonical,
       brand: { "@type": "Brand", name: "Software Vala" },
       ...(data.country ? { areaServed: data.country } : {}),
+      ...offers,
     };
 
     return {
