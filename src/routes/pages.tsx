@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { FileText, Search as SearchIcon, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { FileText, Pencil, Search as SearchIcon, Trash2 } from "lucide-react";
+import { authHeaders } from "@/lib/auth/operator-fetch";
 
 import { SeoShell } from "@/components/seo/SeoShell";
 import { DataTable } from "@/components/seo/DataTable";
@@ -28,10 +30,130 @@ export const Route = createFileRoute("/pages")({
   component: PagesScreen,
 });
 
+type PageDraft = {
+  url: string;
+  metaTitle: string;
+  metaDescription: string;
+  canonicalUrl: string;
+  indexStatus: string;
+};
+
+const EMPTY_DRAFT: PageDraft = {
+  url: "",
+  metaTitle: "",
+  metaDescription: "",
+  canonicalUrl: "",
+  indexStatus: "",
+};
+
+/**
+ * Write one page's SEO.
+ *
+ * The product page already reads seo_pages and lets a record there win over
+ * its own defaults, and /api/internal/seo-page already wrote that record and
+ * cleared the page's cache — but no screen called it, so every product's meta
+ * could only be what the product row said. This is that caller.
+ */
+function PageSeoEditor({
+  draft,
+  onChange,
+  onDone,
+}: {
+  draft: PageDraft;
+  onChange: (next: PageDraft) => void;
+  onDone: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const save = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/internal/seo-page", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({
+          url: draft.url.trim(),
+          metaTitle: draft.metaTitle,
+          metaDescription: draft.metaDescription,
+          canonicalUrl: draft.canonicalUrl,
+          ...(draft.indexStatus ? { indexStatus: draft.indexStatus } : {}),
+        }),
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        warnings?: string[];
+      };
+      if (!response.ok) throw new Error(body.error ?? `Could not save (${response.status})`);
+      return body;
+    },
+    onSuccess: (body) => {
+      toast.success(`Saved. ${draft.url.trim()} now serves this title and description.`);
+      for (const warning of body.warnings ?? []) toast.message(warning);
+      queryClient.invalidateQueries({ queryKey: seoQueries.pages().queryKey });
+      onDone();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const set = (key: keyof PageDraft) => (e: { target: { value: string } }) =>
+    onChange({ ...draft, [key]: e.target.value });
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 md:grid-cols-2">
+        <Input value={draft.url} onChange={set("url")} placeholder="/marketplace/product/slug" aria-label="Page path" />
+        <Input
+          value={draft.canonicalUrl}
+          onChange={set("canonicalUrl")}
+          placeholder="Canonical URL (empty = the page's own)"
+          aria-label="Canonical URL"
+        />
+        <Input value={draft.metaTitle} onChange={set("metaTitle")} placeholder="Meta title" aria-label="Meta title" />
+        <select
+          value={draft.indexStatus}
+          onChange={set("indexStatus")}
+          aria-label="Index status"
+          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+        >
+          <option value="">Index status — unchanged</option>
+          <option value="indexed">indexed</option>
+          <option value="pending">pending</option>
+          <option value="crawled_not_indexed">crawled_not_indexed</option>
+          <option value="noindex">noindex (hide from search)</option>
+        </select>
+      </div>
+      <textarea
+        value={draft.metaDescription}
+        onChange={set("metaDescription")}
+        placeholder="Meta description (70–160 characters shows in full)"
+        aria-label="Meta description"
+        rows={3}
+        className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+      />
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-muted-foreground">
+          Title {draft.metaTitle.trim().length}/60 · Description {draft.metaDescription.trim().length}/160
+        </span>
+        <div className="flex gap-2">
+          <Button size="sm" variant="ghost" onClick={onDone}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            disabled={save.isPending || !draft.url.trim().startsWith("/")}
+            onClick={() => save.mutate()}
+          >
+            {save.isPending ? "Saving…" : "Save page SEO"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PagesScreen() {
   const pages = useQuery(seoQueries.pages());
   const { remove } = useRecordActions();
   const [term, setTerm] = useState("");
+  const [draft, setDraft] = useState<PageDraft | null>(null);
 
   const rows = useMemo(() => {
     const list = pages.data ?? [];
@@ -60,6 +182,27 @@ function PagesScreen() {
         <KpiCard label="Missing metadata" value={missingMeta} hint="title or description" />
         <KpiCard label="Indexed" value={`${indexed}/${all.length}`} />
       </div>
+
+      <Panel
+        className="mt-4"
+        title="Edit page SEO"
+        description="Title, description, canonical and index state for any page — a product page picks it up on its next request."
+        actions={
+          draft ? null : (
+            <Button size="sm" variant="outline" onClick={() => setDraft({ ...EMPTY_DRAFT })}>
+              New page record
+            </Button>
+          )
+        }
+      >
+        {draft ? (
+          <PageSeoEditor draft={draft} onChange={setDraft} onDone={() => setDraft(null)} />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Choose the pencil on a page below, or start a new record for a page that is not listed yet.
+          </p>
+        )}
+      </Panel>
 
       <Panel
         className="mt-4"
@@ -133,14 +276,33 @@ function PagesScreen() {
                   key: "actions",
                   header: "",
                   render: (p) => (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Delete ${p.url}`}
-                      onClick={() => remove.mutate({ table: "seo_pages", id: p.id })}
-                    >
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
-                    </Button>
+                    <div className="flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Edit SEO for ${p.url}`}
+                        onClick={() => {
+                          setDraft({
+                            url: p.url,
+                            metaTitle: p.meta_title ?? "",
+                            metaDescription: p.meta_description ?? "",
+                            canonicalUrl: (p as { canonical_url?: string | null }).canonical_url ?? "",
+                            indexStatus: "",
+                          });
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                      >
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete ${p.url}`}
+                        onClick={() => remove.mutate({ table: "seo_pages", id: p.id })}
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
                   ),
                 },
               ]}

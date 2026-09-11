@@ -50,7 +50,10 @@ export const LIVE_SECTIONS: Record<string, { resource: string; columns: string[]
 
   Orders: { resource: "orders", columns: ["order_no", "status", "total", "currency", "txnid", "payment_gateway", "created_at"] },
   Payments: { resource: "payments", columns: ["event_type", "provider", "signature_valid", "order_id", "created_at"] },
-  License: { resource: "licences", columns: ["license_key", "status", "issued_at", "activation_count", "revoked_reason"] },
+  // The licences buyers hold are issued into marketplace_licenses by the
+  // paid-order trigger; `licences` reads the older `licenses` table, which is
+  // empty, so this screen showed nothing while ten licences existed.
+  License: { resource: "marketplace_licences", columns: ["license_key", "status", "license_model", "created_at", "expires_at"] },
   Customers: { resource: "leads", columns: ["name", "email", "phone", "status", "source", "created_at"] },
   Leads: { resource: "leads", columns: ["name", "email", "phone", "status", "source_page", "cta_action", "created_at"] },
 
@@ -61,7 +64,11 @@ export const LIVE_SECTIONS: Record<string, { resource: string; columns: string[]
   // Sections that had no data behind them at all until now. Each one
   // opens with the rows of the table it governs, editable in place where
   // the server allows it, above the screen it already had.
-  "Vendors": { resource: "vendors", columns: ["slug", "name", "country", "verified", "rating", "product_count"] },
+  // Sellers — vendors and authors alike — are marketplace_sellers, which the
+  // seller workflow writes (seller_kind says which). marketplace_vendors is a
+  // legacy table nothing writes and nothing on the storefront reads, so this
+  // screen was always empty. The `vendors` resource is kept for that table.
+  "Vendors": { resource: "authors", columns: ["display_name", "seller_kind", "status", "slug", "payout_currency", "approved_at"] },
   "Authors": { resource: "authors", columns: ["slug", "status", "display_name", "seller_kind", "owner_user_id", "payout_currency"] },
   "Resellers": { resource: "resellers", columns: ["name", "code", "email", "status", "phone", "region"] },
   "Affiliate": { resource: "affiliate", columns: ["status", "display_name", "user_id", "created_at", "updated_at"] },

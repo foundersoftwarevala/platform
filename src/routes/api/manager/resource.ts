@@ -727,6 +727,21 @@ const RESOURCES: Record<string, Resource> = {
     order: "issued_at.desc",
     label: "Licences",
   },
+  /* The licences buyers actually hold. The paid-order trigger issues into
+     marketplace_licenses, one per order line — all ten licences on production
+     live there, and `licenses` above has none — so the License screen, which
+     read `licenses`, was always empty while buyers had keys. Kept beside the
+     older entry rather than replacing it. Status is the one editable field,
+     for revoking; a licence is never created from the console. */
+  marketplace_licences: {
+    table: "marketplace_licenses",
+    select: ["id", "license_key", "order_item_id", "buyer_id", "product_id", "license_model",
+      "status", "expires_at", "created_at"],
+    editable: ["status"],
+    searchable: ["license_key", "status"],
+    order: "created_at.desc",
+    label: "Marketplace licences",
+  },
   payments: {
     table: "payment_logs",
     select: ["id", "order_id", "event_type", "provider", "signature_valid", "payload", "created_at"],

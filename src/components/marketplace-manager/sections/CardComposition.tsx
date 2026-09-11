@@ -77,6 +77,26 @@ function Coverage({ field }: { field: CardField }) {
   );
 }
 
+/**
+ * The keys the storefront card actually checks (HomeIndex.tsx, every
+ * `shows(...)` call). The registry holds 65 fields and all of them save, but
+ * the other 57 have no effect on the card, so an operator switching one off
+ * saw nothing change and reasonably took the control for broken. They are
+ * labelled rather than hidden, and the card's own gates are left as they are:
+ * gating more fields now would immediately change live cards on the protected
+ * homepage.
+ */
+const DRAWN_BY_CARD = new Set([
+  "product-name",
+  "category",
+  "short-description",
+  "price",
+  "rating",
+  "license",
+  "live-demo",
+  "platform-web",
+]);
+
 function ControlToggle({
   field, onToggle, onMove, busy, index, last,
 }: {
@@ -105,6 +125,14 @@ function ControlToggle({
           {field.label}
         </span>
       </button>
+      {!DRAWN_BY_CARD.has(field.key) && (
+        <span
+          className="flex-none text-[9px] font-medium text-amber-600"
+          title="Saved, but the storefront card does not draw this field yet, so switching it changes nothing a visitor sees."
+        >
+          not drawn yet
+        </span>
+      )}
       <Coverage field={field} />
       <div className="flex flex-none">
         <button
