@@ -497,10 +497,13 @@ const RESOURCES: Record<string, Resource> = {
     label: "AI Content",
   },
   analytics: {
-    table: "analytics_events",
-    select: ["id", "user_id", "event_type", "payload", "created_at"],
+    // The storefront's own events. This read analytics_events, which nothing
+    // in the platform writes (0 rows), while every view, demo click, buy click
+    // and search the storefront records lands in marketplace_events.
+    table: "marketplace_events",
+    select: ["id", "event_type", "product_id", "source_page", "surface", "user_id", "session_id", "metadata", "created_at"],
     editable: [],
-    searchable: ["event_type"],
+    searchable: ["event_type", "source_page", "surface"],
     order: "created_at.desc",
     label: "Analytics",
   },

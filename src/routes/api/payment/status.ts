@@ -284,6 +284,31 @@ export const Route = createFileRoute("/api/payment/status")({
               ? ((await licenceResponse.json()) as { license_key: string }[])
               : [];
             if (licences[0]) payload.licence_key = licences[0].license_key;
+
+            // The paid-order trigger issues into marketplace_licenses, keyed by
+            // order line, and every licence that exists today came from it.
+            // Reading `licenses` alone told a buyer who had paid that no key
+            // existed. Still only for the buyer who owns the order.
+            if (!payload.licence_key) {
+              const itemResponse = await fetch(
+                `${url()}/rest/v1/marketplace_order_items?select=id` +
+                  `&order_id=eq.${encodeURIComponent(String(order.id))}&limit=20`,
+                { headers: admin() },
+              );
+              const items = itemResponse.ok ? ((await itemResponse.json()) as { id: string }[]) : [];
+              if (items.length) {
+                const keyResponse = await fetch(
+                  `${url()}/rest/v1/marketplace_licenses?select=license_key` +
+                    `&order_item_id=in.(${items.map((i) => i.id).join(",")})` +
+                    `&buyer_id=eq.${encodeURIComponent(owner)}&limit=1`,
+                  { headers: admin() },
+                );
+                const keys = keyResponse.ok
+                  ? ((await keyResponse.json()) as { license_key: string }[])
+                  : [];
+                if (keys[0]) payload.licence_key = keys[0].license_key;
+              }
+            }
           }
 
           log({

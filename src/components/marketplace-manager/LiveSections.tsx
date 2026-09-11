@@ -89,6 +89,6 @@ export const LIVE_SECTIONS: Record<string, { resource: string; columns: string[]
   "QR System": { resource: "qr_system", columns: ["qr_code", "target_url", "foreground", "background", "size", "error_correction"] },
   "Contact": { resource: "contact", columns: ["name", "email", "company", "category", "phone", "industry"] },
   "AI Content": { resource: "ai_content", columns: ["status", "content_type", "language", "content", "content_json", "ai_original"] },
-  "Analytics": { resource: "analytics", columns: ["event_type", "user_id", "payload", "created_at"] },
+  "Analytics": { resource: "analytics", columns: ["event_type", "source_page", "surface", "metadata", "created_at"] },
   "Quality Gate": { resource: "quality_gate", columns: ["recovery_days", "dual_approval", "auto_purge", "preserve_orders", "preserve_licenses", "preserve_reviews"] },
 };

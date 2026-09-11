@@ -314,16 +314,21 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-lg font-bold">Revenue Center</h3>
-            <span className="text-xs text-muted-foreground">INR · live</span>
+            {/* The figures the control room RPC already returns. This card
+                printed a literal dash under an "INR · live" label while the
+                data sat unused in `d.revenue`. */}
+            <span className="text-xs text-muted-foreground">
+              {d?.revenue?.currency ?? "—"} · {d?.revenue?.has_transactions ? "from paid orders" : "no paid orders yet"}
+            </span>
           </div>
           <div className="space-y-2">
             {[
-              ["Today", "—"],
-              ["This Week", "—"],
-              ["This Month", "—"],
-              ["This Year", "—"],
-              ["Refunds", "—"],
-              ["Net Revenue", "—"],
+              ["Today", money(d?.revenue?.today, d?.revenue?.currency ?? "USD", loading)],
+              ["This Week", money(d?.revenue?.this_week, d?.revenue?.currency ?? "USD", loading)],
+              ["This Month", money(d?.revenue?.this_month, d?.revenue?.currency ?? "USD", loading)],
+              ["This Year", money(d?.revenue?.this_year, d?.revenue?.currency ?? "USD", loading)],
+              ["Refunds", money(d?.revenue?.refunded, d?.revenue?.currency ?? "USD", loading)],
+              ["Net Revenue", money(d?.revenue?.net, d?.revenue?.currency ?? "USD", loading)],
             ].map(([k, v]) => (
               <div key={k} className="flex items-center justify-between rounded-lg bg-surface/40 px-3 py-2">
                 <span className="text-sm text-muted-foreground">{k}</span>
@@ -339,26 +344,30 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-lg font-bold">Activity Feed</h3>
-            <span className="text-xs text-muted-foreground">Real time</span>
+            <span className="text-xs text-muted-foreground">Latest recorded</span>
           </div>
+          {/* The latest real events the control room RPC returns. Seven fixed
+              rows reading "Connecting to live stream…" stood here under a
+              "Real time" label while `d.activity` went unrendered. */}
           <ul className="space-y-3">
-            {[
-              "New Products",
-              "New Vendors",
-              "New Authors",
-              "New Orders",
-              "New Reviews",
-              "New Downloads",
-              "New Approvals",
-            ].map((t) => (
-              <li key={t} className="flex items-start gap-3">
-                <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-accent" />
-                <div className="flex-1">
-                  <div className="text-sm font-medium">{t}</div>
-                  <div className="text-xs text-muted-foreground">Connecting to live stream…</div>
-                </div>
-              </li>
-            ))}
+            {loading ? (
+              <li className="text-xs text-muted-foreground">Loading…</li>
+            ) : (d?.activity ?? []).length === 0 ? (
+              <li className="text-xs text-muted-foreground">Nothing recorded yet.</li>
+            ) : (
+              (d?.activity ?? []).slice(0, 7).map((a, index) => (
+                <li key={`${a.at}-${index}`} className="flex items-start gap-3">
+                  <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-accent" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{a.label}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {a.detail}
+                      {a.at ? ` · ${new Date(a.at).toLocaleString()}` : ""}
+                    </div>
+                  </div>
+                </li>
+              ))
+            )}
           </ul>
         </Card>
       </div>
