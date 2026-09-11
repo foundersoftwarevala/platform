@@ -198,6 +198,13 @@
   justify-content: center;
   gap: 0.25rem 1.5rem;
 }
+/* On a phone the strip wraps to a second line, and the fixed height above let
+   that line spill over the offer banner below it. The height follows the
+   content there instead; the desktop strip is unchanged. */
+@media (max-width: 767px) {
+  .feature-clone,
+  .feature-clone > div { height: auto; }
+}
 .feature-clone .tb-pill {
   height: auto;
   padding: 0;

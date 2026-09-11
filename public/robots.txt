@@ -1,16 +1,12 @@
+# One group for every crawler. The named crawlers used to have groups of their
+# own holding only "Allow: /", and a crawler obeys only its most specific group
+# (RFC 9309), so none of the Disallow lines below applied to Google or Bing.
+# Listing them together keeps them allowed and makes the rules apply to them.
+# The marketplace is public; the operator side is not.
 User-agent: Googlebot
-Allow: /
-
 User-agent: Bingbot
-Allow: /
-
 User-agent: Twitterbot
-Allow: /
-
 User-agent: facebookexternalhit
-Allow: /
-
-# Everything else. The marketplace is public; the operator side is not.
 User-agent: *
 Allow: /
 

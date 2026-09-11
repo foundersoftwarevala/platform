@@ -13,6 +13,7 @@ import { listCourses } from "@/lib/site-content/academy";
 import { listAwards } from "@/lib/site-content/awards";
 import { listStories } from "@/lib/site-content/stories";
 import { useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
+import { sharedFetch } from "@/lib/marketplace-home/shared-fetch";
 
 const sectionTitle = (title: string, href?: string, subtitle?: string) => (
   <div className="mb-5 flex items-end justify-between px-6">
@@ -56,7 +57,7 @@ function useIndustries() {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch("/api/marketplace/rows");
+        const response = await sharedFetch("/api/marketplace/rows");
         if (!response.ok) return;
         const data = (await response.json()) as {
           rows?: {
@@ -168,7 +169,7 @@ function usePublishedProof() {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch("/api/marketplace/proof");
+        const response = await sharedFetch("/api/marketplace/proof");
         const data = await response.json();
         if (!cancelled) {
           setProof({

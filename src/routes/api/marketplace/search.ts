@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { publicProductFilter } from "@/lib/marketplace/public-visibility";
 
 /**
  * Catalogue search for the marketplace tools.
@@ -141,7 +142,7 @@ export const Route = createFileRoute("/api/marketplace/search")({
         const hit = cache.get(cacheKey);
         if (hit && Date.now() - hit.at < CACHE_MS) return Response.json(hit.payload);
 
-        const base = `${url}/rest/v1/marketplace_products?select=${SELECT}&visible=eq.true`;
+        const base = `${url}/rest/v1/marketplace_products?select=${SELECT}${publicProductFilter()}`;
         // PostgREST has no subqueries, so a category slug is resolved to its id.
         let categoryFilter = "";
         if (category) {

@@ -1,15 +1,18 @@
-import { useMemo, useState } from "react";
-import { Eye, EyeOff, HelpCircle, Plus, Sparkles, Trash2, Video } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Archive, Eye, EyeOff, HelpCircle, Plus, Sparkles, Trash2, Video } from "lucide-react";
 import { toast } from "sonner";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  getValaTvManager, saveValaTvVideo, setValaTvStatus,
+  type ManagedVideo, type SaveValaTvInput, type ValaTvCategory,
+} from "@/lib/site-content/vala-tv.functions";
 
 import { useServerFn } from "@/lib/marketplace-manager/localFn";
 import { generateFaqs } from "@/lib/site-content/faq-ai.functions";
 import {
   FAQ_CATEGORIES, faqTable, listFaqs, newFaq, type Faq,
 } from "@/lib/site-content/faq";
-import {
-  VIDEO_CATEGORIES, embedUrl, listVideos, newVideo, videoTable, type ValaVideo,
-} from "@/lib/site-content/videos";
+import { embedUrl } from "@/lib/site-content/videos";
 import { Card, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 
 const input =
@@ -177,22 +180,44 @@ export function FaqManagerSection() {
 }
 
 /* ------------------------------ VALA TV MANAGER ------------------------------ */
+/**
+ * The Vala TV section on the homepage is served from public.vala_tv_videos by
+ * sf_vala_tv(). This screen used to keep its videos in the operator's browser,
+ * so nothing saved here reached the page. It now reads and writes that table
+ * through mm_vala_tv_save / mm_vala_tv_status, which check operator rights and
+ * record every change. Publishing is refused until a video has a title and an
+ * address, and views are counted by the database rather than typed in.
+ */
 export function ValaTvSection() {
-  const [rows, setRows] = useState<ValaVideo[]>(() => listVideos());
+  const qc = useQueryClient();
   const [tab, setTab] = useState("All");
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["vala-tv", "manager"],
+    queryFn: () => getValaTvManager(),
+  });
+  const rows = data?.videos ?? [];
+  const categories = data?.categories ?? [];
+  const refresh = () => qc.invalidateQueries({ queryKey: ["vala-tv"] });
 
-  const refresh = () => setRows(listVideos());
-  const patch = (id: string, p: Partial<ValaVideo>) => {
-    videoTable.patch(id, p);
-    refresh();
-  };
+  const save = useMutation({
+    mutationFn: (patch: SaveValaTvInput) => saveValaTvVideo({ data: patch }),
+    onSuccess: () => refresh(),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const status = useMutation({
+    mutationFn: (v: { id: string; to: ManagedVideo["status"] }) => setValaTvStatus({ data: v }),
+    onSuccess: (_r, v) => {
+      refresh();
+      toast.success(v.to === "published" ? "Published — it is on the homepage now" : `Moved to ${v.to}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
-  const tabs = ["All", ...VIDEO_CATEGORIES];
-  const visible = useMemo(
-    () => (tab === "All" ? rows : rows.filter((r) => r.category === tab)),
-    [rows, tab],
-  );
-  const published = rows.filter((r) => r.published).length;
+  const categoryName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? "";
+  const tabs = ["All", ...categories.map((c) => c.name)];
+  const active = rows.filter((r) => r.status !== "archived");
+  const visible = tab === "All" ? active : active.filter((r) => categoryName(r.category_id) === tab);
+  const published = rows.filter((r) => r.status === "published").length;
 
   return (
     <div className="px-4 py-8 md:px-8">
@@ -203,10 +228,13 @@ export function ValaTvSection() {
         actions={
           <PillButton
             variant="primary"
-            onClick={() => {
-              videoTable.upsert(newVideo());
-              refresh();
-            }}
+            onClick={() =>
+              save.mutate({
+                title: "Untitled video",
+                category_id: categories[0]?.id ?? null,
+                position: (rows.length + 1) * 10,
+              })
+            }
           >
             <span className="inline-flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> Add Video</span>
           </PillButton>
@@ -214,62 +242,110 @@ export function ValaTvSection() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Videos" value={String(rows.length)} icon={<Video className="h-4 w-4" />} />
+        <StatCard label="Videos" value={String(active.length)} icon={<Video className="h-4 w-4" />} />
         <StatCard label="Published" value={String(published)} tone="success" />
-        <StatCard label="Drafts" value={String(rows.length - published)} tone="warning" />
-        <StatCard label="Categories" value={String(VIDEO_CATEGORIES.length)} />
+        <StatCard label="Drafts" value={String(rows.filter((r) => r.status === "draft").length)} tone="warning" />
+        <StatCard label="On the homepage now" value={String(data?.liveNow ?? 0)} />
       </div>
 
       <SubNav items={tabs} active={tab} onChange={setTab} />
 
+      {isLoading && <p className="text-sm text-muted-foreground">Loading videos…</p>}
+      {error && <p className="text-sm text-red-400">{(error as Error).message}</p>}
+      {!isLoading && !error && active.length === 0 && (
+        <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+          No videos yet. The Vala TV section stays off the homepage until one is published.
+        </p>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         {visible.map((v) => (
-          <Card key={v.id}>
-            <div className="mb-3 aspect-video w-full overflow-hidden rounded-xl border border-border bg-background/60">
-              {v.url ? (
-                <iframe src={embedUrl(v.url)} title={v.title || "Video preview"} className="h-full w-full" allowFullScreen />
-              ) : (
-                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                  Paste a YouTube, Vimeo or MP4 URL to preview
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <input className={input + " font-semibold"} placeholder="Video title" value={v.title} onChange={(e) => patch(v.id, { title: e.target.value })} />
-              <input className={input} placeholder="Video URL (YouTube / Vimeo / MP4)" value={v.url} onChange={(e) => patch(v.id, { url: e.target.value })} />
-              <input className={input} placeholder="Thumbnail image URL (optional)" value={v.thumbnail} onChange={(e) => patch(v.id, { thumbnail: e.target.value })} />
-              <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                <input className={input} placeholder="Duration 4:12" value={v.duration} onChange={(e) => patch(v.id, { duration: e.target.value })} />
-                <input className={input} placeholder="Views" value={v.views} onChange={(e) => patch(v.id, { views: e.target.value })} />
-                <select className={input} value={v.category} onChange={(e) => patch(v.id, { category: e.target.value })}>
-                  {VIDEO_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-                <input className={input} type="number" placeholder="Order" value={v.order} onChange={(e) => patch(v.id, { order: Number(e.target.value) || 0 })} />
-              </div>
-              <div className="flex gap-2">
-                <PillButton variant={v.published ? "primary" : "ghost"} onClick={() => patch(v.id, { published: !v.published })}>
-                  <span className="inline-flex items-center gap-1.5">
-                    {v.published ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                    {v.published ? "Live" : "Draft"}
-                  </span>
-                </PillButton>
-                <PillButton
-                  variant="ghost"
-                  onClick={() => {
-                    videoTable.remove(v.id);
-                    refresh();
-                    toast.success("Video removed");
-                  }}
-                >
-                  <span className="inline-flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5" /> Delete</span>
-                </PillButton>
-              </div>
-            </div>
-          </Card>
+          <ValaTvCard
+            key={v.id}
+            video={v}
+            categories={categories}
+            onSave={(patch) => save.mutate({ id: v.id, ...patch })}
+            onStatus={(to) => status.mutate({ id: v.id, to })}
+          />
         ))}
       </div>
     </div>
+  );
+}
+
+type EditableText = "title" | "url" | "thumbnail_url" | "duration";
+
+function ValaTvCard({
+  video,
+  categories,
+  onSave,
+  onStatus,
+}: {
+  video: ManagedVideo;
+  categories: ValaTvCategory[];
+  onSave: (patch: Partial<Pick<ManagedVideo, EditableText | "category_id" | "position">>) => void;
+  onStatus: (to: ManagedVideo["status"]) => void;
+}) {
+  // Typing edits a local copy; leaving a field saves it, so a title is one
+  // write rather than one per keystroke.
+  const [draft, setDraft] = useState(video);
+  useEffect(() => setDraft(video), [video]);
+  const commit = (key: EditableText) => {
+    const next = String(draft[key] ?? "");
+    if (next !== String(video[key] ?? "")) {
+      onSave({ [key]: next || null } as Partial<Pick<ManagedVideo, EditableText>>);
+    }
+  };
+  const live = video.status === "published";
+
+  return (
+    <Card>
+      <div className="mb-3 aspect-video w-full overflow-hidden rounded-xl border border-border bg-background/60">
+        {draft.url ? (
+          <iframe src={embedUrl(draft.url)} title={draft.title || "Video preview"} className="h-full w-full" allowFullScreen />
+        ) : (
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            Paste a YouTube, Vimeo or MP4 URL to preview
+          </div>
+        )}
+      </div>
+      <div className="space-y-2">
+        <input className={input + " font-semibold"} placeholder="Video title" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} onBlur={() => commit("title")} />
+        <input className={input} placeholder="Video URL (YouTube / Vimeo / MP4)" value={draft.url ?? ""} onChange={(e) => setDraft({ ...draft, url: e.target.value })} onBlur={() => commit("url")} />
+        <input className={input} placeholder="Thumbnail image URL (optional)" value={draft.thumbnail_url ?? ""} onChange={(e) => setDraft({ ...draft, thumbnail_url: e.target.value })} onBlur={() => commit("thumbnail_url")} />
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <input className={input} placeholder="Duration 4:12" value={draft.duration ?? ""} onChange={(e) => setDraft({ ...draft, duration: e.target.value })} onBlur={() => commit("duration")} />
+          <input className={input} value={`${video.views} views`} readOnly title="Counted from real plays, not typed in" />
+          <select className={input} value={draft.category_id ?? ""} onChange={(e) => onSave({ category_id: e.target.value || null })}>
+            <option value="">No category</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <input
+            className={input}
+            type="number"
+            placeholder="Order"
+            value={draft.position}
+            onChange={(e) => setDraft({ ...draft, position: Number(e.target.value) || 0 })}
+            onBlur={() => {
+              if (draft.position !== video.position) onSave({ position: draft.position });
+            }}
+          />
+        </div>
+        <div className="flex gap-2">
+          <PillButton variant={live ? "primary" : "ghost"} onClick={() => onStatus(live ? "draft" : "published")}>
+            <span className="inline-flex items-center gap-1.5">
+              {live ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              {live ? "Live" : video.status === "scheduled" ? "Scheduled" : "Draft"}
+            </span>
+          </PillButton>
+          {/* Archived rather than deleted: the row and its view history stay. */}
+          <PillButton variant="ghost" onClick={() => onStatus("archived")}>
+            <span className="inline-flex items-center gap-1.5"><Archive className="h-3.5 w-3.5" /> Archive</span>
+          </PillButton>
+        </div>
+      </div>
+    </Card>
   );
 }

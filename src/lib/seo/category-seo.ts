@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { publicProductFilter } from "@/lib/marketplace/public-visibility";
 import { z } from "zod";
 
 /**
@@ -59,7 +60,7 @@ export const getCategorySeo = createServerFn({ method: "GET" })
 
       // How many products the row actually holds.
       const countResponse = await fetch(
-        `${url}/rest/v1/marketplace_products?select=id&visible=eq.true` +
+        `${url}/rest/v1/marketplace_products?select=id${publicProductFilter()}` +
           `&category_id=eq.${String(category.id)}&limit=1`,
         { headers: { ...admin(), Prefer: "count=exact" } },
       );

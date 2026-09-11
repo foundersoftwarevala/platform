@@ -6,6 +6,7 @@ import {
   CreditCard, Factory, Users, Truck, Building, Megaphone, Wallet, Briefcase,
   ShoppingBag, Scale, Shield, Server, Headphones, Building2, ChevronLeft, ChevronRight
 } from "lucide-react";
+import { sharedFetch } from "@/lib/marketplace-home/shared-fetch";
 
 const CATEGORIES = [
   { icon: Sparkles, name: "All", color: "from-cyan-400 to-blue-600", link: "/#all" },
@@ -72,7 +73,7 @@ function useCategoryChips(): Chip[] {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch("/api/marketplace/rows");
+        const response = await sharedFetch("/api/marketplace/rows");
         if (!response.ok) return;
         const data = (await response.json()) as {
           rows?: { title: string; slug: string; hidden?: boolean }[];

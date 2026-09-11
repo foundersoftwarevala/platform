@@ -54,7 +54,11 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/internal-support-ai", roles: ["support", "developer"], label: "Internal Support AI" },
   { prefix: "/marketing", roles: ["marketing"], label: "Marketing" },
   { prefix: "/vala-ai", roles: ["developer"], label: "Vala AI" },
-  { prefix: "/vala-tv", roles: ["marketing", "support"], label: "Vala TV" },
+  // /vala-tv is the public video listing: it shows only published videos (the
+  // same sf_vala_tv list the homepage section shows everyone) and the public
+  // footer links to it. Gating it to marketing/support sent every visitor who
+  // followed that link to "access restricted". Kept here, disabled:
+  // { prefix: "/vala-tv", roles: ["marketing", "support"], label: "Vala TV" },
   { prefix: "/chat-manager", roles: ["support", "sales_support_manager"], label: "Chat Manager" },
   { prefix: "/admin", roles: [], label: "Admin" },
   // Executive only: this console carries platform-wide revenue, risk and

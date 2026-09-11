@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { publicProductFilter } from "@/lib/marketplace/public-visibility";
 
 /**
  * The marketplace catalogue, straight from the database.
@@ -106,10 +107,119 @@ function toCard(row: Row) {
   };
 }
 
-async function productsFor(categoryId: string, offset: number, limit: number) {
+/* ------------------------------------------------------------------------ */
+/* The Homepage Rows registry, honoured on every page - not only the first.   */
+/* ------------------------------------------------------------------------ */
+//
+// The first eight rows are seeded by getHomeCatalog, which asks the registry
+// whether each row is live and in what order its products go. Every later page
+// came from here, which asked neither, so a row saved as a draft or scheduled
+// for next week still appeared from row nine on, and hand-placed products were
+// ignored past card twelve. The same two questions are asked here now.
+
+type RegistryEntry = { key: string; row_kind: string; live_now: boolean };
+let registryCache: { at: number; byKey: Map<string, RegistryEntry>; configured: Set<string> } | null = null;
+
+async function registry() {
+  if (registryCache && Date.now() - registryCache.at < CACHE_MS) return registryCache;
+  const byKey = new Map<string, RegistryEntry>();
+  const configured = new Set<string>();
+  try {
+    const [rows, config] = await Promise.all([
+      fetch(`${url()}/rest/v1/rpc/mm_rows_list`, {
+        method: "POST",
+        headers: { ...admin(), "Content-Type": "application/json" },
+        body: "{}",
+      }),
+      fetch(`${url()}/rest/v1/marketplace_row_config?select=category_id`, { headers: admin() }),
+    ]);
+    if (rows.ok) {
+      for (const r of (await rows.json()) as RegistryEntry[]) byKey.set(String(r.key), r);
+    }
+    if (config.ok) {
+      for (const r of (await config.json()) as { category_id: string | null }[]) {
+        if (r.category_id) configured.add(String(r.category_id));
+      }
+    }
+  } catch {
+    // Unreadable registry: every row behaves as unconfigured and live, which
+    // is exactly how the page behaved before the registry existed.
+  }
+  registryCache = { at: Date.now(), byKey, configured };
+  return registryCache;
+}
+
+/** Whether the registry lets this row be shown. Unknown to it means live. */
+function isLive(reg: Awaited<ReturnType<typeof registry>>, slug: string): boolean {
+  const entry = reg.byKey.get(slug);
+  return entry ? entry.live_now !== false : true;
+}
+
+const orderCache = new Map<string, { at: number; ids: string[] | null }>();
+
+/** The product order the row resolver gives a row, or null. */
+async function configuredOrder(key: string): Promise<string[] | null> {
+  const hit = orderCache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.ids;
+  let ids: string[] | null = null;
+  try {
+    const response = await fetch(`${url()}/rest/v1/rpc/mm_row_products`, {
+      method: "POST",
+      headers: { ...admin(), "Content-Type": "application/json" },
+      body: JSON.stringify({ p_key: key }),
+    });
+    if (response.ok) {
+      const data = (await response.json()) as {
+        ok?: boolean;
+        products?: { product_id: string; live?: boolean }[];
+      };
+      if (data?.ok && Array.isArray(data.products)) {
+        ids = data.products.filter((x) => x.live !== false).map((x) => String(x.product_id));
+      }
+    }
+  } catch {
+    ids = null;
+  }
+  orderCache.set(key, { at: Date.now(), ids });
+  if (orderCache.size > 500) orderCache.clear();
+  return ids;
+}
+
+/** A slice of a resolved order, fetched and kept in that order. */
+async function productsInOrder(order: string[], offset: number, limit: number) {
+  const wanted = order.slice(offset, offset + limit);
+  if (!wanted.length) return { cards: [], total: order.length, ok: true };
   const response = await fetch(
     `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}` +
-      `&visible=eq.true&content_status=eq.published` +
+      `${publicProductFilter()}&id=in.(${wanted.join(",")})`,
+    { headers: admin() },
+  );
+  if (!response.ok) return { cards: [], total: 0, ok: false };
+  const rows = (await response.json()) as Row[];
+  const index = new Map(rows.map((r) => [String(r.id), r]));
+  const cards = wanted
+    .map((id) => index.get(id))
+    .filter((r): r is Row => Boolean(r))
+    .map(toCard);
+  return { cards, total: order.length, ok: true };
+}
+
+async function productsFor(
+  categoryId: string,
+  offset: number,
+  limit: number,
+  configuredKey?: string,
+) {
+  // A row the manager has configured renders in the resolver order on every
+  // page. A configured row that resolves to nothing keeps its catalogue
+  // default rather than showing an empty shelf, as the seed does.
+  if (configuredKey) {
+    const order = await configuredOrder(configuredKey);
+    if (order && order.length) return productsInOrder(order, offset, limit);
+  }
+  const response = await fetch(
+    `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}` +
+      `${publicProductFilter()}` +
       `&category_id=eq.${encodeURIComponent(categoryId)}` +
       `&order=sort_order.asc,name.asc&limit=${limit}&offset=${offset}`,
     { headers: { ...admin(), Prefer: "count=exact" } },
@@ -159,19 +269,49 @@ export const Route = createFileRoute("/api/marketplace/catalog")({
         try {
           // ---- one row, paged: what infinite loading asks for ---------------
           if (category) {
+            const reg = await registry();
             const categoryResponse = await fetch(
               `${url()}/rest/v1/marketplace_categories?select=id,name,slug` +
-                `&slug=eq.${encodeURIComponent(category)}&limit=1`,
+                `&slug=eq.${encodeURIComponent(category)}&is_hidden=eq.false&limit=1`,
               { headers: admin() },
             );
             const categories = categoryResponse.ok
               ? ((await categoryResponse.json()) as Row[])
               : [];
-            if (!categories[0]) {
+            const limit = askedLimit;
+
+            // A curated row (trending-now, new-releases...) is not a category.
+            // Its "show more" used to answer 404; it is served from the same
+            // resolver that filled its first page.
+            const curated = reg.byKey.get(category);
+            if (!categories[0] && curated?.row_kind === "curated") {
+              if (!isLive(reg, category)) {
+                return Response.json({ error: "No such row", cards: [] }, { status: 404 });
+              }
+              const order = (await configuredOrder(category)) ?? [];
+              const result = await productsInOrder(order, offset, limit);
+              const payload = {
+                category: { name: category, slug: category },
+                cards: result.cards,
+                total: result.total,
+                offset,
+                limit,
+                hasMore: offset + result.cards.length < result.total,
+              };
+              cache.set(key, { at: Date.now(), payload });
+              return Response.json(payload, {
+                headers: { "Cache-Control": "public, max-age=60" },
+              });
+            }
+            if (!categories[0] || !isLive(reg, String(categories[0].slug ?? ""))) {
               return Response.json({ error: "No such category", cards: [] }, { status: 404 });
             }
-            const limit = askedLimit;
-            const { cards, total, ok } = await productsFor(String(categories[0].id), offset, limit);
+            const { cards, total, ok } = await productsFor(
+              String(categories[0].id),
+              offset,
+              limit,
+              reg.configured.has(String(categories[0].id)) ? String(categories[0].slug ?? "") : undefined,
+            );
             if (!ok) {
               return Response.json(
                 { error: "The catalogue could not be read.", cards: [] },
@@ -195,7 +335,7 @@ export const Route = createFileRoute("/api/marketplace/catalog")({
           // ---- a page of rows for the home page ------------------------------
           const categoryResponse = await fetch(
             `${url()}/rest/v1/marketplace_categories?select=id,name,slug,icon` +
-              `&is_hidden=eq.false&order=sort_order.asc` +
+              `&is_hidden=eq.false&order=sort_order.asc,name.asc` +
               `&limit=${rowCount}&offset=${rowOffset}`,
             { headers: { ...admin(), Prefer: "count=exact" } },
           );
@@ -208,10 +348,20 @@ export const Route = createFileRoute("/api/marketplace/catalog")({
           const categories = (await categoryResponse.json()) as Row[];
           const range = categoryResponse.headers.get("content-range") ?? "";
           const totalRows = Number(range.split("/")[1]) || categories.length;
+          const reg = await registry();
 
           const rows = await Promise.all(
-            categories.map(async (c) => {
-              const { cards, total } = await productsFor(String(c.id), 0, perRow);
+            categories
+              // A row held back as a draft, or outside its schedule, is not
+              // shown here either - the same rule the first page follows.
+              .filter((c) => isLive(reg, String(c.slug ?? "")))
+              .map(async (c) => {
+              const { cards, total } = await productsFor(
+                String(c.id),
+                0,
+                perRow,
+                reg.configured.has(String(c.id)) ? String(c.slug ?? "") : undefined,
+              );
               return {
                 id: String(c.id),
                 title: String(c.name ?? ""),

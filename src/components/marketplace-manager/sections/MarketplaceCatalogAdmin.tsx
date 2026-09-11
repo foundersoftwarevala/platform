@@ -8,8 +8,16 @@ import { Plus, Save, Trash2, X, Loader2, Edit3, Eye, EyeOff } from "lucide-react
 import {
   listProductsAdmin, upsertProduct, deleteProduct,
   listCategoriesAdmin, upsertCategory, deleteCategory,
-  listSectionsAdmin, setSectionEnabled, reorderSections,
 } from "@/lib/marketplace-manager/catalog";
+// Layout Order reads and writes marketplace_homepage_sections - the table the
+// homepage takes its section order and visibility from (mm_homepage_sections).
+// These used to come from lib/marketplace-manager/catalog.ts, which keeps ten
+// invented section keys in browser storage, so reordering here never moved the
+// real page. The writes go through mm_section_set_enabled / mm_sections_reorder
+// as the signed-in person; both refuse without the admin role and are audited.
+import {
+  listSectionsAdmin, setSectionEnabled, reorderSections,
+} from "@/lib/marketplace.functions";
 import { Card, LoadFailure, PageHeader, PillButton } from "../ui";
 
 type Category = {
@@ -341,6 +349,9 @@ export function LayoutOrderAdmin() {
     qc.invalidateQueries({ queryKey: ["marketplace"] });
   };
 
+  // The server's copy of the homepage layout is cached for 30 seconds
+  // (home-layout.functions.ts), so a change is on the page within that.
+
   const toggleMut = useMutation({
     mutationFn: (v: { key: string; enabled: boolean }) => toggleFn({ data: v }),
     onSuccess: invalidate,
@@ -370,7 +381,7 @@ export function LayoutOrderAdmin() {
       <PageHeader
         eyebrow="Homepage Composition"
         title="Layout Order"
-        description="Enable, disable and reorder every marketplace homepage section. Live and instant."
+        description="Enable, disable and reorder every marketplace homepage section. Saved to the live homepage layout; visible on the page within 30 seconds."
       />
       {isError ? (
         <LoadFailure error={error} what="the homepage sections" onRetry={() => void refetch()} />

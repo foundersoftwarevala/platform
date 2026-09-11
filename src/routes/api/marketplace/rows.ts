@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { publicProductFilter } from "@/lib/marketplace/public-visibility";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 
 /**
@@ -84,7 +85,7 @@ export const Route = createFileRoute("/api/marketplace/rows")({
           const counts = new Map<string, number>();
           for (let offset = 0; offset < 8000; offset += 1000) {
             const productResponse = await fetch(
-              `${url()}/rest/v1/marketplace_products?select=category_id&visible=eq.true` +
+              `${url()}/rest/v1/marketplace_products?select=category_id${publicProductFilter()}` +
                 `&limit=1000&offset=${offset}`,
               { headers: admin() },
             );

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { publicProductFilter } from "@/lib/marketplace/public-visibility";
 import { z } from "zod";
 
 /**
@@ -195,7 +196,7 @@ export const getCountryProducts = createServerFn({ method: "GET" })
     try {
       const response = await fetch(
         `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}` +
-          `&visible=eq.true&content_status=eq.published` +
+          `${publicProductFilter()}` +
           `&search_keywords=cs.${marker}` +
           `&order=sort_order.asc,name.asc&limit=${limit}&offset=${offset}`,
         { headers: { ...admin(), Prefer: "count=exact" } },

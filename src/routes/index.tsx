@@ -8,6 +8,36 @@ import {
   type HomeRouteData,
 } from "@/lib/marketplace/home-route-data";
 import { absoluteUrl } from "@/lib/seo/site-url";
+import { Toaster } from "@/components/ui/sonner";
+
+/**
+ * Who publishes this site, for search engines. Everything here is taken from
+ * what the site already publishes - its name, address, logo and the social
+ * profiles in its own footer - nothing is added that is not already public.
+ */
+function siteSchema() {
+  const url = absoluteUrl("/");
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "Software Vala",
+      url,
+      logo: absoluteUrl("/favicon.png"),
+      sameAs: [
+        "https://facebook.com/share/1HpGSvExis",
+        "https://instagram.com/new_software_vala",
+        "https://youtube.com/@softwarevala",
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "Software Vala",
+      url,
+    },
+  ];
+}
 
 export const Route = createFileRoute("/")({
   /**
@@ -33,8 +63,13 @@ export const Route = createFileRoute("/")({
           "One fixed price — $249 one-time for lifetime access. Live demos, full source code and 1 year free support across 80+ categories.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: absoluteUrl("/") },
       { name: "twitter:card", content: "summary_large_image" },
     ],
+    scripts: siteSchema().map((schema) => ({
+      type: "application/ld+json",
+      children: JSON.stringify(schema),
+    })),
   }),
   component: Index,
   // `/` is a protected production route. Even if the router or the loader
@@ -57,6 +92,9 @@ function Index() {
           <HomeIndex />
         </Suspense>
       </HomeBoundary>
+      {/* The homepage raises feedback through toast (favourites, sign-in
+          prompts) and nothing above it rendered toasts, so each was dropped. */}
+      <Toaster />
     </div>
   );
 }

@@ -66,7 +66,7 @@ export const LIVE_SECTIONS: Record<string, { resource: string; columns: string[]
   "Resellers": { resource: "resellers", columns: ["name", "code", "email", "status", "phone", "region"] },
   "Affiliate": { resource: "affiliate", columns: ["status", "display_name", "user_id", "created_at", "updated_at"] },
   "Influencer": { resource: "influencer", columns: ["email", "status", "full_name", "country", "region", "niche"] },
-  "Offers": { resource: "offers", columns: ["code", "kind", "value", "currency", "max_redemptions", "active"] },
+  "Offers": { resource: "offers", columns: ["title", "discount_percent", "code", "start_date", "end_date", "status"] },
   "Popups": { resource: "popups", columns: ["name", "label", "key", "element_type", "enabled", "desktop_enabled"] },
   "Walls": { resource: "walls", columns: ["status", "title", "source_mode", "max_products", "auto_rule", "allow_cross_category"] },
   "Partners": { resource: "partners", columns: ["status", "display_name", "user_id", "created_at", "updated_at"] },

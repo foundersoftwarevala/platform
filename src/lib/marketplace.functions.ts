@@ -7,6 +7,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
+import { applyPublicProductFilter, isPublicProduct } from "@/lib/marketplace/public-visibility";
 
 export type ProductDemoBinding = {
   id: string;
@@ -300,7 +301,7 @@ const PUBLIC_PRODUCT_COLUMNS = `
     `;
 
 async function loadPublicProductsFromSupabase(sb: any) {
-  const marketplaceResult = await sb
+  const publicQuery = sb
     .from("marketplace_products")
     .select(`
       id,
@@ -316,8 +317,9 @@ async function loadPublicProductsFromSupabase(sb: any) {
       badge,
       visible
       ,category_id,marketplace_categories(name)
-    `)
-    .eq("visible", true)
+    `);
+  // Only what the public may see: visible, published and inside its schedule.
+  const marketplaceResult = await applyPublicProductFilter(publicQuery)
     .order("sort_order")
     .order("created_at", { ascending: false })
     .range(0, PAGE - 1);
@@ -330,10 +332,9 @@ async function loadPublicProductsFromSupabase(sb: any) {
     // the products past the cap simply did not exist as far as this was
     // concerned. Keep asking for the next page until one comes back short.
     while (rows.length % PAGE === 0) {
-      const next = await sb
-        .from("marketplace_products")
-        .select(PUBLIC_PRODUCT_COLUMNS)
-        .eq("visible", true)
+      const next = await applyPublicProductFilter(
+        sb.from("marketplace_products").select(PUBLIC_PRODUCT_COLUMNS),
+      )
         .order("sort_order")
         .order("created_at", { ascending: false })
         .range(rows.length, rows.length + PAGE - 1);
@@ -352,11 +353,22 @@ async function loadPublicProductsFromSupabase(sb: any) {
 async function loadPublicProductBySlugFromSupabase(sb: any, slug: string) {
   const marketplaceResult = await sb
     .from("marketplace_products")
-    .select("id, slug, name, industry_label, icon, price_label, price_period, rating, downloads, downloads_label, badge, visible, category_id, marketplace_categories(name)")
+    .select("id, slug, name, industry_label, icon, price_label, price_period, rating, downloads, downloads_label, badge, visible, content_status, publish_at, unpublish_at, category_id, marketplace_categories(name)")
     .eq("slug", slug)
     .maybeSingle();
 
-  if (!marketplaceResult.error && marketplaceResult.data) {
+  if (marketplaceResult.error) {
+    // The catalogue could not be asked at all. Only this - not a product that
+    // exists but is unpublished - may fall back to the supplied catalogue.
+    return { row: null, source: "unavailable" as const };
+  }
+  if (marketplaceResult.data) {
+    // A product that exists but is not public (hidden, draft, coming soon,
+    // outside its schedule) is not shown, and is not replaced by a fallback
+    // copy either: the Manager's publish state is the answer.
+    if (!isPublicProduct(marketplaceResult.data)) {
+      return { row: null, source: "not_public" as const };
+    }
     return { row: marketplaceResult.data, source: "marketplace_products" as const };
   }
 
@@ -553,9 +565,15 @@ export const getPublicProduct = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<PublicProductPageData> => {
     try {
       const sb = publicClient();
-      const { row: productRow } = await loadPublicProductBySlugFromSupabase(sb, data.slug);
+      const { row: productRow, source } = await loadPublicProductBySlugFromSupabase(sb, data.slug);
 
       if (!productRow) {
+        // The catalogue answered: this slug is either not a product or not a
+        // public one. Serving the hardcoded supplied copy here is how draft
+        // products such as blinkit-clone kept rendering at their own URL.
+        if (source !== "unavailable") {
+          return { product: null, active_demos: [], seo: null };
+        }
         const fallbackProduct = buildSuppliedCatalogFallback().find((product) => product.slug === data.slug);
         if (fallbackProduct) {
           return {

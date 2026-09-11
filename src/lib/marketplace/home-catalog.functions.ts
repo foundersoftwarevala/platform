@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { publicProductFilter } from "@/lib/marketplace/public-visibility";
 
 /**
  * The first page of the marketplace, rendered with the page itself.
@@ -199,7 +200,7 @@ async function curatedCards(key: string, limit: number) {
   try {
     const response = await fetch(
       `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}` +
-        `&visible=eq.true&content_status=eq.published&id=in.(${wanted.join(",")})`,
+        `${publicProductFilter()}&id=in.(${wanted.join(",")})`,
       { headers: admin() },
     );
     if (!response.ok) return { cards: [], total: 0 };
@@ -225,7 +226,7 @@ async function productsFor(categoryId: string, limit: number, slug?: string, con
       const wanted = order.slice(0, limit);
       const byId = await fetch(
         `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}` +
-          `&visible=eq.true&content_status=eq.published` +
+          `${publicProductFilter()}` +
           `&id=in.(${wanted.join(",")})`,
         { headers: admin() },
       );
@@ -246,7 +247,7 @@ async function productsFor(categoryId: string, limit: number, slug?: string, con
 
   const response = await fetch(
     `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}` +
-      `&visible=eq.true&content_status=eq.published` +
+      `${publicProductFilter()}` +
       `&category_id=eq.${encodeURIComponent(categoryId)}` +
       `&order=sort_order.asc,name.asc&limit=${limit}&offset=0`,
     { headers: { ...admin(), Prefer: "count=exact" } },
@@ -274,6 +275,13 @@ export type HomeCatalogSeed = {
   rowCount: number;
   totalRows: number;
   hasMoreRows: boolean;
+  /**
+   * Every curated row the Homepage Rows registry owns, whatever its status.
+   * The homepage's own curated sections (featured-software, trending-now…)
+   * stand down for these keys, so a curated row is drawn once, where the
+   * registry places it, and a draft stays a draft.
+   */
+  curatedKeys: string[];
 } | null;
 
 export const getHomeCatalog = createServerFn({ method: "GET" }).handler(
@@ -286,7 +294,7 @@ export const getHomeCatalog = createServerFn({ method: "GET" }).handler(
     try {
       const categoryResponse = await fetch(
         `${url()}/rest/v1/marketplace_categories?select=id,name,slug,icon` +
-          `&is_hidden=eq.false&order=sort_order.asc&limit=${ROWS}&offset=0`,
+          `&is_hidden=eq.false&order=sort_order.asc,name.asc&limit=${ROWS}&offset=0`,
         { headers: { ...admin(), Prefer: "count=exact" } },
       );
       if (!categoryResponse.ok) return null;
@@ -363,6 +371,9 @@ export const getHomeCatalog = createServerFn({ method: "GET" }).handler(
         rowCount: categories.length,
         totalRows,
         hasMoreRows: categories.length < totalRows,
+        curatedKeys: (registry ?? [])
+          .filter((r) => r.row_kind === "curated")
+          .map((r) => r.key),
       };
       cached = { at: Date.now(), payload };
       return payload;

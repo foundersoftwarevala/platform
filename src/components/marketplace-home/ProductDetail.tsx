@@ -44,7 +44,9 @@ export function ProductDetail() {
         toast.error("Please sign in to buy.");
         void navigate({
           to: "/login",
-          search: { redirect: `/marketplace/product/${slug}` } as never,
+          // ?buy=1 comes back with them, so signing in finishes the purchase
+          // they started instead of leaving them to press the button again.
+          search: { redirect: `/marketplace/product/${slug}?buy=1` } as never,
         });
         return;
       }
@@ -81,7 +83,10 @@ export function ProductDetail() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("buy") !== "1") return;
-    const product = (data as { id?: string } | undefined) ?? undefined;
+    // getPublicProduct answers { product, active_demos, seo }, so the id lives
+    // one level down. Reading data.id was always undefined, which is why a
+    // card's Buy Now arrived here and never added anything.
+    const product = (data as { product?: { id?: string } | null } | undefined)?.product ?? undefined;
     if (!product?.id) return;
     setBuyStarted(true);
     params.delete("buy");

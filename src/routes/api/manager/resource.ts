@@ -52,6 +52,12 @@ type Resource = {
    * safe. Only rows on the way out and changes on the way in are translated.
    */
   rename?: Record<string, string>;
+  /**
+   * Values an operator may not write into a column from here, with the reason
+   * given back. Used where a value sets off something that must only follow a
+   * real event - an order becoming "paid" issues its licence by trigger.
+   */
+  forbiddenValues?: Record<string, { values: string[]; reason: string }>;
 };
 
 /** The name a screen uses for a real column. Unrenamed columns pass through. */
@@ -287,13 +293,27 @@ const RESOURCES: Record<string, Resource> = {
     order: "created_at.desc",
     label: "Influencer",
   },
+  // Offers is the offer engine's table - the one sf_active_offers() feeds the
+  // homepage banner from. It pointed at marketplace_coupons, which nothing on
+  // the storefront reads. Status is not editable here: going live is validated
+  // by mm_offer_transition, which the Offers screen's own buttons call.
   offers: {
+    table: "marketing_offers",
+    select: ["id", "title", "festival", "offer_type", "discount_percent", "code", "start_date", "end_date", "status", "is_seed", "priority", "landing_url", "updated_at"],
+    editable: ["title", "festival", "discount_percent", "code", "start_date", "end_date", "priority", "landing_url"],
+    searchable: ["title", "code"],
+    order: "created_at.desc",
+    label: "Offers",
+  },
+  // The checkout coupon table the Offers entry used to show, kept as its own
+  // resource so nothing that relied on it loses it.
+  coupons: {
     table: "marketplace_coupons",
     select: ["id", "code", "kind", "value", "currency", "minimum_subtotal", "max_redemptions", "expires_at", "active", "created_at"],
     editable: ["code", "kind", "value", "currency", "max_redemptions", "active"],
     searchable: ["code", "kind"],
     order: "created_at.desc",
-    label: "Offers",
+    label: "Coupons",
     archive: { active: false },
   },
   popups: {
@@ -683,6 +703,14 @@ const RESOURCES: Record<string, Resource> = {
       "currency_charged", "txnid", "payu_status", "payment_gateway", "buyer_id", "created_at"],
     // An operator may cancel or reinstate an order, never edit its money.
     editable: ["status"],
+    // "paid" fires mm_order_paid_issue, which issues the licence and the
+    // entitlement. It is set by the payment being confirmed, never by hand.
+    forbiddenValues: {
+      status: {
+        values: ["paid"],
+        reason: "An order becomes paid only when its payment is confirmed; it cannot be marked paid by hand.",
+      },
+    },
     searchable: ["order_no", "order_number", "txnid", "status"],
     order: "created_at.desc",
     label: "Orders",
@@ -1023,6 +1051,10 @@ export const Route = createFileRoute("/api/manager/resource")({
               : value.split(",");
             changes[key] = pieces.map((piece) => piece.trim()).filter(Boolean);
             continue;
+          }
+          const forbidden = resource.forbiddenValues?.[key];
+          if (forbidden && forbidden.values.includes(String(value ?? "").trim().toLowerCase())) {
+            return Response.json({ error: forbidden.reason }, { status: 422 });
           }
           changes[key] = value;
         }

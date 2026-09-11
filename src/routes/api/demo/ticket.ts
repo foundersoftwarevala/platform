@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { publicProductFilter } from "@/lib/marketplace/public-visibility";
 import { issueDemoTicket } from "@/lib/demo/ticket";
 
 /**
@@ -158,7 +159,7 @@ export const Route = createFileRoute("/api/demo/ticket")({
         // The product must be on sale and must actually have a live demo.
         const productResponse = await fetch(
           `${url()}/rest/v1/marketplace_products?select=id,name,category_id` +
-            `&slug=eq.${encodeURIComponent(slug)}&visible=eq.true&limit=1`,
+            `&slug=eq.${encodeURIComponent(slug)}${publicProductFilter()}&limit=1`,
           { headers: admin() },
         );
         const products = productResponse.ok

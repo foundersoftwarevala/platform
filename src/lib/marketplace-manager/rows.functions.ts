@@ -39,6 +39,22 @@ async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise
   return data as T;
 }
 
+/**
+ * Refuses anyone who is not a marketplace operator.
+ *
+ * The few functions below that read or write with the service role cannot let
+ * the database decide, because the service role is every permission at once.
+ * So the signed-in person is asked the same question every mm_* function asks -
+ * mm_is_operator(), answered with their own token - before the service role is
+ * used on their behalf.
+ */
+async function requireOperator(): Promise<void> {
+  const allowed = await callAsUser<boolean>("mm_is_operator", {});
+  if (allowed !== true) {
+    throw new Error("Changing the homepage needs marketplace operator rights.");
+  }
+}
+
 type Outcome = { ok?: boolean; reason?: string; message?: string; [k: string]: unknown };
 
 /** Turns a refusal into a sentence a person can act on. */
@@ -258,6 +274,7 @@ export const searchRowProducts = createServerFn({ method: "GET" })
     }).parse(i ?? {}),
   )
   .handler(async ({ data }) => {
+    await requireOperator();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let q = supabaseAdmin
       .from("marketplace_products")
@@ -393,6 +410,7 @@ export const clearRowSlots = createServerFn({ method: "POST" })
 export const getRowAudit = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ key: z.string().min(1) }).parse(i))
   .handler(async ({ data }) => {
+    await requireOperator();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row } = await supabaseAdmin
       .from("marketplace_categories").select("id").eq("slug", data.key).maybeSingle();
@@ -469,6 +487,10 @@ export const configureSection = createServerFn({ method: "POST" })
     }).parse(i),
   )
   .handler(async ({ data }) => {
+    // This writes with the service role, so the caller is checked first. Before
+    // this line any request that reached the server function - signed in or not
+    // - could unpublish the catalogue or the footer.
+    await requireOperator();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const allowed = [
       "status", "enabled", "sort_order", "visible_desktop", "visible_mobile",

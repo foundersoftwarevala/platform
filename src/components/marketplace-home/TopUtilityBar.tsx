@@ -980,7 +980,9 @@ function Favorites({ count }: { count: number }) {
     <button
       type="button"
       className={`${TRIGGER} relative`}
-      onClick={() => document.getElementById("All")?.scrollIntoView({ behavior: "smooth" })}
+      // The catalogue grid's anchor is "all" (GRID_ANCHOR). Looking up "All"
+      // found nothing, so the button did nothing at all.
+      onClick={() => document.getElementById("all")?.scrollIntoView({ behavior: "smooth" })}
     >
       <Heart className="h-3.5 w-3.5 text-rose-300 transition-transform duration-300 group-hover:scale-110" />
       <span className="hidden sm:inline">My Favorites</span>

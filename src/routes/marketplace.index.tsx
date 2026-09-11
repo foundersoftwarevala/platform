@@ -5,10 +5,21 @@ import {
   loadHomeRouteData,
   type HomeRouteData,
 } from "@/lib/marketplace/home-route-data";
+import { absoluteUrl } from "@/lib/seo/site-url";
+
+const marketplaceHead = pageHead(
+  "Marketplace",
+  "Browse ready-to-deploy software with live demos, full source code and lifetime access.",
+);
 
 /** /marketplace itself, which is the marketplace home. */
 export const Route = createFileRoute("/marketplace/")({
-  head: pageHead("Marketplace", "Browse ready-to-deploy software with live demos, full source code and lifetime access."),
+  // The same page as "/" - same loader, same component, same content - so it
+  // names "/" as its canonical rather than competing with it as a duplicate.
+  head: () => ({
+    ...marketplaceHead(),
+    links: [{ rel: "canonical", href: absoluteUrl("/") }],
+  }),
   /**
    * The same loader the home page runs. Without it this route sent a shell -
    * 123 KB against the home page's 1.13 MB - because every part of HomeIndex

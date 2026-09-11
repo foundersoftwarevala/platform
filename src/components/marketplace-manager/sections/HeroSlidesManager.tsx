@@ -1,4 +1,11 @@
-// Fully DB-backed Hero Slides Manager — CRUD, publish/draft/schedule, reorder, preview, audit.
+// Hero Slides Manager — CRUD, publish/draft/schedule, reorder, preview.
+//
+// It reads and writes public.home_hero_slides, the table the homepage carousel
+// is served from (listHeroSlidesPublic). It used to import the browser-storage
+// library in lib/marketplace-manager/hero-slides.ts, so every edit stayed in the
+// operator's own browser and the live hero never changed. That library is kept,
+// unused, for reference. Writes go through the signed-in session, so the
+// table's own policies (admin or boss) decide who may change the hero.
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -11,7 +18,7 @@ import {
   fetchAllHeroSlides, createHeroSlide, updateHeroSlide, deleteHeroSlide,
   reorderHeroSlides, isSlideLive, iconFromName, HERO_ICON_CHOICES,
   type HeroSlideRow, type HeroStatus,
-} from "@/lib/marketplace-manager/hero-slides";
+} from "@/lib/hero-slides";
 
 const STATUS_TABS = ["All", "Live", "Scheduled", "Drafts", "Archived"] as const;
 type Tab = (typeof STATUS_TABS)[number];
@@ -301,7 +308,12 @@ function SlideEditor({
           <Field label="CTA label"><Input value={f.cta_label ?? ""} onChange={(v) => set("cta_label", v)} /></Field>
           <Field label="CTA link"><Input value={f.cta_href ?? ""} onChange={(v) => set("cta_href", v)} /></Field>
           <Field label="Secondary label"><Input value={f.secondary_label ?? ""} onChange={(v) => set("secondary_label", v || null)} /></Field>
-          <Field label="Secondary link"><Input value={f.secondary_href ?? ""} onChange={(v) => set("secondary_href", v || null)} /></Field>
+          {/* home_hero_slides has no column for a second link, so the carousel
+              sends the secondary button to /marketplace. Shown, not editable,
+              rather than accepting a value that would silently go nowhere. */}
+          <Field label="Secondary link (not stored yet)">
+            <Input value="/marketplace" onChange={() => undefined} disabled />
+          </Field>
 
           <Field label="Theme preset" full>
             <div className="flex flex-wrap gap-2">
@@ -337,14 +349,17 @@ function SlideEditor({
               onChange={(v) => set("unpublish_at", v ? new Date(v).toISOString() : null)} />
           </Field>
 
-          <Field label="Visible roles (comma-separated, blank = all)" full>
-            <Input value={(f.visible_roles ?? []).join(",")} onChange={(v) => set("visible_roles", v.split(",").map((s) => s.trim()).filter(Boolean))} />
+          {/* Audience targeting has no columns in home_hero_slides and the
+              carousel shows every live slide to everyone, so these stay visible
+              but disabled until the table can hold them. */}
+          <Field label="Visible roles (not stored yet — every visitor sees live slides)" full>
+            <Input value="" onChange={() => undefined} disabled />
           </Field>
-          <Field label="Visible countries (ISO, blank = all)">
-            <Input value={(f.visible_countries ?? []).join(",")} onChange={(v) => set("visible_countries", v.split(",").map((s) => s.trim()).filter(Boolean))} />
+          <Field label="Visible countries (not stored yet)">
+            <Input value="" onChange={() => undefined} disabled />
           </Field>
-          <Field label="Visible languages (blank = all)">
-            <Input value={(f.visible_languages ?? []).join(",")} onChange={(v) => set("visible_languages", v.split(",").map((s) => s.trim()).filter(Boolean))} />
+          <Field label="Visible languages (not stored yet)">
+            <Input value="" onChange={() => undefined} disabled />
           </Field>
 
           <label className="flex items-center gap-2 text-sm md:col-span-2">
@@ -380,10 +395,10 @@ function Field({ label, children, full }: { label: string; children: React.React
     </div>
   );
 }
-function Input({ value, onChange, type = "text" }: { value: string; onChange: (v: string) => void; type?: string }) {
+function Input({ value, onChange, type = "text", disabled = false }: { value: string; onChange: (v: string) => void; type?: string; disabled?: boolean }) {
   return (
-    <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
+    <input type={type} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}
+      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60" />
   );
 }
 function toLocal(iso: string) {

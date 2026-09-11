@@ -1,3 +1,4 @@
+import { publicProductFilter } from "@/lib/marketplace/public-visibility";
 /**
  * Client-side utility data functions for the marketplace top bar.
  * Ported from the reference project's server functions — all upstream
@@ -237,7 +238,7 @@ async function searchCatalogueForChat(terms: string): Promise<
     const response = await fetch(
       `${base}/rest/v1/marketplace_products` +
         `?select=name,slug,price_label,industry_label` +
-        `&visible=eq.true&content_status=eq.published` +
+        `${publicProductFilter()}` +
         `&or=(name.ilike.${pattern},industry_label.ilike.${pattern},description.ilike.${pattern})` +
         `&limit=5`,
       { headers: { apikey: key, Authorization: `Bearer ${key}` } },

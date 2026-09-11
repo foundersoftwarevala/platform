@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { publicProductFilter } from "@/lib/marketplace/public-visibility";
 import { absoluteUrl, indexable } from "@/lib/seo/site-url";
 
 /**
@@ -55,7 +56,7 @@ export const Route = createFileRoute("/sitemap-categories.xml")({
           for (let offset = 0; offset < 8000; offset += 1000) {
             const productResponse = await fetch(
               `${url()}/rest/v1/marketplace_products?select=category_id` +
-                `&visible=eq.true&content_status=eq.published&limit=1000&offset=${offset}`,
+                `${publicProductFilter()}&limit=1000&offset=${offset}`,
               { headers: admin() },
             );
             if (!productResponse.ok) break;

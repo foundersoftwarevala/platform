@@ -3655,6 +3655,9 @@ const Index = () => {
           {activeCategory === "All" && !search ? (
             /* The real catalogue, paged from the database. */
             <CatalogRows favorites={favorites} onToggleFavorite={toggleFavorite} />
+          ) : search ? (
+            /* A search runs against the real catalogue, not the list in this file. */
+            <CatalogSearchResults query={search} favorites={favorites} onToggleFavorite={toggleFavorite} />
           ) : activeCategory === "All" ? (
             masterCategories.slice(1).map(masterCat => {
               const categoryDemos = filteredDemos.filter(d => d.masterCategory === masterCat);
@@ -3700,24 +3703,28 @@ const Index = () => {
         // page is whatever Layout Order says.
         "featured-software": (
           <CuratedRow
+            sectionKey="featured-software"
             title="Featured Software" flag="featured" limit={8}
             favorites={favorites} onToggleFavorite={toggleFavorite}
           />
         ),
         "trending-now": (
           <CuratedRow
+            sectionKey="trending-now"
             title="Trending Now" flag="trending" limit={12}
             favorites={favorites} onToggleFavorite={toggleFavorite}
           />
         ),
         "top-selling": (
           <CuratedRow
+            sectionKey="top-selling"
             title="Top Selling" flag="bestSeller" limit={12}
             favorites={favorites} onToggleFavorite={toggleFavorite}
           />
         ),
         "new-releases": (
           <CuratedRow
+            sectionKey="new-releases"
             title="New Releases" flag="newRelease" limit={12}
             favorites={favorites} onToggleFavorite={toggleFavorite}
           />
@@ -3848,6 +3855,8 @@ type CatalogSeed = {
   rowCount: number;
   totalRows: number;
   hasMoreRows: boolean;
+  /** Curated rows the Homepage Rows registry owns, whatever their status. */
+  curatedKeys?: string[];
 } | null;
 
 /** Card colours cycle through the same palette the hand-written rows use. */
@@ -3997,12 +4006,14 @@ function CatalogRowStrip({
  * appear only when it has something in it.
  */
 function CuratedRow({
+  sectionKey,
   title,
   flag,
   limit,
   favorites,
   onToggleFavorite,
 }: {
+  sectionKey: string;
   title: string;
   flag: "featured" | "trending" | "bestSeller" | "newRelease";
   limit: number;
@@ -4012,6 +4023,12 @@ function CuratedRow({
   // The same rows the server already seeded for the catalogue, flattened. No
   // extra request: whatever the page has, these rows pick from.
   const seeded = (useHomeRouteData()?.seed as CatalogSeed | undefined) ?? null;
+  // When the Homepage Rows registry owns this curated row, the registry draws
+  // it - inside the catalogue, where Homepage Rows places it, in the order
+  // Placement set, and only while it is published. Drawing it here as well is
+  // what put Trending Now and New Releases on the page twice, below the
+  // footer, and showed Featured Software while its row was still a draft.
+  const ownedByRegistry = Boolean(seeded?.curatedKeys?.includes(sectionKey));
   const picked = useMemo(() => {
     const rows = (seeded?.rows as CatalogRow[] | undefined) ?? [];
     const out: Demo[] = [];
@@ -4027,7 +4044,7 @@ function CuratedRow({
     }
     return out;
   }, [seeded, flag, limit]);
-  if (picked.length === 0) return null;
+  if (ownedByRegistry || picked.length === 0) return null;
   return (
     <div className="max-w-7xl mx-auto px-4">
       <CategoryRow title={title} count={picked.length}>
@@ -4043,6 +4060,147 @@ function CuratedRow({
         ))}
       </CategoryRow>
     </div>
+  );
+}
+
+/**
+ * What the homepage search box finds: the real, published catalogue.
+ *
+ * The box used to filter allDemos - a list of about two hundred and fifty
+ * products written into this file, most linking to "#" - so a visitor typing a
+ * product the marketplace actually sells found nothing, or found something
+ * that did not exist. It now asks /api/marketplace/search, the same endpoint
+ * the AI tools use, which only returns public products (visible, published,
+ * inside their schedule) and never a demo address.
+ */
+type SearchProduct = {
+  id: string;
+  slug?: string | null;
+  name?: string | null;
+  icon?: string | null;
+  industry_label?: string | null;
+  price_label?: string | null;
+  price_period?: string | null;
+  rating?: number | null;
+  downloads_label?: string | null;
+  badge?: string | null;
+  is_featured?: boolean | null;
+  is_trending?: boolean | null;
+  is_best_seller?: boolean | null;
+  is_new_release?: boolean | null;
+  description?: string | null;
+  features?: unknown;
+  tech_stack?: unknown;
+  license?: string | null;
+  deployment?: string | null;
+  has_demo?: boolean | null;
+};
+
+function searchResultToCard(p: SearchProduct): CatalogCard {
+  const list = (v: unknown) =>
+    Array.isArray(v) ? (v as unknown[]).slice(0, 6).map(String).filter(Boolean) : [];
+  return {
+    id: String(p.id),
+    slug: String(p.slug ?? ""),
+    name: String(p.name ?? ""),
+    icon: p.icon ?? null,
+    industry: p.industry_label ?? null,
+    price: p.price_label ?? null,
+    period: p.price_period ?? null,
+    rating: p.rating ?? null,
+    downloads: p.downloads_label ?? null,
+    badge: p.badge ?? null,
+    featured: Boolean(p.is_featured),
+    trending: Boolean(p.is_trending),
+    bestSeller: Boolean(p.is_best_seller),
+    newRelease: Boolean(p.is_new_release),
+    country: null,
+    href: `/marketplace/product/${String(p.slug ?? "")}`,
+    description:
+      typeof p.description === "string" && p.description.trim()
+        ? p.description.trim().slice(0, 240)
+        : null,
+    features: list(p.features),
+    tech: list(p.tech_stack),
+    license: p.license ?? null,
+    platform: p.deployment ?? null,
+    subcategory: null,
+    hasDemo: Boolean(p.has_demo),
+  };
+}
+
+function CatalogSearchResults({
+  query, favorites, onToggleFavorite,
+}: {
+  query: string;
+  favorites: string[];
+  onToggleFavorite: (id: string) => void;
+}) {
+  const [state, setState] = useState<{
+    query: string;
+    cards: CatalogCard[] | null;
+    error: string | null;
+  }>({ query: "", cards: null, error: null });
+
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) return;
+    const controller = new AbortController();
+    setState({ query: q, cards: null, error: null });
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/marketplace/search?q=${encodeURIComponent(q)}&limit=40`,
+          { signal: controller.signal },
+        );
+        const data = (await response.json().catch(() => ({}))) as {
+          products?: SearchProduct[];
+          error?: string;
+        };
+        if (!response.ok) throw new Error(data?.error ?? "Search is unavailable right now.");
+        setState({
+          query: q,
+          cards: (data.products ?? []).map(searchResultToCard),
+          error: null,
+        });
+      } catch (problem) {
+        if (controller.signal.aborted) return;
+        setState({
+          query: q,
+          cards: [],
+          error: problem instanceof Error ? problem.message : "Search is unavailable right now.",
+        });
+      }
+    })();
+    return () => controller.abort();
+  }, [query]);
+
+  if (state.cards === null) {
+    return <p className="px-6 py-10 text-center text-sm text-white/60">Searching the marketplace…</p>;
+  }
+  if (state.error) {
+    return <p className="px-6 py-10 text-center text-sm text-white/70">{state.error}</p>;
+  }
+  if (state.cards.length === 0) {
+    return (
+      <p className="px-6 py-10 text-center text-sm text-white/70">
+        No software matches &ldquo;{state.query}&rdquo;. Try another word, or browse the categories below the search.
+      </p>
+    );
+  }
+  return (
+    <CategoryRow title={`Results for “${state.query}”`} count={state.cards.length}>
+      {state.cards.map((card, index) => (
+        <div key={card.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
+          <DemoCard
+            demo={toDemo(card, index)}
+            index={index}
+            isFavorite={favorites.includes(card.id)}
+            onToggleFavorite={() => onToggleFavorite(card.id)}
+          />
+        </div>
+      ))}
+    </CategoryRow>
   );
 }
 
@@ -4073,24 +4231,49 @@ function CatalogRows({
   const [rowOffset, setRowOffset] = useState(seeded?.rowCount ?? 0);
   const [hasMoreRows, setHasMoreRows] = useState(Boolean(seeded?.hasMoreRows));
   const [loadingRows, setLoadingRows] = useState(false);
+  // Set when a page of rows fails. Automatic loading stops until the reader
+  // asks again: retrying on every observer callback hammered the server in a
+  // tight loop whenever the catalogue was unavailable.
+  const [paused, setPaused] = useState(false);
   const sentinel = useRef<HTMLDivElement>(null);
+  // The offset a request is already out for. State updates arrive a render
+  // late, so a scroll event in between would ask for the same page again and
+  // the rows appeared twice; a ref answers immediately.
+  const inFlight = useRef<number | null>(null);
+  // A curated row whose homepage section is switched off in Layout Order is not
+  // drawn, so turning "Trending Now" off there takes it off the page.
+  const layout = useHomeLayout();
+  const hiddenKeys = useMemo(
+    () => new Set((layout ?? []).filter((s) => !s.liveNow).map((s) => s.key)),
+    [layout],
+  );
 
   const fetchRows = async (offset: number) => {
+    if (inFlight.current === offset) return;
+    inFlight.current = offset;
     setLoadingRows(true);
+    setPaused(false);
     try {
       const response = await fetch(
         `/api/marketplace/catalog?rows=${ROW_PAGE}&perRow=${CARD_PAGE}&rowOffset=${offset}`,
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error ?? "The catalogue could not be read.");
-      setRows((current) => [...(current ?? []), ...(data.rows ?? [])]);
+      // Appended once: a row already on the page is never drawn a second time.
+      setRows((current) => {
+        const have = new Set((current ?? []).map((r) => r.id));
+        const fresh = ((data.rows ?? []) as CatalogRow[]).filter((r) => !have.has(r.id));
+        return [...(current ?? []), ...fresh];
+      });
       setHasMoreRows(Boolean(data.hasMoreRows));
       setRowOffset(offset + (data.rowCount ?? 0));
       setError(null);
     } catch (problem) {
       setError(problem instanceof Error ? problem.message : "The catalogue could not be read.");
+      setPaused(true);
       if (rows === null) setRows([]);
     } finally {
+      inFlight.current = null;
       setLoadingRows(false);
     }
   };
@@ -4104,9 +4287,21 @@ function CatalogRows({
   }, []);
 
   // Rows arrive as the reader reaches the bottom, not all at once.
+  //
+  // The observer only fires when the sentinel crosses into view. A reader who
+  // scrolled quickly past it - or jumped to the footer - left it above the
+  // screen, where it never "intersects" again, and the rows stopped at a third
+  // of the catalogue. So the sentinel is also checked on scroll and after each
+  // page: anywhere above the bottom of the screen (plus the margin) counts as
+  // reached, including already scrolled past.
   useEffect(() => {
     const node = sentinel.current;
-    if (!node || !hasMoreRows) return;
+    if (!node || !hasMoreRows || paused) return;
+    const reached = () =>
+      node.getBoundingClientRect().top < window.innerHeight + 600;
+    const maybeLoad = () => {
+      if (!loadingRows && reached()) void fetchRows(rowOffset);
+    };
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && !loadingRows) void fetchRows(rowOffset);
@@ -4114,8 +4309,23 @@ function CatalogRows({
       { rootMargin: "600px" },
     );
     observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasMoreRows, rowOffset, loadingRows]);
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        maybeLoad();
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    maybeLoad();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMoreRows, rowOffset, loadingRows, paused]);
 
   if (rows === null) {
     return (
@@ -4141,20 +4351,31 @@ function CatalogRows({
 
   return (
     <>
-      {rows.map((row) => (
-        <CatalogRowStrip
-          key={row.id}
-          row={row}
-          favorites={favorites}
-          onToggleFavorite={onToggleFavorite}
-        />
-      ))}
+      {rows
+        .filter((row) => !hiddenKeys.has(row.id))
+        .map((row) => (
+          <CatalogRowStrip
+            key={row.id}
+            row={row}
+            favorites={favorites}
+            onToggleFavorite={onToggleFavorite}
+          />
+        ))}
       <div ref={sentinel} aria-hidden="true" className="h-px" />
       {loadingRows && (
         <p className="py-6 text-center text-xs text-white/50">Loading more categories…</p>
       )}
       {error && rows.length > 0 && (
-        <p className="py-4 text-center text-xs text-white/50">{error}</p>
+        <div className="py-4 text-center text-xs text-white/50">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => void fetchRows(rowOffset)}
+            className="mt-2 rounded-lg border border-white/20 px-3 py-1.5 font-semibold text-cyan-200 hover:bg-white/[0.06]"
+          >
+            Try again
+          </button>
+        </div>
       )}
     </>
   );

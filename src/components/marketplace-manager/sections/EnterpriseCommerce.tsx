@@ -1,5 +1,8 @@
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { getLicenseOverview } from "@/lib/marketplace-manager/license.functions";
+// Releases calls this; it was used without being imported, so the Releases
+// screen's figures stayed at zero and its "no release yet" notice never showed.
+import { getReleaseOverview } from "@/lib/marketplace-manager/customers.functions";
 import {
   KeyRound, Download, ShoppingBag, Receipt, CreditCard, Wallet, Banknote,
   QrCode, Rocket, Copy, RefreshCw, ShieldCheck, Fingerprint, Cpu, Globe2,
@@ -2077,7 +2080,37 @@ function Row({ l, r, strong = false }: { l: string; r: string; strong?: boolean 
    PAYMENTS
    ============================================================= */
 
-const GATEWAYS = [
+/**
+ * The payment rails checkout actually offers, from Finance Manager.
+ *
+ * Finance Manager owns money on this platform: its rails (finance_payment_rails)
+ * are what /api/payment/methods reads and what checkout uses. This screen used
+ * to show the list below, hardcoded, with Stripe, Razorpay and PayPal marked
+ * "live" - none of which checkout could take. It now shows the real rails and
+ * their real readiness, and sends configuration to Finance Manager. The list
+ * is kept, unused, as GATEWAYS_ILLUSTRATIVE.
+ */
+type PaymentRail = {
+  code: string;
+  displayName: string;
+  kind: string;
+  ready: boolean;
+  reason?: string | null;
+};
+
+function usePaymentRails() {
+  return useQuery({
+    queryKey: ["mm-payment-rails"],
+    queryFn: async (): Promise<PaymentRail[]> => {
+      const response = await fetch("/api/payment/methods");
+      if (!response.ok) throw new Error(`Payment methods could not be read (${response.status}).`);
+      const data = (await response.json()) as { options?: PaymentRail[] };
+      return data.options ?? [];
+    },
+  });
+}
+
+const GATEWAYS_ILLUSTRATIVE = [
   { n: "Stripe",     desc: "Global cards, Apple Pay, Google Pay",   icon: CreditCard, on: true,  tone: "success" as const },
   { n: "Razorpay",   desc: "India cards, UPI, netbanking, wallets", icon: CreditCard, on: true,  tone: "success" as const },
   { n: "PayPal",     desc: "Global wallet + cards",                  icon: Wallet,     on: true,  tone: "success" as const },
@@ -2094,6 +2127,9 @@ const GATEWAYS = [
 
 export function PaymentsSection() {
   const [tab, setTab] = useState("Gateways");
+  const rails = usePaymentRails();
+  const railList = rails.data ?? [];
+  const readyCount = railList.filter((r) => r.ready).length;
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
@@ -2109,35 +2145,56 @@ export function PaymentsSection() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
-        <MiniStat label="Live gateways"  value="9"                          tone="success" icon={CheckCircle2} />
-        <MiniStat label="Success rate"   value="98.7%" delta="24h"          tone="premium" icon={TrendingUp} />
-        <MiniStat label="Auth-to-capture" value="1.4s" delta="p95"          tone="success" icon={Zap} />
-        <MiniStat label="Fraud blocks"   value="42"    delta="last 24h"     tone="warning" icon={ShieldAlert} />
-        <MiniStat label="Fees savings"   value="₹1.8L" delta="smart routing" tone="premium" icon={Wallet} />
+        {/* Real figures only. The success rate, capture time, fraud blocks and
+            fee savings shown here before were typed-in numbers with nothing
+            measured behind them; they are left blank until something is. */}
+        <MiniStat label="Rails ready" value={rails.isLoading ? "…" : `${readyCount} of ${railList.length}`} tone={readyCount ? "success" : "warning"} icon={CheckCircle2} />
+        <MiniStat label="Success rate"   value="—" delta="not measured" tone="premium" icon={TrendingUp} />
+        <MiniStat label="Auth-to-capture" value="—" delta="not measured" tone="success" icon={Zap} />
+        <MiniStat label="Fraud blocks"   value="—" delta="not measured" tone="warning" icon={ShieldAlert} />
+        <MiniStat label="Fees savings"   value="—" delta="not measured" tone="premium" icon={Wallet} />
       </div>
 
       <SubNav items={["Gateways","QR Payment","Subscriptions","Payouts","Wallets","Coupons"]} active={tab} onChange={setTab} />
 
       {tab === "Gateways" && (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {GATEWAYS.map((g) => (
-            <Card key={g.n}>
-              <div className="flex items-start justify-between">
+        <div className="space-y-3">
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span>
+                Payment rails are owned and configured in Finance Manager. What is shown here is exactly what checkout offers a buyer.
+              </span>
+              <a href="/finance-manager" className="font-semibold text-accent underline-offset-2 hover:underline">
+                Open Finance Manager
+              </a>
+            </div>
+          </Card>
+          {rails.isError && (
+            <p className="text-sm text-red-400">{(rails.error as Error).message}</p>
+          )}
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {railList.map((r) => (
+              <Card key={r.code}>
                 <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-background/60 text-accent"><g.icon className="h-4 w-4" /></div>
+                  <div className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-background/60 text-accent">
+                    {r.kind === "crypto" ? <Hash className="h-4 w-4" /> : r.kind === "wallet" ? <Smartphone className="h-4 w-4" /> : <Banknote className="h-4 w-4" />}
+                  </div>
                   <div>
-                    <div className="flex items-center gap-2 text-sm font-bold">{g.n}<Chip tone={g.tone}>{g.on ? "live" : "not connected"}</Chip></div>
-                    <div className="text-[11px] text-muted-foreground">{g.desc}</div>
+                    <div className="flex items-center gap-2 text-sm font-bold">
+                      {r.displayName}
+                      <Chip tone={r.ready ? "success" : "warning"}>{r.ready ? "ready" : "not ready"}</Chip>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {r.ready ? `${r.kind} · offered at checkout` : r.reason ?? "Not configured in Finance Manager."}
+                    </div>
                   </div>
                 </div>
-                <Switch on={g.on} />
-              </div>
-              <div className="mt-3 flex gap-2">
-                <PillButton variant="ghost">Configure</PillButton>
-                {g.on ? <PillButton variant="ghost">Webhooks</PillButton> : <PillButton variant="primary">Connect</PillButton>}
-              </div>
-            </Card>
-          ))}
+              </Card>
+            ))}
+            {!rails.isLoading && !rails.isError && railList.length === 0 && (
+              <p className="text-sm text-muted-foreground">No payment rails are defined in Finance Manager yet.</p>
+            )}
+          </div>
         </div>
       )}
 

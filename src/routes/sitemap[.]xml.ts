@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { publicProductFilter } from "@/lib/marketplace/public-visibility";
 import { absoluteUrl, indexable } from "@/lib/seo/site-url";
 
 /**
@@ -28,8 +29,8 @@ async function countPublished(): Promise<number> {
   if (!url()) return 0;
   try {
     const response = await fetch(
-      `${url()}/rest/v1/marketplace_products?select=id&visible=eq.true` +
-        `&content_status=eq.published&limit=1`,
+      `${url()}/rest/v1/marketplace_products?select=id${publicProductFilter()}` +
+        `&limit=1`,
       { headers: { ...admin(), Prefer: "count=exact" } },
     );
     const range = response.headers.get("content-range") ?? "";

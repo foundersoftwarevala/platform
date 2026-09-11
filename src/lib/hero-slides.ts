@@ -103,7 +103,9 @@ function toRow(r: DbRow): HeroSlideRow {
     cta_label: r.cta_primary ?? "Learn more",
     cta_href: r.cta_link ?? "/marketplace",
     secondary_label: r.cta_secondary || null,
-    secondary_href: r.cta_link ?? null,
+    // The table has one link column; the carousel sends the secondary button
+    // to /marketplace. Reporting cta_link here showed the primary link twice.
+    secondary_href: null,
     icon: r.icon_name || "Sparkles",
     bg_gradient: r.gradient ?? "",
     accent_class: accent,

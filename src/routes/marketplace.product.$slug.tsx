@@ -93,6 +93,19 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
 
   head: ({ loaderData }) => {
     const data = (loaderData ?? {}) as Loaded;
+    // No public product behind this URL - an unknown slug, or one that is
+    // hidden, a draft or outside its schedule. The page says "not found", so the
+    // head must not describe it as a product or offer it to a search engine.
+    // (The SEO lookup is separate and would otherwise name a draft product.)
+    const publicProduct = (data.product as { product?: unknown } | null | undefined)?.product;
+    if (data.product !== undefined && !publicProduct) {
+      return {
+        meta: [
+          { title: "Product not found — Software Vala" },
+          { name: "robots", content: "noindex, follow" },
+        ],
+      };
+    }
     if (!data.name) {
       return { meta: [{ title: GENERIC.title }, { name: "description", content: GENERIC.description }] };
     }

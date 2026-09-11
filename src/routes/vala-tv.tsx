@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Play, Video } from "lucide-react";
-import { embedUrl, hasPlayableVideo, listPublishedVideos, VIDEO_CATEGORIES } from "@/lib/site-content/videos";
+import { embedUrl, hasPlayableVideo, VIDEO_CATEGORIES, type ValaVideo } from "@/lib/site-content/videos";
+import { listPublicValaTv } from "@/lib/site-content/vala-tv.functions";
 import "@/styles/marketplace-home.css";
 
 /**
@@ -11,7 +12,9 @@ import "@/styles/marketplace-home.css";
  * opening something unrelated.
  */
 function ValaTvPage() {
-  const videos = useMemo(() => listPublishedVideos(), []);
+  // The same published list the homepage section is served (sf_vala_tv), not
+  // the browser copy the Manager used to keep.
+  const videos = (Route.useLoaderData() ?? []) as ValaVideo[];
   const [filter, setFilter] = useState<string>("All");
   const [playing, setPlaying] = useState<string | null>(null);
 
@@ -134,5 +137,6 @@ export const Route = createFileRoute("/vala-tv")({
       { property: "og:type", content: "website" },
     ],
   }),
+  loader: async (): Promise<ValaVideo[]> => listPublicValaTv(),
   component: ValaTvPage,
 });

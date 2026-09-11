@@ -205,7 +205,11 @@ export function ActionsSectionStatic() {
 }
 
 // ---------- OFFERS ----------
-export function OffersSection() {
+// The live Offers screen is OffersManager, on the offer engine the homepage
+// banner reads (marketing_offers via sf_active_offers). The six placeholder
+// cards below are kept, unused, as OffersSectionStatic.
+export { OffersManager as OffersSection } from "./OffersManager";
+export function OffersSectionStatic() {
   const types = ["Deal Of The Day","Weekly Offer","Bundle Offer","Festival Offer","New Launch Offer","Limited Time Offer"];
   return (
     <div className="px-4 py-8 md:px-8">

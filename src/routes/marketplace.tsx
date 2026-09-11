@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { pageHead } from "@/lib/seo-head";
+import { Toaster } from "@/components/ui/sonner";
 
 /**
  * The layout every /marketplace page sits inside.
@@ -13,5 +14,13 @@ import { pageHead } from "@/lib/seo-head";
  */
 export const Route = createFileRoute("/marketplace")({
   head: pageHead("Marketplace", "Browse ready-to-deploy software with live demos, full source code and lifetime access."),
-  component: () => <Outlet />,
+  // The product page raises "Please sign in to buy" and every cart failure
+  // through `toast`, and nothing above it rendered toasts, so each message was
+  // composed and dropped. One Toaster here serves every marketplace page.
+  component: () => (
+    <>
+      <Outlet />
+      <Toaster />
+    </>
+  ),
 });
