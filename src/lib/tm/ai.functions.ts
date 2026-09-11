@@ -2,6 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { executeAiRequest } from "@/lib/ai-api.functions";
+import { requireCallerRole } from "@/lib/auth/caller-roles";
+
+/**
+ * Who may ask for suggestions: the roles RouteAccessGate lets into
+ * /task-manager, where the AI Task Generator lives. Platform operators are
+ * added by requireCallerRole.
+ */
+const TASK_MANAGER_ROLES = ["developer", "support", "sales"] as const;
 
 /**
  * The AI Task Generator of section 18.
@@ -90,6 +98,11 @@ function extractJson(text: string): unknown {
 export const generateTasks = createServerFn({ method: "POST" })
   .inputValidator((data) => inputSchema.parse(data))
   .handler(async ({ data }): Promise<AITaskSuggestion[]> => {
+    // Every generation is a metered provider call, and nothing checked who was
+    // asking, so anyone who could reach /_serverFn could spend the platform's AI
+    // credit. The caller must now be signed in and hold a Task Manager role.
+    await requireCallerRole(TASK_MANAGER_ROLES, "The AI Task Generator is available to Task Manager roles.");
+
     const prompt = [
       `Brief: ${data.brief}`,
       `Produce exactly ${data.count} tasks.`,

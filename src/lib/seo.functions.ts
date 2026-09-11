@@ -1,9 +1,27 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { operatorRefusal } from "@/lib/auth/operator-check";
+
 import { deleteRecord, insertRecord, updateRecord } from "./manager-data.functions";
 import { generateSeo } from "./seo-ai.functions";
 export { deleteRecord, insertRecord, updateRecord };
+
+/**
+ * Every function below runs on the service-role client, and none of them asked
+ * who was calling: anyone who could reach /_serverFn could write audits,
+ * reports and crawl results, or spend AI credit. They now require the signed-in
+ * caller (requireSupabaseAuth reads the bearer token the browser attaches to
+ * every server function call) and ask mm_is_operator - the gate generateSeo
+ * already uses. It admits seo, marketing, admin, boss, founder, super_admin and
+ * boss_owner, which is who the SEO screens (/seo-manager, /keywords, /pages)
+ * are gated to in RouteAccessGate.
+ */
+async function requireSeoOperator(context: unknown): Promise<void> {
+  const refusal = await operatorRefusal(context);
+  if (refusal) throw new Error(refusal);
+}
 
 const aiSchema = z.object({
   task: z.enum(["suggestions", "content", "meta", "reel", "assistant"]).default("assistant"),
@@ -18,8 +36,10 @@ const searchConsoleSchema = z.object({ siteUrl: z.string().min(1), days: z.numbe
 const semrushSchema = z.object({ domain: z.string().min(1), database: z.string().min(1).default("us") });
 
 export const generateWithAi = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((value) => aiSchema.parse(value ?? {}))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await requireSeoOperator(context);
     const generated = await generateSeo({
       data: {
         topic: data.prompt,
@@ -69,8 +89,10 @@ export const generateWithAi = createServerFn({ method: "POST" })
   });
 
 export const runAutomation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((value) => automationSchema.parse(value ?? {}))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await requireSeoOperator(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const automationId = data.id;
     const { data: automation, error: automationError } = await supabaseAdmin
@@ -103,7 +125,9 @@ export const runAutomation = createServerFn({ method: "POST" })
   });
 
 export const runSiteAudit = createServerFn({ method: "POST" })
-  .handler(async () => {
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireSeoOperator(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const startedAt = new Date().toISOString();
     const score = 94;
@@ -125,7 +149,9 @@ export const runSiteAudit = createServerFn({ method: "POST" })
   });
 
 export const runTechnicalChecks = createServerFn({ method: "POST" })
-  .handler(async () => {
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireSeoOperator(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const counts = await supabaseAdmin.from("seo_technical_checks").select("id", { count: "exact", head: false });
     const checked = counts.data?.length ?? 0;
@@ -138,7 +164,9 @@ export const runTechnicalChecks = createServerFn({ method: "POST" })
   });
 
 export const generateSeoReport = createServerFn({ method: "POST" })
-  .handler(async () => {
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireSeoOperator(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const date = new Date().toISOString();
     const { error } = await supabaseAdmin.from("seo_reports").insert({
@@ -161,8 +189,10 @@ export const generateSeoReport = createServerFn({ method: "POST" })
   });
 
 export const recrawlUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((value) => recrawlSchema.parse(value ?? {}))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await requireSeoOperator(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: record, error } = await supabaseAdmin
       .from("seo_indexing_records")
@@ -191,8 +221,10 @@ export const recrawlUrl = createServerFn({ method: "POST" })
   });
 
 export const syncSearchConsole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((value) => searchConsoleSchema.parse(value ?? {}))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await requireSeoOperator(context);
     const synced = Math.max(1, Math.min(data.days, 3650));
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: metrics, error } = await supabaseAdmin
@@ -211,8 +243,10 @@ export const syncSearchConsole = createServerFn({ method: "POST" })
   });
 
 export const syncSemrush = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((value) => semrushSchema.parse(value ?? {}))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await requireSeoOperator(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: keywords, error } = await supabaseAdmin.from("seo_keywords").select("id").limit(1);
 

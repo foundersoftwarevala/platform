@@ -91,6 +91,29 @@ export const getDemoConfig = createServerFn({ method: "GET" })
       throw new Error("Product slug required");
     }
 
+    // A demo must never open for an anonymous visitor. This function has no
+    // middleware and handed the live product_demo_urls.url to anyone who
+    // called it, which walked straight past the sign-in gate on /demo/$slug
+    // and the ticketed proxy. It now applies the ticket endpoint's own rule
+    // (src/routes/api/demo/ticket.ts): a signed-in account whose address is
+    // confirmed, or a social sign-in. Anyone else gets the same shape with no
+    // URL and the reason, as for a product that has no demo. The helper is
+    // loaded here, inside the handler, so this browser-imported module never
+    // pulls server code into the client bundle.
+    const { currentCaller } = await import("@/lib/auth/caller-roles");
+    const caller = await currentCaller();
+    if (!caller) {
+      return { slug, demo_url: null, demo_name: null, error: "Sign in to open this demo." };
+    }
+    if (!caller.verified) {
+      return {
+        slug,
+        demo_url: null,
+        demo_name: null,
+        error: "Confirm your email address, then the demo will open.",
+      };
+    }
+
     try {
       const env = typeof process !== "undefined" ? process.env : undefined;
       const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;

@@ -11,6 +11,38 @@ export const Route = createFileRoute("/admin/import")({
   component: AdminImportPage,
 });
 
+/**
+ * The sixteen supplied products, by name only.
+ *
+ * This list used to print each product beside its live demo host
+ * ("Delhi Metro App → delhi-ride-ui.lovable.app", and fifteen more). A route's
+ * JSX is compiled into its public chunk, so /assets/admin.import-*.js handed
+ * every demo address to anyone who fetched it, signed in or not - the one
+ * thing the demo gate exists to protect. The addresses were never needed
+ * here: the import itself reads them on the server, from DEMO_CATALOG in
+ * marketplace-import-16-demos.ts (and DEMO_URLS in admin-trigger-import.ts),
+ * inside a server function whose body never reaches the browser. The page now
+ * shows what it is importing and nothing that opens a demo.
+ */
+const SUPPLIED_DEMO_NAMES = [
+  "Delhi Metro App",
+  "RetailX Core",
+  "EduNex Pro",
+  "Medical Research Institute",
+  "Fleetio",
+  "Infra.Market",
+  "Indoor Sports Arena",
+  "Blinkit Clone",
+  "BoatBook",
+  "Outdoor Sports Complex",
+  "Sports Equipment Store",
+  "Data Science Lab",
+  "Festora™",
+  "Dental Clinic",
+  "Printora™",
+  "Decorixa™",
+];
+
 function AdminImportPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -109,22 +141,9 @@ function AdminImportPage() {
         <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-900 p-4 text-sm text-slate-400">
           <p className="font-semibold text-slate-200">Supplied Demos (16 total):</p>
           <ul className="space-y-1 list-disc list-inside text-xs">
-            <li>Delhi Metro App → delhi-ride-ui.lovable.app</li>
-            <li>RetailX Core → retail-heartbeat-92.lovable.app</li>
-            <li>EduNex Pro → grade-grid-quest.lovable.app</li>
-            <li>Medical Research Institute → med-sync-vault.lovable.app</li>
-            <li>Fleetio → vala-fleet-ui.lovable.app</li>
-            <li>Infra.Market → infra-fleet-view.lovable.app</li>
-            <li>Indoor Sports Arena → court-squad-pro.lovable.app</li>
-            <li>Blinkit Clone → color-dash-delight.lovable.app</li>
-            <li>BoatBook → sea-charms-book.lovable.app</li>
-            <li>Outdoor Sports Complex → turf-booker-spark.lovable.app</li>
-            <li>Sports Equipment Store → sportspark-pos.lovable.app</li>
-            <li>Data Science Lab → offline-lab-keeper.lovable.app</li>
-            <li>Festora™ → festora-os.lovable.app</li>
-            <li>Dental Clinic → tooth-chart-buddy.lovable.app</li>
-            <li>Printora™ → printora-news-os.lovable.app</li>
-            <li>Decorixa™ → decorix-stage-magic.lovable.app</li>
+            {SUPPLIED_DEMO_NAMES.map((name) => (
+              <li key={name}>{name} → demo address held on the server</li>
+            ))}
           </ul>
         </div>
       </div>

@@ -32,6 +32,33 @@ const OPERATOR_ROLES = new Set([
   "boss_owner",
 ]);
 
+/**
+ * Roles that stay in the list above but do not, on their own, make someone an
+ * operator of these endpoints.
+ *
+ * Developers on this marketplace are external product contributors - fourteen
+ * accounts hold the role - and this guard protects the endpoints that rewrite
+ * the server's database credentials (credential-setup), withdraw a buyer's
+ * licences (DELETE /api/orders/<id>/fulfil), settle commissions, administer
+ * sellers and apply migrations. None of the 38 route files that call this
+ * guard is a developer's own endpoint: /api/marketplace/developer is the
+ * Marketplace Manager's "Developer API" section, an operator screen, not
+ * something a developer uses.
+ *
+ * No role is taken from anyone. An account that holds admin (or boss, or any
+ * other operator role) as well as developer still passes through that role -
+ * one of the fourteen does, and keeps its access; only developer by itself is
+ * no longer enough. An endpoint that genuinely
+ * belongs to developers can say so explicitly with `{ allowDeveloper: true }`
+ * rather than the whole list being widened again.
+ */
+const NON_OPERATOR_BY_DEFAULT = new Set(["developer"]);
+
+export type InternalGuardOptions = {
+  /** Admit a caller whose only qualifying role is developer. Off by default. */
+  allowDeveloper?: boolean;
+};
+
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -60,7 +87,10 @@ function asRequest(input: RequestLike): Request | null {
   return null;
 }
 
-export async function requireInternalOperator(input: RequestLike): Promise<GuardResult> {
+export async function requireInternalOperator(
+  input: RequestLike,
+  options: InternalGuardOptions = {},
+): Promise<GuardResult> {
   const request = asRequest(input);
   if (!request) {
     return deny("This endpoint could not read the request.", 400);
@@ -126,7 +156,11 @@ export async function requireInternalOperator(input: RequestLike): Promise<Guard
       }
     }
 
-    const role = held.find((value) => OPERATOR_ROLES.has(value));
+    // A real operator role is preferred, so admin+developer is reported as
+    // admin; developer alone counts only where the endpoint opted in.
+    const role =
+      held.find((value) => OPERATOR_ROLES.has(value) && !NON_OPERATOR_BY_DEFAULT.has(value)) ??
+      (options.allowDeveloper ? held.find((value) => value === "developer") : undefined);
     if (!role) {
       return deny("This endpoint is restricted to operators.", 403);
     }

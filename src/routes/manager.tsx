@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 
+import { RequireRole } from "@/components/auth/RequireRole";
 import { MANAGER_NAV, findGroup, type NavGroup } from "@/lib/manager-nav";
 import { inr, num } from "@/components/manager/primitives";
 import { useManyRecords } from "@/lib/manager-queries";
@@ -21,8 +22,31 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/manager")({
   head: pageHead("AI API Manager", "Providers, models, keys, usage and billing for every AI call the platform makes."),
-  component: ManagerLayout,
+  component: GuardedManagerLayout,
 });
+
+/**
+ * The roles the AI API Manager is actually for.
+ *
+ * The shell rendered with no guard of its own. RouteAccessGate does cover
+ * /manager, but with developer, support and sales_support_manager as well, and
+ * every screen under this layout - the AI API sections and the Finance Manager
+ * at /manager/finance - reads through requireManager() in
+ * manager-data.functions.ts, which answers admin, boss and finance only. Those
+ * other roles got the full console chrome and then a refusal on every read.
+ * The door now matches the data layer. Platform operators (boss_owner,
+ * founder, super_admin, owner) are still admitted by RequireRole's own
+ * operator bypass, as they are everywhere else.
+ */
+const MANAGER_ROLES = ["admin", "boss", "finance"];
+
+function GuardedManagerLayout() {
+  return (
+    <RequireRole role={MANAGER_ROLES}>
+      <ManagerLayout />
+    </RequireRole>
+  );
+}
 
 const COLLAPSE_KEY = "sv:sidebar:collapsed";
 

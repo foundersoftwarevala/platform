@@ -37,6 +37,18 @@ async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise
   return data as T;
 }
 
+/**
+ * The functions that spend AI credit ask for an operator before anything else.
+ * mm_ai_generation_start already refuses a non-operator inside the database,
+ * but that is one step removed from the provider call; asking mm_is_operator
+ * first - the gate every Marketplace Manager function uses - keeps the refusal
+ * at the door rather than relying on a later RPC to happen to check it.
+ */
+async function requireContentOperator(): Promise<void> {
+  const isOperator = await callAsUser<boolean>("mm_is_operator", {});
+  if (isOperator !== true) throw new Error("Marketplace operator access is required.");
+}
+
 const CONTENT_TYPES = [
   "summary", "short_description", "long_description", "seo_description",
   "meta_keywords", "faq", "features", "benefits", "use_cases",
@@ -229,9 +241,10 @@ export const generateContent = createServerFn({ method: "POST" })
       language: z.string().max(8).optional(),
     }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
-    runOne(data.product_id, data.types, data.language, null),
-  );
+  .handler(async ({ data }): Promise<Record<string, unknown>> => {
+    await requireContentOperator();
+    return runOne(data.product_id, data.types, data.language, null);
+  });
 
 /* ------------------------------------------------------------ review actions */
 
@@ -371,6 +384,9 @@ export const runBulkBatch = createServerFn({ method: "POST" })
     results?: { product: string; ok: boolean; detail?: string }[];
     progress?: Record<string, unknown>;
   }> => {
+    // Each batch makes one provider call per product, so it is gated like
+    // generateContent above.
+    await requireContentOperator();
     const claim = await callAsUser<{
       ok: boolean; reason?: string; done?: boolean;
       types?: string[]; language?: string;
