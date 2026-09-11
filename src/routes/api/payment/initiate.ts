@@ -675,8 +675,26 @@ export const Route = createFileRoute("/api/payment/initiate")({
             firstname,
             email: user.email,
             phone: String(body.phone ?? "").slice(0, 20),
-            surl: `${config.appBaseUrl}/payment/success`,
-            furl: `${config.appBaseUrl}/payment/fail`,
+            // The reference travels on the return URL, the way the card
+            // gateways already do it.
+            //
+            // Without it the return page had nothing to identify the payment
+            // by. PayU sends the customer back by POSTing its result as form
+            // fields, and a browser POST puts nothing in `location.search` —
+            // so the page read an empty query string, found no reference, and
+            // told the customer "We could not identify that payment" for a
+            // payment that had gone through perfectly. Naming it here means the
+            // page can ask our own server which order this was.
+            //
+            // The reference is an order reference and not a secret: it is
+            // printed on the page, quoted to support, and the status endpoint
+            // still requires the buyer's own session before it will return a
+            // licence key or recover a missed callback. Safe to put in a URL,
+            // and outside the request hash — which covers
+            // key|txnid|amount|productinfo|firstname|email|udf1..udf10|salt and
+            // never surl or furl — so signing is unaffected.
+            surl: `${config.appBaseUrl}/payment/success?txnid=${encodeURIComponent(txnid)}`,
+            furl: `${config.appBaseUrl}/payment/fail?txnid=${encodeURIComponent(txnid)}`,
             hash,
           },
         });

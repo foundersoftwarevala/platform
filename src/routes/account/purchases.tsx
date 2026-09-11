@@ -1,8 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Copy, KeyRound, Loader2, Package, ShieldCheck } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { KeyRound, Loader2, Package, RefreshCw, ShieldCheck } from "lucide-react";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { dateLabel, friendlyThrown, money, readJson } from "@/lib/portal/format";
+import { CopyButton } from "@/components/portal/CopyButton";
+import { useOnlineRecovery } from "@/lib/portal/use-online";
+import { supportMailto } from "@/lib/portal/config";
 import "@/styles/marketplace-home.css";
+import { PortalError } from "@/components/portal/PortalError";
 
 /**
  * What a customer has bought.
@@ -18,8 +23,12 @@ type Purchase = {
   order_no: string | null;
   product: string;
   status: string;
-  amount: number;
-  currency: string;
+  /* Both nullable: the server sends the figure that was actually charged with
+     the currency it was charged in, and sends null rather than inventing either
+     one. `money` renders a missing amount as an em dash and a missing currency
+     as a plain number, which is the truthful reading of both. */
+  amount: number | null;
+  currency: string | null;
   gateway: string | null;
   placed: string;
   licence_key: string | null;
@@ -35,68 +44,176 @@ const TONE: Record<string, string> = {
   cancelled: "border-white/15 bg-white/5 text-white/60",
 };
 
-function money(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency", currency, maximumFractionDigits: 0,
-    }).format(amount);
-  } catch {
-    return `${currency} ${amount}`;
-  }
+/*
+ * Formatting moved to lib/portal/format. What was here forced every amount
+ * through the "en-IN" locale with the decimals suppressed, which is right for
+ * rupees and wrong for everything else this catalogue sells in: a dollar total
+ * came out grouped the Indian way, and a customer charged $1,299.50 was shown
+ * "$1,299" on their own receipt.
+ */
+
+/**
+ * One browser client for the page's lifetime.
+ *
+ * A fresh `createClient` on every load — which is what happened when the loader
+ * lived inline in the effect and the effect could be re-run — builds another auth
+ * instance with its own storage listener each time. Building it once, lazily,
+ * means a retry and a reconnection reuse the client rather than stacking
+ * listeners behind them (§31).
+ */
+let client: SupabaseClient | null = null;
+function browserClient(): SupabaseClient {
+  if (client) return client;
+  const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
+  const supabaseUrl = env?.VITE_SUPABASE_URL ?? "";
+  const publishable = env?.VITE_SUPABASE_PUBLISHABLE_KEY ?? env?.VITE_SUPABASE_ANON_KEY ?? "";
+  if (!supabaseUrl || !publishable) throw new Error("This page is not configured.");
+  client = createClient(supabaseUrl, publishable);
+  return client;
 }
 
 function PurchasesPage() {
   const [purchases, setPurchases] = useState<Purchase[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
+  /** How many are shown when the server had to cap the list; 0 when it did not. */
+  const [truncated, setTruncated] = useState(0);
+  /** A reload the customer asked for, as opposed to the page's first load. */
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
-        const supabaseUrl = env?.VITE_SUPABASE_URL ?? "";
-        const publishable =
-          env?.VITE_SUPABASE_PUBLISHABLE_KEY ?? env?.VITE_SUPABASE_ANON_KEY ?? "";
-        if (!supabaseUrl || !publishable) throw new Error("This page is not configured.");
+  /**
+   * Which load owns the screen, and whatever is currently in flight.
+   *
+   * The page can now be loaded more than once — the customer can retry, ask for
+   * a refresh, or come back from a dropped connection — and two loads racing must
+   * not let the older answer win. The generation counter settles that (§3, §32),
+   * and the controller lets a superseded read be abandoned rather than left to
+   * complete into nothing.
+   */
+  const generation = useRef(0);
+  const inFlight = useRef<AbortController | null>(null);
+  const alive = useRef(true);
 
-        const supabase = createClient(supabaseUrl, publishable);
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        if (!token) {
-          if (!cancelled) {
-            setError("signed-out");
-            setPurchases([]);
-          }
-          return;
-        }
+  const load = useCallback(async () => {
+    generation.current += 1;
+    const mine = generation.current;
+    inFlight.current?.abort();
+    const controller = new AbortController();
+    inFlight.current = controller;
 
-        const response = await fetch("/api/account/purchases", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const payload = await response.json();
-        if (cancelled) return;
-        if (!response.ok) throw new Error(payload?.error ?? "Could not load your purchases");
-        setPurchases(payload.purchases ?? []);
-      } catch (problem) {
-        if (cancelled) return;
-        setError(problem instanceof Error ? problem.message : "Something went wrong");
+    try {
+      const supabase = browserClient();
+      const { data } = await supabase.auth.getSession();
+      if (!alive.current || mine !== generation.current) return;
+
+      const token = data.session?.access_token;
+      if (!token) {
+        setError("signed-out");
         setPurchases([]);
+        return;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+
+      const response = await fetch("/api/account/purchases", {
+        headers: { Authorization: `Bearer ${token}` },
+        // Cancelled when the customer navigates away mid-load, and when a newer
+        // load supersedes this one. This is a read, so stopping it costs nothing
+        // and frees the connection.
+        signal: controller.signal,
+      });
+      if (!alive.current || mine !== generation.current) return;
+
+      // Read through the safe reader rather than `response.json()`. A proxy
+      // returning an HTML error page used to surface to the customer as
+      // "Unexpected token < in JSON at position 0", which tells them nothing
+      // and looks like the site is broken rather than briefly unavailable.
+      const parsed = await readJson<{
+        purchases?: Purchase[];
+        truncated?: boolean;
+        limit?: number;
+      }>(response);
+      if (!alive.current || mine !== generation.current) return;
+
+      if (!parsed.ok) {
+        // 401 means the session went away — expired, or signed out in another
+        // tab — and that is a different thing from a failure to load. Sending
+        // the customer to the sign-in state is the honest answer and the only
+        // one they can act on (§27).
+        setError(response.status === 401 ? "signed-out" : parsed.error);
+        setPurchases([]);
+        return;
+      }
+      setError(null);
+      setPurchases(Array.isArray(parsed.data.purchases) ? parsed.data.purchases : []);
+      setTruncated(parsed.data.truncated === true ? Number(parsed.data.limit) || 0 : 0);
+    } catch (problem) {
+      if (!alive.current || mine !== generation.current) return;
+      // An abort is this page superseding its own read, not a failure worth
+      // showing anyone.
+      if (problem instanceof DOMException && problem.name === "AbortError") return;
+      setError(friendlyThrown(problem, "We could not load your purchases just now."));
+      setPurchases([]);
+    } finally {
+      if (alive.current && mine === generation.current) setRefreshing(false);
+    }
   }, []);
 
-  const copy = async (key: string) => {
+  useEffect(() => {
+    alive.current = true;
+    void load();
+    return () => {
+      alive.current = false;
+      generation.current += 1;
+      inFlight.current?.abort();
+    };
+  }, [load]);
+
+  /**
+   * Signed out somewhere else, so signed out here (§28).
+   *
+   * This page displays licence keys, which is exactly the thing that must not
+   * stay on screen after the person has signed out in another tab — a shared
+   * computer is the whole reason the rule exists. Supabase already broadcasts the
+   * session change between tabs through its own storage listener; what was
+   * missing was anything on this page listening, so the keys simply stayed up
+   * until somebody reloaded.
+   *
+   * Nothing is sent between tabs by us and no token is read out of the event:
+   * the event is used only as a signal to re-read the session, and the page then
+   * shows the signed-in state or the signed-out one accordingly.
+   */
+  useEffect(() => {
+    let subscription: { unsubscribe: () => void } | undefined;
     try {
-      await navigator.clipboard.writeText(key);
-      setCopied(key);
-      setTimeout(() => setCopied(null), 2000);
+      const { data } = browserClient().auth.onAuthStateChange((event) => {
+        if (!alive.current) return;
+        if (event === "SIGNED_OUT") {
+          generation.current += 1;
+          inFlight.current?.abort();
+          setPurchases([]);
+          setTruncated(0);
+          setError("signed-out");
+          return;
+        }
+        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") void load();
+      });
+      subscription = data.subscription;
     } catch {
-      /* clipboard can be blocked; the key is on screen either way */
+      // An unconfigured page has no session to follow. The load above has
+      // already said so.
     }
+    return () => subscription?.unsubscribe();
+  }, [load]);
+
+  // The connection came back: ask for the list again rather than leaving the
+  // customer looking at whatever failed while they were offline (§13). A read,
+  // and nothing is retried on their behalf beyond it.
+  useOnlineRecovery(() => {
+    setRefreshing(true);
+    void load();
+  });
+
+  const refresh = () => {
+    setRefreshing(true);
+    void load();
   };
 
   return (
@@ -124,9 +241,24 @@ function PurchasesPage() {
               </a>
             </div>
           ) : error ? (
-            <p className="rounded-2xl border border-dashed border-white/15 px-5 py-8 text-center text-sm text-white/60">
-              {error}
-            </p>
+            /* The load failed. This used to be the message alone, which left the
+               only way out being a reload the page never mentioned — a dead end
+               on the one screen a customer comes to for their licence key. */
+            <div className="rounded-2xl border border-dashed border-white/15 px-5 py-8 text-center">
+              <p className="text-sm text-white/60">{error}</p>
+              <button
+                type="button"
+                onClick={refresh}
+                disabled={refreshing}
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-gray-900 disabled:opacity-60"
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`}
+                  aria-hidden="true"
+                />
+                {refreshing ? "Trying again…" : "Try again"}
+              </button>
+            </div>
           ) : purchases.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 px-6 py-10 text-center">
               <Package className="mx-auto h-8 w-8 text-white/30" aria-hidden="true" />
@@ -142,9 +274,11 @@ function PurchasesPage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h2 className="truncate text-sm font-bold">{p.product}</h2>
+                      {/* An order with no usable date shows an em dash rather
+                          than the words "Invalid Date". */}
                       <p className="mt-0.5 text-[11px] text-white/50">
                         {p.order_no ? `Order ${p.order_no} · ` : ""}
-                        {new Date(p.placed).toLocaleDateString()}
+                        {dateLabel(p.placed)}
                         {p.gateway ? ` · ${p.gateway}` : ""}
                       </p>
                     </div>
@@ -171,18 +305,29 @@ function PurchasesPage() {
                           {p.licence_status}
                         </span>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => void copy(p.licence_key!)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1 text-[11px] font-semibold hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
-                      >
-                        <Copy className="h-3 w-3" aria-hidden="true" />
-                        {copied === p.licence_key ? "Copied" : "Copy"}
-                      </button>
+                      {/* Named after the product, so a screen reader reaching
+                          the fourth "Copy" on the page says which one it is. */}
+                      <CopyButton value={p.licence_key} label={`licence key for ${p.product}`} />
                     </div>
                   ) : p.status === "paid" ? (
-                    <p className="mt-3 text-[11px] text-white/50">
-                      Your licence is being issued. Refresh in a moment.
+                    /* The licence is issued a moment after the payment settles.
+                       This told the customer to refresh and then gave them
+                       nothing to refresh with, on the one row they are waiting
+                       on — so the instruction is now the control (§19, §14). */
+                    <p className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-white/50">
+                      Your licence is being issued.
+                      <button
+                        type="button"
+                        onClick={refresh}
+                        disabled={refreshing}
+                        className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-cyan-400 disabled:opacity-60"
+                      >
+                        <RefreshCw
+                          className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`}
+                          aria-hidden="true"
+                        />
+                        {refreshing ? "Checking…" : "Check now"}
+                      </button>
                     </p>
                   ) : null}
 
@@ -203,11 +348,25 @@ function PurchasesPage() {
               ))}
             </ul>
           )}
+
+          {/* Said plainly, because an older order that is simply not on this
+              page looks exactly like an order that was never placed. */}
+          {truncated > 0 && purchases && purchases.length > 0 ? (
+            <p className="mt-4 text-center text-[11px] text-white/40">
+              Showing your {truncated} most recent orders. Contact support for anything older.
+            </p>
+          ) : null}
         </div>
 
         <p className="mt-8 text-[11px] text-white/40">
           Our team contacts you on your email and WhatsApp to set up your domain, hosting and
-          branding. Questions? <a href="/support" className="text-cyan-300 underline">Talk to support</a>.
+          branding. Questions?{" "}
+          {/* /support is the support team's own console and refuses a customer
+              outright; this is the inbox they can actually reach. */}
+          <a href={supportMailto("Question about my purchase")} className="text-cyan-300 underline">
+            Talk to support
+          </a>
+          .
         </p>
       </div>
     </main>
@@ -220,4 +379,7 @@ export const Route = createFileRoute("/account/purchases")({
     meta: [{ title: "Your purchases | Software Vala" }, { name: "robots", content: "noindex" }],
   }),
   component: PurchasesPage,
+  // One order row shaped unexpectedly must not cost the customer the page
+  // their licence keys are on.
+  errorComponent: PortalError,
 });

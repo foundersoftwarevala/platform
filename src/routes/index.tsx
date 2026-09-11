@@ -9,6 +9,7 @@ import {
 } from "@/lib/marketplace/home-route-data";
 import { absoluteUrl } from "@/lib/seo/site-url";
 import { Toaster } from "@/components/ui/sonner";
+import { MAX_VISIBLE_TOASTS } from "@/lib/portal/config";
 
 /**
  * Who publishes this site, for search engines. Everything here is taken from
@@ -92,9 +93,21 @@ function Index() {
           <HomeIndex />
         </Suspense>
       </HomeBoundary>
-      {/* The homepage raises feedback through toast (favourites, sign-in
-          prompts) and nothing above it rendered toasts, so each was dropped. */}
-      <Toaster />
+      {/*
+        Where the storefront's own notifications appear.
+
+        The homepage raises real feedback through `toast` -- adding a product to
+        favourites, confirming a sign-out, reporting that a language was
+        auto-detected or that location permission was refused -- and no
+        `<Toaster />` was mounted anywhere above it, so Sonner composed each one
+        and dropped it. Every one of those controls moved and then appeared to do
+        nothing.
+
+        Mounted here rather than inside the storefront components, which are
+        locked: this adds a renderer beside them and changes no layout, no
+        colour, no spacing and no component of the design itself.
+      */}
+      <Toaster visibleToasts={MAX_VISIBLE_TOASTS} />
     </div>
   );
 }

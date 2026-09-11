@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CanonicalLogin } from "@/components/auth/CanonicalLogin";
+import { Toaster } from "@/components/ui/sonner";
+import { MAX_VISIBLE_TOASTS } from "@/lib/portal/config";
 
 /**
  * Somebody sent here from a page they were trying to use - a demo, most often -
@@ -13,7 +15,27 @@ function destination(): string | undefined {
   return asked.startsWith("/") && !asked.startsWith("//") ? asked : undefined;
 }
 
+/**
+ * The sign-in page needs somewhere for its notifications to appear.
+ *
+ * `CanonicalLogin` has always raised its refusals through `toast` — a wrong
+ * password, an OAuth provider error, the outcome of "Forgot password?" — but no
+ * `<Toaster />` was ever mounted anywhere above it, and Sonner renders nothing
+ * without one. Every one of those messages was being composed and thrown away.
+ * Pressing "Forgot password?" was the worst of them: the reset mail was sent,
+ * or refused, and the page said nothing either way, so the only reasonable
+ * reading was that the button did not work.
+ *
+ * This is the same `Toaster` the operator consoles already mount — the existing
+ * notification system, not a second one. It is capped at two at a time, so a
+ * visitor holding Enter cannot bury the form under a column of them.
+ */
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Software Vala™" }] }),
-  component: () => <CanonicalLogin redirectTo={destination()} />,
+  component: () => (
+    <>
+      <CanonicalLogin redirectTo={destination()} />
+      <Toaster visibleToasts={MAX_VISIBLE_TOASTS} />
+    </>
+  ),
 });

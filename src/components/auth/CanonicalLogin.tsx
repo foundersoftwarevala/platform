@@ -1,10 +1,11 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, CheckCircle2, Eye, EyeOff, Fingerprint, Globe, LockKeyhole, Mail, Mic, MicOff, ShieldCheck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { OwlStage, type OwlState } from "@/components/owl/OwlStage";
 import { LANGUAGES, useLanguage } from "@/lib/language-catalog";
 import { supabase } from "@/integrations/supabase/client";
+import { friendlyThrown, safeMessage } from "@/lib/portal/format";
 
 const LANGUAGE_OPTIONS = ["EN", "HI", "AR", "ES", "FR", "DE", "JA", "ZH"];
 const RTL_LANGUAGES = new Set(["AR", "FA", "HE", "UR"]);
@@ -42,6 +43,24 @@ export function CanonicalLogin({ redirectTo }: Props) {
   const [owlState, setOwlState] = useState<OwlState>("idle");
   const [assistantLine, setAssistantLine] = useState("Nexus OS is warm and waiting.");
 
+  /**
+   * The short pause between "Authenticated" and actually leaving, held so it can
+   * be cancelled.
+   *
+   * It was a bare `window.setTimeout` before, which meant a visitor who signed in
+   * and immediately navigated away left a timer running that then tried to route
+   * a component that no longer existed (§30).
+   */
+  // window.setTimeout returns a number in the browser; the Node typings in the
+  // project would otherwise type this as a Timeout and reject the assignment.
+  const handoff = useRef<number | undefined>(undefined);
+  useEffect(
+    () => () => {
+      if (handoff.current) window.clearTimeout(handoff.current);
+    },
+    [],
+  );
+
   const languageName = useMemo(() => LANGUAGES.find((item) => item.code === lang)?.native ?? lang, [lang]);
 
   useEffect(() => {
@@ -77,35 +96,61 @@ export function CanonicalLogin({ redirectTo }: Props) {
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const trimmedEmail = email.trim();
+    // Trimmed and lowercased, because an address is not case-sensitive and
+    // "User@Company.com" should not be a different account from the one they
+    // registered. The password is deliberately left exactly as typed — it is
+    // case-sensitive and touching it would silently break a valid one.
+    const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !password) {
       setOwlState("curious");
       setAssistantLine("Enter your email and password so I can unlock your workspace.");
-      toast.error(translate("Enter your email and password to continue."));
+      // A fixed id, so holding Enter on an empty form replaces one message
+      // rather than stacking a column of identical ones.
+      toast.error(translate("Enter your email and password to continue."), { id: "login-validation" });
       return;
     }
     setBusy(true);
     setOwlState("hide");
     setAssistantLine("Checking your credentials and matching your access level...");
+
+    // Whether the browser is on its way somewhere else. The sign-in button stays
+    // locked on that path and is released on every other one.
+    //
+    // It was released unconditionally in `finally`, which ran the instant the
+    // sign-in succeeded — before the 400ms handoff and before the redirect. So
+    // the button came back to life, saying "Secure sign-in", during exactly the
+    // window in which the visitor is watching a success message and most likely
+    // to press it again. A second `signInWithPassword` in that window is a second
+    // session and a second round of role lookups for no reason (§2, §18).
+    let leaving = false;
     try {
       const { error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
       if (error) {
+        // Supabase's own auth refusals are written for people — "Invalid login
+        // credentials" — and are shown as they are. What is filtered out is the
+        // other kind: a transport failure surfacing to a customer as "Failed to
+        // fetch" tells them nothing and reads as though the site is broken.
+        const message = safeMessage(error.message) ?? "We could not sign you in. Please try again.";
         setOwlState("curious");
-        setAssistantLine(error.message);
-        toast.error(error.message);
+        setAssistantLine(message);
+        toast.error(message, { id: "login-error" });
         return;
       }
       setOwlState("celebrate");
       setAssistantLine("Authenticated. Opening your command surface.");
       toast.success("Signed in successfully.");
-      window.setTimeout(() => void routeAfterAuth(), 400);
+      leaving = true;
+      handoff.current = window.setTimeout(() => void routeAfterAuth(), 400);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to sign in.";
+      const message = friendlyThrown(error, "Unable to sign in. Please try again.");
       setOwlState("curious");
       setAssistantLine("A secure sign-in check failed. Please try again.");
-      toast.error(message);
+      toast.error(message, { id: "login-error" });
     } finally {
-      setBusy(false);
+      // Released on every path except the one where the browser is genuinely
+      // leaving — refusal, transport failure, timeout and abort all give the
+      // visitor their button back, so it can never be left stuck (§18, §39).
+      if (!leaving) setBusy(false);
     }
   };
 
@@ -170,8 +215,8 @@ export function CanonicalLogin({ redirectTo }: Props) {
               <div className="mt-4"><h1 className="text-[clamp(20px,2.2vh+10px,26px)] font-semibold leading-tight text-white">Welcome back, <span className="bg-gradient-to-r from-fuchsia-200 via-rose-200 to-amber-200 bg-clip-text text-transparent">Boss</span></h1><p className="mt-1 text-[12.5px] text-white/55">Sign in to enter the Software Vala universe.</p></div>
             </div>
             <form onSubmit={submit} className="mt-5 space-y-3 px-6 pb-6">
-              <label className="group block rounded-xl bg-white/[0.04] px-3.5 py-2.5 ring-1 ring-white/10 focus-within:ring-fuchsia-400/60"><span className="text-[10px] uppercase tracking-[0.16em] text-white/45">Work email</span><span className="mt-0.5 flex items-center gap-2"><Mail className="size-4 text-white/55" /><input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} onFocus={() => { setOwlState("curious"); setAssistantLine("Identifying your profile across the workspace..."); }} placeholder="you@company.com" className="min-w-0 flex-1 bg-transparent text-[14px] text-white placeholder:text-white/30 outline-none" /></span></label>
-              <label className="group block rounded-xl bg-white/[0.04] px-3.5 py-2.5 ring-1 ring-white/10 focus-within:ring-fuchsia-400/60"><span className="text-[10px] uppercase tracking-[0.16em] text-white/45">Password</span><span className="mt-0.5 flex items-center gap-2"><LockKeyhole className="size-4 text-white/55" /><input type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} onFocus={() => setOwlState("hide")} placeholder="Enter your password" className="min-w-0 flex-1 bg-transparent text-[14px] text-white placeholder:text-white/30 outline-none" /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} className="text-white/50 hover:text-white">{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></span></label>
+              <label className="group block rounded-xl bg-white/[0.04] px-3.5 py-2.5 ring-1 ring-white/10 focus-within:ring-fuchsia-400/60"><span className="text-[10px] uppercase tracking-[0.16em] text-white/45">Work email</span><span className="mt-0.5 flex items-center gap-2"><Mail className="size-4 text-white/55" /><input type="email" name="email" id="login-email" autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={email} onChange={(event) => setEmail(event.target.value)} onFocus={() => { setOwlState("curious"); setAssistantLine("Identifying your profile across the workspace..."); }} placeholder="you@company.com" className="min-w-0 flex-1 bg-transparent text-[14px] text-white placeholder:text-white/30 outline-none" /></span></label>
+              <label className="group block rounded-xl bg-white/[0.04] px-3.5 py-2.5 ring-1 ring-white/10 focus-within:ring-fuchsia-400/60"><span className="text-[10px] uppercase tracking-[0.16em] text-white/45">Password</span><span className="mt-0.5 flex items-center gap-2"><LockKeyhole className="size-4 text-white/55" /><input type={showPassword ? "text" : "password"} name="password" id="login-password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} onFocus={() => setOwlState("hide")} placeholder="Enter your password" className="min-w-0 flex-1 bg-transparent text-[14px] text-white placeholder:text-white/30 outline-none" /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} className="text-white/50 hover:text-white">{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></span></label>
               <div className="flex items-center justify-between text-xs text-white/65"><label className="inline-flex items-center gap-2"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="accent-fuchsia-400" /> Remember this device</label><button type="button" onClick={() => void resetPassword()} className="text-violet-300 hover:text-violet-200">Forgot password?</button></div>
               <button type="submit" disabled={busy} className="group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-4 py-3.5 text-sm font-semibold text-white ring-1 ring-sky-300/40 shadow-[0_22px_50px_-16px_oklch(0.55_0.22_280_/_0.85),inset_0_1px_0_oklch(1_0_0_/_0.32),inset_0_-4px_10px_black] transition hover:-translate-y-px disabled:opacity-70 [background:linear-gradient(135deg,oklch(0.58_0.21_335),oklch(0.66_0.17_55))]">{busy ? <span className="size-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <ShieldCheck className="size-4" />}{busy ? "Verifying securely..." : "Secure sign-in"}{!busy && <ArrowRight className="size-4" />}</button>
               <div className="flex items-center justify-center gap-2 text-xs text-white/45"><span>Need an account?</span><Link to="/apply/reseller" className="text-cyan-300 hover:text-cyan-200">Apply now</Link></div>
@@ -181,7 +226,12 @@ export function CanonicalLogin({ redirectTo }: Props) {
           </div>
         </section>
 
-        <aside className="flex min-h-0 flex-col justify-center"><div className="overflow-hidden rounded-2xl ring-1 ring-white/10 shadow-[0_50px_110px_-38px_black] [background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.2))]"><div className="relative h-[250px] overflow-hidden sm:h-[330px] lg:h-[460px]"><OwlStage state={owlState} /><div className="absolute right-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-[10px] text-white/85 ring-1 ring-white/15">{owlState === "hide" ? "Privacy mode" : owlState === "celebrate" ? "Authenticated" : "AI Concierge"}</div></div><div className="space-y-3 p-5"><div className="flex items-center justify-between"><div><p className="text-[11px] uppercase tracking-[0.18em] text-white/55">AI Concierge</p><p className="mt-0.5 text-[15px] font-semibold text-white">Vala · {owlState === "celebrate" ? "Delighted" : "Standing by"}</p></div><span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" /></div><div className="rounded-2xl bg-white/[0.05] p-3 text-[13px] leading-relaxed text-white/85 ring-1 ring-white/10">{assistantLine}</div></div></div></aside>
+        <aside className="flex min-h-0 flex-col justify-center"><div className="overflow-hidden rounded-2xl ring-1 ring-white/10 shadow-[0_50px_110px_-38px_black] [background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.2))]"><div className="relative h-[250px] overflow-hidden sm:h-[330px] lg:h-[460px]"><OwlStage state={owlState} /><div className="absolute right-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-[10px] text-white/85 ring-1 ring-white/15">{owlState === "hide" ? "Privacy mode" : owlState === "celebrate" ? "Authenticated" : "AI Concierge"}</div></div><div className="space-y-3 p-5"><div className="flex items-center justify-between"><div><p className="text-[11px] uppercase tracking-[0.18em] text-white/55">AI Concierge</p><p className="mt-0.5 text-[15px] font-semibold text-white">Vala · {owlState === "celebrate" ? "Delighted" : "Standing by"}</p></div><span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" /></div>{/* This panel is where a refusal actually persists -- the toast fades, this
+                 does not -- and it was never announced, so a screen-reader user
+                 signing in with the wrong password was told nothing at all: the
+                 button simply stopped spinning. Polite, so it waits for a pause
+                 rather than cutting across whatever is being read. */}
+              <div role="status" aria-live="polite" className="rounded-2xl bg-white/[0.05] p-3 text-[13px] leading-relaxed text-white/85 ring-1 ring-white/10">{assistantLine}</div></div></div></aside>
       </main>
       <footer className="relative z-10 shrink-0 px-6 pb-2 text-center text-[10px] text-white/40">Software Vala Nexus OS · A global enterprise operating system</footer>
     </div>

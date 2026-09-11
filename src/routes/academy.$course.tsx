@@ -3,6 +3,7 @@ import { pageHead } from "@/lib/seo-head";
 import { Check, GraduationCap } from "lucide-react";
 import { getCourse } from "@/lib/site-content/academy";
 import "@/styles/marketplace-home.css";
+import { supportMailto } from "@/lib/portal/config";
 
 /**
  * A learning path. There is no learning-management backend yet, so this page
@@ -67,7 +68,7 @@ function CoursePage() {
                 Apply as a {course.appliesTo}
               </a>
             )}
-            <a href="/support" className="rounded-xl border border-white/15 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
+            <a href={supportMailto("Academy question")} className="rounded-xl border border-white/15 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
               Ask a question
             </a>
           </div>

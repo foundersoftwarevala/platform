@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { PURCHASES_PAGE_SIZE } from "@/lib/portal/config";
+
 /**
  * What the signed-in customer has bought.
  *
@@ -7,6 +9,16 @@ import { createFileRoute } from "@tanstack/react-router";
  * customer can never be handed another's orders or licence keys. A licence key
  * is only ever returned for an order this customer owns.
  */
+
+/**
+ * How many orders one response carries.
+ *
+ * The cap exists so a customer with a long history cannot pull an unbounded
+ * result into their browser, and it is reported alongside the rows so the page
+ * can tell the customer which of the two situations they are in. The number
+ * itself lives with the portal's other operating thresholds.
+ */
+const ORDER_LIMIT = PURCHASES_PAGE_SIZE;
 
 function url() {
   return process.env.SUPABASE_URL?.trim() ?? "";
@@ -32,6 +44,39 @@ async function currentUser(request: Request) {
   } catch {
     return null;
   }
+}
+
+/**
+ * The figure the customer was charged, with the currency it was charged in.
+ *
+ * Never invented. A missing amount is `null`, not zero — a purchase shown as
+ * costing nothing is worse than one showing an em dash — and a missing currency
+ * is `null` rather than "USD", because guessing a currency for a catalogue that
+ * sells in rupees, dollars, euros, pounds and naira is a lie roughly four times
+ * out of five. The page's formatter already renders both of those honestly.
+ */
+export function chargedPair(order: Record<string, unknown>): {
+  amount: number | null;
+  currency: string | null;
+} {
+  const settled = order.amount_charged ?? order.amount_inr;
+  if (settled != null && Number.isFinite(Number(settled))) {
+    return {
+      amount: Number(settled),
+      // What was charged is denominated in the charged currency. Falling back to
+      // the order's base currency here would re-create the mismatch.
+      currency: (order.currency_charged as string | null) ?? null,
+    };
+  }
+  // Nothing has been charged yet — an order still awaiting payment. The base
+  // total is the honest thing to show, and it belongs with the base currency.
+  if (order.total != null && Number.isFinite(Number(order.total))) {
+    return {
+      amount: Number(order.total),
+      currency: (order.currency as string | null) ?? null,
+    };
+  }
+  return { amount: null, currency: null };
 }
 
 const PORTAL_STATUS: Record<string, string> = {
@@ -60,10 +105,10 @@ export const Route = createFileRoute("/api/account/purchases")({
           const owner = encodeURIComponent(user.id);
           const orderResponse = await fetch(
             `${url()}/rest/v1/marketplace_orders` +
-              `?select=id,order_no,order_number,status,total,currency,amount_inr,currency_charged,` +
-              `txnid,payment_gateway,created_at,metadata` +
+              `?select=id,order_no,order_number,status,total,currency,amount_inr,amount_charged,` +
+              `currency_charged,txnid,payment_gateway,created_at,metadata` +
               `&or=(buyer_id.eq.${owner},user_id.eq.${owner})` +
-              `&order=created_at.desc&limit=100`,
+              `&order=created_at.desc&limit=${ORDER_LIMIT}`,
             { headers: admin() },
           );
           if (!orderResponse.ok) {
@@ -117,8 +162,16 @@ export const Route = createFileRoute("/api/account/purchases")({
               order_no: order.order_no ?? order.order_number ?? null,
               product: metadata.product_name ?? "Software Vala licence",
               status: PORTAL_STATUS[String(order.status).toLowerCase()] ?? String(order.status),
-              amount: Number(order.amount_inr ?? order.total ?? 0),
-              currency: order.currency_charged ?? order.currency ?? "USD",
+              // The amount and the currency are chosen as a pair, and only ever
+              // as a pair. `amount_charged`/`amount_inr` are what the provider
+              // actually took, and they belong with `currency_charged`; `total`
+              // is the order's base figure and belongs with `currency`. Reading
+              // one from each side is how a card order settled at $1,299.50 came
+              // to be shown as its base total under the charged currency — the
+              // right symbol against the wrong number, on the customer's own
+              // receipt. The status endpoint already pairs them this way; this
+              // now matches it rather than having its own idea.
+              ...chargedPair(order),
               gateway: order.payment_gateway ?? null,
               placed: order.created_at,
               licence_key: licence?.key ?? null,
@@ -133,6 +186,13 @@ export const Route = createFileRoute("/api/account/purchases")({
               purchases,
               total: purchases.length,
               paid: purchases.filter((p) => p.status === "paid").length,
+              // Whether the cap was reached. Without this the page cannot tell
+              // "you have bought a hundred things" from "you have bought more
+              // than a hundred and we are only showing some", and a customer
+              // looking for an older order would be told, in effect, that it
+              // does not exist.
+              truncated: orders.length >= ORDER_LIMIT,
+              limit: ORDER_LIMIT,
             },
             { headers: { "Cache-Control": "no-store" } },
           );
