@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // The one application port. Production (PM2 behind nginx) listens on 3000,
+  // so local development does too, instead of the preset's 8080 default.
+  vite: {
+    server: { port: 3000, strictPort: true },
+  },
 });

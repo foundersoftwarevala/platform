@@ -13,8 +13,8 @@ One Node process, under PM2 in fork mode, behind nginx on a single VPS.
 | Thing | Where |
 | --- | --- |
 | Application | `/var/www/softwarevala`, served from `.output/server/index.mjs` |
-| Process | `pm2` — `softwarevala-staging`, listening on `127.0.0.1:3003` |
-| Reverse proxy | nginx, `softwarevala.net` and `softwarewala.net` both to `:3003` |
+| Process | `pm2` — `softwarevala-staging`, listening on `127.0.0.1:3000` (the only application port) |
+| Reverse proxy | nginx upstream `softwarevala_app` → `:3000`. `https://softwarevala.net` is the one canonical domain; `http://`, `www.softwarevala.net`, `softwarewala.net` and `www.softwarewala.net` all 301 to it |
 | Database | Supabase (PostgREST + Postgres). No direct Postgres client on the box. |
 | Secrets | `/var/www/softwarevala/.env`, plus per-rail secrets inside `finance_payment_rails.configuration_state.secrets` |
 | Scheduler | root `crontab` and `/etc/cron.d/*`, calling `/usr/local/bin/sv-*` |
@@ -47,7 +47,7 @@ signed-in operator's `Authorization` bearer token.
 
 ```bash
 TOKEN=$(grep -E '^INTERNAL_API_TOKEN=' /var/www/softwarevala/.env | cut -d= -f2-)
-curl -s -H "x-internal-token: $TOKEN" http://127.0.0.1:3003/api/internal/payment-health | jq
+curl -s -H "x-internal-token: $TOKEN" http://127.0.0.1:3000/api/internal/payment-health | jq
 ```
 
 Every response carries `x-correlation-id`. That id is the thread: it appears in
@@ -86,7 +86,7 @@ orders. The consistency sweep asks the provider about each one and settles the
 confirmed ones:
 
 ```bash
-curl -s -X POST -H "x-internal-token: $TOKEN" http://127.0.0.1:3003/api/internal/payment-reconcile | jq
+curl -s -X POST -H "x-internal-token: $TOKEN" http://127.0.0.1:3000/api/internal/payment-reconcile | jq
 ```
 
 **Communicate.** `finance_alerts` has an entry, visible on the Finance Manager
@@ -157,7 +157,7 @@ above zero, or `outbox_backlog` climbing.
 **Verify.**
 
 ```bash
-curl -s -H "x-internal-token: $TOKEN" http://127.0.0.1:3003/api/internal/payment-jobs | jq
+curl -s -H "x-internal-token: $TOKEN" http://127.0.0.1:3000/api/internal/payment-jobs | jq
 ```
 
 `pending` climbing means the queue is not being drained — check that cron is
@@ -170,7 +170,7 @@ LOCKED`.
 
 ```bash
 curl -s -X POST -H "x-internal-token: $TOKEN" \
-  -d '{"limit":50}' http://127.0.0.1:3003/api/internal/payment-jobs | jq
+  -d '{"limit":50}' http://127.0.0.1:3000/api/internal/payment-jobs | jq
 ```
 
 For dead events, find out *why* first — `finance_payment_events.last_error` —
@@ -255,10 +255,10 @@ npm run build && pm2 restart softwarevala-staging
 **Verify.** In this order, and all of them:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3003/health   # 200
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3003/ready    # 200
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/health   # 200
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/ready    # 200
 curl -s -o /dev/null -w '%{http_code}\n' https://softwarevala.net/      # 200
-curl -s -H "x-internal-token: $TOKEN" http://127.0.0.1:3003/api/internal/payment-health | jq .overall
+curl -s -H "x-internal-token: $TOKEN" http://127.0.0.1:3000/api/internal/payment-health | jq .overall
 ```
 
 The homepage is a protected route. It must never be left blank, and a deploy

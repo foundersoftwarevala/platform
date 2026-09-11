@@ -14,7 +14,7 @@ signature. That is on purpose. A test that invents a payment in order to prove
 payments work has proved nothing, and this platform's rule is that verification
 runs against real data or reports the honest empty state.
 
-    python tests/e2e/payment-reliability.py --base http://127.0.0.1:3003 \
+    python tests/e2e/payment-reliability.py --base http://127.0.0.1:3000 \
         [--internal-token <token>]
 
 Exit code is 0 when every check passed, 1 otherwise. A check that cannot run —
@@ -454,7 +454,7 @@ def test_liveness_and_readiness(base: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base", default="http://127.0.0.1:3003")
+    parser.add_argument("--base", default="http://127.0.0.1:3000")
     parser.add_argument("--internal-token", default=None)
     args = parser.parse_args()
 

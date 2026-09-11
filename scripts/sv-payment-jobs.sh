@@ -37,7 +37,7 @@ read_env() {
 
 TOKEN=$(read_env INTERNAL_API_TOKEN)
 PORT=$(read_env PORT)
-PORT=${PORT:-3003}
+PORT=${PORT:-3000}
 BASE="http://127.0.0.1:${PORT}"
 
 if [[ -z "$TOKEN" ]]; then

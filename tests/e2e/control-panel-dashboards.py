@@ -25,7 +25,7 @@ async def main():
         page.on("pageerror", lambda e: errs.append(str(e)))
         for label, expected in BUTTONS:
             errs.clear()
-            await page.goto("http://localhost:8080/control-panel", wait_until="domcontentloaded")
+            await page.goto("http://localhost:3000/control-panel", wait_until="domcontentloaded")
             await page.wait_for_timeout(2500)
             await page.get_by_role("button", name=label, exact=True).first.click()
             for _ in range(60):
