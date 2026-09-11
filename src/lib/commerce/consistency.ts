@@ -65,6 +65,8 @@ const BATCH = 100;
 const PENDING_GRACE_MS = 20 * 60 * 1000;
 /** How far back a paid order is checked for the things that follow a payment. */
 const SETTLED_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+/** How long an order recorded as failed is still asked about, in case the money came after all. */
+const FAILED_LOOKBACK_MS = 3 * 24 * 60 * 60 * 1000;
 
 export type FindingKind =
   | "stale_pending"
@@ -190,6 +192,19 @@ async function sweepPending(findings: Finding[]): Promise<number> {
       `&updated_at=lt.${encodeURIComponent(cutoff)}` +
       `&order=updated_at.asc&limit=${BATCH}`,
   );
+  // Orders recorded as failed in the last three days are asked about too. A
+  // failure can be recorded on a provider's first word — "pending", a timeout
+  // — while the money arrives a minute later; nothing else ever looked at
+  // those orders again. (On a database whose orders cannot hold
+  // payment_failed, a failed order stays pending_payment and is covered above.)
+  const recentFailures = await rows<PendingOrder>(
+    `marketplace_orders?select=id,txnid,payment_gateway,updated_at` +
+      `&status=eq.payment_failed&txnid=not.is.null` +
+      `&updated_at=lt.${encodeURIComponent(cutoff)}` +
+      `&updated_at=gt.${encodeURIComponent(new Date(Date.now() - FAILED_LOOKBACK_MS).toISOString())}` +
+      `&order=updated_at.asc&limit=${BATCH}`,
+  );
+  pending.push(...recentFailures);
 
   for (const row of pending) {
     const reference = row.txnid ?? "";

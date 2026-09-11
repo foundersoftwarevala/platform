@@ -1,6 +1,7 @@
 import { fulfilOrder, logPaymentEvent } from "@/lib/commerce/fulfilment";
 import { recordLedgerOnce } from "@/lib/finance/finance.server";
-import { writeTolerant } from "@/lib/commerce/schema-tolerance";
+import { isSettledIntentStatus, writeTolerant } from "@/lib/commerce/schema-tolerance";
+import { createInvoiceForOrder } from "@/lib/commerce/invoices";
 
 /**
  * The one place a verified payment becomes money in the books.
@@ -245,8 +246,25 @@ export async function createOrReuseIntent(input: {
   }
 
   const rail = await railId(input.gatewayCode);
+  // rail_id is NOT NULL on this table and production's rails CHECK admits only
+  // wise, upi, bank_transfer and binance, so PayU and the card gateways cannot
+  // have a rail row there yet. Posting anyway was a guaranteed 400 on every
+  // payment. Without a rail there is no intent; settlement then uses the order
+  // row itself as its lock (see settleVerifiedPayment) and the payment still
+  // completes.
+  if (!rail) {
+    console.warn(`[settlement] no rail row for ${input.gatewayCode}; intent not created`);
+    return null;
+  }
+
+  // invoice_id is NOT NULL on this table too. The intent is bound to the
+  // order's own invoice, issued as a draft now and marked paid on settlement,
+  // so one order carries exactly one invoice from quote to receipt.
+  const invoiceId = await draftInvoiceForOrder(input.orderId, input.userId, input.amount, input.currency);
+
   const core = {
     rail_id: rail,
+    ...(invoiceId ? { invoice_id: invoiceId } : {}),
     idempotency_key: input.reference,
     client_reference: input.reference,
     amount: input.amount,
@@ -274,14 +292,49 @@ export async function createOrReuseIntent(input: {
       body: JSON.stringify(body),
     });
 
-  let response = await post({ ...core, ...bindings });
+  // The bindings are dropped one at a time, and only the ones the database
+  // says it lacks — dropping all of them on any 400 threw away the ones it has.
+  let response = await writeTolerant("finance_payment_intents", { ...core, ...bindings }, post);
   if (!response.ok && response.status === 400) response = await post(core);
   if (response.ok) {
     const created = (await response.json()) as PaymentIntentRow[];
     if (created[0]) return created[0];
+  } else {
+    const detail = await response.text().catch(() => "");
+    console.error("[settlement] intent not created", response.status, detail.slice(0, 300));
   }
   // Lost the race to a concurrent request; the winner's intent is the one.
   return intentForReference(input.reference);
+}
+
+/** The order's invoice, issued as a draft when it does not have one yet. */
+async function draftInvoiceForOrder(
+  orderId: string,
+  userId: string,
+  amount: number,
+  currency: string,
+): Promise<string | null> {
+  try {
+    const order = await rows<{ order_number: string | null; metadata: Record<string, unknown> | null }>(
+      `marketplace_orders?select=order_number,metadata&id=eq.${encodeURIComponent(orderId)}&limit=1`,
+    );
+    const name = await buyerName(userId);
+    const issued = await createInvoiceForOrder({
+      userId,
+      orderId,
+      amount,
+      currency,
+      productName: String(order[0]?.metadata?.product_name ?? "") || undefined,
+      clientName: name || undefined,
+      status: "draft",
+      orderNumber: order[0]?.order_number ?? null,
+    });
+    const id = (issued.invoice as { id?: string } | null)?.id;
+    return id ? String(id) : null;
+  } catch (error) {
+    console.error("[settlement] could not issue the draft invoice", error);
+    return null;
+  }
 }
 
 export type IntentClaim =
@@ -330,11 +383,19 @@ async function setIntentStatus(
   status: string,
   extra: Record<string, unknown> = {},
 ): Promise<void> {
-  await rest(`finance_payment_intents?client_reference=eq.${encodeURIComponent(reference)}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ status, updated_at: new Date().toISOString(), ...extra }),
-  });
+  // Tolerant, because production refuses "succeeded" and "requires_review" on
+  // this table and has no settled_at column: the plain PATCH failed, so a
+  // settled intent stayed "processing" forever.
+  await writeTolerant(
+    "finance_payment_intents",
+    { status, updated_at: new Date().toISOString(), ...extra },
+    (body) =>
+      rest(`finance_payment_intents?client_reference=eq.${encodeURIComponent(reference)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify(body),
+      }),
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -359,9 +420,17 @@ export async function claimWebhookEvent(input: {
   eventId: string;
   signatureValid: boolean;
   payload: unknown;
-}): Promise<{ claimed: boolean }> {
-  if (!supabaseUrl()) return { claimed: false };
+}): Promise<{ claimed: boolean; failed?: boolean; unrecorded?: boolean }> {
+  if (!supabaseUrl()) return { claimed: false, failed: true };
   const rail = await railId(input.provider);
+  if (!rail) {
+    // rail_id is NOT NULL here and this provider has no rail row (production's
+    // rails CHECK does not admit it yet), so its events cannot be written down.
+    // Answering "already recorded" to every callback meant a real payment was
+    // acknowledged and never settled. The event goes on unrecorded instead;
+    // settlement's own lock on the order is what stops it being done twice.
+    return { claimed: true, unrecorded: true };
+  }
   try {
     const response = await rest("finance_payment_webhooks", {
       method: "POST",
@@ -378,11 +447,13 @@ export async function claimWebhookEvent(input: {
     if (response.status === 409) return { claimed: false };
     // Any other failure must not let an unrecorded event through as if it were
     // new, because that is exactly how a replay becomes a double settlement.
+    // Nor may it be answered as a replay: `failed` tells the webhook to ask the
+    // provider to send it again rather than acknowledge a callback nobody read.
     console.error("[settlement] could not claim webhook event", response.status);
-    return { claimed: false };
+    return { claimed: false, failed: true };
   } catch (error) {
     console.error("[settlement] webhook event claim failed", error);
-    return { claimed: false };
+    return { claimed: false, failed: true };
   }
 }
 
@@ -434,7 +505,36 @@ export type ReconciliationOutcome =
   | "missing_transaction"
   | "duplicate_event"
   | "missing_webhook"
-  | "refund_mismatch";
+  | "refund_mismatch"
+  // A confirmed payment for an order that is cancelled, refunded or disputed.
+  | "order_not_payable";
+
+/**
+ * The order statuses a confirmed payment may settle. Anything else — paid
+ * already, cancelled, refunded, disputed — is either a replay or a case for a
+ * person, never something to overwrite.
+ */
+export const SETTLEABLE_ORDER_STATUSES = [
+  "pending_payment",
+  "pending",
+  "payment_failed",
+  "payment_expired",
+] as const;
+
+/** How the operating ledger names each rail. Every sale used to be booked as "card". */
+function ledgerMethod(provider: string): string {
+  const names: Record<string, string> = {
+    payu: "PayU",
+    wise: "Wise",
+    bank_transfer: "Bank Transfer",
+    upi: "UPI",
+    binance: "Binance",
+    stripe: "Card",
+    flutterwave: "Card",
+    paystack: "Card",
+  };
+  return names[provider] ?? provider;
+}
 
 /**
  * Record what the provider reported, as its own transaction.
@@ -512,14 +612,20 @@ export async function recordReconciliation(input: {
         reference: input.reference,
         amount: input.observedAmount,
         currency: input.observedCurrency,
-        status: input.outcome === "matched" ? "settled" : "exception",
+        // The table's CHECK admits unmatched / matched / under_review /
+        // rejected. "settled" and "exception" were never among them, so no
+        // provider transaction was ever recorded and every reconciliation row
+        // that needed one was lost with it.
+        status: input.outcome === "matched" ? "matched" : "under_review",
       });
     }
 
-    await rest("finance_reconciliation_records", {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify({
+    // Tolerant: order_id, rail_code, reference and the expected/observed
+    // columns arrive with a migration production does not have, and one
+    // absent column refused the whole record.
+    const response = await writeTolerant(
+      "finance_reconciliation_records",
+      {
         provider_transaction_id: providerTransactionId,
         payment_id: input.paymentId ?? null,
         order_id: input.orderId,
@@ -531,8 +637,24 @@ export async function recordReconciliation(input: {
         expected_currency: input.expectedCurrency,
         observed_currency: input.observedCurrency,
         detail: input.detail,
-      }),
-    });
+      },
+      (body) =>
+        rest("finance_reconciliation_records", {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify(body),
+        }),
+    );
+    if (!response.ok) {
+      // Most often: no provider transaction to point at, which this table
+      // requires until the reliability migration relaxes it. The outcome is
+      // still in payment_logs, so nothing is lost from the audit trail.
+      console.warn(
+        "[settlement] reconciliation record not written",
+        input.outcome,
+        response.status,
+      );
+    }
   } catch (error) {
     console.error("[settlement] could not write reconciliation record", error);
   }
@@ -553,6 +675,24 @@ async function issueSettlementInvoice(
   order: SettlementOrder,
   name: string,
 ): Promise<string | null> {
+  // Through the canonical invoice writer, which finds the draft the payment
+  // intent was bound to (or an older INV-<order> invoice) and marks it paid.
+  // Issuing a separate INV-<order> document here, with no meta, is what gave
+  // every settled order a second invoice beside the one fulfilment issues and
+  // hid it from the buyer's purchases page.
+  const canonical = await createInvoiceForOrder({
+    userId: order.buyerId,
+    orderId: order.id,
+    amount: order.amountCharged,
+    currency: order.currencyCharged,
+    clientName: name || undefined,
+    status: "paid",
+    orderNumber: order.orderNumber,
+  });
+  const canonicalId = (canonical.invoice as { id?: string } | null)?.id;
+  if (canonicalId) return String(canonicalId);
+
+  // The older path, kept for the case the canonical writer could not answer.
   const invoiceNo = `INV-${order.orderNumber}`;
   try {
     const existing = await rows<{ id: string }>(
@@ -577,9 +717,18 @@ async function issueSettlementInvoice(
         status: "paid",
         paid_at: new Date().toISOString(),
         auto_generated: true,
-        line_items: [
-          { description: `Order ${order.orderNumber}`, qty: 1, rate: order.amountCharged },
-        ],
+        // The shape the buyer's purchases page and invoice view read: items,
+        // plus the meta that says whose invoice this is.
+        line_items: {
+          items: [
+            { description: `Order ${order.orderNumber}`, qty: 1, rate: order.amountCharged },
+          ],
+          meta: {
+            user_id: order.buyerId,
+            order_id: order.id,
+            currency: order.currencyCharged,
+          },
+        },
       }),
     });
     if (!response.ok) return null;
@@ -923,7 +1072,10 @@ export async function settleVerifiedPayment(input: {
   }
 
   const claim = await claimIntent(reference);
-  if (!claim.claimed) {
+  let intent: PaymentIntentRow | null = null;
+  if (claim.claimed) {
+    intent = claim.intent;
+  } else if (claim.intent) {
     // Either another request is settling it, or it is already settled. Both are
     // reasons to stop, and neither is an error the provider should retry into.
     await logPaymentEvent(
@@ -932,16 +1084,26 @@ export async function settleVerifiedPayment(input: {
       { reference, reason: claim.reason },
       { provider },
     );
-    if (claim.intent?.status === "succeeded") {
+    if (isSettledIntentStatus(claim.intent.status)) {
       return { ok: true, replay: true, orderId: order.id, fulfilled: true, paymentId: null };
     }
     return { ok: false, reason: claim.reason, status: 409 };
+  } else {
+    // No intent exists and none could be created: this provider has no rail
+    // row on this database. Refusing here is what left a customer charged and
+    // unserved. The order row takes over as the lock below — a conditional
+    // update only one request can win — so the payment still settles once.
+    await logPaymentEvent(
+      order.id,
+      "settlement_without_intent",
+      { reference, reason: claim.reason },
+      { provider },
+    );
   }
-  const intent = claim.intent;
 
   // The intent's own amount is checked too, because the order could in
   // principle have been re-priced after the customer was quoted.
-  if (Math.abs(Number(intent.amount) - order.amountCharged) > 0.01) {
+  if (intent && Math.abs(Number(intent.amount) - order.amountCharged) > 0.01) {
     await recordReconciliation({
       provider,
       reference,
@@ -961,39 +1123,14 @@ export async function settleVerifiedPayment(input: {
   const now = new Date().toISOString();
   const rail = await railId(provider);
   const name = await buyerName(order.buyerId);
-  const invoiceId = await issueSettlementInvoice(order, name);
-
-  // ---- the payment row ----------------------------------------------------
-  //
-  // Unique on intent_id, so one intent can only ever produce one payment.
-  let paymentId: string | null = null;
-  const paymentResponse = await rest("finance_payments", {
-    method: "POST",
-    headers: { Prefer: "return=representation,resolution=merge-duplicates" },
-    body: JSON.stringify({
-      intent_id: intent.id,
-      invoice_id: invoiceId,
-      rail_id: rail,
-      amount: order.amountCharged,
-      currency: order.currencyCharged,
-      status: "succeeded",
-      provider_transaction_id: input.providerPaymentId,
-      provider_reference: reference,
-      confirmed_at: now,
-    }),
-  });
-  if (paymentResponse.ok) {
-    const created = (await paymentResponse.json()) as { id: string }[];
-    paymentId = created[0]?.id ?? null;
-  }
-  if (!paymentId) {
-    const found = await rows<{ id: string }>(
-      `finance_payments?select=id&intent_id=eq.${encodeURIComponent(intent.id)}&limit=1`,
-    );
-    paymentId = found[0]?.id ?? null;
-  }
 
   // ---- the order ----------------------------------------------------------
+  //
+  // Written first, and conditionally: only an order still waiting for its
+  // money moves to paid, and the database lets exactly one request make that
+  // move. That is the lock when there is no intent to claim, and the second
+  // line of defence when there is — two callbacks, a callback and a sweep, or a
+  // callback and a Finance confirmation cannot both settle the same order.
   const patch: Record<string, unknown> = {
     status: "paid",
     payment_gateway: provider,
@@ -1011,11 +1148,15 @@ export async function settleVerifiedPayment(input: {
   // refused and a verified payment ended as settlement_write_failed. Only the
   // absent columns are dropped - status and gateway are always written.
   const updated = await writeTolerant("marketplace_orders", patch, (body) =>
-    rest(`marketplace_orders?id=eq.${encodeURIComponent(order.id)}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify(body),
-    }),
+    rest(
+      `marketplace_orders?id=eq.${encodeURIComponent(order.id)}` +
+        `&status=in.(${SETTLEABLE_ORDER_STATUSES.join(",")})`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(body),
+      },
+    ),
   );
   if (!updated.ok) {
     await setIntentStatus(reference, "requires_review");
@@ -1027,9 +1168,86 @@ export async function settleVerifiedPayment(input: {
     );
     return { ok: false, reason: "Could not record the payment", status: 500 };
   }
+  const won = ((await updated.json().catch(() => [])) as unknown[]).length > 0;
+  if (!won) {
+    // Somebody else moved this order first. If they paid it, this is a replay
+    // and is answered as one; anything else — cancelled, refunded, disputed —
+    // is money arriving for an order that no longer wants it, which a person
+    // must look at rather than this code deciding.
+    const current = await rows<{ status: string }>(
+      `marketplace_orders?select=status&id=eq.${encodeURIComponent(order.id)}&limit=1`,
+    );
+    const status = String(current[0]?.status ?? "").toLowerCase();
+    if (status === "paid") {
+      if (intent) await setIntentStatus(reference, "succeeded");
+      await logPaymentEvent(order.id, "settlement_replay", { reference }, { provider });
+      return { ok: true, replay: true, orderId: order.id, fulfilled: true, paymentId: null };
+    }
+    if (intent) await setIntentStatus(reference, "requires_review");
+    await recordReconciliation({
+      provider,
+      reference,
+      providerPaymentId: input.providerPaymentId,
+      orderId: order.id,
+      outcome: "order_not_payable",
+      expectedAmount: order.amountCharged,
+      observedAmount: input.observedAmount,
+      expectedCurrency: order.currencyCharged,
+      observedCurrency: input.observedCurrency,
+      detail: `A confirmed payment arrived for an order that is ${status || "missing"}.`,
+    });
+    await logPaymentEvent(
+      order.id,
+      "settlement_order_not_payable",
+      { reference, status },
+      { provider },
+    );
+    return { ok: false, reason: `That order is ${status || "missing"}`, status: 409 };
+  }
 
-  // ---- the customer's licence and entitlement -----------------------------
-  const fulfilment = await fulfilOrder(order.id);
+  const invoiceId = await issueSettlementInvoice(order, name);
+
+  // ---- the payment row ----------------------------------------------------
+  //
+  // Unique on intent_id, so one intent can only ever produce one payment. Its
+  // rail, invoice and intent are all NOT NULL, so without an intent there is no
+  // payment row — the order, the ledger and the invoice still record the sale.
+  let paymentId: string | null = null;
+  if (intent && rail && invoiceId) {
+    const paymentResponse = await writeTolerant(
+      "finance_payments",
+      {
+        intent_id: intent.id,
+        invoice_id: invoiceId,
+        rail_id: rail,
+        amount: order.amountCharged,
+        currency: order.currencyCharged,
+        status: "succeeded",
+        provider_transaction_id: input.providerPaymentId,
+        provider_reference: reference,
+        confirmed_at: now,
+      },
+      (body) =>
+        rest("finance_payments", {
+          method: "POST",
+          headers: { Prefer: "return=representation,resolution=merge-duplicates" },
+          body: JSON.stringify(body),
+        }),
+    );
+    if (paymentResponse.ok) {
+      const created = (await paymentResponse.json()) as { id: string }[];
+      paymentId = created[0]?.id ?? null;
+    } else {
+      const detail = await paymentResponse.text().catch(() => "");
+      console.error("[settlement] payment row not written", paymentResponse.status, detail.slice(0, 300));
+    }
+    if (!paymentId) {
+      const found = await rows<{ id: string }>(
+        `finance_payments?select=id&intent_id=eq.${encodeURIComponent(intent.id)}&limit=1`,
+      );
+      paymentId = found[0]?.id ?? null;
+    }
+  }
 
   // ---- the ledger ---------------------------------------------------------
   //
@@ -1038,6 +1256,10 @@ export async function settleVerifiedPayment(input: {
   // Manager screen reads, written through the single canonical writer that
   // already exists. finance_ledger_entries is the immutable per-payment record
   // that reconciliation points at. Both are keyed so neither can post twice.
+  //
+  // Posted before fulfilment, deliberately: fulfilment also posts the sale,
+  // under the invoice number, unless it finds this entry for the payment
+  // reference already there. The other way round credited every order twice.
   await recordLedgerOnce({
     txnCode: reference,
     direction: "credit",
@@ -1045,13 +1267,16 @@ export async function settleVerifiedPayment(input: {
     counterparty: name || order.orderNumber,
     counterpartyType: "customer",
     category: "sale",
-    method: "card",
+    method: ledgerMethod(provider),
     gateway: provider,
     notes:
       `Order ${order.orderNumber} settled through ${provider}` +
       ` (${order.currencyCharged} ${order.amountCharged.toFixed(2)}` +
       `, base ${order.baseCurrency} ${order.baseAmount.toFixed(2)} at ${order.fxRate}).`,
   });
+
+  // ---- the customer's licence and entitlement -----------------------------
+  const fulfilment = await fulfilOrder(order.id);
 
   if (paymentId) {
     await rest("finance_ledger_entries", {
@@ -1081,10 +1306,12 @@ export async function settleVerifiedPayment(input: {
   }
 
   // ---- close the intent and reconcile -------------------------------------
-  await setIntentStatus(reference, "succeeded", {
-    provider_reference: input.providerPaymentId,
-    settled_at: now,
-  });
+  if (intent) {
+    await setIntentStatus(reference, "succeeded", {
+      provider_reference: input.providerPaymentId,
+      settled_at: now,
+    });
+  }
 
   await recordReconciliation({
     provider,
@@ -1104,7 +1331,7 @@ export async function settleVerifiedPayment(input: {
     await recordPaymentEvent({
       eventKey: input.eventKey,
       eventType: "payment.settled",
-      intentId: intent.id,
+      intentId: intent?.id ?? null,
       paymentId,
       payload: {
         reference,
@@ -1159,17 +1386,28 @@ export async function recordFailedPayment(input: {
 }): Promise<void> {
   if (input.order.status === "paid") return;
   const now = new Date().toISOString();
-  await rest(`marketplace_orders?id=eq.${encodeURIComponent(input.order.id)}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({
+  // Tolerant: production has neither provider_status nor provider_payment_id
+  // and refuses payment_failed / payment_expired, so this PATCH failed every
+  // time and a failed payment was never recorded against its order. On that
+  // schema the order stays pending_payment — which is what lets the buyer try
+  // again — and the failure is still logged below. The status filter means a
+  // late failure can never overwrite an order another request has just paid.
+  await writeTolerant(
+    "marketplace_orders",
+    {
       status: input.expired ? "payment_expired" : "payment_failed",
       payment_gateway: input.provider,
       provider_status: input.providerStatus,
       provider_payment_id: input.providerPaymentId ?? null,
       updated_at: now,
-    }),
-  });
+    },
+    (body) =>
+      rest(`marketplace_orders?id=eq.${encodeURIComponent(input.order.id)}&status=neq.paid`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify(body),
+      }),
+  );
   await setIntentStatus(input.reference, input.expired ? "expired" : "pending");
   await logPaymentEvent(
     input.order.id,

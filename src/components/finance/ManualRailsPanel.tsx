@@ -156,11 +156,20 @@ function ConfirmManualPayment() {
   const queryClient = useQueryClient();
   const [reference, setReference] = useState("");
   const [transactionId, setTransactionId] = useState("");
+  // The amount that arrived, read off the statement. The server compares it
+  // with the order and refuses a short payment instead of settling it in full.
+  const [amount, setAmount] = useState("");
+  const amountValue = Number(amount.replace(/,/g, ""));
+  const amountValid = amount.trim() !== "" && Number.isFinite(amountValue) && amountValue > 0;
 
   const confirm = useMutation({
     mutationFn: () =>
       confirmFn({
-        data: { reference: reference.trim(), transactionId: transactionId.trim() },
+        data: {
+          reference: reference.trim(),
+          transactionId: transactionId.trim(),
+          amount: amountValue,
+        },
       } as never) as Promise<{ data: { orderNumber: string; replay: boolean } }>,
     onSuccess: (result) => {
       const order = result?.data?.orderNumber ?? "The order";
@@ -169,6 +178,7 @@ function ConfirmManualPayment() {
       );
       setReference("");
       setTransactionId("");
+      setAmount("");
       queryClient.invalidateQueries({ queryKey: ["manager"] });
       queryClient.invalidateQueries({ queryKey: ["finance"] });
     },
@@ -180,11 +190,12 @@ function ConfirmManualPayment() {
       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">
           Only after the money is seen in the receiving account. Enter the order's payment reference
-          (the customer was given it at checkout) and the transaction id from Wise, the bank
-          statement, UPI or Binance. The amount is checked against the order before it is settled,
-          and a second confirmation of the same reference changes nothing.
+          (the customer was given it at checkout), the transaction id from Wise, the bank
+          statement, UPI or Binance, and the amount that arrived in the order's currency. The amount
+          is checked against the order before it is settled, a transaction id can pay only one
+          order, and a second confirmation of the same reference changes nothing.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <Input
             value={reference}
             onChange={(e) => setReference(e.target.value)}
@@ -197,11 +208,23 @@ function ConfirmManualPayment() {
             placeholder="Transaction id from the provider"
             aria-label="Transaction id from the provider"
           />
+          <Input
+            value={amount}
+            inputMode="decimal"
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Amount received (e.g. 249.00)"
+            aria-label="Amount received, in the order's currency"
+          />
         </div>
         <div className="flex justify-end">
           <Button
             size="sm"
-            disabled={confirm.isPending || !reference.trim() || transactionId.trim().length < 4}
+            disabled={
+              confirm.isPending ||
+              !reference.trim() ||
+              transactionId.trim().length < 4 ||
+              !amountValid
+            }
             onClick={() => confirm.mutate()}
           >
             {confirm.isPending ? "Confirming…" : "Confirm payment received"}

@@ -20,7 +20,14 @@ function admin() {
   return { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
 }
 
-const TO_DB: Record<string, string> = { paid: "paid", pending: "unpaid", failed: "overdue" };
+// "draft" is the invoice a payment intent is bound to before any money has
+// moved: it is not owed and Finance Manager does not count it as receivable.
+const TO_DB: Record<string, string> = {
+  paid: "paid",
+  pending: "unpaid",
+  failed: "overdue",
+  draft: "draft",
+};
 
 export function toDbStatus(status: string): string {
   return TO_DB[String(status).toLowerCase()] ?? "unpaid";
@@ -60,8 +67,68 @@ export type InvoiceInput = {
   currency: string;
   productName?: string;
   clientName?: string;
-  status?: "paid" | "pending" | "failed";
+  status?: "paid" | "pending" | "failed" | "draft";
+  /**
+   * The order's number. Settlement used to issue its own `INV-<order number>`
+   * invoice with no meta, which this lookup could not see, so one paid order
+   * ended up with two invoices. Passing the number lets that older invoice be
+   * found and reused instead of duplicated.
+   */
+  orderNumber?: string | null;
 };
+
+/** The invoice already issued for an order, under either numbering. */
+async function existingInvoiceForOrder(
+  orderId: string,
+  orderNumber?: string | null,
+): Promise<Record<string, unknown> | null> {
+  const byMeta = await fetch(
+    `${url()}/rest/v1/finance_invoices?select=*` +
+      `&line_items->meta->>order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
+    { headers: admin() },
+  );
+  const found = byMeta.ok ? ((await byMeta.json()) as Record<string, unknown>[]) : [];
+  if (found[0]) return found[0];
+  if (!orderNumber) return null;
+  const byNumber = await fetch(
+    `${url()}/rest/v1/finance_invoices?select=*` +
+      `&invoice_no=eq.${encodeURIComponent(`INV-${orderNumber}`)}&limit=1`,
+    { headers: admin() },
+  );
+  const older = byNumber.ok ? ((await byNumber.json()) as Record<string, unknown>[]) : [];
+  return older[0] ?? null;
+}
+
+/**
+ * Mark an order's invoice paid.
+ *
+ * The invoice a payment intent is bound to is issued as a draft before the
+ * customer pays. When the money is confirmed that same document becomes the
+ * paid invoice, rather than a second one being issued beside it.
+ */
+export async function markInvoicePaid(invoiceId: string, amount: number): Promise<boolean> {
+  if (!url() || !invoiceId) return false;
+  const now = new Date().toISOString();
+  try {
+    const response = await fetch(
+      `${url()}/rest/v1/finance_invoices?id=eq.${encodeURIComponent(invoiceId)}&status=neq.paid`,
+      {
+        method: "PATCH",
+        headers: { ...admin(), Prefer: "return=minimal" },
+        body: JSON.stringify({
+          status: "paid",
+          paid_at: now,
+          due_date: now.slice(0, 10),
+          ...(amount > 0 ? { subtotal: amount, total: amount } : {}),
+        }),
+      },
+    );
+    return response.ok;
+  } catch (error) {
+    console.error("[invoice] could not mark paid", error);
+    return false;
+  }
+}
 
 /**
  * Create the invoice for an order, once.
@@ -78,15 +145,15 @@ export async function createInvoiceForOrder(
   }
 
   try {
-    const existingResponse = await fetch(
-      `${url()}/rest/v1/finance_invoices?select=*` +
-        `&line_items->meta->>order_id=eq.${encodeURIComponent(input.orderId)}&limit=1`,
-      { headers: admin() },
-    );
-    const existing = existingResponse.ok
-      ? ((await existingResponse.json()) as Record<string, unknown>[])
-      : [];
-    if (existing[0]) return { invoice: existing[0], created: false };
+    const existing = await existingInvoiceForOrder(input.orderId, input.orderNumber);
+    if (existing) {
+      // A draft issued when the payment started becomes the paid invoice.
+      if (input.status === "paid" && String(existing.status ?? "") !== "paid") {
+        await markInvoicePaid(String(existing.id), input.amount);
+        return { invoice: { ...existing, status: "paid" }, created: false };
+      }
+      return { invoice: existing, created: false };
+    }
 
     const now = new Date().toISOString();
     const status = input.status ?? "paid";
@@ -180,6 +247,14 @@ export async function recordLedgerEntryForInvoice(input: {
   orderNo: string;
   gateway: string;
   providerTxnId?: string | null | undefined;
+  /**
+   * The order's payment reference. Settlement — the database function and the
+   * fallback alike — posts the sale to finance_transactions under this
+   * reference before fulfilment runs. Posting it again here under the invoice
+   * number credited every settled order twice, so Finance Manager's revenue was
+   * double the money that actually arrived.
+   */
+  paymentReference?: string | null;
 }): Promise<{ created: boolean; error?: string }> {
   if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return { created: false, error: "Ledger is not configured" };
@@ -187,9 +262,13 @@ export async function recordLedgerEntryForInvoice(input: {
   if (!input.invoiceNo) return { created: false, error: "No invoice number" };
 
   try {
+    const codes = [input.invoiceNo, input.paymentReference]
+      .filter((code): code is string => Boolean(code))
+      .map((code) => `"${code.replace(/"/g, "")}"`)
+      .join(",");
     const existingResponse = await fetch(
       `${url()}/rest/v1/finance_transactions?select=id` +
-        `&txn_code=eq.${encodeURIComponent(input.invoiceNo)}&limit=1`,
+        `&txn_code=in.(${encodeURIComponent(codes)})&limit=1`,
       { headers: admin() },
     );
     if (existingResponse.ok) {

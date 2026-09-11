@@ -234,6 +234,16 @@ const ORDER_SETTLEMENT_COLUMNS = new Set([
   "payu_status",
   "payu_txn_id",
   "txnid",
+  // The generic payment columns and the order's owner. Leaving them editable
+  // let the console re-point a paid order's provider reference, charged amount
+  // or buyer, which the settled record must never allow.
+  "amount_charged",
+  "payment_gateway",
+  "provider_payment_id",
+  "provider_status",
+  "payment_verified_at",
+  "buyer_id",
+  "user_id",
 ]);
 const ISSUED_BY_PAYMENT_TABLES = new Set([
   "licenses",

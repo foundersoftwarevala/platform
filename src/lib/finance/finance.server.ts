@@ -1046,7 +1046,34 @@ export async function confirmManualPayment(input: {
     fail(`That order is ${order.status}; only an order awaiting payment can be confirmed.`);
   }
 
-  const observed = input.amount ?? order.amountCharged;
+  // The amount that actually arrived, as the operator read it off the
+  // statement. Defaulting it to the order's own amount compared the order with
+  // itself, so a buyer who sent $200 of $249 — or a transfer Wise shaved its
+  // fee off — was settled in full while the panel said the amount was checked.
+  if (!(typeof input.amount === "number" && Number.isFinite(input.amount) && input.amount > 0)) {
+    fail("Enter the amount that arrived, exactly as the statement shows it.");
+  }
+  const observed = Number(input.amount);
+
+  // One transfer pays one order. A transaction id already confirmed against a
+  // different reference is refused here, so the same Wise or bank transfer id
+  // cannot be entered again to activate a second order.
+  const { data: earlier } = await supabaseAdmin
+    .from("finance_audit_logs")
+    .select("entity_ref, details")
+    .eq("action", "payment.manual_confirmed")
+    .eq("details->>transaction_id", transactionId)
+    .eq("details->>settled", "true")
+    .limit(5);
+  const usedElsewhere = ((earlier ?? []) as { entity_ref: string; details: { reference?: string } | null }[])
+    .find((row) => String(row.details?.reference ?? "") !== reference);
+  if (usedElsewhere) {
+    fail(
+      `That transaction id already confirmed order ${usedElsewhere.entity_ref}. ` +
+        "One transfer can only pay one order.",
+    );
+  }
+
   const result = await settleVerifiedPayment({
     order,
     provider: order.gateway,

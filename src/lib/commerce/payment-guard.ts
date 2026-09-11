@@ -214,6 +214,38 @@ export const PAYMENT_LIMITS = {
 
 export type LimitName = keyof typeof PAYMENT_LIMITS;
 
+/** Fixed-window counters kept in this process, for when the shared limiter is unreachable. */
+const localBuckets = new Map<string, { started: number; count: number }>();
+
+function takeLocalSlot(
+  key: string,
+  windowSeconds: number,
+  limit: number,
+): { allowed: boolean; retryAfter: number; remaining: number } {
+  const now = Date.now();
+  const windowMs = windowSeconds * 1000;
+  let bucket = localBuckets.get(key);
+  if (!bucket || now - bucket.started >= windowMs) {
+    bucket = { started: now, count: 0 };
+    localBuckets.set(key, bucket);
+  }
+  // Bounded, so a flood of distinct keys cannot grow this map without end.
+  if (localBuckets.size > 20_000) {
+    for (const [k, b] of localBuckets) {
+      if (now - b.started >= windowMs) localBuckets.delete(k);
+    }
+  }
+  if (bucket.count >= limit) {
+    return {
+      allowed: false,
+      retryAfter: Math.max(1, Math.ceil((bucket.started + windowMs - now) / 1000)),
+      remaining: 0,
+    };
+  }
+  bucket.count += 1;
+  return { allowed: true, retryAfter: 0, remaining: limit - bucket.count };
+}
+
 /**
  * Take one slot from a bucket.
  *
@@ -252,7 +284,12 @@ export async function takeRateSlot(
       errorCode: "rate_limiter_unavailable",
       limit: name,
     });
-    return { ...ALLOWED, degraded: true };
+    // Nor is it unlimited. payment_rate_take does not exist on production yet,
+    // so this branch was every request and every limit was open. The same
+    // window and limit are counted in this process instead: weaker than the
+    // shared counter — each process counts alone, and a restart forgets — but
+    // a card-testing loop against one server is still stopped.
+    return { ...takeLocalSlot(key, limit.window, limit.limit), degraded: true };
   }
 
   const record = result as { allowed?: boolean; retry_after?: number; remaining?: number };

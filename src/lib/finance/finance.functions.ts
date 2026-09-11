@@ -297,7 +297,9 @@ export const saveManualRailSettingsFn = createServerFn({ method: "POST" })
 const confirmManualSchema = z.object({
   reference: z.string().min(1).max(80),
   transactionId: z.string().min(1).max(200),
-  amount: z.number().positive().optional(),
+  // Required: the amount that arrived is the one thing a manual confirmation
+  // has to check, and it can only come from the operator's statement.
+  amount: z.number().positive(),
 });
 
 /** Finance records that a manual payment arrived; the order is settled once. */

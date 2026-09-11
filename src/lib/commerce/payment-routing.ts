@@ -45,6 +45,14 @@ type RailRow = {
   health_status: string | null;
 };
 
+/** Region codes a rail may list, and the ISO countries each one covers. */
+const REGION_MEMBERS: Record<string, string[]> = {
+  EU: [
+    "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
+    "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+  ],
+};
+
 function supabaseUrl(): string {
   return process.env.SUPABASE_URL?.trim() ?? "";
 }
@@ -97,7 +105,13 @@ export async function paymentOptions(input: {
     rails.map(async (rail): Promise<PaymentOption> => {
       const code = String(rail.code);
       const currencies = (rail.supported_currencies ?? []).map((c) => String(c).toUpperCase());
-      const countries = (rail.supported_countries ?? []).map((c) => String(c).toUpperCase());
+      // A region code stands for its members. The Wise rail lists "EU", which
+      // is not a country, so every buyer in Germany, France and the rest of the
+      // Union was told the rail was not available where they are.
+      const countries = (rail.supported_countries ?? []).flatMap((c) => {
+        const value = String(c).toUpperCase();
+        return REGION_MEMBERS[value] ?? [value];
+      });
       const adapter = isCardGateway(code) ? CARD_ADAPTERS[code] : null;
 
       const base = {

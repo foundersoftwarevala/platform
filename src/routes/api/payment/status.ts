@@ -256,21 +256,22 @@ export const Route = createFileRoute("/api/payment/status")({
           if (!order) return withCorrelation(Response.json({ status: "unknown" }), correlation);
 
           const status = PORTAL_STATUS[String(order.status ?? "").toLowerCase()] ?? "pending";
-          const payload: Record<string, unknown> = {
-            status,
-            order_no: order.order_no ?? order.order_number ?? null,
-            amount: Number(order.amount_charged ?? order.amount_inr ?? order.total ?? 0) || null,
-            currency: order.currency_charged ?? null,
-            gateway: order.payment_gateway ?? null,
-            verified_at: order.payment_verified_at ?? null,
-            recovered,
-          };
+          const payload: Record<string, unknown> = { status, recovered };
 
-          // The key, the card's last four and the brand are only ever shown to
-          // the person who bought it.
+          // Everything beyond the status — the order number, the amount, the
+          // currency, the method, when it was verified, the card's last four
+          // and brand, the key — is shown only to the person who bought it. A
+          // reference is printed on pages and quoted to support; holding one
+          // used to be enough to read what somebody else paid and how.
           const owner = String(order.user_id ?? order.buyer_id ?? "");
           const isOwner = Boolean(viewer && viewer === owner);
           if (isOwner) {
+            payload.order_no = order.order_no ?? order.order_number ?? null;
+            payload.amount =
+              Number(order.amount_charged ?? order.amount_inr ?? order.total ?? 0) || null;
+            payload.currency = order.currency_charged ?? null;
+            payload.gateway = order.payment_gateway ?? null;
+            payload.verified_at = order.payment_verified_at ?? null;
             payload.card_last4 = order.card_last4 ?? null;
             payload.card_brand = order.card_brand ?? null;
           }

@@ -152,7 +152,7 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   }
 
   const orderResponse = await rest(
-    `marketplace_orders?select=id,buyer_id,user_id,status,metadata,order_no,total,amount_inr,currency,currency_charged&id=eq.${encodeURIComponent(orderId)}&limit=1`,
+    `marketplace_orders?select=id,buyer_id,user_id,status,metadata,order_no,order_number,txnid,payment_gateway,total,amount_inr,currency,currency_charged&id=eq.${encodeURIComponent(orderId)}&limit=1`,
   );
   const orders = orderResponse.ok
     ? ((await orderResponse.json()) as Record<string, unknown>[])
@@ -298,6 +298,7 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
       metadata.buyer_name ?? contact.name ?? contact.email ?? "Marketplace customer",
     ),
     status: "paid",
+    orderNumber: (order.order_number as string | null) ?? null,
   });
   const invoiceNo = (invoice.invoice as { invoice_no?: string } | null)?.invoice_no ?? "";
   await logPaymentEvent(orderId, invoice.invoice ? "invoice_ready" : "invoice_failed", {
@@ -317,9 +318,10 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
       counterparty: String(
         metadata.buyer_name ?? contact.name ?? contact.email ?? "Marketplace customer",
       ),
-      orderNo: String(order.order_no ?? orderId),
+      orderNo: String(order.order_no ?? order.order_number ?? orderId),
       gateway: String(order.payment_gateway ?? "payu"),
       providerTxnId: (order as { payu_txn_id?: string | null }).payu_txn_id ?? null,
+      paymentReference: (order.txnid as string | null) ?? null,
     });
     await logPaymentEvent(orderId, ledger.error ? "ledger_failed" : "ledger_ready", {
       created: ledger.created,

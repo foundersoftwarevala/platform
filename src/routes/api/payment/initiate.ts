@@ -25,7 +25,7 @@ import {
 } from "@/lib/affiliate/core";
 import { mayStartPayment, requestAddress } from "@/lib/commerce/payment-guard";
 import { correlationId, log, since, withCorrelation } from "@/lib/commerce/observability";
-import { writeTolerant } from "@/lib/commerce/schema-tolerance";
+import { isSettledIntentStatus, writeTolerant } from "@/lib/commerce/schema-tolerance";
 
 /**
  * Start a payment.
@@ -195,6 +195,52 @@ async function patchOrder(orderId: string, patch: Record<string, unknown>): Prom
 /** A payment intent is good for an hour. After that the customer starts again. */
 const INTENT_TTL_MS = 60 * 60 * 1000;
 
+/** Order statuses a payment may be started on. */
+const PAYABLE_ORDER_STATUSES = new Set([
+  "pending_payment",
+  "pending",
+  "payment_failed",
+  "payment_expired",
+]);
+
+/**
+ * Give an order its payment reference, once.
+ *
+ * The write only lands while the order has no reference, so of two requests
+ * racing here exactly one sets it and both then use the same value.
+ */
+async function claimTxnId(orderId: string): Promise<string> {
+  const candidate = newTxnId();
+  try {
+    const response = await fetch(
+      `${url()}/rest/v1/marketplace_orders?id=eq.${encodeURIComponent(orderId)}&txnid=is.null`,
+      {
+        method: "PATCH",
+        headers: { ...admin(), Prefer: "return=representation" },
+        body: JSON.stringify({ txnid: candidate }),
+      },
+    );
+    if (response.ok) {
+      const won = (await response.json()) as { txnid?: string | null }[];
+      if (won[0]?.txnid) return String(won[0].txnid);
+    }
+    // Lost the race: read the reference the winner wrote.
+    const current = await fetch(
+      `${url()}/rest/v1/marketplace_orders?select=txnid&id=eq.${encodeURIComponent(orderId)}&limit=1`,
+      { headers: admin() },
+    );
+    if (current.ok) {
+      const rows = (await current.json()) as { txnid?: string | null }[];
+      if (rows[0]?.txnid) return String(rows[0].txnid);
+    }
+  } catch (error) {
+    console.error("[payment initiate] could not claim a reference", error);
+  }
+  // Could not read or write: fall back to the fresh value, which the order
+  // patch below records exactly as it always did.
+  return candidate;
+}
+
 export const Route = createFileRoute("/api/payment/initiate")({
   server: {
     handlers: {
@@ -241,6 +287,16 @@ export const Route = createFileRoute("/api/payment/initiate")({
         }
         if (String(order.status).toLowerCase() === "paid") {
           return Response.json({ error: "That order is already paid" }, { status: 409 });
+        }
+        // Only an order that is still waiting for its money can be paid. Every
+        // branch below writes status "pending_payment", so starting a payment on
+        // a cancelled, refunded or disputed order used to quietly reopen it.
+        const orderStatus = String(order.status ?? "").toLowerCase();
+        if (orderStatus && !PAYABLE_ORDER_STATUSES.has(orderStatus)) {
+          return Response.json(
+            { error: `That order is ${orderStatus} and cannot be paid. Please contact support.` },
+            { status: 409 },
+          );
         }
 
         const amountUsd = Number(order.total ?? 0);
@@ -331,19 +387,26 @@ export const Route = createFileRoute("/api/payment/initiate")({
 
         // Reuse the transaction id if this order already has one, so a customer
         // who retries does not create a second transaction for one order.
-        const txnid = String(order.txnid ?? "") || newTxnId();
+        //
+        // A new one is claimed conditionally — written only while the order has
+        // none — because two tabs starting a payment at the same instant each
+        // generated their own, the later write won, and a customer who paid on
+        // the first tab paid a reference no order carried any more.
+        const txnid = String(order.txnid ?? "") || (await claimTxnId(orderId));
 
         // An intent that has already produced a payment is finished. Nothing
         // may reopen it, which is what stops a settled reference being paid a
         // second time by a stale tab or a replayed request.
         const priorIntent = await intentForReference(txnid);
-        if (priorIntent && ["succeeded", "processing"].includes(priorIntent.status)) {
+        if (
+          priorIntent &&
+          (isSettledIntentStatus(priorIntent.status) || priorIntent.status === "processing")
+        ) {
           return Response.json(
             {
-              error:
-                priorIntent.status === "succeeded"
-                  ? "That order has already been paid."
-                  : "That payment is already being processed. Give it a moment.",
+              error: isSettledIntentStatus(priorIntent.status)
+                ? "That order has already been paid."
+                : "That payment is already being processed. Give it a moment.",
             },
             { status: 409 },
           );

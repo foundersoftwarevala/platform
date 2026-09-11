@@ -59,6 +59,11 @@ function safeJson(rawBody: string): Record<string, unknown> {
   }
 }
 
+/** One PayU callback: its transaction, PayU's payment id, and the status it reported. */
+function payuEventKey(txnid: string, mihpayid: string | undefined, status: string): string {
+  return `payu:${txnid}:${mihpayid ?? ""}:${status}`;
+}
+
 /** PayU posts a form; the card providers post JSON. Both need the raw body. */
 function payuFields(rawBody: string, contentType: string): Record<string, string> {
   if (contentType.includes("application/json")) {
@@ -169,6 +174,12 @@ async function handleCardCallback(
     signatureValid: true,
     payload: safeJson(rawBody),
   });
+  if (claim.failed) {
+    // The event could not be written down, which is not the same as having
+    // seen it before. Asking the provider to send it again is the only way it
+    // is not lost.
+    return new Response("Could not record the callback", { status: 503 });
+  }
   if (!claim.claimed) {
     await logPaymentEvent(
       null,
@@ -263,6 +274,19 @@ async function handleCardCallback(
     },
     { signatureValid: true, provider },
   );
+
+  if (!verification.verified && verification.status === "unknown") {
+    // The provider could not be asked, which says nothing about the money. The
+    // order stays pending and the consistency sweep asks again; recording it as
+    // failed here is how a paid customer ended up with a failed order.
+    await logPaymentEvent(
+      order.id,
+      "provider_verify_inconclusive",
+      { reference: envelope.reference, reason: verification.reason },
+      { provider },
+    );
+    return new Response("Deferred", { status: 200 });
+  }
 
   if (!verification.verified) {
     await recordFailedPayment({
@@ -371,16 +395,22 @@ async function handlePayuCallback(
 
   // ---- 2. the replay guard ------------------------------------------------
   //
-  // PayU sends no event id, so the transaction plus its own payment id is the
-  // stable key. Settlement is idempotent regardless, but stopping here saves
-  // the verify call on every one of PayU's retries.
+  // PayU sends no event id, so the transaction, its own payment id and the
+  // status it reports make the stable key. The status has to be part of it:
+  // UPI and net banking send "pending" and then "success" for the same
+  // payment id, and without it the success was treated as a replay of the
+  // pending callback and never settled.
+  const eventKey = payuEventKey(txnid, fields.mihpayid, status);
   const claim = await claimWebhookEvent({
     provider: "payu",
-    eventId: `payu:${txnid}:${fields.mihpayid ?? status}`,
+    eventId: eventKey,
     signatureValid: true,
     // The hash is not stored: it is a signature over our own salt.
     payload: { txnid, status, amount, mihpayid: fields.mihpayid ?? null },
   });
+  if (claim.failed) {
+    return new Response("Could not record the callback", { status: 503 });
+  }
   if (!claim.claimed) {
     await logPaymentEvent(null, "payu_callback_replay", { txnid }, { provider: "payu" });
     return new Response("Already recorded", { status: 200 });
@@ -439,6 +469,18 @@ async function handlePayuCallback(
     { signatureValid: true, provider: "payu" },
   );
 
+  if (!verified.verified && !verified.status) {
+    // PayU could not be reached, or had nothing to say yet. Unreached is not
+    // unpaid: the order stays pending for the consistency sweep to ask again.
+    await logPaymentEvent(
+      order.id,
+      "payu_verify_inconclusive",
+      { txnid, reason: verified.reason },
+      { provider: "payu" },
+    );
+    return new Response("Deferred", { status: 200 });
+  }
+
   if (!(status === "success" && verified.verified)) {
     await recordFailedPayment({
       order,
@@ -477,7 +519,7 @@ async function handlePayuCallback(
     providerStatus: verified.status ?? status,
     observedAmount: Number(amount) || null,
     observedCurrency: order.currencyCharged,
-    eventKey: `payu:${txnid}:${fields.mihpayid ?? status}`,
+    eventKey,
     correlationId: correlation,
   });
 
