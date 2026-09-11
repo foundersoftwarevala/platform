@@ -2,17 +2,22 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CanonicalLogin } from "@/components/auth/CanonicalLogin";
 import { Toaster } from "@/components/ui/sonner";
 import { MAX_VISIBLE_TOASTS } from "@/lib/portal/config";
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 
 /**
  * Somebody sent here from a page they were trying to use - a demo, most often -
  * should land back on that page once they are signed in, not on the home page.
  * Only a path on this site is accepted, so the parameter cannot be used to
  * bounce a visitor somewhere else.
+ *
+ * The test was `startsWith("/") && !startsWith("//")`, which `/\evil.com`
+ * passes and a browser then follows off-site. It now resolves the address
+ * against this origin and keeps it only if it stays here (safe-redirect.ts).
  */
 function destination(): string | undefined {
   if (typeof window === "undefined") return undefined;
   const asked = new URLSearchParams(window.location.search).get("redirect") ?? "";
-  return asked.startsWith("/") && !asked.startsWith("//") ? asked : undefined;
+  return safeRedirectPath(asked);
 }
 
 /**

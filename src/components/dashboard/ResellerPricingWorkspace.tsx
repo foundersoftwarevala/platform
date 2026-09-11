@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Calculator, Layers, Package, ShoppingCart, FileText,
   KeyRound, BarChart3, Settings, Home, Download, Mail, Crown,
@@ -302,11 +302,87 @@ function TiersView() {
 
 /* ───────────── PRODUCTS ───────────── */
 
+/**
+ * A product as /api/marketplace/search returns it.
+ *
+ * That endpoint strips `demo_url` on the server and sends only `has_demo`, so
+ * nothing on this screen can reveal a demo address. Opening one goes through
+ * /demo/<slug>, where the demo gate handles sign-in and access.
+ */
+type CatalogProduct = {
+  id: string;
+  slug: string;
+  name: string;
+  industry_label?: string | null;
+  price_label?: string | null;
+  badge?: string | null;
+  has_demo?: boolean;
+  pricing?: { amount: number; currency: string } | null;
+};
+
+function catalogPrice(product: CatalogProduct) {
+  if (product.pricing) {
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: product.pricing.currency,
+        maximumFractionDigits: 0,
+      }).format(product.pricing.amount);
+    } catch {
+      return `${product.pricing.currency} ${product.pricing.amount}`;
+    }
+  }
+  return product.price_label ?? "See product";
+}
+
+/**
+ * The real catalogue, for a reseller to show a client.
+ *
+ * This was a placeholder saying no products were wired to the account, so a
+ * reseller had nothing to browse and no demo to open for a prospect. It now
+ * reads /api/marketplace/search - the same public, demo-URL-free endpoint the
+ * marketplace's Product Finder uses: an empty search lists the featured
+ * products, a typed one ranks the whole catalogue against it.
+ *
+ * Only the list price is shown. "Your price" needs the reseller's real tier,
+ * and the tier on this workspace is not read from the account yet, so a
+ * discounted figure here would be invented.
+ */
+function useResellerCatalog(query: string) {
+  const [products, setProducts] = useState<CatalogProduct[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const ticket = useRef(0);
+
+  useEffect(() => {
+    const current = ++ticket.current;
+    // A short pause so each keystroke is not its own request.
+    const timer = window.setTimeout(() => {
+      setError(null);
+      setProducts(null);
+      fetch(`/api/marketplace/search?q=${encodeURIComponent(query.trim())}&limit=24`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((data: { products?: CatalogProduct[] }) => {
+          if (current !== ticket.current) return;
+          setProducts(Array.isArray(data.products) ? data.products : []);
+        })
+        .catch(() => {
+          if (current !== ticket.current) return;
+          setError("We could not reach the catalogue. Please try again.");
+          setProducts([]);
+        });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  return { products, error };
+}
+
 function ProductsView() {
   const [catalogQuery, setCatalogQuery] = useState("");
+  const { products, error } = useResellerCatalog(catalogQuery);
   return (
     <Card>
-      <CardTitle title="Reseller Product Catalog" subtitle="Live MRP, your discount, your price, tax, and final payable for each product." />
+      <CardTitle title="Reseller Product Catalog" subtitle="The live Software Vala catalogue. Open any product or its live demo to show a client." />
       <div className="mt-4 flex items-center gap-2">
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -320,19 +396,67 @@ function ProductsView() {
         </div>
         <button
           type="button"
-          onClick={() => notifyPending("Catalog filters", "Filters activate as soon as the catalog API is connected.")}
+          onClick={() => notifyPending("Catalog filters", "Category and price filters are not built yet. Search by product, industry or feature to narrow the catalogue.")}
           className="press-3d shrink-0 rounded-lg border border-border bg-card/60 px-3 py-2 text-sm hover:bg-card"
         >
           Filters
         </button>
       </div>
-      <div className="mt-5 rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-        <Package className="mx-auto h-6 w-6 mb-2 opacity-70" />
-        {catalogQuery.trim()
-          ? `No catalog products match “${catalogQuery.trim()}” yet.`
-          : "No reseller products are wired to this account yet."}
-        <div className="mt-1 text-xs">Once the catalog API is connected, each product card shows MRP · Your Discount · Your Price · You Save · Tax · Final Payable · Buy Now · Generate Invoice.</div>
-      </div>
+      {products === null ? (
+        <div className="mt-5 grid sm:grid-cols-2 lg:grid-cols-3 gap-3" aria-hidden="true">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-32 animate-pulse rounded-xl border border-border bg-white/[0.02]" />
+          ))}
+        </div>
+      ) : products.length === 0 ? (
+        <div className="mt-5 rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+          <Package className="mx-auto h-6 w-6 mb-2 opacity-70" />
+          {error
+            ? error
+            : catalogQuery.trim()
+              ? `No catalog products match “${catalogQuery.trim()}”.`
+              : "No featured products are listed right now. Search the catalogue above."}
+        </div>
+      ) : (
+        <div className="mt-5 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {products.map((product) => (
+            <article key={product.id} className="flex flex-col rounded-xl border border-border bg-white/[0.02] p-4">
+              <div className="flex items-start gap-2">
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-semibold">{product.name}</h3>
+                  {product.industry_label && (
+                    <p className="truncate text-xs text-muted-foreground">{product.industry_label}</p>
+                  )}
+                </div>
+                {product.badge && (
+                  <span className="ml-auto shrink-0 rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-brand">
+                    {product.badge}
+                  </span>
+                )}
+              </div>
+              <div className="mt-3">
+                <Row label="MRP" value={catalogPrice(product)} strong />
+              </div>
+              <div className="mt-auto flex flex-wrap gap-2 pt-3">
+                <a
+                  href={`/marketplace/product/${encodeURIComponent(product.slug)}`}
+                  className="press-3d rounded-lg bg-brand text-brand-foreground px-3 py-1.5 text-xs font-medium shadow-glow hover:opacity-95"
+                >
+                  View product
+                </a>
+                {product.has_demo && (
+                  <a
+                    href={`/demo/${encodeURIComponent(product.slug)}`}
+                    className="press-3d rounded-lg border border-border bg-card/60 px-3 py-1.5 text-xs hover:bg-card"
+                  >
+                    Live demo
+                  </a>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }

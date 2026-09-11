@@ -15,6 +15,7 @@ import {
 import "@/styles/marketplace-home.css";
 import { getRole, type Field } from "@/lib/applications/config";
 import { submitApplication } from "@/lib/applications/store";
+import { SUPPORT_WHATSAPP_URL, supportMailto } from "@/lib/portal/config";
 
 export const Route = createFileRoute("/apply/$role")({
   head: ({ params }) => {
@@ -111,7 +112,10 @@ function ApplyRolePage() {
   const navigate = useNavigate();
   const [values, setValues] = useState<Record<string, string>>({});
   const [agreed, setAgreed] = useState(false);
-  const [paid, setPaid] = useState(false);
+  // There is no "paid" state any more. "Pay Now" used to set one in the
+  // browser and announce "Payment recorded" with no money having moved; the
+  // flag then travelled with the application as if the fee were settled. No
+  // payment path exists for application fees, so nothing here may claim one.
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -146,6 +150,11 @@ function ApplyRolePage() {
     }
     setBusy(true);
     window.setTimeout(() => {
+      // Kept exactly as it was: the application is saved in this browser, and
+      // that is all submitApplication does. There is no server intake and no
+      // Control Panel approval queue behind this form yet (see store.ts), so
+      // the page no longer says it was "sent to the boss panel". It says what
+      // happened and gives the applicant the real way to reach the team.
       submitApplication({
         role: role.key,
         roleLabel: role.label,
@@ -153,31 +162,83 @@ function ApplyRolePage() {
         email: values["email"] || "",
         phone: values["phone"] || "",
         fee: role.fee,
-        paid: freeFee ? true : paid,
+        // Only a free application is settled; a fee is arranged after approval.
+        paid: freeFee,
         values,
       });
       setBusy(false);
       setDone(true);
-      toast.success("Application submitted — sent to the boss panel for approval.");
+      toast.success("Application saved. Send it to our team to start the review.");
     }, 700);
   };
+
+  /**
+   * The application as plain text, for the email the applicant sends.
+   *
+   * Every field the form asked for, by its own label. A file field only ever
+   * held the file's name - the file itself never left the browser - so it is
+   * marked as something to attach rather than passed off as sent.
+   */
+  const summary = () => {
+    const lines = [`Role: ${role.label}`, `Application fee: ${role.fee}`, ""];
+    for (const section of role.sections) {
+      lines.push(`# ${section.title}`);
+      for (const field of section.fields) {
+        const value = (values[field.name] ?? "").trim();
+        if (!value) continue;
+        lines.push(`${field.label}: ${value}${field.type === "file" ? " (please attach this file)" : ""}`);
+      }
+      lines.push("");
+    }
+    lines.push("Agreement accepted: yes");
+    // Mail clients refuse very long mailto: addresses; the essentials come first.
+    return lines.join("\n").slice(0, 1800);
+  };
+  const applicantName = values["fullName"] || "Applicant";
+  const emailHref = supportMailto(`${role.label} application — ${applicantName}`, summary());
+  const whatsappHref = `${SUPPORT_WHATSAPP_URL}?text=${encodeURIComponent(
+    `Hello, I have filled in the ${role.label.replace("Become ", "")} application on Software Vala. Name: ${applicantName}. Email: ${values["email"] || "-"}.`,
+  )}`;
 
   if (done) {
     return (
       <div className="mpc-home min-h-screen px-5 py-16">
         <div className="mx-auto max-w-xl rounded-3xl border border-white/12 bg-white/[0.05] p-8 text-center backdrop-blur-xl">
           <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-300" />
-          <h1 className="mt-4 text-2xl font-black">Application submitted</h1>
+          <h1 className="mt-4 text-2xl font-black">Application ready — one step left</h1>
+          {/* This used to say the application was pending approval and that the
+              admin team had been notified. Neither was true: it was saved in
+              this browser only, where no reviewer can see it. The applicant is
+              now told that plainly and given the two routes that do reach a
+              person - the support inbox, carrying the whole application, and
+              WhatsApp. Approval is given by the boss in the Control Panel; any
+              fee is arranged with the applicant only after that. */}
           <p className="mt-2 text-[13.5px] leading-relaxed text-white/65">
-            Your {role.label.replace("Become ", "")} application is now pending approval. The admin team has been
-            notified and you will receive an update on {values["email"] || "your email"}.
+            Your {role.label.replace("Become ", "")} application is saved on this device. Send it to our team to start
+            the review — the email below already contains everything you filled in. Approval is decided by the Software
+            Vala team{freeFee ? "" : `, and the ${role.fee} fee is arranged with you only after your application is approved`}.
+            We will reply on {values["email"] || "your email"}.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link
-              to="/control-panel"
+            <a
+              href={emailHref}
               className="rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 px-5 py-2.5 text-[13px] font-bold"
             >
-              Open boss panel
+              Email my application
+            </a>
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full border border-emerald-300/40 bg-emerald-400/15 px-5 py-2.5 text-[13px] font-bold text-emerald-200"
+            >
+              WhatsApp our team
+            </a>
+            <Link
+              to="/control-panel"
+              className="rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-[13px] font-bold"
+            >
+              Control Panel (staff only)
             </Link>
             <Link to="/" className="rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-[13px] font-bold">
               Back to home
@@ -290,22 +351,29 @@ function ApplyRolePage() {
                 {role.fee}
               </span>
               {!freeFee && (
+                // "Pay Now" marked the fee paid in this browser and toasted
+                // "Payment recorded" while no money moved. There is no payment
+                // path for application fees, and the owner's rule is that a
+                // payment is never faked, so the button now says what actually
+                // happens: nothing is charged here, and the fee is arranged
+                // after the application is approved.
                 <button
                   type="button"
                   onClick={() => {
-                    setPaid(true);
-                    toast.success("Payment recorded for this application.");
+                    toast.info("No payment is taken on this page. The fee is arranged with you after your application is approved.", { id: "application-fee" });
                   }}
-                  className={`rounded-full px-5 py-2.5 text-[13px] font-bold ${
-                    paid
-                      ? "border border-emerald-300/40 bg-emerald-400/15 text-emerald-200"
-                      : "bg-gradient-to-r from-amber-300 to-orange-500 text-[#2a1704]"
-                  }`}
+                  className="rounded-full bg-gradient-to-r from-amber-300 to-orange-500 px-5 py-2.5 text-[13px] font-bold text-[#2a1704]"
                 >
-                  {paid ? "Paid ✓" : "Pay Now"}
+                  Pay after approval
                 </button>
               )}
             </div>
+            {!freeFee && (
+              <p className="mt-3 text-[11.5px] text-white/50">
+                Nothing is charged when you submit. Once your application is approved, our team sends you the payment
+                details for the {role.fee} fee.
+              </p>
+            )}
           </section>
 
           <div className="flex flex-wrap items-center gap-3">

@@ -1,6 +1,31 @@
 /**
  * Local persistence for role applications + boss-panel notifications.
  * Stored in localStorage so the flow works without a backend.
+ *
+ * Read this as what it is: a copy in the applicant's own browser. No one else
+ * can see it - not the boss, not a manager - and the "notifications" it keeps
+ * appear only in that same browser's top bar. It is kept as the applicant's
+ * record of what they filled in, and /apply/$role no longer presents a save
+ * here as a submission that reached anyone.
+ *
+ * What exists on the server, checked against the live database (2026-09-11):
+ *
+ *   influencer  influencer_applications + submit_influencer_application /
+ *               review_influencer_application RPCs (lib/influencer/workflow.ts).
+ *               No screen calls either RPC; the Influencer Manager's
+ *               "Applications" wall is a localStorage table too.
+ *   franchise   franchise_applications, read by lib/franchise/api.ts. The
+ *               Franchise Manager's "Applications" wall does not read it - it
+ *               is a localStorage table (manager-suite/wall.tsx).
+ *   reseller    lib/applications/reseller-submit.ts and reseller-entity.ts
+ *               write reseller_applications, which does not exist in the live
+ *               database.
+ *   vendor, author, affiliate, employee
+ *               no application table at all.
+ *
+ * The Control Panel's "Role Approvals" tile is a fixed figure with no source.
+ * So there is no boss approval queue that any server intake feeds yet, and
+ * the form is not pointed at one until there is.
  */
 
 export type AppStatus = "pending" | "approved" | "rejected";

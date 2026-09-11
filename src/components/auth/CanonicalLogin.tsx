@@ -6,28 +6,98 @@ import { OwlStage, type OwlState } from "@/components/owl/OwlStage";
 import { LANGUAGES, useLanguage } from "@/lib/language-catalog";
 import { supabase } from "@/integrations/supabase/client";
 import { friendlyThrown, safeMessage } from "@/lib/portal/format";
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 
 const LANGUAGE_OPTIONS = ["EN", "HI", "AR", "ES", "FR", "DE", "JA", "ZH"];
 const RTL_LANGUAGES = new Set(["AR", "FA", "HE", "UR"]);
 
+/*
+ * Three destinations here sent the role to a page that refuses it:
+ *
+ *   franchise  was /franchise-manager, the operator console, which admits
+ *              finance, support and sales_support_manager staff only. A
+ *              franchise partner signed in and read "Access restricted".
+ *              /dashboard/franchise is the partner's own dashboard and admits
+ *              the franchise role.
+ *   developer  was /manager/product-api, whose data layer (requireManager)
+ *              answers only admin, boss and finance. /dashboard/developer is
+ *              the developer's own dashboard and admits the developer role.
+ *   customer   was /support?section=customer-operations, the support team's
+ *              console, gated on the support role. Every buyer who signed in
+ *              without a ?redirect= was refused there. /account/purchases is
+ *              the customer's own orders and licences page and needs only a
+ *              signed-in session.
+ *
+ * The owner-class roles RequireRole already treats as operators (boss_owner,
+ * founder, super_admin, owner) had no destination at all and fell through to
+ * the home page; they now open the Control Panel like admin and boss.
+ */
 const ROLE_DESTINATIONS: Record<string, string> = {
   admin: "/control-panel",
   boss: "/boss",
+  boss_owner: "/control-panel",
+  founder: "/control-panel",
+  super_admin: "/control-panel",
+  owner: "/control-panel",
   reseller: "/dashboard/reseller",
   finance: "/manager/finance",
-  franchise: "/franchise-manager",
+  franchise: "/dashboard/franchise",
   employee: "/manager/people",
   sales: "/sales-support-manager?section=sales",
   support: "/support",
   marketing: "/marketing",
-  developer: "/manager/product-api",
-  customer: "/support?section=customer-operations",
+  developer: "/dashboard/developer",
+  customer: "/account/purchases",
   influencer: "/dashboard/influencer",
   affiliate: "/dashboard/affiliate",
   author: "/dashboard/author",
   vendor: "/dashboard/vendor",
   seo: "/dashboard/seo",
 };
+
+/**
+ * Which destination wins when an account holds several roles.
+ *
+ * The first row of `user_roles` ordered alphabetically used to decide it.
+ * Every signup is given `customer`, so a partner or staff member whose role
+ * sorts after "customer" - reseller, sales, support, seo, vendor - was sent to
+ * the customer destination instead of their own workspace. The order is now
+ * explicit: owners and operators first, then staff, then partners, and
+ * customer last, because it is the role everyone has.
+ */
+const ROLE_PRIORITY: string[] = [
+  "boss_owner",
+  "founder",
+  "owner",
+  "super_admin",
+  "boss",
+  "admin",
+  "finance",
+  "sales",
+  "support",
+  "marketing",
+  "seo",
+  "employee",
+  "reseller",
+  "franchise",
+  "influencer",
+  "affiliate",
+  "author",
+  "vendor",
+  "developer",
+  "customer",
+];
+
+/** The destination for the highest-priority role the account holds. */
+function destinationForRoles(rows: { role?: unknown }[] | null | undefined): string | undefined {
+  const held = new Set((rows ?? []).map((row) => String(row?.role ?? "").trim().toLowerCase()).filter(Boolean));
+  const ranked = ROLE_PRIORITY.find((role) => held.has(role) && ROLE_DESTINATIONS[role]);
+  if (ranked) return ROLE_DESTINATIONS[ranked];
+  // A role with a destination that the priority list does not name yet still
+  // gets somewhere, rather than the home page.
+  const other = Object.keys(ROLE_DESTINATIONS).find((role) => held.has(role));
+  return other ? ROLE_DESTINATIONS[other] : undefined;
+}
 
 type Props = { redirectTo?: string };
 
@@ -73,8 +143,11 @@ export function CanonicalLogin({ redirectTo }: Props) {
   }, [assistantLine, lang, voice]);
 
   const routeAfterAuth = async () => {
-    if (redirectTo?.startsWith("/")) {
-      window.location.assign(redirectTo);
+    // Sanitised again here, not only in the route, because this component is
+    // what actually calls location.assign and must not trust its prop.
+    const back = safeRedirectPath(redirectTo);
+    if (back) {
+      window.location.assign(back);
       return;
     }
     const { data } = await supabase.auth.getUser();
@@ -95,7 +168,7 @@ export function CanonicalLogin({ redirectTo }: Props) {
       console.warn("[login] influencer profile claim skipped:", claimFailure);
     }
     const { data: roleRows } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).order("role", { ascending: true });
-    const destination = ROLE_DESTINATIONS[String(roleRows?.[0]?.role ?? "").toLowerCase()];
+    const destination = destinationForRoles(roleRows);
     if (destination) window.location.assign(destination);
     else navigate({ to: "/", replace: true });
   };
@@ -165,8 +238,9 @@ export function CanonicalLogin({ redirectTo }: Props) {
     setOwlState("hide");
     // Carry the destination across the provider round trip, or the visitor
     // comes back signed in and lands somewhere they never asked for.
-    const back = redirectTo?.startsWith("/") && !redirectTo.startsWith("//")
-      ? `${window.location.origin}/login?redirect=${encodeURIComponent(redirectTo)}`
+    const safe = safeRedirectPath(redirectTo);
+    const back = safe
+      ? `${window.location.origin}/login?redirect=${encodeURIComponent(safe)}`
       : `${window.location.origin}/login`;
     const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: back } });
     if (error) {
