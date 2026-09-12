@@ -16,5 +16,16 @@ export default defineConfig({
   // so local development does too, instead of the preset's 8080 default.
   vite: {
     server: { port: 3000, strictPort: true },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            // The homepage uses many Lucide glyphs. Without a shared chunk the
+            // production build preloads each glyph as a separate HTTP request.
+            if (id.includes("lucide-react")) return "lucide";
+          },
+        },
+      },
+    },
   },
 });
