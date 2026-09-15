@@ -3,6 +3,7 @@
 export const MANAGER_TABLES = [
   "ai_providers",
   "api_services",
+  "api_service_capabilities",
   "api_keys",
   "ai_models",
   "ai_agents",

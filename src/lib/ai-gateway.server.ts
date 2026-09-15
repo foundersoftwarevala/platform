@@ -7,6 +7,7 @@ import {
   recordPolicyDenial,
   type PolicyInput,
 } from "./ai-policy.server";
+import { decryptAiCredential } from "./ai-credentials.server";
 
 /** Longest a single completion may take before the provider is abandoned. */
 const COMPLETE_TIMEOUT_MS = 60_000;
@@ -167,9 +168,16 @@ export async function resolveAiTarget(
       ? process.env.GOOGLE_API_KEY
       : process.env.OPENAI_API_KEY;
   const stored = (keyRows?.[0] as { secret_encrypted?: string } | undefined)?.secret_encrypted;
+  const storedCredential =
+    typeof stored === "string" &&
+    (stored.startsWith("enc:v1:") || /^(sk-|key-|AIza|anthropic)/i.test(stored))
+      ? stored
+      : "";
   const credential =
     envKey ||
-    (typeof stored === "string" && /^(sk-|key-|AIza|anthropic)/i.test(stored) ? stored : "");
+    (storedCredential.startsWith("enc:v1:")
+      ? decryptAiCredential(storedCredential)
+      : storedCredential);
 
   if (!credential) {
     throw new Error(
@@ -323,9 +331,14 @@ export async function aiComplete(options: {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(COMPLETE_TIMEOUT_MS),
   });
-  const result = (await response.json().catch(() => ({}))) as Record<string, any>;
+  const result = (await response.json().catch(() => ({}))) as {
+    content?: Array<{ type?: string; text?: string }>;
+    choices?: Array<{ message?: { content?: string } }>;
+    error?: { message?: string } | Array<{ message?: string }>;
+    usage?: Record<string, unknown>;
+  };
   const text = target.isAnthropic
-    ? result.content?.find((c: any) => c.type === "text")?.text
+    ? result.content?.find((c) => c.type === "text")?.text
     : result.choices?.[0]?.message?.content;
 
   await meter(target, options.module, started, response.status, response.ok, result.usage);

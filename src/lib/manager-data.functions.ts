@@ -3,6 +3,7 @@ import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 import { isManagerTable, MANAGER_TABLES } from "./manager-tables";
+import { credentialFingerprint, encryptAiCredential } from "./ai-credentials.server";
 
 const filterSchema = z.object({
   column: z.string().min(1).max(64),
@@ -17,26 +18,36 @@ const listSchema = z.object({
   ascending: z.boolean().default(false),
   limit: z.number().int().min(1).max(2000).default(200),
   filters: z.array(filterSchema).max(8).default([]),
+  accessToken: z.string().min(1).optional(),
 });
 
 const listManySchema = z.object({
   requests: z.array(listSchema).min(1).max(24),
+  accessToken: z.string().min(1),
 });
 
 const mutateSchema = z.object({
   table: z.string().refine(isManagerTable, "Unknown table"),
   id: z.string().uuid(),
   values: z.record(z.string(), z.unknown()),
+  accessToken: z.string().min(1),
 });
 
 const insertSchema = z.object({
   table: z.string().refine(isManagerTable, "Unknown table"),
   values: z.record(z.string(), z.unknown()),
+  accessToken: z.string().min(1),
 });
 
 const deleteSchema = z.object({
   table: z.string().refine(isManagerTable, "Unknown table"),
   id: z.string().uuid(),
+  accessToken: z.string().min(1),
+});
+
+const healthCheckSchema = z.object({
+  serviceId: z.string().uuid(),
+  accessToken: z.string().min(1),
 });
 
 async function admin() {
@@ -44,9 +55,9 @@ async function admin() {
   return supabaseAdmin;
 }
 
-async function requireManager() {
+async function requireManager(accessToken?: string) {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  const token = accessToken ?? (header?.startsWith("Bearer ") ? header.slice(7) : null);
   if (!token) throw new Error("Manager authentication required");
   const db = await admin();
   const { data: user, error: userError } = await db.auth.getUser(token);
@@ -259,9 +270,7 @@ function refuseSettlementWrite(
 ): void {
   if (table === "marketplace_orders") {
     if (String(values["status"] ?? "").toLowerCase() === "paid") {
-      throw new Error(
-        "An order is marked paid only by a verified payment, not from the console.",
-      );
+      throw new Error("An order is marked paid only by a verified payment, not from the console.");
     }
     const touched = Object.keys(values).filter((k) => ORDER_SETTLEMENT_COLUMNS.has(k));
     if (touched.length) {
@@ -272,10 +281,15 @@ function refuseSettlementWrite(
   }
   if (ISSUED_BY_PAYMENT_TABLES.has(table)) {
     if (op === "insert") {
-      throw new Error(`${table} rows are issued by a verified payment, not created from the console.`);
+      throw new Error(
+        `${table} rows are issued by a verified payment, not created from the console.`,
+      );
     }
     const status = String(values["status"] ?? "").toLowerCase();
-    if (table === "finance_payments" && ["succeeded", "paid", "captured", "settled"].includes(status)) {
+    if (
+      table === "finance_payments" &&
+      ["succeeded", "paid", "captured", "settled"].includes(status)
+    ) {
       throw new Error("A payment is settled only by the provider's verified confirmation.");
     }
   }
@@ -287,6 +301,26 @@ function refuseFinancialWrite(table: string, values: Record<string, unknown>): v
       "Wallet ledger entries are written by Finance Manager, not from the console. " +
         "Use the wallet top-up or deduction action so the balance, the entry and the audit stay together.",
     );
+  }
+
+  function refuseFinanceRegistryWrite(
+    actor: ManagerActor,
+    table: string,
+    values: Record<string, unknown>,
+  ): void {
+    if (actor.role !== "finance") return;
+    const protectedColumns =
+      table === "api_services"
+        ? ["endpoint_url", "official_url", "docs_url", "status", "provider_id", "credential_env"]
+        : table === "ai_providers"
+          ? ["base_url", "official_url", "docs_url", "status", "credential_env"]
+          : [];
+    const touched = Object.keys(values).filter((column) => protectedColumns.includes(column));
+    if (touched.length) {
+      throw new Error(
+        `Finance role cannot modify provider routing or credential configuration (${touched.join(", ")}).`,
+      );
+    }
   }
   if (table === "wallets" || table === "finance_wallets") {
     const touched = Object.keys(values).filter((k) => WALLET_BALANCE_COLUMNS.has(k));
@@ -313,6 +347,49 @@ const AUDIT_BEFORE_AFTER_TABLES = new Set(["product_apis", "role_api_permissions
 function productApiEventName(values: Record<string, unknown>): string {
   if ("enabled" in values) {
     return values["enabled"] ? "PRODUCT_API_ENABLED" : "PRODUCT_API_DISABLED";
+  }
+
+  async function validateApiServiceActivation(
+    db: ManagerDb,
+    serviceId: string,
+    values: Record<string, unknown>,
+  ) {
+    if (values["status"] !== "active") return;
+
+    const { data: service, error: serviceError } = await db
+      .from("api_services")
+      .select("name, approval_status, credential_env")
+      .eq("id", serviceId)
+      .maybeSingle();
+    if (serviceError || !service) throw new Error("API service is not registered.");
+    if (service.approval_status !== "approved") {
+      throw new Error("Approve this API service before enabling it.");
+    }
+
+    const { count, error: credentialError } = await db
+      .from("api_keys")
+      .select("id", { count: "exact", head: true })
+      .eq("service_id", serviceId)
+      .eq("status", "active");
+    if (credentialError) throw new Error(credentialError.message);
+    const credentialEnv =
+      typeof service.credential_env === "string" &&
+      /^[A-Z][A-Z0-9_]{2,63}$/.test(service.credential_env)
+        ? service.credential_env
+        : null;
+    if (!count && !(credentialEnv && process.env[credentialEnv])) {
+      throw new Error(
+        `BLOCKED / CREDENTIAL REQUIRED. Configure an active credential for ${service.name} before enabling it.`,
+      );
+    }
+  }
+
+  function apiServiceEventName(values: Record<string, unknown>): string {
+    if (values["status"] === "active") return "API_SERVICE_ENABLED";
+    if (values["status"] === "inactive") return "API_SERVICE_DISABLED";
+    if (values["approval_status"] === "approved") return "API_SERVICE_APPROVED";
+    if (values["approval_status"] === "rejected") return "API_SERVICE_REJECTED";
+    return "API_SERVICE_UPDATED";
   }
   if ("model_id" in values) return "PRODUCT_API_MODEL_CHANGED";
   if ("fallback_service_id" in values) return "PRODUCT_API_FALLBACK_CHANGED";
@@ -346,12 +423,12 @@ async function readBefore(
 
 export const listRecords = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => listSchema.parse(data))
-  .handler(async ({ data }) => runList(await requireManager(), data));
+  .handler(async ({ data }) => runList(await requireManager(data.accessToken), data));
 
 export const listManyRecords = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => listManySchema.parse(data))
   .handler(async ({ data }) => {
-    const db = await requireManager();
+    const db = await requireManager(data.accessToken);
     const results = await Promise.all(data.requests.map((r) => runList(db, r)));
     return results;
   });
@@ -362,9 +439,13 @@ export const updateRecord = createServerFn({ method: "POST" })
     if (APPEND_ONLY_TABLES.has(data.table)) {
       throw new Error(`${data.table} is append-only. Record a correcting entry instead.`);
     }
+    const db = await requireManager(data.accessToken);
+    refuseFinanceRegistryWrite(db.managerActor, data.table, data.values);
+    if (data.table === "api_services") {
+      await validateApiServiceActivation(db, data.id, data.values);
+    }
     refuseFinancialWrite(data.table, data.values);
     refuseSettlementWrite(data.table, data.values, "update");
-    const db = await requireManager();
     const before = await readBefore(db, data.table, data.id);
     const { data: row, error } = await db
       .from(data.table)
@@ -375,7 +456,11 @@ export const updateRecord = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     await writeAudit(
       db,
-      data.table === "product_apis" ? productApiEventName(data.values) : `${data.table}.updated`,
+      data.table === "product_apis"
+        ? productApiEventName(data.values)
+        : data.table === "api_services"
+          ? apiServiceEventName(data.values)
+          : `${data.table}.updated`,
       data.table,
       data.id,
       {
@@ -386,15 +471,100 @@ export const updateRecord = createServerFn({ method: "POST" })
     return redactRows(data.table, [row as Row])[0] as Row;
   });
 
+export const checkApiServiceHealth = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => healthCheckSchema.parse(data))
+  .handler(async ({ data }) => {
+    const db = await requireManager(data.accessToken);
+    const { data: service, error } = await db
+      .from("api_services")
+      .select("id, name, endpoint_url")
+      .eq("id", data.serviceId)
+      .maybeSingle();
+    if (error || !service) throw new Error("API service is not registered.");
+    const endpoint = String(service.endpoint_url ?? "");
+    let url: URL;
+    try {
+      url = new URL(endpoint);
+    } catch {
+      throw new Error("This service has no valid HTTPS endpoint to check.");
+    }
+    if (url.protocol !== "https:" || /^(localhost|127\.|0\.0\.0\.0|::1$)/i.test(url.hostname)) {
+      throw new Error("Health checks require a public HTTPS provider endpoint.");
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "HEAD",
+        redirect: "error",
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : "Provider endpoint was unreachable.";
+      const { error: updateError } = await db
+        .from("api_services")
+        .update({ health_status: "unhealthy" })
+        .eq("id", data.serviceId);
+      if (updateError) throw new Error(updateError.message);
+      await writeAudit(
+        db,
+        "API_SERVICE_HEALTH_CHECK_FAILED",
+        "api_services",
+        data.serviceId,
+        {
+          endpoint,
+          detail,
+        },
+        "warning",
+      );
+      throw new Error(`Provider health check failed: ${detail}`);
+    }
+
+    const healthStatus =
+      response.ok || [401, 403, 405].includes(response.status) ? "healthy" : "degraded";
+    const { error: updateError } = await db
+      .from("api_services")
+      .update({ health_status: healthStatus })
+      .eq("id", data.serviceId);
+    if (updateError) throw new Error(updateError.message);
+    await writeAudit(db, "API_SERVICE_HEALTH_CHECKED", "api_services", data.serviceId, {
+      endpoint,
+      http_status: response.status,
+      health_status: healthStatus,
+    });
+    return {
+      healthStatus,
+      detail:
+        response.status === 401 || response.status === 403
+          ? `Provider endpoint is reachable (HTTP ${response.status}); execution remains blocked until credentials are configured.`
+          : `Provider endpoint responded with HTTP ${response.status}.`,
+    };
+  });
+
 export const insertRecord = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => insertSchema.parse(data))
   .handler(async ({ data }) => {
+    const values =
+      data.table === "api_keys" && typeof data.values["secret_encrypted"] === "string"
+        ? (() => {
+            const secret = String(data.values["secret_encrypted"]).trim();
+            if (!secret) return { ...data.values, secret_encrypted: null };
+            return {
+              ...data.values,
+              secret_encrypted: encryptAiCredential(secret),
+              fingerprint: credentialFingerprint(secret),
+              key_prefix: secret.slice(0, Math.min(8, secret.length)),
+              last_four: secret.slice(-4),
+            };
+          })()
+        : data.values;
+    const db = await requireManager(data.accessToken);
+    refuseFinanceRegistryWrite(db.managerActor, data.table, values);
     refuseFinancialWrite(data.table, data.values);
-    refuseSettlementWrite(data.table, data.values, "insert");
-    const db = await requireManager();
+    refuseSettlementWrite(data.table, values, "insert");
     const { data: row, error } = await db
       .from(data.table)
-      .insert(data.values as never)
+      .insert(values as never)
       .select()
       .single();
     if (error) throw new Error(error.message);
@@ -403,7 +573,7 @@ export const insertRecord = createServerFn({ method: "POST" })
       data.table === "product_apis" ? "PRODUCT_API_MAPPED" : `${data.table}.created`,
       data.table,
       (row as { id?: string } | null)?.id ?? null,
-      redactValues(data.table, data.values),
+      redactValues(data.table, values),
     );
     return redactRows(data.table, [row as Row])[0] as Row;
   });
@@ -417,7 +587,7 @@ export const deleteRecord = createServerFn({ method: "POST" })
     if (WALLET_LEDGER_TABLES.has(data.table)) {
       throw new Error("A wallet ledger entry cannot be deleted. Record a reversal instead.");
     }
-    const db = await requireManager();
+    const db = await requireManager(data.accessToken);
     const { error } = await db.from(data.table).delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     await writeAudit(db, `${data.table}.deleted`, data.table, data.id, {}, "warning");
