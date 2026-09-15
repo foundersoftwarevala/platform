@@ -2,8 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { supabase } from "@/integrations/supabase/client";
+
 import {
   deleteRecord,
+  checkApiServiceHealth,
   insertRecord,
   listManyRecords,
   listRecords,
@@ -38,13 +41,20 @@ function normalize(spec: ListSpec) {
   };
 }
 
+async function withAccessToken<T extends object>(data: T): Promise<T & { accessToken: string }> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) throw new Error("Manager authentication required");
+  return { ...data, accessToken };
+}
+
 /** Read one table. */
 export function useRecords(spec: ListSpec) {
   const fn = useServerFn(listRecords);
   const payload = normalize(spec);
   return useQuery({
     queryKey: ["manager", payload],
-    queryFn: () => fn({ data: payload }),
+    queryFn: async () => fn({ data: await withAccessToken(payload) }),
     staleTime: 15_000,
   });
 }
@@ -55,7 +65,7 @@ export function useManyRecords(specs: ListSpec[]) {
   const requests = specs.map(normalize);
   return useQuery({
     queryKey: ["manager", "many", requests],
-    queryFn: () => fn({ data: { requests } }),
+    queryFn: async () => fn({ data: await withAccessToken({ requests }) }),
     staleTime: 15_000,
   });
 }
@@ -70,7 +80,7 @@ export function useUpdateRecord(successMessage = "Saved") {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (vars: { table: ManagerTable; id: string; values: Record<string, unknown> }) =>
-      fn({ data: vars }),
+      withAccessToken(vars).then((data) => fn({ data })),
     onSuccess: () => {
       invalidate();
       toast.success(successMessage);
@@ -84,7 +94,7 @@ export function useInsertRecord(successMessage = "Created") {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (vars: { table: ManagerTable; values: Record<string, unknown> }) =>
-      fn({ data: vars }),
+      withAccessToken(vars).then((data) => fn({ data })),
     onSuccess: () => {
       invalidate();
       toast.success(successMessage);
@@ -97,10 +107,25 @@ export function useDeleteRecord(successMessage = "Deleted") {
   const fn = useServerFn(deleteRecord);
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (vars: { table: ManagerTable; id: string }) => fn({ data: vars }),
+    mutationFn: (vars: { table: ManagerTable; id: string }) =>
+      withAccessToken(vars).then((data) => fn({ data })),
     onSuccess: () => {
       invalidate();
       toast.success(successMessage);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Run an auditable server-side reachability check for a registered provider endpoint. */
+export function useApiServiceHealthCheck() {
+  const fn = useServerFn(checkApiServiceHealth);
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (vars: { serviceId: string }) => withAccessToken(vars).then((data) => fn({ data })),
+    onSuccess: (result) => {
+      invalidate();
+      toast.success(result.detail);
     },
     onError: (e: Error) => toast.error(e.message),
   });

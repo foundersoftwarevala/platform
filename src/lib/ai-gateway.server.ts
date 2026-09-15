@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
+import { decryptAiCredential } from "./ai-credentials.server";
 /**
  * One way in and out of an AI provider.
  *
@@ -44,14 +45,27 @@ function serverClient() {
 }
 
 /** Anything registered in AI API Manager that can answer a chat completion. */
-export async function resolveAiTarget(serviceName?: string): Promise<AiTarget> {
+export async function resolveAiTarget(
+  selector?: string | { serviceId?: string; serviceName?: string },
+): Promise<AiTarget> {
   const db = serverClient() as ReturnType<typeof createClient>;
+  const serviceName = typeof selector === "string" ? selector : selector?.serviceName;
+  const serviceId = typeof selector === "string" ? undefined : selector?.serviceId;
 
   let row: Record<string, unknown> | null = null;
-  if (serviceName) {
+  if (serviceId) {
     const { data } = await db
       .from("api_services")
-      .select("id, name, provider_id, endpoint_url, status, category")
+      .select("id, name, provider_id, endpoint_url, status, category, approval_status")
+      .eq("id", serviceId)
+      .maybeSingle();
+    row = (data as Record<string, unknown>) ?? null;
+    if (!row) throw new Error("The selected AI service is not registered in AI API Manager.");
+  }
+  if (!row && serviceName) {
+    const { data } = await db
+      .from("api_services")
+      .select("id, name, provider_id, endpoint_url, status, category, approval_status")
       .ilike("name", `%${serviceName}%`)
       .eq("status", "active")
       .limit(1);
@@ -61,7 +75,7 @@ export async function resolveAiTarget(serviceName?: string): Promise<AiTarget> {
     // Any active AI service will do; the operator decides which by activating it.
     const { data } = await db
       .from("api_services")
-      .select("id, name, provider_id, endpoint_url, status, category")
+      .select("id, name, provider_id, endpoint_url, status, category, approval_status")
       .eq("status", "active")
       .in("category", ["ai", "llm"])
       .order("name")
@@ -79,6 +93,12 @@ export async function resolveAiTarget(serviceName?: string): Promise<AiTarget> {
     throw new Error(
       "No active AI service is configured in AI API Manager. Add one to enable AI features.",
     );
+  }
+  if (row["status"] !== "active") {
+    throw new Error(`AI service ${row["name"]} is not active in AI API Manager.`);
+  }
+  if (row["approval_status"] !== "approved") {
+    throw new Error(`AI service ${row["name"]} is not approved in AI API Manager.`);
   }
 
   const endpoint = String(row["endpoint_url"] ?? "");
@@ -127,9 +147,16 @@ export async function resolveAiTarget(serviceName?: string): Promise<AiTarget> {
       ? process.env.GOOGLE_API_KEY
       : process.env.OPENAI_API_KEY;
   const stored = (keyRows?.[0] as { secret_encrypted?: string } | undefined)?.secret_encrypted;
+  const storedCredential =
+    typeof stored === "string" &&
+    (stored.startsWith("enc:v1:") || /^(sk-|key-|AIza|anthropic)/i.test(stored))
+      ? stored
+      : "";
   const credential =
     envKey ||
-    (typeof stored === "string" && /^(sk-|key-|AIza|anthropic)/i.test(stored) ? stored : "");
+    (storedCredential.startsWith("enc:v1:")
+      ? decryptAiCredential(storedCredential)
+      : storedCredential);
 
   if (!credential) {
     throw new Error(

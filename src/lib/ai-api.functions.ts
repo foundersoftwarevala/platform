@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeader } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -15,7 +16,9 @@ function resolveSupabaseEnv() {
     "";
 
   if (!url || !key) {
-    throw new Error("Missing Supabase environment configuration: set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY).")
+    throw new Error(
+      "Missing Supabase environment configuration: set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY).",
+    );
   }
 
   return { url, key };
@@ -28,7 +31,8 @@ function publicClient() {
     global: {
       fetch: (input, init) => {
         const headers = new Headers(init?.headers);
-        if (key.startsWith("sb_") && headers.get("Authorization") === `Bearer ${key}`) headers.delete("Authorization");
+        if (key.startsWith("sb_") && headers.get("Authorization") === `Bearer ${key}`)
+          headers.delete("Authorization");
         headers.set("apikey", key);
         return fetch(input, { ...init, headers });
       },
@@ -42,6 +46,11 @@ export type AiRegistryService = {
   provider: string;
   route: string;
   owner: string;
+  category: string;
+  pricing_tier: string;
+  approval_status: string;
+  capabilities: string[];
+  credential_status: "configured" | "required" | "not_required" | "unknown";
   status: "active" | "warning" | "inactive";
   updated_at: string | null;
   usage_count: number;
@@ -75,26 +84,84 @@ function toNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export const listAiRegistry = createServerFn({ method: "GET" })
-  .handler(async (): Promise<AiRegistrySnapshot> => {
+export const listAiRegistry = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AiRegistrySnapshot> => {
     const sb = publicClient() as any;
 
-    const [servicesResult, providersResult, usageResult] = await Promise.allSettled([
-      sb.from("api_services").select("id, name, slug, provider_id, endpoint_url, status, owner_team, updated_at, avg_latency_ms").order("updated_at", { ascending: false }).limit(50),
-      sb.from("ai_providers").select("id, name, slug").limit(50),
-      sb.from("usage_events").select("service_id, requests, cost_usd, success, latency_ms, occurred_at").order("occurred_at", { ascending: false }).limit(500),
-    ]);
+    const [richServicesResult, providersResult, usageResult, capabilitiesResult] =
+      await Promise.allSettled([
+        sb
+          .from("api_services")
+          .select(
+            "id, name, slug, provider_id, endpoint_url, status, owner_team, category, pricing_tier, approval_status, capabilities, updated_at, avg_latency_ms",
+          )
+          .order("updated_at", { ascending: false })
+          .limit(100),
+        sb.from("ai_providers").select("id, name, slug").limit(50),
+        sb
+          .from("usage_events")
+          .select("service_id, requests, cost_usd, success, latency_ms, occurred_at")
+          .order("occurred_at", { ascending: false })
+          .limit(500),
+        sb
+          .from("api_service_capabilities")
+          .select("service_id, capability_name, approval_status, verification_status")
+          .limit(500),
+      ]);
 
-    const servicesData = servicesResult.status === "fulfilled" && !servicesResult.value.error ? (servicesResult.value.data ?? []) : [];
-    const providersData = providersResult.status === "fulfilled" && !providersResult.value.error ? (providersResult.value.data ?? []) : [];
-    const usageRows = usageResult.status === "fulfilled" && !usageResult.value.error ? (usageResult.value.data ?? []) : [];
+    let servicesData =
+      richServicesResult.status === "fulfilled" && !richServicesResult.value.error
+        ? (richServicesResult.value.data ?? [])
+        : [];
+    if (
+      !servicesData.length &&
+      richServicesResult.status === "fulfilled" &&
+      richServicesResult.value.error
+    ) {
+      const legacy = await sb
+        .from("api_services")
+        .select(
+          "id, name, slug, provider_id, endpoint_url, status, owner_team, created_at, avg_latency_ms",
+        )
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (!legacy.error) servicesData = legacy.data ?? [];
+    }
+    const providersData =
+      providersResult.status === "fulfilled" && !providersResult.value.error
+        ? (providersResult.value.data ?? [])
+        : [];
+    const usageRows =
+      usageResult.status === "fulfilled" && !usageResult.value.error
+        ? (usageResult.value.data ?? [])
+        : [];
     const providersById = new Map(providersData.map((row: any) => [String(row.id), row]));
+    const capabilitiesByService = new Map<string, string[]>();
+    if (capabilitiesResult.status === "fulfilled" && !capabilitiesResult.value.error) {
+      for (const capability of capabilitiesResult.value.data ?? []) {
+        const serviceId = String(capability.service_id);
+        const label = String(capability.capability_name ?? "Capability");
+        const state = `${capability.approval_status ?? "pending"}/${capability.verification_status ?? "unverified"}`;
+        capabilitiesByService.set(serviceId, [
+          ...(capabilitiesByService.get(serviceId) ?? []),
+          `${label} (${state})`,
+        ]);
+      }
+    }
 
-    const usageByService = new Map<string, { usage_count: number; total_cost: number; error_count: number; last_error: string | null }>();
+    const usageByService = new Map<
+      string,
+      { usage_count: number; total_cost: number; error_count: number; last_error: string | null }
+    >();
     for (const row of usageRows) {
       const key = String(row.service_id ?? "");
       if (!key) continue;
-      const current = usageByService.get(key) ?? { usage_count: 0, total_cost: 0, error_count: 0, last_error: null };
+      const current = usageByService.get(key) ?? {
+        usage_count: 0,
+        total_cost: 0,
+        error_count: 0,
+        last_error: null,
+      };
       current.usage_count += toNumber(row.requests);
       current.total_cost += toNumber(row.cost_usd);
       current.error_count += row.success === false ? 1 : 0;
@@ -102,23 +169,39 @@ export const listAiRegistry = createServerFn({ method: "GET" })
     }
 
     const services = (servicesData as Array<Record<string, unknown>>).map((row) => {
-        const id = String(row.id ?? "");
-        const usage = usageByService.get(id) ?? { usage_count: 0, total_cost: 0, error_count: 0, last_error: null };
-        const provider = providersById.get(String(row.provider_id ?? ""));
-        return {
-          id,
-          name: String(row.name ?? "AI service"),
-          provider: String(provider?.name ?? "Registry"),
-          route: String(row.endpoint_url ?? ""),
-          owner: String(row.owner_team ?? "Platform"),
-          status: normalizeStatus(row.status),
-          updated_at: row.updated_at ? String(row.updated_at) : null,
-          usage_count: usage.usage_count,
-          total_cost: usage.total_cost,
-          error_count: usage.error_count,
-          last_error: usage.last_error ?? null,
-        } satisfies AiRegistryService;
-      });
+      const id = String(row.id ?? "");
+      const usage = usageByService.get(id) ?? {
+        usage_count: 0,
+        total_cost: 0,
+        error_count: 0,
+        last_error: null,
+      };
+      const provider = providersById.get(String(row.provider_id ?? ""));
+      return {
+        id,
+        name: String(row.name ?? "AI service"),
+        provider: String(provider?.name ?? "Registry"),
+        route: String(row.endpoint_url ?? ""),
+        owner: String(row.owner_team ?? "Platform"),
+        category: String(row.category ?? "general"),
+        pricing_tier: String(row.pricing_tier ?? "unknown"),
+        approval_status: String(row.approval_status ?? "pending"),
+        capabilities:
+          capabilitiesByService.get(id) ??
+          (Array.isArray(row.capabilities) ? row.capabilities.map(String) : []),
+        credential_status: row.credential_env || row.status === "active" ? "unknown" : "required",
+        status: normalizeStatus(row.status),
+        updated_at: row.updated_at
+          ? String(row.updated_at)
+          : row.created_at
+            ? String(row.created_at)
+            : null,
+        usage_count: usage.usage_count,
+        total_cost: usage.total_cost,
+        error_count: usage.error_count,
+        last_error: usage.last_error ?? null,
+      } satisfies AiRegistryService;
+    });
 
     if (!services.length) {
       return {
@@ -140,6 +223,103 @@ export const listAiRegistry = createServerFn({ method: "GET" })
         errors: services.reduce((acc, row) => acc + row.error_count, 0),
       },
     };
+  },
+);
+
+async function authenticatedManager() {
+  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) throw new Error("Manager authentication required.");
+  const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  if (!url || !key) throw new Error("Supabase service configuration is missing.");
+  const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: user, error } = await db.auth.getUser(token);
+  if (error || !user.user) throw new Error("Manager authentication required.");
+  const roles = await Promise.all(
+    ["admin", "boss"].map(async (role) => {
+      const result = await db.rpc("has_role", { _user_id: user.user.id, _role: role });
+      return result.data === true;
+    }),
+  );
+  if (!roles.some(Boolean)) throw new Error("Boss or admin permission required.");
+  return { db, user: user.user };
+}
+
+export const testAiService = createServerFn({ method: "POST" })
+  .inputValidator((value) => z.object({ serviceId: z.string().uuid() }).parse(value))
+  .handler(async ({ data }) => {
+    const { db } = await authenticatedManager();
+    const { data: service, error } = await db
+      .from("api_services")
+      .select("id, name, status, approval_status, credential_env")
+      .eq("id", data.serviceId)
+      .maybeSingle();
+    if (error || !service) {
+      const legacy = await db
+        .from("api_services")
+        .select("id, name, status")
+        .eq("id", data.serviceId)
+        .maybeSingle();
+      if (legacy.error || !legacy.data) throw new Error("Service is not registered.");
+      return {
+        serviceId: legacy.data.id,
+        status: "blocked" as const,
+        detail:
+          "BLOCKED / CREDENTIAL REQUIRED. Registry metadata is not deployed yet; no provider request was sent.",
+      };
+    }
+    const credentialEnv =
+      typeof service.credential_env === "string" ? service.credential_env : null;
+    const credentialConfigured = Boolean(
+      credentialEnv && /^[A-Z][A-Z0-9_]{2,63}$/.test(credentialEnv) && process.env[credentialEnv],
+    );
+    return {
+      serviceId: service.id,
+      status: "blocked" as const,
+      detail: credentialConfigured
+        ? "BLOCKED / EXECUTION ADAPTER REQUIRED. A provider-specific central gateway adapter is required before a live test request can be sent."
+        : "BLOCKED / CREDENTIAL REQUIRED. No server credential is configured; no provider request was sent.",
+    };
+  });
+
+export const setAiServiceStatus = createServerFn({ method: "POST" })
+  .inputValidator((value) =>
+    z
+      .object({
+        serviceId: z.string().uuid(),
+        enabled: z.boolean(),
+      })
+      .parse(value),
+  )
+  .handler(async ({ data }) => {
+    const { db, user } = await authenticatedManager();
+    const { data: service, error: readError } = await db
+      .from("api_services")
+      .select("id, name, approval_status, credential_env")
+      .eq("id", data.serviceId)
+      .maybeSingle();
+    if (readError || !service) throw new Error("Service is not registered.");
+    if (data.enabled && service.approval_status !== "approved") {
+      throw new Error("Approve this service before enabling it.");
+    }
+    const { error } = await db
+      .from("api_services")
+      .update({
+        status: data.enabled ? "active" : "inactive",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", data.serviceId);
+    if (error) throw new Error(error.message);
+    await db.from("audit_logs").insert({
+      actor: user.email ?? user.id,
+      action: data.enabled ? "API_SERVICE_ENABLED" : "API_SERVICE_DISABLED",
+      entity_type: "api_services",
+      entity_id: data.serviceId,
+      severity: "info",
+      metadata: { service_name: service.name },
+    });
+    return { ok: true, enabled: data.enabled };
   });
 
 /**
@@ -220,12 +400,43 @@ export async function executeAiRequest(data: AiRequest) {
 
 /** The same routing, for a browser to call. */
 export const routeAiRequest = createServerFn({ method: "POST" })
-  .inputValidator((v) => z.object({
-    serviceId: z.string().optional(),
-    serviceName: z.string().optional(),
-    module: z.string().optional(),
-    system: z.string().optional(),
-    prompt: z.string().optional(),
-    payload: z.record(z.any()).optional(),
-  }).parse(v ?? {}))
-  .handler(async ({ data }) => executeAiRequest(data as AiRequest));
+  .inputValidator((v) =>
+    z
+      .object({
+        serviceId: z.string().optional(),
+        serviceName: z.string().optional(),
+        module: z.string().optional(),
+        system: z.string().optional(),
+        prompt: z.string().optional(),
+        payload: z.record(z.any()).optional(),
+      })
+      .parse(v ?? {}),
+  )
+  .handler(async ({ data }) => {
+    const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
+    const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+    if (!token) throw new Error("Authentication required for AI routing.");
+
+    const { createClient } = await import("@supabase/supabase-js");
+    const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
+    const key = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+    if (!url || !key) throw new Error("Supabase is not configured on the server.");
+    const db = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: user, error } = await db.auth.getUser(token);
+    if (error || !user.user) throw new Error("Authentication required for AI routing.");
+
+    const roleChecks = await Promise.all(
+      ["admin", "boss", "developer", "seo", "marketing"].map(async (role) => {
+        const result = await db.rpc("has_role", { _user_id: user.user.id, _role: role });
+        return result.data === true;
+      }),
+    );
+    if (!roleChecks.some(Boolean)) throw new Error("AI routing permission required.");
+
+    // The browser may request a prompt, but it cannot choose a privileged
+    // module identity. Manager traffic is attributed to this controlled route.
+    return executeAiRequest({ ...(data as AiRequest), module: "ai-api-manager" });
+  });

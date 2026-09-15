@@ -82,14 +82,33 @@ function credential(name: string | null | undefined): string | null {
   return value && value.trim().length >= 20 ? value.trim() : null;
 }
 
+function approvedBaseUrl(raw: string, kind: string, slug: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:") return null;
+  const host = parsed.hostname.toLowerCase();
+  const approved =
+    (kind === "anthropic" && host === "api.anthropic.com") ||
+    (kind === "openai_compatible" && (host === "api.openai.com" || host === "api.groq.com")) ||
+    (slug.includes("openai") && host === "api.openai.com") ||
+    (slug.includes("anthropic") && host === "api.anthropic.com");
+  return approved ? parsed.toString().replace(/\/+$/, "") : null;
+}
+
 export function buildProvider(binding: ProviderBinding): AiProvider | null {
   const slug = binding.provider_slug ?? "";
   const kind = binding.api_kind ?? "";
-  const base = (binding.base_url ?? "").replace(/\/+$/, "");
+  const base = approvedBaseUrl(binding.base_url ?? "", kind, slug);
   const model = binding.model_id ?? "";
   const key = credential(binding.credential_env);
   const temperature = binding.temperature ?? 0.2;
   const maxTokens = binding.max_output_tokens ?? 2400;
+
+  if (!base) return null;
 
   if (kind === "anthropic") {
     return {
