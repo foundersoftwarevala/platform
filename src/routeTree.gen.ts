@@ -29,6 +29,7 @@ import { Route as DemoWorkspaceRouteImport } from './routes/demo-workspace'
 import { Route as DevManagerRouteImport } from './routes/dev-manager'
 import { Route as FinanceManagerRouteImport } from './routes/finance-manager'
 import { Route as FranchiseManagerRouteImport } from './routes/franchise-manager'
+import { Route as HealthRouteImport } from './routes/health'
 import { Route as InfluencerManagerRouteImport } from './routes/influencer-manager'
 import { Route as InternalSupportAiRouteImport } from './routes/internal-support-ai'
 import { Route as KeywordsRouteImport } from './routes/keywords'
@@ -43,6 +44,7 @@ import { Route as MarketplaceRecoveryRouteImport } from './routes/marketplace-re
 import { Route as PagesRouteImport } from './routes/pages'
 import { Route as ProductDemoManagerRouteImport } from './routes/product-demo-manager'
 import { Route as PromiseTrackerRouteImport } from './routes/promise-tracker'
+import { Route as ReadyRouteImport } from './routes/ready'
 import { Route as ResellerManagerRouteImport } from './routes/reseller-manager'
 import { Route as SalesCrmRouteImport } from './routes/sales-crm'
 import { Route as SalesSupportManagerRouteImport } from './routes/sales-support-manager'
@@ -410,6 +412,11 @@ const FranchiseManagerRoute = FranchiseManagerRouteImport.update({
   path: '/franchise-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InfluencerManagerRoute = InfluencerManagerRouteImport.update({
   id: '/influencer-manager',
   path: '/influencer-manager',
@@ -478,6 +485,11 @@ const ProductDemoManagerRoute = ProductDemoManagerRouteImport.update({
 const PromiseTrackerRoute = PromiseTrackerRouteImport.update({
   id: '/promise-tracker',
   path: '/promise-tracker',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReadyRoute = ReadyRouteImport.update({
+  id: '/ready',
+  path: '/ready',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResellerManagerRoute = ResellerManagerRouteImport.update({
@@ -1873,6 +1885,7 @@ export interface FileRoutesByFullPath {
   '/dev-manager': typeof DevManagerRoute
   '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
+  '/health': typeof HealthRoute
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
@@ -1887,6 +1900,7 @@ export interface FileRoutesByFullPath {
   '/pages': typeof PagesRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
   '/promise-tracker': typeof PromiseTrackerRouteWithChildren
+  '/ready': typeof ReadyRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2172,6 +2186,7 @@ export interface FileRoutesByTo {
   '/dev-manager': typeof DevManagerRoute
   '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
+  '/health': typeof HealthRoute
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
@@ -2181,6 +2196,7 @@ export interface FileRoutesByTo {
   '/marketplace-recovery': typeof MarketplaceRecoveryRoute
   '/pages': typeof PagesRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
+  '/ready': typeof ReadyRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2468,6 +2484,7 @@ export interface FileRoutesById {
   '/dev-manager': typeof DevManagerRoute
   '/finance-manager': typeof FinanceManagerRoute
   '/franchise-manager': typeof FranchiseManagerRoute
+  '/health': typeof HealthRoute
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
@@ -2482,6 +2499,7 @@ export interface FileRoutesById {
   '/pages': typeof PagesRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
   '/promise-tracker': typeof PromiseTrackerRouteWithChildren
+  '/ready': typeof ReadyRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2772,6 +2790,7 @@ export interface FileRouteTypes {
     | '/dev-manager'
     | '/finance-manager'
     | '/franchise-manager'
+    | '/health'
     | '/influencer-manager'
     | '/internal-support-ai'
     | '/keywords'
@@ -2786,6 +2805,7 @@ export interface FileRouteTypes {
     | '/pages'
     | '/product-demo-manager'
     | '/promise-tracker'
+    | '/ready'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -3071,6 +3091,7 @@ export interface FileRouteTypes {
     | '/dev-manager'
     | '/finance-manager'
     | '/franchise-manager'
+    | '/health'
     | '/influencer-manager'
     | '/internal-support-ai'
     | '/keywords'
@@ -3080,6 +3101,7 @@ export interface FileRouteTypes {
     | '/marketplace-recovery'
     | '/pages'
     | '/product-demo-manager'
+    | '/ready'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -3366,6 +3388,7 @@ export interface FileRouteTypes {
     | '/dev-manager'
     | '/finance-manager'
     | '/franchise-manager'
+    | '/health'
     | '/influencer-manager'
     | '/internal-support-ai'
     | '/keywords'
@@ -3380,6 +3403,7 @@ export interface FileRouteTypes {
     | '/pages'
     | '/product-demo-manager'
     | '/promise-tracker'
+    | '/ready'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -3669,6 +3693,7 @@ export interface RootRouteChildren {
   DevManagerRoute: typeof DevManagerRoute
   FinanceManagerRoute: typeof FinanceManagerRoute
   FranchiseManagerRoute: typeof FranchiseManagerRoute
+  HealthRoute: typeof HealthRoute
   InfluencerManagerRoute: typeof InfluencerManagerRoute
   InternalSupportAiRoute: typeof InternalSupportAiRoute
   KeywordsRoute: typeof KeywordsRoute
@@ -3683,6 +3708,7 @@ export interface RootRouteChildren {
   PagesRoute: typeof PagesRoute
   ProductDemoManagerRoute: typeof ProductDemoManagerRoute
   PromiseTrackerRoute: typeof PromiseTrackerRouteWithChildren
+  ReadyRoute: typeof ReadyRoute
   ResellerManagerRoute: typeof ResellerManagerRoute
   SalesCrmRoute: typeof SalesCrmRoute
   SalesSupportManagerRoute: typeof SalesSupportManagerRoute
@@ -3924,6 +3950,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FranchiseManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/influencer-manager': {
       id: '/influencer-manager'
       path: '/influencer-manager'
@@ -4020,6 +4053,13 @@ declare module '@tanstack/react-router' {
       path: '/promise-tracker'
       fullPath: '/promise-tracker'
       preLoaderRoute: typeof PromiseTrackerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ready': {
+      id: '/ready'
+      path: '/ready'
+      fullPath: '/ready'
+      preLoaderRoute: typeof ReadyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reseller-manager': {
@@ -6361,6 +6401,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevManagerRoute: DevManagerRoute,
   FinanceManagerRoute: FinanceManagerRoute,
   FranchiseManagerRoute: FranchiseManagerRoute,
+  HealthRoute: HealthRoute,
   InfluencerManagerRoute: InfluencerManagerRoute,
   InternalSupportAiRoute: InternalSupportAiRoute,
   KeywordsRoute: KeywordsRoute,
@@ -6375,6 +6416,7 @@ const rootRouteChildren: RootRouteChildren = {
   PagesRoute: PagesRoute,
   ProductDemoManagerRoute: ProductDemoManagerRoute,
   PromiseTrackerRoute: PromiseTrackerRouteWithChildren,
+  ReadyRoute: ReadyRoute,
   ResellerManagerRoute: ResellerManagerRoute,
   SalesCrmRoute: SalesCrmRoute,
   SalesSupportManagerRoute: SalesSupportManagerRoute,
