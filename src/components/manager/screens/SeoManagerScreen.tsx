@@ -69,6 +69,15 @@ export default function SeoManagerScreen() {
       ),
     [keys],
   );
+  const activeSeoServices = seoServices.filter((service) => {
+    const serviceId = String(service["id"]);
+    return (
+      service["status"] === "active" &&
+      service["approval_status"] === "approved" &&
+      configuredServiceIds.has(serviceId)
+    );
+  });
+  const canDisplayLiveSeoData = activeSeoServices.length > 0;
   const averagePosition = useMemo(() => {
     const ranked = keywords.filter((row) => numeric(row.position) > 0);
     return ranked.length
@@ -110,33 +119,6 @@ export default function SeoManagerScreen() {
       />
 
       {loading ? <LoadingBlock rows={6} /> : null}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Keywords tracked"
-          value={displayNumber(keywords.length)}
-          tone="primary"
-          icon={<Search className="h-4 w-4" />}
-        />
-        <StatCard
-          label="Average position"
-          value={averagePosition === null ? "Not available" : averagePosition.toFixed(1)}
-          tone="cyan"
-          icon={<TrendingUp className="h-4 w-4" />}
-        />
-        <StatCard
-          label="Active backlinks"
-          value={displayNumber(activeBacklinks)}
-          tone="green"
-          icon={<LinkIcon className="h-4 w-4" />}
-        />
-        <StatCard
-          label="Open SEO issues"
-          value={displayNumber(openIssues)}
-          tone="amber"
-          icon={<Target className="h-4 w-4" />}
-        />
-      </div>
 
       <GlassCard
         title="Central AI/API Manager connection"
@@ -192,6 +174,43 @@ export default function SeoManagerScreen() {
           </div>
         )}
       </GlassCard>
+
+      {!canDisplayLiveSeoData ? (
+        <GlassCard title="Live SEO data unavailable">
+          <p className="text-sm text-muted-foreground">
+            SEO metrics and records are withheld until an approved, active central registry service
+            has configured credentials. Existing stored SEO data is not presented as live provider
+            data.
+          </p>
+        </GlassCard>
+      ) : (
+        <>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Keywords tracked"
+          value={displayNumber(keywords.length)}
+          tone="primary"
+          icon={<Search className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Average position"
+          value={averagePosition === null ? "Not available" : averagePosition.toFixed(1)}
+          tone="cyan"
+          icon={<TrendingUp className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Active backlinks"
+          value={displayNumber(activeBacklinks)}
+          tone="green"
+          icon={<LinkIcon className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Open SEO issues"
+          value={displayNumber(openIssues)}
+          tone="amber"
+          icon={<Target className="h-4 w-4" />}
+        />
+      </div>
 
       <Tabs defaultValue="keywords" className="space-y-4">
         <TabsList className="flex h-auto flex-wrap">
@@ -460,6 +479,8 @@ export default function SeoManagerScreen() {
           </GlassCard>
         </TabsContent>
       </Tabs>
+        </>
+      )}
     </div>
   );
 }
