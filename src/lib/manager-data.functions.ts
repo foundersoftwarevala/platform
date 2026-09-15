@@ -173,18 +173,22 @@ async function validateApiServiceActivation(
   if (service.approval_status !== "approved") {
     throw new Error("Approve this API service before enabling it.");
   }
-  const { count, error: credentialError } = await db
+  const { data: credentials, error: credentialError } = await db
     .from("api_keys")
-    .select("id", { count: "exact", head: true })
+    .select("secret_encrypted")
     .eq("service_id", serviceId)
     .eq("status", "active");
   if (credentialError) throw new Error(credentialError.message);
+  const hasStoredCredential = (credentials ?? []).some((credential) => {
+    const secret = credential.secret_encrypted;
+    return typeof secret === "string" && secret.trim().length > 0;
+  });
   const credentialEnv =
     typeof service.credential_env === "string" &&
     /^[A-Z][A-Z0-9_]{2,63}$/.test(service.credential_env)
       ? service.credential_env
       : null;
-  if (!count && !(credentialEnv && process.env[credentialEnv])) {
+  if (!hasStoredCredential && !(credentialEnv && process.env[credentialEnv]?.trim())) {
     throw new Error(
       `BLOCKED / CREDENTIAL REQUIRED. Configure an active credential for ${service.name} before enabling it.`,
     );
@@ -252,7 +256,12 @@ export const checkApiServiceHealth = createServerFn({ method: "POST" })
     } catch {
       throw new Error("This service has no valid HTTPS endpoint to check.");
     }
-    if (url.protocol !== "https:" || /^(localhost|127\.|0\.0\.0\.0|::1$)/i.test(url.hostname)) {
+    if (
+      url.protocol !== "https:" ||
+      /^(?:localhost|0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[0-1])\.|::1|fc|fd|fe80:)/i.test(
+        url.hostname,
+      )
+    ) {
       throw new Error("Health checks require a public HTTPS provider endpoint.");
     }
     let response: Response;
