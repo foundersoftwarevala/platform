@@ -86,7 +86,14 @@ function toNumber(value: unknown): number {
 
 export const listAiRegistry = createServerFn({ method: "GET" }).handler(
   async (): Promise<AiRegistrySnapshot> => {
-    const sb = publicClient() as any;
+    // Registry contents (usage, cost, capabilities, approval state) are
+    // internal operational data, not public information. This handler used to
+    // rely solely on the manager.tsx route guard, which only stops rendering
+    // in the browser: the RPC endpoint itself was reachable by anyone who knew
+    // its name. authenticatedManager() re-checks role membership server-side,
+    // mirroring the same roles RequireRole/manager.tsx already admit.
+    const { db } = await authenticatedManager(MANAGER_VIEW_ROLES);
+    const sb = db as any;
 
     const [richServicesResult, providersResult, usageResult, capabilitiesResult] =
       await Promise.allSettled([
@@ -226,7 +233,27 @@ export const listAiRegistry = createServerFn({ method: "GET" }).handler(
   },
 );
 
-async function authenticatedManager() {
+/**
+ * Every role the manager.tsx route (RequireRole + MANAGER_ROLES) already
+ * admits into the AI API Manager screen. listAiRegistry used to trust that
+ * client-side route guard alone: the createServerFn endpoint itself had no
+ * check, so a caller who knew the endpoint could read the whole registry
+ * (usage, cost, capabilities, approval state) without a session at all. The
+ * set here mirrors RequireRole's OPERATOR_ROLES plus manager.tsx's
+ * MANAGER_ROLES so a signed-in viewer of that screen still sees exactly what
+ * they see today; the fix only closes the unauthenticated path.
+ */
+const MANAGER_VIEW_ROLES = [
+  "admin",
+  "boss",
+  "boss_owner",
+  "super_admin",
+  "founder",
+  "owner",
+  "finance",
+] as const;
+
+async function authenticatedManager(roles: readonly string[] = ["admin", "boss"]) {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) throw new Error("Manager authentication required.");
@@ -236,13 +263,13 @@ async function authenticatedManager() {
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: user, error } = await db.auth.getUser(token);
   if (error || !user.user) throw new Error("Manager authentication required.");
-  const roles = await Promise.all(
-    ["admin", "boss"].map(async (role) => {
+  const roleChecks = await Promise.all(
+    roles.map(async (role) => {
       const result = await db.rpc("has_role", { _user_id: user.user.id, _role: role });
       return result.data === true;
     }),
   );
-  if (!roles.some(Boolean)) throw new Error("Boss or admin permission required.");
+  if (!roleChecks.some(Boolean)) throw new Error("Manager permission required.");
   return { db, user: user.user };
 }
 
