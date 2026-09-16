@@ -187,12 +187,20 @@ export type AiMessage = { role: "system" | "user" | "assistant"; content: string
 export async function aiComplete(options: {
   module: string;
   messages: AiMessage[];
+  serviceId?: string;
   serviceName?: string;
   temperature?: number;
   maxTokens?: number;
   json?: boolean;
 }): Promise<{ text: string; model: string | null; service: string }> {
-  const target = await resolveAiTarget(options.serviceName);
+  // `serviceId` is an exact match against api_services.id; `serviceName` is a
+  // fuzzy ilike("name", ...) fallback. Passing an id as `serviceName` would
+  // silently miss the row and fall through to "any active AI service".
+  const target = await resolveAiTarget(
+    options.serviceId
+      ? { serviceId: options.serviceId, serviceName: options.serviceName }
+      : options.serviceName,
+  );
   const started = Date.now();
 
   const system = options.messages.find((m) => m.role === "system")?.content;

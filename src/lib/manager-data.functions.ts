@@ -399,7 +399,7 @@ export const testApiService = createServerFn({ method: "POST" })
     try {
       const result = await aiComplete({
         module: "manager-test",
-        serviceName: service.id,
+        serviceId: service.id,
         messages: [
           {
             role: "user",
