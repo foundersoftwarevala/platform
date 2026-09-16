@@ -78,13 +78,15 @@ async function requireManager(accessToken?: string) {
   ]);
   if (!isAdmin && !isBoss && !isFinance) throw new Error("Manager permission required");
   const role = isBoss ? "boss" : isAdmin ? "admin" : "finance";
-  return Object.assign(db, {
-    managerActor: { id: user.user.id, email: user.user.email ?? null, role },
-  });
+  return {
+    client: db,
+    actor: { id: user.user.id, email: user.user.email ?? null, role },
+  };
 }
 
 type ManagerActor = { id: string; email: string | null; role: string };
-type ManagerDb = Awaited<ReturnType<typeof admin>> & { managerActor: ManagerActor };
+type ManagerDb = Awaited<ReturnType<typeof admin>>;
+type ManagerContext = { client: ManagerDb; actor: ManagerActor };
 
 const CENTRAL_AI_MANAGER_TABLES = new Set([
   "ai_providers",
@@ -106,9 +108,9 @@ const CENTRAL_AI_MANAGER_TABLES = new Set([
   "emergency_controls",
 ]);
 
-function requireCentralAiManager(db: ManagerDb, tables: Iterable<string>): void {
+function requireCentralAiManager(context: ManagerContext, tables: Iterable<string>): void {
   if (
-    db.managerActor.role === "finance" &&
+    context.actor.role === "finance" &&
     Array.from(tables).some((table) => CENTRAL_AI_MANAGER_TABLES.has(table))
   ) {
     throw new Error("Finance role cannot access AI/API Manager governance data.");
@@ -170,15 +172,15 @@ async function runList(db: Awaited<ReturnType<typeof admin>>, input: ListInput) 
 }
 
 async function writeAudit(
-  db: ManagerDb,
+  context: ManagerContext,
   action: string,
   entityType: string,
   entityId: string | null,
   metadata: Record<string, unknown>,
   severity = "info",
 ) {
-  const actor = db.managerActor;
-  await db.from("audit_logs").insert({
+  const actor = context.actor;
+  await context.client.from("audit_logs").insert({
     actor: actor.email ?? actor.id,
     action,
     entity_type: entityType,
@@ -235,28 +237,29 @@ function apiServiceEventName(values: Record<string, unknown>): string {
 export const listRecords = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => listSchema.parse(data))
   .handler(async ({ data }) => {
-    const db = await requireManager(data.accessToken);
-    requireCentralAiManager(db, [data.table]);
-    return runList(db, data);
+    const context = await requireManager(data.accessToken);
+    requireCentralAiManager(context, [data.table]);
+    return runList(context.client, data);
   });
 
 export const listManyRecords = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => listManySchema.parse(data))
   .handler(async ({ data }) => {
-    const db = await requireManager(data.accessToken);
+    const context = await requireManager(data.accessToken);
     requireCentralAiManager(
-      db,
+      context,
       data.requests.map((request) => request.table),
     );
-    const results = await Promise.all(data.requests.map((r) => runList(db, r)));
+    const results = await Promise.all(data.requests.map((r) => runList(context.client, r)));
     return results;
   });
 
 export const updateRecord = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => mutateSchema.parse(data))
   .handler(async ({ data }) => {
-    const db = await requireManager(data.accessToken);
-    requireCentralAiManager(db, [data.table]);
+    const context = await requireManager(data.accessToken);
+    const db = context.client;
+    requireCentralAiManager(context, [data.table]);
     if (
       (data.table === "api_services" || data.table === "ai_providers") &&
       "credential_env" in data.values
@@ -282,7 +285,7 @@ export const updateRecord = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     await writeAudit(
-      db,
+      context,
       data.table === "api_services" ? apiServiceEventName(data.values) : `${data.table}.updated`,
       data.table,
       data.id,
@@ -294,8 +297,9 @@ export const updateRecord = createServerFn({ method: "POST" })
 export const checkApiServiceHealth = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => healthCheckSchema.parse(data))
   .handler(async ({ data }) => {
-    const db = await requireManager(data.accessToken);
-    requireCentralAiManager(db, ["api_services"]);
+    const context = await requireManager(data.accessToken);
+    const db = context.client;
+    requireCentralAiManager(context, ["api_services"]);
     const { data: service, error } = await db
       .from("api_services")
       .select("id, name, endpoint_url")
@@ -319,7 +323,7 @@ export const checkApiServiceHealth = createServerFn({ method: "POST" })
         .eq("id", data.serviceId);
       if (updateError) throw new Error(updateError.message);
       await writeAudit(
-        db,
+        context,
         "API_SERVICE_HEALTH_CHECK_FAILED",
         "api_services",
         data.serviceId,
@@ -335,7 +339,7 @@ export const checkApiServiceHealth = createServerFn({ method: "POST" })
       .update({ health_status: healthStatus })
       .eq("id", data.serviceId);
     if (updateError) throw new Error(updateError.message);
-    await writeAudit(db, "API_SERVICE_HEALTH_CHECKED", "api_services", data.serviceId, {
+    await writeAudit(context, "API_SERVICE_HEALTH_CHECKED", "api_services", data.serviceId, {
       endpoint,
       http_status: response.status,
       health_status: healthStatus,
@@ -366,8 +370,9 @@ export const insertRecord = createServerFn({ method: "POST" })
             };
           })()
         : data.values;
-    const db = await requireManager(data.accessToken);
-    requireCentralAiManager(db, [data.table]);
+    const context = await requireManager(data.accessToken);
+    const db = context.client;
+    requireCentralAiManager(context, [data.table]);
     if (
       (data.table === "api_services" || data.table === "ai_providers") &&
       "credential_env" in values
@@ -386,7 +391,7 @@ export const insertRecord = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     await writeAudit(
-      db,
+      context,
       `${data.table}.created`,
       data.table,
       (row as { id?: string } | null)?.id ?? null,
@@ -398,12 +403,16 @@ export const insertRecord = createServerFn({ method: "POST" })
 export const deleteRecord = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => deleteSchema.parse(data))
   .handler(async ({ data }) => {
-    const db = await requireManager(data.accessToken);
-    requireCentralAiManager(db, [data.table]);
+    const context = await requireManager(data.accessToken);
+    const db = context.client;
+    requireCentralAiManager(context, [data.table]);
     const { error } = await db.from(data.table).delete().eq("id", data.id);
     if (error) throw new Error(error.message);
-    await writeAudit(db, `${data.table}.deleted`, data.table, data.id, {}, "warning");
+    await writeAudit(context, `${data.table}.deleted`, data.table, data.id, {}, "warning");
     return { ok: true };
   });
 
-export const getManagerTables = createServerFn({ method: "GET" }).handler(async () => { await requireManager(); return MANAGER_TABLES; });
+export const getManagerTables = createServerFn({ method: "GET" }).handler(async () => {
+  await requireManager();
+  return MANAGER_TABLES;
+});
