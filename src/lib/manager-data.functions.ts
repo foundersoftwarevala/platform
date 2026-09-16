@@ -9,6 +9,8 @@ import {
   isEncryptedAiCredential,
 } from "./ai-credentials.server";
 import { assertManagedProviderEndpoint } from "./managed-api-endpoints.server";
+import { aiComplete } from "./ai-gateway.server";
+import { randomUUID } from "node:crypto";
 
 const filterSchema = z.object({
   column: z.string().min(1).max(64),
@@ -51,6 +53,11 @@ const deleteSchema = z.object({
 });
 
 const healthCheckSchema = z.object({
+  serviceId: z.string().uuid(),
+  accessToken: z.string().min(1),
+});
+
+const testApiServiceSchema = z.object({
   serviceId: z.string().uuid(),
   accessToken: z.string().min(1),
 });
@@ -351,6 +358,85 @@ export const checkApiServiceHealth = createServerFn({ method: "POST" })
           ? `Provider endpoint is reachable (HTTP ${response.status}); execution remains blocked until credentials are configured.`
           : `Provider endpoint responded with HTTP ${response.status}.`,
     };
+  });
+
+/**
+ * The only way "Test" is allowed to turn green: a real, minimal, metered,
+ * audited request through the same provider-specific adapter every managed
+ * AI feature uses (`aiComplete`). There is no mock branch here — if the
+ * provider call fails, the error is returned as-is and no success state is
+ * ever recorded.
+ */
+export const testApiService = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => testApiServiceSchema.parse(data))
+  .handler(async ({ data }) => {
+    const context = await requireManager(data.accessToken);
+    const db = context.client;
+    requireCentralAiManager(context, ["api_services"]);
+
+    const { data: service, error } = await db
+      .from("api_services")
+      .select("id, name, status, approval_status, category")
+      .eq("id", data.serviceId)
+      .maybeSingle();
+    if (error || !service) throw new Error("API service is not registered.");
+    if (service.status !== "active") {
+      throw new Error(`${service.name} must be enabled before it can be tested.`);
+    }
+    if (service.approval_status !== "approved") {
+      throw new Error(`${service.name} must be approved before it can be tested.`);
+    }
+    if (service.category !== "ai") {
+      throw new Error(
+        `No execution adapter is implemented for ${service.category} services yet. ` +
+          "Only AI/LLM chat-completion services can be tested at this time.",
+      );
+    }
+
+    const correlationId = randomUUID();
+    const startedAt = Date.now();
+
+    try {
+      const result = await aiComplete({
+        module: "manager-test",
+        serviceName: service.id,
+        messages: [
+          {
+            role: "user",
+            content: 'Reply with exactly one word: "OK".',
+          },
+        ],
+        maxTokens: 8,
+      });
+
+      await writeAudit(context, "API_SERVICE_TEST_SUCCEEDED", "api_services", data.serviceId, {
+        correlation_id: correlationId,
+        model: result.model,
+        service: result.service,
+        response_preview: result.text.slice(0, 40),
+        latency_ms: Date.now() - startedAt,
+      });
+
+      return {
+        ok: true as const,
+        correlationId,
+        model: result.model,
+        service: result.service,
+        responsePreview: result.text.slice(0, 200),
+        latencyMs: Date.now() - startedAt,
+      };
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : "The provider request failed.";
+      await writeAudit(
+        context,
+        "API_SERVICE_TEST_FAILED",
+        "api_services",
+        data.serviceId,
+        { correlation_id: correlationId, detail, latency_ms: Date.now() - startedAt },
+        "warning",
+      );
+      throw new Error(detail);
+    }
   });
 
 export const insertRecord = createServerFn({ method: "POST" })

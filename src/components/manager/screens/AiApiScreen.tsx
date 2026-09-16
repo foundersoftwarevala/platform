@@ -53,6 +53,7 @@ import {
 
 import {
   useApiServiceHealthCheck,
+  useApiServiceTest,
   useInsertRecord,
   useManyRecords,
   useUpdateRecord,
@@ -420,6 +421,7 @@ function CentralRegistrySection({
 }) {
   const updateService = useUpdateRecord("Registry service updated");
   const healthCheck = useApiServiceHealthCheck();
+  const testService = useApiServiceTest();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -727,14 +729,30 @@ function CentralRegistrySection({
                   >
                     <Gauge className="mr-1.5 h-3.5 w-3.5" /> Health
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled
-                    title="A provider-specific execution adapter and an approved credential are required before a live request can be tested."
-                  >
-                    Test blocked
-                  </Button>
+                  {isActive && canEnable && String(service["category"]) === "ai" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={testService.isPending}
+                      onClick={() => testService.mutate({ serviceId })}
+                      title="Sends a real, minimal-cost request through this provider and records usage, cost, and audit."
+                    >
+                      {testService.isPending ? "Testing…" : "Test"}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled
+                      title={
+                        String(service["category"]) !== "ai"
+                          ? "No execution adapter is implemented for this category yet."
+                          : "Approve, credential, and enable this service before a live request can be tested."
+                      }
+                    >
+                      Test blocked
+                    </Button>
+                  )}
                   {approval !== "approved" ? (
                     <Button
                       size="sm"

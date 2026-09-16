@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   deleteRecord,
   checkApiServiceHealth,
+  testApiService,
   insertRecord,
   listManyRecords,
   listRecords,
@@ -126,6 +127,26 @@ export function useApiServiceHealthCheck() {
     onSuccess: (result) => {
       invalidate();
       toast.success(result.detail);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/**
+ * Run a real, minimal-cost, metered, audited request through the registered
+ * provider's execution adapter. Never returns success unless the provider
+ * itself answered; there is no mock path.
+ */
+export function useApiServiceTest() {
+  const fn = useServerFn(testApiService);
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (vars: { serviceId: string }) => withAccessToken(vars).then((data) => fn({ data })),
+    onSuccess: (result) => {
+      invalidate();
+      toast.success(
+        `Live test succeeded via ${result.service} (${result.model ?? "default model"}), ${result.latencyMs}ms â€” "${result.responsePreview}"`,
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
