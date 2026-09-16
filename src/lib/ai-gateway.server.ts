@@ -154,6 +154,24 @@ export async function resolveAiTarget(
   };
 }
 
+/**
+ * Minimal, honest published-list-price table (USD per 1K tokens) for the
+ * exact fallback models this gateway can send a request to. Only entries we
+ * can verify from the provider's own public pricing page are included; any
+ * model not listed here is metered with tokens only and cost_usd left null
+ * rather than guessed.
+ */
+const KNOWN_MODEL_PRICING_PER_1K: Record<string, { in: number; out: number }> = {
+  "gpt-4o-mini": { in: 0.00015, out: 0.0006 },
+  "claude-3-5-sonnet-latest": { in: 0.003, out: 0.015 },
+};
+
+function estimateCostUsd(model: string, tokensIn: number, tokensOut: number): number | null {
+  const pricing = KNOWN_MODEL_PRICING_PER_1K[model];
+  if (!pricing) return null;
+  return (tokensIn / 1000) * pricing.in + (tokensOut / 1000) * pricing.out;
+}
+
 async function meter(
   target: AiTarget,
   module: string,
@@ -161,20 +179,25 @@ async function meter(
   status: number,
   ok: boolean,
   usage?: Record<string, unknown>,
+  resolvedModel?: string,
 ) {
   try {
     const db = serverClient();
+    const tokensIn = Number(usage?.["input_tokens"] ?? usage?.["prompt_tokens"] ?? 0);
+    const tokensOut = Number(usage?.["output_tokens"] ?? usage?.["completion_tokens"] ?? 0);
+    const costUsd = resolvedModel ? estimateCostUsd(resolvedModel, tokensIn, tokensOut) : null;
     await db.from("usage_events").insert({
       service_id: target.serviceId,
       model_id: target.modelRowId,
       product: module,
       requests: 1,
-      tokens_in: Number(usage?.["input_tokens"] ?? usage?.["prompt_tokens"] ?? 0),
-      tokens_out: Number(usage?.["output_tokens"] ?? usage?.["completion_tokens"] ?? 0),
+      tokens_in: tokensIn,
+      tokens_out: tokensOut,
       latency_ms: Date.now() - started,
       status_code: status,
       success: ok,
       source: "ai-gateway",
+      ...(costUsd !== null ? { cost_usd: costUsd } : {}),
     });
   } catch {
     // Metering must never be the reason a feature fails.
@@ -208,20 +231,23 @@ export async function aiComplete(options: {
 
   const headers: Record<string, string> = { "content-type": "application/json" };
   let body: Record<string, unknown>;
+  let resolvedModel: string;
 
   if (target.isAnthropic) {
+    resolvedModel = target.modelId ?? "claude-3-5-sonnet-latest";
     headers["x-api-key"] = target.credential;
     headers["anthropic-version"] = "2023-06-01";
     body = {
-      model: target.modelId ?? "claude-3-5-sonnet-latest",
+      model: resolvedModel,
       max_tokens: options.maxTokens ?? 1200,
       system,
       messages: rest,
     };
   } else {
+    resolvedModel = target.modelId ?? "gpt-4o-mini";
     headers.authorization = `Bearer ${target.credential}`;
     body = {
-      model: target.modelId ?? "gpt-4o-mini",
+      model: resolvedModel,
       temperature: options.temperature ?? 0.2,
       max_tokens: options.maxTokens ?? 1200,
       messages: options.messages,
@@ -239,7 +265,15 @@ export async function aiComplete(options: {
     ? result.content?.find((c: any) => c.type === "text")?.text
     : result.choices?.[0]?.message?.content;
 
-  await meter(target, options.module, started, response.status, response.ok, result.usage);
+  await meter(
+    target,
+    options.module,
+    started,
+    response.status,
+    response.ok,
+    result.usage,
+    resolvedModel,
+  );
 
   if (!response.ok || !text) {
     throw new Error(
