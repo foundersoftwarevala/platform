@@ -2,6 +2,10 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 
 const PREFIX = "enc:v1:";
 
+export function isEncryptedAiCredential(value: unknown): value is string {
+  return typeof value === "string" && value.startsWith(PREFIX);
+}
+
 function encryptionKey(): Buffer {
   const configured = process.env.AI_API_CREDENTIAL_ENCRYPTION_KEY;
   if (!configured) {
@@ -26,7 +30,9 @@ export function encryptAiCredential(secret: string): string {
 }
 
 export function decryptAiCredential(value: string): string {
-  if (!value.startsWith(PREFIX)) return value;
+  if (!isEncryptedAiCredential(value)) {
+    throw new Error("Stored AI credential is not encrypted.");
+  }
   const [ivValue, tagValue, ciphertextValue] = value.slice(PREFIX.length).split(".");
   if (!ivValue || !tagValue || !ciphertextValue) {
     throw new Error("Stored AI credential has an invalid encrypted format");

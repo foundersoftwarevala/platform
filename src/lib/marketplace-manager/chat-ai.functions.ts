@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { aiComplete } from "@/lib/ai-gateway.server";
+import { requireAuthorizedAiCaller } from "@/lib/ai-request-auth.server";
 
 export type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
 
@@ -14,20 +15,18 @@ Never invent metrics, revenue, ratings or downloads. If asked for live data you 
 export const chatWithAi = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as ChatInput)
   .handler(async ({ data }): Promise<ChatOutput> => {
-        if (!key) {
-      return {
-        reply: "",
-        error: "AI is not configured. Configure an AI provider in AI API Manager to enable Vala AI Chat.",
-      };
-    }
+    await requireAuthorizedAiCaller();
     try {
       const __ai = await aiComplete({
-      module: "marketplace-chat",
-      messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            ...data.messages.slice(-20),
-          ],
-    });
+        module: "marketplace-chat",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          ...data.messages
+            .slice(-20)
+            .filter((message) => message && typeof message.content === "string" && message.role !== "system")
+            .map((message) => ({ role: message.role, content: message.content.slice(0, 4_000) })),
+        ],
+      });
     // Shaped like the gateway reply the surrounding code already parses.
     const res = {
       ok: true,

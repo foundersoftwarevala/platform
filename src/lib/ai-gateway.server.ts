@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
-import { decryptAiCredential } from "./ai-credentials.server";
+import { decryptAiCredential, isEncryptedAiCredential } from "./ai-credentials.server";
+import { assertManagedProviderEndpoint } from "./managed-api-endpoints.server";
 /**
  * One way in and out of an AI provider.
  *
@@ -102,17 +103,7 @@ export async function resolveAiTarget(
   }
 
   const endpoint = String(row["endpoint_url"] ?? "");
-  if (!endpoint) {
-    throw new Error(`AI service ${row["name"]} has no execution endpoint configured.`);
-  }
-  if (/lovable/i.test(endpoint)) {
-    // Retired vendor. Failing clearly beats posting to a host that no longer
-    // answers for this platform.
-    throw new Error(
-      `AI service ${row["name"]} still points at the retired Lovable gateway. ` +
-        "Repoint it in AI API Manager.",
-    );
-  }
+  const managedEndpoint = assertManagedProviderEndpoint(endpoint);
 
   const { data: provider } = await db
     .from("ai_providers")
@@ -141,34 +132,20 @@ export async function resolveAiTarget(
     .eq("environment", "production")
     .limit(1);
 
-  const envKey = providerSlug.includes("anthropic")
-    ? process.env.ANTHROPIC_API_KEY
-    : providerSlug.includes("google")
-      ? process.env.GOOGLE_API_KEY
-      : process.env.OPENAI_API_KEY;
   const stored = (keyRows?.[0] as { secret_encrypted?: string } | undefined)?.secret_encrypted;
-  const storedCredential =
-    typeof stored === "string" &&
-    (stored.startsWith("enc:v1:") || /^(sk-|key-|AIza|anthropic)/i.test(stored))
-      ? stored
-      : "";
-  const credential =
-    envKey ||
-    (storedCredential.startsWith("enc:v1:")
-      ? decryptAiCredential(storedCredential)
-      : storedCredential);
+  const credential = isEncryptedAiCredential(stored) ? decryptAiCredential(stored) : null;
 
   if (!credential) {
     throw new Error(
       `No production credential is configured for ${row["name"]}. ` +
-        "Add it in AI API Manager or in the server environment.",
+        "Add an encrypted credential in AI API Manager.",
     );
   }
 
   return {
     serviceId: String(row["id"]),
     serviceName: String(row["name"]),
-    endpoint,
+    endpoint: managedEndpoint.toString(),
     credential,
     providerSlug,
     modelId: (model as { model_id?: string } | null)?.model_id ?? null,

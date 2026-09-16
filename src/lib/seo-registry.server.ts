@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
-import { decryptAiCredential } from "./ai-credentials.server";
+import { decryptAiCredential, isEncryptedAiCredential } from "./ai-credentials.server";
+import { assertManagedProviderEndpoint } from "./managed-api-endpoints.server";
 
 type CentralSeoService = {
   id: string;
@@ -8,7 +9,6 @@ type CentralSeoService = {
   endpoint_url: string | null;
   status: string;
   approval_status: string;
-  credential_env: string | null;
 };
 
 function serverClient() {
@@ -18,16 +18,11 @@ function serverClient() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-function readEnvironmentCredential(name: string | null): string | null {
-  if (!name || !/^[A-Z][A-Z0-9_]{2,63}$/.test(name)) return null;
-  return process.env[name]?.trim() || null;
-}
-
 export async function resolveCentralSeoService(slug: string) {
   const db = serverClient();
   const { data, error } = await db
     .from("api_services")
-    .select("id, name, endpoint_url, status, approval_status, credential_env")
+    .select("id, name, endpoint_url, status, approval_status")
     .eq("slug", slug)
     .maybeSingle();
   if (error || !data) throw new Error(`SEO service '${slug}' is not registered in AI API Manager.`);
@@ -39,8 +34,7 @@ export async function resolveCentralSeoService(slug: string) {
     throw new Error(`${service.name} is pending owner approval in AI API Manager.`);
   }
 
-  const environmentCredential = readEnvironmentCredential(service.credential_env);
-  if (environmentCredential) return { db, service, credential: environmentCredential };
+  assertManagedProviderEndpoint(service.endpoint_url);
 
   const { data: credentials, error: credentialError } = await db
     .from("api_keys")
@@ -51,7 +45,7 @@ export async function resolveCentralSeoService(slug: string) {
     .limit(1);
   if (credentialError) throw new Error(credentialError.message);
   const stored = credentials?.[0]?.secret_encrypted;
-  if (typeof stored !== "string" || !stored.trim()) {
+  if (!isEncryptedAiCredential(stored)) {
     throw new Error(
       `BLOCKED / CREDENTIAL REQUIRED for ${service.name}. Configure it in AI API Manager.`,
     );

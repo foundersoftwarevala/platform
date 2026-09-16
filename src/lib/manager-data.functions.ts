@@ -3,7 +3,12 @@ import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 import { isManagerTable, MANAGER_TABLES } from "./manager-tables";
-import { credentialFingerprint, encryptAiCredential } from "./ai-credentials.server";
+import {
+  credentialFingerprint,
+  encryptAiCredential,
+  isEncryptedAiCredential,
+} from "./ai-credentials.server";
+import { assertManagedProviderEndpoint } from "./managed-api-endpoints.server";
 
 const filterSchema = z.object({
   column: z.string().min(1).max(64),
@@ -80,6 +85,35 @@ async function requireManager(accessToken?: string) {
 
 type ManagerActor = { id: string; email: string | null; role: string };
 type ManagerDb = Awaited<ReturnType<typeof admin>> & { managerActor: ManagerActor };
+
+const CENTRAL_AI_MANAGER_TABLES = new Set([
+  "ai_providers",
+  "api_services",
+  "api_service_capabilities",
+  "api_keys",
+  "ai_models",
+  "ai_agents",
+  "api_integrations",
+  "product_apis",
+  "role_api_permissions",
+  "rate_limits",
+  "usage_events",
+  "usage_daily",
+  "api_request_logs",
+  "ai_decision_logs",
+  "router_rules",
+  "failover_events",
+  "emergency_controls",
+]);
+
+function requireCentralAiManager(db: ManagerDb, tables: Iterable<string>): void {
+  if (
+    db.managerActor.role === "finance" &&
+    Array.from(tables).some((table) => CENTRAL_AI_MANAGER_TABLES.has(table))
+  ) {
+    throw new Error("Finance role cannot access AI/API Manager governance data.");
+  }
+}
 
 type ListInput = z.infer<typeof listSchema>;
 
@@ -181,14 +215,9 @@ async function validateApiServiceActivation(
   if (credentialError) throw new Error(credentialError.message);
   const hasStoredCredential = (credentials ?? []).some((credential) => {
     const secret = credential.secret_encrypted;
-    return typeof secret === "string" && secret.trim().length > 0;
+    return isEncryptedAiCredential(secret);
   });
-  const credentialEnv =
-    typeof service.credential_env === "string" &&
-    /^[A-Z][A-Z0-9_]{2,63}$/.test(service.credential_env)
-      ? service.credential_env
-      : null;
-  if (!hasStoredCredential && !(credentialEnv && process.env[credentialEnv]?.trim())) {
+  if (!hasStoredCredential) {
     throw new Error(
       `BLOCKED / CREDENTIAL REQUIRED. Configure an active credential for ${service.name} before enabling it.`,
     );
@@ -205,12 +234,20 @@ function apiServiceEventName(values: Record<string, unknown>): string {
 
 export const listRecords = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => listSchema.parse(data))
-  .handler(async ({ data }) => runList(await requireManager(data.accessToken), data));
+  .handler(async ({ data }) => {
+    const db = await requireManager(data.accessToken);
+    requireCentralAiManager(db, [data.table]);
+    return runList(db, data);
+  });
 
 export const listManyRecords = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => listManySchema.parse(data))
   .handler(async ({ data }) => {
     const db = await requireManager(data.accessToken);
+    requireCentralAiManager(
+      db,
+      data.requests.map((request) => request.table),
+    );
     const results = await Promise.all(data.requests.map((r) => runList(db, r)));
     return results;
   });
@@ -219,6 +256,21 @@ export const updateRecord = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => mutateSchema.parse(data))
   .handler(async ({ data }) => {
     const db = await requireManager(data.accessToken);
+    requireCentralAiManager(db, [data.table]);
+    if (
+      (data.table === "api_services" || data.table === "ai_providers") &&
+      "credential_env" in data.values
+    ) {
+      throw new Error(
+        "Managed provider credentials must be stored in AI API Manager; environment-variable routing cannot be changed here.",
+      );
+    }
+    if (data.table === "api_services" && "endpoint_url" in data.values) {
+      assertManagedProviderEndpoint(data.values["endpoint_url"]);
+    }
+    if (data.table === "api_keys" && "secret_encrypted" in data.values) {
+      throw new Error("Replace credentials through Configure Key; stored secrets cannot be updated directly.");
+    }
     if (data.table === "api_services") {
       await validateApiServiceActivation(db, data.id, data.values);
     }
@@ -243,6 +295,7 @@ export const checkApiServiceHealth = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => healthCheckSchema.parse(data))
   .handler(async ({ data }) => {
     const db = await requireManager(data.accessToken);
+    requireCentralAiManager(db, ["api_services"]);
     const { data: service, error } = await db
       .from("api_services")
       .select("id, name, endpoint_url")
@@ -250,20 +303,7 @@ export const checkApiServiceHealth = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error || !service) throw new Error("API service is not registered.");
     const endpoint = String(service.endpoint_url ?? "");
-    let url: URL;
-    try {
-      url = new URL(endpoint);
-    } catch {
-      throw new Error("This service has no valid HTTPS endpoint to check.");
-    }
-    if (
-      url.protocol !== "https:" ||
-      /^(?:localhost|0\.0\.0\.0|127\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[0-1])\.|::1|fc|fd|fe80:)/i.test(
-        url.hostname,
-      )
-    ) {
-      throw new Error("Health checks require a public HTTPS provider endpoint.");
-    }
+    const url = assertManagedProviderEndpoint(endpoint);
     let response: Response;
     try {
       response = await fetch(url, {
@@ -327,6 +367,18 @@ export const insertRecord = createServerFn({ method: "POST" })
           })()
         : data.values;
     const db = await requireManager(data.accessToken);
+    requireCentralAiManager(db, [data.table]);
+    if (
+      (data.table === "api_services" || data.table === "ai_providers") &&
+      "credential_env" in values
+    ) {
+      throw new Error(
+        "Managed provider credentials must be stored in AI API Manager; environment-variable routing cannot be registered here.",
+      );
+    }
+    if (data.table === "api_services" && "endpoint_url" in values) {
+      assertManagedProviderEndpoint(values["endpoint_url"]);
+    }
     const { data: row, error } = await db
       .from(data.table)
       .insert(values as never)
@@ -347,6 +399,7 @@ export const deleteRecord = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => deleteSchema.parse(data))
   .handler(async ({ data }) => {
     const db = await requireManager(data.accessToken);
+    requireCentralAiManager(db, [data.table]);
     const { error } = await db.from(data.table).delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     await writeAudit(db, `${data.table}.deleted`, data.table, data.id, {}, "warning");

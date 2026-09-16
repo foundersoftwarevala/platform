@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { aiStream } from "@/lib/ai-gateway.server";
+import { requireAuthorizedAiCaller } from "@/lib/ai-request-auth.server";
 
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
 
@@ -24,8 +25,22 @@ export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as { messages?: ChatMessage[] };
-        const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
+        try {
+          await requireAuthorizedAiCaller();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Authentication required for AI requests.";
+          return new Response(message, { status: 401 });
+        }
+
+        let body: { messages?: ChatMessage[] };
+        try {
+          body = (await request.json()) as { messages?: ChatMessage[] };
+        } catch {
+          return new Response("Invalid request", { status: 400 });
+        }
+        const messages = (Array.isArray(body.messages) ? body.messages.slice(-20) : [])
+          .filter((message) => message && typeof message.content === "string" && message.role !== "system")
+          .map((message) => ({ role: message.role, content: message.content.slice(0, 4_000) }));
         if (messages.length === 0) {
           return new Response("Messages are required", { status: 400 });
         }
