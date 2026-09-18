@@ -43,6 +43,7 @@ docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker run -d --name "$NAME" --restart unless-stopped \
   --network "$NETWORK" -p "127.0.0.1:$PORT:5100" \
   --cpus "$CPUS" --memory "$MEMORY" --memory-swap "$MEMORY" \
+  --oom-score-adj -500 \
   --read-only --tmpfs /tmp --security-opt no-new-privileges --cap-drop ALL \
   --env-file "$ENV_FILE" -v "$MODELS:/models:ro" \
   --log-opt max-size=20m --log-opt max-file=5 \

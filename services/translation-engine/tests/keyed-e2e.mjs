@@ -72,6 +72,23 @@ async function visibleText(page) {
   });
 }
 
+/** The page's separate pieces of text: lines and attribute values. */
+function units(text) {
+  return new Set(text.split("\n").map((line) => line.trim()).filter(Boolean));
+}
+
+/**
+ * Whether a catalogue string is on screen by itself: a whole line or
+ * attribute, or - for a sentence long enough not to occur by chance inside
+ * another one - part of a line.
+ */
+function onScreen(pieces, s) {
+  if (pieces.has(s)) return true;
+  if (s.length < 25) return false;
+  for (const piece of pieces) if (piece.includes(s)) return true;
+  return false;
+}
+
 /** Catalogue strings without variables, whole, as they appear on a page. */
 function simpleEntries(modules) {
   return CATALOGUE.filter((e) => modules.includes(e.context) && !e.text.includes("{"));
@@ -91,8 +108,8 @@ try {
     await page.goto(BASE + p.path, { waitUntil: "networkidle", timeout: 90000 }).catch(() => undefined);
     await page.waitForTimeout(3000);
     const text = await visibleText(page);
-    // Longest first, so "Sign in" inside "Sign in to use checkout." is not counted twice.
-    onPage[p.path] = simpleEntries(p.modules).filter((e) => contains(text, e.text));
+    const pieces = units(text);
+    onPage[p.path] = simpleEntries(p.modules).filter((e) => onScreen(pieces, e.text));
     check(`en ${p.path}: catalogue strings on screen`, onPage[p.path].length > 0, `${onPage[p.path].length}`);
     await context.close();
   }
@@ -133,6 +150,7 @@ try {
 
       let shown = 0;
       let pending = 0;
+      let absent = 0;
       const wrong = [];
       for (const e of onPage[p.path]) {
         const translation = pack?.entries?.[`${e.context}${SEP}${e.text}`];
@@ -141,19 +159,29 @@ try {
           continue;
         }
         if (contains(text, translation)) shown += 1;
-        else wrong.push(`"${e.text}" -> expected "${translation}"`);
+        // English still on screen although the translation exists: a failure.
+        else if (onScreen(units(text), e.text)) wrong.push(`"${e.text}" -> expected "${translation}"`);
+        // The page translator's generic translation in place of the keyed one.
+        else if (
+          pack?.entries?.[`${SEP}${e.text}`] &&
+          pack.entries[`${SEP}${e.text}`] !== translation &&
+          units(text).has(pack.entries[`${SEP}${e.text}`])
+        )
+          wrong.push(`"${e.text}" shows the generic "${pack.entries[`${SEP}${e.text}`]}", not "${translation}"`);
+        // Neither: that state of the page (a loading line) is over.
+        else absent += 1;
       }
       const total = onPage[p.path].length;
       check(
         `${lang} ${p.path}: keyed strings shown in their own translation`,
         wrong.length === 0,
-        `${shown}/${total} translated, ${pending} not translated yet (English)${wrong.length ? `; ${wrong.slice(0, 3).join("; ")}` : ""}`,
+        `${shown}/${total} translated, ${pending} not translated yet (English), ${absent} no longer on screen${wrong.length ? `; ${wrong.slice(0, 3).join("; ")}` : ""}`,
       );
 
       // Settled text stays put.
       await page.waitForTimeout(8000);
       check(`${lang} ${p.path}: text is stable`, (await visibleText(page)) === text);
-      results.push({ lang, path: p.path, total, shown, pending, title: html.title });
+      results.push({ lang, path: p.path, total, shown, pending, absent, title: html.title });
       await context.close();
     }
   }
