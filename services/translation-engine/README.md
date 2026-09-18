@@ -64,7 +64,13 @@ The service listens on `127.0.0.1:5100` only.
 4. Long text is split into lines and sentences.
 5. The batch goes to a backend: the model (beam search for `quality`, greedy
    for `realtime`), or LibreTranslate when the model is busy and the language
-   is one it covers.
+   is one it covers. The model is shared this way: visitors' (`realtime`)
+   requests queue together and whichever gets the model decodes all of them
+   in one batch, whatever their languages (each sequence carries its own
+   `<2xx>` target token) - 12 visitors at once, measured, finished in 10.5 s
+   and 17 s instead of one after another up to 64 s. Background (`quality`)
+   work decodes `SVT_BACKGROUND_BATCH` segments at a time and stands aside
+   while any visitor is waiting.
 6. Clean-up: a Latin word stuck onto the end of non-Latin text is removed
    when the source never had it (MADLAD appends "Name" to short Hebrew, Hindi
    and Tamil labels). Language-specific fixes: Simplified characters in

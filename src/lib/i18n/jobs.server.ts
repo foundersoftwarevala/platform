@@ -281,13 +281,19 @@ const BUSY_QUEUE_GAP_MS = 1_000;
 /**
  * Background translation shares the host with the site, and the engine is
  * CPU-bound. The worker yields when the one-minute load average is above this
- * (default: 80 % of the host's CPUs; I18N_JOB_MAX_LOAD overrides), so a
+ * (default: 120 % of the host's CPUs; I18N_JOB_MAX_LOAD overrides), so a
  * traffic spike gets the CPU and pre-translation continues afterwards.
+ *
+ * The engine's own work counts towards the load average: busy, it alone holds
+ * it at about 1.5-2 on a 2-CPU host. A threshold below that (it was 80 %)
+ * made the worker pause itself 71 times in 5 minutes with no site traffic at
+ * all. Above the CPU count, it trips only when something else - the site -
+ * wants the CPU as well.
  */
 function hostBusyThreshold(): number {
   const configured = Number(process.env.I18N_JOB_MAX_LOAD);
   if (Number.isFinite(configured) && configured > 0) return configured;
-  return Math.max(1, cpus().length * 0.8);
+  return Math.max(1, cpus().length * 1.2);
 }
 
 const PRUNE_EVERY_MS = 60 * 60_000;

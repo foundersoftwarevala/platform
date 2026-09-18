@@ -42,6 +42,9 @@ class Settings:
     beam_size: int = field(default_factory=lambda: _int("SVT_BEAM_SIZE", 2))
     realtime_beam_size: int = field(default_factory=lambda: _int("SVT_REALTIME_BEAM_SIZE", 1))
     max_batch: int = field(default_factory=lambda: _int("SVT_MAX_BATCH", 8))
+    # Segments per model batch for background (quality) work; small, so an
+    # interactive request never waits long behind it.
+    background_batch: int = field(default_factory=lambda: _int("SVT_BACKGROUND_BATCH", 2))
 
     max_segments: int = field(default_factory=lambda: _int("SVT_MAX_SEGMENTS", 100))
     max_segment_chars: int = field(default_factory=lambda: _int("SVT_MAX_SEGMENT_CHARS", 5000))

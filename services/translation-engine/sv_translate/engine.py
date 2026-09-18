@@ -147,7 +147,9 @@ class Engine:
         self.settings = settings
         self.routes, self.retired, self.routing_version = load_routing(settings.routing_path)
         self._by_lower = {code.lower(): code for code in self.routes}
-        self.madlad = madlad or MadladBackend(settings.model_dir, settings.intra_threads, settings.max_batch)
+        self.madlad = madlad or MadladBackend(
+            settings.model_dir, settings.intra_threads, settings.max_batch, settings.background_batch
+        )
         self.libre = libre
         if self.libre is None and settings.libretranslate_url:
             self.libre = LibreTranslateBackend(settings.libretranslate_url)

@@ -86,7 +86,7 @@ Rules of the road:
 | `TRANSLATION_ALLOW_EXTERNAL` | `true` also allows the external AI API Manager adapter. Off by default. |
 | `TRANSLATION_PROVIDER_ORDER` | Provider order; default `owned-engine,ai-api-manager`. |
 | `I18N_JOB_WORKER` | `off` stops this instance from working the job queue. |
-| `I18N_JOB_MAX_LOAD` | Load average above which background translation pauses (default 80 % of the CPUs). |
+| `I18N_JOB_MAX_LOAD` | Load average above which background translation pauses (default 120 % of the CPUs; the engine's own work already holds it near the CPU count). |
 
 ## Operating
 
@@ -96,7 +96,7 @@ pre-translate the catalogue into any language.
 
 `POST /api/i18n/jobs` with `x-internal-token` runs one batch, for a scheduler.
 The application works the queue inside the server process, batch after batch
-while there is work, pausing when the host's load average is above 80 % of its
+while there is work, pausing when the host's load average is above 120 % of its
 CPUs (`I18N_JOB_MAX_LOAD`).
 
 ### When the engine is busy

@@ -53,7 +53,12 @@ def call(path: str, payload: dict | None = None) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
-def translate(target: str, texts: dict[str, str], glossary=(), mode="quality") -> dict:
+# SVT_MODE=realtime checks the path visitors use (greedy decoding, shared batches).
+MODE = os.environ.get("SVT_MODE", "quality")
+
+
+def translate(target: str, texts: dict[str, str], glossary=(), mode=None) -> dict:
+    mode = mode or MODE
     body = {
         "source": "en",
         "target": target,
