@@ -250,7 +250,9 @@ export function pluralCategories(code: string): string[] {
   const language = getLanguage(code);
   if (!language || language.pluralLocale === null) return ["other"];
   try {
-    const resolved = new Intl.PluralRules(language.pluralLocale).resolvedOptions().pluralCategories;
+    const resolved: readonly string[] = new Intl.PluralRules(
+      language.pluralLocale,
+    ).resolvedOptions().pluralCategories;
     return CLDR_CATEGORY_ORDER.filter((category) => resolved.includes(category));
   } catch {
     return ["other"];

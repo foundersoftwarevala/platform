@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { getCurrentLanguage } from "@/lib/i18n/language-service";
-import { getLanguage, normalizeLanguageCode } from "@/lib/i18n/registry";
+import { SUPPORTED_LANGUAGES, normalizeLanguageCode } from "@/lib/i18n/registry";
 
 export interface Preferences {
   theme: "dark" | "light";
@@ -26,12 +26,16 @@ const DEFAULTS: Preferences = {
 
 const KEY = "vala.chat.preferences";
 
-/** Languages offered for chat translation. Codes and labels come from the language registry. */
-const CHAT_LANGUAGE_CODES = ["en", "hi", "mr", "ta", "es", "fr", "de", "ar", "ja"];
+/**
+ * Languages offered for chat translation: every language of the registry,
+ * which the chat translation server function accepts. The list used to be
+ * nine hand-picked languages.
+ */
+const CHAT_LANGUAGE_CODES = SUPPORTED_LANGUAGES.map((language) => language.code);
 
-export const LANGUAGES = CHAT_LANGUAGE_CODES.map((code) => ({
-  code,
-  label: getLanguage(code)?.nativeName ?? code,
+export const LANGUAGES = SUPPORTED_LANGUAGES.map((language) => ({
+  code: language.code,
+  label: language.nativeName,
 }));
 
 /** A stored chat language, if it is still a language this dialog offers. */
@@ -53,7 +57,8 @@ export function usePreferences() {
     }
     // No separate language state: without a valid chat choice, chat follows
     // the language the site is shown in.
-    const language = chatLanguage(stored.language) ?? chatLanguage(getCurrentLanguage()) ?? DEFAULTS.language;
+    const language =
+      chatLanguage(stored.language) ?? chatLanguage(getCurrentLanguage()) ?? DEFAULTS.language;
     setPrefs({ ...DEFAULTS, ...stored, language });
   }, []);
 

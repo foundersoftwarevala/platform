@@ -4,7 +4,6 @@ import { LanguageManagerConsole } from "@/components/language-manager/LanguageMa
 import { pageHead } from "@/lib/seo-head";
 
 export const Route = createFileRoute("/language-manager")({
-  head: () =>
-    pageHead("Language Manager", "Languages, translation engine, memory, glossary and review."),
+  head: pageHead("Language Manager", "Languages, translation engine, memory, glossary and review."),
   component: LanguageManagerConsole,
 });
