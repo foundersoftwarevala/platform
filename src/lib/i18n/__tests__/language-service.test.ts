@@ -176,14 +176,39 @@ describe("applyDocumentLanguage", () => {
 });
 
 describe("buildLanguageBootScript", () => {
-  function runBootScript(stored: Record<string, string>) {
+  function runBootScript(stored: Record<string, string>, languages: string[] = []) {
     const doc = fakeDocument();
     const storage = memoryStorage(stored);
     const script = buildLanguageBootScript();
+    const nav = { languages, language: languages[0] };
     // The script reads the page's globals; give it stand-ins.
-    new Function("localStorage", "document", script)(storage, doc);
+    new Function("localStorage", "document", "navigator", script)(storage, doc, nav);
     return doc;
   }
+
+  it("applies the browser's language before paint when nothing is stored", () => {
+    for (const [browser, expected, dir] of [
+      [["ar-EG"], "ar-EG", "rtl"],
+      [["he-IL"], "he", "rtl"],
+      [["zh-TW"], "zh-Hant", "ltr"],
+      [["de-AT"], "de-AT", "ltr"],
+      [["de-LU"], "de", "ltr"],
+      [["en-GB"], "en-GB", "ltr"],
+      [["xx-YY", "pt-BR"], "pt-BR", "ltr"],
+    ] as const) {
+      const doc = runBootScript({}, [...browser]);
+      expect([doc.documentElement.lang, doc.documentElement.dir]).toEqual([expected, dir]);
+      // The same answer the application reaches after it loads.
+      expect(detectBrowserLanguage({ languages: [...browser], language: browser[0] })).toBe(
+        expected,
+      );
+    }
+  });
+
+  it("prefers a stored choice over the browser's language", () => {
+    const doc = runBootScript({ [LANGUAGE_STORAGE_KEY]: "hi" }, ["ar-EG"]);
+    expect(doc.documentElement.lang).toBe("hi");
+  });
 
   it("applies a stored choice before the app loads", () => {
     const doc = runBootScript({ [LANGUAGE_STORAGE_KEY]: "ar-EG" });

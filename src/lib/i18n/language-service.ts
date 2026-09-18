@@ -178,8 +178,9 @@ export function setCurrentLanguage(
 export { getFallbackChain };
 
 /**
- * A script for <head> that sets <html lang dir> from the stored choice before
- * the page paints, so a right-to-left visitor never sees a left-to-right
+ * A script for <head> that sets <html lang dir> before the page paints, from
+ * the stored choice or, on a first visit, the browser's languages,
+ * so a right-to-left visitor never sees a left-to-right
  * flash. It carries only the codes it needs; the full resolution rules run
  * once the application loads.
  */
@@ -196,6 +197,12 @@ export function buildLanguageBootScript(): string {
     }
     const code = language.code;
     codes[code.toLowerCase()] = code;
+    // Tag-shaped aliases ("zh-tw", "cmn-hant") so a browser's languages resolve
+    // before paint the same way detectBrowserLanguage resolves them after.
+    for (const alias of language.aliases) {
+      const key = alias.toLowerCase();
+      if (/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/.test(key) && !(key in codes)) codes[key] = code;
+    }
     if (language.direction === "rtl") rtl.push(code);
     if (language.legacyCode) legacy[language.legacyCode] = code;
   }
@@ -210,6 +217,13 @@ export function buildLanguageBootScript(): string {
     `(function(){try{var d=${payload};var s=localStorage;` +
     `var v=s.getItem(d.k);var c=v&&d.c[String(v).toLowerCase()];` +
     `if(!c){var o=s.getItem(d.l);c=o&&d.g[String(o).toUpperCase()];}` +
+    // Nothing chosen yet: the browser's languages, trying each tag and then
+    // shorter ones ("de-lu" -> "de"), so a first visit with an Arabic or
+    // Hebrew browser is laid out right-to-left from the first paint.
+    `if(!c){var n=typeof navigator!=="undefined"?navigator:{};` +
+    `var p=n.languages&&n.languages.length?n.languages:[n.language];` +
+    `for(var i=0;p.length>i&&!c;i++){var t=String(p[i]||"").toLowerCase();` +
+    `while(t&&!c){c=d.c[t];var j=t.lastIndexOf("-");t=j>0?t.slice(0,j):"";}}}` +
     `if(!c)return;var e=document.documentElement;e.lang=c;` +
     `e.dir=d.r.indexOf(c)>=0?"rtl":"ltr";e.setAttribute("data-lang",c);}catch(x){}})();`
   ).replace(/</g, "\\u003c");

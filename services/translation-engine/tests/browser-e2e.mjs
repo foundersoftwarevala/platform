@@ -132,30 +132,40 @@ try {
     await context.close();
   }
 
-  // A moment of engine outage must not end translation for the visit. The
-  // first translation request is answered the way the server answers when the
-  // engine is busy or restarting (503 engine_unavailable); every later request
-  // reaches the real server. The page has to come back translated after the
-  // client's back-off (15 s for the first failure). Tamil has no entries in
-  // the reviewed UI dictionary, so any Tamil on the page came from the server.
+  // A moment of outage must not end translation for the visit. The first
+  // request for the language pack and the first translation request are
+  // answered the way the server answers when the database or the engine is
+  // unavailable (503); every later request reaches the real server. The page
+  // has to fall back from the pack to translation requests and, after the
+  // client's back-off (15 s for the first failure), come back translated.
+  // Tamil has no entries in the reviewed UI dictionary, so any Tamil on the
+  // page came from the server.
   {
     const context = await browser.newContext({ locale: "en-US" });
     await context.addInitScript(([key]) => window.localStorage.setItem(key, "ta"), [STORAGE_KEY]);
+    // Both ways a page gets its text fail once: the language pack (so the
+    // page has to fall back to asking string by string) and then the first
+    // translation request (so it has to back off and ask again).
     let failed = 0;
-    await context.route("**/api/marketplace/translate", async (route) => {
-      if (failed === 0) {
-        failed += 1;
-        await route.fulfill({
-          status: 503,
-          contentType: "application/json",
-          body: JSON.stringify({
-            error: "The translation engine is unavailable right now.",
-            reason: "engine_unavailable",
-          }),
-        });
-        return;
-      }
-      await route.continue();
+    const failOnce = (path, body) => {
+      let done = false;
+      return context.route(path, async (route) => {
+        if (!done) {
+          done = true;
+          failed += 1;
+          await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify(body) });
+          return;
+        }
+        await route.continue();
+      });
+    };
+    await failOnce("**/api/i18n/pack*", {
+      error: "Translations are not available right now.",
+      reason: "service_error",
+    });
+    await failOnce("**/api/marketplace/translate", {
+      error: "The translation engine is unavailable right now.",
+      reason: "engine_unavailable",
     });
     const p = await context.newPage();
     await p.goto(BASE, { waitUntil: "domcontentloaded", timeout: 120000 });
@@ -164,7 +174,7 @@ try {
       await p.waitForTimeout(3000);
       recovered = /[஀-௿]/.test(await bodyText(p));
     }
-    check("translation resumes after an engine outage", failed === 1 && recovered, `outage answered ${failed}×, translated afterwards: ${recovered}`);
+    check("translation resumes after an outage", failed === 2 && recovered, `pack and translate each failed once (${failed} failures), translated afterwards: ${recovered}`);
     await context.close();
   }
 
