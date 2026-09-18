@@ -110,6 +110,28 @@ batch size, request and segment limits, queue depth, cache size, timeouts.
 The container runs read-only, without capabilities, with a memory and CPU
 limit, as a non-root user, with the models mounted read-only.
 
+## Health, backup and recovery
+
+On the host (installed by hand once; see the scripts' headers):
+
+| Script | When | What |
+|---|---|---|
+| `deploy/i18n-health.sh` | every minute | One JSON line in `/var/log/sv-i18n-health.log`: site, language pack and translate endpoint status and latency, engine readiness, queue, database latency, the application's latency percentiles and cache hit ratios. Alerts on failure (and to `ALERT_WEBHOOK_URL` when set in `/etc/sv-i18n-health.env`); after three failed checks restarts the engine container or cleanly restarts the application. |
+| `deploy/i18n-backup.sh` | 00:20 UTC | `pg_dump` of the language tables (registry, translation memory, glossary, revisions, jobs) with row counts and checksums, plus `routing.json`, the model checksum, the engine image tag and the nginx real-IP list, under `/root/backups/i18n/<date>/`, kept 14 days. Needs `/etc/sv-i18n-backup.env` (DB_HOST, DB_PASSWORD; mode 600). |
+| `deploy/i18n-restore-test.sh` | Sundays 01:00 UTC | Restores the latest backup into a scratch PostgreSQL and compares row counts. |
+
+Restoring after data loss:
+
+1. Schema: apply `supabase/migrations/*i18n*` in order (they are idempotent).
+2. Data: `pg_restore --data-only --no-owner --no-privileges --disable-triggers
+   -d "<connection>" /root/backups/i18n/<date>/language-data.dump`
+   (`--disable-triggers` so the memory guard does not treat the restore as an
+   automatic overwrite of reviewed rows).
+3. Engine: `deploy/install-models.sh` downloads the pinned model and checks it
+   against the recorded checksum; `deploy/deploy.sh` rebuilds and starts the
+   container with the saved `routing.json`.
+4. Application: redeploy; the language packs and caches fill on first use.
+
 ## Tests
 
 ```sh

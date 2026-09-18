@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 /**
  * Language Manager API (admin and boss only).
  *
- * GET  ?view=overview | review | glossary | revisions&id=
+ * GET  ?view=overview | metrics | review | glossary | revisions&id=
  * POST { action: enqueue_catalogue | enqueue_texts | run_jobs | review |
  *        set_language_enabled | glossary_save, ... }
  */
@@ -27,6 +27,10 @@ export const Route = createFileRoute("/api/i18n/admin")({
         const params = new URL(request.url).searchParams;
         try {
           switch (params.get("view") ?? "overview") {
+            case "metrics":
+              return Response.json(await admin.metrics(), {
+                headers: { "Cache-Control": "no-store" },
+              });
             case "overview":
               return Response.json(await admin.overview());
             case "review":

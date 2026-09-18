@@ -9,6 +9,16 @@ type ServerEntry = {
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
+// The language system's background worker (the translation job queue) starts
+// with the server. It used to start with the first translation request, so
+// after a restart queued work waited until a visitor happened to use a
+// language other than English. Off when I18N_JOB_WORKER=off.
+if (typeof process !== "undefined" && process.env?.I18N_JOB_WORKER !== "off") {
+  import("./lib/i18n/jobs.server")
+    .then((jobs) => jobs.ensureJobWorker())
+    .catch((error: unknown) => console.error("[i18n] job worker did not start", error));
+}
+
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
     serverEntryPromise = import("@tanstack/react-start/server-entry").then(

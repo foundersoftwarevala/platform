@@ -53,6 +53,14 @@ export function isTranslatableText(value: string): boolean {
   // A lone code-like token is not prose: "EN", "USD", "v1", "#12", "1.2".
   if (/^[A-Z]{1,4}$/.test(trimmed)) return false;
   if (trimmed.length <= 4 && /[\d#._-]/.test(trimmed) && !/\s/.test(trimmed)) return false;
+  // The source language is English. Text written mostly in another script is
+  // not source text: it is what the page already shows in the visitor's
+  // language (from the dictionary, the language pack or an earlier answer),
+  // and sending it back would ask the engine to translate Hebrew "from
+  // English" and store the result.
+  const letters = trimmed.replace(TOKENS, " ").match(/\p{L}/gu)?.length ?? 0;
+  const latin = trimmed.replace(TOKENS, " ").match(/\p{Script=Latin}/gu)?.length ?? 0;
+  if (latin * 2 < letters) return false;
   return true;
 }
 

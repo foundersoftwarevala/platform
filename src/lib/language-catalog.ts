@@ -28,6 +28,7 @@ import {
   type TextDirection,
 } from "@/lib/i18n/registry";
 import { formatMessage, type MessageValues } from "@/lib/i18n/format";
+import { looksLikeProductName } from "@/lib/i18n/names";
 import { UI_DICTIONARY } from "@/lib/i18n/ui-dictionary";
 
 /**
@@ -131,7 +132,65 @@ type RemoteState = {
   blockedUntil: number;
   /** Consecutive times the engine was unavailable; sets the next wait. */
   engineFailures: number;
+  /**
+   * Until this time, strings wait for the language pack instead of being sent
+   * to the translation endpoint (0 once the pack has arrived or failed).
+   */
+  packUntil: number;
+  /** Strings in a request that has not answered yet; not asked for again meanwhile. */
+  inFlight: Set<string>;
+  /** Brand names that are never translated (from the language pack). */
+  locked: string[];
 };
+
+/** How long a page waits for its language pack before asking string by string. */
+const PACK_WAIT_MS = 4000;
+
+/**
+ * The strings translation memory holds for a language, in one request
+ * (GET /api/i18n/pack). Keys are `context + SEPARATOR + source`, the same as
+ * `held`. Null when the pack is not available; the page then asks the
+ * translation endpoint for what it needs, as before.
+ */
+async function fetchLanguagePack(
+  code: string,
+): Promise<{ entries: Record<string, string>; withheld: string[]; locked: string[] } | null> {
+  try {
+    const response = await fetch(`/api/i18n/pack?lang=${encodeURIComponent(code)}`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as {
+      entries?: Record<string, string>;
+      withheld?: string[];
+      locked?: string[];
+    };
+    if (!payload.entries || typeof payload.entries !== "object") return null;
+    return {
+      entries: payload.entries,
+      withheld: Array.isArray(payload.withheld) ? payload.withheld : [],
+      locked: Array.isArray(payload.locked)
+        ? payload.locked.filter((t): t is string => typeof t === "string" && t.length > 0)
+        : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** True when nothing but these terms (and no other letters) is left in the text. */
+export function onlyLockedTerms(text: string, terms: readonly string[]): boolean {
+  if (terms.length === 0) return false;
+  let rest = text;
+  let found = false;
+  for (const term of terms) {
+    if (rest.includes(term)) {
+      rest = rest.split(term).join(" ");
+      found = true;
+    }
+  }
+  return found && !/\p{L}/u.test(rest);
+}
 
 /**
  * How long to wait after the engine was unavailable `failures` times in a
@@ -318,6 +377,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const remote = useRef<Record<string, RemoteState>>({});
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // drain is defined below; the language pack loader in stateFor calls it through this.
+  const drainRef = useRef<((code: string) => void) | null>(null);
   const [service, setService] = useState<{ ready: boolean; reason: string | null }>({
     ready: true,
     reason: null,
@@ -369,8 +430,44 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         refused: false,
         blockedUntil: 0,
         engineFailures: 0,
+        packUntil: typeof window === "undefined" ? 0 : Date.now() + PACK_WAIT_MS,
+        inFlight: new Set(),
+        locked: [],
       };
       remote.current[code] = state;
+      if (typeof window !== "undefined") {
+        const created = state;
+        void fetchLanguagePack(code).then((pack) => {
+          created.packUntil = 0;
+          if (pack) {
+            created.locked = pack.locked;
+            // Held for review on the server: shown in the fallback, not asked for.
+            for (const key of pack.withheld) {
+              if (typeof key !== "string" || created.held[key]) continue;
+              created.unavailable.add(key);
+              created.pending.delete(key);
+            }
+            let added = 0;
+            for (const [key, text] of Object.entries(pack.entries)) {
+              if (typeof text !== "string" || !text) continue;
+              if (created.held[key] !== text) {
+                created.held[key] = text;
+                added += 1;
+              }
+              created.pending.delete(key);
+            }
+            if (added > 0) {
+              saveRemote(code, created.held);
+              setVersion((v) => v + 1);
+            }
+          }
+          // Whatever the pack did not contain is asked for now.
+          if (created.pending.size > 0) {
+            if (timer.current) clearTimeout(timer.current);
+            timer.current = setTimeout(() => drainRef.current?.(code), 0);
+          }
+        });
+      }
     }
     return state;
   }, []);
@@ -382,6 +479,27 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const drain = useCallback((code: string) => {
     const state = remote.current[code];
     if (!state || state.refused || serviceDown.current || state.pending.size === 0) return;
+    // The language pack usually answers everything; wait for it briefly.
+    if (state.packUntil > Date.now()) {
+      timer.current = setTimeout(() => drain(code), Math.min(200, state.packUntil - Date.now()));
+      return;
+    }
+    let answeredHere = false;
+    for (const entry of state.pending) {
+      if (state.held[entry]) {
+        state.pending.delete(entry);
+        continue;
+      }
+      // Only brand names ("Software Vala™"): shown as they are.
+      const text = entry.slice(entry.indexOf(SEPARATOR) + 1);
+      if (onlyLockedTerms(text, state.locked)) {
+        state.held[entry] = text;
+        state.pending.delete(entry);
+        answeredHere = true;
+      }
+    }
+    if (answeredHere) setVersion((v) => v + 1);
+    if (state.pending.size === 0) return;
     const wait = state.blockedUntil - Date.now();
     if (wait > 0) {
       timer.current = setTimeout(() => drain(code), wait);
@@ -394,10 +512,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const keys = Array.from(state.pending)
       .filter((entry) => entry.startsWith(`${context}${SEPARATOR}`))
       .slice(0, BATCH);
-    keys.forEach((entry) => state.pending.delete(entry));
+    keys.forEach((entry) => {
+      state.pending.delete(entry);
+      state.inFlight.add(entry);
+    });
     const batch = keys.map((entry) => entry.slice(context.length + 1));
 
     void fetchTranslations(batch, code, context || null).then((outcome) => {
+      for (const entry of keys) state.inFlight.delete(entry);
       const current = remote.current[code];
       if (!current) return;
 
@@ -459,6 +581,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       }
     });
   }, []);
+  drainRef.current = drain;
 
   const translate = useCallback(
     (key: string, values?: MessageValues, options?: { context?: string }) => {
@@ -470,6 +593,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       const exact = UI_DICTIONARY[language.code]?.[key];
       if (exact) return fill(exact);
       if (typeof window === "undefined") return fill(english);
+      // A product name is the same in every language (see src/lib/i18n/names.ts);
+      // there is nothing to ask the server for.
+      if (looksLikeProductName(english)) return fill(english);
 
       const context = options?.context ?? "";
       const cacheKey = `${context}${SEPARATOR}${english}`;
@@ -481,6 +607,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         !serviceDown.current &&
         !state.refused &&
         !state.pending.has(cacheKey) &&
+        !state.inFlight.has(cacheKey) &&
         !state.unavailable.has(cacheKey)
       ) {
         state.pending.add(cacheKey);

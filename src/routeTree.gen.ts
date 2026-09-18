@@ -33,6 +33,7 @@ import { Route as HealthRouteImport } from './routes/health'
 import { Route as InfluencerManagerRouteImport } from './routes/influencer-manager'
 import { Route as InternalSupportAiRouteImport } from './routes/internal-support-ai'
 import { Route as KeywordsRouteImport } from './routes/keywords'
+import { Route as LanguageManagerRouteImport } from './routes/language-manager'
 import { Route as LeadManagerRouteImport } from './routes/lead-manager'
 import { Route as LegalManagerRouteImport } from './routes/legal-manager'
 import { Route as LoginRouteImport } from './routes/login'
@@ -248,6 +249,9 @@ import { Route as ApiAuthorProductsRouteImport } from './routes/api/author/produ
 import { Route as ApiDemoTicketRouteImport } from './routes/api/demo/ticket'
 import { Route as ApiFinanceResellerMembershipRouteImport } from './routes/api/finance/reseller-membership'
 import { Route as ApiGovernanceConsoleRouteImport } from './routes/api/governance/console'
+import { Route as ApiI18nAdminRouteImport } from './routes/api/i18n/admin'
+import { Route as ApiI18nJobsRouteImport } from './routes/api/i18n/jobs'
+import { Route as ApiI18nPackRouteImport } from './routes/api/i18n/pack'
 import { Route as ApiInternalApplyMigrationsRouteImport } from './routes/api/internal/apply-migrations'
 import { Route as ApiInternalApplyResellerSchemaRouteImport } from './routes/api/internal/apply-reseller-schema'
 import { Route as ApiInternalAuthorReviewRouteImport } from './routes/api/internal/author-review'
@@ -430,6 +434,11 @@ const InternalSupportAiRoute = InternalSupportAiRouteImport.update({
 const KeywordsRoute = KeywordsRouteImport.update({
   id: '/keywords',
   path: '/keywords',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LanguageManagerRoute = LanguageManagerRouteImport.update({
+  id: '/language-manager',
+  path: '/language-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LeadManagerRoute = LeadManagerRouteImport.update({
@@ -1533,6 +1542,21 @@ const ApiGovernanceConsoleRoute = ApiGovernanceConsoleRouteImport.update({
   path: '/api/governance/console',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiI18nAdminRoute = ApiI18nAdminRouteImport.update({
+  id: '/api/i18n/admin',
+  path: '/api/i18n/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiI18nJobsRoute = ApiI18nJobsRouteImport.update({
+  id: '/api/i18n/jobs',
+  path: '/api/i18n/jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiI18nPackRoute = ApiI18nPackRouteImport.update({
+  id: '/api/i18n/pack',
+  path: '/api/i18n/pack',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInternalApplyMigrationsRoute =
   ApiInternalApplyMigrationsRouteImport.update({
     id: '/api/internal/apply-migrations',
@@ -1889,6 +1913,7 @@ export interface FileRoutesByFullPath {
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
+  '/language-manager': typeof LanguageManagerRoute
   '/lead-manager': typeof LeadManagerRouteWithChildren
   '/legal-manager': typeof LegalManagerRoute
   '/login': typeof LoginRoute
@@ -2099,6 +2124,9 @@ export interface FileRoutesByFullPath {
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
+  '/api/i18n/admin': typeof ApiI18nAdminRoute
+  '/api/i18n/jobs': typeof ApiI18nJobsRoute
+  '/api/i18n/pack': typeof ApiI18nPackRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
   '/api/internal/author-review': typeof ApiInternalAuthorReviewRoute
@@ -2190,6 +2218,7 @@ export interface FileRoutesByTo {
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
+  '/language-manager': typeof LanguageManagerRoute
   '/legal-manager': typeof LegalManagerRoute
   '/login': typeof LoginRoute
   '/marketplace-manager': typeof MarketplaceManagerRoute
@@ -2393,6 +2422,9 @@ export interface FileRoutesByTo {
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
+  '/api/i18n/admin': typeof ApiI18nAdminRoute
+  '/api/i18n/jobs': typeof ApiI18nJobsRoute
+  '/api/i18n/pack': typeof ApiI18nPackRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
   '/api/internal/author-review': typeof ApiInternalAuthorReviewRoute
@@ -2488,6 +2520,7 @@ export interface FileRoutesById {
   '/influencer-manager': typeof InfluencerManagerRoute
   '/internal-support-ai': typeof InternalSupportAiRoute
   '/keywords': typeof KeywordsRoute
+  '/language-manager': typeof LanguageManagerRoute
   '/lead-manager': typeof LeadManagerRouteWithChildren
   '/legal-manager': typeof LegalManagerRoute
   '/login': typeof LoginRoute
@@ -2698,6 +2731,9 @@ export interface FileRoutesById {
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
+  '/api/i18n/admin': typeof ApiI18nAdminRoute
+  '/api/i18n/jobs': typeof ApiI18nJobsRoute
+  '/api/i18n/pack': typeof ApiI18nPackRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
   '/api/internal/author-review': typeof ApiInternalAuthorReviewRoute
@@ -2794,6 +2830,7 @@ export interface FileRouteTypes {
     | '/influencer-manager'
     | '/internal-support-ai'
     | '/keywords'
+    | '/language-manager'
     | '/lead-manager'
     | '/legal-manager'
     | '/login'
@@ -3004,6 +3041,9 @@ export interface FileRouteTypes {
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/governance/console'
+    | '/api/i18n/admin'
+    | '/api/i18n/jobs'
+    | '/api/i18n/pack'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
     | '/api/internal/author-review'
@@ -3095,6 +3135,7 @@ export interface FileRouteTypes {
     | '/influencer-manager'
     | '/internal-support-ai'
     | '/keywords'
+    | '/language-manager'
     | '/legal-manager'
     | '/login'
     | '/marketplace-manager'
@@ -3298,6 +3339,9 @@ export interface FileRouteTypes {
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/governance/console'
+    | '/api/i18n/admin'
+    | '/api/i18n/jobs'
+    | '/api/i18n/pack'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
     | '/api/internal/author-review'
@@ -3392,6 +3436,7 @@ export interface FileRouteTypes {
     | '/influencer-manager'
     | '/internal-support-ai'
     | '/keywords'
+    | '/language-manager'
     | '/lead-manager'
     | '/legal-manager'
     | '/login'
@@ -3602,6 +3647,9 @@ export interface FileRouteTypes {
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/governance/console'
+    | '/api/i18n/admin'
+    | '/api/i18n/jobs'
+    | '/api/i18n/pack'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
     | '/api/internal/author-review'
@@ -3697,6 +3745,7 @@ export interface RootRouteChildren {
   InfluencerManagerRoute: typeof InfluencerManagerRoute
   InternalSupportAiRoute: typeof InternalSupportAiRoute
   KeywordsRoute: typeof KeywordsRoute
+  LanguageManagerRoute: typeof LanguageManagerRoute
   LeadManagerRoute: typeof LeadManagerRouteWithChildren
   LegalManagerRoute: typeof LegalManagerRoute
   LoginRoute: typeof LoginRoute
@@ -3757,6 +3806,9 @@ export interface RootRouteChildren {
   ApiDemoTicketRoute: typeof ApiDemoTicketRoute
   ApiFinanceResellerMembershipRoute: typeof ApiFinanceResellerMembershipRoute
   ApiGovernanceConsoleRoute: typeof ApiGovernanceConsoleRoute
+  ApiI18nAdminRoute: typeof ApiI18nAdminRoute
+  ApiI18nJobsRoute: typeof ApiI18nJobsRoute
+  ApiI18nPackRoute: typeof ApiI18nPackRoute
   ApiInternalApplyMigrationsRoute: typeof ApiInternalApplyMigrationsRoute
   ApiInternalApplyResellerSchemaRoute: typeof ApiInternalApplyResellerSchemaRoute
   ApiInternalAuthorReviewRoute: typeof ApiInternalAuthorReviewRoute
@@ -3976,6 +4028,13 @@ declare module '@tanstack/react-router' {
       path: '/keywords'
       fullPath: '/keywords'
       preLoaderRoute: typeof KeywordsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/language-manager': {
+      id: '/language-manager'
+      path: '/language-manager'
+      fullPath: '/language-manager'
+      preLoaderRoute: typeof LanguageManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lead-manager': {
@@ -5483,6 +5542,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGovernanceConsoleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/i18n/admin': {
+      id: '/api/i18n/admin'
+      path: '/api/i18n/admin'
+      fullPath: '/api/i18n/admin'
+      preLoaderRoute: typeof ApiI18nAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/i18n/jobs': {
+      id: '/api/i18n/jobs'
+      path: '/api/i18n/jobs'
+      fullPath: '/api/i18n/jobs'
+      preLoaderRoute: typeof ApiI18nJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/i18n/pack': {
+      id: '/api/i18n/pack'
+      path: '/api/i18n/pack'
+      fullPath: '/api/i18n/pack'
+      preLoaderRoute: typeof ApiI18nPackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/internal/apply-migrations': {
       id: '/api/internal/apply-migrations'
       path: '/api/internal/apply-migrations'
@@ -6405,6 +6485,7 @@ const rootRouteChildren: RootRouteChildren = {
   InfluencerManagerRoute: InfluencerManagerRoute,
   InternalSupportAiRoute: InternalSupportAiRoute,
   KeywordsRoute: KeywordsRoute,
+  LanguageManagerRoute: LanguageManagerRoute,
   LeadManagerRoute: LeadManagerRouteWithChildren,
   LegalManagerRoute: LegalManagerRoute,
   LoginRoute: LoginRoute,
@@ -6465,6 +6546,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDemoTicketRoute: ApiDemoTicketRoute,
   ApiFinanceResellerMembershipRoute: ApiFinanceResellerMembershipRoute,
   ApiGovernanceConsoleRoute: ApiGovernanceConsoleRoute,
+  ApiI18nAdminRoute: ApiI18nAdminRoute,
+  ApiI18nJobsRoute: ApiI18nJobsRoute,
+  ApiI18nPackRoute: ApiI18nPackRoute,
   ApiInternalApplyMigrationsRoute: ApiInternalApplyMigrationsRoute,
   ApiInternalApplyResellerSchemaRoute: ApiInternalApplyResellerSchemaRoute,
   ApiInternalAuthorReviewRoute: ApiInternalAuthorReviewRoute,

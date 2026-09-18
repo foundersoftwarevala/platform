@@ -1,3 +1,4 @@
+import { looksLikeProductName } from "./names";
 import { TranslationEngine } from "./engine/engine";
 import {
   EngineUnavailableError,
@@ -52,43 +53,6 @@ const TERM_TOKEN = /⟦T\d+⟧/g;
  */
 function hasWordsToTranslate(masked: string): boolean {
   return /\p{L}/u.test(masked.replace(TERM_TOKEN, " "));
-}
-
-/** A word carrying a capital inside it: EduNex, OTScheduler, PharmaStock. */
-const COINED_WORD = /^\p{Lu}[\p{L}\d]*\p{Lu}[\p{L}\d]*$/u;
-/** A plain capitalised word or something with no letters at all (2026, +, ·). */
-const NAME_COMPANION = /^(\p{Lu}[\p{Ll}\d]*|[^\p{L}]+)$/u;
-
-/**
- * Is the whole string the name of a product?
- *
- * The marketplace lists names its sellers coined — "OTScheduler", "EduNex
- * Pro", "InventoryEdu Suite" — and those are not translated in any language:
- * a model asked to translate them returns them unchanged, which the quality
- * gate then reports as an untranslated answer in the wrong script. Every
- * visit in such a language paid for that again and filled the review queue
- * with names no reviewer can act on.
- *
- * A name is recognised conservatively: at most four words, none of them
- * lower-case, at least one carrying a capital inside it, and no sentence
- * punctuation. "12,000+ Software Solutions" is a sentence by that measure and
- * is still translated; the glossary remains the place for names without an
- * inner capital, such as "Software Vala".
- */
-export function looksLikeProductName(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed || /[.,;:!?]$/.test(trimmed)) return false;
-  const words = trimmed.split(/\s+/);
-  if (words.length > 4) return false;
-  let coined = false;
-  for (const word of words) {
-    if (COINED_WORD.test(word)) {
-      coined = true;
-      continue;
-    }
-    if (!NAME_COMPANION.test(word)) return false;
-  }
-  return coined;
 }
 
 /** Statuses a memory row can have (see the migration for their meaning). */
@@ -349,17 +313,7 @@ export async function runTranslationPipeline(
   if (misses.length === 0) return result({});
   if (request.memoryOnly) return result({ pendingReason: "memory_only" });
 
-  // 5. Cost control, before any engine work.
-  if (deps.quota) {
-    const units = misses.reduce((sum, text) => sum + text.length, 0);
-    if (!(await deps.quota(units))) {
-      if (byText.size === 0)
-        throw new PipelineError("quota_exceeded", "Translation limit reached.");
-      return result({ pendingReason: "quota_exceeded" });
-    }
-  }
-
-  // 6. Terminology.
+  // 5. Terminology.
   let terms: GlossaryTerm[] = [];
   if (deps.glossary && source) {
     try {
@@ -409,6 +363,18 @@ export async function runTranslationPipeline(
     segments.push({ id, text: guarded.text, namespace, context });
   });
   if (segments.length === 0) return result({});
+
+  // 6. Cost control, for the text that really goes to the engine. Brand and
+  // product names answered above cost nothing, and charging them meant a
+  // quota round trip to the database on every page batch that contained one.
+  if (deps.quota) {
+    const units = segments.reduce((sum, segment) => sum + segment.text.length, 0);
+    if (!(await deps.quota(units))) {
+      if (byText.size === 0)
+        throw new PipelineError("quota_exceeded", "Translation limit reached.");
+      return result({ pendingReason: "quota_exceeded" });
+    }
+  }
 
   // 7. Engine.
   let response;
@@ -510,3 +476,4 @@ function pendingOutcome(text: string): SegmentOutcome {
     issues: [],
   };
 }
+export { looksLikeProductName } from "./names";

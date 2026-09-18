@@ -33,6 +33,14 @@ describe("isTranslatableText", () => {
     ["v1", false],
     ["#12", false],
     ["⟦P0⟧", false],
+    // Already in the visitor's language: never sent back as English.
+    ["החל עכשיו", false],
+    ["לוח שנה", false],
+    ["केवल सत्यापित विक्रेता", false],
+    ["計算器", false],
+    ["Software Vala ארנק דיגיטלי חכם", false],
+    // English with a foreign word in it is still English.
+    ["Welcome to Kathmandu, नेपाल", true],
   ])("%j -> %s", (value, expected) => {
     expect(isTranslatableText(value)).toBe(expected);
   });

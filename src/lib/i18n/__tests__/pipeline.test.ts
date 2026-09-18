@@ -613,6 +613,24 @@ describe("glossary-only strings", () => {
 });
 
 describe("product names", () => {
+  it("charges the quota only for text that goes to the engine", async () => {
+    const provider = dictionaryProvider();
+    const quota = vi.fn(async () => true);
+    const onlyNames = await runTranslationPipeline(
+      { texts: ["EduNex Pro", "OTScheduler"], source: "en", target: "hi" },
+      { engine: engineWith(provider), quota },
+    );
+    expect(onlyNames.outcomes.map((o) => o.translation)).toEqual(["EduNex Pro", "OTScheduler"]);
+    expect(quota).not.toHaveBeenCalled();
+
+    await runTranslationPipeline(
+      { texts: ["EduNex Pro", "Apply Now"], source: "en", target: "hi" },
+      { engine: engineWith(provider), quota },
+    );
+    expect(quota).toHaveBeenCalledTimes(1);
+    expect(quota).toHaveBeenCalledWith("Apply Now".length);
+  });
+
   it("recognises a coined name and leaves a sentence alone", () => {
     for (const name of ["OTScheduler", "EduNex Pro", "InventoryEdu Suite", "PharmaStock 2026"]) {
       expect(looksLikeProductName(name)).toBe(true);

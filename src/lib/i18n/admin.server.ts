@@ -7,6 +7,8 @@ import {
   db,
   getTranslationEngine,
   invalidateLanguageOverrides,
+  invalidateTranslationCaches,
+  translationCacheStats,
   resolveCaller,
   type Caller,
 } from "./service.server";
@@ -55,6 +57,55 @@ export async function engineStatus(): Promise<Record<string, unknown>> {
   } catch (error) {
     return { configured: true, reachable: false, error: String(error), providers };
   }
+}
+
+/** The engine's own counters (Prometheus text from its /metrics), as name -> value. */
+async function engineCounters(): Promise<Record<string, number> | null> {
+  const endpoint = process.env.TRANSLATE_PROVIDER_URL?.trim();
+  if (!endpoint) return null;
+  try {
+    const token = process.env.TRANSLATE_PROVIDER_TOKEN?.trim();
+    const response = await fetch(new URL("/metrics", new URL(endpoint)), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) return null;
+    const counters: Record<string, number> = {};
+    for (const line of (await response.text()).split("\n")) {
+      if (!line.startsWith("svt_")) continue;
+      const cut = line.lastIndexOf(" ");
+      const value = Number(line.slice(cut + 1));
+      if (Number.isFinite(value)) counters[line.slice(0, cut)] = value;
+    }
+    return counters;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Live measurements: this server's request rates, latency percentiles, cache
+ * hit ratios, memory and event-loop delay; the job queue and how long the
+ * database takes to answer; the engine's readiness and counters. Read by the
+ * Language Manager and by the host's health check (deploy/i18n-health.sh).
+ */
+export async function metrics() {
+  const { metricsSnapshot } = await import("./metrics.server");
+  const client = database();
+  const started = performance.now();
+  const jobs = await client.rpc("i18n_job_summary");
+  const databaseMs = Math.round(performance.now() - started);
+  const queue: Record<string, number> = {};
+  for (const row of (jobs.data ?? []) as { status: string; jobs: number }[]) {
+    queue[row.status] = (queue[row.status] ?? 0) + Number(row.jobs);
+  }
+  const [engine, counters] = await Promise.all([engineStatus(), engineCounters()]);
+  return {
+    app: metricsSnapshot(translationCacheStats()),
+    database: { reachable: !jobs.error, latencyMs: databaseMs },
+    queue,
+    engine: { ...engine, counters },
+  };
 }
 
 export async function overview() {
@@ -254,6 +305,7 @@ export async function performAction(body: unknown, caller: Caller) {
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) throw new Error("Translation not found.");
+      invalidateTranslationCaches();
       return data;
     }
     case "set_language_enabled": {
@@ -267,6 +319,7 @@ export async function performAction(body: unknown, caller: Caller) {
         .eq("code", language.code);
       if (error) throw new Error(error.message);
       invalidateLanguageOverrides();
+      invalidateTranslationCaches();
       return { code: language.code, enabled: input.enabled };
     }
     case "glossary_save": {
@@ -291,6 +344,7 @@ export async function performAction(body: unknown, caller: Caller) {
             .maybeSingle()
         : await client.from("i18n_glossary_terms").insert(row).select().maybeSingle();
       if (error) throw new Error(error.message);
+      invalidateTranslationCaches();
       return data;
     }
   }

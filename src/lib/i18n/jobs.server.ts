@@ -1,3 +1,5 @@
+import { cpus, loadavg } from "node:os";
+
 import { contextHash, sourceHash } from "./hash";
 import { PipelineError, runTranslationPipeline } from "./pipeline";
 import {
@@ -15,6 +17,7 @@ import {
   log,
 } from "./service.server";
 import { UI_DICTIONARY } from "./ui-dictionary";
+import { count } from "./metrics.server";
 
 /**
  * Background translation.
@@ -32,8 +35,10 @@ import { UI_DICTIONARY } from "./ui-dictionary";
 
 /** Identifies this worker while it holds a job lease. One per process. */
 const WORKER_ID = `worker-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
-const BATCH = 8;
-const INTERVAL_MS = 30_000;
+// Jobs claimed per batch. The engine decodes eight segments at a time and lets
+// interactive requests in between, so a larger claim only spreads the claim,
+// memory lookup and bookkeeping round trips over more jobs.
+const BATCH = 24;
 
 export type EnqueueItem = {
   text: string;
@@ -235,24 +240,27 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
           },
         );
         const byText = new Map(result.outcomes.map((o) => [o.text, o]));
-        for (const job of group) {
-          const outcome = byText.get(job.source_text.trim());
-          if (!outcome || outcome.status === "pending") {
-            await finish(job, false, "pending", null, result.pendingReason ?? "not translated");
-          } else {
-            await finish(
+        // Outcomes are recorded together: each is its own round trip to the
+        // database, and one after another they cost more than the translation.
+        await Promise.all(
+          group.map((job) => {
+            const outcome = byText.get(job.source_text.trim());
+            if (!outcome || outcome.status === "pending") {
+              return finish(job, false, "pending", null, result.pendingReason ?? "not translated");
+            }
+            return finish(
               job,
               true,
               outcome.status,
               outcome.qualityScore,
               outcome.issues.join(",") || null,
             );
-          }
-        }
+          }),
+        );
       } catch (err) {
         const message =
           err instanceof PipelineError ? `${err.reason}: ${err.message}` : String(err);
-        for (const job of group) await finish(job, false, null, null, message);
+        await Promise.all(group.map((job) => finish(job, false, null, null, message)));
       }
     }
     return { claimed: jobs.length, done, retried, skipped: false };
@@ -261,17 +269,75 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
   }
 }
 
-let timer: ReturnType<typeof setInterval> | null = null;
+let timer: ReturnType<typeof setTimeout> | null = null;
+
+/** Poll interval while the queue is empty. */
+const IDLE_POLL_MS = 30_000;
+/** Pause after finding the host busy. */
+const BUSY_PAUSE_MS = 60_000;
+/** Gap between batches while there is work. */
+const BUSY_QUEUE_GAP_MS = 1_000;
+
+/**
+ * Background translation shares the host with the site, and the engine is
+ * CPU-bound. The worker yields when the one-minute load average is above this
+ * (default: 80 % of the host's CPUs; I18N_JOB_MAX_LOAD overrides), so a
+ * traffic spike gets the CPU and pre-translation continues afterwards.
+ */
+function hostBusyThreshold(): number {
+  const configured = Number(process.env.I18N_JOB_MAX_LOAD);
+  if (Number.isFinite(configured) && configured > 0) return configured;
+  return Math.max(1, cpus().length * 0.8);
+}
+
+const PRUNE_EVERY_MS = 60 * 60_000;
+let lastPrune = 0;
+
+/** Hourly: delete finished jobs and old quota windows (public.i18n_prune). */
+async function pruneIfDue() {
+  if (Date.now() - lastPrune < PRUNE_EVERY_MS) return;
+  lastPrune = Date.now();
+  const client = db();
+  if (!client) return;
+  const { data, error } = await client.rpc("i18n_prune");
+  if (error) {
+    log("[i18n] prune failed", error.message);
+    return;
+  }
+  const row = (Array.isArray(data) ? data[0] : data) as
+    { jobs_deleted?: number; quota_windows_deleted?: number } | undefined;
+  count("jobs.pruned", Number(row?.jobs_deleted ?? 0));
+  count("quota.windows_pruned", Number(row?.quota_windows_deleted ?? 0));
+}
+
+async function workerTick() {
+  let delay = IDLE_POLL_MS;
+  try {
+    await pruneIfDue();
+    const [oneMinute = 0] = loadavg();
+    if (oneMinute > hostBusyThreshold()) {
+      count("jobs.paused_host_busy");
+      delay = BUSY_PAUSE_MS;
+    } else {
+      const outcome = await runJobBatch();
+      if (outcome.claimed > 0) delay = BUSY_QUEUE_GAP_MS;
+    }
+  } catch (err) {
+    log("[i18n] job batch failed", err);
+  }
+  timer = setTimeout(() => void workerTick(), delay);
+  // On Node the handle can be unreferenced so it never holds the process open.
+  (timer as unknown as { unref?: () => void }).unref?.();
+}
 
 /**
  * Start the in-process worker once. Off when I18N_JOB_WORKER=off, so an
  * instance can be excluded (e.g. a second replica that should only serve).
+ * It works the queue batch after batch while there is work and the host has
+ * CPU to spare, and checks for new work every 30 seconds otherwise.
  */
 export function ensureJobWorker() {
-  if (timer || process.env.I18N_JOB_WORKER === "off" || typeof setInterval !== "function") return;
-  timer = setInterval(() => {
-    runJobBatch().catch((err) => log("[i18n] job batch failed", err));
-  }, INTERVAL_MS);
-  // On Node the handle can be unreferenced so it never holds the process open.
+  if (timer || process.env.I18N_JOB_WORKER === "off" || typeof setTimeout !== "function") return;
+  timer = setTimeout(() => void workerTick(), BUSY_QUEUE_GAP_MS);
   (timer as unknown as { unref?: () => void }).unref?.();
 }
