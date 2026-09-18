@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   /**
    * Where to put somebody down once they are signed in.
@@ -80,13 +82,13 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        toast.success("Account created. Check your inbox if confirmation is required.");
+        toast.success(t("auth.account_created"));
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Authentication failed");
+      toast.error(error instanceof Error ? error.message : t("auth.error.failed"));
     } finally {
       setBusy(false);
     }
@@ -99,22 +101,22 @@ function AuthPage() {
           <div className="mx-auto grid size-11 place-items-center rounded-xl bg-primary/15 text-primary">
             <ShieldCheck className="size-5" />
           </div>
-          <h1 className="mt-3 text-lg font-semibold">Software Vala Connect</h1>
-          <p className="text-xs text-muted-foreground">Enterprise-grade, immutable team messaging.</p>
+          <h1 translate="no" className="mt-3 text-lg font-semibold">Software Vala Connect</h1>
+          <p className="text-xs text-muted-foreground">{t("auth.connect.intro")}</p>
         </div>
 
         <form onSubmit={submit} className="space-y-3">
           {mode === "signup" ? (
             <div className="space-y-1">
               <Label htmlFor="name" className="text-xs">
-                Display name
+                {t("auth.display_name")}
               </Label>
               <Input id="name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="h-9" />
             </div>
           ) : null}
           <div className="space-y-1">
             <Label htmlFor="email" className="text-xs">
-              Work email
+              {t("auth.work_email")}
             </Label>
             <Input
               id="email"
@@ -128,7 +130,7 @@ function AuthPage() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="password" className="text-xs">
-              Password
+              {t("auth.password")}
             </Label>
             <Input
               id="password"
@@ -142,7 +144,7 @@ function AuthPage() {
             />
           </div>
           <Button type="submit" className="h-9 w-full" disabled={busy}>
-            {busy ? <Loader2 className="size-4 animate-spin" /> : mode === "signin" ? "Sign in" : "Create account"}
+            {busy ? <Loader2 className="size-4 animate-spin" /> : mode === "signin" ? t("auth.sign_in") : t("auth.create_account")}
           </Button>
         </form>
 
@@ -151,7 +153,7 @@ function AuthPage() {
           className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground"
           onClick={() => setMode((m) => (m === "signin" ? "signup" : "signin"))}
         >
-          {mode === "signin" ? "No account? Create one" : "Already have an account? Sign in"}
+          {mode === "signin" ? t("auth.switch_to_sign_up") : t("auth.switch_to_sign_in")}
         </button>
       </div>
       <Toaster />

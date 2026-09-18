@@ -3,8 +3,12 @@
 One registry, one language service, one translation pipeline, one engine
 interface. 140 languages, translated by the platform's own engine.
 
+**Writing code that shows text? Read [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)**:
+`const { t } = useTranslation(); t("module.key", { count })`, keys in
+`messages/<module>.ts`, `serverTranslator()` for e-mails, `npm run i18n:check`.
+
 ```
- UI:  t("Apply Now")                      useLanguage() in language-catalog.ts
+ UI:  t("checkout.pay_now")               use-translation.ts -> useLanguage() in language-catalog.ts
         |                                    1. reviewed dictionary (ui-dictionary.ts)
         |                                    2. strings already received (localStorage)
         |                                    3. the language's fallback chain
@@ -26,6 +30,10 @@ interface. 140 languages, translated by the platform's own engine.
 
 | File | What it is |
 |---|---|
+| `use-translation.ts` | The API: `useTranslation()` (`t`, formatters), `richText`, `<Msg>`. |
+| `messages/` | The keyed catalogue: English source per module; the module is the translation context. |
+| `server-translate.server.ts` | `serverTranslator()` and `languageOf()` for e-mails and other server text. |
+| `DEVELOPER_GUIDE.md` | How to use all of the above. |
 | `registry.ts` | The 140 supported languages and 5 retired ones: codes, scripts, direction, formatting and plural locales, fallback chains, aliases, old catalogue codes. Everything resolves through `resolveLanguage`. |
 | `language-service.ts` | The visitor's language: get, set, validate, detect from the browser, persist (localStorage + cookie), write `<html lang dir>`, and the pre-paint boot script. |
 | `ui-dictionary.ts` | Reviewed interface text. `en` is the source catalogue; 11 other languages are partly covered. |

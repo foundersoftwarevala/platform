@@ -12,6 +12,41 @@
  * later. No message is ever reported as sent when it was not.
  */
 
+import { formatMessage } from "@/lib/i18n/format";
+import { messageText } from "@/lib/i18n/messages";
+import { getDirection } from "@/lib/i18n/registry";
+import type { ServerT } from "@/lib/i18n/server-translate.server";
+
+/**
+ * The language a customer e-mail is written in: t() from serverTranslator()
+ * (src/lib/i18n/server-translate.server.ts) and the language code, for the
+ * text direction. English when the caller has none.
+ */
+export type MailLanguage = { t: ServerT; lang: string };
+
+const ENGLISH: MailLanguage = {
+  t: (key, variables) => {
+    const text = messageText(key) ?? key;
+    return variables ? formatMessage(text, variables, "en") : text;
+  },
+  lang: "en",
+};
+
+/** Text from the customer (a name, a product) is data, not markup. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** The opening tag of a customer e-mail, with the language and direction set. */
+function mailRoot(lang: string): string {
+  return `<div lang="${escapeHtml(lang)}" dir="${getDirection(lang)}" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111">`;
+}
+
 export type Message = {
   to: string;
   subject: string;
@@ -308,32 +343,35 @@ const ACTION_WORDS: Record<string, string> = {
 };
 
 /** What the visitor gets, so an enquiry is never met with silence. */
-export function leadAcknowledgementEmail(input: {
-  name: string; productName: string | null; action: string;
-}): Message {
+export function leadAcknowledgementEmail(
+  input: { name: string; productName: string | null; action: string },
+  language: MailLanguage = ENGLISH,
+): Message {
   const { name, productName, action } = input;
-  const asked = ACTION_WORDS[action] ?? "more information";
-  const about = productName ? ` about ${productName}` : "";
+  const { t, lang } = language;
+  const phone = "+91 83488 38383";
+  const thanks = productName
+    ? t("email.lead.thanks_product", { action, product: productName })
+    : t("email.lead.thanks", { action });
   return {
     to: "",
     subject: productName
-      ? `We have your request — ${productName}`
-      : "We have your request — Software Vala",
+      ? t("email.lead.subject_product", { product: productName })
+      : t("email.lead.subject"),
     text:
-      `Hello ${name},\n\nThank you for asking for ${asked}${about}.\n\n` +
-      `Our team has your request and will come back to you on this email and on ` +
-      `WhatsApp. If it is urgent, message us directly on WhatsApp +91 83488 38383.\n\n` +
+      `${t("email.hello", { name })}\n\n${thanks}\n\n` +
+      `${t("email.lead.follow_up")} ${t("email.lead.urgent", { phone })}\n\n` +
       `Software Vala`,
-    html: `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111">
-  <h1 style="margin:0 0 4px;font-size:20px">We have your request</h1>
-  <p style="margin:0 0 20px;color:#555;font-size:14px">Hello ${name}, thank you for asking for ${asked}${about}.</p>
+    html: `${mailRoot(lang)}
+  <h1 style="margin:0 0 4px;font-size:20px">${escapeHtml(t("email.lead.heading"))}</h1>
+  <p style="margin:0 0 20px;color:#555;font-size:14px">${escapeHtml(t("email.hello", { name }))} ${escapeHtml(thanks)}</p>
   <p style="font-size:14px;line-height:1.6;color:#333">
-    Our team has your request and will come back to you on this email and on WhatsApp.
+    ${escapeHtml(t("email.lead.follow_up"))}
   </p>
-  <p style="font-size:14px;color:#333">WhatsApp <a href="https://wa.me/918348838383">+91 83488 38383</a></p>
+  <p style="font-size:14px;color:#333">WhatsApp <a href="https://wa.me/918348838383">${phone}</a></p>
   <p style="margin-top:24px;font-size:12px;color:#9ca3af">Software Vala — The Name of Trust</p>
 </div>`,
-    context: { kind: "lead_acknowledgement", action },
+    context: { kind: "lead_acknowledgement", action, language: lang },
   };
 }
 
@@ -359,9 +397,9 @@ export function leadNotificationEmail(input: {
     html: `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111">
   <h1 style="margin:0 0 16px;font-size:18px">New lead</h1>
   <table style="border-collapse:collapse;font-size:14px">
-    ${rows.map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#6b7280">${k}</td><td style="padding:4px 0"><strong>${v}</strong></td></tr>`).join("")}
+    ${rows.map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#6b7280">${k}</td><td style="padding:4px 0"><strong>${escapeHtml(v)}</strong></td></tr>`).join("")}
   </table>
-  ${requirements ? `<p style="margin-top:16px;font-size:14px;white-space:pre-wrap;color:#333">${requirements}</p>` : ""}
+  ${requirements ? `<p style="margin-top:16px;font-size:14px;white-space:pre-wrap;color:#333">${escapeHtml(requirements)}</p>` : ""}
   <p style="margin-top:20px;font-size:12px;color:#9ca3af">Lead Manager — Software Vala</p>
 </div>`,
     context: { kind: "lead_notification", action, lead_id: leadId },
@@ -369,34 +407,35 @@ export function leadNotificationEmail(input: {
 }
 
 /** The message a buyer gets once their licence exists. */
-export function licenceEmail(input: {
-  name: string; productName: string; licenceKey: string; orderNo?: string | null;
-}): Message {
+export function licenceEmail(
+  input: { name: string; productName: string; licenceKey: string; orderNo?: string | null },
+  language: MailLanguage = ENGLISH,
+): Message {
   const { name, productName, licenceKey, orderNo } = input;
+  const { t, lang } = language;
   return {
     to: "",
-    subject: `Your ${productName} licence — Software Vala`,
+    subject: t("email.licence.subject", { product: productName }),
     text:
-      `Hello ${name},\n\nYour payment is confirmed and your licence is ready.\n\n` +
-      `Licence key: ${licenceKey}\n${orderNo ? `Order: ${orderNo}\n` : ""}\n` +
-      `Our team will contact you on this email and on WhatsApp to collect your domain, ` +
-      `hosting and branding, and to complete the setup for you.\n\n` +
+      `${t("email.hello", { name })}\n\n${t("email.licence.confirmed")}\n\n` +
+      `${t("email.licence.key", { key: licenceKey })}\n` +
+      `${orderNo ? `${t("email.licence.order", { order: orderNo })}\n` : ""}\n` +
+      `${t("email.licence.next_steps")}\n\n` +
       `WhatsApp: +91 83488 38383\nSoftware Vala`,
-    html: `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111">
-  <h1 style="margin:0 0 4px;font-size:20px">Your licence is ready</h1>
-  <p style="margin:0 0 20px;color:#555;font-size:14px">Hello ${name}, your payment is confirmed.</p>
+    html: `${mailRoot(lang)}
+  <h1 style="margin:0 0 4px;font-size:20px">${escapeHtml(t("email.licence.heading"))}</h1>
+  <p style="margin:0 0 20px;color:#555;font-size:14px">${escapeHtml(t("email.licence.greeting", { name }))}</p>
   <div style="border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:20px">
-    <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280">${productName}</p>
-    <p style="margin:6px 0 0;font-family:ui-monospace,monospace;font-size:16px;font-weight:700">${licenceKey}</p>
-    ${orderNo ? `<p style="margin:8px 0 0;font-size:12px;color:#6b7280">Order ${orderNo}</p>` : ""}
+    <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280">${escapeHtml(productName)}</p>
+    <p dir="ltr" style="margin:6px 0 0;font-family:ui-monospace,monospace;font-size:16px;font-weight:700">${escapeHtml(licenceKey)}</p>
+    ${orderNo ? `<p style="margin:8px 0 0;font-size:12px;color:#6b7280">${escapeHtml(t("email.licence.order", { order: orderNo }))}</p>` : ""}
   </div>
   <p style="font-size:14px;line-height:1.6;color:#333">
-    Our team will contact you on this email and on WhatsApp to collect your domain,
-    hosting and branding, and to complete the setup for you.
+    ${escapeHtml(t("email.licence.next_steps"))}
   </p>
   <p style="font-size:14px;color:#333">WhatsApp <a href="https://wa.me/918348838383">+91 83488 38383</a></p>
   <p style="margin-top:24px;font-size:12px;color:#9ca3af">Software Vala — The Name of Trust</p>
 </div>`,
-    context: { licence_key: licenceKey, order_no: orderNo ?? null },
+    context: { licence_key: licenceKey, order_no: orderNo ?? null, language: lang },
   };
 }

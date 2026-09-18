@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-import { enqueueCatalogue, enqueueJobs, runJobBatch, translatableLanguages } from "./jobs.server";
+import {
+  enqueueCatalogue,
+  enqueueJobs,
+  runJobBatch,
+  syncMessageCatalogue,
+  translatableLanguages,
+} from "./jobs.server";
 import { NAMESPACE_PATTERN } from "./pipeline";
 import { DICTIONARY_LANGUAGES, SUPPORTED_LANGUAGES, getLanguage } from "./registry";
 import {
@@ -238,7 +244,10 @@ const action = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("review"),
     id: z.string().uuid(),
-    decision: z.enum(["verify", "reject", "reopen"]),
+    // verify = approve (edited text is saved as the reviewer's), reject,
+    // reopen = back to needs_review, retranslate = ask the engine again,
+    // lock = approve and make it this language's required terminology.
+    decision: z.enum(["verify", "reject", "reopen", "retranslate", "lock"]),
     text: z.string().min(1).max(10000).optional(),
   }),
   z.object({
@@ -247,6 +256,7 @@ const action = z.discriminatedUnion("action", [
     enabled: z.boolean(),
   }),
   z.object({ action: z.literal("glossary_save"), term: glossaryTerm }),
+  z.object({ action: z.literal("sync_messages") }),
 ]);
 
 export async function performAction(body: unknown, caller: Caller) {
@@ -274,8 +284,13 @@ export async function performAction(body: unknown, caller: Caller) {
     }
     case "run_jobs":
       return runJobBatch(input.limit);
+    case "sync_messages":
+      return syncMessageCatalogue({ requestedBy: caller.userId });
     case "review": {
       const now = new Date().toISOString();
+      if (input.decision === "retranslate" || input.decision === "lock") {
+        return reviewAction(input.decision, input.id, input.text, caller, now);
+      }
       // review_note marks this as a person's decision; the database lets only
       // such writes change a verified or rejected row.
       const note = `${input.decision} by ${caller.userId ?? "operator"} at ${now}`;
@@ -348,4 +363,125 @@ export async function performAction(body: unknown, caller: Caller) {
       return data;
     }
   }
+}
+
+/** Longest string that can be locked as terminology (the glossary's limit). */
+const LOCKABLE_LENGTH = 200;
+
+/**
+ * Re-translate and Lock, from the review queue.
+ *
+ * Re-translate marks the row stale (not served) and queues it ahead of other
+ * work; the worker translates it again and the result goes through the quality
+ * gate as usual. A verified row is a person's decision and is not re-translated:
+ * reopen it first.
+ *
+ * Lock approves the translation (with the reviewer's edit, if any) and saves it
+ * as approved, preferred terminology for that language, so the same English is
+ * translated this way wherever it appears. Only short strings - terms and
+ * labels - can be locked.
+ */
+async function reviewAction(
+  decision: "retranslate" | "lock",
+  id: string,
+  text: string | undefined,
+  caller: Caller,
+  now: string,
+) {
+  const client = database();
+  const { data: row, error } = await client
+    .from("marketplace_translations")
+    .select(
+      "id, status, source_text, translated_text, target_language, namespace, context, source_hash, context_hash",
+    )
+    .eq("id", id)
+    .not("target_language", "is", null)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!row) throw new Error("Translation not found.");
+  const note = `${decision} by ${caller.userId ?? "operator"} at ${now}`;
+
+  if (decision === "retranslate") {
+    if (row.status === "verified")
+      throw new Error("A verified translation is locked. Reopen it first to translate it again.");
+    const { error: updateError } = await client
+      .from("marketplace_translations")
+      .update({ status: "stale", review_note: note })
+      .eq("id", row.id);
+    if (updateError) throw new Error(updateError.message);
+    const queued = await enqueueJobs(
+      [
+        {
+          text: String(row.source_text),
+          target: String(row.target_language),
+          namespace: String(row.namespace),
+          context: (row.context as string | null) ?? null,
+          priority: 1,
+        },
+      ],
+      caller.userId,
+    );
+    // Already queued (the catalogue sync queues every message): move it ahead.
+    const { data: raised, error: raiseError } = await client
+      .from("i18n_translation_jobs")
+      .update({ priority: 1 })
+      .eq("source_hash", row.source_hash)
+      .eq("target_language", row.target_language)
+      .eq("context_hash", row.context_hash)
+      .eq("status", "queued")
+      .select("id");
+    if (raiseError) throw new Error(raiseError.message);
+    invalidateTranslationCaches();
+    // The update also finds a job inserted just now; count each job once.
+    return { id: row.id, status: "stale", queued: Math.max(queued, raised?.length ?? 0) };
+  }
+
+  const source = String(row.source_text);
+  const translation = (text ?? String(row.translated_text ?? "")).trim();
+  if (!translation) throw new Error("There is no translation to lock.");
+  if (source.length > LOCKABLE_LENGTH)
+    throw new Error(
+      `Only terms and labels up to ${LOCKABLE_LENGTH} characters can be locked. Verify this translation instead.`,
+    );
+  const { data: verified, error: verifyError } = await client
+    .from("marketplace_translations")
+    .update({
+      status: "verified",
+      reviewed_by: caller.userId,
+      reviewed_at: now,
+      review_note: note,
+      ...(text !== undefined ? { translated_text: translation, engine: "human" } : {}),
+    })
+    .eq("id", row.id)
+    .select("id, status, translated_text, version")
+    .maybeSingle();
+  if (verifyError) throw new Error(verifyError.message);
+
+  const term = {
+    source_term: source,
+    target_term: translation,
+    source_language: "en",
+    target_language: row.target_language,
+    rule: "preferred",
+    case_sensitive: true,
+    namespace: row.namespace,
+    status: "approved",
+    approved_by: caller.userId,
+    approved_at: now,
+    notes: `Locked from the review queue (${row.context ? `context: ${row.context}` : "no context"}).`,
+  };
+  const { data: existing, error: findError } = await client
+    .from("i18n_glossary_terms")
+    .select("id")
+    .eq("source_term", source)
+    .eq("target_language", row.target_language)
+    .eq("namespace", row.namespace)
+    .maybeSingle();
+  if (findError) throw new Error(findError.message);
+  const saved = existing
+    ? await client.from("i18n_glossary_terms").update(term).eq("id", existing.id)
+    : await client.from("i18n_glossary_terms").insert({ ...term, created_by: caller.userId });
+  if (saved.error) throw new Error(saved.error.message);
+  invalidateTranslationCaches();
+  return { ...(verified ?? { id: row.id }), locked: true };
 }

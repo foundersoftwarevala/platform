@@ -20,6 +20,38 @@ def test_mask_and_unmask_every_placeholder_kind():
     assert restored == source and missing == []
 
 
+def test_mask_protects_currencies_and_codes_when_asked():
+    source = "Pay ₹1,299 or USD 15 for SV-1042 (SKU42, INV-2026-0001) on x86_64."
+    assert tx.mask(source).originals == []
+    masked = tx.mask(source, literals=True)
+    assert masked.originals == ["₹1,299", "USD", "SV-1042", "SKU42", "INV-2026-0001", "x86_64"]
+    assert tx.unmask(masked.text, masked.originals)[0] == source
+
+
+def test_mask_leaves_ordinary_words_alone():
+    # Words that only look like codes: lower case, hyphenated without digits,
+    # plain numbers, and English words spelled like currency codes.
+    for text in ("Try the well-known e-mail flow", "Top 10 tools in 2026", "try again"):
+        assert tx.mask(text, literals=True).originals == []
+
+
+def test_lost_literals_names_what_the_translation_changed():
+    source = "Pay ₹1,299 or USD 15 for SV-1042."
+    assert tx.lost_literals(source, "Payez ₹1,299 ou USD 15 pour SV-1042.") == []
+    assert tx.lost_literals(source, "Payez 1 300 roupies ou 15 dollars pour SV-1042.") == ["₹1,299", "USD"]
+    # A localised number keeps the value: fine. A changed code is not.
+    assert tx.lost_literals(source, "Заплатите 1 299 ₹ или USD 15 за SV-1042.") == []
+    assert tx.lost_literals(source, "Payez ₹1,299 ou USD 15 pour SV 1042.") == ["SV-1042"]
+    # The symbol dropped, or another currency: lost.
+    assert tx.lost_literals(source, "Payez 1,299 ou USD 15 pour SV-1042.") == ["₹1,299"]
+    assert tx.lost_literals(source, "Payez $1,299 ou USD 15 pour SV-1042.") == ["₹1,299"]
+
+
+def test_mask_can_protect_only_some_literals():
+    masked = tx.mask("Pay ₹1,299 or USD 15 for SV-1042.", literals=["USD"])
+    assert masked.originals == ["USD"]
+
+
 def test_unmask_reports_lost_tokens_and_tolerates_spacing():
     masked = tx.mask("Hello {name} and {other}")
     restored, missing = tx.unmask("Hola ⟦ P0 ⟧", masked.originals)

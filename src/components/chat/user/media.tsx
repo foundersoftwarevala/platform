@@ -5,11 +5,15 @@ import { Button } from "@/components/ui/button";
 import { createSignedUrl } from "@/services/chat/chat-service";
 import { formatBytes, type Attachment } from "@/services/chat/types";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 /** Signed URL resolver for private storage objects, refreshed before expiry. */
 export function useSignedUrl(bucket: string, path: string | null | undefined) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // `message` is null when the failure carried no message of its own; the
+  // fallback text is chosen at render time so it follows the language.
+  const [error, setError] = useState<{ message: string | null } | null>(null);
 
   useEffect(() => {
     if (!path) {
@@ -25,7 +29,7 @@ export function useSignedUrl(bucket: string, path: string | null | undefined) {
           setError(null);
         }
       } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : "Could not load file");
+        if (active) setError({ message: err instanceof Error ? err.message : null });
       }
     };
     void load();
@@ -36,7 +40,7 @@ export function useSignedUrl(bucket: string, path: string | null | undefined) {
     };
   }, [bucket, path]);
 
-  return { url, error };
+  return { url, error: error ? (error.message ?? t("chat.media.load_failed")) : null };
 }
 
 export function UserAvatar({
@@ -50,6 +54,7 @@ export function UserAvatar({
   className?: string | undefined;
   presence?: string | undefined;
 }) {
+  const { t } = useTranslation();
   const { url } = useSignedUrl("avatars", avatarPath ?? null);
   const initials = name
     .split(" ")
@@ -62,12 +67,12 @@ export function UserAvatar({
   return (
     <span className="relative inline-flex shrink-0">
       <Avatar className={cn("size-10 border border-border/70", className)}>
-        {url ? <AvatarImage src={url} alt={`${name} profile photo`} /> : null}
+        {url ? <AvatarImage src={url} alt={t("chat.media.profile_photo", { name })} /> : null}
         <AvatarFallback className="bg-secondary text-xs font-semibold">{initials || "?"}</AvatarFallback>
       </Avatar>
       {presence ? (
         <span
-          aria-label={`${name} is ${presence}`}
+          aria-label={t("chat.media.presence", { name, presence })}
           className={cn(
             "absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-background",
             presence === "online" ? "bg-emerald-500" : presence === "away" ? "bg-amber-500" : "bg-muted-foreground",
@@ -79,6 +84,7 @@ export function UserAvatar({
 }
 
 export function AttachmentCard({ attachment }: { attachment: Attachment }) {
+  const { t } = useTranslation();
   const { url, error } = useSignedUrl("chat-files", attachment.storage_path);
   const [downloading, setDownloading] = useState(false);
 
@@ -116,14 +122,14 @@ export function AttachmentCard({ attachment }: { attachment: Attachment }) {
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{attachment.file_name}</span>
           <span className="block text-xs text-muted-foreground">
-            {formatBytes(attachment.size_bytes)} · {attachment.mime_type || "file"}
+            {formatBytes(attachment.size_bytes)} · {attachment.mime_type || t("chat.media.file")}
           </span>
         </span>
         <Button
           type="button"
           size="icon"
           variant="ghost"
-          aria-label={`Download ${attachment.file_name}`}
+          aria-label={t("chat.media.download", { name: attachment.file_name })}
           onClick={() => void download()}
           disabled={downloading}
         >

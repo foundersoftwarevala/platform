@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import {
   applyTranslations,
   collectTargets,
+  isTranslatableText,
   restoreOriginals,
   uniqueStrings,
   type Target,
@@ -17,21 +18,39 @@ import { useLanguage } from "@/lib/language-catalog";
  * answers from the reviewed dictionary, translation memory or the platform's
  * own engine) and writes the answers back. New content - a route change, a
  * product list arriving, a dialog opening - is picked up by a MutationObserver.
+ * The document title is translated the same way.
  *
  * This is what makes the homepage, the chat and every other screen available
  * in all 140 languages without rewriting the locked copy. Anything marked
- * data-no-translate is left alone.
+ * data-no-translate is left alone, and so is text the page already shows
+ * through t() (useTranslation): that is a translation in its own context, not
+ * English to translate again.
  */
 export function PageTranslator() {
-  const { lang, translate, version } = useLanguage();
+  const { lang, translate, isRendered, version } = useLanguage();
   const originals = useRef(new WeakMap<object, Map<string, string>>());
   const pass = useRef<number>(0);
+  const title = useRef<{ original: string; applied: string } | null>(null);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
     let cancelled = false;
     let scheduled: ReturnType<typeof setTimeout> | null = null;
     const english = lang === "en";
+
+    const translateTitle = () => {
+      const current = document.title;
+      // The router sets a new title on navigation; that is the new original.
+      if (!title.current || current !== title.current.applied) {
+        title.current = { original: current, applied: current };
+      }
+      const { original } = title.current;
+      const next = english || !isTranslatableText(original) ? original : translate(original);
+      if (next && next !== current) {
+        title.current.applied = next;
+        document.title = next;
+      }
+    };
 
     const run = () => {
       if (cancelled) return;
@@ -41,10 +60,19 @@ export function PageTranslator() {
       } catch {
         return; // a detached tree mid-render; the next pass picks it up
       }
+      translateTitle();
       if (english) {
         restoreOriginals(targets, originals.current);
         return;
       }
+      // Text rendered through t() is already in this language (see isRendered).
+      targets = targets.filter((target) => {
+        const current =
+          target.kind === "text"
+            ? (target.node.nodeValue ?? "")
+            : (target.element.getAttribute(target.attribute) ?? "");
+        return !isRendered(current);
+      });
       // Ask for everything on the page. translate() answers at once when it
       // knows the string and queues the rest; the queue is drained in batches
       // and re-renders this effect through `version`.
@@ -81,14 +109,21 @@ export function PageTranslator() {
       attributes: true,
       attributeFilter: ["placeholder", "title", "aria-label", "alt"],
     });
+    // A route change replaces the <title>.
+    const titleObserver = new MutationObserver(() => {
+      if (document.title !== title.current?.applied) schedule();
+    });
+    const head = document.querySelector("head");
+    if (head) titleObserver.observe(head, { childList: true, subtree: true, characterData: true });
 
     return () => {
       cancelled = true;
       if (scheduled) clearTimeout(scheduled);
       observer.disconnect();
+      titleObserver.disconnect();
     };
     // `version` changes when a batch of translations arrives, which re-runs the pass.
-  }, [lang, translate, version]);
+  }, [lang, translate, isRendered, version]);
 
   return null;
 }

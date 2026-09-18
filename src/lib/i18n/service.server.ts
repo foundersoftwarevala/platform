@@ -20,6 +20,7 @@ import {
   type PipelineResult,
   type TranslationMemoryStore,
 } from "./pipeline";
+import { allMessages } from "./messages";
 import { UI_DICTIONARY } from "./ui-dictionary";
 
 /**
@@ -651,7 +652,13 @@ export async function resolveCaller(
 
 /* ----------------------------------------------------------------- service */
 
-const CATALOGUE = new Set(Object.keys(UI_DICTIONARY.en ?? {}));
+// The interface catalogue: the dictionary's English wording and the keyed
+// messages (src/lib/i18n/messages). Only these are written to shared memory on
+// behalf of visitors; anything else a page sends is translated but not kept.
+const CATALOGUE = new Set([
+  ...Object.keys(UI_DICTIONARY.en ?? {}),
+  ...allMessages().map((m) => m.text),
+]);
 
 /** Whether a source string is part of the interface catalogue. */
 export function isCatalogueText(text: string): boolean {

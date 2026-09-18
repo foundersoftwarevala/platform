@@ -11,7 +11,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "build:cloudflare": "vite build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "i18n:audit": "node scripts/i18n-audit.mjs",
+    "i18n:check": "node scripts/i18n-audit.mjs --check",
+    "i18n:baseline": "node scripts/i18n-audit.mjs --update-baseline"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

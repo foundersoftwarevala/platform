@@ -9,7 +9,16 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Collection
 from dataclasses import dataclass
+
+# ISO 4217 codes of the currencies the platform prices in or its customers
+# pay with. A code is never translated ("USD" stays "USD" in every language).
+CURRENCY_CODES = (
+    "AED AUD BDT BHD BRL CAD CHF CNY CZK DKK EGP EUR GBP HKD HUF IDR ILS INR JPY KES "
+    "KRW KWD LKR MXN MYR NGN NOK NPR NZD OMR PHP PKR PLN QAR RUB SAR SEK SGD THB TRY "
+    "TWD USD VND ZAR"
+).split()
 
 # Tokens the model must return untouched. The pipeline in the application
 # protects glossary terms as ⟦T0⟧; everything else that looks like code
@@ -23,6 +32,23 @@ PLACEHOLDER = re.compile(
     r"|</?[a-zA-Z][^<>]*>"
     r"|https?://[^\s<>\"']*[^\s<>\"'.,;:!?)\]}。、]"
     r"|[\w.+-]+@[\w-]+\.[\w.-]+"
+)
+
+# Values that must come back exactly as written: currency codes and amounts,
+# SKUs, order and invoice numbers, other codes. The model usually copies them
+# unchanged, and masking them costs meaning - with several ⟦P⟧ tokens in a short
+# sentence it often drops one, and the sentence then has to be translated in
+# pieces between the tokens (measured: 58 of 80 test sentences). So they are
+# checked instead (lost_literals), and masked only for a sentence where the
+# model changed one.
+LITERAL = re.compile(
+    # An amount with its currency symbol: ₹1,299  $49.99  € 10
+    r"[$€£₹¥₩₽₺₫₱฿]\s?\d[\d,.]*"
+    r"|\b(?:" + "|".join(CURRENCY_CODES) + r")\b"
+    # Codes with a separator, letters and digits: SV-1042, INV-2026-0001, x86_64
+    r"|\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)+\b"
+    # Capitals followed by digits: SKU42, B2B, ABC123X
+    r"|\b[A-Z]+\d[A-Z0-9]*\b"
 )
 
 TOKEN = re.compile(r"⟦P(\d+)⟧")
@@ -45,11 +71,45 @@ class Masked:
     originals: list[str]
 
 
-def mask(text: str, preferred: dict[str, str] | None = None) -> Masked:
+AMOUNT = re.compile(r"[$€£₹¥₩₽₺₫₱฿]\s?\d[\d,.]*")
+# A number as a translation may write it: 1,299  1.299  1 299 (also with no-break spaces).
+_NUMBER = re.compile(r"\d(?:[\d,.\s  ]*\d)?")
+
+
+def _digits(value: str) -> str:
+    return re.sub(r"\D", "", value)
+
+
+def lost_literals(source: str, translation: str) -> list[str]:
+    """Currency amounts, codes and SKUs of the source that the translation lacks.
+
+    Codes must come back exactly. An amount must keep its value and its
+    currency: the digits and the symbol have to be there, while the language
+    may write the number its own way (₹1,299 as "1 299 ₹" in Russian). A
+    dropped symbol or another currency ("$1,299") counts as lost.
+    """
+    numbers = {_digits(n) for n in _NUMBER.findall(translation)}
+    lost = []
+    for value in LITERAL.findall(source):
+        if AMOUNT.fullmatch(value):
+            if _digits(value) not in numbers or value[0] not in translation:
+                lost.append(value)
+        elif value not in translation:
+            lost.append(value)
+    return lost
+
+
+def mask(
+    text: str,
+    preferred: dict[str, str] | None = None,
+    literals: bool | Collection[str] = False,
+) -> Masked:
     """Replace placeholders (and preferred glossary terms) with ⟦Pn⟧ tokens.
 
     `preferred` maps a source term to the rendering the translation must use;
     the term is protected like a placeholder and restored as its rendering.
+    `literals` also protects currency amounts, codes and SKUs (LITERAL): all
+    of them when True, or only the values given.
     """
     originals: list[str] = []
 
@@ -58,6 +118,11 @@ def mask(text: str, preferred: dict[str, str] | None = None) -> Masked:
         return f"⟦P{len(originals) - 1}⟧"
 
     out = PLACEHOLDER.sub(lambda m: keep(m.group(0)), text)
+    if literals:
+        chosen = None if literals is True else set(literals)
+        out = LITERAL.sub(
+            lambda m: keep(m.group(0)) if chosen is None or m.group(0) in chosen else m.group(0), out
+        )
     for source, target in sorted((preferred or {}).items(), key=lambda kv: -len(kv[0])):
         pattern = re.compile(rf"(?<![\w]){re.escape(source)}(?![\w])", re.IGNORECASE)
         out = pattern.sub(lambda m, t=target: keep(t), out)

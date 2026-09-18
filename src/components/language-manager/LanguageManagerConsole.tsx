@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { pluralCategories } from "@/lib/i18n/format";
+import { allMessages } from "@/lib/i18n/messages";
 import { SUPPORTED_LANGUAGE_COUNT } from "@/lib/i18n/registry";
 
 /**
@@ -66,6 +67,24 @@ type ReviewRow = {
   engine: string | null;
   version: number;
 };
+
+/** Where a translation came from: a reviewer, the platform's engine, or older data. */
+function originOf(row: ReviewRow): string {
+  if (row.engine === "human") return "reviewer";
+  if (!row.engine) return row.status === "legacy" ? "legacy" : "unknown";
+  return `engine (${row.engine})`;
+}
+
+/** Keyed messages carry a note for reviewers (src/lib/i18n/messages). */
+const DESCRIPTIONS = new Map(
+  allMessages()
+    .filter((m) => m.description)
+    .map((m) => [`${m.context}|${m.text}`, m.description] as const),
+);
+
+function descriptionOf(row: ReviewRow): string | undefined {
+  return DESCRIPTIONS.get(`${row.context ?? ""}|${row.source_text}`);
+}
 
 type GlossaryRow = {
   id: string;
@@ -353,6 +372,7 @@ export function LanguageManagerConsole() {
                   <span>{row.engine ?? "—"}</span>
                   <span>{row.namespace}</span>
                   {row.context && <span>context: {row.context}</span>}
+                  <span>origin: {originOf(row)}</span>
                   {row.quality_flags?.length ? (
                     <span className="text-amber-500">{row.quality_flags.join(", ")}</span>
                   ) : null}
@@ -360,6 +380,11 @@ export function LanguageManagerConsole() {
                 <div className="text-sm" data-no-translate>
                   {row.source_text}
                 </div>
+                {descriptionOf(row) && (
+                  <div className="text-xs text-muted-foreground" data-no-translate>
+                    {descriptionOf(row)}
+                  </div>
+                )}
                 <Textarea
                   value={edits[row.id] ?? row.translated_text}
                   onChange={(event) =>
@@ -399,6 +424,35 @@ export function LanguageManagerConsole() {
                     disabled={run.isPending}
                   >
                     Reopen
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    title="Mark it stale and translate it again (not for verified rows)"
+                    onClick={() =>
+                      run.mutate({ action: "review", id: row.id, decision: "retranslate" })
+                    }
+                    disabled={run.isPending || row.status === "verified"}
+                  >
+                    Re-translate
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    title="Approve and make it this language's required term wherever the English appears"
+                    onClick={() =>
+                      run.mutate({
+                        action: "review",
+                        id: row.id,
+                        decision: "lock",
+                        ...(edits[row.id] && edits[row.id] !== row.translated_text
+                          ? { text: edits[row.id] }
+                          : {}),
+                      })
+                    }
+                    disabled={run.isPending || row.source_text.length > 200}
+                  >
+                    Lock
                   </Button>
                 </div>
               </Card>

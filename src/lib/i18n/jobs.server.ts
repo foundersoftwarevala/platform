@@ -16,6 +16,7 @@ import {
   getTranslationEngine,
   log,
 } from "./service.server";
+import { allMessages } from "./messages";
 import { UI_DICTIONARY } from "./ui-dictionary";
 import { count } from "./metrics.server";
 
@@ -65,19 +66,31 @@ export async function enqueueJobs(
   if (!client) throw new Error("The database is not configured.");
   let inserted = 0;
   const rows = [];
+  // The same text goes to many languages: each distinct text and context is
+  // hashed once. Hashing runs on libuv's thread pool, which DNS lookups share;
+  // tens of thousands of hashes queued there (the catalogue for 132
+  // languages) held up every outgoing request of the site until they were done.
+  const sourceHashes = new Map<string, string>();
+  const contextHashes = new Map<string, string>();
   for (const item of items) {
     const text = item.text.trim();
     const target = getLanguage(item.target);
     if (!text || !target?.enabled) continue;
     const namespace = item.namespace ?? "ui";
+    const contextKey = JSON.stringify([namespace, item.context ?? null]);
+    let textHash = sourceHashes.get(text);
+    if (textHash === undefined) sourceHashes.set(text, (textHash = await sourceHash(text)));
+    let ctxHash = contextHashes.get(contextKey);
+    if (ctxHash === undefined)
+      contextHashes.set(contextKey, (ctxHash = await contextHash(namespace, item.context ?? null)));
     rows.push({
-      source_hash: await sourceHash(text),
+      source_hash: textHash,
       source_text: text,
       source_language: SOURCE_LANGUAGE,
       target_language: target.code,
       namespace,
       context: item.context ?? null,
-      context_hash: await contextHash(namespace, item.context ?? null),
+      context_hash: ctxHash,
       refresh: Boolean(item.refresh),
       priority: item.priority ?? 100,
       requested_by: requestedBy,
@@ -91,6 +104,63 @@ export async function enqueueJobs(
     inserted += Number(data ?? 0);
   }
   return inserted;
+}
+
+/**
+ * Queue the keyed messages (src/lib/i18n/messages) for every language, each in
+ * its module's context. The database skips what memory already holds and what
+ * is already queued, so this is cheap to repeat: the worker runs it at start,
+ * which is how a key added in a deploy is translated before anyone asks for
+ * it. A key whose English changed has a new source hash and is translated
+ * again; the old translation is no longer looked up.
+ */
+export async function syncMessageCatalogue(
+  options: { requestedBy?: string | null } = {},
+): Promise<{ languages: number; messages: number; queued: number; stale: number }> {
+  const disabled = await disabledLanguages(db());
+  const languages = translatableLanguages().filter((l) => l.enabled && !disabled.has(l.code));
+  const messages = allMessages();
+  const items: EnqueueItem[] = [];
+  for (const language of languages) {
+    for (const message of messages) {
+      items.push({
+        text: message.text,
+        target: language.code,
+        namespace: "ui",
+        context: message.context,
+        // Ahead of the page-text backlog: these are the screens customers use.
+        priority: 40,
+      });
+    }
+  }
+  const queued = await enqueueJobs(items, options.requestedBy ?? null);
+  count("jobs.catalogue_sync_queued", queued);
+
+  // Translations of English a module no longer has are marked stale.
+  const client = db();
+  let stale = 0;
+  if (client) {
+    const byContext = new Map<string, string[]>();
+    for (const message of messages) {
+      const hashes = byContext.get(message.context) ?? [];
+      hashes.push(await sourceHash(message.text));
+      byContext.set(message.context, hashes);
+    }
+    for (const [context, hashes] of byContext) {
+      const { data, error } = await client.rpc("i18n_mark_stale", {
+        p_namespace: "ui",
+        p_context: context,
+        p_current_hashes: hashes,
+      });
+      if (error) {
+        if (!schemaMissing(error.message))
+          log("[i18n] marking stale translations failed", error.message);
+        break;
+      }
+      stale += Number(data ?? 0);
+    }
+  }
+  return { languages: languages.length, messages: messages.length, queued, stale };
 }
 
 /** Queue the whole interface catalogue for the given languages. */
@@ -316,9 +386,24 @@ async function pruneIfDue() {
   count("quota.windows_pruned", Number(row?.quota_windows_deleted ?? 0));
 }
 
+let synced = false;
+/** Seconds after start before the message catalogue is synced. */
+const SYNC_AFTER_SECONDS = 120;
+
 async function workerTick() {
   let delay = IDLE_POLL_MS;
   try {
+    // Once per start, after the site has settled: the sync queues tens of
+    // thousands of rows. Retried on the next tick if the database is not
+    // reachable yet.
+    if (!synced && process.uptime() > SYNC_AFTER_SECONDS) {
+      try {
+        log("[i18n] message catalogue synced", await syncMessageCatalogue());
+        synced = true;
+      } catch (err) {
+        log("[i18n] message catalogue sync failed", err);
+      }
+    }
     await pruneIfDue();
     const [oneMinute = 0] = loadavg();
     if (oneMinute > hostBusyThreshold()) {

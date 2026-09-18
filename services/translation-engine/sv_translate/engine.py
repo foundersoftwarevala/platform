@@ -324,12 +324,47 @@ class Engine:
         mode: str,
         pound: int | None = None,
     ) -> Result:
-        masked = tx.mask(text, preferred)
+        first = self._plain_pass(text, route, src, preferred, mode, literals=False)
+        if first is None:
+            masked = tx.mask(text, preferred)
+            restored, _ = tx.unmask(masked.text, masked.originals)
+            return Result(restored, 1.0, "identity", ["nothing_to_translate"])
+        restored, backend, flags = first
+        # Amounts, currency codes and SKUs are not masked up front (see
+        # tx.LITERAL); if the model changed one, the sentence is translated
+        # again with them protected.
+        lost = tx.lost_literals(text, restored)
+        if lost:
+            # Only what was changed is masked: every extra token is a chance
+            # for the model to drop one and the sentence to be chunked.
+            again = self._plain_pass(text, route, src, preferred, mode, literals=lost)
+            # The retry can change a value the first pass had kept; then all
+            # of them are masked.
+            if again is not None and tx.lost_literals(text, again[0]):
+                again = self._plain_pass(text, route, src, preferred, mode, literals=True)
+            if again is not None:
+                restored, backend, flags = again
+                flags = [*flags, "literals_protected"]
+        confidence, quality_flags = self._score(text, restored, route, src, backend)
+        if "chunked" in flags:
+            confidence -= 0.1
+        return Result(restored, max(0.0, confidence), backend, flags + quality_flags)
+
+    def _plain_pass(
+        self,
+        text: str,
+        route: Route,
+        src: Route | None,
+        preferred: dict[str, str],
+        mode: str,
+        literals: bool | list[str],
+    ) -> tuple[str, str, list[str]] | None:
+        """Mask, translate, restore. None when there is nothing to translate."""
+        masked = tx.mask(text, preferred, literals=literals)
         units = tx.segment(masked.text)
         pending = [u.text for u in units if u.translate]
         if not pending:
-            restored, _ = tx.unmask(masked.text, masked.originals)
-            return Result(restored, 1.0, "identity", ["nothing_to_translate"])
+            return None
         outputs, backend = self._run(pending, route, src, mode)
         it = iter(outputs)
         joined = "".join(next(it) if u.translate else u.text for u in units)
@@ -339,10 +374,7 @@ class Engine:
         if missing:
             restored, backend = self._translate_chunked(masked, route, src, mode)
             flags.append("chunked")
-        confidence, quality_flags = self._score(text, restored, route, src, backend)
-        if "chunked" in flags:
-            confidence -= 0.1
-        return Result(restored, max(0.0, confidence), backend, flags + quality_flags)
+        return restored, backend, flags
 
     def _translate_chunked(self, masked: tx.Masked, route: Route, src: Route | None, mode: str) -> tuple[str, str]:
         """Translate the text between placeholders piece by piece, so none can be lost."""

@@ -10,6 +10,7 @@ import { createConversation, searchDirectory } from "@/services/chat/chat-servic
 import type { Profile } from "@/services/chat/types";
 import { UserAvatar } from "./media";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 interface Props {
   open: boolean;
@@ -20,6 +21,7 @@ interface Props {
 
 /** Start a real conversation: search the directory, pick people, create. */
 export function NewConversationDialog({ open, onOpenChange, userId, onCreated }: Props) {
+  const { t } = useTranslation();
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<Profile[]>([]);
   const [searching, setSearching] = useState(false);
@@ -60,7 +62,7 @@ export function NewConversationDialog({ open, onOpenChange, userId, onCreated }:
 
   const create = async () => {
     if (selected.length === 0) {
-      toast.error("Pick at least one person");
+      toast.error(t("chat.new.pick_someone"));
       return;
     }
     const isDirect = selected.length === 1;
@@ -74,11 +76,11 @@ export function NewConversationDialog({ open, onOpenChange, userId, onCreated }:
         createdBy: userId,
         participantIds: selected.map((p) => p.id),
       });
-      toast.success("Conversation created");
+      toast.success(t("chat.new.created"));
       onOpenChange(false);
       onCreated(id);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not create conversation");
+      toast.error(error instanceof Error ? error.message : t("chat.new.create_failed"));
     } finally {
       setCreating(false);
     }
@@ -88,8 +90,8 @@ export function NewConversationDialog({ open, onOpenChange, userId, onCreated }:
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>New conversation</DialogTitle>
-          <DialogDescription>Search the workspace directory and start chatting.</DialogDescription>
+          <DialogTitle>{t("chat.new_conversation")}</DialogTitle>
+          <DialogDescription>{t("chat.new.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -98,8 +100,8 @@ export function NewConversationDialog({ open, onOpenChange, userId, onCreated }:
             <Input
               value={term}
               onChange={(e) => setTerm(e.target.value)}
-              placeholder="Search people by name or handle"
-              aria-label="Search people"
+              placeholder={t("chat.new.search_placeholder")}
+              aria-label={t("chat.new.search_label")}
               className="pl-9"
               autoFocus
             />
@@ -124,11 +126,11 @@ export function NewConversationDialog({ open, onOpenChange, userId, onCreated }:
             <ul className="p-1.5">
               {searching ? (
                 <li className="flex items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" /> Searching…
+                  <Loader2 className="size-4 animate-spin" /> {t("chat.new.searching")}
                 </li>
               ) : results.length === 0 ? (
                 <li className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
-                  <Users className="size-5" /> No people found
+                  <Users className="size-5" /> {t("chat.new.no_people")}
                 </li>
               ) : (
                 results.map((p) => {
@@ -162,24 +164,24 @@ export function NewConversationDialog({ open, onOpenChange, userId, onCreated }:
 
           {selected.length > 1 ? (
             <div className="space-y-1.5">
-              <Label htmlFor="conv-subject">Group subject (optional)</Label>
+              <Label htmlFor="conv-subject">{t("chat.new.subject_label")}</Label>
               <Input
                 id="conv-subject"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 maxLength={120}
-                placeholder="Project Phoenix launch"
+                placeholder={t("chat.new.subject_placeholder")}
               />
             </div>
           ) : null}
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t("chat.cancel")}
             </Button>
             <Button onClick={() => void create()} disabled={creating || selected.length === 0}>
               {creating ? <Loader2 className="size-4 animate-spin" /> : null}
-              Create
+              {t("chat.new.create")}
             </Button>
           </div>
         </div>

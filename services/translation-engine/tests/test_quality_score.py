@@ -68,3 +68,56 @@ def test_word_overlap():
     assert tx.word_overlap(SOURCE, "Your order has been confirmed") == 1.0
     assert tx.word_overlap(SOURCE, "Jou bestelling is bevestig") == 0.0
     assert tx.word_overlap(SOURCE, "") == 0.0
+
+
+def test_changed_amounts_and_codes_are_translated_again_protected():
+    # The model first turns "USD" into a word; the engine notices and
+    # translates the sentence again with the amount and codes masked.
+    engine = engine_with([("fr", 0.95)], {"fr", "en"})
+    calls = []
+
+    def fake_run(texts, route, src, mode):
+        calls.append(list(texts))
+        if len(calls) == 1:
+            return [t.replace("Pay", "Payez").replace("USD", "dollars") for t in texts], "madlad-greedy"
+        return [t.replace("Pay", "Payez") for t in texts], "madlad-greedy"
+
+    engine._run = fake_run
+    result = engine._translate_plain("Pay USD 15 for SV-1042.", engine.routes["fr"], None, {}, "realtime")
+    assert len(calls) == 2
+    assert "⟦P0⟧" in calls[1][0] and "USD" not in calls[1][0]
+    assert result.text == "Payez USD 15 for SV-1042."
+    assert "literals_protected" in result.flags
+
+
+def test_intact_amounts_need_one_pass():
+    engine = engine_with([("fr", 0.95)], {"fr", "en"})
+    calls = []
+
+    def fake_run(texts, route, src, mode):
+        calls.append(list(texts))
+        return [t.replace("Pay", "Payez") for t in texts], "madlad-greedy"
+
+    engine._run = fake_run
+    result = engine._translate_plain("Pay USD 15 for SV-1042.", engine.routes["fr"], None, {}, "realtime")
+    assert len(calls) == 1
+    assert "literals_protected" not in result.flags
+
+
+def test_a_retry_that_changes_another_value_masks_them_all():
+    engine = engine_with([("fr", 0.95)], {"fr", "en"})
+    calls = []
+
+    def fake_run(texts, route, src, mode):
+        calls.append(list(texts))
+        if len(calls) == 1:  # changes USD
+            return [t.replace("USD", "dollars") for t in texts], "madlad-greedy"
+        if len(calls) == 2:  # USD masked, but now changes the code
+            return [t.replace("SV-1042", "SV 1042") for t in texts], "madlad-greedy"
+        return list(texts), "madlad-greedy"
+
+    engine._run = fake_run
+    result = engine._translate_plain("Pay USD 15 for SV-1042.", engine.routes["fr"], None, {}, "realtime")
+    assert len(calls) == 3
+    assert "SV-1042" not in calls[2][0] and "USD" not in calls[2][0]
+    assert result.text == "Pay USD 15 for SV-1042."

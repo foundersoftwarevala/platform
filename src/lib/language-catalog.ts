@@ -29,6 +29,7 @@ import {
 } from "@/lib/i18n/registry";
 import { formatMessage, type MessageValues } from "@/lib/i18n/format";
 import { looksLikeProductName } from "@/lib/i18n/names";
+import { messageContext, messageText } from "@/lib/i18n/messages";
 import { UI_DICTIONARY } from "@/lib/i18n/ui-dictionary";
 
 /**
@@ -76,9 +77,13 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = UI_DICTIONAR
 
 const SOURCE_TEXT: Record<string, string> = UI_DICTIONARY[DEFAULT_LANGUAGE] ?? {};
 
-/** The source (English) wording for a key. */
+/**
+ * The source (English) wording for a key: a catalogue key ("checkout.pay_now",
+ * src/lib/i18n/messages), or the English wording itself for the older
+ * dictionary-keyed calls.
+ */
 function sourceText(key: string): string {
-  return SOURCE_TEXT[key] ?? key;
+  return messageText(key) ?? SOURCE_TEXT[key] ?? key;
 }
 
 /**
@@ -105,6 +110,26 @@ const REMOTE_MAX_ENTRIES = 3000;
 
 /** Held strings are keyed `context + separator + source text`, so one word can differ by place. */
 const SEPARATOR = "\u0001";
+
+/**
+ * Per language, the text translate() has returned for the page: whole strings,
+ * and the pieces between {placeholders} of a sentence rendered with elements
+ * in it (richText). The page translator reads the page's text nodes, and in a
+ * Latin-script language a translated label ("Iniciar sesión") looks like any
+ * other English text; this is how it knows not to send it back as source.
+ */
+const rendered = new Map<string, Set<string>>();
+const RENDERED_MAX = 20_000;
+
+function noteRendered(code: string, output: string, raw: string) {
+  let set = rendered.get(code);
+  if (!set) rendered.set(code, (set = new Set()));
+  if (set.size > RENDERED_MAX) set.clear();
+  set.add(output.trim());
+  if (raw.includes("{")) {
+    for (const piece of raw.split(/\{[^{}]*\}/)) if (piece.trim()) set.add(piece.trim());
+  }
+}
 
 /**
  * How many strings go in one request. Small enough that the engine answers
@@ -340,6 +365,11 @@ type LanguageContextValue = {
    * be translated differently in two places.
    */
   translate: (key: string, values?: MessageValues, options?: { context?: string }) => string;
+  /**
+   * True when `text` is something translate() has put on the page in the current
+   * language. The page translator skips it: it is a translation, not English.
+   */
+  isRendered: (text: string) => boolean;
   version: number;
   /** False when no translation engine is configured. */
   serviceReady: boolean;
@@ -356,6 +386,7 @@ const LanguageContext = createContext<LanguageContextValue>({
   setLanguage: () => undefined,
   translate: (key, values) =>
     values ? formatMessage(sourceText(key), values, DEFAULT_LANGUAGE) : sourceText(key),
+  isRendered: () => false,
   version: 0,
   serviceReady: true,
   serviceReason: null,
@@ -587,21 +618,28 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     (key: string, values?: MessageValues, options?: { context?: string }) => {
       const language = getLanguage(lang) ?? SOURCE_LANGUAGE_DEFINITION;
       const fill = (text: string) => (values ? formatMessage(text, values, language.code) : text);
+      // What is shown in the visitor's language is remembered, so the page
+      // translator never takes it for English source text (see isRendered).
+      const shown = (text: string) => {
+        const out = fill(text);
+        noteRendered(language.code, out, text);
+        return out;
+      };
       const english = sourceText(key);
       if (language.code === DEFAULT_LANGUAGE || isSourceVariety(language)) return fill(english);
 
       const exact = UI_DICTIONARY[language.code]?.[key];
-      if (exact) return fill(exact);
+      if (exact) return shown(exact);
       if (typeof window === "undefined") return fill(english);
       // A product name is the same in every language (see src/lib/i18n/names.ts);
       // there is nothing to ask the server for.
       if (looksLikeProductName(english)) return fill(english);
 
-      const context = options?.context ?? "";
+      const context = options?.context ?? messageContext(key) ?? "";
       const cacheKey = `${context}${SEPARATOR}${english}`;
       const state = stateFor(language.code);
       const held = state.held[cacheKey];
-      if (held) return fill(held);
+      if (held) return shown(held);
 
       if (
         !serviceDown.current &&
@@ -619,7 +657,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       for (const code of getFallbackChain(language.code).slice(1)) {
         if (code === DEFAULT_LANGUAGE) break;
         const fallback = UI_DICTIONARY[code]?.[key] ?? remote.current[code]?.held[cacheKey];
-        if (fallback) return fill(fallback);
+        if (fallback) return shown(fallback);
       }
       return fill(english);
     },
@@ -637,6 +675,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       setLanguage,
       translate,
       version,
+      isRendered: (text: string) => rendered.get(language.code)?.has(text.trim()) ?? false,
       serviceReady: service.ready,
       serviceReason: service.reason,
     };

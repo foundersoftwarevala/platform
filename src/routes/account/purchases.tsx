@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Copy, KeyRound, Loader2, Package, ShieldCheck } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import "@/styles/marketplace-home.css";
+import { isMessageKey } from "@/lib/i18n/messages";
+import { richText, useTranslation } from "@/lib/i18n/use-translation";
 
 /**
  * What a customer has bought.
@@ -35,17 +37,8 @@ const TONE: Record<string, string> = {
   cancelled: "border-white/15 bg-white/5 text-white/60",
 };
 
-function money(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency", currency, maximumFractionDigits: 0,
-    }).format(amount);
-  } catch {
-    return `${currency} ${amount}`;
-  }
-}
-
 function PurchasesPage() {
+  const { t, formatCurrency, formatDate } = useTranslation();
   const [purchases, setPurchases] = useState<Purchase[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -58,7 +51,7 @@ function PurchasesPage() {
         const supabaseUrl = env?.VITE_SUPABASE_URL ?? "";
         const publishable =
           env?.VITE_SUPABASE_PUBLISHABLE_KEY ?? env?.VITE_SUPABASE_ANON_KEY ?? "";
-        if (!supabaseUrl || !publishable) throw new Error("This page is not configured.");
+        if (!supabaseUrl || !publishable) throw new Error("account.not_configured");
 
         const supabase = createClient(supabaseUrl, publishable);
         const { data } = await supabase.auth.getSession();
@@ -76,11 +69,11 @@ function PurchasesPage() {
         });
         const payload = await response.json();
         if (cancelled) return;
-        if (!response.ok) throw new Error(payload?.error ?? "Could not load your purchases");
+        if (!response.ok) throw new Error(payload?.error ?? "account.load_failed");
         setPurchases(payload.purchases ?? []);
       } catch (problem) {
         if (cancelled) return;
-        setError(problem instanceof Error ? problem.message : "Something went wrong");
+        setError(problem instanceof Error ? problem.message : "account.error");
         setPurchases([]);
       }
     })();
@@ -103,36 +96,35 @@ function PurchasesPage() {
     <main className="min-h-screen bg-[#050b18] px-4 py-10 text-white sm:px-6 lg:px-10">
       <div className="mx-auto max-w-4xl">
         <a href="/" className="text-xs font-semibold text-cyan-300 hover:text-cyan-200">
-          ← Back to marketplace
+          {t("account.back")}
         </a>
-        <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Your purchases</h1>
-        <p className="mt-1.5 text-sm text-white/60">
-          Every order you have placed, and the licence for each one that is paid.
-        </p>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">{t("account.purchases.title")}</h1>
+        <p className="mt-1.5 text-sm text-white/60">{t("account.purchases.intro")}</p>
 
         <div className="mt-8" aria-live="polite">
           {purchases === null ? (
             <p className="flex items-center gap-2 text-sm text-white/60">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading…
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {t("account.loading")}
             </p>
           ) : error === "signed-out" ? (
             <div className="rounded-2xl border border-dashed border-white/15 px-6 py-10 text-center">
               <ShieldCheck className="mx-auto h-8 w-8 text-white/30" aria-hidden="true" />
-              <p className="mt-3 text-sm text-white/70">Sign in to see what you have bought.</p>
+              <p className="mt-3 text-sm text-white/70">{t("account.signed_out")}</p>
               <a href="/login" className="mt-5 inline-block rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-gray-900">
-                Sign in
+                {t("account.sign_in")}
               </a>
             </div>
           ) : error ? (
             <p className="rounded-2xl border border-dashed border-white/15 px-5 py-8 text-center text-sm text-white/60">
-              {error}
+              {/* A key of ours, or the server's own message. */}
+              {isMessageKey(error) ? t(error) : error}
             </p>
           ) : purchases.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/15 px-6 py-10 text-center">
               <Package className="mx-auto h-8 w-8 text-white/30" aria-hidden="true" />
-              <p className="mt-3 text-sm text-white/70">You have not bought anything yet.</p>
+              <p className="mt-3 text-sm text-white/70">{t("account.empty")}</p>
               <a href="/marketplace" className="mt-5 inline-block rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-gray-900">
-                Browse the catalogue
+                {t("account.browse")}
               </a>
             </div>
           ) : (
@@ -143,19 +135,19 @@ function PurchasesPage() {
                     <div className="min-w-0">
                       <h2 className="truncate text-sm font-bold">{p.product}</h2>
                       <p className="mt-0.5 text-[11px] text-white/50">
-                        {p.order_no ? `Order ${p.order_no} · ` : ""}
-                        {new Date(p.placed).toLocaleDateString()}
+                        {p.order_no ? `${t("account.order", { order: p.order_no })} · ` : ""}
+                        {formatDate(p.placed)}
                         {p.gateway ? ` · ${p.gateway}` : ""}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
-                      <span className="text-sm font-bold">{money(p.amount, p.currency)}</span>
+                      <span className="text-sm font-bold">{formatCurrency(p.amount, p.currency)}</span>
                       <span
                         className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                           TONE[p.status] ?? TONE.cancelled
                         }`}
                       >
-                        {p.status}
+                        {t("account.status", { status: p.status.replace(/\s+/g, "_") })}
                       </span>
                     </div>
                   </div>
@@ -168,7 +160,7 @@ function PurchasesPage() {
                       </code>
                       {p.licence_status && p.licence_status !== "active" && (
                         <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-rose-300">
-                          {p.licence_status}
+                          {t("account.licence_status", { status: p.licence_status })}
                         </span>
                       )}
                       <button
@@ -177,26 +169,28 @@ function PurchasesPage() {
                         className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1 text-[11px] font-semibold hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
                       >
                         <Copy className="h-3 w-3" aria-hidden="true" />
-                        {copied === p.licence_key ? "Copied" : "Copy"}
+                        {copied === p.licence_key ? t("account.copied") : t("account.copy")}
                       </button>
                     </div>
                   ) : p.status === "paid" ? (
-                    <p className="mt-3 text-[11px] text-white/50">
-                      Your licence is being issued. Refresh in a moment.
-                    </p>
+                    <p className="mt-3 text-[11px] text-white/50">{t("account.licence_pending")}</p>
                   ) : null}
 
                   {p.invoice_id && (
                     <p className="mt-2 text-[11px] text-white/50">
-                      Invoice {p.invoice_no} —{" "}
+                      {richText(t("account.invoice"), {
+                        number: p.invoice_no,
+                        link: (
                       <a
                         href={`/api/account/invoice/${p.invoice_id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="font-semibold text-cyan-300 underline"
                       >
-                        open
+                        {t("account.invoice_open")}
                       </a>
+                        ),
+                      })}
                     </p>
                   )}
                 </li>
@@ -206,8 +200,13 @@ function PurchasesPage() {
         </div>
 
         <p className="mt-8 text-[11px] text-white/40">
-          Our team contacts you on your email and WhatsApp to set up your domain, hosting and
-          branding. Questions? <a href="/support" className="text-cyan-300 underline">Talk to support</a>.
+          {richText(t("account.setup_note"), {
+            link: (
+              <a href="/support" className="text-cyan-300 underline">
+                {t("account.talk_to_support")}
+              </a>
+            ),
+          })}
         </p>
       </div>
     </main>

@@ -201,3 +201,51 @@ describe("quality", () => {
     ).toBe(false);
   });
 });
+
+describe("quality of ICU messages", () => {
+  const ar = getLanguage("ar")!;
+  const hi = getLanguage("hi")!;
+  const fr = getLanguage("fr")!;
+  const select =
+    "{status, select, paid {Paid} awaiting_payment {Awaiting payment} failed {Failed} other {{status}}}";
+
+  it("a select's one-word branches are text, not placeholders", () => {
+    // Real engine output (MADLAD, quality mode) that the old check refused.
+    const result = assessTranslation({
+      source: select,
+      translated:
+        "{status, select, paid {مدفوعة} awaiting_payment {في انتظار الدفع} failed {فشلت} other {{status}}}",
+      target: ar,
+    });
+    expect(result.errors).not.toContain("placeholder_mismatch");
+    expect(result.accepted).toBe(true);
+    expect(
+      assessTranslation({
+        source: select,
+        translated:
+          "{status, select, paid {Payé} awaiting_payment {En attente de paiement} failed {Échoué} other {{status}}}",
+        target: fr,
+      }).accepted,
+    ).toBe(true);
+  });
+
+  it("a plural with more branches in the target keeps its variables", () => {
+    const source = "{count, plural, one {{names} is typing…} other {{names} are typing…}}";
+    const arabic =
+      "{count, plural, zero {{names} يكتبون…} one {{names} يكتب…} two {{names} يكتبان…} few {{names} يكتبون…} many {{names} يكتبون…} other {{names} يكتبون…}}";
+    expect(assessTranslation({ source, translated: arabic, target: ar }).accepted).toBe(true);
+    // A variable lost from the translation is still caught.
+    const lost = "{count, plural, one {कोई टाइप कर रहा है…} other {कई लोग टाइप कर रहे हैं…}}";
+    expect(assessTranslation({ source, translated: lost, target: hi }).errors).toContain(
+      "placeholder_mismatch",
+    );
+  });
+
+  it("a select whose argument was renamed is caught", () => {
+    const renamed =
+      "{estado, select, paid {Payé} awaiting_payment {En attente} failed {Échoué} other {{estado}}}";
+    expect(assessTranslation({ source: select, translated: renamed, target: fr }).errors).toContain(
+      "placeholder_mismatch",
+    );
+  });
+});

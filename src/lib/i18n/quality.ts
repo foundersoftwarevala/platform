@@ -1,3 +1,4 @@
+import { parseMessage } from "./format";
 import type { LanguageDefinition } from "./registry";
 
 /**
@@ -24,8 +25,45 @@ export type QualityAssessment = {
 const PLACEHOLDER =
   /⟦T\d+⟧|\{\{\s*[\w.]+\s*\}\}|\{[\w.]+\}|%(?:\d+\$)?[sdif@]|<\/?[a-zA-Z][^<>]*>|https?:\/\/[^\s<>"']*[^\s<>"'.,;:!?)\]}。、]/g;
 
+function matchPlaceholders(text: string): string[] {
+  return (text.match(PLACEHOLDER) ?? []).map((p) => p.trim());
+}
+
+const ICU_BLOCK = /\{\s*[\w.]+\s*,\s*(?:plural|selectordinal|select)\s*,/;
+
+/**
+ * The placeholders a translation must keep.
+ *
+ * For an ICU plural or select message, a branch body is text, not a
+ * placeholder ("{Paid}" in `{status, select, paid {Paid} other {…}}` is the word
+ * Paid), and the target language may have more or fewer plural branches than
+ * English (Arabic six, Japanese one), each repeating the same variables. So for
+ * those the message is parsed, and what must survive is the set of argument
+ * names and of tags and URLs in the text parts - each once.
+ */
 export function extractPlaceholders(text: string): string[] {
-  return (text.match(PLACEHOLDER) ?? []).map((p) => p.trim()).sort();
+  if (!ICU_BLOCK.test(text)) return matchPlaceholders(text).sort();
+  let nodes: ReturnType<typeof parseMessage>;
+  try {
+    nodes = parseMessage(text);
+  } catch {
+    return matchPlaceholders(text).sort();
+  }
+  const found = new Set<string>();
+  const walk = (list: typeof nodes) => {
+    for (const node of list) {
+      if (typeof node === "string") {
+        for (const p of matchPlaceholders(node)) found.add(p);
+      } else if (node.kind === "simple") {
+        found.add(`{${node.name}}`);
+      } else if (node.kind !== "pound") {
+        found.add(`{${node.name}, ${node.kind}}`);
+        for (const branch of node.options.values()) walk(branch);
+      }
+    }
+  };
+  walk(nodes);
+  return [...found].sort();
 }
 
 const SCRIPT_TEST: Record<string, RegExp> = {

@@ -1,6 +1,7 @@
 import { randomBytes, createHash } from "node:crypto";
 import { recordCommissionsForOrder } from "./commission";
 import { licenceEmail, send as sendMail } from "./mailer";
+import { serverTranslator } from "@/lib/i18n/server-translate.server";
 import { createInvoiceForOrder } from "./invoices";
 
 /**
@@ -295,13 +296,23 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
       "",
   ).trim();
   if (buyerEmail) {
-    const message = licenceEmail({
-      name: String(metadata.buyer_name ?? contact.name ?? buyerEmail.split("@")[0]),
-      productName: productName,
-      licenceKey,
-      orderNo: (order.order_no as string | null) ?? null,
+    // In the language the buyer paid in (recorded by /api/payment/initiate).
+    const lang = typeof metadata.language === "string" ? metadata.language : "en";
+    const t = await serverTranslator(lang, ["email"]);
+    const message = licenceEmail(
+      {
+        name: String(metadata.buyer_name ?? contact.name ?? buyerEmail.split("@")[0]),
+        productName: productName,
+        licenceKey,
+        orderNo: (order.order_no as string | null) ?? null,
+      },
+      { t, lang },
+    );
+    const mail = await sendMail({
+      ...message,
+      to: buyerEmail,
+      context: { order_id: orderId, licence_id: licence.id, language: lang },
     });
-    const mail = await sendMail({ ...message, to: buyerEmail, context: { order_id: orderId, licence_id: licence.id } });
     await logPaymentEvent(orderId, mail.sent ? "licence_email_sent" : "licence_email_queued", {
       to: buyerEmail, reason: mail.reason,
     });
