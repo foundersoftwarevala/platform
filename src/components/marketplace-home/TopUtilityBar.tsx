@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/lib/language-catalog";
+import { SUPPORTED_LANGUAGES, normalizeLanguageCode } from "@/lib/i18n/registry";
 import { Link } from "@tanstack/react-router";
 import { listNotifications, markAllRead, subscribe as subscribeApps } from "@/lib/applications/store";
 import {
@@ -113,8 +114,8 @@ function ApplyNow({ t }: { t: (s: string) => string }) {
           >
             <Link to="/apply/$role" params={{ role: r.key }}>
               <div className="flex w-full flex-col">
-                <span className="text-[12.5px] font-semibold">{r.label}</span>
-                <span className="text-[10.5px] text-white/50">{r.blurb}</span>
+                <span className="text-[12.5px] font-semibold">{t(r.label)}</span>
+                <span className="text-[10.5px] text-white/50">{t(r.blurb)}</span>
               </div>
             </Link>
           </DropdownMenuItem>
@@ -128,20 +129,17 @@ function ApplyNow({ t }: { t: (s: string) => string }) {
 /* 2. Language                                                         */
 /* ------------------------------------------------------------------ */
 
-export const LANGS = [
-  { code: "en", flag: "🇬🇧", label: "English", name: "English" },
-  { code: "hi", flag: "🇮🇳", label: "हिन्दी", name: "Hindi" },
-  { code: "ar", flag: "🇸🇦", label: "العربية", name: "Arabic" },
-  { code: "es", flag: "🇪🇸", label: "Español", name: "Spanish" },
-  { code: "fr", flag: "🇫🇷", label: "Français", name: "French" },
-  { code: "de", flag: "🇩🇪", label: "Deutsch", name: "German" },
-  { code: "pt", flag: "🇧🇷", label: "Português", name: "Portuguese" },
-  { code: "ru", flag: "🇷🇺", label: "Русский", name: "Russian" },
-  { code: "zh", flag: "🇨🇳", label: "中文", name: "Chinese (Simplified)" },
-  { code: "ja", flag: "🇯🇵", label: "日本語", name: "Japanese" },
-  { code: "ko", flag: "🇰🇷", label: "한국어", name: "Korean" },
-  { code: "id", flag: "🇮🇩", label: "Indonesia", name: "Indonesian" },
-];
+/**
+ * Every language the platform supports, from the registry
+ * (src/lib/i18n/registry.ts). This list used to be twelve entries kept here by
+ * hand; the picker itself is unchanged.
+ */
+export const LANGS = SUPPORTED_LANGUAGES.map((language) => ({
+  code: language.code,
+  flag: language.flag,
+  label: language.nativeName,
+  name: language.name,
+}));
 
 /** UI strings translated live by the AI gateway (real translation, cached per language). */
 const BAR_STRINGS = [
@@ -176,12 +174,21 @@ const BAR_STRINGS = [
  */
 function useBarTranslation() {
   const { lang, setLanguage, translate } = useLanguage();
+  // The provider resolves the picker's short codes through the language
+  // registry ("zh" -> "zh-Hans").
   const apply = useCallback((code: string) => setLanguage(code), [setLanguage]);
-  // The picker below matches on lowercase two-letter codes; the provider holds
-  // the catalogue's uppercase code.
-  return { lang: lang.toLowerCase(), t: translate, apply, busy: false };
+  // The picker marks the entry whose registry code is the current language.
+  const pickerCode = LANGS.find((l) => normalizeLanguageCode(l.code) === lang)?.code ?? lang;
+  return { lang: pickerCode, t: translate, apply, busy: false };
 }
 
+/**
+ * LEGACY - DISCONNECTED. Not called anywhere; kept only as a record of the
+ * previous implementation. It keeps its own language state (`sv_lang`), its own
+ * cache and sends language names as locales. Do not wire it back in: the
+ * language provider (src/lib/language-catalog.ts) is the one language system.
+ * @deprecated
+ */
 function useBarTranslationLegacy() {
   const [lang, setLang] = useState("en");
   const [dict, setDict] = useState<Record<string, string>>({});
@@ -263,7 +270,7 @@ function LanguagePicker({
         <Globe2 className="h-3.5 w-3.5 text-cyan-200 transition-transform duration-500 group-hover:rotate-180" />
       </PopoverTrigger>
       <PopoverContent align="end" className={PANEL}>
-        <PanelHead icon={Globe2} title={t("Language")} note="Auto-detected from your browser" />
+        <PanelHead icon={Globe2} title={t("Language")} note={t("Auto-detected from your browser")} />
         <ScrollArea className="h-64">
           <div className="p-2">
             {LANGS.map((l, i) => (
@@ -271,7 +278,7 @@ function LanguagePicker({
                 key={l.code}
                 onClick={() => apply(l.code)}
                 className="kr-item flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] hover:bg-white/10"
-                style={{ animationDelay: `${i * 22}ms` }}
+                style={{ animationDelay: `${Math.min(i, 12) * 22}ms` }}
               >
                 <span className="text-base leading-none">{l.flag}</span>
                 <span className="flex-1 font-medium">{l.label}</span>

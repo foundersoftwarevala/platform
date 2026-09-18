@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { getCurrentLanguage } from "@/lib/i18n/language-service";
+import { getLanguage, normalizeLanguageCode } from "@/lib/i18n/registry";
+
 export interface Preferences {
   theme: "dark" | "light";
   sound: boolean;
@@ -15,35 +18,43 @@ const DEFAULTS: Preferences = {
   sound: true,
   reducedMotion: false,
   autoTranslate: false,
-  language: "hi",
+  // Replaced on load by the stored choice, or the site's language.
+  language: "en",
   density: "comfortable",
   enterToSend: true,
 };
 
 const KEY = "vala.chat.preferences";
 
-export const LANGUAGES = [
-  { code: "en", label: "English" },
-  { code: "hi", label: "हिन्दी" },
-  { code: "mr", label: "मराठी" },
-  { code: "ta", label: "தமிழ்" },
-  { code: "es", label: "Español" },
-  { code: "fr", label: "Français" },
-  { code: "de", label: "Deutsch" },
-  { code: "ar", label: "العربية" },
-  { code: "ja", label: "日本語" },
-];
+/** Languages offered for chat translation. Codes and labels come from the language registry. */
+const CHAT_LANGUAGE_CODES = ["en", "hi", "mr", "ta", "es", "fr", "de", "ar", "ja"];
+
+export const LANGUAGES = CHAT_LANGUAGE_CODES.map((code) => ({
+  code,
+  label: getLanguage(code)?.nativeName ?? code,
+}));
+
+/** A stored chat language, if it is still a language this dialog offers. */
+function chatLanguage(value: unknown): string | null {
+  const code = typeof value === "string" ? normalizeLanguageCode(value) : null;
+  return code && CHAT_LANGUAGE_CODES.includes(code) ? code : null;
+}
 
 export function usePreferences() {
   const [prefs, setPrefs] = useState<Preferences>(DEFAULTS);
 
   useEffect(() => {
+    let stored: Partial<Preferences> = {};
     try {
       const raw = window.localStorage.getItem(KEY);
-      if (raw) setPrefs({ ...DEFAULTS, ...(JSON.parse(raw) as Partial<Preferences>) });
+      if (raw) stored = JSON.parse(raw) as Partial<Preferences>;
     } catch {
       /* ignore malformed local settings */
     }
+    // No separate language state: without a valid chat choice, chat follows
+    // the language the site is shown in.
+    const language = chatLanguage(stored.language) ?? chatLanguage(getCurrentLanguage()) ?? DEFAULTS.language;
+    setPrefs({ ...DEFAULTS, ...stored, language });
   }, []);
 
   useEffect(() => {

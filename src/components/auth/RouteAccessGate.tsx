@@ -57,6 +57,8 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/vala-tv", roles: ["marketing", "support"], label: "Vala TV" },
   { prefix: "/chat-manager", roles: ["support", "sales_support_manager"], label: "Chat Manager" },
   { prefix: "/admin", roles: [], label: "Admin" },
+  // Languages, the translation engine, memory, glossary and review.
+  { prefix: "/language-manager", roles: [], label: "Language Manager" },
   // Executive only: this console carries platform-wide revenue, risk and
   // customer data. An empty role list means operators and nobody else.
   { prefix: "/ai-ceo", roles: [], label: "AI CEO" },

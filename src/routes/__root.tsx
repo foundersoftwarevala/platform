@@ -12,6 +12,9 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { RouteAccessGate } from "@/components/auth/RouteAccessGate";
 import { LanguageProvider } from "@/lib/language-catalog";
+import { PageTranslator } from "@/components/i18n/PageTranslator";
+import { DEFAULT_LANGUAGE, buildLanguageBootScript } from "@/lib/i18n/language-service";
+import { getLanguage } from "@/lib/i18n/registry";
 import { useRealtimeAuth } from "@/integrations/supabase/realtime-auth";
 import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -106,10 +109,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+// Sets <html lang dir> from the stored language before first paint. Built from
+// the language registry, so it knows the same codes and directions.
+const LANGUAGE_BOOT_SCRIPT = buildLanguageBootScript();
+const SOURCE_LANGUAGE_ENTRY = getLanguage(DEFAULT_LANGUAGE)!;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // The server renders the source language; the boot script and the
+    // language provider replace lang/dir on the client, hence the warning
+    // suppression on this one element.
+    <html lang={SOURCE_LANGUAGE_ENTRY.code} dir={SOURCE_LANGUAGE_ENTRY.direction} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: LANGUAGE_BOOT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>
@@ -136,6 +148,12 @@ function RootComponent() {
         document direction and no text at all.
       */}
       <LanguageProvider>
+      {/*
+        Translates the text already rendered on the page - the locked
+        storefront copy, the chat, every console - through the platform's own
+        engine. Renders nothing and rewrites no markup.
+      */}
+      <PageTranslator />
       <TooltipProvider>
         <CelebrationProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}

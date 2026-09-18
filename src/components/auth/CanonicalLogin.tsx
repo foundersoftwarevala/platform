@@ -1,13 +1,15 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, CheckCircle2, Eye, EyeOff, Fingerprint, Globe, LockKeyhole, Mail, Mic, MicOff, ShieldCheck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { OwlStage, type OwlState } from "@/components/owl/OwlStage";
-import { LANGUAGES, useLanguage } from "@/lib/language-catalog";
+import { useLanguage } from "@/lib/language-catalog";
 import { supabase } from "@/integrations/supabase/client";
 
-const LANGUAGE_OPTIONS = ["EN", "HI", "AR", "ES", "FR", "DE", "JA", "ZH"];
-const RTL_LANGUAGES = new Set(["AR", "FA", "HE", "UR"]);
+// Registry codes offered on this screen; names and direction come from the registry.
+const LANGUAGE_OPTIONS = ["en", "hi", "ar", "es", "fr", "de", "ja", "zh-Hans"];
+// The short label this picker has always shown ("EN", "ZH").
+const shortLabel = (code: string) => code.split("-")[0]!.toUpperCase();
 
 const ROLE_DESTINATIONS: Record<string, string> = {
   admin: "/control-panel",
@@ -32,7 +34,7 @@ type Props = { redirectTo?: string };
 
 export function CanonicalLogin({ redirectTo }: Props) {
   const navigate = useNavigate();
-  const { lang, setLanguage, translate } = useLanguage();
+  const { lang, language, dir, setLanguage, translate } = useLanguage();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -42,16 +44,16 @@ export function CanonicalLogin({ redirectTo }: Props) {
   const [owlState, setOwlState] = useState<OwlState>("idle");
   const [assistantLine, setAssistantLine] = useState("Nexus OS is warm and waiting.");
 
-  const languageName = useMemo(() => LANGUAGES.find((item) => item.code === lang)?.native ?? lang, [lang]);
+  const languageName = language.nativeName;
 
   useEffect(() => {
     if (!voice || typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(assistantLine);
-    utterance.lang = lang.toLowerCase();
+    utterance.lang = language.locale;
     window.speechSynthesis.speak(utterance);
     return () => window.speechSynthesis.cancel();
-  }, [assistantLine, lang, voice]);
+  }, [assistantLine, language.locale, voice]);
 
   const routeAfterAuth = async () => {
     if (redirectTo?.startsWith("/")) {
@@ -134,7 +136,7 @@ export function CanonicalLogin({ redirectTo }: Props) {
   };
 
   return (
-    <div className="relative flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-[oklch(0.10_0.02_265)] text-[oklch(0.96_0.01_260)]" dir={RTL_LANGUAGES.has(lang) ? "rtl" : "ltr"}>
+    <div className="relative flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-[oklch(0.10_0.02_265)] text-[oklch(0.96_0.01_260)]" dir={dir}>
       <div className="pointer-events-none absolute inset-0 overflow-hidden bg-[radial-gradient(80%_60%_at_18%_8%,oklch(0.36_0.16_330_/_0.55),transparent_60%),radial-gradient(70%_60%_at_92%_18%,oklch(0.34_0.14_70_/_0.42),transparent_62%),linear-gradient(180deg,oklch(0.13_0.03_320),oklch(0.09_0.02_310))]">
         <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(oklch(1_0_0_/_0.6)_1px,transparent_1px),linear-gradient(90deg,oklch(1_0_0_/_0.6)_1px,transparent_1px)] [background-size:56px_56px]" />
       </div>
@@ -163,7 +165,7 @@ export function CanonicalLogin({ redirectTo }: Props) {
           <div className="relative w-full max-w-[540px] overflow-hidden rounded-2xl p-0 ring-1 ring-white/10 shadow-[0_60px_120px_-40px_black,inset_0_1px_0_oklch(1_0_0_/_0.1)] [background:linear-gradient(180deg,oklch(1_0_0_/_0.07),oklch(1_0_0_/_0.015)_45%,oklch(0_0_0_/_0.1))]">
             <div className="relative px-6 pt-5">
               <div className="mb-3 flex items-center justify-end gap-2">
-                <label className="flex items-center gap-2 rounded-full bg-white/[0.06] px-2.5 py-1 text-[10px] text-white/70 ring-1 ring-white/10"><Globe className="size-3" /><select value={lang} onChange={(event) => setLanguage(event.target.value)} aria-label="Language" className="bg-transparent text-white outline-none"><option value={lang}>{languageName}</option>{LANGUAGE_OPTIONS.filter((code) => code !== lang).map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+                <label className="flex items-center gap-2 rounded-full bg-white/[0.06] px-2.5 py-1 text-[10px] text-white/70 ring-1 ring-white/10"><Globe className="size-3" /><select value={lang} onChange={(event) => setLanguage(event.target.value)} aria-label="Language" className="bg-transparent text-white outline-none"><option value={lang}>{languageName}</option>{LANGUAGE_OPTIONS.filter((code) => code !== lang).map((code) => <option key={code} value={code}>{shortLabel(code)}</option>)}</select></label>
                 <button type="button" onClick={() => setVoice((value) => !value)} aria-pressed={voice} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-[10px] text-white/75 ring-1 ring-white/10">{voice ? <Mic className="size-3" /> : <MicOff className="size-3" />}{voice ? "Speaking" : "Speak"}</button>
               </div>
               <div className="flex items-start justify-between"><div><p className="text-[17px] font-semibold tracking-tight text-white">Software Vala</p><p className="mt-0.5 text-[9.5px] uppercase tracking-[0.22em] text-white/45">The name of trust</p></div><span className="rounded-full bg-amber-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-200 ring-1 ring-amber-300/30">Founder access</span></div>

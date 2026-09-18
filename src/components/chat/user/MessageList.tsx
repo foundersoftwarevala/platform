@@ -156,7 +156,9 @@ export function MessageList(props: MessageListProps) {
   const translate = useCallback(
     async (message: ChatMessage) => {
       setTranslations((prev) => ({ ...prev, [message.id]: { loading: true } }));
-      const result = await translateMessage({ data: { text: message.body, target: translateTarget } });
+      const result = await translateMessage({ data: { text: message.body, target: translateTarget } }).catch(
+        () => ({ ok: false as const, error: "Translation service unavailable." }),
+      );
       setTranslations((prev) => ({
         ...prev,
         [message.id]: result.ok ? { loading: false, text: result.text } : { loading: false, error: result.error },

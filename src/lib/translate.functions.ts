@@ -1,43 +1,70 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { aiComplete } from "@/lib/ai-gateway.server";
 
 const schema = z.object({
   text: z.string().min(1).max(4000),
-  target: z.string().min(2).max(12),
+  target: z.string().min(2).max(64),
 });
 
-/** Real machine translation through the Lovable AI gateway. */
+/**
+ * Translate one chat message into the reader's language.
+ *
+ * Goes through the platform's translation pipeline (src/lib/i18n), so the
+ * target is resolved against the language registry and the engine is
+ * whichever provider is configured. Chat messages are private: they are never
+ * written to, or read from, shared translation memory, and the source
+ * language is detected rather than assumed.
+ *
+ * This previously checked an `apiKey` variable that no longer existed after
+ * the move off the Lovable gateway, so every call threw.
+ */
 export const translateMessage = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => schema.parse(input))
   .handler(async ({ data }) => {
-        if (!apiKey) return { ok: false as const, error: "Translation service is not configured." };
+    const { resolveCaller, translateForCaller } = await import("@/lib/i18n/service.server");
+    const { PipelineError } = await import("@/lib/i18n/pipeline");
 
-    const __ai = await aiComplete({
-      module: "translate",
-      messages: [
-          {
-            role: "system",
-            content:
-              "You are a translation engine for a business chat app. Translate the user's message into the requested language. Preserve emoji, names, numbers and formatting. Reply with the translation only.",
-          },
-          { role: "user", content: `Target language code: ${data.target}\n\nMessage:\n${data.text}` },
-        ],
-    });
-    // Shaped like the gateway reply the surrounding code already parses.
-    const response = {
-      ok: true,
-      status: 200,
-      json: async () => ({ choices: [{ message: { content: __ai.text } }] }),
-      text: async () => __ai.text,
-    };
+    const caller = await resolveCaller(
+      getRequestHeader("authorization") ?? getRequestHeader("Authorization") ?? null,
+      getRequestHeader("cf-connecting-ip") ??
+        getRequestHeader("x-forwarded-for")?.split(",")[0]?.trim() ??
+        "unknown",
+    );
+    if (caller.tier === "anonymous") {
+      return { ok: false as const, error: "Sign in to translate messages." };
+    }
 
-    if (response.status === 429) return { ok: false as const, error: "Translation rate limit reached. Try again shortly." };
-    if (response.status === 402) return { ok: false as const, error: "Translation credits exhausted." };
-    if (!response.ok) return { ok: false as const, error: "Translation service unavailable." };
-
-    const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-    const translated = payload.choices?.[0]?.message?.content?.trim();
-    if (!translated) return { ok: false as const, error: "Translation service returned no text." };
-    return { ok: true as const, text: translated };
+    try {
+      const result = await translateForCaller(
+        {
+          texts: [data.text],
+          source: null,
+          target: data.target,
+          namespace: "chat",
+          persist: false,
+        },
+        caller,
+      );
+      const outcome = result.outcomes[0];
+      if (outcome?.translation) return { ok: true as const, text: outcome.translation };
+      if (outcome?.status === "needs_review") {
+        return { ok: false as const, error: "The translation did not pass validation." };
+      }
+      return { ok: false as const, error: "Translation service unavailable." };
+    } catch (error) {
+      if (error instanceof PipelineError) {
+        const message =
+          error.reason === "invalid_language"
+            ? "That language is not supported."
+            : error.reason === "quota_exceeded"
+              ? "Translation limit reached. Try again later."
+              : error.reason === "engine_unavailable"
+                ? "Translation is unavailable right now. Try again shortly."
+                : "Translation request was refused.";
+        return { ok: false as const, error: message };
+      }
+      console.error("[translateMessage] failed", error);
+      return { ok: false as const, error: "Translation service unavailable." };
+    }
   });

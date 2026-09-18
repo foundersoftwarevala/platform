@@ -119,7 +119,7 @@ export function StorefrontTopBarSection() {
       {tab === "Language" && (
         <>
           <SourceNote
-            text="Languages come from src/lib/language-catalog.ts (143 entries). marketplace_translations is empty, so the picker changes the label and nothing is translated yet."
+            text="Languages come from the language registry, src/lib/i18n/registry.ts (140 entries, mirrored in i18n_languages). Text comes from the reviewed UI dictionary, then translation memory (marketplace_translations), then the translation engine; until one of those answers, English is shown."
           />
           <ModuleGrid modules={byCategory(["locale"]).filter((m) => m.module_key === "language")} save={save} loading={isLoading} />
         </>

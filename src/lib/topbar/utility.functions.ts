@@ -5,7 +5,12 @@
  * directly in the browser in this Vite SPA.
  */
 
-export type RatesResult = { base: string; rates: Record<string, number>; updated: string; error?: string };
+export type RatesResult = {
+  base: string;
+  rates: Record<string, number>;
+  updated: string;
+  error?: string;
+};
 export type WeatherResult = {
   city: string;
   country: string;
@@ -17,7 +22,12 @@ export type WeatherResult = {
   error?: string;
 };
 export type Holiday = { date: string; localName: string; name: string };
-export type HolidaysResult = { countryCode: string; year: number; holidays: Holiday[]; error?: string };
+export type HolidaysResult = {
+  countryCode: string;
+  year: number;
+  holidays: Holiday[];
+  error?: string;
+};
 export type TranslateResult = { texts: string[]; error?: string };
 export type ChatResult = { reply: string; error?: string };
 
@@ -28,7 +38,8 @@ export async function getExchangeRates(arg?: Arg<{ base?: string }>): Promise<Ra
   const base = (arg?.data?.base || "USD").toUpperCase().slice(0, 3);
   try {
     const res = await fetch(`https://open.er-api.com/v6/latest/${base}`);
-    if (!res.ok) return { base, rates: {}, updated: "", error: `Rates service error (${res.status}).` };
+    if (!res.ok)
+      return { base, rates: {}, updated: "", error: `Rates service error (${res.status}).` };
     const json = (await res.json()) as {
       result?: string;
       rates?: Record<string, number>;
@@ -39,7 +50,12 @@ export async function getExchangeRates(arg?: Arg<{ base?: string }>): Promise<Ra
     }
     return { base, rates: json.rates, updated: json.time_last_update_utc ?? "" };
   } catch (e) {
-    return { base, rates: {}, updated: "", error: e instanceof Error ? e.message : "Network error." };
+    return {
+      base,
+      rates: {},
+      updated: "",
+      error: e instanceof Error ? e.message : "Network error.",
+    };
   }
 }
 
@@ -93,7 +109,8 @@ export async function getWeather(
     const res = await fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,is_day,weather_code,wind_speed_10m&wind_speed_unit=kmh`,
     );
-    if (!res.ok) return { ...empty, city, country, error: `Weather service error (${res.status}).` };
+    if (!res.ok)
+      return { ...empty, city, country, error: `Weather service error (${res.status}).` };
     const wj = (await res.json()) as {
       current?: {
         temperature_2m: number;
@@ -128,7 +145,8 @@ export async function getHolidays(
   const year = data?.year && data.year > 1970 ? Math.floor(data.year) : new Date().getUTCFullYear();
   try {
     const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${countryCode}`);
-    if (!res.ok) return { countryCode, year, holidays: [], error: `No holiday data (${res.status}).` };
+    if (!res.ok)
+      return { countryCode, year, holidays: [], error: `No holiday data (${res.status}).` };
     // The provider answers 204 with an empty body for a country it does not
     // cover - India among them, in every year. 204 passes res.ok, so this used
     // to run res.json() on nothing and show the visitor a raw
@@ -150,7 +168,12 @@ export async function getHolidays(
       holidays: json.map((h) => ({ date: h.date, localName: h.localName, name: h.name })),
     };
   } catch (e) {
-    return { countryCode, year, holidays: [], error: e instanceof Error ? e.message : "Network error." };
+    return {
+      countryCode,
+      year,
+      holidays: [],
+      error: e instanceof Error ? e.message : "Network error.",
+    };
   }
 }
 
@@ -168,6 +191,12 @@ export async function getHolidays(
  * not change instead of appearing broken. Once a key exists this works with no
  * further change, and previously translated strings come from the cache without
  * a provider call at all.
+ *
+ * LEGACY: only useBarTranslationLegacy (disconnected) calls this. It sends a
+ * language name ("Hindi") as the target; the endpoint now resolves that through
+ * the language registry, so it lands on the same canonical language and cache
+ * entry as every other caller. New code uses the language provider.
+ * @deprecated
  */
 export async function translateTexts(
   arg?: Arg<{ texts: string[]; targetLanguage: string }>,
@@ -208,12 +237,64 @@ export async function translateTexts(
 /** Storefront AI assistant — needs a server-side AI key, not available in this SPA build. */
 /** Words that carry no meaning in a product search. */
 const STOP = new Set([
-  "i", "we", "you", "a", "an", "the", "is", "are", "do", "does", "have", "has",
-  "want", "need", "looking", "for", "any", "some", "me", "my", "our", "your",
-  "can", "could", "would", "please", "show", "find", "get", "give", "tell",
-  "about", "with", "and", "or", "of", "to", "in", "on", "at", "it", "this",
-  "that", "there", "hi", "hello", "hey", "software", "system", "solution",
-  "product", "products", "app", "application", "price", "cost", "how", "much",
+  "i",
+  "we",
+  "you",
+  "a",
+  "an",
+  "the",
+  "is",
+  "are",
+  "do",
+  "does",
+  "have",
+  "has",
+  "want",
+  "need",
+  "looking",
+  "for",
+  "any",
+  "some",
+  "me",
+  "my",
+  "our",
+  "your",
+  "can",
+  "could",
+  "would",
+  "please",
+  "show",
+  "find",
+  "get",
+  "give",
+  "tell",
+  "about",
+  "with",
+  "and",
+  "or",
+  "of",
+  "to",
+  "in",
+  "on",
+  "at",
+  "it",
+  "this",
+  "that",
+  "there",
+  "hi",
+  "hello",
+  "hey",
+  "software",
+  "system",
+  "solution",
+  "product",
+  "products",
+  "app",
+  "application",
+  "price",
+  "cost",
+  "how",
+  "much",
 ]);
 
 /**
@@ -223,9 +304,9 @@ const STOP = new Set([
  * a visitor asking the assistant and a visitor typing in the search bar get the
  * same answer from the same source. Nothing is cached and nothing is invented.
  */
-async function searchCatalogueForChat(terms: string): Promise<
-  { name: string; slug: string; price: string | null; industry: string | null }[]
-> {
+async function searchCatalogueForChat(
+  terms: string,
+): Promise<{ name: string; slug: string; price: string | null; industry: string | null }[]> {
   const base = process.env.SUPABASE_URL?.trim();
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ??
@@ -275,7 +356,9 @@ export async function askStorefrontAi(
   const last = [...messages].reverse().find((m) => m.role === "user");
   const question = (last?.content ?? "").trim();
   if (!question) {
-    return { reply: "Ask me what you are looking for — a category, an industry or a product name." };
+    return {
+      reply: "Ask me what you are looking for — a category, an industry or a product name.",
+    };
   }
 
   const words = question

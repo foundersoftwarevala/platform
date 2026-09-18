@@ -1,0 +1,15 @@
+# Runtime (versions verified on the deployment host, Python 3.12)
+fastapi==0.141.1
+starlette==1.6.0
+uvicorn==0.53.0
+pydantic==2.13.5
+httpx==0.28.1
+ctranslate2==4.8.2
+sentencepiece==0.2.2
+babel==2.18.0
+fasttext-numpy2-wheel==0.9.2
+numpy==2.5.3
+opencc-python-reimplemented==0.1.7
+
+# Tests
+pytest==9.1.1

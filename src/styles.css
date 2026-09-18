@@ -630,3 +630,31 @@
   .card3d:hover { transform: none !important; }
   .skeleton-shimmer::after { animation: none !important; }
 }
+
+/*
+ * Right-to-left languages.
+ *
+ * <html dir> comes from the language registry (src/lib/i18n). Text that is not
+ * running prose keeps its own direction inside an RTL page, so addresses, codes
+ * and numbers are not reordered. Layout is not mirrored wholesale; a component
+ * that should flip (a directional arrow, say) opts in with .rtl-flip, and new
+ * work uses logical utilities (ms-/me-/ps-/pe-/text-start/text-end).
+ */
+@layer base {
+  :root[dir="rtl"] :is(code, kbd, samp, pre),
+  :root[dir="rtl"] :is(input[type="email"], input[type="url"], input[type="tel"], input[type="number"], input[type="password"]) {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  :root[dir="rtl"] :is(input[type="email"], input[type="url"], input[type="tel"], input[type="number"], input[type="password"]) {
+    text-align: end;
+  }
+  :root[dir="rtl"] :is(input:not([type]), input[type="text"], input[type="search"], textarea) {
+    unicode-bidi: plaintext;
+    text-align: start;
+  }
+}
+
+.bidi-isolate { unicode-bidi: isolate; }
+.ltr-content { direction: ltr; unicode-bidi: isolate; }
+:root[dir="rtl"] .rtl-flip { transform: scaleX(-1); }

@@ -1,191 +1,180 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createHash } from "node:crypto";
-import { executeAiRequest } from "@/lib/ai-api.functions";
+import { z } from "zod";
+
+import {
+  MAX_BODY_BYTES,
+  SlidingWindowLimiter,
+  TIER_LIMITS,
+  checkRequestShape,
+  clientAddress,
+} from "@/lib/i18n/limits";
+import { MAX_CONTEXT_LENGTH, NAMESPACE_PATTERN, PipelineError } from "@/lib/i18n/pipeline";
+import { SOURCE_LANGUAGE } from "@/lib/i18n/registry";
 
 /**
- * Translate catalogue text.
+ * Translate text.
  *
- * The marketplace is read from sixty countries but every product name, category
- * name and description is written once, in English. This turns a batch of that
- * text into another language and hands it back.
+ * The public entry to the translation pipeline (src/lib/i18n/pipeline.ts):
+ * every language is resolved against the registry, answers come from
+ * translation memory first, and only what memory does not hold goes to the
+ * platform's own translation engine (services/translation-engine). An
+ * external provider is used only if TRANSLATION_ALLOW_EXTERNAL=true. Output
+ * that fails validation is never returned.
  *
- * It does not hold a provider, a model or a key of its own. Every call goes
- * through AI API Manager, which is where the provider, the model, the
- * credential and the usage metering live - a second AI client here would mean a
- * second place to configure, a second place to pay for and a second place to
- * leak from. If nothing is configured there, this says so plainly and
- * translates nothing; it never invents a translation.
+ * Body:
+ *   { texts: string[], target: string, source?: string, namespace?: string,
+ *     context?: string, memory_only?: boolean, mode?: "realtime" | "quality" }
+ * `locale` is accepted in place of `target` for callers written before the
+ * registry. Any spelling the registry recognises is accepted ("hi", "HI",
+ * "Hindi", "pt-br"); anything else is refused with reason "invalid_language".
  *
- * What comes back is stored by the digest of the source text, so the same
- * sentence on twenty products is translated once and read from the database
- * ever after.
+ * Callers: visitors may translate interface text; signed-in accounts get a
+ * larger allowance; admin and boss may translate any namespace. Requests are
+ * rate limited per caller and engine work is metered in the database.
+ *
+ * Responses carry a `reason` on failure: invalid_request, invalid_language,
+ * rate_limited, quota_exceeded, engine_unavailable, service_error.
  */
 
-const MAX_ITEMS = 40;
-const MAX_CHARS = 6000;
+const limiter = new SlidingWindowLimiter(60_000);
 
-function url() {
-  return process.env.SUPABASE_URL?.trim() ?? "";
-}
+const bodySchema = z
+  .object({
+    texts: z.array(z.string()).max(TIER_LIMITS.operator.maxItems),
+    target: z.string().max(64).optional(),
+    locale: z.string().max(64).optional(),
+    source: z.string().max(64).optional(),
+    namespace: z.string().regex(NAMESPACE_PATTERN).optional(),
+    context: z.string().max(MAX_CONTEXT_LENGTH).optional(),
+    // Answer from translation memory only; allowed in any namespace for every caller.
+    memory_only: z.boolean().optional(),
+    // Operators may ask for the slower, higher-quality engine mode.
+    mode: z.enum(["realtime", "quality"]).optional(),
+  })
+  .strict();
 
-function admin() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
-  return { apikey: key, Authorization: `Bearer ${key}` };
-}
-
-function digest(text: string): string {
-  return createHash("sha256").update(text).digest("hex").slice(0, 32);
-}
-
-/** Translations already held for these texts. */
-async function cached(hashes: string[], locale: string) {
-  const held = new Map<string, string>();
-  if (!url() || hashes.length === 0) return held;
-  try {
-    const list = hashes.map((h) => `"${h}"`).join(",");
-    const response = await fetch(
-      `${url()}/rest/v1/marketplace_translations?select=source_hash,translated_text` +
-        `&locale=eq.${encodeURIComponent(locale)}&source_hash=in.(${encodeURIComponent(list)})`,
-      { headers: admin() },
-    );
-    if (!response.ok) return held;
-    const rows = (await response.json()) as { source_hash: string; translated_text: string }[];
-    for (const row of rows) held.set(row.source_hash, row.translated_text);
-  } catch (error) {
-    console.error("[translate] cache read failed", error);
-  }
-  return held;
-}
-
-async function store(
-  rows: { source_hash: string; locale: string; source_text: string; translated_text: string;
-    provider: string | null; model: string | null }[],
-) {
-  if (!url() || rows.length === 0) return;
-  try {
-    await fetch(
-      `${url()}/rest/v1/marketplace_translations?on_conflict=source_hash,locale`,
-      {
-        method: "POST",
-        headers: { ...admin(), "Content-Type": "application/json",
-          Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: JSON.stringify(rows),
-      },
-    );
-  } catch (error) {
-    console.error("[translate] store failed", error);
-  }
+function fail(status: number, reason: string, error: string, headers?: Record<string, string>) {
+  return Response.json({ error, reason }, { status, headers });
 }
 
 export const Route = createFileRoute("/api/marketplace/translate")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        let body: { texts?: unknown; locale?: unknown };
+        const declared = Number(request.headers.get("content-length") ?? "0");
+        if (declared > MAX_BODY_BYTES) return fail(413, "invalid_request", "Request is too large.");
+
+        let raw: string;
         try {
-          body = (await request.json()) as typeof body;
+          raw = await request.text();
         } catch {
-          return Response.json({ error: "Invalid request" }, { status: 400 });
+          return fail(400, "invalid_request", "Invalid request.");
         }
+        if (raw.length > MAX_BODY_BYTES)
+          return fail(413, "invalid_request", "Request is too large.");
 
-        const locale = String(body.locale ?? "").trim().slice(0, 16);
-        const texts = Array.isArray(body.texts)
-          ? body.texts.map((t) => String(t ?? "").trim()).filter(Boolean).slice(0, MAX_ITEMS)
-          : [];
-
-        if (!locale) return Response.json({ error: "Which language?" }, { status: 400 });
-        if (texts.length === 0) return Response.json({ translations: {} });
-        if (texts.join("").length > MAX_CHARS) {
-          return Response.json({ error: "Too much text in one request." }, { status: 413 });
-        }
-
-        const hashes = texts.map(digest);
-        const held = await cached(hashes, locale);
-
-        const missing: string[] = [];
-        for (let i = 0; i < texts.length; i++) {
-          if (!held.has(hashes[i]!)) missing.push(texts[i]!);
-        }
-
-        // Everything already known: no model call at all.
-        if (missing.length === 0) {
-          const translations: Record<string, string> = {};
-          texts.forEach((text, i) => {
-            translations[text] = held.get(hashes[i]!) ?? text;
-          });
-          return Response.json({ translations, locale, translated: 0, fromCache: texts.length });
-        }
-
-        let answer: { text: string; provider?: string | null; model?: string | null };
+        let parsed: z.infer<typeof bodySchema>;
         try {
-          answer = await executeAiRequest({
-            module: "marketplace-translation",
-            system:
-              "You translate short product and category names and one-line product " +
-              "descriptions for a software marketplace. Return only a JSON array of " +
-              "strings, the same length and order as the input. Keep product names " +
-              "recognisable, do not add words, do not explain.",
-            prompt:
-              `Translate each item into ${locale}. Reply with a JSON array only.\n` +
-              JSON.stringify(missing),
-          });
-        } catch (error) {
-          // AI API Manager has no active provider or no real credential. Say so;
-          // never fall back to inventing a translation or echoing the English
-          // back as if it were one.
-          return Response.json(
-            {
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Translation is not available until a provider is configured in AI API Manager.",
-              reason: "ai_not_configured",
-            },
-            { status: 503 },
-          );
-        }
-
-        let produced: string[] = [];
-        try {
-          const cleaned = answer.text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "");
-          const parsed = JSON.parse(cleaned) as unknown;
-          if (Array.isArray(parsed)) produced = parsed.map((v) => String(v ?? ""));
+          parsed = bodySchema.parse(JSON.parse(raw));
         } catch {
-          produced = [];
-        }
-        if (produced.length !== missing.length) {
-          return Response.json(
-            { error: "The provider did not return a usable translation.", reason: "bad_response" },
-            { status: 502 },
-          );
+          return fail(400, "invalid_request", "Invalid request.");
         }
 
-        await store(
-          missing.map((source, i) => ({
-            source_hash: digest(source),
-            locale,
-            source_text: source,
-            translated_text: produced[i]!,
-            provider: answer.provider ?? null,
-            model: answer.model ?? null,
-          })),
+        const target = parsed.target ?? parsed.locale;
+        if (!target) return fail(400, "invalid_language", "Which language?");
+        const namespace = parsed.namespace ?? "ui";
+        const texts = parsed.texts.map((t) => t.trim()).filter(Boolean);
+        if (texts.length === 0) return Response.json({ translations: {}, target, results: [] });
+
+        const { resolveCaller, translateForCaller } = await import("@/lib/i18n/service.server");
+        const { ensureJobWorker } = await import("@/lib/i18n/jobs.server");
+        ensureJobWorker();
+        const address = clientAddress(request.headers);
+        const caller = await resolveCaller(
+          request.headers.get("authorization"),
+          address,
+          request.headers.get("x-internal-token"),
         );
 
-        const freshly = new Map(missing.map((source, i) => [digest(source), produced[i]!]));
-        const translations: Record<string, string> = {};
-        texts.forEach((text, i) => {
-          const key = hashes[i]!;
-          translations[text] = held.get(key) ?? freshly.get(key) ?? text;
-        });
+        const memoryOnly = parsed.memory_only === true;
+        const shape = checkRequestShape(caller.tier, { texts, namespace });
+        if (shape && !(memoryOnly && shape === "namespace_not_allowed")) {
+          return fail(
+            shape === "namespace_not_allowed" ? 403 : 413,
+            "invalid_request",
+            `Request refused: ${shape}.`,
+          );
+        }
 
-        return Response.json({
-          translations,
-          locale,
-          translated: missing.length,
-          fromCache: texts.length - missing.length,
-          provider: answer.provider ?? null,
-          model: answer.model ?? null,
-        });
+        if (limiter.hit(caller.subject, TIER_LIMITS[caller.tier].requestsPerMinute)) {
+          return fail(429, "rate_limited", "Too many translation requests. Try again shortly.", {
+            "Retry-After": "60",
+          });
+        }
+
+        try {
+          const result = await translateForCaller(
+            {
+              texts,
+              source: parsed.source ?? SOURCE_LANGUAGE,
+              target,
+              namespace,
+              context: parsed.context ?? null,
+              persist: true,
+              memoryOnly,
+              mode: caller.tier === "operator" ? parsed.mode : "realtime",
+            },
+            caller,
+          );
+
+          const translations: Record<string, string> = {};
+          for (const outcome of result.outcomes) {
+            if (outcome.translation !== null) translations[outcome.text] = outcome.translation;
+          }
+          return Response.json({
+            translations,
+            target: result.target.code,
+            // Kept for callers written before the registry.
+            locale: result.target.code,
+            source: result.source?.code ?? null,
+            direction: result.target.direction,
+            results: result.outcomes.map((o) => ({
+              text: o.text,
+              status: o.status,
+              origin: o.origin,
+              quality: o.qualityScore,
+              issues: o.issues,
+            })),
+            pending_reason: result.pendingReason,
+            engine: result.engine
+              ? { provider: result.engine.provider, kind: result.engine.kind }
+              : null,
+            fromCache: result.stats.fromMemory,
+            translated: result.stats.translated,
+            needsReview: result.stats.needsReview,
+          });
+        } catch (error) {
+          if (error instanceof PipelineError) {
+            const status =
+              error.reason === "invalid_language" || error.reason === "invalid_request"
+                ? 400
+                : error.reason === "quota_exceeded"
+                  ? 429
+                  : 503;
+            const message =
+              error.reason === "engine_unavailable"
+                ? "The translation engine is unavailable right now (not configured, busy or not answering). Try again shortly."
+                : error.message;
+            return fail(
+              status,
+              error.reason,
+              message,
+              status === 429 ? { "Retry-After": "3600" } : undefined,
+            );
+          }
+          console.error("[translate] failed", error);
+          return fail(500, "service_error", "Translation failed.");
+        }
       },
     },
   },

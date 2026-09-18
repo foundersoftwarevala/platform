@@ -1,3 +1,13 @@
+/**
+ * LEGACY - DISCONNECTED - DEMO DATA. Nothing imports this module.
+ *
+ * It holds a handful of sentences written for a seeded demo conversation and a
+ * word-for-word substitution table. It is not a translation system and must
+ * not be wired into one: the platform's translation path is src/lib/i18n
+ * (registry, pipeline, translation memory). Kept only because nothing is
+ * deleted without an explicit decision.
+ * @deprecated
+ */
 export type LangCode = "en" | "hi" | "es" | "fr" | "de" | "ar" | "ja";
 
 /**
@@ -51,19 +61,54 @@ const words: Record<string, Partial<Record<LangCode, string>>> = {
   hello: { hi: "नमस्ते", es: "hola", fr: "bonjour", de: "hallo", ar: "مرحبا", ja: "こんにちは" },
   hi: { hi: "नमस्ते", es: "hola", fr: "salut", de: "hallo", ar: "مرحبا", ja: "こんにちは" },
   thanks: { hi: "धन्यवाद", es: "gracias", fr: "merci", de: "danke", ar: "شكرا", ja: "ありがとう" },
-  please: { hi: "कृपया", es: "por favor", fr: "s'il vous plaît", de: "bitte", ar: "من فضلك", ja: "お願いします" },
+  please: {
+    hi: "कृपया",
+    es: "por favor",
+    fr: "s'il vous plaît",
+    de: "bitte",
+    ar: "من فضلك",
+    ja: "お願いします",
+  },
   yes: { hi: "हाँ", es: "sí", fr: "oui", de: "ja", ar: "نعم", ja: "はい" },
   no: { hi: "नहीं", es: "no", fr: "non", de: "nein", ar: "لا", ja: "いいえ" },
   help: { hi: "मदद", es: "ayuda", fr: "aide", de: "Hilfe", ar: "مساعدة", ja: "助け" },
   demo: { hi: "डेमो", es: "demostración", fr: "démo", de: "Demo", ar: "عرض", ja: "デモ" },
   team: { hi: "टीम", es: "equipo", fr: "équipe", de: "Team", ar: "فريق", ja: "チーム" },
-  report: { hi: "रिपोर्ट", es: "informe", fr: "rapport", de: "Bericht", ar: "تقرير", ja: "レポート" },
-  invoice: { hi: "चालान", es: "factura", fr: "facture", de: "Rechnung", ar: "فاتورة", ja: "請求書" },
-  software: { hi: "सॉफ़्टवेयर", es: "software", fr: "logiciel", de: "Software", ar: "برمجيات", ja: "ソフトウェア" },
+  report: {
+    hi: "रिपोर्ट",
+    es: "informe",
+    fr: "rapport",
+    de: "Bericht",
+    ar: "تقرير",
+    ja: "レポート",
+  },
+  invoice: {
+    hi: "चालान",
+    es: "factura",
+    fr: "facture",
+    de: "Rechnung",
+    ar: "فاتورة",
+    ja: "請求書",
+  },
+  software: {
+    hi: "सॉफ़्टवेयर",
+    es: "software",
+    fr: "logiciel",
+    de: "Software",
+    ar: "برمجيات",
+    ja: "ソフトウェア",
+  },
   student: { hi: "छात्र", es: "estudiante", fr: "étudiant", de: "Student", ar: "طالب", ja: "学生" },
   today: { hi: "आज", es: "hoy", fr: "aujourd'hui", de: "heute", ar: "اليوم", ja: "今日" },
   good: { hi: "अच्छा", es: "bueno", fr: "bon", de: "gut", ar: "جيد", ja: "良い" },
-  meeting: { hi: "बैठक", es: "reunión", fr: "réunion", de: "Besprechung", ar: "اجتماع", ja: "会議" },
+  meeting: {
+    hi: "बैठक",
+    es: "reunión",
+    fr: "réunion",
+    de: "Besprechung",
+    ar: "اجتماع",
+    ja: "会議",
+  },
 };
 
 export function translateText(text: string, lang: LangCode): string {
