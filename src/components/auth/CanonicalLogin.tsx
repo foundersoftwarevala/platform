@@ -5,12 +5,9 @@ import { toast } from "sonner";
 import { OwlStage, type OwlState } from "@/components/owl/OwlStage";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { richText, useTranslation } from "@/lib/i18n/use-translation";
+import { LanguageSelector } from "@/components/i18n/LanguageSelector";
 import { supabase } from "@/integrations/supabase/client";
 
-// Registry codes offered on this screen; names and direction come from the registry.
-const LANGUAGE_OPTIONS = ["en", "hi", "ar", "es", "fr", "de", "ja", "zh-Hans"];
-// The short label this picker has always shown ("EN", "ZH").
-const shortLabel = (code: string) => code.split("-")[0]!.toUpperCase();
 
 const ROLE_DESTINATIONS: Record<string, string> = {
   admin: "/control-panel",
@@ -35,7 +32,7 @@ type Props = { redirectTo?: string };
 
 export function CanonicalLogin({ redirectTo }: Props) {
   const navigate = useNavigate();
-  const { lang, language, dir, setLanguage, t } = useTranslation();
+  const { language, dir, t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -47,7 +44,6 @@ export function CanonicalLogin({ redirectTo }: Props) {
   const [assistant, setAssistant] = useState<MessageKey | { raw: string }>("auth.assistant.idle");
   const assistantLine = typeof assistant === "string" ? t(assistant) : assistant.raw;
 
-  const languageName = language.nativeName;
 
   useEffect(() => {
     if (!voice || typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -168,7 +164,7 @@ export function CanonicalLogin({ redirectTo }: Props) {
           <div className="relative w-full max-w-[540px] overflow-hidden rounded-2xl p-0 ring-1 ring-white/10 shadow-[0_60px_120px_-40px_black,inset_0_1px_0_oklch(1_0_0_/_0.1)] [background:linear-gradient(180deg,oklch(1_0_0_/_0.07),oklch(1_0_0_/_0.015)_45%,oklch(0_0_0_/_0.1))]">
             <div className="relative px-6 pt-5">
               <div className="mb-3 flex items-center justify-end gap-2">
-                <label className="flex items-center gap-2 rounded-full bg-white/[0.06] px-2.5 py-1 text-[10px] text-white/70 ring-1 ring-white/10"><Globe className="size-3" /><select value={lang} onChange={(event) => setLanguage(event.target.value)} aria-label={t("auth.language")} className="bg-transparent text-white outline-none"><option value={lang}>{languageName}</option>{LANGUAGE_OPTIONS.filter((code) => code !== lang).map((code) => <option key={code} value={code}>{shortLabel(code)}</option>)}</select></label>
+                <LanguageSelector triggerClassName="inline-flex h-7 items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 text-[11px] text-white/80 ring-1 ring-white/10 hover:bg-white/[0.1]" />
                 <button type="button" onClick={() => setVoice((value) => !value)} aria-pressed={voice} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-[10px] text-white/75 ring-1 ring-white/10">{voice ? <Mic className="size-3" /> : <MicOff className="size-3" />}{voice ? t("auth.voice.speaking") : t("auth.voice.speak")}</button>
               </div>
               <div className="flex items-start justify-between"><div><p translate="no" className="text-[17px] font-semibold tracking-tight text-white">Software Vala</p><p className="mt-0.5 text-[9.5px] uppercase tracking-[0.22em] text-white/45">{t("auth.tagline")}</p></div><span className="rounded-full bg-amber-400/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-200 ring-1 ring-amber-300/30">{t("auth.founder_access")}</span></div>

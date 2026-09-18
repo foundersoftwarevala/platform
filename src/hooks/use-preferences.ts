@@ -33,10 +33,17 @@ const KEY = "vala.chat.preferences";
  */
 const CHAT_LANGUAGE_CODES = SUPPORTED_LANGUAGES.map((language) => language.code);
 
-export const LANGUAGES = SUPPORTED_LANGUAGES.map((language) => ({
-  code: language.code,
-  label: language.nativeName,
-}));
+// In alphabetical order of the English name, as in the language selector,
+// with both names so either can be found.
+export const LANGUAGES = [...SUPPORTED_LANGUAGES]
+  .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }))
+  .map((language) => ({
+    code: language.code,
+    label:
+      language.nativeName === language.name
+        ? language.name
+        : `${language.nativeName} · ${language.name}`,
+  }));
 
 /** A stored chat language, if it is still a language this dialog offers. */
 function chatLanguage(value: unknown): string | null {

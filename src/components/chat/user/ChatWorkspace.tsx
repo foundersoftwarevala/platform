@@ -49,6 +49,7 @@ import { ProfileDialog } from "./ProfileDialog";
 import { UserAvatar } from "./media";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { LanguageSelector } from "@/components/i18n/LanguageSelector";
 
 export function ChatWorkspace() {
   const { t } = useTranslation();
@@ -339,6 +340,7 @@ export function ChatWorkspace() {
               </TooltipTrigger>
               <TooltipContent>{t("chat.header.details_short")}</TooltipContent>
             </Tooltip>
+            <LanguageSelector showName={false} />
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-8" aria-label={t("chat.header.preferences")} onClick={() => setPrefsOpen(true)}>

@@ -25,7 +25,6 @@ export const AUTH_MESSAGES = {
   "auth.pulse.regions": ["Regions", "statistic label: number of regions served"],
   "auth.pulse.operators": ["Operators", "statistic label: number of platform operators"],
   "auth.pulse.products": ["Products", "statistic label: number of products"],
-  "auth.language": "Language",
   "auth.voice.speaking": ["Speaking", "voice assistant is on"],
   "auth.voice.speak": ["Speak", "button that turns the voice assistant on"],
   "auth.tagline": "The name of trust",

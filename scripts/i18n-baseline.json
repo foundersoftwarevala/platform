@@ -529,7 +529,7 @@
  "src/components/support-chatbot-wireframe/screens/SCBotTraining.tsx": 25,
  "src/components/support-chatbot-wireframe/screens/SCChatbotList.tsx": 23,
  "src/components/support-chatbot-wireframe/screens/SCDashboard.tsx": 4,
- "src/components/support-chatbot-wireframe/screens/SCLanguages.tsx": 18,
+ "src/components/support-chatbot-wireframe/screens/SCLanguages.tsx": 16,
  "src/components/support-chatbot-wireframe/screens/SCLiveChatInbox.tsx": 16,
  "src/components/support-chatbot-wireframe/screens/SCLogs.tsx": 17,
  "src/components/support-chatbot-wireframe/screens/SCSettings.tsx": 35,

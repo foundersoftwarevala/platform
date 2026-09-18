@@ -146,6 +146,28 @@ Actions: **Verify** (approve; an edit is saved as the reviewer's text),
 (approve and make it the language's required term wherever that English
 appears; short strings only).
 
+## The language selector
+
+There is one: `src/components/i18n/LanguageSelector.tsx`. Every screen has it,
+either inline or as the floating button the root layout mounts
+(`LanguageDock`), which shows only while no inline selector is on screen. So
+a new page needs nothing to get language switching. To put it in a header:
+
+```tsx
+import { LanguageSelector } from "@/components/i18n/LanguageSelector";
+
+<LanguageSelector />                    // themed button with the language's name
+<LanguageSelector showName={false} />   // compact: globe + code
+<LanguageSelector variant="dark" />     // on dark headers
+```
+
+It lists the 140 registry languages A–Z by English name, with the language's
+own name, letter headings, a letter bar and search (English name, own name,
+code; accents ignored). The current and browser languages are pinned on top.
+Keyboard: type, arrows, Enter. The choice is stored, sets `<html lang dir>`
+and re-renders every `t()`. Never build another language list or picker: use
+this component, or `SUPPORTED_LANGUAGES` from the registry for data.
+
 ## Languages, SEO, accessibility
 
 - The 140 languages are `src/lib/i18n/registry.ts`; nothing else lists

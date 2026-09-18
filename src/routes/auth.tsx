@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { LanguageSelector } from "@/components/i18n/LanguageSelector";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -97,6 +98,9 @@ function AuthPage() {
   return (
     <main className="grid min-h-[100dvh] place-items-center bg-background px-4">
       <div className="w-full max-w-sm rounded-2xl border border-border/60 bg-card/60 p-6 shadow-lg">
+        <div className="mb-2 flex justify-end">
+          <LanguageSelector />
+        </div>
         <div className="mb-5 text-center">
           <div className="mx-auto grid size-11 place-items-center rounded-xl bg-primary/15 text-primary">
             <ShieldCheck className="size-5" />

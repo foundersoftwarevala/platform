@@ -246,7 +246,7 @@ export function checkCatalogue() {
   // Files that use the keyed API. Older components call the provider's
   // translate() with English wording (also named `t` in some of them); those
   // are not catalogue keys and are not checked here.
-  const usesTranslation = /i18n\/use-translation"|server-translate\.server"|MailLanguage/;
+  const usesTranslation = /i18n\/use-translation["']|server-translate\.server["']|MailLanguage/;
 
   for (const file of files(SRC)) {
     if (file.startsWith(MESSAGES)) continue;
@@ -339,7 +339,7 @@ export function checkCatalogue() {
     if (file.startsWith(MESSAGES)) continue;
     const raw = readFileSync(file, "utf8");
     for (const key of catalogue.keys())
-      if (!used.has(key) && raw.includes(`"${key}"`)) used.add(key);
+      if (!used.has(key) && (raw.includes(`"${key}"`) || raw.includes(`'${key}'`))) used.add(key);
   }
   for (const key of catalogue.keys())
     if (!used.has(key))

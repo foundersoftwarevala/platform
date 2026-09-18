@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { RouteAccessGate } from "@/components/auth/RouteAccessGate";
 import { LanguageProvider } from "@/lib/language-catalog";
 import { PageTranslator } from "@/components/i18n/PageTranslator";
+import { LanguageDock } from "@/components/i18n/LanguageSelector";
 import { DEFAULT_LANGUAGE, buildLanguageBootScript } from "@/lib/i18n/language-service";
 import { getLanguage } from "@/lib/i18n/registry";
 import { useRealtimeAuth } from "@/integrations/supabase/realtime-auth";
@@ -154,6 +155,8 @@ function RootComponent() {
         engine. Renders nothing and rewrites no markup.
       */}
       <PageTranslator />
+      {/* The language selector on every screen whose header has none. */}
+      <LanguageDock />
       <TooltipProvider>
         <CelebrationProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}

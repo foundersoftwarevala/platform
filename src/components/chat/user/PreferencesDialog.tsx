@@ -89,9 +89,9 @@ export function PreferencesDialog({ open, onOpenChange, prefs, update }: Props) 
                 <SelectTrigger id="pref-language">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[min(60vh,420px)]" translate="no">
                   {LANGUAGES.map((lang) => (
-                    <SelectItem key={lang.code} value={lang.code}>
+                    <SelectItem key={lang.code} value={lang.code} className="min-h-10">
                       {lang.label}
                     </SelectItem>
                   ))}

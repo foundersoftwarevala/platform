@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/lib/language-catalog";
+import { LanguageSelector } from "@/components/i18n/LanguageSelector";
 import { SUPPORTED_LANGUAGES, normalizeLanguageCode } from "@/lib/i18n/registry";
 import { Link } from "@tanstack/react-router";
 import { listNotifications, markAllRead, subscribe as subscribeApps } from "@/lib/applications/store";
@@ -244,53 +245,6 @@ function useBarTranslationLegacy() {
 
   const t = useCallback((s: string) => dict[s] ?? s, [dict]);
   return { lang, t, apply, busy };
-}
-
-function LanguagePicker({
-  lang,
-  apply,
-  busy,
-  t,
-}: {
-  lang: string;
-  apply: (c: string) => void;
-  busy: boolean;
-  t: (s: string) => string;
-}) {
-  const current = LANGS.find((l) => l.code === lang) ?? LANGS[0];
-  return (
-    <Popover>
-      <PopoverTrigger className={TRIGGER}>
-        {busy ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <span className="text-sm leading-none">{current?.flag}</span>
-        )}
-        <span className="hidden sm:inline">{t("Language")}</span>
-        <Globe2 className="h-3.5 w-3.5 text-cyan-200 transition-transform duration-500 group-hover:rotate-180" />
-      </PopoverTrigger>
-      <PopoverContent align="end" className={PANEL}>
-        <PanelHead icon={Globe2} title={t("Language")} note={t("Auto-detected from your browser")} />
-        <ScrollArea className="h-64">
-          <div className="p-2">
-            {LANGS.map((l, i) => (
-              <button
-                key={l.code}
-                onClick={() => apply(l.code)}
-                className="kr-item flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12.5px] hover:bg-white/10"
-                style={{ animationDelay: `${Math.min(i, 12) * 22}ms` }}
-              >
-                <span className="text-base leading-none">{l.flag}</span>
-                <span className="flex-1 font-medium">{l.label}</span>
-                <span className="text-[10px] uppercase text-white/40">{l.code}</span>
-                {l.code === lang && <Check className="h-3.5 w-3.5 text-emerald-400" />}
-              </button>
-            ))}
-          </div>
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
-  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -1188,7 +1142,7 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
   const items = useMemo(
     () => [
       <ApplyNow key="apply" t={t} />,
-      <LanguagePicker key="lang" lang={lang} apply={apply} busy={busy} t={t} />,
+      <LanguageSelector key="lang" triggerClassName={`${TRIGGER} min-h-8 min-w-8 justify-center`} />,
       <CalendarTool key="cal" t={t} />,
       <CalculatorTool key="calc" t={t} />,
       <LoginPill key="login" t={t} />,

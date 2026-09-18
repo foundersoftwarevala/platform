@@ -1,3 +1,4 @@
+import { LanguageSelector } from "@/components/i18n/LanguageSelector";
 import { Link } from "@tanstack/react-router";
 import { Bell, Search, Sparkles, Zap, ChevronDown, User2, Settings, Menu, Trophy } from "lucide-react";
 
@@ -54,6 +55,7 @@ export function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
           <Link to="/ams/xp" className={cn(ICON_BTN, "hidden md:grid")} aria-label="XP">
             <Zap className="h-[18px] w-[18px]" />
           </Link>
+          <LanguageSelector showName={false} />
           <SoundControl />
 
           <DropdownMenu>

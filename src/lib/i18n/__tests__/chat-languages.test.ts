@@ -9,7 +9,16 @@ describe("chat translation languages", () => {
     expect(LANGUAGES).toHaveLength(SUPPORTED_LANGUAGE_COUNT);
     expect(new Set(LANGUAGES.map((l) => l.code)).size).toBe(SUPPORTED_LANGUAGE_COUNT);
     expect(new Set(LANGUAGES.map((l) => l.label)).size).toBe(SUPPORTED_LANGUAGE_COUNT);
-    expect(LANGUAGES.map((l) => l.code)).toEqual(SUPPORTED_LANGUAGES.map((l) => l.code));
+    expect([...LANGUAGES.map((l) => l.code)].sort()).toEqual(
+      SUPPORTED_LANGUAGES.map((l) => l.code).sort(),
+    );
+  });
+
+  it("lists them in alphabetical order of their English names", () => {
+    const byCode = new Map(SUPPORTED_LANGUAGES.map((l) => [l.code, l.name]));
+    const names = LANGUAGES.map((l) => byCode.get(l.code)!);
+    const sorted = [...names].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+    expect(names).toEqual(sorted);
   });
 
   it("includes the right-to-left and regional languages", () => {
