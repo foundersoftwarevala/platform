@@ -1,16 +1,8 @@
 /** The reseller lifecycle: application, membership plans, finance verification. English only. */
 export const RESELLER_MESSAGES = {
   // Application (apply/reseller)
-  "reseller.apply.sign_in_first":
-    "Sign in or create an account to apply — your application is linked to it.",
-  "reseller.apply.already_applied": "You have already applied",
-  "reseller.apply.submitted": "Application submitted",
-  "reseller.apply.failed": "The application could not be submitted.",
-  "reseller.apply.number": ["Application number", "label above the reseller application number"],
-  "reseller.apply.status": ["Status: {status}", "application status, e.g. pending"],
   "reseller.apply.next":
     "The Reseller Manager reviews it; once approved, your reseller dashboard opens and you can choose a membership plan. There is no application fee.",
-  "reseller.apply.home": "Back to home",
 
   // Membership & Plans (reseller dashboard)
   "reseller.plans.eyebrow": "Reseller Membership",
@@ -72,4 +64,71 @@ export const RESELLER_MESSAGES = {
   "reseller.queue.already": "Already verified.",
   "reseller.queue.verified": "Payment verified — membership activated.",
   "reseller.queue.rejected": "Payment rejected.",
+
+  // Reseller Manager attention banner (counted by mm_reseller_attention)
+  "reseller.attention.kind_applications": ["Approval Queue", "banner card category"],
+  "reseller.attention.kind_membership": ["Membership", "banner card category"],
+  "reseller.attention.kind_renewals": ["Renewals", "banner card category"],
+  "reseller.attention.kind_commission": ["Commissions", "banner card category"],
+  "reseller.attention.kind_payouts": ["Payouts", "banner card category"],
+  "reseller.attention.kind_accounts": ["Accounts", "banner card category"],
+  "reseller.attention.applications": "{count} reseller applications pending",
+  "reseller.attention.applications_kyc": "{count} of them without verified KYC",
+  "reseller.attention.payments_to_verify": "{count} membership payments to verify",
+  "reseller.attention.payments_to_verify_detail":
+    "Submitted by resellers; Finance verifies them in the membership queue",
+  "reseller.attention.awaiting_payment": "{count} membership orders awaiting payment",
+  "reseller.attention.awaiting_payment_detail": "Invoice issued; no payment submitted yet",
+  "reseller.attention.expiring": "{count} memberships expiring within 30 days",
+  "reseller.attention.expiring_detail": "Active memberships reaching their end date",
+  "reseller.attention.commission": "Commission available for {count} resellers",
+  "reseller.attention.commission_none": "No commission is waiting to be paid out",
+  "reseller.attention.payouts": "{count} payouts awaiting action",
+  "reseller.attention.payouts_detail": "Pending, approved or processing payouts",
+  "reseller.attention.suspended": "{count} resellers paused or suspended",
+  "reseller.attention.suspended_detail": "Accounts that cannot currently sell",
+  "reseller.attention.unavailable": "Live reseller signals could not be loaded.",
+  "reseller.attention.not_permitted": "Your role cannot see reseller operations data.",
+  "reseller.attention.as_of": ["Counted at {time}", "when the numbers were read from the database"],
+
+  // Reseller pricing workspace (dashboard)
+  "reseller.pricing.back": "Back",
+  "reseller.pricing.eyebrow": "Reseller workspace",
+  "reseller.pricing.title": "Pricing",
+  "reseller.pricing.standing": "Your reseller price",
+  "reseller.pricing.loading": "Loading",
+  "reseller.pricing.active": "{plan} membership is active: {percent}% off every marketplace product at checkout.",
+  "reseller.pricing.inactive":
+    "No active membership plan — you pay list price. Choose a plan in Membership & Plans to unlock your discount.",
+  "reseller.pricing.rule":
+    "The discount is applied by the server when you place an order, from your active membership. The product's own price is never changed.",
+  "reseller.pricing.plans": "Membership plans",
+  "reseller.pricing.plan_fee": "Annual membership {fee}",
+  "reseller.pricing.quote_title": "Price a product",
+  "reseller.pricing.quote_placeholder": "Product slug or ID",
+  "reseller.pricing.quote_button": ["Get price", "button that asks the server for a price"],
+  "reseller.pricing.list_price": "List price",
+  "reseller.pricing.discount": "Reseller discount ({percent})",
+  "reseller.pricing.you_pay": "You pay",
+  "reseller.pricing.reason_active": "{plan} membership discount.",
+  "reseller.pricing.reason_no_membership": "No active reseller membership, so list price applies.",
+  "reseller.pricing.reason_not_active": "This reseller account is not active and approved, so list price applies.",
+  "reseller.pricing.quote_failed": "That product could not be priced right now. Please try again.",
+  "reseller.pricing.orders": "Your orders",
+  "reseller.pricing.no_orders": "No orders yet.",
+  "reseller.pricing.browse": "Browse the marketplace",
+
+  // Reseller licences (dashboard)
+  "reseller.licences.back": "Back",
+  "reseller.licences.eyebrow": "Reseller workspace",
+  "reseller.licences.title": "Licences",
+  "reseller.licences.intro":
+    "Licences issued to your account for products you bought. A licence is issued by the platform when the payment is confirmed.",
+  "reseller.licences.loading": "Loading licences",
+  "reseller.licences.empty": "No licences yet — they appear here after a paid order is fulfilled.",
+  "reseller.licences.product": ["Product", "shown when a licence has no product name"],
+  "reseller.licences.expires": "Expires {date}",
+  "reseller.licences.no_expiry": "No expiry",
+  "reseller.local_only":
+    "This module is not connected to server storage yet: entries stay in this browser tab only and are lost on reload.",
 } as const;

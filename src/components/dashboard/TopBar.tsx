@@ -1,8 +1,9 @@
-import { Search, Bell, MessageSquare, Sparkles, Wallet, Trophy, Zap, ChevronDown, Store, User, Settings, LogOut, Repeat, Check, Plus, Award, Hourglass, Coins, TrendingUp, Link2, QrCode, BadgeCheck } from "lucide-react";
+import { Search, MessageSquare, Sparkles, Wallet, Trophy, Zap, ChevronDown, Store, User, Settings, LogOut, Repeat, Check, Plus, Award, Hourglass, Coins, TrendingUp, Link2, QrCode, BadgeCheck } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { LogoButton } from "./LogoButton";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { signOut } from "@/lib/auth-bridge";
 import { copyToClipboard, notifyPending, readPref, writePref } from "@/lib/ui-actions";
 import { ROLES, ROLE_ORDER, type RoleConfig, type RoleKey } from "@/lib/roles";
@@ -89,7 +90,6 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
           bar 50 px past the screen edge, so every dashboard scrolled sideways;
           search, chat, theme, notifications and the profile menu stay. */}
       <div className="hidden md:contents">
-      <SelectChip prefKey="lang" ariaLabel="Interface language" label="EN" options={["EN","HI","AR","ES","FR","DE"]} />
       <SelectChip prefKey="currency" ariaLabel="Display currency" label="USD" options={["USD","INR","EUR","GBP","AED"]} />
 
       <Divider />
@@ -136,11 +136,7 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
       </div>
       <ThemeToggle />
       <IconBtn icon={MessageSquare} title="Messages" onClick={() => onOpenAIChat?.()} />
-      <IconBtn
-        icon={Bell}
-        title="Notifications"
-        onClick={() => notifyPending("No new notifications", "Alerts appear here as soon as your notification service is connected.")}
-      />
+      <NotificationBell buttonClassName="press-3d relative grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface hover:bg-surface-2 border border-border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
 
       <ProfileMenu role={role} onSwitchRole={onSwitchRole} allowedRoles={allowedRoles} />
 

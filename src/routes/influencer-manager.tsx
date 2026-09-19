@@ -5,11 +5,16 @@ import { RequireRole } from "@/components/auth/RequireRole";
 import { PageShell } from "@/components/creator/PageShell";
 import { ManagerWorkspace } from "@/components/manager-suite/ManagerWorkspace";
 import { buildModuleRegistry } from "@/components/creator/registry";
+import { InfluencerApplicationsQueue } from "@/components/applications/RoleApplicationsQueue";
 import { influencerConfig } from "@/components/creator/moduleConfigs";
 import { moduleAnalyticsQueryOptions } from "@/lib/creator/analytics.functions";
 import { influencerGroups, influencerPrimary } from "@/components/influencer/navigation";
 
-const influencerRegistry = buildModuleRegistry(influencerConfig, influencerGroups);
+// Applications are the real ones from /apply/influencer (influencer_applications).
+const influencerRegistry = {
+  ...buildModuleRegistry(influencerConfig, influencerGroups),
+  Applications: InfluencerApplicationsQueue,
+};
 
 export const Route = createFileRoute("/influencer-manager")({
   head: () => ({

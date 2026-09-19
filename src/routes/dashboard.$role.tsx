@@ -1,3 +1,4 @@
+import { Toaster } from "@/components/ui/sonner";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import "@/styles/dashboard.css";
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
@@ -191,6 +192,7 @@ function DashboardPage() {
 
   return (
     <div className="dm-theme min-h-dvh flex bg-background text-foreground">
+      <Toaster />
       <Sidebar role={cfg} activeModule={activeModule} onSelectModule={openModule} />
       <div className="flex-1 min-w-0 flex flex-col">
         <TopBar role={cfg} onSwitchRole={switchRole} onOpenAIChat={() => openModule("ai-chat")} onOpenModule={openModule} allowedRoles={perms.accessibleRoles} />

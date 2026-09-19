@@ -130,6 +130,17 @@ export async function recordInvoiceForOrder(orderId: string): Promise<InvoiceOut
   const subtotal = money(num(order.subtotal) || lineTotal || num(order.total));
   const tax = money(num(order.tax_total));
   const total = money(num(order.total) || subtotal + tax);
+  // A reseller discount is recorded on the order by checkout; the invoice
+  // shows it so subtotal - discount + tax reads as the total charged.
+  const discount = money(num(order.discount_total));
+  const discountShare = items.map((i, index) => {
+    if (!(discount > 0) || !(lineTotal > 0)) return 0;
+    if (index < items.length - 1) return money((discount * num(i.line_total)) / lineTotal);
+    const before = items
+      .slice(0, -1)
+      .reduce((sum, row) => sum + money((discount * num(row.line_total)) / lineTotal), 0);
+    return money(discount - before);
+  });
   const today = new Date().toISOString().slice(0, 10);
 
   const invoiceResponse = await rest("finance_invoices", {
@@ -160,6 +171,7 @@ export async function recordInvoiceForOrder(orderId: string): Promise<InvoiceOut
           rate: money(num(i.unit_amount)),
           amount: money(num(i.line_total)),
         })),
+        ...(discount > 0 ? [{ description: "Reseller discount", amount: -discount }] : []),
       ],
     }),
   });
@@ -182,13 +194,13 @@ export async function recordInvoiceForOrder(orderId: string): Promise<InvoiceOut
       method: "POST",
       headers: { Prefer: "return=minimal" },
       body: JSON.stringify(
-        items.map((i) => ({
+        items.map((i, index) => ({
           invoice_id: invoice.id,
           description: i.product_name ?? "Marketplace product",
           quantity: num(i.quantity ?? 1),
           unit_amount: money(num(i.unit_amount)),
           tax_amount: 0,
-          discount_amount: 0,
+          discount_amount: discountShare[index],
         })),
       ),
     }).catch(() => undefined);

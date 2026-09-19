@@ -21,6 +21,14 @@ export const CHECKOUT_MESSAGES = {
   "checkout.status_pending": ["pending", "payment status"],
   "checkout.order_not_found":
     "Order {order} was created but we could not find it again to start the payment. Nothing was charged. It is in your purchases.",
+  "checkout.subtotal": ["Subtotal", "sum of list prices in the cart"],
+  "checkout.reseller_discount": [
+    "{plan} reseller discount ({percent}%)",
+    "discount line for a reseller with an active membership",
+  ],
+  "checkout.total": ["Total to pay", "final amount after discounts"],
+  "checkout.no_discount_member":
+    "Reseller discount applies only with an active membership plan — list price shown.",
   "checkout.start_failed":
     "The payment could not be started. The order is saved and nothing was charged.",
 } as const;

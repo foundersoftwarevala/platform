@@ -3,7 +3,6 @@ import { useLanguage } from "@/lib/language-catalog";
 import { LanguageSelector } from "@/components/i18n/LanguageSelector";
 import { SUPPORTED_LANGUAGES, normalizeLanguageCode } from "@/lib/i18n/registry";
 import { Link } from "@tanstack/react-router";
-import { listNotifications, markAllRead, subscribe as subscribeApps } from "@/lib/applications/store";
 import {
   Popover,
   PopoverContent,
@@ -850,35 +849,14 @@ function Notifications({ t }: { t: (s: string) => string }) {
     staleTime: 1000 * 60 * 5,
   });
 
-  const [appNotifs, setAppNotifs] = useState(() => listNotifications());
-  useEffect(() => {
-    const sync = () => setAppNotifs(listNotifications());
-    sync();
-    return subscribeApps(sync);
-  }, []);
-
-  const items = useMemo<Notification[]>(
-    () => [
-      ...appNotifs.map((n) => ({
-        id: n.id,
-        title: n.title,
-        body: n.body,
-        kind: n.kind === "application" ? "update" : "promo",
-        link_url: "/admin/applications",
-        published_at: n.createdAt,
-      })),
-      ...(q.data ?? []),
-    ],
-    [appNotifs, q.data],
-  );
-  const unread =
-    appNotifs.filter((n) => !n.read).length +
-    (q.data ?? []).filter((n) => !lastSeen || n.published_at > lastSeen).length;
+  // Public announcements only. Application updates reach the applicant's
+  // account inbox (user_notifications) from the server.
+  const items = useMemo<Notification[]>(() => q.data ?? [], [q.data]);
+  const unread = items.filter((n) => !lastSeen || n.published_at > lastSeen).length;
 
   return (
     <Popover
       onOpenChange={(open) => {
-        if (open) markAllRead();
         if (open && items.length) {
           const newest = items.reduce((a, b) => (a > b.published_at ? a : b.published_at), "");
           localStorage.setItem("sv_notif_seen", newest);

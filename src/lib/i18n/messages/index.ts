@@ -26,12 +26,14 @@
  * validates keys, variables and ICU syntax.
  */
 import { ACCOUNT_MESSAGES } from "./account";
+import { APPLY_MESSAGES } from "./apply";
 import { AUTH_MESSAGES } from "./auth";
 import { CHAT_MESSAGES } from "./chat";
 import { CHECKOUT_MESSAGES } from "./checkout";
 import { COMMON_MESSAGES } from "./common";
 import { EMAIL_MESSAGES } from "./email";
 import { MARKETPLACE_MESSAGES } from "./marketplace";
+import { NOTIFICATIONS_MESSAGES } from "./notifications";
 import { PAYMENT_MESSAGES } from "./payment";
 import { RESELLER_MESSAGES } from "./reseller";
 
@@ -39,12 +41,14 @@ export type MessageSource = string | readonly [text: string, description: string
 
 export const MODULES = {
   account: ACCOUNT_MESSAGES,
+  apply: APPLY_MESSAGES,
   auth: AUTH_MESSAGES,
   chat: CHAT_MESSAGES,
   checkout: CHECKOUT_MESSAGES,
   common: COMMON_MESSAGES,
   email: EMAIL_MESSAGES,
   marketplace: MARKETPLACE_MESSAGES,
+  notifications: NOTIFICATIONS_MESSAGES,
   payment: PAYMENT_MESSAGES,
   reseller: RESELLER_MESSAGES,
 } as const;

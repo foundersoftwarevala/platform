@@ -23,8 +23,22 @@ export const getMarketplaceCart = createServerFn({ method: "GET" })
       .eq("cart_id", cart.id)
       .order("created_at");
     if (itemError) throw new Error(itemError.message);
-    return { cart, items: items ?? [] };
+    // What the cart costs this buyer, priced by the database with the same rule
+    // checkout applies (reseller membership discount or list price).
+    const { data: quote, error: quoteError } = await db.rpc("marketplace_cart_quote");
+    if (quoteError) throw new Error(quoteError.message);
+    return { cart, items: items ?? [], quote: quote as CartQuote };
   });
+
+export type CartQuote = {
+  currency: string | null;
+  subtotal: number;
+  discount_percent: number;
+  discount_total: number;
+  total: number;
+  pricing: { eligible?: boolean; plan_code?: string; plan_name?: string; reason?: string };
+  lines: { cart_item_id: string; unit_amount: number; line_total: number; currency: string }[];
+};
 
 export const addMarketplaceCartItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

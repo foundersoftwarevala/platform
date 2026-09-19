@@ -48,14 +48,8 @@ export const executiveFeeds: Record<ExecRole, ExecAlert[]> = {
     { id: "f5", priority: "medium", kind: "Compliance", title: "3 compliance checks overdue", detail: "KYC + agreement copies missing", target: "Compliance", count: 3, progress: 44 },
     { id: "f6", priority: "low", kind: "Expansion", title: "2 high-potential regions unclaimed", detail: "Lead density above threshold", target: "Leads" },
   ],
-  reseller: [
-    { id: "r1", priority: "critical", kind: "Approval Queue", title: "12 reseller registrations pending", detail: "4 awaiting KYC verification", target: "Applications", count: 12, progress: 38, due: "Today" },
-    { id: "r2", priority: "high", kind: "Commissions", title: "Commission payouts pending", detail: "₹3.8L across 31 resellers", target: "Commissions", progress: 66 },
-    { id: "r3", priority: "high", kind: "Licensing", title: "7 license renewals this month", detail: "Send renewal reminders", target: "License", count: 7, progress: 50, due: "This month" },
-    { id: "r4", priority: "medium", kind: "Targets", title: "Q-target at 72% attainment", detail: "9 days left in the cycle", target: "Performance", progress: 72, due: "In 9 days" },
-    { id: "r5", priority: "medium", kind: "Support", title: "5 escalated reseller tickets", detail: "SLA breach risk in 4 hours", target: "Support Desk", count: 5, progress: 25, due: "In 4 hours" },
-    { id: "r6", priority: "low", kind: "Wallet", title: "Wallet reconciliation ready", detail: "Auto-matched 96% of entries", target: "Wallet", progress: 96 },
-  ],
+  // Live: counted by mm_reseller_attention (see liveExecutiveFeed.ts).
+  reseller: [],
   marketplace: [
     { id: "m1", priority: "critical", kind: "Approval Queue", title: "17 products pending approval", detail: "6 missing compliance docs", target: "Products", count: 17, progress: 42, due: "Today" },
     { id: "m2", priority: "high", kind: "Vendors", title: "9 vendor requests open", detail: "3 awaiting store verification", target: "Vendors", count: 9, progress: 55 },
@@ -85,4 +79,4 @@ export const executiveFeeds: Record<ExecRole, ExecAlert[]> = {
     { id: "l4", priority: "medium", kind: "Conversion", title: "Pipeline conversion at 21%", detail: "Down 2 points week over week", target: "Analytics", progress: 21 },
     { id: "l5", priority: "low", kind: "AI Suggestion", title: "Re-engage 22 dormant leads", detail: "Best send window: 11:00 AM", target: "AI Studio" },
   ],
-};
+};

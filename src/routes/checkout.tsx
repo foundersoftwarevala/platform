@@ -1,3 +1,4 @@
+import { Toaster } from "@/components/ui/sonner";
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { pageHead } from "@/lib/seo-head";
@@ -124,10 +125,15 @@ function CheckoutPage() {
   });
 
   const items = cartQuery.data?.items ?? [];
+  const quote = cartQuery.data?.quote;
+  const lineTotal = new Map((quote?.lines ?? []).map((l) => [l.cart_item_id, l.line_total]));
+  const money = (value: number | string | undefined) =>
+    `${quote?.currency ?? ""} ${Number(value ?? 0).toFixed(2)}`.trim();
   const result = checkoutMutation.data as { order_number?: string; total?: number; payment_status?: string } | undefined;
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-white">
+      <Toaster />
       <div className="mx-auto max-w-3xl">
         <Link to="/marketplace" className="mb-8 inline-flex items-center gap-2 text-sm text-cyan-300 hover:text-cyan-200">
           <ArrowLeft className="h-4 w-4" /> {t("checkout.back")}
@@ -155,9 +161,37 @@ function CheckoutPage() {
                     <p className="font-semibold">{item.marketplace_products?.name ?? t("checkout.product_fallback")}</p>
                     <p className="text-sm text-slate-400">{t("checkout.quantity", { quantity: item.quantity })}</p>
                   </div>
-                  <span className="text-sm text-slate-300">{item.marketplace_products?.price_label ?? t("checkout.server_priced")}</span>
+                  <span className="text-sm text-slate-300">
+                    {lineTotal.has(item.id) ? money(lineTotal.get(item.id)) : t("checkout.server_priced")}
+                  </span>
                 </div>
               ))}
+              {quote && (
+                <dl className="space-y-1 text-sm" data-cart-quote data-quote-total={quote.total}>
+                  <div className="flex justify-between text-slate-300">
+                    <dt>{t("checkout.subtotal")}</dt>
+                    <dd data-quote-subtotal>{money(quote.subtotal)}</dd>
+                  </div>
+                  {Number(quote.discount_total) > 0 && (
+                    <div className="flex justify-between text-emerald-300">
+                      <dt>
+                        {t("checkout.reseller_discount", {
+                          plan: quote.pricing?.plan_name ?? "",
+                          percent: quote.discount_percent,
+                        })}
+                      </dt>
+                      <dd data-quote-discount>−{money(quote.discount_total)}</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-slate-800 pt-2 font-semibold">
+                    <dt>{t("checkout.total")}</dt>
+                    <dd data-quote-final>{money(quote.total)}</dd>
+                  </div>
+                  {quote.pricing?.reason === "no_active_membership" && (
+                    <p className="text-xs text-amber-300">{t("checkout.no_discount_member")}</p>
+                  )}
+                </dl>
+              )}
               <Button disabled={checkoutMutation.isPending || paying} onClick={() => checkoutMutation.mutate()} className="w-full bg-cyan-500 text-slate-950 hover:bg-cyan-400">
                 {checkoutMutation.isPending || paying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-2 h-4 w-4" />}
                 {paying ? t("checkout.opening_payment") : t("checkout.pay_securely")}
@@ -179,8 +213,14 @@ function CheckoutPage() {
           </section>
         )}
 
-        {result && !payNote && (
-          <section className="mt-6 rounded-xl border border-slate-700 bg-slate-900/70 p-6">
+        {/* Shown even when the payment could not start: the order is saved at
+            the server's price and the buyer should see which one it is. */}
+        {result && (
+          <section
+            className="mt-6 rounded-xl border border-slate-700 bg-slate-900/70 p-6"
+            data-order-result={result.order_number}
+            data-order-total={result.total}
+          >
             <h2 className="font-semibold text-slate-200">{t("checkout.order", { order: result.order_number ?? "" })}</h2>
             <p className="mt-2 text-sm text-slate-400">
               {t("checkout.created_total", {
