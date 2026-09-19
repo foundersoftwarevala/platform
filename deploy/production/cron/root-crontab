@@ -1,0 +1,8 @@
+*/5 * * * * /usr/local/bin/sv-sweeps.sh
+*/5 * * * * /usr/local/bin/sv-telemetry.sh
+*/15 * * * * /usr/local/bin/sv-demo-monitor.sh >> /var/log/sv-demo-monitor.log 2>&1
+17 3 * * * /usr/local/bin/sv-seo-crawl.sh >> /var/log/sv-seo-crawl.log 2>&1
+17 4 * * 1 /root/cf-realip-update.sh >> /var/log/cf-realip-update.log 2>&1
+* * * * * /opt/sv-translate/app/deploy/i18n-health.sh >/dev/null 2>&1
+20 0 * * * /opt/sv-translate/app/deploy/i18n-backup.sh >> /var/log/sv-i18n-backup.log 2>&1
+0 1 * * 0 /opt/sv-translate/app/deploy/i18n-restore-test.sh >> /var/log/sv-i18n-backup.log 2>&1

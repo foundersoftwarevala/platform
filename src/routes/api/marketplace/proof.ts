@@ -1,3 +1,4 @@
+import { rateLimited } from "@/lib/server/rate-limit";
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
@@ -37,7 +38,9 @@ async function read(table: string, columns: string) {
 export const Route = createFileRoute("/api/marketplace/proof")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        const limited = rateLimited(request, "public");
+        if (limited) return limited;
         if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
           return Response.json({ stories: [], awards: [] }, { status: 200 });
         }

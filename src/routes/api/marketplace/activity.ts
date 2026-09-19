@@ -1,3 +1,4 @@
+import { rateLimited } from "@/lib/server/rate-limit";
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
@@ -41,6 +42,8 @@ export const Route = createFileRoute("/api/marketplace/activity")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const limited = rateLimited(request, "public");
+        if (limited) return limited;
         const url = process.env.SUPABASE_URL?.trim();
         if (!url || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
           return Response.json({ events: [], reason: "not_configured" });

@@ -1,0 +1,22 @@
+# Software Vala application and job logs.
+/var/log/sv-*.log {
+    weekly
+    rotate 8
+    maxsize 20M
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su root syslog
+}
+/root/.pm2/logs/*.log {
+    daily
+    rotate 14
+    maxsize 50M
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

@@ -1,0 +1,6 @@
+# Software Vala outbound mail. Messages queue durably in email_outbox whether or
+# not a provider is configured; this is what actually sends them. It is a no-op
+# while no provider exists, and it never reports a delivery that did not happen.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/5 * * * * root /usr/local/bin/sv-email-flush.sh

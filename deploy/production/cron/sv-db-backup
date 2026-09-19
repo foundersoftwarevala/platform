@@ -1,0 +1,6 @@
+# Software Vala logical database backup.
+# There is no PITR on this Supabase project and no downloadable managed backup,
+# so this is the recovery point. Seven daily copies are retained.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+30 2 * * * root /usr/local/bin/sv-db-backup.py --out /var/backups/softwarevala --keep 7 >> /var/log/sv-db-backup.log 2>&1

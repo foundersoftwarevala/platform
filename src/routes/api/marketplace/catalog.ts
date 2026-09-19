@@ -1,3 +1,4 @@
+import { rateLimited } from "@/lib/server/rate-limit";
 import { createFileRoute } from "@tanstack/react-router";
 
 import {
@@ -33,6 +34,8 @@ export const Route = createFileRoute("/api/marketplace/catalog")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const limited = rateLimited(request, "catalog");
+        if (limited) return limited;
         if (!catalogConfigured()) {
           return Response.json(
             { error: "The catalogue is not configured on this server.", rows: [] },

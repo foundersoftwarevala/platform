@@ -1,3 +1,4 @@
+import { rateLimited } from "@/lib/server/rate-limit";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { toCard } from "@/lib/marketplace/catalog-card";
@@ -289,6 +290,8 @@ export const Route = createFileRoute("/api/marketplace/search")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const limited = rateLimited(request, "search");
+        if (limited) return limited;
         const key = new URL(request.url).search;
         let work = running.get(key);
         if (!work) {
