@@ -10,6 +10,7 @@ import { LIFETIME_PRICE, SITE_STATS } from "@/lib/site-content/constants";
 import { embedUrl, hasPlayableVideo } from "@/lib/site-content/videos";
 import { listCourses } from "@/lib/site-content/academy";
 import { useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
+import { fetchJsonShared } from "@/lib/marketplace-home/shared-fetch";
 
 const sectionTitle = (title: string, href?: string, subtitle?: string) => (
   <div className="mb-5 flex items-end justify-between px-6">
@@ -53,14 +54,13 @@ function useIndustries() {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch("/api/marketplace/rows");
-        if (!response.ok) return;
-        const data = (await response.json()) as {
+        // Shared with the category strip: one request for both.
+        const data = await fetchJsonShared<{
           rows?: {
             title?: string; href?: string; products?: number;
             featured?: boolean; hidden?: boolean;
           }[];
-        };
+        }>("/api/marketplace/rows");
         const featured = (data.rows ?? [])
           .filter((r) => r.featured && !r.hidden && r.title && r.href)
           .slice(0, 6)
@@ -165,8 +165,10 @@ function usePublishedProof() {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch("/api/marketplace/proof");
-        const data = await response.json();
+        // Stories and awards both read this: one request for both.
+        const data = await fetchJsonShared<{ stories?: unknown; awards?: unknown }>(
+          "/api/marketplace/proof",
+        );
         if (!cancelled) {
           setProof({
             stories: Array.isArray(data?.stories) ? data.stories : [],

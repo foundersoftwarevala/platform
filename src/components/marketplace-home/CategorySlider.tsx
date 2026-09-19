@@ -1,10 +1,11 @@
-import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { anchorClick, GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
+import { fetchJsonShared } from "@/lib/marketplace-home/shared-fetch";
 import {
   Sparkles, GraduationCap, Stethoscope, Utensils, Hotel, Home, Car, Plane,
   CreditCard, Factory, Users, Truck, Building, Megaphone, Wallet, Briefcase,
-  ShoppingBag, Scale, Shield, Server, Headphones, Building2, ChevronLeft, ChevronRight
+  ShoppingBag, Scale, Shield, Server, Headphones, Building2
 } from "lucide-react";
 
 /**
@@ -68,11 +69,10 @@ function useCategoryChips(): Chip[] {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch("/api/marketplace/rows");
-        if (!response.ok) return;
-        const data = (await response.json()) as {
+        // Shared with the industry grid: one request for both.
+        const data = await fetchJsonShared<{
           rows?: { title: string; slug: string; hidden?: boolean }[];
-        };
+        }>("/api/marketplace/rows");
         const rows = (data.rows ?? []).filter((r) => r.slug && !r.hidden);
         if (!cancelled && rows.length > 0) setLive(rows);
       } catch {
@@ -174,10 +174,6 @@ const CategorySlider = () => {
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
-  const nudge = useCallback((dir: number) => {
-    velocityRef.current = -dir * 900;
-  }, []);
-
   // Pointer drag (unified mouse + touch) with momentum handoff
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     draggingRef.current = true;
@@ -211,12 +207,6 @@ const CategorySlider = () => {
       <div className="max-w-7xl mx-auto px-4 relative">
         <div className="pointer-events-none absolute inset-y-0 left-4 z-10 w-16 bg-gradient-to-r from-[#0a1628] to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-4 z-10 w-16 bg-gradient-to-l from-[#0a1628] to-transparent" />
-        <button data-no-3d onClick={() => nudge(-1)} aria-label="Scroll left" className="sv-icon-btn absolute left-2 top-1/2 -translate-y-1/2 z-20 !h-10 !w-10">
-          <ChevronLeft className="w-5 h-5 text-white" />
-        </button>
-        <button data-no-3d onClick={() => nudge(1)} aria-label="Scroll right" className="sv-icon-btn absolute right-2 top-1/2 -translate-y-1/2 z-20 !h-10 !w-10">
-          <ChevronRight className="w-5 h-5 text-white" />
-        </button>
 
         <div
           ref={viewportRef}

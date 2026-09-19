@@ -135,10 +135,7 @@ async function withPricing(url: string, rows: ProductRow[]) {
   }));
 }
 
-export const Route = createFileRoute("/api/marketplace/search")({
-  server: {
-    handlers: {
-      GET: async ({ request }) => {
+async function answer(request: Request): Promise<Response> {
         const url = process.env.SUPABASE_URL?.trim();
         if (!url || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
           return Response.json({ products: [], error: "Catalogue is not configured" }, { status: 503 });
@@ -278,6 +275,30 @@ export const Route = createFileRoute("/api/marketplace/search")({
           console.error("[search] threw", error);
           return Response.json({ products: [], error: "Search is unavailable" }, { status: 502 });
         }
+}
+
+/**
+ * Identical searches arriving together are answered by one computation: the
+ * cache above only helps once the first answer is stored, so a burst of the
+ * same query (a popular term, the AI finder's "popular" list) used to scan the
+ * catalogue once per request.
+ */
+const running = new Map<string, Promise<Response>>();
+
+export const Route = createFileRoute("/api/marketplace/search")({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        const key = new URL(request.url).search;
+        let work = running.get(key);
+        if (!work) {
+          work = answer(request).finally(() => running.delete(key));
+          running.set(key, work);
+        }
+        const response = (await work).clone();
+        const headers = new Headers(response.headers);
+        if (response.ok) headers.set("Cache-Control", "public, max-age=60");
+        return new Response(response.body, { status: response.status, headers });
       },
     },
   },

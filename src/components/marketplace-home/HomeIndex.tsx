@@ -332,30 +332,29 @@ const Index = () => {
         </div>
       </section>
         ),
-        // The four curated rows the registry has always carried. Each one
-        // draws only when its flag matches something, and its position on the
-        // page is whatever Layout Order says.
+        // The four curated rows: placed by Layout Order, filled and switched
+        // on or off by the Homepage Rows registry.
         "featured-software": (
           <CuratedRow
-            title="Featured Software" flag="featured" limit={8}
+            rowKey="featured-software" title="Featured Software"
             favorites={favorites} onToggleFavorite={toggleFavorite}
           />
         ),
         "trending-now": (
           <CuratedRow
-            title="Trending Now" flag="trending" limit={12}
+            rowKey="trending-now" title="Trending Now"
             favorites={favorites} onToggleFavorite={toggleFavorite}
           />
         ),
         "top-selling": (
           <CuratedRow
-            title="Top Selling" flag="bestSeller" limit={12}
+            rowKey="top-selling" title="Top Selling"
             favorites={favorites} onToggleFavorite={toggleFavorite}
           />
         ),
         "new-releases": (
           <CuratedRow
-            title="New Releases" flag="newRelease" limit={12}
+            rowKey="new-releases" title="New Releases"
             favorites={favorites} onToggleFavorite={toggleFavorite}
           />
         ),
@@ -615,53 +614,49 @@ function CatalogRowStrip({
 }
 
 /**
- * A curated row: one flag, one rail.
+ * The curated rows (Featured Software, Trending Now, Top Selling, New
+ * Releases), by the key the Homepage Rows registry and Layout Order share.
+ */
+const CURATED_ROW_KEYS = new Set(["featured-software", "trending-now", "top-selling", "new-releases"]);
+
+/**
+ * A curated row, drawn once, where Layout Order places it.
  *
- * The registry names these rows by the product flag behind them, so the flag is
- * the only thing that varies. Everything visual is the catalogue's own
- * CategoryRow and DemoCard, at the same card width, so a curated row is
- * indistinguishable from a category row except for its heading.
+ * Its products and whether it is live come from the Homepage Rows registry -
+ * the products the manager placed, its publish state and schedule - which the
+ * catalogue reader already resolves into the server-rendered first page
+ * (src/lib/marketplace/catalog.server.ts). The row used to be drawn twice:
+ * once there, inside the catalogue, and once here from products carrying a
+ * flag, which also ignored a row the manager had taken down.
  *
- * Returns null when the flag matches nothing. A heading with an empty rail
- * under it reads as broken, and an operator publishing a row should see it
- * appear only when it has something in it.
+ * Returns null when the registry has the row off or it holds nothing: a
+ * heading over an empty rail reads as broken.
  */
 function CuratedRow({
+  rowKey,
   title,
-  flag,
-  limit,
   favorites,
   onToggleFavorite,
 }: {
+  rowKey: string;
   title: string;
-  flag: "featured" | "trending" | "bestSeller" | "newRelease";
-  limit: number;
   favorites: string[];
   onToggleFavorite: (id: string) => void;
 }) {
-  // The same rows the server already seeded for the catalogue, flattened. No
-  // extra request: whatever the page has, these rows pick from.
   const seeded = (useHomeRouteData()?.seed as CatalogSeed | undefined) ?? null;
-  const picked = useMemo(() => {
-    const rows = (seeded?.rows as CatalogRow[] | undefined) ?? [];
-    const out: Demo[] = [];
-    const seen = new Set<string>();
-    for (const row of rows) {
-      for (const card of row.cards ?? []) {
-        if (seen.has(card.id)) continue;
-        if (!card[flag]) continue;
-        seen.add(card.id);
-        // Drawn like every other catalogue card, through toDemo.
-        out.push(toDemo(card, out.length));
-        if (out.length >= limit) return out;
-      }
-    }
-    return out;
-  }, [seeded, flag, limit]);
+  const row = useMemo(
+    () => ((seeded?.rows as CatalogRow[] | undefined) ?? []).find((r) => r.id === rowKey) ?? null,
+    [seeded, rowKey],
+  );
+  const picked = useMemo(
+    // Drawn like every other catalogue card, through toDemo.
+    () => (row?.cards ?? []).map((card, index) => toDemo(card, index)),
+    [row],
+  );
   if (picked.length === 0) return null;
   return (
     <div className="max-w-7xl mx-auto px-4">
-      <CategoryRow title={title} count={picked.length}>
+      <CategoryRow title={row?.title ?? title} count={row?.total ?? picked.length}>
         {picked.map((demo, index) => (
           <div key={demo.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
             <DemoCard
@@ -772,7 +767,8 @@ function CatalogRows({
 
   return (
     <>
-      {rows.map((row) => (
+      {/* Curated rows are drawn where Layout Order places them (CuratedRow). */}
+      {rows.filter((row) => !CURATED_ROW_KEYS.has(row.id)).map((row) => (
         <CatalogRowStrip
           key={row.id}
           row={row}
@@ -928,8 +924,10 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
               </div>
             </div>
 
-            {/* Quick action buttons on hover */}
-            <div className="sv-card-quick absolute bottom-2 right-2 flex gap-2">
+            {/* Quick action buttons on hover. Above the header row (z-10),
+                which spans the card and otherwise took the clicks meant for
+                the favourite and preview buttons. */}
+            <div className="sv-card-quick absolute bottom-2 right-2 z-20 flex gap-2">
               <button
                 data-no-3d
                 aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}

@@ -5,6 +5,7 @@ import {
   readCatalogRows,
   readCategoryRow,
 } from "@/lib/marketplace/catalog.server";
+import { SingleFlightCache } from "@/lib/server/single-flight-cache";
 
 /**
  * The marketplace catalogue, a page at a time, for the home page as the
@@ -19,8 +20,11 @@ import {
  * if the database cannot be reached the response says so.
  */
 
-const CACHE_MS = 60_000;
-const cache = new Map<string, { at: number; payload: unknown }>();
+// A minute, and each key built once however many visitors ask at the same
+// moment (src/lib/server/single-flight-cache.ts).
+const cache = new SingleFlightCache<unknown>(60_000);
+
+class UnknownCategory extends Error {}
 
 const cached = (payload: unknown) =>
   Response.json(payload, { headers: { "Cache-Control": "public, max-age=60" } });
@@ -46,36 +50,23 @@ export const Route = createFileRoute("/api/marketplace/catalog")({
         // answers, so the limit is part of the cache key.
         const limit = Math.min(Math.max(Number(params.get("limit") ?? perRow) || perRow, 1), 60);
         const key = `${category}|${offset}|${perRow}|${limit}|${rowCount}|${rowOffset}`;
-        const hit = cache.get(key);
-        if (hit && Date.now() - hit.at < CACHE_MS) return cached(hit.payload);
-
         try {
-          let payload: unknown;
-          if (category) {
-            const row = await readCategoryRow(category, offset, limit);
-            if (!row) {
-              return Response.json({ error: "No such category", cards: [] }, { status: 404 });
+          const payload = await cache.get(key, async () => {
+            if (category) {
+              const row = await readCategoryRow(category, offset, limit);
+              if (!row) throw new UnknownCategory();
+              return { ...row, offset, limit, hasMore: offset + row.cards.length < row.total };
             }
-            payload = {
-              ...row,
-              offset,
-              limit,
-              hasMore: offset + row.cards.length < row.total,
-            };
-          } else {
             const page = await readCatalogRows({ rowOffset, rowCount, perRow });
-            if (!page) {
-              return Response.json(
-                { error: "The catalogue could not be read.", rows: [] },
-                { status: 502 },
-              );
-            }
-            payload = { ...page, perRow };
-          }
-          cache.set(key, { at: Date.now(), payload });
-          if (cache.size > 200) cache.clear();
+            // Not cached: the next request tries the database again.
+            if (!page) throw new Error("The catalogue could not be read.");
+            return { ...page, perRow };
+          });
           return cached(payload);
         } catch (error) {
+          if (error instanceof UnknownCategory) {
+            return Response.json({ error: "No such category", cards: [] }, { status: 404 });
+          }
           console.error("[catalog] failed", error);
           return Response.json(
             { error: "The catalogue could not be read.", rows: [] },
