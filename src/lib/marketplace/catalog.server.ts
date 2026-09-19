@@ -1,3 +1,4 @@
+import { SingleFlightCache } from "@/lib/server/single-flight-cache";
 import { CARD_FIELDS, toCard, type CatalogCard } from "./catalog-card";
 
 /**
@@ -51,18 +52,49 @@ function admin() {
 
 const PUBLISHED = "&visible=eq.true&content_status=eq.published";
 
+/**
+ * The manager's row configuration - which rows exist, whether each is live,
+ * the order of hand-placed products - changes only when an operator edits it,
+ * but was read from the database for every page of rows built: mm_rows_list()
+ * alone was 37% of the database's total query time (343 ms a call). It is
+ * kept here briefly - 30 s for the registry, 60 s for a row's order, no longer
+ * than the catalogue's own responses are cached - and each is read once
+ * however many pages are being built at the same moment. A failed read is not
+ * kept: the next request asks the database again.
+ */
+const registryCache = new SingleFlightCache<RegistryRow[]>(30_000, 4);
+const configuredCache = new SingleFlightCache<Set<string>>(30_000, 4);
+const orderCache = new SingleFlightCache<string[]>(60_000, 500);
+
+class Unavailable extends Error {}
+
+async function cachedOrNull<T>(
+  cache: SingleFlightCache<T>,
+  key: string,
+  read: () => Promise<T | null>,
+): Promise<T | null> {
+  try {
+    return await cache.get(key, async () => {
+      const value = await read();
+      if (value === null) throw new Unavailable();
+      return value;
+    });
+  } catch {
+    return null;
+  }
+}
+
 /** Categories with a row configured in the manager. Empty on any failure. */
 async function configuredRows(): Promise<Set<string>> {
-  try {
+  const rows = await cachedOrNull(configuredCache, "configured", async () => {
     const response = await fetch(`${url()}/rest/v1/marketplace_row_config?select=category_id`, {
       headers: admin(),
     });
-    if (!response.ok) return new Set();
-    const rows = (await response.json()) as { category_id: string }[];
-    return new Set(rows.map((r) => String(r.category_id)));
-  } catch {
-    return new Set();
-  }
+    if (!response.ok) return null;
+    const list = (await response.json()) as { category_id: string }[];
+    return new Set(list.map((r) => String(r.category_id)));
+  });
+  return rows ?? new Set();
 }
 
 /**
@@ -70,7 +102,7 @@ async function configuredRows(): Promise<Set<string>> {
  * writes through. Null means "not configured, or unavailable".
  */
 async function configuredOrder(key: string): Promise<string[] | null> {
-  try {
+  return cachedOrNull(orderCache, key, async () => {
     const response = await fetch(`${url()}/rest/v1/rpc/mm_row_products`, {
       method: "POST",
       headers: { ...admin(), "Content-Type": "application/json" },
@@ -84,9 +116,7 @@ async function configuredOrder(key: string): Promise<string[] | null> {
     if (!data?.ok || !Array.isArray(data.products)) return null;
     // A product placed by hand and later unpublished is not shown.
     return data.products.filter((x) => x.live !== false).map((x) => String(x.product_id));
-  } catch {
-    return null;
-  }
+  });
 }
 
 type RegistryRow = {
@@ -106,7 +136,7 @@ type RegistryRow = {
  * then render as they are ordered in the catalogue.
  */
 async function rowRegistry(): Promise<RegistryRow[] | null> {
-  try {
+  return cachedOrNull(registryCache, "registry", async () => {
     const response = await fetch(`${url()}/rest/v1/rpc/mm_rows_list`, {
       method: "POST",
       headers: { ...admin(), "Content-Type": "application/json" },
@@ -115,9 +145,7 @@ async function rowRegistry(): Promise<RegistryRow[] | null> {
     if (!response.ok) return null;
     const rows = (await response.json()) as RegistryRow[];
     return Array.isArray(rows) ? rows : null;
-  } catch {
-    return null;
-  }
+  });
 }
 
 /** Cards for the given product ids, in that order. */
