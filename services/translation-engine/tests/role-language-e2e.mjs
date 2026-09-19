@@ -127,6 +127,9 @@ try {
       check(`${role}: run`, false, String(error).slice(0, 200));
     }
     await context.close();
+    // One IP drives every role here; a pause keeps the run inside the
+    // translate endpoint's per-address rate limit, as separate people would be.
+    await new Promise((r) => setTimeout(r, Number(process.env.ROLE_PAUSE_MS ?? 20000)));
   }
 } finally {
   await browser.close();

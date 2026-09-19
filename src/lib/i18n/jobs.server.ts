@@ -41,6 +41,9 @@ const WORKER_ID = `worker-${Math.random().toString(36).slice(2, 10)}-${Date.now(
 // memory lookup and bookkeeping round trips over more jobs.
 const BATCH = 24;
 
+/** Contexts of the keyed catalogue (the module names in src/lib/i18n/messages). */
+const KEYED_CONTEXTS = new Set(allMessages().map((message) => message.context));
+
 export type EnqueueItem = {
   text: string;
   target: string;
@@ -114,9 +117,13 @@ export async function enqueueJobs(
  * it. A key whose English changed has a new source hash and is translated
  * again; the old translation is no longer looked up.
  */
-export async function syncMessageCatalogue(
-  options: { requestedBy?: string | null } = {},
-): Promise<{ languages: number; messages: number; queued: number; stale: number }> {
+export async function syncMessageCatalogue(options: { requestedBy?: string | null } = {}): Promise<{
+  languages: number;
+  messages: number;
+  queued: number;
+  stale: number;
+  upgrades: number;
+}> {
   const disabled = await disabledLanguages(db());
   const languages = translatableLanguages().filter((l) => l.enabled && !disabled.has(l.code));
   const messages = allMessages();
@@ -160,7 +167,42 @@ export async function syncMessageCatalogue(
       stale += Number(data ?? 0);
     }
   }
-  return { languages: languages.length, messages: messages.length, queued, stale };
+  // Keyed translations still in fast realtime quality (made on demand for a
+  // visitor, or before the mode was recorded) whose job has already run are
+  // queued again, to be replaced by the quality-mode translation.
+  let upgrades = 0;
+  if (client) {
+    const contexts = [...KEYED_CONTEXTS];
+    const rows: { source_text: string; target_language: string; context: string }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await client
+        .from("marketplace_translations")
+        .select("source_text, target_language, context")
+        .eq("namespace", "ui")
+        .in("context", contexts)
+        .eq("status", "machine")
+        .or("metadata->>mode.is.null,metadata->>mode.neq.quality")
+        .range(from, from + 999);
+      if (error) {
+        log("[i18n] finding realtime translations to upgrade failed", error.message);
+        break;
+      }
+      rows.push(...((data ?? []) as typeof rows));
+      if (!data || data.length < 1000) break;
+    }
+    upgrades = await enqueueJobs(
+      rows.map((row) => ({
+        text: row.source_text,
+        target: row.target_language,
+        namespace: "ui",
+        context: row.context,
+        refresh: true,
+        priority: 45,
+      })),
+      options.requestedBy ?? null,
+    );
+  }
+  return { languages: languages.length, messages: messages.length, queued, stale, upgrades };
 }
 
 /** Queue the whole interface catalogue for the given languages. */
@@ -299,7 +341,11 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
             context: first.context,
             persist: true,
             mode: "quality",
-            refresh: first.refresh,
+            // Keyed messages are always translated in quality mode here, even
+            // if a visitor's page already got a fast (realtime) translation
+            // into memory; the new one replaces it only if it passes the
+            // quality gate, and a reviewed translation is never touched.
+            refresh: first.refresh || KEYED_CONTEXTS.has(first.context ?? ""),
           },
           {
             engine,

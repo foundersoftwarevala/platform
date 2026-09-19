@@ -15,7 +15,9 @@ export function OrdersPanel({ count }: { count: number }) {
     <section aria-label={t("orders.panel_label")}>
       <h2>{t("orders.title")}</h2>
       <p>{t("orders.count", { count })}</p>
-      <p>{formatCurrency(1299, "INR")} · {formatDate(new Date())}</p>
+      <p>
+        {formatCurrency(1299, "INR")} · {formatDate(new Date())}
+      </p>
     </section>
   );
 }
@@ -59,7 +61,7 @@ text two ways (a verb or a noun, a button or a heading).
 ```ts
 import { languageOf, serverTranslator } from "@/lib/i18n/server-translate.server";
 
-const lang = languageOf(request);                 // sv_locale cookie, then Accept-Language
+const lang = languageOf(request); // sv_locale cookie, then Accept-Language
 const t = await serverTranslator(lang, ["email"], { waitMs: 4000 });
 t("email.licence.heading");
 ```
@@ -95,6 +97,10 @@ New keys are translated before anyone asks: when the application starts, the
 job worker queues every catalogue message for every language that memory does
 not hold (`syncMessageCatalogue`, ahead of other background work). A message
 whose English changed gets a new translation; the old one is marked `stale`.
+A translation made on demand for a visitor (fast, realtime decoding) is done
+again in the background in quality mode (beam search) and replaced if the
+new one passes the gate; a failed upgrade keeps the old one, and a reviewed
+(verified) translation is never re-translated.
 
 ## Things that must not be translated
 
@@ -133,13 +139,13 @@ Language Manager → Review (admins and the boss). Every translation shows its
 source, language, module (context), origin (engine or reviewer), quality score
 and flags.
 
-| Status | Served | Meaning |
-|---|---|---|
-| machine | yes | passed the quality gate |
-| needs_review | no (English shown) | failed the gate, waiting for a person |
-| verified | yes, preferred | approved by a person; automatic writes never change it |
-| rejected | no | refused by a person |
-| stale | no | re-translation requested, or the English changed |
+| Status       | Served             | Meaning                                                |
+| ------------ | ------------------ | ------------------------------------------------------ |
+| machine      | yes                | passed the quality gate                                |
+| needs_review | no (English shown) | failed the gate, waiting for a person                  |
+| verified     | yes, preferred     | approved by a person; automatic writes never change it |
+| rejected     | no                 | refused by a person                                    |
+| stale        | no                 | re-translation requested, or the English changed       |
 
 Actions: **Verify** (approve; an edit is saved as the reviewer's text),
 **Reject**, **Reopen**, **Re-translate** (not for verified rows), **Lock**

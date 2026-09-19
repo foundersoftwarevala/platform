@@ -14,6 +14,7 @@ import { RouteAccessGate } from "@/components/auth/RouteAccessGate";
 import { LanguageProvider } from "@/lib/language-catalog";
 import { PageTranslator } from "@/components/i18n/PageTranslator";
 import { LanguageDock } from "@/components/i18n/LanguageSelector";
+import { AuthProvider } from "@/hooks/useAuth";
 import { DEFAULT_LANGUAGE, buildLanguageBootScript } from "@/lib/i18n/language-service";
 import { getLanguage } from "@/lib/i18n/registry";
 import { useRealtimeAuth } from "@/integrations/supabase/realtime-auth";
@@ -163,9 +164,17 @@ function RootComponent() {
           {/* Operator consoles are gated centrally by path; public pages pass straight through. */}
           {/* Notices a ?ref= arrival on any page and tells the server once. */}
           <ReferralCapture />
-          <RouteAccessGate>
-            <Outlet />
-          </RouteAccessGate>
+          {/*
+            The session and roles for the consoles that call useAuth() (support,
+            sales CRM, demo manager). The provider existed and was never mounted,
+            so those screens failed with "useAuth must be used within an
+            AuthProvider" before rendering anything.
+          */}
+          <AuthProvider>
+            <RouteAccessGate>
+              <Outlet />
+            </RouteAccessGate>
+          </AuthProvider>
         </CelebrationProvider>
       </TooltipProvider>
       </LanguageProvider>

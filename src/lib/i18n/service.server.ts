@@ -226,7 +226,7 @@ export function createSupabaseMemoryStore(client: UntypedDb): TranslationMemoryS
         engine_version: record.engineVersion,
         provider: record.engine,
         model: record.engineVersion,
-        metadata: { provider_kind: record.providerKind },
+        metadata: { provider_kind: record.providerKind, mode: record.mode ?? null },
       }));
       // Write through: the next request for these strings is answered from
       // the process at once, instead of reading them back (or, while "not

@@ -85,6 +85,8 @@ export type MemoryRecord = {
   engine: string;
   engineVersion: string | null;
   providerKind: "owned" | "external";
+  /** realtime (fast, greedy) or quality (beam): realtime rows are upgraded in the background. */
+  mode?: TranslationMode;
 };
 
 export interface TranslationMemoryStore {
@@ -270,6 +272,9 @@ export async function runTranslationPipeline(
   const hashes = new Map<string, string>();
   for (const text of texts) hashes.set(text, await computeSourceHash(text));
 
+  // Machine translations a refresh is replacing: kept if the new one fails the
+  // quality gate, so an upgrade never turns a served translation into a held one.
+  const replacing = new Map<string, MemoryEntry>();
   if (deps.memory && source && persist) {
     try {
       const found = await deps.memory.lookup({
@@ -280,7 +285,10 @@ export async function runTranslationPipeline(
       for (const text of texts) {
         const entry = found.get(`${hashes.get(text)}:${ctxHash}`);
         if (!entry) continue;
-        if (entry.status === "machine" && request.refresh) continue;
+        if (entry.status === "machine" && request.refresh) {
+          replacing.set(text, entry);
+          continue;
+        }
         if (entry.status === "verified" || entry.status === "machine") {
           byText.set(text, {
             text,
@@ -414,6 +422,18 @@ export async function runTranslationPipeline(
     });
     const issues = [...assessment.errors, ...assessment.warnings];
     const status = assessment.accepted ? "machine" : "needs_review";
+    const previous = replacing.get(text);
+    if (!assessment.accepted && previous) {
+      byText.set(text, {
+        text,
+        translation: previous.translatedText,
+        status: "machine",
+        origin: "memory",
+        qualityScore: previous.qualityScore,
+        issues,
+      });
+      continue;
+    }
     byText.set(text, {
       text,
       translation: assessment.accepted ? restored.text.trim() : null,
@@ -440,6 +460,7 @@ export async function runTranslationPipeline(
         engine: response.provider,
         engineVersion: [response.model, response.version].filter(Boolean).join("@") || null,
         providerKind: response.providerKind,
+        mode: request.mode ?? "realtime",
       });
     }
   }

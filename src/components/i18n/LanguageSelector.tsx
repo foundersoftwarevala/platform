@@ -50,21 +50,36 @@ const ENTRIES: Entry[] = [...SUPPORTED_LANGUAGES]
 
 /* ------------------------------------------------------------ registration */
 
-// Inline selectors register while mounted; the floating dock shows only on
-// screens that have none, so every screen has exactly one way to switch.
-let mounted = 0;
+// Inline selectors register their trigger while mounted; the floating dock
+// shows only while none of them is actually visible (a header can be mounted
+// but collapsed, or hidden at some screen widths), so every screen has
+// exactly one way to switch.
+const registered = new Set<{ current: HTMLElement | null }>();
+let version = 0;
 const listeners = new Set<() => void>();
-const notify = () => listeners.forEach((listener) => listener());
+const notify = () => {
+  version += 1;
+  listeners.forEach((listener) => listener());
+};
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
-function useInlineSelectorCount() {
+function useRegistrationVersion() {
   return useSyncExternalStore(
     subscribe,
-    () => mounted,
+    () => version,
     () => 0,
   );
+}
+function anyInlineVisible(): boolean {
+  for (const ref of registered) {
+    const el = ref.current;
+    if (el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden") {
+      return true;
+    }
+  }
+  return false;
 }
 
 /* --------------------------------------------------------------- selector */
@@ -96,13 +111,14 @@ export function LanguageSelector({
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const listId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!register) return;
-    mounted += 1;
+    registered.add(triggerRef);
     notify();
     return () => {
-      mounted -= 1;
+      registered.delete(triggerRef);
       notify();
     };
   }, [register]);
@@ -234,6 +250,7 @@ export function LanguageSelector({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
+        ref={triggerRef}
         aria-label={t("common.language_choose", { language: language.nativeName })}
         data-language-selector=""
         className={
@@ -369,10 +386,22 @@ export function LanguageSelector({
  * languages) - the end corner is where the assistants and route history sit.
  */
 export function LanguageDock() {
-  const inline = useInlineSelectorCount();
+  const registrations = useRegistrationVersion();
   const [ready, setReady] = useState(false);
+  const [covered, setCovered] = useState(false);
   useEffect(() => setReady(true), []);
-  if (!ready || inline > 0) return null;
+  // Re-checked when a selector mounts or unmounts, and once a second for
+  // headers that collapse or change with the screen width.
+  useEffect(() => {
+    const check = () => setCovered(anyInlineVisible());
+    const frame = requestAnimationFrame(check);
+    const timer = window.setInterval(check, 1000);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearInterval(timer);
+    };
+  }, [registrations]);
+  if (!ready || covered) return null;
   return (
     <div className="fixed bottom-4 start-4 z-[60] print:hidden" data-language-dock="">
       <LanguageSelector variant="floating" register={false} side="top" align="start" />

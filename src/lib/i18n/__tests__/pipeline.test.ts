@@ -667,3 +667,81 @@ describe("product names", () => {
     expect(memory.saved).toHaveLength(0);
   });
 });
+
+describe("upgrading realtime translations", () => {
+  const hindi = HINDI["Apply Now"]!;
+
+  async function storeWith(status: "machine" | "verified") {
+    const memory = new MemoryStore();
+    memory.rows.push({
+      sourceHash: await sourceHash("Apply Now"),
+      contextHash: await contextHash("ui", "auth"),
+      sourceLanguage: "en",
+      targetLanguage: "hi",
+      translatedText: hindi,
+      status,
+      qualityScore: 0.8,
+      version: 1,
+      engine: "owned-engine",
+    });
+    return memory;
+  }
+
+  it("records the mode a translation was made in", async () => {
+    const memory = new MemoryStore();
+    await runTranslationPipeline(
+      {
+        texts: ["Apply Now"],
+        source: "en",
+        target: "hi",
+        context: "auth",
+        persist: true,
+        mode: "quality",
+      },
+      { engine: engineWith(dictionaryProvider()), memory },
+    );
+    expect(memory.saved[0]?.mode).toBe("quality");
+  });
+
+  it("keeps the served translation when the upgrade fails the quality gate", async () => {
+    const memory = await storeWith("machine");
+    // The engine answers with the English left untranslated: refused by the gate.
+    const provider = dictionaryProvider("owned-engine", "owned", {
+      "Apply Now": "Apply Now please now",
+    });
+    const result = await runTranslationPipeline(
+      {
+        texts: ["Apply Now"],
+        source: "en",
+        target: "hi",
+        context: "auth",
+        persist: true,
+        mode: "quality",
+        refresh: true,
+      },
+      { engine: engineWith(provider), memory },
+    );
+    expect(provider.calls).toHaveLength(1);
+    expect(result.outcomes[0]).toMatchObject({ status: "machine", translation: hindi });
+    expect(memory.saved).toHaveLength(0);
+  });
+
+  it("never re-translates a verified translation", async () => {
+    const memory = await storeWith("verified");
+    const provider = dictionaryProvider();
+    const result = await runTranslationPipeline(
+      {
+        texts: ["Apply Now"],
+        source: "en",
+        target: "hi",
+        context: "auth",
+        persist: true,
+        mode: "quality",
+        refresh: true,
+      },
+      { engine: engineWith(provider), memory },
+    );
+    expect(provider.calls).toHaveLength(0);
+    expect(result.outcomes[0]).toMatchObject({ status: "verified", translation: hindi });
+  });
+});
