@@ -11,7 +11,7 @@ import {
   fetchAllHeroSlides, createHeroSlide, updateHeroSlide, deleteHeroSlide,
   reorderHeroSlides, isSlideLive, iconFromName, HERO_ICON_CHOICES,
   type HeroSlideRow, type HeroStatus,
-} from "@/lib/marketplace-manager/hero-slides";
+} from "@/lib/hero-slides";
 
 const STATUS_TABS = ["All", "Live", "Scheduled", "Drafts", "Archived"] as const;
 type Tab = (typeof STATUS_TABS)[number];

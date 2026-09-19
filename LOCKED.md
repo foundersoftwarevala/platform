@@ -1,73 +1,52 @@
 # LOCKED — Marketplace Homepage and Marketplace Manager
 
-This is the approved copy. It is tagged, and the tag is what any future work is
-compared against.
+This is the approved copy of the storefront. The design in these files is final;
+work on them connects them to real data, it does not redesign them.
 
-    tag: marketplace-locked-20260908
+    tag: marketplace-locked-20260908   (the approved design)
 
-## What is locked
+## The one marketplace
 
-**The storefront homepage**
+There is one marketplace homepage, one catalogue data flow, one search and one
+category system. If you are looking for "the other version" of any of these,
+there is none.
 
-    src/components/marketplace-home/HomeIndex.tsx
-    src/components/marketplace-home/RefSections.tsx
-    src/components/marketplace-home/CategoryRow.tsx
-    src/components/marketplace-home/CategorySlider.tsx
-    src/components/marketplace-home/HeroCarousel.tsx
-    src/components/marketplace-home/FeatureStrip.tsx
-    src/components/marketplace-home/FestiveBanner.tsx
-    src/components/marketplace-home/FloatingElements.tsx
-    src/components/marketplace-home/SiteFooter.tsx
-    src/components/marketplace-home/TopUtilityBar.tsx
-    src/components/marketplace-home/UtilityStrip.tsx
-    src/components/marketplace-home/SectionBoundary.tsx
-    src/styles/marketplace-home.css
-    src/lib/marketplace-content/hero.functions.ts
+| What | Where |
+|---|---|
+| Homepage | `src/components/marketplace-home/HomeIndex.tsx`, served at `/` (`src/routes/index.tsx`) and `/marketplace` (`src/routes/marketplace.index.tsx`) with the same loader |
+| Homepage sections | `src/components/marketplace-home/*` (RefSections, CategorySlider, HeroCarousel, TopUtilityBar, …) |
+| First page of rows (server-rendered) | `getHomeCatalog` in `src/lib/marketplace/home-catalog.functions.ts` |
+| Later rows and "load more" | `/api/marketplace/catalog` |
+| The catalogue reader behind both | `src/lib/marketplace/catalog.server.ts` (applies the manager's row configuration, schedules and hand-placed order) |
+| The product card | `src/lib/marketplace/catalog-card.ts` (`CARD_FIELDS`, `toCard`, `CatalogCard`), drawn by `DemoCard` in `HomeIndex.tsx` |
+| Search | `/api/marketplace/search` — the homepage box (`format=cards`) and the AI finder / recommend / compare tools |
+| Categories | table `marketplace_categories`: homepage rows, the category strip and the industry grid (`/api/marketplace/rows`), category pages (`/marketplace/category/<slug>`) |
+| Products | table `marketplace_products` (public = `visible` and `content_status = published`) |
+| Homepage layout | table `marketplace_homepage_sections` via `mm_homepage_sections`; edited in Marketplace Manager → Layout Order |
+| Hero slides | table `home_hero_slides`: storefront `src/lib/marketplace-content/hero.functions.ts`, manager `src/lib/hero-slides.ts` |
+| Catalogue admin | Marketplace Manager → Products / Categories / Layout Order, through the server functions in `src/lib/marketplace.functions.ts` |
 
-**The one Marketplace Manager**
+The Marketplace Manager is `src/components/marketplace-manager/` with its route
+`src/routes/marketplace-manager.tsx` — the workspace the Control Panel sidebar
+opens. No second shell, sidebar or section router.
 
-    src/components/marketplace-manager/            (the workspace the Control
-                                                    Panel sidebar opens)
-    src/routes/marketplace-manager.tsx
+## Rules
 
-## The rules this copy is locked under
+1. **One of each.** One homepage, one catalogue reader, one card, one search,
+   one category system. Extend them; never add a parallel one.
+2. **No copies.** Do not create `X.new.tsx`, `X-v2.tsx`, `XCanonical.tsx`, a
+   `.backup`, an `/old` or `/legacy` folder, or an archive in the repository.
+   Git holds every previous version. A duplicate or obsolete implementation,
+   once its useful parts are migrated and nothing depends on it, is deleted
+   outright — not archived, renamed or commented out.
+3. **Real data only.** Products, categories, counts and prices come from the
+   database. No product list, category list or number is written into a page.
+4. **The UI is the specification.** Connect the design to real data; do not
+   redesign it, and do not substitute a component for one written from scratch.
+5. **Colour: density may change, hue may not.** The depth layer at the end of
+   `marketplace-home.css` raises saturation, contrast and shadow depth only.
 
-1. **One homepage.** `HomeIndex.tsx` is the only marketplace homepage. There is
-   no `_NEW`, no `Canonical`, no `.refactored` copy in `src/` any more — 218 such
-   files were moved to `_archive/src-legacy-20260908/` on 8 September because
-   they kept turning up in searches and being mistaken for live code. They are
-   archived, not deleted; every one of them is still in git history and on disk.
-
-2. **One Marketplace Manager.** The workspace the Control Panel sidebar opens.
-   No second shell, no second sidebar, no second section router over the same
-   sections.
-
-3. **No new copy.** Work on these files in place. Do not create `X.new.tsx`,
-   `X-v2.tsx`, `XCanonical.tsx` or a `.backup` beside them — that is how the
-   duplicates happened. Git already holds every previous version.
-
-4. **Nothing is deleted.** Additive changes and rewiring only. If something has
-   to be replaced, keep the old code under a new name outside `src/`.
-
-5. **The UI is the specification.** The design in these files is final. Connect
-   it to real data; do not redesign it, and do not substitute a component for one
-   written from scratch.
-
-6. **Colour: density may change, hue may not.** The depth layer at the end of
-   `marketplace-home.css` raises saturation, contrast and shadow depth only. No
-   rule in it sets a hue.
-
-## How to compare against the lock
+## How to compare against the approved design
 
     git diff marketplace-locked-20260908 -- src/components/marketplace-home
     git diff marketplace-locked-20260908 -- src/components/marketplace-manager
-
-Anything that shows up there is a change made since the lock, and should be
-deliberate.
-
-## Where the archived files went
-
-    _archive/src-legacy-20260908/     218 files, 4.6 MB
-
-Nothing in `src/` imports any of them — verified before the move, with a build
-afterwards to confirm.

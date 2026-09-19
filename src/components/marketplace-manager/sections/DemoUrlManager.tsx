@@ -13,7 +13,7 @@ import {
   toggleDemoUrl, testDemoUrl, testAllDemoUrls, listDemoAuditLog,
   type DemoUrl, type DemoAuditEntry,
 } from "@/lib/marketplace-manager/demo";
-import { listProductsAdmin } from "@/lib/marketplace-manager/catalog";
+import { listProductsAdmin } from "@/lib/marketplace.functions";
 
 import { Card, LoadFailure, PageHeader, PillButton } from "../ui";
 

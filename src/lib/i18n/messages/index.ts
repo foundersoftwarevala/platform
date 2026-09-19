@@ -31,6 +31,7 @@ import { CHAT_MESSAGES } from "./chat";
 import { CHECKOUT_MESSAGES } from "./checkout";
 import { COMMON_MESSAGES } from "./common";
 import { EMAIL_MESSAGES } from "./email";
+import { MARKETPLACE_MESSAGES } from "./marketplace";
 import { PAYMENT_MESSAGES } from "./payment";
 
 export type MessageSource = string | readonly [text: string, description: string];
@@ -42,6 +43,7 @@ export const MODULES = {
   checkout: CHECKOUT_MESSAGES,
   common: COMMON_MESSAGES,
   email: EMAIL_MESSAGES,
+  marketplace: MARKETPLACE_MESSAGES,
   payment: PAYMENT_MESSAGES,
 } as const;
 

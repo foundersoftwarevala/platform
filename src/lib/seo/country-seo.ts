@@ -1,3 +1,4 @@
+import { CARD_FIELDS, toCard, type CatalogCard } from "@/lib/marketplace/catalog-card";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -136,35 +137,8 @@ export const getCountrySeo = createServerFn({ method: "GET" })
     return value;
   });
 
-const CARD_FIELDS =
-  "id,slug,name,icon,industry_label,price_label,price_period,rating," +
-  "downloads_label,badge,is_featured,is_trending,is_best_seller,is_new_release";
-
-export type CountryCard = {
-  id: string;
-  slug: string;
-  name: string;
-  icon: string | null;
-  industry: string | null;
-  price: string | null;
-  period: string | null;
-  badge: string | null;
-  href: string;
-};
-
-function toCard(row: Record<string, unknown>): CountryCard {
-  return {
-    id: String(row.id),
-    slug: String(row.slug ?? ""),
-    name: String(row.name ?? ""),
-    icon: row.icon == null ? null : String(row.icon),
-    industry: row.industry_label == null ? null : String(row.industry_label),
-    price: row.price_label == null ? null : String(row.price_label),
-    period: row.price_period == null ? null : String(row.price_period),
-    badge: row.badge == null ? null : String(row.badge),
-    href: `/marketplace/product/${String(row.slug ?? "")}`,
-  };
-}
+// The card is the marketplace's one product card (src/lib/marketplace/catalog-card.ts).
+export type CountryCard = CatalogCard;
 
 /**
  * The products carrying one country's marker, a page at a time.

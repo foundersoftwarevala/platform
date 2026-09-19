@@ -1,55 +1,50 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { anchorClick, categoryHref, GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
+import { anchorClick, GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
 import {
   Sparkles, GraduationCap, Stethoscope, Utensils, Hotel, Home, Car, Plane,
   CreditCard, Factory, Users, Truck, Building, Megaphone, Wallet, Briefcase,
   ShoppingBag, Scale, Shield, Server, Headphones, Building2, ChevronLeft, ChevronRight
 } from "lucide-react";
 
+/**
+ * Icon and colour for a category chip, looked up by the category's name. The
+ * categories themselves come from the database (marketplace_categories).
+ */
 const CATEGORIES = [
-  { icon: Sparkles, name: "All", color: "from-cyan-400 to-blue-600", link: "/#all" },
-  { icon: GraduationCap, name: "Education", color: "from-blue-500 to-indigo-600", link: "/#Education" },
-  { icon: Stethoscope, name: "Healthcare", color: "from-pink-500 to-rose-600", link: "/#Healthcare" },
-  { icon: Utensils, name: "Restaurant & POS", color: "from-orange-500 to-red-500", link: "/#Retail%20%26%20POS" },
-  { icon: ShoppingBag, name: "Retail & POS", color: "from-amber-500 to-orange-600", link: "/#Retail%20%26%20POS" },
-  { icon: Hotel, name: "Hotel & Hospitality", color: "from-fuchsia-500 to-pink-600" , link: "/#Hospitality" },
-  { icon: Home, name: "Real Estate", color: "from-amber-500 to-yellow-600", link: "/#Real%20Estate" },
-  { icon: Car, name: "Automotive", color: "from-slate-500 to-zinc-700", link: "/#Automotive" },
-  { icon: Plane, name: "Travel", color: "from-sky-500 to-cyan-600", link: "/#Travel" },
-  { icon: CreditCard, name: "Finance", color: "from-emerald-500 to-teal-600", link: "/#Finance" },
-  { icon: Wallet, name: "Accounting", color: "from-lime-500 to-green-600", link: "/#Accounting" },
-  { icon: Megaphone, name: "Marketing", color: "from-rose-500 to-red-600", link: "/#Marketing" },
-  { icon: Users, name: "Sales & CRM", color: "from-violet-500 to-purple-600", link: "/#Sales%20%26%20CRM" },
-  { icon: Briefcase, name: "HR", color: "from-indigo-500 to-blue-600", link: "/#HR" },
-  { icon: Truck, name: "Logistics", color: "from-cyan-500 to-teal-600", link: "/#Logistics" },
-  { icon: Factory, name: "Manufacturing", color: "from-stone-500 to-neutral-700", link: "/#Manufacturing" },
-  { icon: Building, name: "Enterprise", color: "from-blue-600 to-indigo-800", link: "/#Enterprise" },
-  { icon: Building2, name: "Government", color: "from-emerald-600 to-green-800", link: "/#Government" },
-  { icon: Scale, name: "Legal", color: "from-yellow-600 to-amber-800", link: "/#Legal" },
-  { icon: Shield, name: "Security", color: "from-red-600 to-rose-800", link: "/#Security" },
-  { icon: Server, name: "IT & SaaS", color: "from-gray-500 to-slate-700", link: "/#IT" },
-  { icon: Headphones, name: "Support", color: "from-teal-500 to-cyan-700", link: "/#Support" },
+  { icon: Sparkles, name: "All", color: "from-cyan-400 to-blue-600" },
+  { icon: GraduationCap, name: "Education", color: "from-blue-500 to-indigo-600" },
+  { icon: Stethoscope, name: "Healthcare", color: "from-pink-500 to-rose-600" },
+  { icon: Utensils, name: "Restaurant & POS", color: "from-orange-500 to-red-500" },
+  { icon: ShoppingBag, name: "Retail & POS", color: "from-amber-500 to-orange-600" },
+  { icon: Hotel, name: "Hotel & Hospitality", color: "from-fuchsia-500 to-pink-600"  },
+  { icon: Home, name: "Real Estate", color: "from-amber-500 to-yellow-600" },
+  { icon: Car, name: "Automotive", color: "from-slate-500 to-zinc-700" },
+  { icon: Plane, name: "Travel", color: "from-sky-500 to-cyan-600" },
+  { icon: CreditCard, name: "Finance", color: "from-emerald-500 to-teal-600" },
+  { icon: Wallet, name: "Accounting", color: "from-lime-500 to-green-600" },
+  { icon: Megaphone, name: "Marketing", color: "from-rose-500 to-red-600" },
+  { icon: Users, name: "Sales & CRM", color: "from-violet-500 to-purple-600" },
+  { icon: Briefcase, name: "HR", color: "from-indigo-500 to-blue-600" },
+  { icon: Truck, name: "Logistics", color: "from-cyan-500 to-teal-600" },
+  { icon: Factory, name: "Manufacturing", color: "from-stone-500 to-neutral-700" },
+  { icon: Building, name: "Enterprise", color: "from-blue-600 to-indigo-800" },
+  { icon: Building2, name: "Government", color: "from-emerald-600 to-green-800" },
+  { icon: Scale, name: "Legal", color: "from-yellow-600 to-amber-800" },
+  { icon: Shield, name: "Security", color: "from-red-600 to-rose-800" },
+  { icon: Server, name: "IT & SaaS", color: "from-gray-500 to-slate-700" },
+  { icon: Headphones, name: "Support", color: "from-teal-500 to-cyan-700" },
 ];
-
-// Duplicate the list so the auto-scroll can loop seamlessly.
-const LOOP = [...CATEGORIES, ...CATEGORIES];
 
 type Chip = { name: string; link: string; icon: typeof Sparkles; color: string };
 
 /**
- * The real category page a chip points at, or null when it only carries one of
- * the written fallback fragments.
- *
- * Live chips are built with `/marketplace/category/<slug>` from the same rows
- * the Marketplace Manager controls, so this is the category's own page with its
- * own products. The fallback list still uses `/#Education` style fragments, and
- * those keep the in-page scroll they have always had.
+ * The category page a chip points at: `/marketplace/category/<slug>`, from the
+ * same rows the Marketplace Manager controls. "All" has none; it scrolls to the
+ * product grid on this page.
  */
 function categoryRoute(chip: Chip): string | null {
-  if (chip.name === "All") return null; // "All" scrolls to the grid on this page.
-  const link = typeof chip.link === "string" ? chip.link : "";
-  return link.startsWith("/") && !link.startsWith("/#") ? link : null;
+  return chip.name === "All" ? null : chip.link;
 }
 
 /**
@@ -62,8 +57,9 @@ function categoryRoute(chip: Chip): string | null {
  * pages now, taken from the same rows the manager controls, so hiding or
  * renaming a category here changes what the strip offers.
  *
- * The written list stays as the fallback for a server that cannot answer, and
- * lends each row its icon and colour by name.
+ * The written list only lends each category its icon and colour by name. If
+ * the categories cannot be read, the strip offers "All" alone rather than
+ * categories that may not exist.
  */
 function useCategoryChips(): Chip[] {
   const [live, setLive] = useState<{ title: string; slug: string }[] | null>(null);
@@ -80,7 +76,7 @@ function useCategoryChips(): Chip[] {
         const rows = (data.rows ?? []).filter((r) => r.slug && !r.hidden);
         if (!cancelled && rows.length > 0) setLive(rows);
       } catch {
-        // Keep the written list; the strip is never left empty.
+        // The strip keeps its "All" chip.
       }
     })();
     return () => {
@@ -89,7 +85,8 @@ function useCategoryChips(): Chip[] {
   }, []);
 
   return useMemo(() => {
-    if (!live) return CATEGORIES as Chip[];
+    const all: Chip = { ...CATEGORIES[0]!, link: "/marketplace" };
+    if (!live) return [all];
 
     const styleFor = (title: string) => {
       const key = title.toLowerCase();
@@ -99,7 +96,7 @@ function useCategoryChips(): Chip[] {
     };
 
     return [
-      { ...CATEGORIES[0]!, link: "/marketplace" },
+      all,
       ...live.map((row) => {
         const style = styleFor(row.title);
         return {
@@ -242,7 +239,7 @@ const CategorySlider = () => {
                 href={
                   cat.name === "All"
                     ? `#${GRID_ANCHOR}`
-                    : categoryRoute(cat) ?? categoryHref(cat.name)
+                    : categoryRoute(cat) ?? `#${GRID_ANCHOR}`
                 }
                 onClick={(e) => {
                   // A drag is not a click, and never navigates.
@@ -255,8 +252,7 @@ const CategorySlider = () => {
                     void navigate({ to: route });
                     return;
                   }
-                  const target = cat.name === "All" ? `#${GRID_ANCHOR}` : categoryHref(cat.name);
-                  anchorClick(target.slice(1))(e);
+                  anchorClick(GRID_ANCHOR)(e);
                 }}
                 draggable={false}
                 className={`group relative flex-shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-br ${cat.color} text-white text-sm font-bold whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_10px_26px_-12px_rgba(0,0,0,0.85)] border border-white/25 transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] hover:-translate-y-1`}

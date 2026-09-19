@@ -279,76 +279,6 @@ function mapProductRecord(row: any): PublicProduct {
   };
 }
 
-// PostgREST answers with at most a thousand rows, so that is what a page is.
-const PAGE = 1000;
-
-const PUBLIC_PRODUCT_COLUMNS = `
-      id,
-      slug,
-      name,
-      industry_label,
-      icon,
-      price_label,
-      price_period,
-      rating,
-      downloads,
-      downloads_label,
-      badge,
-      visible,
-      category_id,
-      marketplace_categories(name)
-    `;
-
-async function loadPublicProductsFromSupabase(sb: any) {
-  const marketplaceResult = await sb
-    .from("marketplace_products")
-    .select(`
-      id,
-      slug,
-      name,
-      industry_label,
-      icon,
-      price_label,
-      price_period,
-      rating,
-      downloads,
-      downloads_label,
-      badge,
-      visible
-      ,category_id,marketplace_categories(name)
-    `)
-    .eq("visible", true)
-    .order("sort_order")
-    .order("created_at", { ascending: false })
-    .range(0, PAGE - 1);
-
-  if (!marketplaceResult.error && Array.isArray(marketplaceResult.data) && marketplaceResult.data.length > 0) {
-    const rows = [...marketplaceResult.data];
-
-    // A response is capped at a thousand rows whether or not a limit is asked
-    // for, so a catalogue larger than that was being cut off in silence and
-    // the products past the cap simply did not exist as far as this was
-    // concerned. Keep asking for the next page until one comes back short.
-    while (rows.length % PAGE === 0) {
-      const next = await sb
-        .from("marketplace_products")
-        .select(PUBLIC_PRODUCT_COLUMNS)
-        .eq("visible", true)
-        .order("sort_order")
-        .order("created_at", { ascending: false })
-        .range(rows.length, rows.length + PAGE - 1);
-
-      if (next.error || !Array.isArray(next.data) || next.data.length === 0) break;
-      rows.push(...next.data);
-      if (next.data.length < PAGE) break;
-    }
-
-    return { rows, source: "marketplace_products" as const };
-  }
-
-  return { rows: [], source: "none" as const };
-}
-
 async function loadPublicProductBySlugFromSupabase(sb: any, slug: string) {
   const marketplaceResult = await sb
     .from("marketplace_products")
@@ -376,44 +306,6 @@ function withoutAddress(demos: ProductDemoBinding[]): ProductDemoBinding[] {
   return demos.map((demo) => ({ ...demo, url: "" }));
 }
 
-/**
- * Every listed product's demos in one query.
- *
- * This was a query per product inside a Promise.all, so a page of a thousand
- * products opened a thousand connections at once and the list waited for the
- * slowest of them. One request answers for all of them.
- */
-async function loadPublicDemosForProducts(
-  sb: any,
-  productIds: string[],
-): Promise<Map<string, ProductDemoBinding[]>> {
-  const grouped = new Map<string, ProductDemoBinding[]>();
-  const ids = Array.from(new Set(productIds.filter(Boolean)));
-  if (ids.length === 0) return grouped;
-
-  // PostgREST caps a response at a thousand rows, so ask in batches and keep
-  // every page rather than silently losing the demos past the cap.
-  const CHUNK = 200;
-  for (let start = 0; start < ids.length; start += CHUNK) {
-    const slice = ids.slice(start, start + CHUNK);
-    const result = await sb
-      .from("product_demo_urls")
-      .select("id, demo_name, role_name, status, environment, url, product_id")
-      .in("product_id", slice)
-      .eq("status", "active")
-      .order("sort_order");
-
-    if (result.error || !Array.isArray(result.data)) continue;
-    for (const row of result.data as (ProductDemoBinding & { product_id: string })[]) {
-      if (!row.url || !/^https?:\/\//i.test(row.url)) continue;
-      const list = grouped.get(row.product_id) ?? [];
-      const { product_id: _ignored, ...binding } = row;
-      list.push(binding as ProductDemoBinding);
-      grouped.set(row.product_id, list);
-    }
-  }
-  return grouped;
-}
 
 async function loadPublicDemosForProduct(sb: any, productId: string) {
   const demoResult = await sb
@@ -465,88 +357,7 @@ export const recordPublicDemoClick = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ---------- PUBLIC: aggregated homepage payload ----------
-export const getMarketplace = createServerFn({ method: "GET" }).handler(
-  async (): Promise<Marketplace> => {
-    try {
-      const sb = publicClient();
-      const [featured, trending, best, fresh, ai, cats, vends, sections] = await Promise.all([
-        sb.from("marketplace_products").select(PRODUCT_COLS).eq("is_featured", true).order("sort_order").limit(24),
-        sb.from("marketplace_products").select(PRODUCT_COLS).eq("is_trending", true).order("sort_order").limit(24),
-        sb.from("marketplace_products").select(PRODUCT_COLS).eq("is_best_seller", true).order("sort_order").limit(24),
-        sb.from("marketplace_products").select(PRODUCT_COLS).eq("is_new_release", true).order("sort_order").limit(24),
-        sb.from("marketplace_products").select(PRODUCT_COLS).eq("is_ai", true).order("sort_order").limit(24),
-        sb.from("marketplace_categories").select("id, slug, name, icon, image_key, tone, sort_order").order("sort_order"),
-        sb.from("marketplace_vendors").select("id, slug, name, country, verified, rating, product_count").order("rating", { ascending: false }).limit(24),
-        sb.from("marketplace_homepage_sections").select("key, title, enabled, sort_order").order("sort_order"),
-      ]);
-      return {
-        featured: (featured.data ?? []).map(toProduct),
-        trending: (trending.data ?? []).map(toProduct),
-        bestSellers: (best.data ?? []).map(toProduct),
-        newReleases: (fresh.data ?? []).map(toProduct),
-        aiProducts: (ai.data ?? []).map(toProduct),
-        industries: (cats.data ?? []).map((c: any) => ({
-          id: c.id, slug: c.slug, name: c.name,
-          icon: c.icon ?? "Sparkles",
-          image_key: c.image_key,
-          product_count: 0,
-          tone: c.tone ?? "primary",
-        })),
-        vendors: (vends.data ?? []).map((v: any) => ({
-          id: v.id, slug: v.slug, name: v.name,
-          country: v.country, verified: !!v.verified,
-          rating: Number(v.rating ?? 0),
-          product_count: Number(v.product_count ?? 0),
-        })),
-        sections: (sections.data ?? []) as HomepageSection[],
-      };
-    } catch {
-      return {
-        featured: [],
-        trending: [],
-        bestSellers: [],
-        newReleases: [],
-        aiProducts: [],
-        industries: [],
-        vendors: [],
-        sections: [],
-      };
-    }
-  },
-);
 
-export const getPublicProducts = createServerFn({ method: "GET" })
-  .handler(async (): Promise<PublicProduct[]> => {
-    try {
-      const sb = publicClient();
-      const { rows } = await loadPublicProductsFromSupabase(sb);
-
-      if (!rows.length) {
-        return buildSuppliedCatalogFallback();
-      }
-
-      const demosByProduct = await loadPublicDemosForProducts(
-        sb,
-        rows.map((product: any) => product.id),
-      );
-
-      const productsWithDemos = rows.map((product: any) => {
-        const activeDemos = demosByProduct.get(product.id) ?? [];
-        const mapped = mapProductRecord(product);
-        return {
-          ...mapped,
-          demo_count: activeDemos.length,
-          demo_urls: withoutAddress(activeDemos),
-        } as PublicProduct;
-      });
-
-      return productsWithDemos.length ? productsWithDemos : buildSuppliedCatalogFallback();
-    } catch (err) {
-      console.error("getPublicProducts error:", err);
-      return buildSuppliedCatalogFallback();
-    }
-  });
 
 export const getPublicProduct = createServerFn({ method: "GET" })
   .validator((v) => z.object({ slug: z.string().min(1) }).parse(v ?? {}))
@@ -597,49 +408,7 @@ export const getPublicProduct = createServerFn({ method: "GET" })
     }
   });
 
-export const getPublicCategories = createServerFn({ method: "GET" })
-  .handler(async (): Promise<Category[]> => {
-    try {
-      const sb = publicClient();
-      const { data, error } = await sb
-        .from("marketplace_categories")
-        .select("id, slug, name, icon, image_key, tone, sort_order")
-        .eq("is_hidden", false)
-        .order("sort_order");
-      
-      if (error) {
-        console.error("Error fetching categories:", error);
-        return [];
-      }
-      
-      return (data ?? []) as Category[];
-    } catch (err) {
-      console.error("Failed to fetch categories:", err);
-      return [];
-    }
-  });
 
-export const getPublicFeatureStripItems = createServerFn({ method: "GET" })
-  .handler(async (): Promise<FeatureStripItem[]> => {
-    try {
-      const sb = publicClient();
-      const { data, error } = await sb
-        .from("feature_strip_items")
-        .select("id, label, icon_name, color_class, position, visible")
-        .eq("visible", true)
-        .order("position", { ascending: true });
-
-      if (error) {
-        console.error("Error fetching feature strip items:", error);
-        return [];
-      }
-
-      return (data ?? []) as FeatureStripItem[];
-    } catch (err) {
-      console.error("Failed to fetch feature strip items:", err);
-      return [];
-    }
-  });
 
 export const getPublicProductsByCategory = createServerFn({ method: "GET" })
   .validator((v) => z.object({ category_slug: z.string().min(1) }).parse(v ?? {}))

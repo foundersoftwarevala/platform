@@ -7,11 +7,8 @@ import {
 } from "lucide-react";
 
 import { LIFETIME_PRICE, SITE_STATS } from "@/lib/site-content/constants";
-import { listPublishedFaqs } from "@/lib/site-content/faq";
-import { embedUrl, hasPlayableVideo, listPublishedVideos } from "@/lib/site-content/videos";
+import { embedUrl, hasPlayableVideo } from "@/lib/site-content/videos";
 import { listCourses } from "@/lib/site-content/academy";
-import { listAwards } from "@/lib/site-content/awards";
-import { listStories } from "@/lib/site-content/stories";
 import { useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
 
 const sectionTitle = (title: string, href?: string, subtitle?: string) => (
@@ -34,12 +31,12 @@ const sectionTitle = (title: string, href?: string, subtitle?: string) => (
 // Shop by Industry
 // Each tile opens the real category page rather than an in-page anchor.
 const INDUSTRIES = [
-  { name: "Education", href: "/marketplace/category/education", icon: GraduationCap, color: "from-cyan-500/20 to-blue-500/10", text: "text-cyan-300", count: 24 },
-  { name: "Healthcare", href: "/marketplace/category/healthcare", icon: Hospital, color: "from-rose-500/20 to-pink-500/10", text: "text-rose-300", count: 18 },
-  { name: "Hospitality", href: "/marketplace/category/hospitality", icon: Hotel, color: "from-amber-500/20 to-orange-500/10", text: "text-amber-300", count: 12 },
-  { name: "E-commerce", href: "/marketplace/category/ecommerce", icon: ShoppingBag, color: "from-fuchsia-500/20 to-purple-500/10", text: "text-fuchsia-300", count: 15 },
-  { name: "Services", href: "/marketplace/category/customer-support-helpdesk", icon: Wrench, color: "from-emerald-500/20 to-teal-500/10", text: "text-emerald-300", count: 22 },
-  { name: "Manufacturing", href: "/marketplace/category/manufacturing", icon: Factory, color: "from-violet-500/20 to-indigo-500/10", text: "text-violet-300", count: 14 },
+  { name: "Education", href: "/marketplace/category/education", icon: GraduationCap, color: "from-cyan-500/20 to-blue-500/10", text: "text-cyan-300", count: 0 },
+  { name: "Healthcare", href: "/marketplace/category/healthcare", icon: Hospital, color: "from-rose-500/20 to-pink-500/10", text: "text-rose-300", count: 0 },
+  { name: "Hospitality", href: "/marketplace/category/hospitality", icon: Hotel, color: "from-amber-500/20 to-orange-500/10", text: "text-amber-300", count: 0 },
+  { name: "E-commerce", href: "/marketplace/category/ecommerce", icon: ShoppingBag, color: "from-fuchsia-500/20 to-purple-500/10", text: "text-fuchsia-300", count: 0 },
+  { name: "Services", href: "/marketplace/category/customer-support-helpdesk", icon: Wrench, color: "from-emerald-500/20 to-teal-500/10", text: "text-emerald-300", count: 0 },
+  { name: "Manufacturing", href: "/marketplace/category/manufacturing", icon: Factory, color: "from-violet-500/20 to-indigo-500/10", text: "text-violet-300", count: 0 },
 ];
 
 /**
@@ -142,8 +139,8 @@ export const AIZone = () => (
   </section>
 );
 
-// Success Stories — content lives in @/lib/site-content/stories so these can
-// be swapped for real marketplace records without changing this component.
+// Success Stories — published records from the database (marketplace_stories),
+// read through /api/marketplace/proof.
 
 type PublishedStory = {
   id: string; company: string; quote: string; author: string; role: string;
@@ -234,8 +231,8 @@ export const SuccessStories = () => {
   );
 };
 
-// Awards & Champions — the winners live in @/lib/site-content/awards; only the
-// styling for each category stays here.
+// Awards & Champions — the winners come from the database (marketplace_awards,
+// through /api/marketplace/proof); only the styling for each category stays here.
 const AWARD_STYLE: Record<string, { icon: typeof Trophy; color: string; ring: string }> = {
   "Vendor of the Year": { icon: Trophy, color: "text-amber-300", ring: "border-amber-400/30" },
   "Fastest Growing App": { icon: Zap, color: "text-cyan-300", ring: "border-cyan-400/30" },
@@ -284,14 +281,6 @@ export const AwardsRow = () => {
 };
 
 // Live Activity
-const seedEvents = () => [
-  { icon: ShoppingCart, label: "purchased", text: "ShopEngine — Lifetime", who: "Acme Retail", city: "Mumbai", color: "text-emerald-300" },
-  { icon: Download, label: "downloaded", text: "EduFlow Pro v4.2", who: "GreenLeaf Schools", city: "Pune", color: "text-cyan-300" },
-  { icon: Star, label: "reviewed", text: "MediCore 360 — 5★", who: "Dr. Neha R.", city: "Bengaluru", color: "text-amber-300" },
-  { icon: Sparkles, label: "released", text: "HotelNest v3.0", who: "HotelNest Team", city: "Goa", color: "text-fuchsia-300" },
-  { icon: Activity, label: "renewed", text: "FactoryOS Annual", who: "Steel Works Pvt", city: "Chennai", color: "text-violet-300" },
-];
-
 /** Which icon and colour a real event kind is drawn with. */
 const EVENT_STYLE: Record<string, { icon: typeof Activity; color: string }> = {
   purchase: { icon: ShoppingCart, color: "text-emerald-300" },
@@ -332,8 +321,6 @@ function whenAgo(at: string): string {
  * the events endpoint that carries the real ones was already built and going
  * unused. It reads that now. When there is nothing to report it says so
  * plainly rather than filling the space with something untrue.
- *
- * `seedEvents` above is left in place, unused, rather than removed.
  */
 export const LiveActivity = () => {
   const [items, setItems] = useState<MarketplaceEvent[] | null>(null);

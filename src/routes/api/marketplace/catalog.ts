@@ -1,134 +1,35 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import {
+  catalogConfigured,
+  readCatalogRows,
+  readCategoryRow,
+} from "@/lib/marketplace/catalog.server";
+
 /**
- * The marketplace catalogue, straight from the database.
+ * The marketplace catalogue, a page at a time, for the home page as the
+ * visitor scrolls.
  *
- * The home page used to carry its products as a literal array in the source and
- * pad every row out to a fixed size with generated cards. This serves the real
- * rows instead, a page at a time, so the browser never receives thousands of
- * cards and the catalogue can grow to twelve thousand products and beyond
- * without the page changing.
+ *   ?rows=N&perRow=M&rowOffset=K   N category rows from row K, M products each
+ *   ?category=<slug>&offset=&limit=  more products for one row ("load more")
  *
- *   ?rows=N&perRow=M          the first N category rows, M products each
- *   ?category=<slug>&offset=  more products for one row, for infinite loading
- *
- * There is no fallback to invented data. If the database cannot be reached the
- * response says so and the page shows that, rather than quietly showing
- * something that is not real.
+ * Reads through src/lib/marketplace/catalog.server.ts, the same reader the
+ * home page's server-rendered first page uses, so every page respects what
+ * the Marketplace Manager configures. There is no fallback to invented data:
+ * if the database cannot be reached the response says so.
  */
 
 const CACHE_MS = 60_000;
 const cache = new Map<string, { at: number; payload: unknown }>();
 
-/** Only what a card actually draws, so a row of sixty stays small. */
-const CARD_FIELDS =
-  "id,slug,name,icon,industry_label,price_label,price_period,rating," +
-  "downloads_label,badge,is_featured,is_trending,is_best_seller,is_new_release," +
-  "search_keywords," +
-  // The card used to be given none of this and invented substitutes for it.
-  // Coverage across the published catalogue: description 100%, features 67%,
-  // tech_stack / licence / deployment / subcategory 67%.
-  "description,features,tech_stack,license,deployment,subcategory," +
-  // Whether a demo exists — twelve products in the whole catalogue have one,
-  // and the card was claiming a live demo for all of them. The address itself
-  // is still never sent.
-  "product_demo_urls(url,status)";
-
-function url() {
-  return process.env.SUPABASE_URL?.trim() ?? "";
-}
-
-function admin() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
-  return { apikey: key, Authorization: `Bearer ${key}` };
-}
-
-/** The country this product is targeted at, stored on the row itself. */
-function countryOf(keywords: unknown): string | null {
-  if (!Array.isArray(keywords)) return null;
-  const marker = keywords.find(
-    (k) => typeof k === "string" && k.startsWith("country:"),
-  ) as string | undefined;
-  return marker ? marker.slice("country:".length) : null;
-}
-
-type Row = Record<string, unknown>;
-
-/**
- * A card carries no demo URL. Whether a demo exists is a boolean; the address
- * itself is never sent to a browser, because that list is the catalogue's one
- * genuinely stealable asset.
- */
-function toCard(row: Row) {
-  return {
-    id: String(row.id),
-    slug: String(row.slug ?? ""),
-    name: String(row.name ?? ""),
-    icon: row.icon ?? null,
-    industry: row.industry_label ?? null,
-    price: row.price_label ?? null,
-    period: row.price_period ?? null,
-    rating: row.rating ?? null,
-    downloads: row.downloads_label ?? null,
-    badge: row.badge ?? null,
-    featured: Boolean(row.is_featured),
-    trending: Boolean(row.is_trending),
-    bestSeller: Boolean(row.is_best_seller),
-    newRelease: Boolean(row.is_new_release),
-    country: countryOf(row.search_keywords),
-    href: `/marketplace/product/${String(row.slug ?? "")}`,
-
-    // Real product copy, rather than a sentence assembled from the industry
-    // name. Trimmed here so the payload stays small; the card clamps it again.
-    description:
-      typeof row.description === "string" && row.description.trim()
-        ? row.description.trim().slice(0, 240)
-        : null,
-    features: Array.isArray(row.features)
-      ? (row.features as unknown[]).slice(0, 6).map(String).filter(Boolean)
-      : [],
-    tech: Array.isArray(row.tech_stack)
-      ? (row.tech_stack as unknown[]).slice(0, 6).map(String).filter(Boolean)
-      : [],
-    license: row.license == null ? null : String(row.license),
-    platform: row.deployment == null ? null : String(row.deployment),
-    subcategory: row.subcategory == null ? null : String(row.subcategory),
-
-    // A demo counts only if it is switched on and actually has an address.
-    hasDemo: Array.isArray(row.product_demo_urls)
-      ? (row.product_demo_urls as { url?: unknown; status?: unknown }[]).some(
-          (d) =>
-            typeof d?.url === "string" &&
-            d.url.trim() !== "" &&
-            d?.status === "active",
-        )
-      : false,
-  };
-}
-
-async function productsFor(categoryId: string, offset: number, limit: number) {
-  const response = await fetch(
-    `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}` +
-      `&visible=eq.true&content_status=eq.published` +
-      `&category_id=eq.${encodeURIComponent(categoryId)}` +
-      `&order=sort_order.asc,name.asc&limit=${limit}&offset=${offset}`,
-    { headers: { ...admin(), Prefer: "count=exact" } },
-  );
-  if (!response.ok) return { cards: [], total: 0, ok: false };
-  const rows = (await response.json()) as Row[];
-  const range = response.headers.get("content-range") ?? "";
-  return {
-    cards: rows.map(toCard),
-    total: Number(range.split("/")[1]) || rows.length,
-    ok: true,
-  };
-}
+const cached = (payload: unknown) =>
+  Response.json(payload, { headers: { "Cache-Control": "public, max-age=60" } });
 
 export const Route = createFileRoute("/api/marketplace/catalog")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        if (!catalogConfigured()) {
           return Response.json(
             { error: "The catalogue is not configured on this server.", rows: [] },
             { status: 503 },
@@ -141,104 +42,39 @@ export const Route = createFileRoute("/api/marketplace/catalog")({
         const perRow = Math.min(Math.max(Number(params.get("perRow") ?? 12) || 12, 1), 60);
         const rowCount = Math.min(Math.max(Number(params.get("rows") ?? 8) || 8, 1), 30);
         const rowOffset = Math.max(Number(params.get("rowOffset") ?? 0) || 0, 0);
-
-        // `limit` is part of the key: a row asked for at twelve and again at
-        // sixty is two different answers, and the first must not stand in for
-        // the second.
-        const askedLimit = Math.min(
-          Math.max(Number(params.get("limit") ?? perRow) || perRow, 1), 60,
-        );
-        const key = `${category}|${offset}|${perRow}|${askedLimit}|${rowCount}|${rowOffset}`;
+        // A row asked for at twelve and again at sixty is two different
+        // answers, so the limit is part of the cache key.
+        const limit = Math.min(Math.max(Number(params.get("limit") ?? perRow) || perRow, 1), 60);
+        const key = `${category}|${offset}|${perRow}|${limit}|${rowCount}|${rowOffset}`;
         const hit = cache.get(key);
-        if (hit && Date.now() - hit.at < CACHE_MS) {
-          return Response.json(hit.payload, {
-            headers: { "Cache-Control": "public, max-age=60" },
-          });
-        }
+        if (hit && Date.now() - hit.at < CACHE_MS) return cached(hit.payload);
 
         try {
-          // ---- one row, paged: what infinite loading asks for ---------------
+          let payload: unknown;
           if (category) {
-            const categoryResponse = await fetch(
-              `${url()}/rest/v1/marketplace_categories?select=id,name,slug` +
-                `&slug=eq.${encodeURIComponent(category)}&limit=1`,
-              { headers: admin() },
-            );
-            const categories = categoryResponse.ok
-              ? ((await categoryResponse.json()) as Row[])
-              : [];
-            if (!categories[0]) {
+            const row = await readCategoryRow(category, offset, limit);
+            if (!row) {
               return Response.json({ error: "No such category", cards: [] }, { status: 404 });
             }
-            const limit = askedLimit;
-            const { cards, total, ok } = await productsFor(String(categories[0].id), offset, limit);
-            if (!ok) {
+            payload = {
+              ...row,
+              offset,
+              limit,
+              hasMore: offset + row.cards.length < row.total,
+            };
+          } else {
+            const page = await readCatalogRows({ rowOffset, rowCount, perRow });
+            if (!page) {
               return Response.json(
-                { error: "The catalogue could not be read.", cards: [] },
+                { error: "The catalogue could not be read.", rows: [] },
                 { status: 502 },
               );
             }
-            const payload = {
-              category: { name: categories[0].name, slug: categories[0].slug },
-              cards,
-              total,
-              offset,
-              limit,
-              hasMore: offset + cards.length < total,
-            };
-            cache.set(key, { at: Date.now(), payload });
-            return Response.json(payload, {
-              headers: { "Cache-Control": "public, max-age=60" },
-            });
+            payload = { ...page, perRow };
           }
-
-          // ---- a page of rows for the home page ------------------------------
-          const categoryResponse = await fetch(
-            `${url()}/rest/v1/marketplace_categories?select=id,name,slug,icon` +
-              `&is_hidden=eq.false&order=sort_order.asc` +
-              `&limit=${rowCount}&offset=${rowOffset}`,
-            { headers: { ...admin(), Prefer: "count=exact" } },
-          );
-          if (!categoryResponse.ok) {
-            return Response.json(
-              { error: "The catalogue could not be read.", rows: [] },
-              { status: 502 },
-            );
-          }
-          const categories = (await categoryResponse.json()) as Row[];
-          const range = categoryResponse.headers.get("content-range") ?? "";
-          const totalRows = Number(range.split("/")[1]) || categories.length;
-
-          const rows = await Promise.all(
-            categories.map(async (c) => {
-              const { cards, total } = await productsFor(String(c.id), 0, perRow);
-              return {
-                id: String(c.id),
-                title: String(c.name ?? ""),
-                slug: String(c.slug ?? ""),
-                icon: c.icon ?? null,
-                href: `/marketplace/category/${String(c.slug ?? "")}`,
-                cards,
-                total,
-                hasMore: total > cards.length,
-              };
-            }),
-          );
-
-          // A category with nothing published is not shown as an empty shelf.
-          const payload = {
-            rows: rows.filter((r) => r.cards.length > 0),
-            rowOffset,
-            rowCount: categories.length,
-            totalRows,
-            hasMoreRows: rowOffset + categories.length < totalRows,
-            perRow,
-          };
           cache.set(key, { at: Date.now(), payload });
           if (cache.size > 200) cache.clear();
-          return Response.json(payload, {
-            headers: { "Cache-Control": "public, max-age=60" },
-          });
+          return cached(payload);
         } catch (error) {
           console.error("[catalog] failed", error);
           return Response.json(
