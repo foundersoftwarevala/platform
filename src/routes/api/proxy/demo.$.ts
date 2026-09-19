@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { DEMO_COOKIE, ticketFromRequest } from "@/lib/demo/ticket";
+import { DEMO_BRAND } from "@/lib/demo/brand";
+import { applyPresentation, cleanText, type PresentationRules } from "@/lib/demo/presentation";
+import { hostIsPublic } from "@/lib/demo/safe-fetch.server";
 
 /**
  * Full Reverse Proxy for Demo Applications
@@ -13,7 +16,9 @@ import { DEMO_COOKIE, ticketFromRequest } from "@/lib/demo/ticket";
  * Returns: Proxied content from the actual demo URL
  */
 
-async function getOriginalDemo(slug: string): Promise<{ url: string; name: string } | null> {
+type OriginalDemo = { url: string; name: string; rules: PresentationRules | null };
+
+async function getOriginalDemo(slug: string): Promise<OriginalDemo | null> {
   const env = typeof process !== "undefined" ? process.env : undefined;
   const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
   const supabaseUrl = viteEnv?.VITE_SUPABASE_URL ?? env?.SUPABASE_URL;
@@ -31,8 +36,13 @@ async function getOriginalDemo(slug: string): Promise<{ url: string; name: strin
   const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
   const { data: product } = await supabase.from("marketplace_products").select("id, name").eq("slug", slug).eq("visible", true).maybeSingle();
   if (!product) return null;
-  const { data: demo } = await supabase.from("product_demo_urls").select("url, demo_name").eq("product_id", product.id).eq("status", "active").order("sort_order").limit(1).maybeSingle();
-  return demo?.url ? { url: demo.url, name: demo.demo_name || product.name } : null;
+  const { data: demo } = await supabase.from("product_demo_urls").select("url, demo_name, processing_status, processing").eq("product_id", product.id).eq("status", "active").order("sort_order").limit(1).maybeSingle();
+  if (!demo?.url) return null;
+  // A demo the Demo Manager processed and verified is shown with its Software
+  // Vala presentation; one added before that is served as it always was.
+  const processed = demo as { processing_status?: string; processing?: { rules?: PresentationRules } | null };
+  const rules = processed.processing_status === "live" ? processed.processing?.rules ?? null : null;
+  return { url: demo.url, name: demo.demo_name || product.name, rules };
 }
 
 function shouldProxyRequest(pathname: string): boolean {
@@ -81,8 +91,14 @@ async function fetchFromOriginalDomain(demoUrl: string, path: string): Promise<R
     const url = new URL(actualUrl);
     const baseDomain = url.origin;
     
-    // Construct the full URL for the asset request
-    const assetUrl = baseDomain + path;
+    // The demo's own page is its full address (it may live under a path such
+    // as /demo); everything the page loads is asked of its host. A host that
+    // resolves to a private network is never fetched.
+    const assetUrl = path === '/' ? actualUrl : baseDomain + path;
+    if (!(await hostIsPublic(url.hostname))) {
+      console.error(`[demo-proxy] refused ${url.hostname}: not a public host`);
+      return null;
+    }
     console.log(`[demo-proxy] Fetching: ${assetUrl}`);
     
     const response = await fetch(assetUrl, {
@@ -201,6 +217,21 @@ export const Route = createFileRoute('/api/proxy/demo/$')({
             html = html.replace(/Powered by Lovable/gi, '');
             html = html.replace(/Built on Lovable/gi, '');
             
+            // The Software Vala presentation: favicon, logo, and the developer's
+            // contact details and credits removed (src/lib/demo/presentation.ts).
+            if (originalDemo.rules) {
+              const rules = originalDemo.rules;
+              html = applyPresentation(
+                html,
+                {
+                  ...rules,
+                  // Root-relative logos were just moved under the proxy path.
+                  logos: rules.logos.flatMap((l) => (l.startsWith('/') ? [l, `/api/proxy/demo/${slug}${l}`] : [l])),
+                },
+                DEMO_BRAND,
+              );
+            }
+
             // Update title
             const demoName = originalDemo.name || 'Demo';
             html = html.replace(/<title>[^<]*<\/title>/i, `<title>Software Vala™ — ${demoName}</title>`);
@@ -235,6 +266,13 @@ export const Route = createFileRoute('/api/proxy/demo/$')({
           // For non-HTML responses (JS, CSS, images, etc.), just proxy through
           console.log(`[demo-proxy] >>> Processing non-HTML response (${contentType})`);
           let responseBuffer = await proxiedResponse.arrayBuffer();
+
+          // A single-page app carries its words, and the developer's contact
+          // details, in its scripts and data files: clean those as well.
+          if (originalDemo.rules && /javascript|json|css|text\//i.test(contentType)) {
+            const cleaned = cleanText(new TextDecoder().decode(responseBuffer), originalDemo.rules, DEMO_BRAND.name);
+            responseBuffer = new TextEncoder().encode(cleaned).buffer as ArrayBuffer;
+          }
           console.log(`[demo-proxy] >>> Buffer size: ${responseBuffer.byteLength}`);
           
           const responseHeaders = new Headers();

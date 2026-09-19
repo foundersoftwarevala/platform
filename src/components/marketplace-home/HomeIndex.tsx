@@ -513,6 +513,9 @@ export function toDemo(card: CatalogCard, index: number): Demo {
     license: card.license,
     platform: card.platform,
     hasDemo: card.hasDemo,
+    // The Live Demo button opens the demo itself, through the signed-in
+    // gateway, not the product page.
+    demoUrl: card.hasDemo && card.slug ? `/demo/${card.slug}` : null,
   } as unknown as Demo;
 }
 
@@ -917,7 +920,7 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 )}
                 {/* Only for a product that actually has one. */}
                 {demo.status === "ACTIVE" && (
-                  <Badge className="bg-emerald-500/90 text-white font-bold text-xs flex items-center gap-1">
+                  <Badge className="sv-live-badge bg-emerald-500/90 text-white font-bold text-xs flex items-center gap-1">
                     <span className="sv-live-dot" />
                     LIVE DEMO
                   </Badge>
@@ -1068,7 +1071,7 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 <>
                   {/* Only offered when there is a demo to open. */}
                   {shows("action", "live-demo") && allowed("LIVE_DEMO") && demoHref && (
-                    <a href={demoHref} className="flex-1" target={demoHref.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
+                    <a href={demoHref} className="flex-1" target={demoHref.startsWith("http") || demoHref.startsWith("/demo/") ? "_blank" : undefined} rel="noreferrer">
                       <Button className="sv-btn sv-btn-cyan w-full">
                         <Play className="h-4 w-4 mr-2" /> Live Demo
                       </Button>

@@ -108,6 +108,8 @@ export type Category = {
 export type PublicProduct = MarketProduct & {
   demo_count?: number;
   demo_urls?: ProductDemoBinding[];
+  /** The demo gateway (/demo/<slug>) when the product has a live demo. */
+  demo_url?: string | null;
 };
 
 export type PublicProductPageData = {
@@ -390,6 +392,9 @@ export const getPublicProduct = createServerFn({ method: "GET" })
           ...mapProductRecord(productRow),
           demo_count: activeDemos.length,
           demo_urls: activeDemos,
+          // The page's Live Demo action opens the signed-in demo gateway. It
+          // had no address to open, so it always read "unavailable".
+          demo_url: activeDemos.length && productRow.slug ? `/demo/${productRow.slug}` : null,
         },
         active_demos: activeDemos,
         seo: await loadPublicSeoForProduct(sb, productRow.id),

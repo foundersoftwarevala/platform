@@ -31,7 +31,7 @@ import { PageShell, PageBanner } from "@/components/layout/PageShell";
 import DemoDashboard from "@/components/demo-manager/DemoDashboard";
 import DemoStatusGrid from "@/components/demo-manager/DemoStatusGrid";
 import DemoUptimeMonitor from "@/components/demo-manager/DemoUptimeMonitor";
-import DemoURLManager from "@/components/demo-manager/DemoURLManager";
+import { DemoUrlManagerSection } from "@/components/marketplace-manager/sections/DemoUrlManager";
 import DemoAnalytics from "@/components/demo-manager/DemoAnalytics";
 import DemoCatalog from "@/components/demo-manager/DemoCatalog";
 import DemoCreator from "@/components/demo-manager/DemoCreator";
@@ -40,15 +40,15 @@ import DemoActivityLogs from "@/components/demo-manager/DemoActivityLogs";
 import DemoPendingRequests from "@/components/demo-manager/DemoPendingRequests";
 
 const menuItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutGrid, badge: "LIVE" },
-  { id: "status", label: "Demo Status Grid", icon: Activity, badge: "47" },
-  { id: "broken", label: "Broken Demos", icon: AlertTriangle, badge: "3" },
-  { id: "uptime", label: "Uptime Monitor", icon: Clock, badge: "99.9%" },
+  { id: "dashboard", label: "Dashboard", icon: LayoutGrid, badge: null },
+  { id: "status", label: "Demo Status Grid", icon: Activity, badge: null },
+  { id: "broken", label: "Broken Demos", icon: AlertTriangle, badge: null },
+  { id: "uptime", label: "Uptime Monitor", icon: Clock, badge: null },
   { id: "urls", label: "URL Manager", icon: Link2, badge: null },
   { id: "analytics", label: "Click Analytics", icon: BarChart3, badge: null },
-  { id: "catalog", label: "Demo Catalog", icon: Package, badge: "40+" },
+  { id: "catalog", label: "Demo Catalog", icon: Package, badge: null },
   { id: "create", label: "Add Demo", icon: PlusCircle, badge: null },
-  { id: "requests", label: "Pending Requests", icon: FileText, badge: "5" },
+  { id: "requests", label: "Pending Requests", icon: FileText, badge: null },
   { id: "logs", label: "Activity Log", icon: History, badge: null },
 ];
 
@@ -75,7 +75,7 @@ const DemoManagerDashboard = () => {
       case "uptime":
         return <DemoUptimeMonitor />;
       case "urls":
-        return <DemoURLManager />;
+        return <DemoUrlManagerSection />;
       case "analytics":
         return <DemoAnalytics />;
       case "catalog":
