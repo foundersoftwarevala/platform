@@ -85,6 +85,10 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
       </button>
 
 
+      {/* Secondary controls from tablet width up. On a phone they pushed the
+          bar 50 px past the screen edge, so every dashboard scrolled sideways;
+          search, chat, theme, notifications and the profile menu stay. */}
+      <div className="hidden md:contents">
       <SelectChip prefKey="lang" ariaLabel="Interface language" label="EN" options={["EN","HI","AR","ES","FR","DE"]} />
       <SelectChip prefKey="currency" ariaLabel="Display currency" label="USD" options={["USD","INR","EUR","GBP","AED"]} />
 
@@ -129,6 +133,7 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
         </>
       )}
       <IconBtn icon={Award} title="Achievement badges" onClick={() => onOpenModule?.("ams")} />
+      </div>
       <ThemeToggle />
       <IconBtn icon={MessageSquare} title="Messages" onClick={() => onOpenAIChat?.()} />
       <IconBtn

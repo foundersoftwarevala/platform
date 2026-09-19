@@ -9,61 +9,6 @@ const TIERS = ["bronze", "silver", "gold", "platinum"] as const;
 const RS_STATUS = ["pending", "active", "suspended", "rejected"] as const;
 const KYC = ["unverified", "submitted", "verified", "rejected"] as const;
 
-export const resellersConfig: WallConfig = {
-  // Reads the real resellers table through the audited manager endpoint.
-  // The columns below already match its schema exactly.
-  resource: "resellers",
-  scope: "resellers",
-  entity: "reseller",
-  eyebrow: "Network",
-  title: "Resellers Wall",
-  subtitle: "Directory of every reseller — search, filter, onboard and act with full audit.",
-  icon: Users,
-  primaryLabel: "New Reseller",
-  seed: [],
-  columns: [
-    { key: "name", header: "Reseller", render: (r) => <div className="font-semibold">{r.name}</div> },
-    { key: "code", header: "Code", render: (r) => <span className="font-mono text-[11.5px]">{r.code}</span> },
-    { key: "tier", header: "Tier", render: (r) => <StatusPill value={r.tier} /> },
-    { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
-    { key: "kyc_status", header: "KYC", render: (r) => <StatusPill value={r.kyc_status} /> },
-    { key: "region", header: "Region" },
-  ],
-  filters: [
-    { key: "status", label: "Status", options: RS_STATUS },
-    { key: "tier", label: "Tier", options: TIERS },
-    { key: "kyc_status", label: "KYC", options: KYC },
-  ],
-  kpis: [
-    { label: "Total", hint: "In directory", icon: Users, compute: (r) => (r.length ? r.length : "—") },
-    { label: "Active", hint: "Selling now", icon: CheckCircle2, compute: (r) => (r.length ? r.filter((x) => x.status === "active").length : "—") },
-    { label: "Pending", hint: "Awaiting approval", icon: ShieldAlert, compute: (r) => (r.length ? r.filter((x) => x.status === "pending").length : "—") },
-    { label: "KYC Verified", hint: "Fully compliant", icon: UserCheck, compute: (r) => (r.length ? r.filter((x) => x.kyc_status === "verified").length : "—") },
-  ],
-  bulkActions: [
-    { key: "approve", label: "Approve", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
-  ],
-  rowActions: [
-    { key: "approve", label: "Approve", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
-  ],
-  formFields: [
-    { key: "name", label: "Reseller Name", type: "text", required: true },
-    { key: "code", label: "Partner Code", type: "text" },
-    { key: "email", label: "Email", type: "email" },
-    { key: "phone", label: "Phone", type: "text" },
-    { key: "region", label: "Region", type: "text" },
-    { key: "tier", label: "Tier", type: "select", options: TIERS, defaultValue: "bronze" },
-    { key: "status", label: "Status", type: "select", options: RS_STATUS, defaultValue: "pending" },
-    { key: "kyc_status", label: "KYC", type: "select", options: KYC, defaultValue: "unverified" },
-    { key: "notes", label: "Notes", type: "textarea" },
-  ],
-  searchFields: ["name", "code", "email", "region"],
-  primaryField: "name",
-  subField: "code",
-};
 
 const SEGMENTS = ["individual", "sme", "enterprise"] as const;
 const CU_STATUS = ["active", "inactive", "blocked"] as const;

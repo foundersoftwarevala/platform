@@ -33,6 +33,7 @@ import { COMMON_MESSAGES } from "./common";
 import { EMAIL_MESSAGES } from "./email";
 import { MARKETPLACE_MESSAGES } from "./marketplace";
 import { PAYMENT_MESSAGES } from "./payment";
+import { RESELLER_MESSAGES } from "./reseller";
 
 export type MessageSource = string | readonly [text: string, description: string];
 
@@ -45,6 +46,7 @@ export const MODULES = {
   email: EMAIL_MESSAGES,
   marketplace: MARKETPLACE_MESSAGES,
   payment: PAYMENT_MESSAGES,
+  reseller: RESELLER_MESSAGES,
 } as const;
 
 type Modules = typeof MODULES;

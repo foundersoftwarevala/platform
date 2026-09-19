@@ -4,7 +4,6 @@ import { resellerConfig } from "@/components/creator/moduleConfigs";
 import { makeWall } from "@/components/manager-suite/makeWall";
 import type { SectionEntry } from "@/components/manager-suite/ManagerWorkspace";
 
-import { config as approvals } from "./walls/approvals";
 import { config as audit } from "./walls/audit";
 import { config as commission } from "./walls/commission";
 import { config as kyc } from "./walls/kyc";
@@ -14,8 +13,9 @@ import { config as reports } from "./walls/reports";
 import { config as subscriptions } from "./walls/subscriptions";
 import { config as support } from "./walls/support";
 import { config as wallet } from "./walls/wallet";
-import { customersConfig, ordersConfig, productsConfig, resellersConfig } from "./walls/core";
+import { customersConfig, ordersConfig, productsConfig } from "./walls/core";
 import { resellerGroups } from "./navigation";
+import { ResellerManager } from "@/components/marketplace-manager/sections/ResellerManager";
 
 function ResellerDashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
   return <ModuleDashboard config={resellerConfig} onNavigate={onNavigate} />;
@@ -24,10 +24,14 @@ function ResellerDashboard({ onNavigate }: { onNavigate?: (id: string) => void }
 const explicit: Record<string, SectionEntry> = {
   Dashboard: ResellerDashboard,
   "Command Console": ResellerDashboard,
-  Resellers: resellersConfig,
-  "Reseller Directory": resellersConfig,
-  Applications: approvals,
-  Approvals: approvals,
+  // The reseller records themselves - applications (status pending),
+  // approvals, plans, codes, payouts - from the database through the
+  // reseller console (mm_resellers, mm_reseller_status, ...). The Applications
+  // screen used to be a list kept in the browser.
+  Resellers: ResellerManager,
+  "Reseller Directory": ResellerManager,
+  Applications: ResellerManager,
+  Approvals: ResellerManager,
   Customers: customersConfig,
   Orders: ordersConfig,
   Products: productsConfig,

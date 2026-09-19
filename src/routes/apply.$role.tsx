@@ -15,6 +15,8 @@ import {
 import "@/styles/marketplace-home.css";
 import { getRole, type Field } from "@/lib/applications/config";
 import { submitApplication } from "@/lib/applications/store";
+import { supabase } from "@/integrations/supabase/client";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export const Route = createFileRoute("/apply/$role")({
   head: ({ params }) => {
@@ -106,6 +108,7 @@ function FieldInput({
 }
 
 function ApplyRolePage() {
+  const { t } = useTranslation();
   const { role: roleKey } = Route.useParams();
   const role = getRole(roleKey);
   const navigate = useNavigate();
@@ -114,6 +117,7 @@ function ApplyRolePage() {
   const [paid, setPaid] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [application, setApplication] = useState<{ number: string; status: string; duplicate: boolean } | null>(null);
 
   const set = (k: string, v: string) => setValues((p) => ({ ...p, [k]: v }));
   const freeFee = role?.fee.toLowerCase() === "free";
@@ -138,10 +142,14 @@ function ApplyRolePage() {
     );
   }
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreed) {
       toast.error("Please accept the agreement to continue.");
+      return;
+    }
+    if (role.key === "reseller") {
+      await submitReseller();
       return;
     }
     setBusy(true);
@@ -161,6 +169,59 @@ function ApplyRolePage() {
       toast.success("Application submitted — sent to the boss panel for approval.");
     }, 700);
   };
+
+  /**
+   * A reseller application goes to the server (submit_reseller_application):
+   * one application per signed-in account, validated there, with an
+   * application number. It then waits in the Reseller Manager for approval.
+   */
+  async function submitReseller() {
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session) {
+      toast.error(t("reseller.apply.sign_in_first"));
+      void navigate({ to: "/login", search: { redirect: "/apply/reseller" } as never });
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data, error } = (await supabase.rpc("submit_reseller_application" as never, {
+        p_application: { ...values, agreementAccepted: true },
+      } as never)) as { data: { application_number: string; status: string; duplicate: boolean } | null; error: Error | null };
+      if (error) throw error;
+      setApplication({ number: data!.application_number, status: data!.status, duplicate: data!.duplicate });
+      setDone(true);
+      toast.success(data!.duplicate ? t("reseller.apply.already_applied") : t("reseller.apply.submitted"));
+    } catch (problem) {
+      toast.error(problem instanceof Error ? problem.message : t("reseller.apply.failed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done && application) {
+    return (
+      <div className="mpc-home min-h-screen px-5 py-16">
+        <div className="mx-auto max-w-xl rounded-3xl border border-white/12 bg-white/[0.05] p-8 text-center backdrop-blur-xl">
+          <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-300" />
+          <h1 className="mt-4 text-2xl font-black">
+            {application.duplicate ? t("reseller.apply.already_applied") : t("reseller.apply.submitted")}
+          </h1>
+          <p className="mt-3 text-[13px] text-white/60">{t("reseller.apply.number")}</p>
+          <p className="mt-1 font-mono text-2xl font-black tracking-wider text-cyan-200" data-application-number>
+            {application.number}
+          </p>
+          <p className="mt-3 text-[13.5px] leading-relaxed text-white/65">
+            {t("reseller.apply.status", { status: application.status })} {t("reseller.apply.next")}
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link to="/" className="rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-[13px] font-bold">
+              {t("reseller.apply.home")}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (done) {
     return (

@@ -213,10 +213,13 @@ export const ROLES: RoleConfig[] = [
     tagline: "Sell our catalog and keep the margin",
     blurb: "Resell 12,000+ ready solutions under your own brand.",
     accent: "from-emerald-400 to-teal-600",
-    fee: "₹1,999",
-    feeNote: "Annual reseller licence fee.",
-    workflow: ["Application received", "Sales capability review", "Territory allocation", "Agreement signing", "Reseller panel access"],
-    agreement: "Reseller Agreement — non-exclusive territory, up to 30% margin, quarterly sales target and brand usage guidelines.",
+    // Applying is free. Billing starts only when an approved reseller chooses a
+    // membership plan (Starter / Professional / Master) in the reseller
+    // dashboard, priced by the server from reseller_membership_plans.
+    fee: "Free",
+    feeNote: "No application fee. Choose a membership plan after approval.",
+    workflow: ["Application received", "Reseller Manager review", "Account approved", "Membership plan", "Reseller panel access"],
+    agreement: "Reseller Agreement — non-exclusive territory, a margin set by your membership plan (Starter 20%, Professional 30%, Master 40%), and brand usage guidelines.",
     dashboard: "Reseller Dashboard — catalog, quotations, margin reports, leads.",
     sections: [
       personal,
