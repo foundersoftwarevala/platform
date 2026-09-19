@@ -91,6 +91,12 @@ export const RESELLER_MESSAGES = {
   "reseller.attention.not_permitted": "Your role cannot see reseller operations data.",
   "reseller.attention.as_of": ["Counted at {time}", "when the numbers were read from the database"],
 
+  // Reseller Manager console
+  "reseller.manager.terminated_final": [
+    "Terminated — final. A return is a new application.",
+    "shown instead of an Approve button on a terminated reseller",
+  ],
+
   // Reseller pricing workspace (dashboard)
   "reseller.pricing.back": "Back",
   "reseller.pricing.eyebrow": "Reseller workspace",

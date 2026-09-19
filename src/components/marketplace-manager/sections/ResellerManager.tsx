@@ -1,3 +1,4 @@
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -449,6 +450,7 @@ function ResellerProfile({ id, onBack }: { id: string; onBack: () => void }) {
 /* -------------------------------------------------------------- registry */
 
 export function ResellerManager() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"" | ResellerStatus>("");
@@ -673,7 +675,13 @@ export function ResellerManager() {
                     {r.status}
                   </span>
 
-                  {r.status !== "active" ? (
+                  {r.status === "terminated" ? (
+                    // Termination is final (enforced in the database too); a
+                    // returning reseller appears as a new application.
+                    <span className="text-[11px] text-muted-foreground" data-terminated-final>
+                      {t("reseller.manager.terminated_final")}
+                    </span>
+                  ) : r.status !== "active" ? (
                     <button
                       onClick={() => decide.mutate({ id: r.id, status: "active" })}
                       className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"

@@ -105,8 +105,11 @@ export function ResellerMembershipPlans() {
     queryFn: async () => {
       const { data, error } = (await supabase
         .from("reseller_memberships" as never)
-        .select("id, plan_code, status, starts_at, expires_at")
+        // Only the live reseller record's membership: a terminated record's
+        // history is kept but is not the reseller's current membership.
+        .select("id, plan_code, status, starts_at, expires_at, resellers!inner(status)")
         .eq("status", "active")
+        .neq("resellers.status" as never, "terminated")
         .order("activated_at", { ascending: false })
         .limit(1)) as { data: Membership[] | null; error: Error | null };
       if (error) throw error;
