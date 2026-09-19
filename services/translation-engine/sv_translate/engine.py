@@ -330,6 +330,15 @@ class Engine:
             restored, _ = tx.unmask(masked.text, masked.originals)
             return Result(restored, 1.0, "identity", ["nothing_to_translate"])
         restored, backend, flags = first
+        # Fast (greedy) decoding sometimes hands short text back unchanged -
+        # "# member", "Retry" - where beam search translates it. Before the
+        # quality gate refuses it as untranslated, the text is tried once
+        # more in quality mode.
+        if mode == "realtime" and restored.strip() == text.strip():
+            again = self._plain_pass(text, route, src, preferred, "quality", literals=False)
+            if again is not None and again[0].strip() != text.strip():
+                restored, backend, flags = again
+                flags = [*flags, "quality_retry"]
         # Amounts, currency codes and SKUs are not masked up front (see
         # tx.LITERAL); if the model changed one, the sentence is translated
         # again with them protected.

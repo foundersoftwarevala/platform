@@ -121,3 +121,33 @@ def test_a_retry_that_changes_another_value_masks_them_all():
     assert len(calls) == 3
     assert "SV-1042" not in calls[2][0] and "USD" not in calls[2][0]
     assert result.text == "Pay USD 15 for SV-1042."
+
+
+def test_unchanged_realtime_output_is_retried_in_quality_mode():
+    engine = engine_with([("sn", 0.95)], {"sn", "en"})
+    modes = []
+
+    def fake_run(texts, route, src, mode):
+        modes.append(mode)
+        if mode == "realtime":
+            return list(texts), "madlad-greedy"  # handed back unchanged
+        return ["Edza zvakare" for _ in texts], "madlad-beam"
+
+    engine._run = fake_run
+    result = engine._translate_plain("Retry", engine.routes["sn"], None, {}, "realtime")
+    assert modes == ["realtime", "quality"]
+    assert result.text == "Edza zvakare"
+    assert "quality_retry" in result.flags
+
+
+def test_quality_mode_is_not_retried():
+    engine = engine_with([("sn", 0.95)], {"sn", "en"})
+    modes = []
+
+    def fake_run(texts, route, src, mode):
+        modes.append(mode)
+        return list(texts), "madlad-beam"
+
+    engine._run = fake_run
+    engine._translate_plain("Retry", engine.routes["sn"], None, {}, "quality")
+    assert modes == ["quality"]
