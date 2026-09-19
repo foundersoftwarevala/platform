@@ -9,6 +9,12 @@ import {
   clientAddress,
 } from "@/lib/i18n/limits";
 import { MAX_CONTEXT_LENGTH, NAMESPACE_PATTERN, PipelineError } from "@/lib/i18n/pipeline";
+import {
+  REALTIME_BUDGET_MS,
+  batchKey,
+  joinOrStart,
+  withinBudget,
+} from "@/lib/i18n/realtime-budget";
 import { SOURCE_LANGUAGE } from "@/lib/i18n/registry";
 
 /**
@@ -37,6 +43,16 @@ import { SOURCE_LANGUAGE } from "@/lib/i18n/registry";
  */
 
 const limiter = new SlidingWindowLimiter(60_000);
+
+/**
+ * Engine work still running after its request answered, by batch
+ * (src/lib/i18n/realtime-budget.ts). A visitor's request waits at most
+ * REALTIME_BUDGET_MS; past it, it answers from memory with
+ * `pending_reason: "in_progress"` while the engine carries on, and the
+ * unfinished text is also queued for the background worker, so it is
+ * translated even if this process stops before the engine answers.
+ */
+const inFlight = new Map<string, Promise<unknown>>();
 
 const bodySchema = z
   .object({
@@ -124,19 +140,53 @@ async function handleTranslate(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await translateForCaller(
-      {
-        texts,
-        source: parsed.source ?? SOURCE_LANGUAGE,
-        target,
-        namespace,
-        context: parsed.context ?? null,
-        persist: true,
-        memoryOnly,
-        mode: caller.tier === "operator" ? parsed.mode : "realtime",
-      },
-      caller,
-    );
+    const request = {
+      texts,
+      source: parsed.source ?? SOURCE_LANGUAGE,
+      target,
+      namespace,
+      context: parsed.context ?? null,
+      persist: true,
+      memoryOnly,
+      mode: caller.tier === "operator" ? parsed.mode : ("realtime" as const),
+    };
+    type Result = Awaited<ReturnType<typeof translateForCaller>>;
+    let result: Result;
+    let inProgress = false;
+    if (memoryOnly || caller.tier === "operator") {
+      result = await translateForCaller(request, caller);
+    } else {
+      const { work } = joinOrStart(
+        inFlight,
+        batchKey(target, namespace, parsed.context, texts),
+        () => translateForCaller(request, caller),
+      );
+      const first = await withinBudget(work, REALTIME_BUDGET_MS);
+      if (!first.done) {
+        // The engine keeps working and persists what it finishes.
+        work.catch((error) => console.error("[translate] background translation failed", error));
+        result = await translateForCaller({ ...request, memoryOnly: true }, caller);
+        inProgress = true;
+        const unfinished = result.outcomes.filter((o) => o.translation === null).map((o) => o.text);
+        if (unfinished.length) {
+          const { enqueueJobs } = await import("@/lib/i18n/jobs.server");
+          enqueueJobs(
+            unfinished.map((text) => ({
+              text,
+              target: result.target.code,
+              namespace,
+              context: parsed.context ?? null,
+              priority: 30,
+            })),
+            null,
+          ).catch((error) => console.error("[translate] could not queue unfinished text", error));
+        }
+        const { count } = await import("@/lib/i18n/metrics.server");
+        count("api.translate.budget_exceeded");
+      } else {
+        result = first.value;
+      }
+    }
 
     const { count } = await import("@/lib/i18n/metrics.server");
     count("api.translate.strings", texts.length);
@@ -161,7 +211,7 @@ async function handleTranslate(request: Request): Promise<Response> {
         quality: o.qualityScore,
         issues: o.issues,
       })),
-      pending_reason: result.pendingReason,
+      pending_reason: inProgress ? "in_progress" : result.pendingReason,
       engine: result.engine ? { provider: result.engine.provider, kind: result.engine.kind } : null,
       fromCache: result.stats.fromMemory,
       translated: result.stats.translated,

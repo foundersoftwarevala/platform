@@ -226,7 +226,7 @@ const glossaryTerm = z
     message: "This rule needs a target term.",
   });
 
-const action = z.discriminatedUnion("action", [
+export const action = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("enqueue_catalogue"),
     languages: z.union([z.literal("all"), z.array(z.string().max(32)).min(1).max(200)]),
@@ -239,6 +239,9 @@ const action = z.discriminatedUnion("action", [
     namespace: z.string().regex(NAMESPACE_PATTERN).default("catalogue"),
     context: z.string().max(500).nullable().default(null),
     refresh: z.boolean().default(false),
+    // Lower runs sooner (the queue is ordered by priority, then age). Lets an
+    // operator put a page's text ahead of the catalogue backlog.
+    priority: z.number().int().min(1).max(100).default(100),
   }),
   z.object({ action: z.literal("run_jobs"), limit: z.number().int().min(1).max(50).default(12) }),
   z.object({
@@ -278,6 +281,7 @@ export async function performAction(body: unknown, caller: Caller) {
           namespace: input.namespace,
           context: input.context,
           refresh: input.refresh,
+          priority: input.priority,
         })),
       );
       return { queued: await enqueueJobs(items, caller.userId) };

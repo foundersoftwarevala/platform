@@ -19,6 +19,7 @@ import {
   getCurrentLanguage as getCurrentLanguageFromService,
   setCurrentLanguage as setCurrentLanguageInService,
 } from "@/lib/i18n/language-service";
+import { retryAfterFor } from "@/lib/i18n/realtime-budget";
 import {
   LANGUAGE_REGISTRY,
   getFallbackChain,
@@ -337,12 +338,10 @@ async function fetchTranslations(
       translations: payload.translations ?? {},
       unavailable,
       engineUnavailable: payload.pending_reason === "engine_unavailable",
-      retryAfter:
-        payload.pending_reason === "quota_exceeded"
-          ? 3600
-          : payload.pending_reason === "engine_unavailable"
-            ? 15
-            : null,
+      // "in_progress": the engine is still translating this batch (it took
+      // longer than the request budget) and will store the result; ask again
+      // shortly. Not an engine failure, so no backoff and no "unavailable".
+      retryAfter: retryAfterFor(payload.pending_reason),
     };
   } catch {
     return { ...empty, retryAfter: 30, reason: "Could not reach the translation service." };
