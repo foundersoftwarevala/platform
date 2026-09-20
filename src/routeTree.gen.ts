@@ -246,6 +246,7 @@ import { Route as ApiAffiliateAttributeRouteImport } from './routes/api/affiliat
 import { Route as ApiAnalyticsProductsRouteImport } from './routes/api/analytics/products'
 import { Route as ApiAuthorEarningsRouteImport } from './routes/api/author/earnings'
 import { Route as ApiAuthorProductsRouteImport } from './routes/api/author/products'
+import { Route as ApiDemoProcessRouteImport } from './routes/api/demo/process'
 import { Route as ApiDemoTicketRouteImport } from './routes/api/demo/ticket'
 import { Route as ApiFinanceResellerMembershipRouteImport } from './routes/api/finance/reseller-membership'
 import { Route as ApiGovernanceConsoleRouteImport } from './routes/api/governance/console'
@@ -1526,6 +1527,11 @@ const ApiAuthorProductsRoute = ApiAuthorProductsRouteImport.update({
   path: '/api/author/products',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDemoProcessRoute = ApiDemoProcessRouteImport.update({
+  id: '/api/demo/process',
+  path: '/api/demo/process',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDemoTicketRoute = ApiDemoTicketRouteImport.update({
   id: '/api/demo/ticket',
   path: '/api/demo/ticket',
@@ -2121,6 +2127,7 @@ export interface FileRoutesByFullPath {
   '/api/analytics/products': typeof ApiAnalyticsProductsRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
+  '/api/demo/process': typeof ApiDemoProcessRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
@@ -2419,6 +2426,7 @@ export interface FileRoutesByTo {
   '/api/analytics/products': typeof ApiAnalyticsProductsRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
+  '/api/demo/process': typeof ApiDemoProcessRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
@@ -2728,6 +2736,7 @@ export interface FileRoutesById {
   '/api/analytics/products': typeof ApiAnalyticsProductsRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
+  '/api/demo/process': typeof ApiDemoProcessRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
@@ -3038,6 +3047,7 @@ export interface FileRouteTypes {
     | '/api/analytics/products'
     | '/api/author/earnings'
     | '/api/author/products'
+    | '/api/demo/process'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/governance/console'
@@ -3336,6 +3346,7 @@ export interface FileRouteTypes {
     | '/api/analytics/products'
     | '/api/author/earnings'
     | '/api/author/products'
+    | '/api/demo/process'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/governance/console'
@@ -3644,6 +3655,7 @@ export interface FileRouteTypes {
     | '/api/analytics/products'
     | '/api/author/earnings'
     | '/api/author/products'
+    | '/api/demo/process'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/governance/console'
@@ -3803,6 +3815,7 @@ export interface RootRouteChildren {
   ApiAnalyticsProductsRoute: typeof ApiAnalyticsProductsRoute
   ApiAuthorEarningsRoute: typeof ApiAuthorEarningsRoute
   ApiAuthorProductsRoute: typeof ApiAuthorProductsRoute
+  ApiDemoProcessRoute: typeof ApiDemoProcessRoute
   ApiDemoTicketRoute: typeof ApiDemoTicketRoute
   ApiFinanceResellerMembershipRoute: typeof ApiFinanceResellerMembershipRoute
   ApiGovernanceConsoleRoute: typeof ApiGovernanceConsoleRoute
@@ -5521,6 +5534,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthorProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/demo/process': {
+      id: '/api/demo/process'
+      path: '/api/demo/process'
+      fullPath: '/api/demo/process'
+      preLoaderRoute: typeof ApiDemoProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/demo/ticket': {
       id: '/api/demo/ticket'
       path: '/api/demo/ticket'
@@ -6543,6 +6563,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAnalyticsProductsRoute: ApiAnalyticsProductsRoute,
   ApiAuthorEarningsRoute: ApiAuthorEarningsRoute,
   ApiAuthorProductsRoute: ApiAuthorProductsRoute,
+  ApiDemoProcessRoute: ApiDemoProcessRoute,
   ApiDemoTicketRoute: ApiDemoTicketRoute,
   ApiFinanceResellerMembershipRoute: ApiFinanceResellerMembershipRoute,
   ApiGovernanceConsoleRoute: ApiGovernanceConsoleRoute,

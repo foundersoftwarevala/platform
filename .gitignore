@@ -48,3 +48,7 @@ yarn-error.log*
 # archived legacy copies (kept on disk, out of the source tree)
 _archive/
 .output.prev
+
+# Deploy config templates carry no secrets and belong in the repository,
+# even though "*.local" would otherwise exclude them.
+!deploy/production/system/fail2ban-sshd.local
