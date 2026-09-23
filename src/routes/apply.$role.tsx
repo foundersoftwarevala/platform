@@ -1,3 +1,4 @@
+import { Toaster } from "@/components/ui/sonner";
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -14,7 +15,101 @@ import {
 } from "lucide-react";
 import "@/styles/marketplace-home.css";
 import { getRole, type Field } from "@/lib/applications/config";
-import { submitApplication } from "@/lib/applications/store";
+import { supabase } from "@/integrations/supabase/client";
+import { authHeaders } from "@/lib/auth/operator-fetch";
+import { useTranslation } from "@/lib/i18n/use-translation";
+
+type Submitted = { number: string; status: string; duplicate: boolean };
+
+/** Roles whose application reaches a server table and a manager workflow. */
+const ONLINE_ROLES: ReadonlySet<string> = new Set([
+  "reseller", "vendor", "author", "franchise", "influencer", "affiliate",
+]);
+
+type RpcResult = { application_number: string; status: string; duplicate?: boolean };
+
+async function rpc(fn: string, args: Record<string, unknown>): Promise<RpcResult> {
+  const { data, error } = (await supabase.rpc(fn as never, args as never)) as {
+    data: RpcResult | null;
+    error: Error | null;
+  };
+  if (error) throw error;
+  if (!data) throw new Error("No application was returned.");
+  return data;
+}
+
+const num = (v: string | undefined): number | null => {
+  const n = Number(String(v ?? "").replace(/[^0-9.]/g, ""));
+  return Number.isFinite(n) && String(v ?? "").trim() !== "" ? n : null;
+};
+
+/**
+ * Each role goes to the server path that already owns it; the database
+ * validates, de-duplicates (one open application per account), numbers it and
+ * notifies. Status and approval are set by staff only.
+ */
+async function submitToServer(role: string, values: Record<string, string>): Promise<Submitted> {
+  const application = { ...values, agreementAccepted: true };
+  let result: RpcResult;
+  switch (role) {
+    case "reseller":
+      result = await rpc("submit_reseller_application", { p_application: application });
+      break;
+    case "vendor":
+    case "author":
+      result = await rpc("submit_seller_application", { p_kind: role, p_application: application });
+      break;
+    case "franchise":
+      result = await rpc("submit_franchise_application", { p_application: application });
+      break;
+    case "influencer":
+      result = await rpc("submit_influencer_application", {
+        p_full_name: values.fullName ?? "",
+        p_email: values.email ?? "",
+        p_phone: values.phone || null,
+        p_country: values.country || null,
+        p_region: [values.city, values.state].filter(Boolean).join(", ") || null,
+        p_social_profiles: {
+          instagram: values.instagram || null,
+          youtube: values.youtube || null,
+          linkedin: values.linkedin || null,
+          x: values.xTwitter || null,
+          rate_card: values.rateCard || null,
+          past_brands: values.pastBrands || null,
+        },
+        p_followers: num(values.followers) ?? 0,
+        p_niche: values.niche ?? "",
+        p_content_types: null,
+        p_engagement_rate: num(values.engagementRate),
+        p_payment_details: {},
+        p_tax_details: { id_type: values.idType || null, id_number: values.idNumber || null },
+        p_agreement_accepted: true,
+        p_consent_accepted: true,
+        p_terms_accepted: true,
+      });
+      break;
+    case "affiliate": {
+      const response = await fetch("/api/affiliate/account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ action: "apply", displayName: values.fullName ?? "", termsAccepted: true }),
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string; status?: string; partnerId?: string; alreadyApplied?: boolean;
+      };
+      if (!response.ok) throw new Error(body.error ?? "The application could not be submitted.");
+      result = {
+        application_number: `AFF-${String(body.partnerId ?? "").replace(/-/g, "").slice(0, 10).toUpperCase()}`,
+        status: body.status ?? "pending",
+        duplicate: Boolean(body.alreadyApplied),
+      };
+      break;
+    }
+    default:
+      throw new Error("Online applications for this role are not open.");
+  }
+  return { number: result.application_number, status: result.status, duplicate: Boolean(result.duplicate) };
+}
 
 export const Route = createFileRoute("/apply/$role")({
   head: ({ params }) => {
@@ -106,17 +201,17 @@ function FieldInput({
 }
 
 function ApplyRolePage() {
+  const { t } = useTranslation();
   const { role: roleKey } = Route.useParams();
   const role = getRole(roleKey);
   const navigate = useNavigate();
   const [values, setValues] = useState<Record<string, string>>({});
   const [agreed, setAgreed] = useState(false);
-  const [paid, setPaid] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
+  const [application, setApplication] = useState<Submitted | null>(null);
 
   const set = (k: string, v: string) => setValues((p) => ({ ...p, [k]: v }));
-  const freeFee = role?.fee.toLowerCase() === "free";
+  const acceptsOnline = role ? ONLINE_ROLES.has(role.key) : false;
 
   const progress = useMemo(() => {
     if (!role) return 0;
@@ -138,49 +233,50 @@ function ApplyRolePage() {
     );
   }
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreed) {
       toast.error("Please accept the agreement to continue.");
       return;
     }
+    if (!acceptsOnline) return;
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session) {
+      toast.error(t("apply.sign_in_first"));
+      void navigate({ to: "/login", search: { redirect: `/apply/${role.key}` } as never });
+      return;
+    }
     setBusy(true);
-    window.setTimeout(() => {
-      submitApplication({
-        role: role.key,
-        roleLabel: role.label,
-        applicant: values["fullName"] || "Unnamed applicant",
-        email: values["email"] || "",
-        phone: values["phone"] || "",
-        fee: role.fee,
-        paid: freeFee ? true : paid,
-        values,
-      });
+    try {
+      const result = await submitToServer(role.key, values);
+      setApplication(result);
+      toast.success(result.duplicate ? t("apply.already_applied") : t("apply.submitted"));
+    } catch (problem) {
+      toast.error(problem instanceof Error ? problem.message : t("apply.failed"));
+    } finally {
       setBusy(false);
-      setDone(true);
-      toast.success("Application submitted — sent to the boss panel for approval.");
-    }, 700);
+    }
   };
 
-  if (done) {
+  if (application) {
     return (
       <div className="mpc-home min-h-screen px-5 py-16">
         <div className="mx-auto max-w-xl rounded-3xl border border-white/12 bg-white/[0.05] p-8 text-center backdrop-blur-xl">
           <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-300" />
-          <h1 className="mt-4 text-2xl font-black">Application submitted</h1>
-          <p className="mt-2 text-[13.5px] leading-relaxed text-white/65">
-            Your {role.label.replace("Become ", "")} application is now pending approval. The admin team has been
-            notified and you will receive an update on {values["email"] || "your email"}.
+          <h1 className="mt-4 text-2xl font-black">
+            {application.duplicate ? t("apply.already_applied") : t("apply.submitted")}
+          </h1>
+          <p className="mt-3 text-[13px] text-white/60">{t("apply.number")}</p>
+          <p className="mt-1 font-mono text-2xl font-black tracking-wider text-cyan-200" data-application-number>
+            {application.number}
+          </p>
+          <p className="mt-3 text-[13.5px] leading-relaxed text-white/65" data-application-status={application.status}>
+            {t("apply.status", { status: application.status })}{" "}
+            {role.key === "reseller" ? t("reseller.apply.next") : t("apply.next")}
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link
-              to="/control-panel"
-              className="rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 px-5 py-2.5 text-[13px] font-bold"
-            >
-              Open boss panel
-            </Link>
             <Link to="/" className="rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-[13px] font-bold">
-              Back to home
+              {t("apply.home")}
             </Link>
           </div>
         </div>
@@ -190,6 +286,7 @@ function ApplyRolePage() {
 
   return (
     <div className="mpc-home min-h-screen px-4 pb-20 pt-8 sm:px-6">
+      <Toaster />
       <div className="mx-auto max-w-5xl">
         <button
           type="button"
@@ -289,29 +386,25 @@ function ApplyRolePage() {
               <span className="rounded-xl border border-amber-300/40 bg-amber-300/10 px-4 py-2 text-[15px] font-black text-amber-200">
                 {role.fee}
               </span>
-              {!freeFee && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPaid(true);
-                    toast.success("Payment recorded for this application.");
-                  }}
-                  className={`rounded-full px-5 py-2.5 text-[13px] font-bold ${
-                    paid
-                      ? "border border-emerald-300/40 bg-emerald-400/15 text-emerald-200"
-                      : "bg-gradient-to-r from-amber-300 to-orange-500 text-[#2a1704]"
-                  }`}
-                >
-                  {paid ? "Paid ✓" : "Pay Now"}
-                </button>
-              )}
+              <span className="text-[12px] text-white/55" data-no-online-payment>
+                {t("apply.no_payment")}
+              </span>
             </div>
           </section>
+
+          {!acceptsOnline && (
+            <p
+              className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-[13px] text-amber-100"
+              data-application-not-open
+            >
+              {t("apply.not_open")}
+            </p>
+          )}
 
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || !acceptsOnline}
               className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 px-7 py-3 text-[14px] font-black disabled:opacity-60"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

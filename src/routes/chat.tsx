@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ChatWorkspace } from "@/components/chat/user/ChatWorkspace";
 import { Toaster } from "@/components/ui/sonner";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export const Route = createFileRoute("/chat")({
   ssr: false,
@@ -23,20 +24,30 @@ export const Route = createFileRoute("/chat")({
     ],
   }),
   component: ChatRoute,
-  errorComponent: ({ error }) => (
+  errorComponent: ChatError,
+  notFoundComponent: ChatNotFound,
+});
+
+function ChatError({ error }: { error: Error }) {
+  const { t } = useTranslation();
+  return (
     <main className="grid min-h-[60vh] place-items-center px-4">
       <div className="max-w-md text-center">
-        <h2 className="text-lg font-semibold">Chat unavailable</h2>
+        <h2 className="text-lg font-semibold">{t("chat.unavailable")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
       </div>
     </main>
-  ),
-  notFoundComponent: () => (
+  );
+}
+
+function ChatNotFound() {
+  const { t } = useTranslation();
+  return (
     <main className="grid min-h-[60vh] place-items-center">
-      <p className="text-sm text-muted-foreground">Conversation not found.</p>
+      <p className="text-sm text-muted-foreground">{t("chat.not_found")}</p>
     </main>
-  ),
-});
+  );
+}
 
 function ChatRoute() {
   return (

@@ -10,6 +10,7 @@ import { uploadToBucket } from "@/services/chat/upload";
 import type { Profile } from "@/services/chat/types";
 import { UserAvatar } from "./media";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 interface Props {
   open: boolean;
@@ -20,6 +21,7 @@ interface Props {
 
 /** Edit own identity: display name, handle, job title and profile photo. */
 export function ProfileDialog({ open, onOpenChange, userId, profile }: Props) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
   const [handle, setHandle] = useState(profile?.handle ?? "");
@@ -46,9 +48,9 @@ export function ProfileDialog({ open, onOpenChange, userId, profile }: Props) {
       const handleUpload = uploadToBucket({ bucket: "avatars", path, file });
       await handleUpload.promise;
       setAvatarPath(path);
-      toast.success("Profile photo uploaded");
+      toast.success(t("chat.profile.photo_uploaded"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Photo upload failed");
+      toast.error(error instanceof Error ? error.message : t("chat.profile.photo_failed"));
     } finally {
       setUploading(false);
     }
@@ -57,7 +59,7 @@ export function ProfileDialog({ open, onOpenChange, userId, profile }: Props) {
   const save = async () => {
     const cleanHandle = handle.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
     if (!displayName.trim() || !cleanHandle) {
-      toast.error("Name and handle are required");
+      toast.error(t("chat.profile.required"));
       return;
     }
     setSaving(true);
@@ -70,10 +72,10 @@ export function ProfileDialog({ open, onOpenChange, userId, profile }: Props) {
       });
       await queryClient.invalidateQueries({ queryKey: ["profile", userId] });
       await queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
-      toast.success("Profile updated");
+      toast.success(t("chat.profile.updated"));
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save profile");
+      toast.error(error instanceof Error ? error.message : t("chat.profile.save_failed"));
     } finally {
       setSaving(false);
     }
@@ -83,8 +85,8 @@ export function ProfileDialog({ open, onOpenChange, userId, profile }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>My profile</DialogTitle>
-          <DialogDescription>How teammates see you across the workspace.</DialogDescription>
+          <DialogTitle>{t("chat.header.my_profile")}</DialogTitle>
+          <DialogDescription>{t("chat.profile.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -94,7 +96,7 @@ export function ProfileDialog({ open, onOpenChange, userId, profile }: Props) {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                aria-label="Change profile photo"
+                aria-label={t("chat.profile.change_photo")}
                 className="absolute -bottom-1 -right-1 grid size-7 place-items-center rounded-full border border-border bg-secondary shadow-sm hover:bg-accent"
               >
                 {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />}
@@ -104,7 +106,7 @@ export function ProfileDialog({ open, onOpenChange, userId, profile }: Props) {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                aria-label="Upload profile photo"
+                aria-label={t("chat.profile.upload_photo")}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) void uploadAvatar(file);
@@ -113,12 +115,12 @@ export function ProfileDialog({ open, onOpenChange, userId, profile }: Props) {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              JPG or PNG. Visible to everyone in your conversations.
+              {t("chat.profile.photo_hint")}
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="profile-name">Display name</Label>
+            <Label htmlFor="profile-name">{t("chat.profile.display_name")}</Label>
             <Input
               id="profile-name"
               value={displayName}
@@ -127,34 +129,34 @@ export function ProfileDialog({ open, onOpenChange, userId, profile }: Props) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="profile-handle">Handle</Label>
+            <Label htmlFor="profile-handle">{t("chat.profile.handle")}</Label>
             <Input
               id="profile-handle"
               value={handle}
               onChange={(e) => setHandle(e.target.value)}
               maxLength={40}
-              placeholder="amit-sharma"
+              placeholder={t("chat.profile.handle_placeholder")}
             />
-            <p className="text-xs text-muted-foreground">Used for @mentions.</p>
+            <p className="text-xs text-muted-foreground">{t("chat.profile.handle_hint")}</p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="profile-title">Job title</Label>
+            <Label htmlFor="profile-title">{t("chat.profile.job_title")}</Label>
             <Input
               id="profile-title"
               value={jobTitle}
               onChange={(e) => setJobTitle(e.target.value)}
               maxLength={80}
-              placeholder="Workspace Admin"
+              placeholder={t("chat.profile.job_title_placeholder")}
             />
           </div>
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t("chat.cancel")}
             </Button>
             <Button onClick={() => void save()} disabled={saving || uploading}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-              Save changes
+              {t("chat.profile.save")}
             </Button>
           </div>
         </div>

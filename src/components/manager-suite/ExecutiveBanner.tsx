@@ -4,6 +4,8 @@ import {
 } from "lucide-react";
 
 import { executiveFeeds, type AlertPriority, type ExecRole } from "./executiveFeed";
+import { useLiveExecutiveFeed } from "./liveExecutiveFeed";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 const PRIORITY: Record<AlertPriority, { label: string; chip: string; bar: string; ring: string }> = {
   critical: {
@@ -43,7 +45,9 @@ export function ExecutiveBanner({
   role: ExecRole;
   onNavigate?: (target: string) => void;
 }) {
-  const items = executiveFeeds[role] ?? [];
+  const { t } = useTranslation();
+  const live = useLiveExecutiveFeed(role);
+  const items = live ? live.items : (executiveFeeds[role] ?? []);
   const [expanded, setExpanded] = useState(false);
   const trackRef = useRef<HTMLDivElement | null>(null);
 
@@ -67,13 +71,28 @@ export function ExecutiveBanner({
     };
   }, [expanded, items.length]);
 
+  if (live?.notice) {
+    return (
+      <section
+        className="rounded-2xl border border-border bg-surface/60 p-4 text-sm text-muted-foreground"
+        data-executive-banner={role}
+        data-live-notice
+      >
+        {live.notice}
+      </section>
+    );
+  }
   if (!items.length) return null;
 
   const critical = items.filter((i) => i.priority === "critical").length;
   const totalPending = items.reduce((s, i) => s + (i.count ?? 0), 0);
 
   return (
-    <section className="rounded-2xl border border-border bg-surface/60 p-4 backdrop-blur-xl">
+    <section
+      className="rounded-2xl border border-border bg-surface/60 p-4 backdrop-blur-xl"
+      data-executive-banner={role}
+      data-live={live ? "true" : "false"}
+    >
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:justify-between">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary-glow">
@@ -84,6 +103,11 @@ export function ExecutiveBanner({
             <p className="truncate text-xs text-muted-foreground">
               {items.length} live signals · {critical} critical · {totalPending} items pending action
             </p>
+            {live?.asOf && (
+              <p className="truncate text-[11px] text-muted-foreground" data-as-of={live.asOf}>
+                {t("reseller.attention.as_of", { time: new Date(live.asOf).toLocaleTimeString() })}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -115,6 +139,8 @@ export function ExecutiveBanner({
           return (
             <button
               key={a.id}
+              data-signal={a.id}
+              data-count={a.count ?? ""}
               onClick={() => onNavigate?.(a.target)}
               className={`group ${expanded ? "" : "w-[270px] shrink-0"} rounded-xl border ${p.ring} bg-background/50 p-3 text-left transition hover:bg-muted/50`}
             >

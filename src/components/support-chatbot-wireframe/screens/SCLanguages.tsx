@@ -9,24 +9,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { Link } from '@tanstack/react-router';
+import { SUPPORTED_LANGUAGES } from '@/lib/i18n/registry';
+import { useTranslation } from '@/lib/i18n/use-translation';
 
-const languages = [
-  { code: 'en', name: 'English', flag: '🇺🇸', enabled: true, coverage: 100 },
-  { code: 'es', name: 'Spanish', flag: '🇪🇸', enabled: true, coverage: 95 },
-  { code: 'fr', name: 'French', flag: '🇫🇷', enabled: true, coverage: 88 },
-  { code: 'de', name: 'German', flag: '🇩🇪', enabled: true, coverage: 82 },
-  { code: 'hi', name: 'Hindi', flag: '🇮🇳', enabled: true, coverage: 75 },
-  { code: 'zh', name: 'Chinese', flag: '🇨🇳', enabled: false, coverage: 60 },
-  { code: 'ja', name: 'Japanese', flag: '🇯🇵', enabled: false, coverage: 45 },
-  { code: 'ar', name: 'Arabic', flag: '🇸🇦', enabled: false, coverage: 30 },
-];
+// The platform's languages, from the one registry, A-Z. This screen listed
+// eight hand-typed languages with invented coverage figures; which languages
+// are on is decided in the Language Manager (/language-manager), which also
+// reports real coverage.
+const languages = [...SUPPORTED_LANGUAGES]
+  .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+  .map((l) => ({ code: l.code, name: l.name, nativeName: l.nativeName, flag: l.flag, enabled: l.enabled }));
 
 export const SCLanguages: React.FC = () => {
+  const { t } = useTranslation();
   const [autoTranslate, setAutoTranslate] = useState(true);
   const [fallbackLanguage, setFallbackLanguage] = useState('en');
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,7 +34,7 @@ export const SCLanguages: React.FC = () => {
   const enabledCount = languages.filter(l => l.enabled).length;
 
   const filteredLanguages = languages.filter(l =>
-    l.name.toLowerCase().includes(searchQuery.toLowerCase())
+    `${l.name} ${l.nativeName} ${l.code}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -87,9 +87,11 @@ export const SCLanguages: React.FC = () => {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Available Languages</CardTitle>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Plus className="w-4 h-4" />
-                Add
+              <Button variant="outline" size="sm" className="gap-2" asChild>
+                <Link to="/language-manager">
+                  <Plus className="w-4 h-4" />
+                  {t('common.language_manage')}
+                </Link>
               </Button>
             </div>
             <div className="relative mt-3">
@@ -102,13 +104,12 @@ export const SCLanguages: React.FC = () => {
               />
             </div>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {filteredLanguages.map((lang, index) => (
+          <CardContent className="max-h-[480px] space-y-2 overflow-y-auto overscroll-contain scroll-smooth">
+            {filteredLanguages.map((lang) => (
               <motion.div
                 key={lang.code}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 className={`flex items-center justify-between p-3 rounded-lg border ${
                   lang.enabled ? 'bg-card' : 'bg-muted/30'
                 }`}
@@ -116,20 +117,12 @@ export const SCLanguages: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{lang.flag}</span>
                   <div>
-                    <p className="font-medium text-sm">{lang.name}</p>
+                    <p className="font-medium text-sm" translate="no">{lang.nativeName}</p>
+                    <p className="text-xs text-muted-foreground" translate="no">{lang.name}</p>
                     <p className="text-xs text-muted-foreground uppercase">{lang.code}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-24 hidden sm:block">
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">Coverage</span>
-                      <span>{lang.coverage}%</span>
-                    </div>
-                    <Progress value={lang.coverage} className="h-1" />
-                  </div>
-                  <Switch checked={lang.enabled} />
-                </div>
+                <Badge variant={lang.enabled ? 'default' : 'outline'}>{lang.enabled ? t('common.language_on') : t('common.language_off')}</Badge>
               </motion.div>
             ))}
           </CardContent>

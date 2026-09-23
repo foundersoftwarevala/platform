@@ -8,6 +8,7 @@ import { fetchSharedMedia } from "@/services/chat/chat-service";
 import type { ConversationSummary, Profile } from "@/services/chat/types";
 import { AttachmentCard, UserAvatar } from "./media";
 import { memberId, roleLabel } from "@/lib/chat/identity";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 interface Props {
   conversation: ConversationSummary;
@@ -26,6 +27,7 @@ export function ContextPanel({
   onToggleFavorite,
   onToggleMute,
 }: Props) {
+  const { t } = useTranslation();
   const media = useQuery({
     queryKey: ["shared-media", conversation.id],
     queryFn: () => fetchSharedMedia(conversation.id),
@@ -37,8 +39,8 @@ export function ContextPanel({
   return (
     <aside className="flex h-full w-full flex-col border-l border-border/60 bg-card/40 xl:w-80">
       <header className="flex items-center justify-between border-b border-border/60 px-3 py-2">
-        <h2 className="text-sm font-semibold">Details</h2>
-        <Button variant="ghost" size="icon" className="size-7" aria-label="Close details" onClick={onClose}>
+        <h2 className="text-sm font-semibold">{t("chat.details.title")}</h2>
+        <Button variant="ghost" size="icon" className="size-7" aria-label={t("chat.details.close")} onClick={onClose}>
           <X className="size-4" />
         </Button>
       </header>
@@ -50,7 +52,7 @@ export function ContextPanel({
         <div>
           <p className="text-sm font-semibold">{conversation.subject}</p>
           <p className="text-xs text-muted-foreground">
-            {conversation.kind} · {conversation.participants.length} members
+            {t("chat.details.summary", { kind: conversation.kind, count: conversation.participants.length })}
           </p>
         </div>
         <div className="flex gap-1.5">
@@ -60,25 +62,25 @@ export function ContextPanel({
             className="h-7 gap-1.5 text-xs"
             onClick={onToggleFavorite}
           >
-            <Star className="size-3.5" /> {favorite ? "Starred" : "Star"}
+            <Star className="size-3.5" /> {favorite ? t("chat.details.starred") : t("chat.details.star")}
           </Button>
           <Button variant="secondary" size="sm" className="h-7 gap-1.5 text-xs" onClick={onToggleMute}>
             {muted ? <BellOff className="size-3.5" /> : <Bell className="size-3.5" />}
-            {muted ? "Muted" : "Mute"}
+            {muted ? t("chat.details.muted") : t("chat.details.mute")}
           </Button>
         </div>
         <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-          <ShieldCheck className="size-3" /> Immutable audit log
+          <ShieldCheck className="size-3" /> {t("chat.details.audit_log")}
         </p>
       </div>
 
       <Tabs defaultValue="people" className="flex min-h-0 flex-1 flex-col">
         <TabsList className="mx-3 mt-2 grid grid-cols-2">
           <TabsTrigger value="people" className="gap-1.5 text-xs">
-            <Users className="size-3.5" /> People
+            <Users className="size-3.5" /> {t("chat.details.people")}
           </TabsTrigger>
           <TabsTrigger value="media" className="gap-1.5 text-xs">
-            <Images className="size-3.5" /> Files
+            <Images className="size-3.5" /> {t("chat.details.files")}
           </TabsTrigger>
         </TabsList>
 
@@ -87,7 +89,7 @@ export function ContextPanel({
             <ul className="space-y-1">
               {conversation.participants.map((p) => {
                 const profile = p.profile ?? profilesById.get(p.user_id) ?? null;
-                const name = profile?.display_name ?? "Member";
+                const name = profile?.display_name ?? t("chat.member");
                 // Internal messages must stay attributable to a real account, so the
                 // participant carries a stable member ID, not just a display name.
                 const identity = memberId(p.user_id, p.role_label ? [p.role_label] : []);
@@ -97,10 +99,10 @@ export function ContextPanel({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm">
                         {name}
-                        {p.user_id === userId ? " (you)" : ""}
+                        {p.user_id === userId ? ` ${t("chat.details.you_suffix")}` : ""}
                       </span>
                       <span className="block truncate text-[11px] text-muted-foreground">
-                        {profile?.job_title || `@${profile?.handle ?? "member"}`}
+                        {profile?.job_title || `@${profile?.handle ?? t("chat.details.member_handle")}`}
                       </span>
                       <span className="block truncate font-mono text-[10px] text-muted-foreground/80">
                         {identity}
@@ -121,9 +123,9 @@ export function ContextPanel({
         <TabsContent value="media" className="min-h-0 flex-1">
           <ScrollArea className="h-full px-3 py-2">
             {media.isLoading ? (
-              <p className="px-1 py-4 text-xs text-muted-foreground">Loading files…</p>
+              <p className="px-1 py-4 text-xs text-muted-foreground">{t("chat.details.loading_files")}</p>
             ) : (media.data ?? []).length === 0 ? (
-              <p className="px-1 py-4 text-xs text-muted-foreground">No files shared yet.</p>
+              <p className="px-1 py-4 text-xs text-muted-foreground">{t("chat.details.no_files")}</p>
             ) : (
               <ul className="space-y-2">
                 {(media.data ?? []).map((attachment) => (

@@ -533,9 +533,12 @@ const RESOURCES: Record<string, Resource> = {
     select: ["id", "order_number", "plan_id", "amount_usd", "currency", "status",
       "payment_status", "approval_status", "proof_reference", "reseller_id",
       "membership_id", "created_at", "updated_at"],
-    // The decision, not the price. A membership order is priced by the server
-    // and nothing on a screen may retype what the buyer owes.
-    editable: ["payment_status", "approval_status", "status"],
+    // Read-only here. A membership order is priced by the server, and its
+    // payment decision goes through verify_reseller_membership_payment
+    // (Finance Manager → Reseller memberships), which checks the payment
+    // evidence and activates the membership. Patching these columns directly
+    // marked orders paid without either.
+    editable: [],
     rename: { amount_usd: "amount" },
     searchable: ["order_number", "proof_reference", "payment_status"],
     order: "created_at.desc",

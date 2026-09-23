@@ -4,6 +4,7 @@ import {
   ArrowLeft, Plus, Search, Target, BarChart3, CalendarClock, ListChecks,
   Video, FileText, ClipboardList, Trash2, Inbox, TrendingUp,
 } from "lucide-react";
+import { LocalOnlyNotice } from "./LocalOnlyNotice";
 import { useCrud, type CrudRecord } from "@/lib/crud-store";
 
 type Stage = "new" | "contacted" | "qualified" | "proposal" | "won" | "lost";
@@ -57,6 +58,7 @@ export function ResellerLeadsWorkspace({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="space-y-5">
+      <LocalOnlyNotice />
       <header className="flex flex-wrap items-center gap-3">
         <button onClick={active ? () => setActiveId(null) : onBack}
           className="inline-flex items-center gap-2 rounded-lg bg-surface border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 transition">

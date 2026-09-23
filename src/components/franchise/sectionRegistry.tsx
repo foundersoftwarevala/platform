@@ -6,7 +6,7 @@ import { makeWall } from "@/components/manager-suite/makeWall";
 import type { SectionEntry } from "@/components/manager-suite/ManagerWorkspace";
 
 import { config as analytics } from "./walls/analytics";
-import { config as applications } from "./walls/applications";
+import { FranchiseApplicationsQueue } from "@/components/applications/RoleApplicationsQueue";
 import { config as commission } from "./walls/commission";
 import { config as communication } from "./walls/communication";
 import { config as compliance } from "./walls/compliance";
@@ -36,7 +36,8 @@ const explicit: Record<string, SectionEntry> = {
   Dashboard: FranchiseDashboard,
   "Command Console": FranchiseDashboard,
   "Franchise Directory": directory,
-  Applications: applications,
+  // Real applications from /apply/franchise (franchise_applications).
+  Applications: FranchiseApplicationsQueue,
   Onboarding: onboarding,
   License: license,
   Compliance: compliance,

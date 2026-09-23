@@ -1,25 +1,38 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  INFLUENCER_REWARDS, RESELLER_PLANS, FRANCHISE_PLANS,
-  quoteFor, resolvePlan, type PartnerKind,
+  INFLUENCER_REWARDS,
+  FRANCHISE_PLANS,
+  quoteFor,
+  resolvePlan,
 } from "@/lib/commerce/partner-plans";
+import { languageOf, serverTranslator } from "@/lib/i18n/server-translate.server";
 
 /**
  * What the signed-in partner pays for a product.
  *
  *   GET ?product=<slug or id>
  *
- * Everything that decides the number is read on the server: the list price from
- * the catalogue, and the partner's tier and approval state from their own row.
- * The request carries only which product is being asked about — no tier, no
- * discount, no price. Sending those has no effect, which is the point.
+ * Everything that decides the number is read on the server. The request
+ * carries only which product is being asked about — no tier, no discount, no
+ * price. Sending those has no effect, which is the point.
  *
- * A partner whose row is not active and approved is quoted list price. The
- * approval itself belongs to the Control Panel; nothing here grants it.
+ * Resellers: the database decides, through marketplace_quote_product, run with
+ * the caller's own session. The discount is the profit_percent of the plan of an
+ * active, unexpired membership held by an active, approved reseller — the same
+ * rule marketplace_create_checkout applies, so the quote and the charge agree.
+ * A reseller without such a membership is quoted list price.
+ *
+ * Franchises: the franchise row's territory and status, as before.
  */
 
 function url() {
   return process.env.SUPABASE_URL?.trim() ?? "";
+}
+
+function publishableKey() {
+  return (
+    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? ""
+  );
 }
 
 function admin() {
@@ -28,8 +41,7 @@ function admin() {
 }
 
 async function currentUser(request: Request) {
-  const publishable =
-    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim();
+  const publishable = publishableKey();
   const authorization = request.headers.get("authorization");
   if (!url() || !publishable || !authorization) return null;
   try {
@@ -44,31 +56,47 @@ async function currentUser(request: Request) {
   }
 }
 
-/** The partner row this user owns, if any. Their tier comes from here alone. */
-async function partnerFor(userId: string): Promise<{
-  kind: PartnerKind; tier: unknown; eligible: boolean; state: string;
-} | null> {
+/** A database function run as the caller, so auth.uid() is theirs. */
+async function rpcAsUser<T>(
+  request: Request,
+  name: string,
+  body: Record<string, unknown>,
+): Promise<T | null> {
+  const response = await fetch(`${url()}/rest/v1/rpc/${name}`, {
+    method: "POST",
+    headers: {
+      apikey: publishableKey(),
+      Authorization: request.headers.get("authorization") ?? "",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) return null;
+  return (await response.json()) as T;
+}
+
+type ProductQuote = {
+  ok?: boolean;
+  product?: { id: string; slug: string; name: string };
+  currency?: string;
+  list_price?: number | string;
+  discount_percent?: number | string;
+  discount?: number | string;
+  final_price?: number | string;
+  pricing?: ResellerPricing;
+};
+
+type ResellerPricing = {
+  eligible?: boolean;
+  percent?: number;
+  plan_code?: string;
+  plan_name?: string;
+  reason?: string;
+};
+
+/** The franchise row this user owns, if any. Their territory comes from here alone. */
+async function franchiseFor(userId: string) {
   const owner = encodeURIComponent(userId);
-
-  const resellerResponse = await fetch(
-    `${url()}/rest/v1/resellers?select=tier,status,kyc_status,approved_at&user_id=eq.${owner}&limit=1`,
-    { headers: admin() },
-  );
-  const resellers = resellerResponse.ok
-    ? ((await resellerResponse.json()) as Record<string, unknown>[])
-    : [];
-  if (resellers[0]) {
-    const row = resellers[0];
-    const active = String(row.status ?? "").toLowerCase() === "active";
-    const approved = Boolean(row.approved_at);
-    return {
-      kind: "reseller",
-      tier: row.tier,
-      eligible: active && approved,
-      state: `status=${row.status ?? "unknown"} approved=${approved}`,
-    };
-  }
-
   const franchiseResponse = await fetch(
     `${url()}/rest/v1/franchises?select=territory,status,joined_date&owner_user_id=eq.${owner}&limit=1`,
     { headers: admin() },
@@ -76,18 +104,29 @@ async function partnerFor(userId: string): Promise<{
   const franchises = franchiseResponse.ok
     ? ((await franchiseResponse.json()) as Record<string, unknown>[])
     : [];
-  if (franchises[0]) {
-    const row = franchises[0];
-    const active = String(row.status ?? "").toLowerCase() === "active";
-    return {
-      kind: "franchise",
-      tier: row.territory,
-      eligible: active,
-      state: `status=${row.status ?? "unknown"}`,
-    };
-  }
+  if (!franchises[0]) return null;
+  const row = franchises[0];
+  return {
+    kind: "franchise" as const,
+    tier: row.territory,
+    eligible: String(row.status ?? "").toLowerCase() === "active",
+    state: `status=${row.status ?? "unknown"}`,
+  };
+}
 
-  return null;
+/** The reseller plans as the database defines them. */
+async function resellerPlans() {
+  const response = await fetch(
+    `${url()}/rest/v1/reseller_membership_plans?select=code,name,price_usd,profit_percent&enabled=eq.true&order=sort_order`,
+    { headers: admin() },
+  );
+  const rows = response.ok ? ((await response.json()) as Record<string, unknown>[]) : [];
+  return rows.map((p) => ({
+    id: String(p.code),
+    label: String(p.name),
+    joiningFeeUsd: Number(p.price_usd),
+    discount: Number(p.profit_percent) / 100,
+  }));
 }
 
 export const Route = createFileRoute("/api/partner/quote")({
@@ -103,21 +142,45 @@ export const Route = createFileRoute("/api/partner/quote")({
         const product = (new URL(request.url).searchParams.get("product") ?? "").trim();
         if (!product) {
           // No product asked about: report the plans and this partner's standing.
-          const partner = await partnerFor(user.id);
+          const cart = await rpcAsUser<{ pricing?: ResellerPricing }>(
+            request,
+            "marketplace_cart_quote",
+            {},
+          );
+          const pricing = (cart?.pricing ?? {}) as ResellerPricing;
+          const franchise =
+            pricing.reason === "not_a_reseller" ? await franchiseFor(user.id) : null;
           return Response.json({
-            partner: partner
-              ? { kind: partner.kind, plan: resolvePlan(partner.kind, partner.tier)?.id ?? null,
-                  eligible: partner.eligible, state: partner.state }
-              : null,
-            reseller_plans: RESELLER_PLANS.map(({ id, label, joiningFeeUsd, discount }) => ({
-              id, label, joiningFeeUsd, discount })),
-            franchise_plans: FRANCHISE_PLANS.map(({ id, label, joiningFeeUsd, discount, leadAllowance, territory }) => ({
-              id, label, joiningFeeUsd, discount, leadAllowance, territory })),
+            partner: franchise
+              ? {
+                  kind: "franchise",
+                  plan: resolvePlan("franchise", franchise.tier)?.id ?? null,
+                  eligible: franchise.eligible,
+                  state: franchise.state,
+                }
+              : pricing.reason && pricing.reason !== "not_a_reseller"
+                ? {
+                    kind: "reseller",
+                    plan: pricing.plan_code ?? null,
+                    eligible: Boolean(pricing.eligible),
+                    state: pricing.reason,
+                  }
+                : null,
+            reseller_plans: await resellerPlans(),
+            franchise_plans: FRANCHISE_PLANS.map(
+              ({ id, label, joiningFeeUsd, discount, leadAllowance, territory }) => ({
+                id,
+                label,
+                joiningFeeUsd,
+                discount,
+                leadAllowance,
+                territory,
+              }),
+            ),
             influencer: INFLUENCER_REWARDS,
           });
         }
 
-        // The list price comes from the catalogue, never from the caller.
         const isUuid = /^[0-9a-f-]{36}$/i.test(product);
         const filter = isUuid
           ? `id=eq.${encodeURIComponent(product)}`
@@ -131,34 +194,56 @@ export const Route = createFileRoute("/api/partner/quote")({
           : [];
         if (!products[0]) return Response.json({ error: "Product not found" }, { status: 404 });
 
-        const priceResponse = await fetch(
-          `${url()}/rest/v1/marketplace_product_pricing` +
-            `?select=amount,currency&active=eq.true&product_id=eq.${String(products[0].id)}&limit=1`,
-          { headers: admin() },
-        );
-        const prices = priceResponse.ok
-          ? ((await priceResponse.json()) as Record<string, unknown>[])
-          : [];
-        const listPrice = Number(prices[0]?.amount ?? 0);
-        if (!(listPrice > 0)) {
+        // The list price and the reseller rule, both from the database.
+        const quote = await rpcAsUser<ProductQuote>(request, "marketplace_quote_product", {
+          p_product: products[0].id,
+        });
+        if (!quote) {
+          const t = await serverTranslator(languageOf(request), ["reseller"], { waitMs: 1500 });
+          return Response.json({ error: t("reseller.pricing.quote_failed") }, { status: 502 });
+        }
+        if (!quote.ok) {
           return Response.json(
             { error: "That product has no published price yet." },
             { status: 409 },
           );
         }
+        const pricing = (quote.pricing ?? {}) as ResellerPricing;
+        const listPrice = Number(quote.list_price);
+        const headers = { "Cache-Control": "no-store" };
 
-        const partner = await partnerFor(user.id);
-        const plan = partner ? resolvePlan(partner.kind, partner.tier) : null;
-        const quote = quoteFor(listPrice, plan, partner?.eligible ?? false);
+        if (pricing.reason !== "not_a_reseller") {
+          const percent = Number(quote.discount_percent ?? 0);
+          return Response.json(
+            {
+              product: quote.product,
+              partner: { kind: "reseller", state: pricing.reason ?? "unknown" },
+              listPriceUsd: listPrice,
+              discount: percent / 100,
+              discountLabel: `${percent}%`,
+              savingUsd: Number(quote.discount),
+              finalPriceUsd: Number(quote.final_price),
+              plan: pricing.plan_code ?? null,
+              // A code, not a sentence: the screen that shows it translates it.
+              // active_membership | no_active_membership | reseller_not_active
+              reason: pricing.reason ?? "unknown",
+              planName: pricing.plan_name ?? null,
+              currency: String(quote.currency ?? "USD"),
+            },
+            { headers },
+          );
+        }
 
+        const partner = await franchiseFor(user.id);
+        const plan = partner ? resolvePlan("franchise", partner.tier) : null;
         return Response.json(
           {
-            product: { id: products[0].id, slug: products[0].slug, name: products[0].name },
+            product: quote.product,
             partner: partner ? { kind: partner.kind, state: partner.state } : null,
-            ...quote,
-            currency: String(prices[0]?.currency ?? "USD"),
+            ...quoteFor(listPrice, plan, partner?.eligible ?? false),
+            currency: String(quote.currency ?? "USD"),
           },
-          { headers: { "Cache-Control": "no-store" } },
+          { headers },
         );
       },
     },

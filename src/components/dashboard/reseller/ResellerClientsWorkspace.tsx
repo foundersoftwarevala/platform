@@ -5,6 +5,7 @@ import {
   ShoppingCart, FileBadge, StickyNote, FileText, CalendarClock, MessageSquare,
   Paperclip, Pencil, Trash2, Activity, Heart, Inbox,
 } from "lucide-react";
+import { LocalOnlyNotice } from "./LocalOnlyNotice";
 import { useCrud, type CrudRecord } from "@/lib/crud-store";
 
 type Tab = "profile" | "purchases" | "licenses" | "notes" | "documents" | "followup" | "timeline";
@@ -43,6 +44,7 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="space-y-5">
+      <LocalOnlyNotice />
       <Header onBack={onBack} active={active} onClearActive={() => setSelectedId(null)} />
 
       <div className="grid lg:grid-cols-[320px_1fr] gap-4">

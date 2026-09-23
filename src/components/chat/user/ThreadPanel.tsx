@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { UserAvatar } from "./media";
 import type { ChatMessage, Profile } from "@/services/chat/types";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 interface Props {
   parent: ChatMessage;
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function ThreadPanel({ parent, messages, profilesById, userId, canSend, onClose, onSend }: Props) {
+  const { t, formatDate } = useTranslation();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -38,7 +40,7 @@ export function ThreadPanel({ parent, messages, profilesById, userId, canSend, o
 
   const row = (message: ChatMessage) => {
     const profile = profilesById.get(message.sender_id) ?? null;
-    const name = message.sender_id === userId ? "You" : (profile?.display_name ?? "Member");
+    const name = message.sender_id === userId ? t("chat.you") : (profile?.display_name ?? t("chat.member"));
     return (
       <div key={message.id} className="flex gap-2 px-3 py-2">
         <UserAvatar name={name} avatarPath={profile?.avatar_path} className="size-7" />
@@ -46,7 +48,7 @@ export function ThreadPanel({ parent, messages, profilesById, userId, canSend, o
           <p className="text-xs font-medium">
             {name}
             <span className="ml-2 font-normal text-muted-foreground">
-              {new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              {formatDate(message.created_at, { hour: "2-digit", minute: "2-digit" })}
             </span>
           </p>
           <p className="whitespace-pre-wrap break-words text-sm">{message.body}</p>
@@ -59,9 +61,9 @@ export function ThreadPanel({ parent, messages, profilesById, userId, canSend, o
     <aside className="flex h-full w-full flex-col border-l border-border/60 bg-card/40 xl:w-96">
       <header className="flex items-center justify-between border-b border-border/60 px-3 py-2">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-          <CornerDownRight className="size-4 text-primary" /> Thread
+          <CornerDownRight className="size-4 text-primary" /> {t("chat.thread.title")}
         </h2>
-        <Button variant="ghost" size="icon" className="size-7" aria-label="Close thread" onClick={onClose}>
+        <Button variant="ghost" size="icon" className="size-7" aria-label={t("chat.thread.close")} onClick={onClose}>
           <X className="size-4" />
         </Button>
       </header>
@@ -69,7 +71,7 @@ export function ThreadPanel({ parent, messages, profilesById, userId, canSend, o
       <ScrollArea className="min-h-0 flex-1">
         <div className="border-b border-border/60 bg-secondary/30">{row(parent)}</div>
         {replies.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-muted-foreground">No replies yet.</p>
+          <p className="px-3 py-4 text-xs text-muted-foreground">{t("chat.thread.no_replies")}</p>
         ) : (
           replies.map(row)
         )}
@@ -81,8 +83,8 @@ export function ThreadPanel({ parent, messages, profilesById, userId, canSend, o
             rows={1}
             value={text}
             disabled={!canSend}
-            aria-label="Reply in thread"
-            placeholder={canSend ? "Reply…" : "No permission to reply"}
+            aria-label={t("chat.thread.label")}
+            placeholder={canSend ? t("chat.thread.placeholder") : t("chat.thread.no_permission")}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -95,7 +97,7 @@ export function ThreadPanel({ parent, messages, profilesById, userId, canSend, o
           <Button
             size="icon"
             className="size-7 shrink-0 rounded-md"
-            aria-label="Send reply"
+            aria-label={t("chat.thread.send")}
             disabled={!canSend || sending || !text.trim()}
             onClick={() => void submit()}
           >

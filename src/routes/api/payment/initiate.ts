@@ -3,6 +3,7 @@ import {
   newTxnId, payuAmount, payuConfig, requestHash, usdToInr,
 } from "@/lib/commerce/payu";
 import { logPaymentEvent } from "@/lib/commerce/fulfilment";
+import { languageOf } from "@/lib/i18n/server-translate.server";
 import {
   REFERRAL_COOKIE, attributeOrder, attributionForSession, readCookie, rest,
 } from "@/lib/affiliate/core";
@@ -165,6 +166,12 @@ export const Route = createFileRoute("/api/payment/initiate")({
             currency_charged: "INR",
             payment_gateway: "payu",
             status: "pending_payment",
+            // The language the buyer is using, for the licence e-mail: the
+            // payment provider's callback carries no cookies to read it from.
+            metadata: {
+              ...((order.metadata as Record<string, unknown> | null) ?? {}),
+              language: languageOf(request),
+            },
             updated_at: new Date().toISOString(),
           }),
         });

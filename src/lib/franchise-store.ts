@@ -1,9 +1,27 @@
 // Franchise network data layer: branches, leads pipeline, employees, payments.
-// In-memory store with realistic seeded sample data + full CRUD, shared across
-// modules through useSyncExternalStore.
+// The dashboard should prefer the real Supabase schema when available, while the
+// seeded local data remains a safe fallback during demo, preview, or auth-less
+// sessions.
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { pickFrom, rng } from "./metrics";
+
+async function getSupabaseClient() {
+  const url = typeof import.meta !== "undefined" ? import.meta.env?.VITE_SUPABASE_URL : undefined;
+  const key = typeof import.meta !== "undefined" ? import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY : undefined;
+
+  if (!url || !key) {
+    return null;
+  }
+
+  try {
+    const clientModule = await import("@/integrations/supabase/client");
+    return clientModule.supabase;
+  } catch (error) {
+    console.warn("Franchise dashboard could not initialize Supabase client; using local seeded data instead.", error);
+    return null;
+  }
+}
 
 export type BranchStatus = "active" | "onboarding" | "paused" | "closed";
 export type Branch = {
@@ -44,9 +62,9 @@ export type Employee = {
   branch: string;
   status: EmployeeStatus;
   joinedAt: string;
-  performance: number; // 0-100
+  performance: number;
   email: string;
-  availability: boolean[]; // 7 days
+  availability: boolean[];
 };
 
 export type Payment = {
@@ -153,10 +171,141 @@ function seed(): State {
   return { branches, leads, employees, payments };
 }
 
+function asNumber(value: unknown, fallback = 0) {
+  const result = Number(value ?? fallback);
+  return Number.isFinite(result) ? result : fallback;
+}
+
+function mapBranch(row: Record<string, any>, index: number): Branch {
+  const city = String(row.city ?? CITIES[index % CITIES.length]?.[0] ?? "Mumbai");
+  const region = String(row.region ?? CITIES[index % CITIES.length]?.[1] ?? "West");
+  const manager = String(row.manager ?? row.owner_name ?? "Unassigned");
+  const revenue = asNumber(row.total_sales ?? row.monthly_revenue ?? row.revenue, 0);
+  const target = Math.max(revenue, asNumber(row.target ?? row.sales_target ?? revenue * 1.1, revenue * 1.1));
+  const performance = asNumber(row.performance_score ?? 0, 0);
+
+  return {
+    id: String(row.id ?? `BR-${index + 1}`),
+    name: String(row.name ?? `${city} Branch`),
+    city,
+    region,
+    manager,
+    status: (row.status as BranchStatus) ?? "active",
+    openedAt: String(row.joined_date ?? row.created_at ?? new Date().toISOString()),
+    employees: Math.max(0, Math.round(asNumber(row.active_employees ?? row.employees, 0))),
+    monthlyRevenue: revenue,
+    target,
+    rating: Number((performance / 20).toFixed(1)) || 4.5,
+    trend: Array.from({ length: 12 }, (_, item) => Math.max(30, Math.min(150, Math.round(performance + (item - 5) * 6)))),
+  };
+}
+
+function mapLead(row: Record<string, any>): Lead {
+  return {
+    id: String(row.id ?? `LD-${uid()}`),
+    name: String(row.name ?? "New Lead"),
+    company: String(row.company ?? "—"),
+    city: String(row.city ?? "Mumbai"),
+    owner: String(row.owner ?? row.owner_name ?? "you"),
+    stage: (row.stage as LeadStage) ?? "new",
+    value: asNumber(row.value ?? row.amount ?? 0, 0),
+    source: String(row.source ?? "Website"),
+    createdAt: String(row.created_at ?? new Date().toISOString()),
+    notes: String(row.notes ?? ""),
+  };
+}
+
+function mapEmployee(row: Record<string, any>): Employee {
+  const availability = Array.isArray(row.availability)
+    ? row.availability.map((value: unknown) => Boolean(value))
+    : [true, true, true, true, true, false, false];
+
+  return {
+    id: String(row.id ?? `EM-${uid()}`),
+    name: String(row.full_name ?? row.name ?? "New Employee"),
+    role: String(row.role ?? "Sales Executive"),
+    branch: String(row.branch ?? row.branch_name ?? row.branch_id ?? "—"),
+    status: (row.status as EmployeeStatus) ?? "active",
+    joinedAt: String(row.joined_at ?? row.created_at ?? new Date().toISOString()),
+    performance: Math.max(0, Math.min(100, asNumber(row.performance, 60))),
+    email: String(row.email ?? ""),
+    availability,
+  };
+}
+
+function mapPayment(row: Record<string, any>): Payment {
+  const status = String(row.status ?? "pending");
+  const normalizedStatus = status === "paid" ? "paid" : status === "overdue" ? "overdue" : "pending";
+
+  return {
+    id: String(row.id ?? `PM-${uid()}`),
+    branch: String(row.branch ?? row.franchise_id ?? "Franchise"),
+    invoice: String(row.invoice ?? `INV-${String(row.id ?? uid()).slice(0, 8).toUpperCase()}`),
+    amount: asNumber(row.amount ?? row.royalty_due ?? 0, 0),
+    commission: asNumber(row.commission ?? row.commission_due ?? 0, 0),
+    status: normalizedStatus as Payment["status"],
+    date: String(row.date ?? row.due_date ?? row.created_at ?? new Date().toISOString()),
+  };
+}
+
+async function loadLiveState(): Promise<State> {
+  const supabase = await getSupabaseClient();
+  if (!supabase) {
+    return seed();
+  }
+
+  try {
+    const [branchesQuery, leadsQuery, employeesQuery, paymentsQuery] = await Promise.all([
+      supabase.from("franchise_branches").select("*").order("created_at", { ascending: false }),
+      supabase.from("franchise_leads").select("*").order("created_at", { ascending: false }),
+      supabase.from("franchise_employees").select("*").order("created_at", { ascending: false }),
+      supabase.from("franchise_royalties").select("*").order("created_at", { ascending: false }),
+    ]);
+
+    if (branchesQuery.error || leadsQuery.error || employeesQuery.error || paymentsQuery.error) {
+      console.warn("Franchise dashboard falling back to seeded data because Supabase reads failed.", {
+        branchesQuery: branchesQuery.error,
+        leadsQuery: leadsQuery.error,
+        employeesQuery: employeesQuery.error,
+        paymentsQuery: paymentsQuery.error,
+      });
+      return seed();
+    }
+
+    const branches = (branchesQuery.data ?? []).map((row, index) => mapBranch(row as Record<string, any>, index));
+    const leads = (leadsQuery.data ?? []).map((row) => mapLead(row as Record<string, any>));
+    const employees = (employeesQuery.data ?? []).map((row) => mapEmployee(row as Record<string, any>));
+    const payments = (paymentsQuery.data ?? []).map((row) => mapPayment(row as Record<string, any>));
+
+    if (branches.length === 0 && leads.length === 0 && employees.length === 0 && payments.length === 0) {
+      return seed();
+    }
+
+    return { branches, leads, employees, payments };
+  } catch (error) {
+    console.warn("Franchise dashboard could not access the live schema; using local seeded data instead.", error);
+    return seed();
+  }
+}
+
 let state: State = seed();
 const listeners = new Set<() => void>();
-function emit() { listeners.forEach((l) => l()); }
+
+function emit() { listeners.forEach((listener) => listener()); }
 function setState(patch: Partial<State>) { state = { ...state, ...patch }; emit(); }
+
+function persistWithFallback(event: string, operation: () => Promise<unknown>) {
+  return void (async () => {
+    const supabase = await getSupabaseClient();
+    if (!supabase) return;
+
+    try {
+      await operation();
+    } catch (error) {
+      console.warn(`Franchise ${event} deferred to local demo data because Supabase is unavailable.`, error);
+    }
+  })();
+}
 
 export function useFranchise() {
   const snap = useSyncExternalStore(
@@ -164,6 +313,20 @@ export function useFranchise() {
     () => state,
     () => state,
   );
+
+  useEffect(() => {
+    let active = true;
+
+    void loadLiveState().then((live) => {
+      if (!active) return;
+      state = live;
+      emit();
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return {
     ...snap,

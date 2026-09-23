@@ -1,3 +1,4 @@
+import { Toaster } from "@/components/ui/sonner";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import "@/styles/dashboard.css";
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
@@ -26,6 +27,7 @@ const AIChatWorkspace = lazy(() => import("@/components/dashboard/AIChatWorkspac
 const AISuitePage = lazy(() => import("@/components/dashboard/AISuitePage").then((m) => ({ default: m.AISuitePage })));
 const ResellerAISuitePage = lazy(() => import("@/components/dashboard/ResellerAISuitePage").then((m) => ({ default: m.ResellerAISuitePage })));
 const ResellerPricingWorkspace = lazy(() => import("@/components/dashboard/ResellerPricingWorkspace").then((m) => ({ default: m.ResellerPricingWorkspace })));
+const ResellerMembershipPlans = lazy(() => import("@/components/reseller/ResellerMembershipPlans").then((m) => ({ default: m.ResellerMembershipPlans })));
 const ResellerCenterPage = lazy(() => import("@/components/dashboard/ResellerCenterPage").then((m) => ({ default: m.ResellerCenterPage })));
 const ModulePage = lazy(() => import("@/components/dashboard/ModulePage").then((m) => ({ default: m.ModulePage })));
 const ResellerModulePage = lazy(() => import("@/components/dashboard/ResellerModulePage").then((m) => ({ default: m.ResellerModulePage })));
@@ -190,6 +192,7 @@ function DashboardPage() {
 
   return (
     <div className="dm-theme min-h-dvh flex bg-background text-foreground">
+      <Toaster />
       <Sidebar role={cfg} activeModule={activeModule} onSelectModule={openModule} />
       <div className="flex-1 min-w-0 flex flex-col">
         <TopBar role={cfg} onSwitchRole={switchRole} onOpenAIChat={() => openModule("ai-chat")} onOpenModule={openModule} allowedRoles={perms.accessibleRoles} />
@@ -203,6 +206,8 @@ function DashboardPage() {
             />
           ) : isAIChat ? (
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><AIChatWorkspace onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
+          ) : activeModule === "membership" && role === "reseller" ? (
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerMembershipPlans /></Suspense></ModuleBoundary></ModuleFocusScope>
           ) : isPricing ? (
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerPricingWorkspace onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
           ) : isCenter && role === "reseller" ? (

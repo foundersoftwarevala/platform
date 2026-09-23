@@ -162,7 +162,9 @@ export async function fetchDemoFromMarketplace(
 export const BRANDING_CONFIG = {
   title: "Software Vala™ — The Name of Trust",
   description: "Experience enterprise software solutions",
-  favicon: "/software-vala-logo.png",
+  // The site's own icon. "/software-vala-logo.png" was never shipped, so the
+  // gateway's tab icon and header logo were broken images.
+  favicon: "/favicon.png",
   ogImage: "/og-image.png",
   colors: {
     primary: "#0f172a",

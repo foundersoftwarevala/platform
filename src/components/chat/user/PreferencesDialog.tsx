@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LANGUAGES, type Preferences } from "@/hooks/use-preferences";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 interface Props {
   open: boolean;
@@ -13,19 +14,20 @@ interface Props {
 
 /** Real user preferences — every toggle takes effect immediately and persists. */
 export function PreferencesDialog({ open, onOpenChange, prefs, update }: Props) {
+  const { t } = useTranslation();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Preferences</DialogTitle>
-          <DialogDescription>Personal chat settings. Changes apply instantly.</DialogDescription>
+          <DialogTitle>{t("chat.header.preferences")}</DialogTitle>
+          <DialogDescription>{t("chat.prefs.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="pref-theme" className="flex flex-col gap-0.5">
-              <span>Dark mode</span>
-              <span className="text-xs font-normal text-muted-foreground">Default theme for the workspace</span>
+              <span>{t("chat.prefs.dark_mode")}</span>
+              <span className="text-xs font-normal text-muted-foreground">{t("chat.prefs.dark_mode_hint")}</span>
             </Label>
             <Switch
               id="pref-theme"
@@ -36,16 +38,16 @@ export function PreferencesDialog({ open, onOpenChange, prefs, update }: Props) 
 
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="pref-sound" className="flex flex-col gap-0.5">
-              <span>Sound cues</span>
-              <span className="text-xs font-normal text-muted-foreground">Play a short tone on send / receive</span>
+              <span>{t("chat.prefs.sound")}</span>
+              <span className="text-xs font-normal text-muted-foreground">{t("chat.prefs.sound_hint")}</span>
             </Label>
             <Switch id="pref-sound" checked={prefs.sound} onCheckedChange={(sound) => update({ sound })} />
           </div>
 
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="pref-enter" className="flex flex-col gap-0.5">
-              <span>Enter to send</span>
-              <span className="text-xs font-normal text-muted-foreground">Shift+Enter adds a new line</span>
+              <span>{t("chat.prefs.enter_to_send")}</span>
+              <span className="text-xs font-normal text-muted-foreground">{t("chat.prefs.enter_to_send_hint")}</span>
             </Label>
             <Switch
               id="pref-enter"
@@ -56,9 +58,9 @@ export function PreferencesDialog({ open, onOpenChange, prefs, update }: Props) 
 
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="pref-autotranslate" className="flex flex-col gap-0.5">
-              <span>Real-time translate</span>
+              <span>{t("chat.prefs.auto_translate")}</span>
               <span className="text-xs font-normal text-muted-foreground">
-                Automatically translate incoming messages
+                {t("chat.prefs.auto_translate_hint")}
               </span>
             </Label>
             <Switch
@@ -70,8 +72,8 @@ export function PreferencesDialog({ open, onOpenChange, prefs, update }: Props) 
 
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="pref-motion" className="flex flex-col gap-0.5">
-              <span>Reduce motion</span>
-              <span className="text-xs font-normal text-muted-foreground">Minimise animations</span>
+              <span>{t("chat.prefs.reduce_motion")}</span>
+              <span className="text-xs font-normal text-muted-foreground">{t("chat.prefs.reduce_motion_hint")}</span>
             </Label>
             <Switch
               id="pref-motion"
@@ -82,14 +84,14 @@ export function PreferencesDialog({ open, onOpenChange, prefs, update }: Props) 
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="pref-language">Translate to</Label>
+              <Label htmlFor="pref-language">{t("chat.prefs.translate_to")}</Label>
               <Select value={prefs.language} onValueChange={(language) => update({ language })}>
                 <SelectTrigger id="pref-language">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[min(60vh,420px)]" translate="no">
                   {LANGUAGES.map((lang) => (
-                    <SelectItem key={lang.code} value={lang.code}>
+                    <SelectItem key={lang.code} value={lang.code} className="min-h-10">
                       {lang.label}
                     </SelectItem>
                   ))}
@@ -97,7 +99,7 @@ export function PreferencesDialog({ open, onOpenChange, prefs, update }: Props) 
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="pref-density">Density</Label>
+              <Label htmlFor="pref-density">{t("chat.prefs.density")}</Label>
               <Select
                 value={prefs.density}
                 onValueChange={(density) => update({ density: density as Preferences["density"] })}
@@ -106,8 +108,8 @@ export function PreferencesDialog({ open, onOpenChange, prefs, update }: Props) 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="comfortable">Comfortable</SelectItem>
-                  <SelectItem value="compact">Compact</SelectItem>
+                  <SelectItem value="comfortable">{t("chat.prefs.density_comfortable")}</SelectItem>
+                  <SelectItem value="compact">{t("chat.prefs.density_compact")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

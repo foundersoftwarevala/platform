@@ -48,8 +48,11 @@ import { PreferencesDialog } from "./PreferencesDialog";
 import { ProfileDialog } from "./ProfileDialog";
 import { UserAvatar } from "./media";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/use-translation";
+import { LanguageSelector } from "@/components/i18n/LanguageSelector";
 
 export function ChatWorkspace() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { userId, loading: sessionLoading } = useSupabaseSession();
@@ -102,7 +105,9 @@ export function ChatWorkspace() {
     [profilesQuery.data],
   );
 
+  // Sent to other participants as the typing/presence name, so it stays language-neutral.
   const displayName = myProfile?.display_name ?? "Member";
+  const shownName = myProfile?.display_name ?? t("chat.member");
   const onIncoming = useCallback(() => playCue("incoming", prefs.sound), [prefs.sound]);
   const { connection, typingUsers, onlineUsers, broadcastTyping } = useConversationRealtime({
     conversationId: activeId,
@@ -158,15 +163,15 @@ export function ChatWorkspace() {
         } else {
           await queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
           await queryClient.invalidateQueries({ queryKey: ["conversations"] });
-          if (result.escalated) toast.info("Moved to a human agent — Sales & Support has been notified.");
+          if (result.escalated) toast.info(t("chat.handoff_escalated"));
         }
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "AI is unavailable right now.");
+        toast.error(error instanceof Error ? error.message : t("chat.ai_unavailable"));
       } finally {
         setAiThinking(false);
       }
     },
-    [askAi, queryClient],
+    [askAi, queryClient, t],
   );
 
   const onSend = async (body: string, mentions: string[]) => {
@@ -177,7 +182,7 @@ export function ChatWorkspace() {
       playCue("sent", prefs.sound);
       if (activeId && active?.ai_enabled && !replyTo) void runAiTurn(activeId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Message could not be sent");
+      toast.error(error instanceof Error ? error.message : t("chat.send_failed"));
     } finally {
       setSending(false);
     }
@@ -187,7 +192,7 @@ export function ChatWorkspace() {
   const showList = !activeId;
 
   if (sessionLoading) {
-    return <div className="grid h-screen place-items-center bg-background text-sm text-muted-foreground">Loading…</div>;
+    return <div className="grid h-screen place-items-center bg-background text-sm text-muted-foreground">{t("chat.loading")}</div>;
   }
   if (!userId) return null;
 
@@ -218,13 +223,13 @@ export function ChatWorkspace() {
               variant="ghost"
               size="icon"
               className="size-8 md:hidden"
-              aria-label="Back to conversations"
+              aria-label={t("chat.header.back")}
               onClick={() => setActiveId(null)}
             >
               <ArrowLeft className="size-4" />
             </Button>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{active?.subject ?? "Select a conversation"}</p>
+              <p className="truncate text-sm font-semibold">{active?.subject ?? t("chat.header.select_conversation")}</p>
               <p className="flex items-center gap-1.5 truncate text-[11px] text-muted-foreground">
                 <span
                   className={cn(
@@ -232,13 +237,15 @@ export function ChatWorkspace() {
                     connection === "live" ? "bg-emerald-500" : connection === "offline" ? "bg-destructive" : "bg-amber-500",
                   )}
                 />
-                {connection === "live" ? "Live" : connection}
-                {active ? ` · ${onlineUsers.length} online · ${active.participants.length} members` : ""}
-                {aiThinking ? " · Vala AI is typing…" : ""}
+                {t("chat.header.connection", { state: connection })}
+                {active
+                  ? ` · ${t("chat.header.online_count", { count: onlineUsers.length })} · ${t("chat.members_count", { count: active.participants.length })}`
+                  : ""}
+                {aiThinking ? ` · ${t("chat.header.ai_typing")}` : ""}
               </p>
             </div>
             <Badge variant="secondary" className="hidden gap-1 text-[10px] sm:flex">
-              <ShieldCheck className="size-3" /> Immutable
+              <ShieldCheck className="size-3" /> {t("chat.header.immutable")}
             </Badge>
             {active ? (
               <>
@@ -248,7 +255,7 @@ export function ChatWorkspace() {
                       variant={active.ai_enabled ? "default" : "ghost"}
                       size="icon"
                       className="size-8"
-                      aria-label="Toggle Vala AI for this conversation"
+                      aria-label={t("chat.header.toggle_ai")}
                       onClick={async () => {
                         const result = await toggleAi({
                           data: { conversationId: active.id, enabled: !active.ai_enabled },
@@ -263,7 +270,7 @@ export function ChatWorkspace() {
                       <Bot className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{active.ai_enabled ? "Vala AI is on" : "Vala AI is off"}</TooltipContent>
+                  <TooltipContent>{active.ai_enabled ? t("chat.header.ai_on") : t("chat.header.ai_off")}</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -271,7 +278,7 @@ export function ChatWorkspace() {
                       variant="ghost"
                       size="icon"
                       className="size-8"
-                      aria-label="Talk to a human agent"
+                      aria-label={t("chat.header.talk_to_human_agent")}
                       onClick={async () => {
                         const result = await askHuman({
                           data: { conversationId: active.id, reason: "User asked for a human agent." },
@@ -281,13 +288,13 @@ export function ChatWorkspace() {
                           return;
                         }
                         await queryClient.invalidateQueries({ queryKey: ["conversations"] });
-                        toast.success("Sales & Support has been notified.");
+                        toast.success(t("chat.handoff_requested"));
                       }}
                     >
                       <LifeBuoy className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Talk to a human</TooltipContent>
+                  <TooltipContent>{t("chat.header.talk_to_human")}</TooltipContent>
                 </Tooltip>
               </>
             ) : null}
@@ -297,13 +304,13 @@ export function ChatWorkspace() {
                   variant={prefs.autoTranslate ? "default" : "ghost"}
                   size="icon"
                   className="size-8"
-                  aria-label="Toggle real-time translation"
+                  aria-label={t("chat.header.toggle_translation")}
                   onClick={() => update({ autoTranslate: !prefs.autoTranslate })}
                 >
                   <Languages className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Real-time translate ({prefs.language.toUpperCase()})</TooltipContent>
+              <TooltipContent>{t("chat.header.realtime_translate", { language: prefs.language.toUpperCase() })}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -311,13 +318,13 @@ export function ChatWorkspace() {
                   variant="ghost"
                   size="icon"
                   className="size-8"
-                  aria-label="Search in conversation"
+                  aria-label={t("chat.header.search")}
                   onClick={() => setSearchOpen((v) => !v)}
                 >
                   <Search className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Search in conversation</TooltipContent>
+              <TooltipContent>{t("chat.header.search")}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -325,29 +332,30 @@ export function ChatWorkspace() {
                   variant="ghost"
                   size="icon"
                   className="size-8"
-                  aria-label="Conversation details"
+                  aria-label={t("chat.header.details")}
                   onClick={() => setDetailsOpen((v) => !v)}
                 >
                   <Info className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Details</TooltipContent>
+              <TooltipContent>{t("chat.header.details_short")}</TooltipContent>
             </Tooltip>
+            <LanguageSelector showName={false} />
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="size-8" aria-label="Preferences" onClick={() => setPrefsOpen(true)}>
+                <Button variant="ghost" size="icon" className="size-8" aria-label={t("chat.header.preferences")} onClick={() => setPrefsOpen(true)}>
                   <Settings className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Preferences</TooltipContent>
+              <TooltipContent>{t("chat.header.preferences")}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button type="button" aria-label="My profile" onClick={() => setProfileOpen(true)}>
-                  <UserAvatar name={displayName} avatarPath={myProfile?.avatar_path} className="size-8" />
+                <button type="button" aria-label={t("chat.header.my_profile")} onClick={() => setProfileOpen(true)}>
+                  <UserAvatar name={shownName} avatarPath={myProfile?.avatar_path} className="size-8" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>{displayName}{roles[0] ? ` · ${roles[0]}` : ""}</TooltipContent>
+              <TooltipContent>{shownName}{roles[0] ? ` · ${roles[0]}` : ""}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -355,7 +363,7 @@ export function ChatWorkspace() {
                   variant="ghost"
                   size="icon"
                   className="size-8"
-                  aria-label="Sign out"
+                  aria-label={t("chat.sign_out")}
                   onClick={async () => {
                     await supabase.auth.signOut();
                     queryClient.clear();
@@ -365,7 +373,7 @@ export function ChatWorkspace() {
                   <LogOut className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Sign out</TooltipContent>
+              <TooltipContent>{t("chat.sign_out")}</TooltipContent>
             </Tooltip>
           </header>
 
@@ -377,15 +385,15 @@ export function ChatWorkspace() {
                   autoFocus
                   value={term}
                   onChange={(e) => setTerm(e.target.value)}
-                  placeholder="Search this conversation…"
+                  placeholder={t("chat.search.placeholder")}
                   className="h-7 flex-1 text-sm"
-                  aria-label="Search this conversation"
+                  aria-label={t("chat.search.label")}
                 />
                 <Button
                   variant="ghost"
                   size="icon"
                   className="size-7"
-                  aria-label="Close search"
+                  aria-label={t("chat.search.close")}
                   onClick={() => {
                     setSearchOpen(false);
                     setTerm("");
@@ -397,7 +405,7 @@ export function ChatWorkspace() {
               {term.trim() ? (
                 <ul className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-border/60">
                   {searchResults.length === 0 ? (
-                    <li className="px-2 py-2 text-xs text-muted-foreground">No matches</li>
+                    <li className="px-2 py-2 text-xs text-muted-foreground">{t("chat.search.no_matches")}</li>
                   ) : (
                     searchResults.map((m) => (
                       <li key={m.id}>
@@ -407,7 +415,7 @@ export function ChatWorkspace() {
                           className="block w-full truncate px-2 py-1.5 text-left text-xs hover:bg-secondary/60"
                         >
                           <span className="font-medium">
-                            {profilesById.get(m.sender_id)?.display_name ?? "Member"}:{" "}
+                            {t("chat.search.sender", { name: profilesById.get(m.sender_id)?.display_name ?? t("chat.member") })}{" "}
                           </span>
                           {m.body}
                         </button>
@@ -463,10 +471,10 @@ export function ChatWorkspace() {
             <div className="grid flex-1 place-items-center px-6 text-center">
               <div>
                 <UserRound className="mx-auto size-8 text-muted-foreground" />
-                <p className="mt-2 text-sm font-medium">No conversation selected</p>
-                <p className="text-xs text-muted-foreground">Pick a conversation or start a new one.</p>
+                <p className="mt-2 text-sm font-medium">{t("chat.empty.title")}</p>
+                <p className="text-xs text-muted-foreground">{t("chat.empty.hint")}</p>
                 <Button className="mt-3 h-8 text-xs" onClick={() => setNewOpen(true)}>
-                  New conversation
+                  {t("chat.new_conversation")}
                 </Button>
               </div>
             </div>

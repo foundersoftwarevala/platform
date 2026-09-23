@@ -10,6 +10,7 @@ import type { ChatMessage, Profile } from "@/services/chat/types";
 import type { ConnectionState, PendingMessage } from "@/hooks/use-chat";
 import { UserAvatar, AttachmentCard } from "./media";
 import { cn } from "@/lib/utils";
+import { useTranslation, type Translate } from "@/lib/i18n/use-translation";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🎉", "👀", "✅"];
 
@@ -43,17 +44,19 @@ function sameDay(a: string, b: string) {
   return new Date(a).toDateString() === new Date(b).toDateString();
 }
 
-function dayLabel(iso: string) {
+type FormatDate = (value: Date, options: Intl.DateTimeFormatOptions) => string;
+
+function dayLabel(iso: string, t: Translate, formatDate: FormatDate) {
   const date = new Date(iso);
   const today = new Date();
   const yesterday = new Date(today.getTime() - 86400000);
-  if (date.toDateString() === today.toDateString()) return "Today";
-  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-  return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  if (date.toDateString() === today.toDateString()) return t("chat.messages.today");
+  if (date.toDateString() === yesterday.toDateString()) return t("chat.messages.yesterday");
+  return formatDate(date, { day: "numeric", month: "short", year: "numeric" });
 }
 
-function timeLabel(iso: string) {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+function timeLabel(iso: string, formatDate: FormatDate) {
+  return formatDate(new Date(iso), { hour: "2-digit", minute: "2-digit" });
 }
 
 /** Render message text with @mentions highlighted. */
@@ -76,15 +79,25 @@ function Body({ text, profilesById }: { text: string; profilesById: Map<string, 
 }
 
 function ReceiptTick({ message, userId }: { message: ChatMessage; userId: string }) {
+  const { t } = useTranslation();
   if (message.sender_id !== userId) return null;
   const others = message.receipts.filter((r) => r.user_id !== userId);
   const read = others.length > 0 && others.every((r) => r.read_at);
   const delivered = others.length > 0 && others.every((r) => r.delivered_at);
-  const label = read ? "Read" : delivered ? "Delivered" : "Sent";
+  const label = read
+    ? t("chat.messages.receipt_read")
+    : delivered
+      ? t("chat.messages.receipt_delivered")
+      : t("chat.messages.receipt_sent");
+  const ariaLabel = read
+    ? t("chat.messages.receipt_read_label")
+    : delivered
+      ? t("chat.messages.receipt_delivered_label")
+      : t("chat.messages.receipt_sent_label");
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span aria-label={`Message ${label.toLowerCase()}`} className="inline-flex">
+        <span aria-label={ariaLabel} className="inline-flex">
           {read ? (
             <CheckCheck className="size-3.5 text-emerald-500" />
           ) : delivered ? (
@@ -105,6 +118,7 @@ export function MessageList(props: MessageListProps) {
     canReact, canReply, canBookmark, translateTarget, autoTranslate, density, highlightId,
     onReact, onBookmark, onReply, onOpenThread, onRetry, onDiscard,
   } = props;
+  const { t, formatDate } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const [translations, setTranslations] = useState<Record<string, { loading: boolean; text?: string; error?: string }>>({});
@@ -121,7 +135,7 @@ export function MessageList(props: MessageListProps) {
       const message = all[i]!;
       const previous = i > 0 ? all[i - 1] : undefined;
       if (!previous || !sameDay(previous.created_at, message.created_at)) {
-        result.push({ type: "date", key: `d-${message.created_at.slice(0, 10)}`, label: dayLabel(message.created_at) });
+        result.push({ type: "date", key: `d-${message.created_at.slice(0, 10)}`, label: dayLabel(message.created_at, t, formatDate) });
         group = null;
       }
       const gap = previous ? new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() : Infinity;
@@ -140,7 +154,7 @@ export function MessageList(props: MessageListProps) {
       }
     }
     return result;
-  }, [all, userId]);
+  }, [all, userId, t, formatDate]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -156,13 +170,15 @@ export function MessageList(props: MessageListProps) {
   const translate = useCallback(
     async (message: ChatMessage) => {
       setTranslations((prev) => ({ ...prev, [message.id]: { loading: true } }));
-      const result = await translateMessage({ data: { text: message.body, target: translateTarget } });
+      const result = await translateMessage({ data: { text: message.body, target: translateTarget } }).catch(
+        () => ({ ok: false as const, error: t("chat.messages.translation_unavailable") }),
+      );
       setTranslations((prev) => ({
         ...prev,
         [message.id]: result.ok ? { loading: false, text: result.text } : { loading: false, error: result.error },
       }));
     },
-    [translateTarget],
+    [translateTarget, t],
   );
 
   // Real-time auto translate: translate incoming messages as they arrive.
@@ -217,7 +233,7 @@ export function MessageList(props: MessageListProps) {
           >
             {message.parent_id ? (
               <p className={cn("mb-0.5 border-l-2 pl-2 text-xs opacity-80", mine ? "border-primary-foreground/40" : "border-primary/50")}>
-                Reply in thread
+                {t("chat.messages.reply_in_thread")}
               </p>
             ) : null}
             {message.body ? (
@@ -230,21 +246,21 @@ export function MessageList(props: MessageListProps) {
             ))}
 
             <div className={cn("mt-0.5 flex items-center justify-end gap-1 text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
-              {message.pinned ? <Pin className="size-3 fill-current" aria-label="Pinned" /> : null}
-              {message.bookmarked ? <Bookmark className="size-3 fill-current" aria-label="Bookmarked" /> : null}
+              {message.pinned ? <Pin className="size-3 fill-current" aria-label={t("chat.messages.pinned")} /> : null}
+              {message.bookmarked ? <Bookmark className="size-3 fill-current" aria-label={t("chat.messages.bookmarked")} /> : null}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex cursor-default items-center" aria-label="Immutable enterprise record">
+                  <span className="inline-flex cursor-default items-center" aria-label={t("chat.messages.immutable_record")}>
                     <ShieldCheck className="size-3" />
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>Enterprise record — messages cannot be edited or deleted</TooltipContent>
+                <TooltipContent>{t("chat.messages.immutable_tooltip")}</TooltipContent>
               </Tooltip>
-              <span>{timeLabel(message.created_at)}</span>
+              <span>{timeLabel(message.created_at, formatDate)}</span>
               {optimistic?.state === "pending" ? (
-                <Loader2 className="size-3 animate-spin" aria-label="Sending" />
+                <Loader2 className="size-3 animate-spin" aria-label={t("chat.messages.sending")} />
               ) : optimistic?.state === "failed" ? (
-                <span className="font-medium text-destructive">Failed</span>
+                <span className="font-medium text-destructive">{t("chat.messages.failed")}</span>
               ) : (
                 <ReceiptTick message={message} userId={userId} />
               )}
@@ -261,7 +277,7 @@ export function MessageList(props: MessageListProps) {
               {canReact ? (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button type="button" aria-label="React" className="rounded-md p-1.5 hover:bg-secondary">
+                    <button type="button" aria-label={t("chat.messages.react")} className="rounded-md p-1.5 hover:bg-secondary">
                       <Smile className="size-3.5" />
                     </button>
                   </PopoverTrigger>
@@ -284,11 +300,11 @@ export function MessageList(props: MessageListProps) {
               {canReply ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button type="button" aria-label="Reply" onClick={() => onReply(message)} className="rounded-md p-1.5 hover:bg-secondary">
+                    <button type="button" aria-label={t("chat.messages.reply")} onClick={() => onReply(message)} className="rounded-md p-1.5 hover:bg-secondary">
                       <MessageSquareReply className="size-3.5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>Reply</TooltipContent>
+                  <TooltipContent>{t("chat.messages.reply")}</TooltipContent>
                 </Tooltip>
               ) : null}
               {canBookmark ? (
@@ -297,38 +313,38 @@ export function MessageList(props: MessageListProps) {
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        aria-label={message.pinned ? "Unpin" : "Pin"}
+                        aria-label={message.pinned ? t("chat.messages.unpin") : t("chat.messages.pin")}
                         onClick={() => onBookmark(message.id, true, message.pinned)}
                         className="rounded-md p-1.5 hover:bg-secondary"
                       >
                         <Pin className={cn("size-3.5", message.pinned && "fill-current text-primary")} />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>{message.pinned ? "Unpin" : "Pin"}</TooltipContent>
+                    <TooltipContent>{message.pinned ? t("chat.messages.unpin") : t("chat.messages.pin")}</TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        aria-label={message.bookmarked ? "Remove bookmark" : "Bookmark"}
+                        aria-label={message.bookmarked ? t("chat.messages.remove_bookmark") : t("chat.messages.bookmark")}
                         onClick={() => onBookmark(message.id, false, message.bookmarked)}
                         className="rounded-md p-1.5 hover:bg-secondary"
                       >
                         <Bookmark className={cn("size-3.5", message.bookmarked && "fill-current text-primary")} />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>{message.bookmarked ? "Remove bookmark" : "Bookmark"}</TooltipContent>
+                    <TooltipContent>{message.bookmarked ? t("chat.messages.remove_bookmark") : t("chat.messages.bookmark")}</TooltipContent>
                   </Tooltip>
                 </>
               ) : null}
               {message.body ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button type="button" aria-label="Translate message" onClick={() => void translate(message)} className="rounded-md p-1.5 hover:bg-secondary">
+                    <button type="button" aria-label={t("chat.messages.translate_message")} onClick={() => void translate(message)} className="rounded-md p-1.5 hover:bg-secondary">
                       <Languages className="size-3.5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>Translate</TooltipContent>
+                  <TooltipContent>{t("chat.messages.translate")}</TooltipContent>
                 </Tooltip>
               ) : null}
             </div>
@@ -343,7 +359,7 @@ export function MessageList(props: MessageListProps) {
                 type="button"
                 disabled={!canReact}
                 onClick={() => onReact(message.id, emoji, info.mine)}
-                aria-label={`${info.count} reacted with ${emoji}`}
+                aria-label={t("chat.messages.reactions", { count: info.count, emoji })}
                 className={cn(
                   "rounded-full border px-1.5 py-0.5 text-xs transition-colors",
                   info.mine ? "border-primary/50 bg-primary/10" : "border-border/60 bg-secondary/60 hover:bg-secondary",
@@ -361,14 +377,14 @@ export function MessageList(props: MessageListProps) {
             onClick={() => onOpenThread(message)}
             className={cn("text-xs font-medium text-primary hover:underline", mine ? "pr-1 self-end" : "pl-9")}
           >
-            {message.replyCount} {message.replyCount === 1 ? "reply" : "replies"} — open thread
+            {t("chat.messages.open_thread", { count: message.replyCount })}
           </button>
         ) : null}
 
         {translation ? (
           <div className={cn("max-w-[85%] rounded-lg border border-border/50 bg-secondary/40 px-2.5 py-1 text-xs sm:max-w-[75%]", mine && "self-end")}>
             {translation.loading ? (
-              <span className="inline-flex items-center gap-1 text-muted-foreground"><Loader2 className="size-3 animate-spin" /> Translating…</span>
+              <span className="inline-flex items-center gap-1 text-muted-foreground"><Loader2 className="size-3 animate-spin" /> {t("chat.messages.translating")}</span>
             ) : translation.error ? (
               <span className="text-destructive">{translation.error}</span>
             ) : (
@@ -379,12 +395,12 @@ export function MessageList(props: MessageListProps) {
 
         {optimistic?.state === "failed" ? (
           <div className="flex items-center gap-2 pr-1 text-xs">
-            <span className="text-destructive">{optimistic.error ?? "Message could not be sent"}</span>
+            <span className="text-destructive">{optimistic.error ?? t("chat.send_failed")}</span>
             <button type="button" onClick={() => onRetry(message.id)} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
-              <RotateCcw className="size-3" /> Retry
+              <RotateCcw className="size-3" /> {t("chat.messages.retry")}
             </button>
             <button type="button" onClick={() => onDiscard(message.id)} className="inline-flex items-center gap-1 text-muted-foreground hover:underline">
-              <Trash2 className="size-3" /> Discard
+              <Trash2 className="size-3" /> {t("chat.messages.discard")}
             </button>
           </div>
         ) : null}
@@ -401,19 +417,19 @@ export function MessageList(props: MessageListProps) {
       }}
       className="flex-1 overflow-y-auto px-3 py-3 sm:px-5"
       aria-live="polite"
-      aria-label="Conversation messages"
+      aria-label={t("chat.messages.list_label")}
     >
       {connection !== "live" ? (
         <div className="mb-2 flex items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-600 dark:text-amber-400">
           <WifiOff className="size-3.5" />
-          {connection === "connecting" ? "Connecting…" : connection === "reconnecting" ? "Connection lost — reconnecting…" : "Offline — messages will send when reconnected"}
+          {connection === "connecting" ? t("chat.messages.connecting") : connection === "reconnecting" ? t("chat.messages.reconnecting") : t("chat.messages.offline")}
         </div>
       ) : null}
 
       {all.length === 0 ? (
         <div className="grid h-full place-items-center">
           <p className="max-w-xs text-center text-sm text-muted-foreground">
-            No messages yet. Send the first message — every message is stored as an immutable enterprise record.
+            {t("chat.messages.empty")}
           </p>
         </div>
       ) : null}
@@ -429,7 +445,7 @@ export function MessageList(props: MessageListProps) {
           <div key={row.key} className={cn("mb-2 flex flex-col gap-0.5", row.mine ? "items-end" : "items-start")}>
             {!row.mine ? (
               <span className={cn("pl-9 text-xs font-medium text-muted-foreground")}>
-                {profilesById.get(row.senderId)?.display_name ?? "Unknown user"}
+                {profilesById.get(row.senderId)?.display_name ?? t("chat.messages.unknown_user")}
               </span>
             ) : null}
             {row.items.map((message, index) => renderMessage(message, row.mine, index === 0))}
@@ -444,7 +460,7 @@ export function MessageList(props: MessageListProps) {
             <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:150ms]" />
             <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:300ms]" />
           </span>
-          {typingUsers.join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing…
+          {t("chat.messages.typing", { names: typingUsers.join(", "), count: typingUsers.length })}
         </div>
       ) : null}
     </div>

@@ -1,3 +1,4 @@
+import { Toaster } from "@/components/ui/sonner";
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { pageHead } from "@/lib/seo-head";
@@ -12,6 +13,7 @@ import {
 } from "@/lib/marketplace-commerce.functions";
 import { useServerFn } from "@/lib/serverFn";
 import { authHeaders } from "@/lib/auth/operator-fetch";
+import { useTranslation, type Translate } from "@/lib/i18n/use-translation";
 
 export const Route = createFileRoute("/checkout")({
   head: pageHead("Checkout", "Complete your purchase. One fixed price, lifetime access, full source code."),
@@ -28,7 +30,7 @@ export const Route = createFileRoute("/checkout")({
  * POST, which is submitted as a real form because that is how PayU's hosted
  * page is entered.
  */
-async function payWithPayU(orderId: string): Promise<{ ok: true } | { ok: false; message: string }> {
+async function payWithPayU(orderId: string, t: Translate): Promise<{ ok: true } | { ok: false; message: string }> {
   const response = await fetch("/api/payment/initiate", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeaders()) },
@@ -45,8 +47,7 @@ async function payWithPayU(orderId: string): Promise<{ ok: true } | { ok: false;
     return {
       ok: false,
       message:
-        payload.error ??
-        "The payment could not be started. The order is saved and nothing was charged.",
+        payload.error ?? t("checkout.start_failed"),
     };
   }
 
@@ -75,6 +76,7 @@ function createIdempotencyKey() {
 
 function CheckoutPage() {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const getCart = useServerFn(getMarketplaceCart);
   const checkout = useServerFn(createMarketplaceCheckout);
   const [idempotencyKey] = useState(createIdempotencyKey);
@@ -108,13 +110,11 @@ function CheckoutPage() {
 
       if (!orderId) {
         setPaying(false);
-        setPayNote(
-          `Order ${result?.order_number ?? ""} was created but we could not find it again to start the payment. Nothing was charged. It is in your purchases.`,
-        );
+        setPayNote(t("checkout.order_not_found", { order: result?.order_number ?? "" }));
         return;
       }
 
-      const handoff = await payWithPayU(orderId);
+      const handoff = await payWithPayU(orderId, t);
       if (!handoff.ok) {
         setPaying(false);
         setPayNote(handoff.message);
@@ -125,49 +125,78 @@ function CheckoutPage() {
   });
 
   const items = cartQuery.data?.items ?? [];
+  const quote = cartQuery.data?.quote;
+  const lineTotal = new Map((quote?.lines ?? []).map((l) => [l.cart_item_id, l.line_total]));
+  const money = (value: number | string | undefined) =>
+    `${quote?.currency ?? ""} ${Number(value ?? 0).toFixed(2)}`.trim();
   const result = checkoutMutation.data as { order_number?: string; total?: number; payment_status?: string } | undefined;
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-white">
+      <Toaster />
       <div className="mx-auto max-w-3xl">
         <Link to="/marketplace" className="mb-8 inline-flex items-center gap-2 text-sm text-cyan-300 hover:text-cyan-200">
-          <ArrowLeft className="h-4 w-4" /> Back to marketplace
+          <ArrowLeft className="h-4 w-4" /> {t("checkout.back")}
         </Link>
         <div className="mb-8 flex items-center gap-3">
           <ShoppingCart className="h-7 w-7 text-cyan-300" />
           <div>
-            <h1 className="text-3xl font-bold">Checkout</h1>
-            <p className="text-sm text-slate-400">Prices are calculated on the server from the live catalog.</p>
+            <h1 className="text-3xl font-bold">{t("checkout.title")}</h1>
+            <p className="text-sm text-slate-400">{t("checkout.subtitle")}</p>
           </div>
         </div>
 
         <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
           {cartQuery.isLoading ? (
-            <div className="flex items-center gap-2 text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> Loading cart</div>
+            <div className="flex items-center gap-2 text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> {t("checkout.loading_cart")}</div>
           ) : cartQuery.error ? (
-            <div className="flex items-start gap-3 text-amber-300"><AlertTriangle className="mt-0.5 h-5 w-5" /><p>Sign in to use checkout.</p></div>
+            <div className="flex items-start gap-3 text-amber-300"><AlertTriangle className="mt-0.5 h-5 w-5" /><p>{t("checkout.sign_in_required")}</p></div>
           ) : items.length === 0 ? (
-            <div className="py-10 text-center text-slate-400">Your cart is empty.</div>
+            <div className="py-10 text-center text-slate-400">{t("checkout.empty")}</div>
           ) : (
             <div className="space-y-4">
               {items.map((item: any) => (
                 <div key={item.id} className="flex items-center justify-between border-b border-slate-800 pb-4">
                   <div>
-                    <p className="font-semibold">{item.marketplace_products?.name ?? "Product"}</p>
-                    <p className="text-sm text-slate-400">Quantity: {item.quantity}</p>
+                    <p className="font-semibold">{item.marketplace_products?.name ?? t("checkout.product_fallback")}</p>
+                    <p className="text-sm text-slate-400">{t("checkout.quantity", { quantity: item.quantity })}</p>
                   </div>
-                  <span className="text-sm text-slate-300">{item.marketplace_products?.price_label ?? "Server-priced"}</span>
+                  <span className="text-sm text-slate-300">
+                    {lineTotal.has(item.id) ? money(lineTotal.get(item.id)) : t("checkout.server_priced")}
+                  </span>
                 </div>
               ))}
+              {quote && (
+                <dl className="space-y-1 text-sm" data-cart-quote data-quote-total={quote.total}>
+                  <div className="flex justify-between text-slate-300">
+                    <dt>{t("checkout.subtotal")}</dt>
+                    <dd data-quote-subtotal>{money(quote.subtotal)}</dd>
+                  </div>
+                  {Number(quote.discount_total) > 0 && (
+                    <div className="flex justify-between text-emerald-300">
+                      <dt>
+                        {t("checkout.reseller_discount", {
+                          plan: quote.pricing?.plan_name ?? "",
+                          percent: quote.discount_percent,
+                        })}
+                      </dt>
+                      <dd data-quote-discount>−{money(quote.discount_total)}</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-slate-800 pt-2 font-semibold">
+                    <dt>{t("checkout.total")}</dt>
+                    <dd data-quote-final>{money(quote.total)}</dd>
+                  </div>
+                  {quote.pricing?.reason === "no_active_membership" && (
+                    <p className="text-xs text-amber-300">{t("checkout.no_discount_member")}</p>
+                  )}
+                </dl>
+              )}
               <Button disabled={checkoutMutation.isPending || paying} onClick={() => checkoutMutation.mutate()} className="w-full bg-cyan-500 text-slate-950 hover:bg-cyan-400">
                 {checkoutMutation.isPending || paying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-2 h-4 w-4" />}
-                {paying ? "Opening secure payment…" : "Pay securely"}
+                {paying ? t("checkout.opening_payment") : t("checkout.pay_securely")}
               </Button>
-              <p className="text-xs text-slate-500">
-                The order is created here and the payment is taken on the provider's own page. Nothing on
-                this site decides that a payment succeeded — the provider's signed callback does, and it is
-                checked against the provider before an order is marked paid.
-              </p>
+              <p className="text-xs text-slate-500">{t("checkout.provider_note")}</p>
             </div>
           )}
         </section>
@@ -175,21 +204,29 @@ function CheckoutPage() {
         {payNote && (
           <section className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-6">
             <h2 className="flex items-center gap-2 font-semibold text-amber-200">
-              <AlertTriangle className="h-4 w-4" /> The payment was not started
+              <AlertTriangle className="h-4 w-4" /> {t("checkout.not_started")}
             </h2>
             <p className="mt-2 text-sm text-amber-100/80">{payNote}</p>
             <Link to="/account/purchases" className="mt-3 inline-block text-sm text-cyan-300 hover:text-cyan-200">
-              See your orders
+              {t("checkout.see_orders")}
             </Link>
           </section>
         )}
 
-        {result && !payNote && (
-          <section className="mt-6 rounded-xl border border-slate-700 bg-slate-900/70 p-6">
-            <h2 className="font-semibold text-slate-200">Order {result.order_number}</h2>
+        {/* Shown even when the payment could not start: the order is saved at
+            the server's price and the buyer should see which one it is. */}
+        {result && (
+          <section
+            className="mt-6 rounded-xl border border-slate-700 bg-slate-900/70 p-6"
+            data-order-result={result.order_number}
+            data-order-total={result.total}
+          >
+            <h2 className="font-semibold text-slate-200">{t("checkout.order", { order: result.order_number ?? "" })}</h2>
             <p className="mt-2 text-sm text-slate-400">
-              Created with server total {result.total}. Status: {result.payment_status ?? "pending"} until
-              the provider's callback is verified.
+              {t("checkout.created_total", {
+                total: result.total ?? "",
+                status: result.payment_status ?? t("checkout.status_pending"),
+              })}
             </p>
           </section>
         )}

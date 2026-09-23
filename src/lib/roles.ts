@@ -208,6 +208,9 @@ export const ROLES: Record<RoleKey, RoleConfig> = {
     tagline: "Manage clients and licenses",
     benchmarks: ["GoHighLevel Reseller", "WHMCS Reseller Center"],
     modules: [
+      // The reseller's own membership: plans, order, invoice, payment evidence
+      // and status (src/components/reseller/ResellerMembershipPlans.tsx).
+      { key:"membership", label:"Membership & Plans", icon:Wallet },
       { key:"clients", label:"Clients", icon:UserCheck },
       { key:"licenses", label:"Licenses", icon:FileBadge },
       { key:"leads", label:"Leads", icon:Target },

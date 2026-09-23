@@ -232,3 +232,23 @@ export const setResellerPayoutStatus = createServerFn({ method: "POST" })
       p_reference: data.reference ?? null, p_reason: data.reason ?? null,
     }),
   );
+
+export type ResellerAttention = {
+  ok: boolean;
+  reason?: string;
+  as_of?: string;
+  applications_pending?: number;
+  applications_kyc_unverified?: number;
+  oldest_application_at?: string | null;
+  membership_payments_to_verify?: number;
+  membership_orders_awaiting_payment?: number;
+  memberships_expiring_30d?: number;
+  commission_available?: { currency: string; amount: number; resellers: number }[];
+  payouts_awaiting_action?: number;
+  suspended?: number;
+};
+
+/** The Reseller Manager's attention banner, counted by the database now. */
+export const getResellerAttention = createServerFn({ method: "GET" }).handler(
+  async (): Promise<ResellerAttention> => callAsUser("mm_reseller_attention", {}),
+);

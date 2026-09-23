@@ -8,8 +8,10 @@
  * name their own tier, choose their own discount, or pay a price they invented
  * in the browser.
  *
- * Numbers are those the business set. Changing a price means changing this
- * file, and nowhere else.
+ * Franchise numbers are those the business set here. Reseller plans are not in
+ * this file: they are rows in reseller_membership_plans, and the reseller
+ * discount is applied by the database (reseller_pricing_for), which checkout
+ * and /api/partner/quote both call.
  */
 
 export type PartnerKind = "reseller" | "franchise";
@@ -28,15 +30,6 @@ export type Plan = {
   territory?: string;
 };
 
-export const RESELLER_PLANS: Plan[] = [
-  { id: "starter", label: "Starter", joiningFeeUsd: 99, discount: 0.20,
-    aliases: ["bronze", "basic", "start"] },
-  { id: "professional", label: "Professional", joiningFeeUsd: 249, discount: 0.30,
-    aliases: ["silver", "pro", "professional"] },
-  { id: "master", label: "Master", joiningFeeUsd: 499, discount: 0.40,
-    aliases: ["gold", "platinum", "master"] },
-];
-
 export const FRANCHISE_PLANS: Plan[] = [
   { id: "city", label: "City / Local Partner", joiningFeeUsd: 5000, discount: 0.30,
     aliases: ["local", "city"], leadAllowance: 1000, territory: "City" },
@@ -54,7 +47,7 @@ export const INFLUENCER_REWARDS = {
 } as const;
 
 export function plansFor(kind: PartnerKind): Plan[] {
-  return kind === "reseller" ? RESELLER_PLANS : FRANCHISE_PLANS;
+  return kind === "franchise" ? FRANCHISE_PLANS : [];
 }
 
 /**

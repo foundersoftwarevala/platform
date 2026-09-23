@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ChatMessage, DraftAttachment, Participant, Profile } from "@/services/chat/types";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 const EMOJIS = [
   "😀","😄","😁","😂","🤣","😊","😍","🤩","😎","🤔","👍","👎","👏","🙏","💪","🎉","🔥","✨","❤️","💯",
@@ -35,6 +36,7 @@ export function Composer(props: ComposerProps) {
     canSend, canUpload, canMention, participants, profilesById, uploads,
     replyTo, sending, enterToSend, onQueueFiles, onCancelUpload, onCancelReply, onSend, onTyping,
   } = props;
+  const { t } = useTranslation();
   const [text, setText] = useState("");
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
@@ -134,10 +136,10 @@ export function Composer(props: ComposerProps) {
         <div className="mb-1 flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/50 px-2 py-0.5 text-xs">
           <Reply className="size-3.5 shrink-0 text-primary" />
           <span className="min-w-0 flex-1 truncate">
-            <span className="font-medium">Replying: </span>
-            {replyTo.body || "Attachment"}
+            <span className="font-medium">{t("chat.composer.replying")} </span>
+            {replyTo.body || t("chat.composer.attachment")}
           </span>
-          <button type="button" onClick={onCancelReply} aria-label="Cancel reply" className="rounded p-0.5 hover:bg-secondary">
+          <button type="button" onClick={onCancelReply} aria-label={t("chat.composer.cancel_reply")}className="rounded p-0.5 hover:bg-secondary">
             <X className="size-3.5" />
           </button>
         </div>
@@ -155,9 +157,9 @@ export function Composer(props: ComposerProps) {
                   <span className="w-8 text-right text-[10px] text-muted-foreground">{u.progress}%</span>
                 </span>
               ) : (
-                <span className="text-[10px] text-muted-foreground">ready</span>
+                <span className="text-[10px] text-muted-foreground">{t("chat.composer.upload_ready")}</span>
               )}
-              <button type="button" onClick={() => onCancelUpload(u.id)} aria-label={`Remove ${u.file.name}`} className="rounded p-0.5 hover:bg-secondary">
+              <button type="button" onClick={() => onCancelUpload(u.id)} aria-label={t("chat.composer.remove_file", { name: u.file.name })} className="rounded p-0.5 hover:bg-secondary">
                 <X className="size-3.5" />
               </button>
             </li>
@@ -169,7 +171,7 @@ export function Composer(props: ComposerProps) {
         {mentionOpen && mentionCandidates.length > 0 ? (
           <ul
             role="listbox"
-            aria-label="Mention a participant"
+            aria-label={t("chat.composer.mention")}
             className="absolute bottom-full left-0 z-20 mb-1 w-64 overflow-hidden rounded-xl border border-border bg-popover p-1 shadow-lg"
           >
             {mentionCandidates.map((p, index) => (
@@ -203,7 +205,7 @@ export function Composer(props: ComposerProps) {
                 type="file"
                 multiple
                 className="hidden"
-                aria-label="Attach files"
+                aria-label={t("chat.composer.attach_files")}
                 onChange={(e) => {
                   const files = Array.from(e.target.files ?? []);
                   if (files.length > 0) onQueueFiles(files);
@@ -216,14 +218,14 @@ export function Composer(props: ComposerProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    aria-label="Attach files"
+                    aria-label={t("chat.composer.attach_files")}
                     className="size-7 shrink-0 rounded-md"
                     onClick={() => fileRef.current?.click()}
                   >
                     <Paperclip className="size-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Attach files</TooltipContent>
+                <TooltipContent>{t("chat.composer.attach_files")}</TooltipContent>
               </Tooltip>
             </>
           ) : null}
@@ -232,12 +234,12 @@ export function Composer(props: ComposerProps) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <PopoverTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" aria-label="Insert emoji" className="size-7 shrink-0 rounded-md">
+                  <Button type="button" variant="ghost" size="icon" aria-label={t("chat.composer.insert_emoji")} className="size-7 shrink-0 rounded-md">
                     <Smile className="size-3.5" />
                   </Button>
                 </PopoverTrigger>
               </TooltipTrigger>
-              <TooltipContent>Emoji</TooltipContent>
+              <TooltipContent>{t("chat.composer.emoji")}</TooltipContent>
             </Tooltip>
             <PopoverContent className="w-64 p-2" align="start" side="top">
               <div className="grid grid-cols-8 gap-0.5">
@@ -247,7 +249,7 @@ export function Composer(props: ComposerProps) {
                     type="button"
                     className="rounded p-1 text-lg hover:bg-secondary"
                     onClick={() => {
-                      setText((t) => t + emoji);
+                      setText((current) => current + emoji);
                       textareaRef.current?.focus();
                     }}
                   >
@@ -263,8 +265,8 @@ export function Composer(props: ComposerProps) {
             value={text}
             rows={1}
             disabled={!canSend}
-            aria-label="Message"
-            placeholder={canSend ? "Type a message…  (@ to mention)" : "You don't have permission to send messages"}
+            aria-label={t("chat.composer.message")}
+            placeholder={canSend ? t("chat.composer.placeholder") : t("chat.composer.no_permission")}
             onChange={(e) => {
               setText(e.target.value);
               detectMention(e.target.value, e.target.selectionStart);
@@ -279,7 +281,7 @@ export function Composer(props: ComposerProps) {
               <Button
                 type="button"
                 size="icon"
-                aria-label="Send message"
+                aria-label={t("chat.composer.send_message")}
                 disabled={!canSend || sending || (!text.trim() && uploads.length === 0)}
                 onClick={() => void submit()}
                 className="size-7 shrink-0 rounded-md"
@@ -287,7 +289,7 @@ export function Composer(props: ComposerProps) {
                 {sending ? <Loader2 className="size-3.5 animate-spin" /> : <SendHorizontal className="size-3.5" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{enterToSend ? "Send (Enter)" : "Send"}</TooltipContent>
+            <TooltipContent>{enterToSend ? t("chat.composer.send_enter") : t("chat.composer.send")}</TooltipContent>
           </Tooltip>
         </div>
       </div>
