@@ -1,6 +1,7 @@
 import { memo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { catalogueSlug } from "@/data/catalogue";
+import { useFavorites } from "@/lib/marketplace-home/persistentState";
 
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -3482,7 +3483,9 @@ const fillProductRail = (products: Demo[], target = PRODUCTS_PER_ROW) => {
 const Index = () => {
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [favorites, setFavorites] = useState<string[]>([]);
+  // Favourites were held in component state, so every refresh threw the
+  // visitor's saved products away. The platform's own store keeps them.
+  const { favorites, toggle: toggleFavorite } = useFavorites();
 
   const filteredDemos = allDemos.filter((demo) => {
     const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
@@ -3492,10 +3495,6 @@ const Index = () => {
       demo.masterCategory.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
-
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
-  };
 
   // Count demos per master category
   const getCategoryCount = (category: string) => {
