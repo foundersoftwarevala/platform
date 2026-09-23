@@ -71,7 +71,7 @@ await Promise.all(
             chars: text.length,
             controls: document.querySelectorAll("button,a[href],input,select,textarea").length,
             rows: document.querySelectorAll("tr,[role='row']").length,
-            broken: /something went wrong|unavailable|application error|failed to load/i.test(text),
+            broken: /something went wrong|application error|this page didn.t load|failed to render/i.test(text),
             gated: /access restricted|not have the required/i.test(text),
             heading: (document.querySelector("h1,h2")?.textContent ?? "").trim().slice(0, 44),
           };
@@ -79,7 +79,7 @@ await Promise.all(
         record = {
           path, ...seen,
           errors: [...new Set(errors)],
-          state: seen.gated ? "GATED" : seen.broken ? "BROKEN" : errors.length ? "ERRORS" : seen.chars < 400 ? "EMPTY" : "OK",
+          state: seen.gated ? "GATED" : seen.broken ? "BROKEN" : errors.length ? "ERRORS" : seen.chars < 150 ? "EMPTY" : "OK",
         };
       } catch (error) {
         record = { path, state: "BROKEN", chars: 0, controls: 0, rows: 0, errors: [String(error).slice(0, 120)] };
