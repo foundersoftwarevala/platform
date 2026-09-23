@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+/** How far the hand travels before the rail reads it as a drag and not a click. */
+const DRAG_THRESHOLD = 4;
+
 export function ProductCarouselRow({
   title,
   count,
@@ -49,18 +52,25 @@ export function ProductCarouselRow({
   }, [isReady]);
 
   // Unified pointer drag: finger swipe on touch screens, click-and-drag on desktop.
+  //
+  // The rail takes the pointer only once the hand has actually travelled. While
+  // it holds the capture the browser hands it the click as well, so capturing
+  // on the way down would leave every button inside a card unclickable.
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "touch") return; // native touch scrolling is smoother
     draggingRef.current = true;
     movedRef.current = false;
     lastX.current = event.clientX;
-    event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!draggingRef.current) return;
     const dx = event.clientX - lastX.current;
-    if (Math.abs(dx) > 2) movedRef.current = true;
+    if (!movedRef.current && Math.abs(dx) > DRAG_THRESHOLD) {
+      movedRef.current = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    if (!movedRef.current) return; // a steady hand is aiming at a button
     event.currentTarget.scrollLeft -= dx;
     lastX.current = event.clientX;
   };
