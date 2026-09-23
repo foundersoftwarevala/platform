@@ -1,7 +1,7 @@
 import { memo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { catalogueSlug } from "@/data/catalogue";
-import { useFavorites } from "@/lib/marketplace-home/persistentState";
+import { useSavedProducts } from "@/lib/useSavedProducts";
 
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -3483,9 +3483,9 @@ const fillProductRail = (products: Demo[], target = PRODUCTS_PER_ROW) => {
 const Index = () => {
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  // Favourites were held in component state, so every refresh threw the
-  // visitor's saved products away. The platform's own store keeps them.
-  const { favorites, toggle: toggleFavorite } = useFavorites();
+  // Saved products belong to the person, not to one browser. Signed out,
+  // they are kept in this browser as before and carried up on the next sign-in.
+  const { favorites, toggle: toggleFavorite } = useSavedProducts();
 
   const filteredDemos = allDemos.filter((demo) => {
     const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
@@ -3578,8 +3578,8 @@ const Index = () => {
                       key={`${masterCat}-${demo.id}-${index}`}
                       demo={demo}
                       index={index}
-                      isFavorite={favorites.includes(demo.id)}
-                      onToggleFavorite={() => toggleFavorite(demo.id)}
+                      isFavorite={favorites.includes(catalogueSlug(demo.name))}
+                      onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
                     />
                   ))}
                 </ProductCarouselRow>
@@ -3596,8 +3596,8 @@ const Index = () => {
                     key={`${activeCategory}-${demo.id}-${index}`}
                     demo={demo}
                     index={index}
-                    isFavorite={favorites.includes(demo.id)}
-                    onToggleFavorite={() => toggleFavorite(demo.id)}
+                    isFavorite={favorites.includes(catalogueSlug(demo.name))}
+                    onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
                   />
                 ),
               )}
