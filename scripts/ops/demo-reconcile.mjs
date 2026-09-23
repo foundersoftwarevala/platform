@@ -22,7 +22,7 @@ function readEnv(file) {
   const out = {};
   for (const line of readFileSync(file, "utf8").split("\n")) {
     const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-    if (m) out[m[1]] = m[2].trim().replace(/^'|'$/g, "");
+    if (m) out[m[1]] = m[2].trim().replace(/^(["'])([\s\S]*)\1$/, "$2");
   }
   return out;
 }

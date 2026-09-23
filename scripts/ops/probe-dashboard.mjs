@@ -39,12 +39,34 @@ const page = await context.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+// A bare "failed to load resource" says nothing; the address and the answer do.
+page.on("response", async (r) => {
+  if (r.status() < 400) return;
+  let body = "";
+  try { body = (await r.text()).slice(0, 160); } catch { /* no body */ }
+  errors.push(`${r.status()} ${r.url().replace(site, "")} ${body}`);
+});
 
 await page.goto(`${site}/login`, { waitUntil: "networkidle", timeout: 90_000 });
-await page.locator('input[type="email"]').fill(email);
-await page.locator('input[type="password"]').fill(password);
+// The form is a controlled React one, so filling it before it has hydrated
+// leaves the component state empty and the submit sends blanks - which comes
+// back as invalid credentials and looks like a broken login.
+await page.waitForTimeout(2500);
+const emailBox = page.locator('input[type="email"]');
+const passwordBox = page.locator('input[type="password"]');
+for (let attempt = 0; attempt < 3; attempt++) {
+  await emailBox.fill(email);
+  await passwordBox.fill(password);
+  if ((await emailBox.inputValue()) === email && (await passwordBox.inputValue()) === password) break;
+  await page.waitForTimeout(1500);
+}
 await page.locator('button[type="submit"]').click();
-await page.waitForTimeout(8000);
+// Signing in takes as long as it takes; waiting a fixed eight seconds reported
+// a failure whenever it took nine.
+await page
+  .waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 45_000 })
+  .catch(() => {});
+await page.waitForTimeout(3000);
 
 console.log(`account : ${role} (${email})`);
 console.log(`after sign in: ${page.url().replace(site, "")}`);

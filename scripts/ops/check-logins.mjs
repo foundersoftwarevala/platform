@@ -26,7 +26,7 @@ const anon =
   app.VITE_SUPABASE_PUBLISHABLE_KEY ??
   app.VITE_SUPABASE_ANON_KEY ??
   ops.SUPABASE_ANON_KEY ??
-  ops.SUPABASE_SERVICE_ROLE_KEY;
+  (ops.SUPABASE_PUBLISHABLE_KEY ?? ops.SUPABASE_SERVICE_ROLE_KEY);
 
 if (!url || !anon) {
   console.error("No Supabase URL or publishable key found in .env / .env.ops");

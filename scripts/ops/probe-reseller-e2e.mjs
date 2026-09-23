@@ -15,7 +15,7 @@ function readEnv(file) {
   const out = {};
   for (const line of readFileSync(file, "utf8").split("\n")) {
     const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
-    if (match) out[match[1]] = match[2].trim().replace(/^'|'$/g, "");
+    if (match) out[match[1]] = match[2].trim().replace(/^(["'])([\s\S]*)\1$/, "$2");
   }
   return out;
 }
@@ -73,7 +73,7 @@ await browser.close();
 // Now ask the manager, as the control panel, whether the row is really there.
 const auth = await fetch(`${ops.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
   method: "POST",
-  headers: { apikey: ops.SUPABASE_SERVICE_ROLE_KEY, "Content-Type": "application/json" },
+  headers: { apikey: (ops.SUPABASE_PUBLISHABLE_KEY ?? ops.SUPABASE_SERVICE_ROLE_KEY), "Content-Type": "application/json" },
   body: JSON.stringify({ email: ops.SV_LOGIN_CONTROL_PANEL, password: ops.SV_PW_CONTROL_PANEL }),
 }).then((r) => r.json());
 
@@ -90,7 +90,7 @@ console.log(found ? `FOUND    the client created on the dashboard is in the mana
 if (found) {
   await fetch(`${ops.SUPABASE_URL}/rest/v1/crm_customers?id=eq.${found.id}`, {
     method: "DELETE",
-    headers: { apikey: ops.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${ops.SUPABASE_SERVICE_ROLE_KEY}` },
+    headers: { apikey: (ops.SUPABASE_PUBLISHABLE_KEY ?? ops.SUPABASE_SERVICE_ROLE_KEY), Authorization: `Bearer ${(ops.SUPABASE_PUBLISHABLE_KEY ?? ops.SUPABASE_SERVICE_ROLE_KEY)}` },
   });
   console.log("test client removed again");
 }
