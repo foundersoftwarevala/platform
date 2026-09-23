@@ -1,0 +1,5 @@
+# Software Vala homepage guard — checks the real homepage render every minute
+# and restarts the app if visitors would see anything other than the marketplace.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.bun/bin
+* * * * * root /usr/local/bin/sv-homepage-guard.sh >/dev/null 2>&1
