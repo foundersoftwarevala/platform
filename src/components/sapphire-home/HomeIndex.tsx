@@ -3460,10 +3460,15 @@ const allDemos: Demo[] = [
 const masterCategories = ["All", ...allMasterCategories55];
 const PRODUCTS_PER_ROW = 80;
 
-/** Repeat only real products from the category to create a full browsing rail. */
+/**
+ * Repeat only real products from the category to create a full browsing rail.
+ * A category that already carries more products than the rail length keeps all
+ * of them: the target is a floor for short rows, never a cap on real ones.
+ */
 const fillProductRail = (products: Demo[], target = PRODUCTS_PER_ROW) => {
   if (products.length === 0) return [];
-  return Array.from({ length: target }, (_, index) => products[index % products.length] as Demo);
+  const length = Math.max(target, products.length);
+  return Array.from({ length }, (_, index) => products[index % products.length] as Demo);
 };
 
 const Index = () => {
