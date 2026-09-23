@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { chromium } from "@playwright/test";
-function readEnv(f){const o={};for(const l of readFileSync(f,"utf8").split("\n")){const m=l.match(/^([A-Z0-9_]+)=(.*)$/);if(m)o[m[1]]=m[2].trim();}return o;}
+function readEnv(f){const o={};for(const l of readFileSync(f,"utf8").split("\n")){const m=l.match(/^([A-Z0-9_]+)=(.*)$/);if(m)o[m[1]]=m[2].trim().replace(/^'|'$/g,"");}return o;}
 const ops = readEnv(".env.ops");
 const role = process.argv[2];
 const path = process.argv[3];

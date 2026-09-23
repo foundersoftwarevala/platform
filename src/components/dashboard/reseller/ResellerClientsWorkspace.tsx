@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { LocalOnlyNotice } from "./LocalOnlyNotice";
 import { useCrud, type CrudRecord } from "@/lib/crud-store";
+import { useResellerCustomers } from "@/lib/useResellerCustomers";
 
 type Tab = "profile" | "purchases" | "licenses" | "notes" | "documents" | "followup" | "timeline";
 
@@ -21,7 +22,9 @@ const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: s
 ];
 
 export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
-  const crud = useCrud("reseller", "clients");
+  // The clients themselves are rows in crm_customers, which is the table the
+  // Reseller Manager's Customers wall reads.
+  const crud = useResellerCustomers();
   const licenses = useCrud("reseller", "licenses");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -44,7 +47,6 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="space-y-5">
-      <LocalOnlyNotice />
       <Header onBack={onBack} active={active} onClearActive={() => setSelectedId(null)} />
 
       <div className="grid lg:grid-cols-[320px_1fr] gap-4">
@@ -103,11 +105,17 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
             <ClientForm
               onCancel={() => setAdding(false)}
               onSubmit={(values) => {
-                const rec = crud.create({ name: values.name, owner: "you", extra: values.extra });
-                toast.success("Client created");
-                setAdding(false);
-                setSelectedId(rec.id);
-                setTab("profile");
+                void crud
+                  .create({ name: values.name, extra: values.extra })
+                  .then((rec) => {
+                    toast.success("Client created");
+                    setAdding(false);
+                    setSelectedId((rec as { id?: string } | undefined)?.id ?? null);
+                    setTab("profile");
+                  })
+                  .catch((error: unknown) =>
+                    toast.error(error instanceof Error ? error.message : "That client was not saved."),
+                  );
               }}
             />
           ) : !active ? (
@@ -118,10 +126,15 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
               tab={tab}
               setTab={setTab}
               licenses={clientLicenses}
-              onPatch={(p) => crud.update(active.id, p)}
-              onDelete={() => { crud.remove(active.id); setSelectedId(null); toast.success("Client removed"); }}
-              onAddComment={(text) => crud.addComment(active.id, text)}
-              onAddAttachment={(name, size) => crud.addAttachment(active.id, name, size)}
+              onPatch={(p) => void crud.update(active.id, p)}
+              onDelete={() => {
+                void crud
+                  .remove(active.id)
+                  .then(() => { setSelectedId(null); toast.success("Client removed"); })
+                  .catch((error: unknown) =>
+                    toast.error(error instanceof Error ? error.message : "That client was not removed."),
+                  );
+              }}
             />
           )}
         </section>
@@ -170,15 +183,13 @@ function EmptyDetail({ onAdd }: { onAdd: () => void }) {
 }
 
 function ClientDetail({
-  record, tab, setTab, licenses, onPatch, onDelete, onAddComment, onAddAttachment,
+  record, tab, setTab, licenses, onPatch, onDelete,
 }: {
   record: CrudRecord;
   tab: Tab; setTab: (t: Tab) => void;
   licenses: CrudRecord[];
   onPatch: (p: Partial<CrudRecord>) => void;
   onDelete: () => void;
-  onAddComment: (text: string) => void;
-  onAddAttachment: (name: string, size: number) => void;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
@@ -221,12 +232,12 @@ function ClientDetail({
 
       <div className="p-5">
         {tab === "profile"   && <ProfileTab record={record} onPatch={onPatch} />}
-        {tab === "purchases" && <PurchasesTab record={record} onPatch={onPatch} />}
+        {tab === "purchases" && <><LocalOnlyNotice /><PurchasesTab record={record} onPatch={onPatch} /></>}
         {tab === "licenses"  && <LicensesTab licenses={licenses} />}
-        {tab === "notes"     && <NotesTab record={record} onPatch={onPatch} />}
-        {tab === "documents" && <DocsTab record={record} onAttach={onAddAttachment} />}
-        {tab === "followup"  && <FollowupTab record={record} onPatch={onPatch} />}
-        {tab === "timeline"  && <TimelineTab record={record} onComment={onAddComment} />}
+        {tab === "notes"     && <><LocalOnlyNotice /><NotesTab record={record} onPatch={onPatch} /></>}
+        {tab === "documents" && <><LocalOnlyNotice /><DocsTab record={record} onAttach={() => {}} /></>}
+        {tab === "followup"  && <><LocalOnlyNotice /><FollowupTab record={record} onPatch={onPatch} /></>}
+        {tab === "timeline"  && <><LocalOnlyNotice /><TimelineTab record={record} onComment={() => {}} /></>}
       </div>
     </div>
   );
