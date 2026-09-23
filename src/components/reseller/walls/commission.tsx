@@ -1,60 +1,75 @@
-import { Percent, FileText, Coins, Calendar, CheckCircle2, XCircle, Trash2, Pause, Play } from "lucide-react";
+import { Percent, FileText, Coins, Layers, CheckCircle2, Pause, Play, Trash2 } from "lucide-react";
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
+const CURRENCIES = ["INR", "USD"] as const;
+const STATE = ["true", "false"] as const;
 
-const STATUSES = ["active", "paused", "draft"] as const;
-const TIERS = ["bronze", "silver", "gold", "platinum"] as const;
-const SCOPES = ["global", "product", "tier", "geo"] as const;
-
+/**
+ * Commission rules, read and written on reseller_commission_rules.
+ *
+ * The wall used to show four invented rules that lived in one operator's
+ * browser and were gone on reload, while the real table sat unread. The
+ * columns here are the table's own: a plan code, a percentage or a fixed
+ * amount, the volume it starts at, and the order rules are applied in.
+ */
 export const config: WallConfig = {
+  resource: "reseller_commission_rules",
   scope: "commission", entity: "rule", route: "/commission",
   eyebrow: "Finance", title: "Commission Wall",
-  subtitle: "Define rules, track earnings and run payout cycles by tier, product and geography.",
+  subtitle: "The rules that decide what a reseller earns — by plan, rate, volume and priority.",
   icon: Percent, primaryLabel: "New Rule",
-  seed: [
-    { id: "C-1", name: "Gold tier — Pro plan", scope: "tier", tier: "gold", rate: 18, cycle: "monthly", status: "active", created_at: "2026-06-01" },
-    { id: "C-2", name: "Enterprise product override", scope: "product", tier: "platinum", rate: 25, cycle: "quarterly", status: "active", created_at: "2026-05-10" },
-    { id: "C-3", name: "Bronze intro", scope: "global", tier: "bronze", rate: 8, cycle: "monthly", status: "paused", created_at: "2026-03-15" },
-    { id: "C-4", name: "APAC geo bonus", scope: "geo", tier: "silver", rate: 12, cycle: "monthly", status: "draft", created_at: "2026-07-01" },
-  ],
+  seed: [],
   columns: [
-    { key: "name", header: "Rule", render: (r) => <div className="font-semibold text-[13px]">{r.name}</div> },
-    { key: "scope", header: "Scope", render: (r) => <StatusPill value={r.scope} /> },
-    { key: "tier", header: "Tier", render: (r) => <StatusPill value={r.tier} /> },
-    { key: "rate", header: "Rate", align: "right", render: (r) => <span className="font-semibold">{r.rate}%</span> },
-    { key: "cycle", header: "Cycle", render: (r) => <StatusPill value={r.cycle} /> },
-    { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
+    { key: "plan_code", header: "Plan", render: (r) => <div className="font-semibold text-[13px]">{r.plan_code ?? "—"}</div> },
+    {
+      key: "rate_percent", header: "Rate", align: "right",
+      render: (r) => <span className="font-semibold">{r.rate_percent == null ? "—" : `${r.rate_percent}%`}</span>,
+    },
+    {
+      key: "fixed_amount", header: "Fixed", align: "right",
+      render: (r) => <span>{r.fixed_amount ? `${r.currency ?? ""} ${Number(r.fixed_amount).toLocaleString()}` : "—"}</span>,
+    },
+    { key: "min_volume", header: "From volume", align: "right", render: (r) => <span>{r.min_volume ?? "—"}</span> },
+    { key: "priority", header: "Priority", align: "right", render: (r) => <span>{r.priority ?? "—"}</span> },
+    {
+      key: "active", header: "State",
+      render: (r) => <StatusPill value={r.active ? "active" : "paused"} />,
+    },
   ],
   filters: [
-    { key: "status", label: "Status", options: STATUSES },
-    { key: "tier", label: "Tier", options: TIERS },
-    { key: "scope", label: "Scope", options: SCOPES },
+    { key: "active", label: "State", options: STATE },
+    { key: "currency", label: "Currency", options: CURRENCIES },
   ],
   kpis: [
-    { label: "Active Rules", icon: FileText, compute: (r) => r.filter((x) => x.status === "active").length },
-    { label: "Total Rules", icon: Percent, compute: (r) => r.length },
-    { label: "Avg Rate", icon: Coins, compute: (r) => r.length ? `${(r.reduce((s, x) => s + x.rate, 0) / r.length).toFixed(1)}%` : "0%" },
-    { label: "Draft", icon: Calendar, compute: (r) => r.filter((x) => x.status === "draft").length },
+    { label: "Active Rules", icon: Play, compute: (r) => r.filter((x) => x.active).length },
+    { label: "Total Rules", icon: FileText, compute: (r) => (r.length ? r.length : "—") },
+    {
+      label: "Average Rate", icon: Coins,
+      compute: (r) => {
+        const rated = r.filter((x) => x.rate_percent != null);
+        if (!rated.length) return "—";
+        return `${(rated.reduce((s, x) => s + Number(x.rate_percent), 0) / rated.length).toFixed(1)}%`;
+      },
+    },
+    { label: "Plans Covered", hint: "Distinct plan codes", icon: Layers, compute: (r) => (r.length ? new Set(r.map((x) => x.plan_code)).size : "—") },
   ],
   bulkActions: [
-    { key: "activate", label: "Activate", icon: Play, patch: { status: "active" } },
-    { key: "pause", label: "Pause", icon: Pause, patch: { status: "paused" } },
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
+    { key: "activate", label: "Activate", icon: Play, patch: { active: true } },
+    { key: "pause", label: "Pause", icon: Pause, patch: { active: false } },
+    { key: "delete", label: "Retire", icon: Trash2, variant: "destructive", confirmTitle: "Retire these rules?", confirmDescription: "A retired rule stops applying to new orders. Commission already earned is untouched." },
   ],
   rowActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "pause", label: "Pause", icon: Pause, patch: { status: "paused" } },
-    { key: "archive", label: "Archive", icon: XCircle, patch: { status: "draft" }, destructive: true },
+    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { active: true } },
+    { key: "pause", label: "Pause", icon: Pause, patch: { active: false } },
   ],
   formFields: [
-    { key: "name", label: "Rule Name", type: "text", required: true },
-    { key: "scope", label: "Scope", type: "select", options: SCOPES, required: true, defaultValue: "tier" },
-    { key: "tier", label: "Tier", type: "select", options: TIERS, defaultValue: "gold" },
-    { key: "rate", label: "Rate (%)", type: "number", required: true, defaultValue: 10 },
-    { key: "cycle", label: "Payout Cycle", type: "select", options: ["monthly", "quarterly", "yearly"], defaultValue: "monthly" },
-    { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },
+    { key: "plan_code", label: "Plan code", type: "text", required: true, placeholder: "e.g. pro" },
+    { key: "rate_percent", label: "Rate (%)", type: "number", placeholder: "18" },
+    { key: "currency", label: "Currency", type: "select", options: CURRENCIES, defaultValue: "INR" },
+    { key: "priority", label: "Priority", type: "number", defaultValue: 100 },
+    { key: "active", label: "Active", type: "select", options: STATE, defaultValue: "true" },
   ],
-  searchFields: ["name", "scope", "tier"],
-  primaryField: "name", subField: "scope",
+  searchFields: ["plan_code", "currency"],
+  primaryField: "plan_code", subField: "currency",
 };

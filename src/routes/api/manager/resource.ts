@@ -718,12 +718,30 @@ const RESOURCES: Record<string, Resource> = {
   },
   leads: {
     table: "leads",
-    select: ["id", "name", "email", "phone", "status", "source", "source_page",
-      "cta_action", "requirements", "created_at"],
+    select: ["id", "name", "email", "phone", "company", "status", "source", "source_page",
+      "cta_action", "requirements", "deal_value", "assigned_agent_id", "created_at"],
     editable: ["status"],
     searchable: ["name", "email", "status", "source"],
     order: "created_at.desc",
     label: "Leads",
+  },
+
+  // The customers a reseller keeps. The Customers wall rendered whatever an
+  // operator typed into their own browser while this table sat unread, so a
+  // client added on a reseller's dashboard was invisible to the manager.
+  customers: {
+    table: "crm_customers",
+    select: ["id", "company_name", "contact_name", "email", "phone", "industry",
+      "country", "plan", "status", "health_score", "lifetime_value", "open_tickets",
+      "owner_id", "last_contact_at", "created_at"],
+    editable: ["company_name", "contact_name", "email", "phone", "industry",
+      "country", "plan", "status", "health_score"],
+    searchable: ["company_name", "contact_name", "email", "status"],
+    creatable: ["company_name", "contact_name", "email", "phone", "industry",
+      "country", "plan", "status", "health_score"],
+    required: ["contact_name"],
+    order: "created_at.desc",
+    label: "Customers",
   },
   mail: {
     table: "email_outbox",

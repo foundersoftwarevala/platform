@@ -1,0 +1,20 @@
+import { readFileSync } from "node:fs";
+import { chromium } from "@playwright/test";
+function readEnv(f){const o={};for(const l of readFileSync(f,"utf8").split("\n")){const m=l.match(/^([A-Z0-9_]+)=(.*)$/);if(m)o[m[1]]=m[2].trim();}return o;}
+const ops = readEnv(".env.ops");
+const role = process.argv[2];
+const path = process.argv[3];
+const out = process.argv[4];
+const site = "https://softwarevala.net";
+const b = await chromium.launch();
+const p = await (await b.newContext({ viewport:{width:1440,height:1000} })).newPage();
+await p.goto(site+"/login",{waitUntil:"networkidle",timeout:90000});
+await p.locator('input[type="email"]').fill(ops["SV_LOGIN_"+role]);
+await p.locator('input[type="password"]').fill(ops["SV_PW_"+role] ?? ops.SV_PW_TEST);
+await p.locator('button[type="submit"]').click();
+await p.waitForTimeout(8000);
+await p.goto(site+path,{waitUntil:"domcontentloaded",timeout:90000});
+await p.waitForTimeout(6000);
+await p.screenshot({ path: out, fullPage: false });
+console.log("saved", out, "at", p.url());
+await b.close();

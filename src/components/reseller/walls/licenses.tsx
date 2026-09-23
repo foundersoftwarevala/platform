@@ -1,64 +1,67 @@
-import { KeyRound, CheckCircle2, XCircle, Pause, Play, RotateCcw, Trash2, Clock, ShieldCheck } from "lucide-react";
+import { KeyRound, CheckCircle2, XCircle, Clock, ShieldCheck, Activity } from "lucide-react";
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
+const STATUSES = ["active", "revoked", "expired", "suspended"] as const;
 
-const STATUSES = ["active", "expired", "paused", "pending"] as const;
-const PLANS = ["basic", "pro", "enterprise"] as const;
-
+/**
+ * Licences, read and written on the licenses table.
+ *
+ * The wall used to show four invented keys - SV-PRO-8F3K-9421 and friends -
+ * that existed in one browser tab. A licence is issued by the purchase that
+ * pays for it, so none is created here; what this screen carries is the
+ * decision to revoke or reinstate one, and the reason for it.
+ */
 export const config: WallConfig = {
-  scope: "licenses", entity: "license", route: "/licenses",
-  eyebrow: "Catalog", title: "Licenses Wall",
-  subtitle: "Every provisioned license key across the network — status, expiry and reseller ownership.",
-  icon: KeyRound, primaryLabel: "New License",
-  seed: [
-    { id: "L-1", key: "SV-PRO-8F3K-9421", product: "Software Vala Pro", plan: "pro", status: "active", reseller: "Acme Digital", customer: "Ravi Kumar", expires_at: "2026-12-31", created_at: "2026-06-10" },
-    { id: "L-2", key: "SV-ENT-7A2X-1102", product: "Software Vala Enterprise", plan: "enterprise", status: "active", reseller: "PixelForge", customer: "Neo Textiles", expires_at: "2027-03-15", created_at: "2026-05-02" },
-    { id: "L-3", key: "SV-BSC-3M9Q-4471", product: "Software Vala Basic", plan: "basic", status: "expired", reseller: "Acme Digital", customer: "Priya S.", expires_at: "2026-05-01", created_at: "2025-05-01" },
-    { id: "L-4", key: "SV-PRO-2K7Y-8865", product: "Software Vala Pro", plan: "pro", status: "paused", reseller: "Nova Retail", customer: "Anish Traders", expires_at: "2026-11-20", created_at: "2026-04-18" },
-  ],
+  resource: "licences",
+  creatable: false,
+  scope: "licenses", entity: "licence", route: "/licenses",
+  eyebrow: "Catalog", title: "Licences Wall",
+  subtitle: "Every licence the platform has issued — who holds it, and whether it still works.",
+  icon: KeyRound, primaryLabel: "New Licence",
+  seed: [],
   columns: [
-    { key: "key", header: "License Key", render: (r) => <span className="font-mono text-[12px] font-semibold">{r.key}</span> },
-    { key: "product", header: "Product" },
-    { key: "plan", header: "Plan", render: (r) => <StatusPill value={r.plan} /> },
-    { key: "customer", header: "Customer" },
-    { key: "reseller", header: "Reseller" },
+    { key: "license_key", header: "Licence key", render: (r) => <span className="font-mono text-[12px] font-semibold">{r.license_key ?? "—"}</span> },
+    {
+      key: "product_id", header: "Product",
+      render: (r) => <span className="font-mono text-[11px]">{String(r.product_id ?? "—").slice(0, 8)}</span>,
+    },
+    {
+      key: "user_id", header: "Holder",
+      render: (r) => <span className="font-mono text-[11px]">{String(r.user_id ?? "—").slice(0, 8)}</span>,
+    },
+    { key: "activation_count", header: "Activations", align: "right", render: (r) => <span>{r.activation_count ?? 0}</span> },
+    { key: "issued_at", header: "Issued" },
     { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
-    { key: "expires_at", header: "Expires", render: (r) => new Date(r.expires_at).toLocaleDateString() },
   ],
-  filters: [
-    { key: "status", label: "Status", options: STATUSES },
-    { key: "plan", label: "Plan", options: PLANS },
-  ],
+  filters: [{ key: "status", label: "Status", options: STATUSES }],
   kpis: [
-    { label: "Total Licenses", icon: KeyRound, compute: (r) => r.length },
-    { label: "Active", icon: CheckCircle2, compute: (r) => r.filter((x) => x.status === "active").length },
-    { label: "Expired", icon: Clock, compute: (r) => r.filter((x) => x.status === "expired").length },
-    { label: "Paused", icon: Pause, compute: (r) => r.filter((x) => x.status === "paused").length },
+    { label: "Licences", icon: KeyRound, compute: (r) => (r.length ? r.length : "—") },
+    { label: "Active", icon: CheckCircle2, compute: (r) => (r.length ? r.filter((x) => x.status === "active").length : "—") },
+    { label: "Revoked", icon: XCircle, compute: (r) => (r.length ? r.filter((x) => x.status === "revoked").length : "—") },
+    {
+      label: "Activations", hint: "Across every licence", icon: Activity,
+      compute: (r) => (r.length ? r.reduce((s, x) => s + Number(x.activation_count ?? 0), 0) : "—"),
+    },
   ],
   bulkActions: [
-    { key: "activate", label: "Activate", icon: Play, patch: { status: "active" } },
-    { key: "pause", label: "Pause", icon: Pause, patch: { status: "paused" } },
-    { key: "renew", label: "Renew", icon: RotateCcw, patch: { status: "active" } },
-    { key: "revoke", label: "Revoke", icon: XCircle, patch: { status: "expired" }, variant: "destructive", confirmTitle: "Revoke licenses?", confirmDescription: "Selected licenses will be revoked immediately." },
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
+    { key: "activate", label: "Reinstate", icon: CheckCircle2, patch: { status: "active" } },
+    {
+      key: "revoke", label: "Revoke", icon: XCircle, patch: { status: "revoked" }, variant: "destructive",
+      confirmTitle: "Revoke these licences?",
+      confirmDescription: "The software stops working for whoever holds them, straight away.",
+    },
   ],
   rowActions: [
-    { key: "activate", label: "Activate", icon: Play, patch: { status: "active" } },
-    { key: "pause", label: "Pause", icon: Pause, patch: { status: "paused" } },
-    { key: "renew", label: "Renew", icon: RotateCcw, patch: { status: "active" } },
-    { key: "revoke", label: "Revoke", icon: ShieldCheck, patch: { status: "expired" }, destructive: true },
+    { key: "activate", label: "Reinstate", icon: CheckCircle2, patch: { status: "active" } },
+    { key: "suspend", label: "Suspend", icon: Clock, patch: { status: "suspended" } },
+    { key: "revoke", label: "Revoke", icon: ShieldCheck, patch: { status: "revoked" }, destructive: true },
   ],
   formFields: [
-    { key: "key", label: "License Key", type: "text", required: true, placeholder: "SV-PRO-XXXX-XXXX" },
-    { key: "product", label: "Product", type: "text", required: true },
-    { key: "plan", label: "Plan", type: "select", options: PLANS, required: true, defaultValue: "pro" },
-    { key: "customer", label: "Customer", type: "text", required: true },
-    { key: "reseller", label: "Reseller", type: "text" },
-    { key: "expires_at", label: "Expires On", type: "text", placeholder: "YYYY-MM-DD" },
-    { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },
+    { key: "status", label: "Status", type: "select", options: STATUSES },
+    { key: "revoked_reason", label: "Reason", type: "textarea", placeholder: "Why this licence was revoked" },
   ],
-  searchFields: ["key", "product", "customer", "reseller"],
-  primaryField: "key", subField: "product",
+  searchFields: ["license_key", "status"],
+  primaryField: "license_key", subField: "status",
   statusField: "status",
 };

@@ -16,12 +16,7 @@ export const config: WallConfig = {
   eyebrow: "Broadcast", title: "Notifications Wall",
   subtitle: "Announcements, alerts and system messages across every audience.",
   icon: Bell, primaryLabel: "New Broadcast",
-  seed: [
-    { id: "N-1", title: "Q3 commission cycle closes July 31", type: "info", audience: "resellers", status: "active", scheduled_at: "2026-07-10", created_at: "2026-07-10" },
-    { id: "N-2", title: "Scheduled maintenance — July 14, 02:00 IST", type: "warning", audience: "all", status: "scheduled", scheduled_at: "2026-07-13", created_at: "2026-07-09" },
-    { id: "N-3", title: "New enterprise plan launched", type: "success", audience: "resellers", status: "active", scheduled_at: "2026-07-01", created_at: "2026-07-01" },
-    { id: "N-4", title: "KYC deadline extended", type: "critical", audience: "resellers", status: "expired", scheduled_at: "2026-06-20", created_at: "2026-06-15" },
-  ],
+  seed: [],
   columns: [
     { key: "title", header: "Title", render: (r) => <div className="font-semibold text-[13px]">{r.title}</div> },
     { key: "type", header: "Type", render: (r) => <StatusPill value={r.type} /> },

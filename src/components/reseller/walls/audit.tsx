@@ -1,4 +1,4 @@
-import { ScrollText, Shield, AlertTriangle, User, Trash2, Eye } from "lucide-react";
+import { ScrollText, Shield, AlertTriangle, User, Eye } from "lucide-react";
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
@@ -14,12 +14,8 @@ export const config: WallConfig = {
   eyebrow: "Governance", title: "Audit Wall",
   subtitle: "Immutable record of every privileged action — actor, target and outcome.",
   icon: ScrollText, primaryLabel: "Manual Entry",
-  seed: [
-    { id: "E-1", actor: "boss@softwarevala.com", action: "reseller.approve", entity: "reseller", target: "Acme Digital", severity: "info", ip: "103.21.44.12", created_at: "2026-07-10T09:12:00" },
-    { id: "E-2", actor: "ops@softwarevala.com", action: "kyc.reject", entity: "kyc", target: "Nova Retail", severity: "warning", ip: "103.21.44.14", created_at: "2026-07-10T08:45:00" },
-    { id: "E-3", actor: "system", action: "commission.compute", entity: "commission", target: "Q2-cycle", severity: "info", ip: "-", created_at: "2026-07-09T23:00:00" },
-    { id: "E-4", actor: "unknown", action: "auth.failed_login", entity: "reseller", target: "acme@x.com", severity: "critical", ip: "45.9.14.220", created_at: "2026-07-09T19:22:00" },
-  ],
+  creatable: false,
+  seed: [],
   columns: [
     { key: "created_at", header: "When", render: (r) => new Date(r.created_at).toLocaleString() },
     { key: "actor", header: "Actor" },
@@ -39,20 +35,13 @@ export const config: WallConfig = {
     { label: "Security", icon: Shield, compute: (r) => r.filter((x) => x.action.startsWith("auth.")).length },
     { label: "Anomalies", icon: AlertTriangle, compute: (r) => r.filter((x) => x.severity === "critical").length },
   ],
-  bulkActions: [
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive", confirmTitle: "Delete audit events?", confirmDescription: "Deleting audit events is itself a logged action. Proceed only for cleanup / testing." },
-  ],
+  bulkActions: [],
   rowActions: [
     { key: "flag", label: "Flag as Critical", icon: AlertTriangle, patch: { severity: "critical" } },
     { key: "review", label: "Mark Reviewed", icon: Eye, patch: { severity: "info" } },
   ],
   formFields: [
-    { key: "actor", label: "Actor", type: "text", required: true, placeholder: "email@domain / system" },
-    { key: "action", label: "Action", type: "text", required: true, placeholder: "entity.action" },
-    { key: "entity", label: "Entity", type: "select", options: ENTITIES, defaultValue: "reseller" },
-    { key: "target", label: "Target", type: "text" },
-    { key: "ip", label: "IP", type: "text" },
-    { key: "severity", label: "Severity", type: "select", options: SEVERITIES, defaultValue: "info" },
+    { key: "severity", label: "Severity", type: "select", options: SEVERITIES },
   ],
   searchFields: ["actor", "action", "target", "ip", "entity"],
   primaryField: "action", subField: "target",

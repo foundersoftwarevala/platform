@@ -79,6 +79,12 @@ export type WallConfig = {
    * browser-local behaviour and nothing changes for it.
    */
   resource?: string;
+  /**
+   * False where the table behind this wall accepts no new rows from a screen -
+   * money and audit trails are written by the flow that earns them. The create
+   * button is then not offered at all, rather than offered and refused.
+   */
+  creatable?: boolean;
   seed: any[];
   columns: WallColumn[];
   filters: WallFilterDef[];
@@ -439,11 +445,13 @@ export function ManagerWall({ config }: { config: WallConfig }) {
             >
               Export
             </PillButton>
-            <PillButton variant="primary" onClick={openCreate}>
-              <span className="inline-flex items-center gap-1.5">
-                <Plus className="h-3.5 w-3.5" /> {config.primaryLabel}
-              </span>
-            </PillButton>
+            {config.creatable !== false && (
+              <PillButton variant="primary" onClick={openCreate}>
+                <span className="inline-flex items-center gap-1.5">
+                  <Plus className="h-3.5 w-3.5" /> {config.primaryLabel}
+                </span>
+              </PillButton>
+            )}
           </>
         }
       />
