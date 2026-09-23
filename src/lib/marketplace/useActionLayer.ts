@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   DEFAULT_ACTIONS, resolveProductActions,
@@ -71,11 +71,29 @@ export function useProductActions(
 
   const effective = config ?? { actions: DEFAULT_ACTIONS, paymentConfigured: false, configured: false };
 
+  // Resolved once per product rather than on every render. A grid of product
+  // cards calls this hook once per card, and the resolver walks the whole
+  // action list each time, so re-running it on every render made an ordinary
+  // re-render cost proportional to cards x actions.
+  const signedIn = Boolean(opts.signedIn);
+  const actions = useMemo(
+    () =>
+      resolveProductActions(effective.actions, product, {
+        paymentConfigured: effective.paymentConfigured,
+        signedIn,
+      }),
+    // The product is rebuilt by the caller on every render, so its identity
+    // cannot be a dependency; what it holds can.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      effective.actions, effective.paymentConfigured, signedIn,
+      product.id, product.slug, product.demo_url, product.visible,
+      product.price_label, product.content_status,
+    ],
+  );
+
   return {
-    actions: resolveProductActions(effective.actions, product, {
-      paymentConfigured: effective.paymentConfigured,
-      signedIn: Boolean(opts.signedIn),
-    }),
+    actions,
     ready: config !== null,
     paymentConfigured: effective.paymentConfigured,
   };

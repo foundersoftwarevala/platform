@@ -403,15 +403,20 @@
 /* ================================================================== */
 .mpc-home .sv-card-shell {
   content-visibility: auto;
-  contain-intrinsic-size: 520px;
+  /* `auto` keeps the size the card last really had, so a card that has been
+     on screen once no longer snaps back to a guessed height when it scrolls
+     away and returns. The bare 520px guess was the page's own estimate and it
+     was wrong for most cards. */
+  contain-intrinsic-size: auto 520px;
   height: 100%;
 }
 .mpc-home .sv-card {
   position: relative;
   height: 100%;
   border-radius: 18px;
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
+  /* `will-change` and a permanent 3D transform are set while the card is being
+     animated (below), not for its whole life. Holding them here gave every one
+     of the thousands of cards on this page its own compositor layer. */
   transition:
     transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -421,6 +426,10 @@
     0 1px 1px rgba(0, 0, 0, 0.3),
     0 18px 36px -22px rgba(2, 10, 22, 0.95);
 }
+/* The hint is given when the card is actually about to move, and withdrawn
+   when it is not, which is what will-change is for. */
+.mpc-home .sv-card:hover,
+.mpc-home .sv-card:focus-within { will-change: transform; }
 .mpc-home .sv-card:hover {
   transform: translate3d(0, -6px, 0);
   border-color: rgba(34, 211, 238, 0.55);
@@ -499,10 +508,16 @@
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  will-change: scroll-position;
+  /* No `will-change: scroll-position`: it is a standing hint on every rail on
+     the page, and a hint that is never withdrawn is the one case the property
+     is documented not to be used for. The rails scroll natively. */
 }
 .sv-rail::-webkit-scrollbar { display: none; }
-.sv-rail > * { flex: none; transform: translateZ(0); }
+/* `transform: translateZ(0)` on every child promoted each one to its own
+   compositor layer for the whole life of the page. With sixty cards to a row
+   and ninety rows that is thousands of layers, and a phone runs out of GPU
+   memory long before that and starts dropping them mid-scroll. */
+.sv-rail > * { flex: none; }
 
 /* ================================================================== */
 /* Scroll smoothness                                                  */
@@ -640,8 +655,15 @@
    fills in. */
 .mpc-home img { content-visibility: auto; }
 
-/* Long rows are only painted when they are near the viewport. */
-.mpc-home .sv-row-scroll { content-visibility: auto; contain-intrinsic-size: 320px; }
+/* Long rows are only painted when they are near the viewport.
+
+   The placeholder height has to match what the row really is, or the page
+   jumps as each row is painted. A rail of cards is about 560px tall, and 320px
+   was being reserved for it: every one of the ninety rows grew by a quarter of
+   a screen the moment it came into view, which is the judder that was being
+   felt while scrolling. `auto` remembers the height the row really had once it
+   has been measured; the 560px is only the first guess. */
+.mpc-home .sv-row-scroll { content-visibility: auto; contain-intrinsic-size: auto 560px; }
 
 /* --- focus ----------------------------------------------------------- */
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { useHomeRouteData } from "@/lib/marketplace/home-route-data";
@@ -44,17 +44,71 @@ const HeroCarousel = () => {
     setCurrent((p) => (total ? (p - 1 + total) % total : 0));
   }, [total]);
 
+  /**
+   * Whether the carousel is on screen and the tab is in front.
+   *
+   * It advanced every 5.5 seconds from the moment the page opened until it was
+   * closed, so a visitor reading the catalogue below was still re-rendering the
+   * hero, and a backgrounded tab kept changing slides nobody could see.
+   */
+  const sectionRef = useRef<HTMLElement>(null);
+  const [active, setActive] = useState(true);
   useEffect(() => {
-    if (paused || total <= 1) return;
+    const node = sectionRef.current;
+    if (!node) return;
+    let onScreen = true;
+    const sync = () => setActive(onScreen && !document.hidden);
+    const observer = new IntersectionObserver((entries) => {
+      onScreen = entries[0]?.isIntersecting ?? true;
+      sync();
+    });
+    observer.observe(node);
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (paused || !active || total <= 1) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     // `current` is a dependency on purpose: clicking an arrow or a dot restarts
     // the countdown, so the slide a visitor just chose is not snatched away.
     const t = setInterval(next, 5500);
     return () => clearInterval(t);
-  }, [next, paused, total, current]);
+  }, [next, paused, active, total, current]);
 
   useEffect(() => {
     if (current >= total) setCurrent(0);
   }, [current, total]);
+
+  /**
+   * Swipe, for the screens that have no arrows worth aiming at.
+   *
+   * The hero offered arrows, dots and autoplay and nothing else: on a phone
+   * there was no way to move it with a finger, which is the one gesture every
+   * visitor tries first. A horizontal drag past the threshold moves a slide; a
+   * vertical drag is left alone so the page still scrolls through the hero.
+   */
+  const swipe = useRef<{ x: number; y: number; locked: boolean } | null>(null);
+  const onSwipeStart = (e: React.PointerEvent) => {
+    swipe.current = { x: e.clientX, y: e.clientY, locked: false };
+  };
+  const onSwipeMove = (e: React.PointerEvent) => {
+    const s = swipe.current;
+    if (!s || s.locked) return;
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    // Not a swipe until it is clearly sideways, so the page keeps scrolling.
+    if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy)) return;
+    s.locked = true;
+    if (dx < 0) next();
+    else prev();
+  };
+  const onSwipeEnd = () => {
+    swipe.current = null;
+  };
 
   if (!total) return null;
   const product = slides[Math.min(current, total - 1)]!;
@@ -62,9 +116,15 @@ const HeroCarousel = () => {
 
   return (
     <section
-      className="relative w-full overflow-hidden"
+      ref={sectionRef}
+      className="relative w-full overflow-hidden touch-pan-y"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      onPointerDown={onSwipeStart}
+      onPointerMove={onSwipeMove}
+      onPointerUp={onSwipeEnd}
+      onPointerCancel={onSwipeEnd}
+      aria-roledescription="carousel"
     >
 
 

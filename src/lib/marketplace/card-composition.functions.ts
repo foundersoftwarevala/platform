@@ -11,12 +11,22 @@ import { createServerFn } from "@tanstack/react-start";
  * everything", so a configuration lookup can never strip a card down.
  */
 
+/**
+ * A group the registry does not have at all is `undefined`, and the card then
+ * draws every key of that kind. A group the registry has with nothing switched
+ * on is an empty array, which is an operator's decision and hides them all.
+ *
+ * The two used to be the same thing: every absent group was read as `[]`, so a
+ * kind mm_card_fields() had never heard of silently switched the whole group
+ * off. That is what kept Deployment off every card on the marketplace - the
+ * card asked for a `platform` group the function does not return.
+ */
 export type CardComposition = {
-  visual: string[];
-  metadata: string[];
-  action: string[];
-  badge: string[];
-  platform: string[];
+  visual?: string[];
+  metadata?: string[];
+  action?: string[];
+  badge?: string[];
+  platform?: string[];
 };
 
 const CACHE_MS = 30_000;
@@ -45,8 +55,10 @@ export const getCardComposition = createServerFn({ method: "GET" }).handler(
       const raw = (await res.json()) as Record<string, unknown>;
       if (!raw || typeof raw !== "object") return null;
 
+      // Undefined, not [], for a group the function did not return: see the
+      // note on CardComposition. An empty array means "all switched off".
       const list = (k: string) =>
-        Array.isArray(raw[k]) ? (raw[k] as unknown[]).map(String) : [];
+        Array.isArray(raw[k]) ? (raw[k] as unknown[]).map(String) : undefined;
 
       const payload: CardComposition = {
         visual: list("visual"),

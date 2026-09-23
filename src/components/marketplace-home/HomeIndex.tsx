@@ -60,9 +60,15 @@ interface Demo {
  * lookup must never be able to strip a card down to nothing.
  * ------------------------------------------------------------------ */
 
+/**
+ * A group the registry does not have is absent, and every key of that kind is
+ * drawn. A group it has with nothing switched on is an empty array, which is a
+ * decision and hides them all. Mixing the two is what kept Deployment off every
+ * card: this file asked for a `platform` group mm_card_fields() never returns.
+ */
 export type CardComposition = {
-  visual: string[]; metadata: string[]; action: string[];
-  badge: string[]; platform: string[];
+  visual?: string[]; metadata?: string[]; action?: string[];
+  badge?: string[]; platform?: string[];
 };
 
 const CardCompositionContext = createContext<CardComposition | null>(null);
@@ -476,6 +482,18 @@ type CatalogSeed = {
   hasMoreRows: boolean;
 } | null;
 
+/**
+ * The merchandising badges, by the key the Product Card Manager stores them
+ * under (marketplace_card_fields, kind `badge`) and the product flag each one
+ * reads. Order here is the order they are drawn in.
+ */
+const MERCH_BADGES = [
+  { key: "badge-featured", flag: "featured", message: "marketplace.card.badge.featured", className: "bg-amber-400/90 text-black" },
+  { key: "badge-new", flag: "newRelease", message: "marketplace.card.badge.new", className: "bg-cyan-400/90 text-black" },
+  { key: "badge-trending", flag: "trending", message: "marketplace.card.badge.trending", className: "bg-fuchsia-500/90 text-white" },
+  { key: "badge-best-seller", flag: "bestSeller", message: "marketplace.card.badge.bestseller", className: "bg-rose-500/90 text-white" },
+] as const;
+
 /** Card colours cycle through the same palette the hand-written rows use. */
 const CARD_COLORS = [
   "from-blue-600 to-indigo-600", "from-emerald-600 to-teal-600",
@@ -512,6 +530,15 @@ export function toDemo(card: CatalogCard, index: number): Demo {
     license: card.license,
     platform: card.platform,
     hasDemo: card.hasDemo,
+    slug: card.slug,
+    // The product's own merchandising flags. They were read from the database
+    // and then dropped here, so the three badges an operator has switched on in
+    // the Product Card Manager - New, Trending, Featured - had no value to draw
+    // and the controls did nothing at all.
+    featured: card.featured,
+    trending: card.trending,
+    bestSeller: card.bestSeller,
+    newRelease: card.newRelease,
     // The Live Demo button opens the demo itself, through the signed-in
     // gateway, not the product page.
     demoUrl: card.hasDemo && card.slug ? `/demo/${card.slug}` : null,
@@ -580,16 +607,20 @@ function CatalogRowStrip({
 
   const remaining = row.total - cards.length;
 
+  // Built once per card list rather than on every render, so `memo` on the card
+  // has a stable object to compare.
+  const demos = useMemo(() => cards.map((card, index) => toDemo(card, index)), [cards]);
+
   return (
     <CategoryRow title={row.title} count={row.total}>
       <div ref={inView} aria-hidden="true" className="w-0 flex-none" />
-      {cards.map((card, index) => (
-        <div key={card.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
+      {demos.map((demo, index) => (
+        <div key={demo.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
           <DemoCard
-            demo={toDemo(card, index)}
+            demo={demo}
             index={index}
-            isFavorite={favorites.includes(card.id)}
-            onToggleFavorite={() => onToggleFavorite(card.id)}
+            isFavorite={favorites.includes(demo.id)}
+            onToggleFavorite={onToggleFavorite}
           />
         </div>
       ))}
@@ -663,7 +694,7 @@ function CuratedRow({
               demo={demo}
               index={index}
               isFavorite={favorites.includes(demo.id)}
-              onToggleFavorite={() => onToggleFavorite(demo.id)}
+              onToggleFavorite={onToggleFavorite}
             />
           </div>
         ))}
@@ -861,7 +892,7 @@ function SearchResults({
               demo={demo}
               index={index}
               isFavorite={favorites.includes(demo.id)}
-              onToggleFavorite={() => onToggleFavorite(demo.id)}
+              onToggleFavorite={onToggleFavorite}
             />
           </div>
         );
@@ -871,11 +902,19 @@ function SearchResults({
 }
 
 // Demo Card Component - Enhanced with interactions
+/**
+ * `onToggleFavorite` takes the product id rather than closing over it, so a row
+ * can hand every card the same stable function. Each card used to be given a
+ * fresh `() => toggle(id)` arrow and a freshly built `demo` object on every
+ * render, which meant `memo` never once matched: favouriting a single product
+ * re-rendered every card on the page - several thousand of them once the rows
+ * have filled - and each re-render re-ran the action resolver.
+ */
 export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
-  demo: Demo; 
-  index: number; 
+  demo: Demo;
+  index: number;
   isFavorite: boolean;
-  onToggleFavorite: () => void;
+  onToggleFavorite: (id: string) => void;
 }) => {
   // The Action Layer's answer for this product. One shared fetch backs every
   // card on the page, so a grid of hundreds costs a single request.
@@ -896,7 +935,44 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
 
   const Icon = demo.icon;
   const shows = useShows();
+  const { t } = useTranslation();
+
+  /** The product's own merchandising flags, for the badges above. */
+  const merch = demo as unknown as Record<string, boolean | undefined>;
+
+  // Which of the two panels actually has something in it. A tab with nothing
+  // behind it used to be drawn anyway: every catalogue card offered "Tech
+  // Stack", and opening it showed an empty box, because no product in the
+  // catalogue records a tech stack.
+  const featureList = demo.features ?? [];
+  const techList = [...(demo.frontend ?? []), ...(demo.backend ?? [])];
+  const hasFeatures = featureList.length > 0;
+  const hasTech = techList.length > 0;
+  const panels = [
+    hasFeatures && {
+      id: "features" as const,
+      message: "marketplace.card.tab.features" as const,
+      chips: featureList,
+      tone: "",
+      chipClass: "border-cyan-500/30 text-cyan-300 bg-cyan-500/10",
+    },
+    hasTech && {
+      id: "tech" as const,
+      message: "marketplace.card.tab.tech" as const,
+      chips: techList,
+      tone: "sv-tab-alt",
+      chipClass: "border-purple-500/30 text-purple-300 bg-purple-500/10",
+    },
+  ].filter(Boolean) as {
+    id: "features" | "tech"; message: "marketplace.card.tab.features" | "marketplace.card.tab.tech";
+    chips: string[]; tone: string; chipClass: string;
+  }[];
+
   const [activeTab, setActiveTab] = useState<'features' | 'tech'>('features');
+  // A panel can empty out when the card is reused for another product, so the
+  // open tab is corrected rather than left pointing at nothing.
+  const openTab: 'features' | 'tech' =
+    panels.some((p) => p.id === activeTab) ? activeTab : (panels[0]?.id ?? 'features');
 
   return (
     <div className="sv-card-shell relative">
@@ -908,7 +984,18 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
               <div className="sv-card-icon rounded-xl bg-white/20 p-3">
                 <Icon className="h-8 w-8 text-white" />
               </div>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-wrap justify-end gap-1.5 items-center">
+                {/* The merchandising badges the Product Card Manager switches
+                    on, drawn from the product's own flags. Nothing is invented:
+                    a badge appears only where the record carries the flag. */}
+                {shows("metadata", "badges") &&
+                  MERCH_BADGES.filter(
+                    (b) => shows("badge", b.key) && Boolean(merch[b.flag]),
+                  ).map((b) => (
+                    <Badge key={b.key} className={`${b.className} font-bold text-[10px] uppercase`}>
+                      {t(b.message)}
+                    </Badge>
+                  ))}
                 {demo.status === "COMING_SOON" && (
                   <Badge className="bg-yellow-500/90 text-black font-bold text-xs animate-pulse">
                     COMING SOON
@@ -928,18 +1015,22 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 which spans the card and otherwise took the clicks meant for
                 the favourite and preview buttons. */}
             <div className="sv-card-quick absolute bottom-2 right-2 z-20 flex gap-2">
+              {/* Wishlist is a Product Card Manager action like any other; the
+                  heart used to ignore its switch entirely. */}
+              {shows("action", "wishlist") && (
               <button
                 data-no-3d
                 aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onToggleFavorite();
+                  onToggleFavorite(demo.id);
                   toast.success(isFavorite ? 'Removed from favorites' : 'Added to favorites!');
                 }}
                 className="sv-icon-btn"
               >
                 <Heart className={`h-4 w-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-white'}`} />
               </button>
+              )}
               <a
                 href={demo.url}
                 onClick={(e) => e.stopPropagation()}
@@ -968,54 +1059,68 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 <Award className="h-3 w-3" /> {demo.category}
               </p>
             )}
-            {shows("metadata", "short-description") && (
+            {/* Drawn only when the product actually has one. The paragraph was
+                rendered unconditionally, so a product without a description
+                left two empty lines and a margin in the middle of the card. */}
+            {shows("metadata", "short-description") && demo.description && (
               <p className="text-gray-400 text-[13px] leading-relaxed mb-3 line-clamp-2">{demo.description}</p>
             )}
 
             {/* Interactive Tabs — drawn only when there is something to put in
                 them. Both panels were empty on every catalogue card, because
                 toDemo passed empty arrays. */}
-            {((demo.features?.length ?? 0) > 0 || (demo.frontend?.length ?? 0) > 0 || (demo.backend?.length ?? 0) > 0) && (
+            {(hasFeatures || hasTech) && (
             <div className="mb-3">
+              {/* A tab is offered only for a panel that has something in it.
+                  Both were offered before, so 54 of the 110 cards the home page
+                  renders carried a "Tech Stack" tab that opened an empty box -
+                  no product in the catalogue records a tech stack. When only one
+                  panel has content there is nothing to switch between, so the
+                  heading is a label rather than a pair of buttons. */}
               <div className="flex gap-1 mb-2">
-                <button
-                  data-no-3d
-                  onClick={() => setActiveTab('features')}
-                  className={`sv-tab ${activeTab === 'features' ? 'sv-tab-on' : ''}`}
-                >
-                  Features
-                </button>
-                <button
-                  data-no-3d
-                  onClick={() => setActiveTab('tech')}
-                  className={`sv-tab ${activeTab === 'tech' ? 'sv-tab-on sv-tab-alt' : ''}`}
-                >
-                  Tech Stack
-                </button>
+                {panels.map((panel) =>
+                  panels.length > 1 ? (
+                    <button
+                      key={panel.id}
+                      data-no-3d
+                      onClick={() => setActiveTab(panel.id)}
+                      className={`sv-tab ${openTab === panel.id ? `sv-tab-on ${panel.tone}` : ''}`}
+                    >
+                      {t(panel.message)}
+                    </button>
+                  ) : (
+                    <span key={panel.id} className={`sv-tab sv-tab-on ${panel.tone}`}>
+                      {t(panel.message)}
+                    </span>
+                  ),
+                )}
               </div>
 
-              <div className="min-h-[52px] sv-fade-swap" key={activeTab}>
-                {activeTab === 'features' ? (
-                  <div className="flex flex-wrap gap-1">
-                    {(demo.features ?? []).map((feature) => (
-                      <Badge key={feature} variant="outline" className="sv-chip text-[10px] border-cyan-500/30 text-cyan-300 bg-cyan-500/10">
-                        {feature}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-1">
-                    {[...demo.frontend, ...demo.backend].map((tech) => (
-                      <Badge key={tech} variant="outline" className="sv-chip text-[10px] border-purple-500/30 text-purple-300 bg-purple-500/10">
-                        {tech}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
+              <div className="sv-fade-swap" key={openTab}>
+                <div className="flex flex-wrap gap-1">
+                  {(panels.find((p) => p.id === openTab) ?? panels[0])?.chips.map((chip) => (
+                    <Badge
+                      key={chip}
+                      variant="outline"
+                      className={`sv-chip text-[10px] ${
+                        (panels.find((p) => p.id === openTab) ?? panels[0])!.chipClass
+                      }`}
+                    >
+                      {chip}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             </div>
             )}
 
+            {/* The foot of the card: price, actions and facts, together.
+                Only the actions carried `mt-auto` before, so the slack in a
+                card shorter than its neighbours opened up between the price and
+                the buttons and the prices in a row sat at different heights.
+                Keeping the three together means every card in a row has one gap
+                and its foot lines up with the rest. */}
+            <div className="mt-auto pt-1">
             {/* Price, from the product record.
                 Almost every product carries the standard lifetime price, and
                 for those the was-price and the discount are shown as before.
@@ -1047,11 +1152,16 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
             })()}
 
             {/* Enhanced Actions
-                Two gates, deliberately. `shows()` is the card composition -
-                whether this card displays the button. `allowed()` is the Action
-                Layer - whether the marketplace offers the action at all. A
-                second switch here would be the duplicate the brief warns
-                about, so there is none: allowed() is the resolver's answer. */}
+                Two gates, and they answer different questions. `shows()` is the
+                card composition - whether this card is configured to draw the
+                button. `allowed()` is the Action Layer - whether the
+                marketplace offers the action at all, to this product, right
+                now. Both have to say yes.
+
+                Only Live Demo used to ask the first question. Buy Now and View
+                Details went straight to the Action Layer, so their switches in
+                Product Card Manager governed nothing: turning Buy Now off there
+                changed no card on the marketplace. */}
             {(() => {
               // The card's own product page, and the demo it actually has.
               // demo.url is the product page for catalogue cards and a /demo
@@ -1064,7 +1174,7 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
               const demoHref = d.demoUrl ?? (d.hasDemo ? productHref : d.url && d.url.startsWith("/demo/") ? d.url : null);
               const buyHref = `${productHref}${productHref.includes("?") ? "&" : "?"}buy=1`;
               return (
-            <div className="flex gap-2 mt-auto">
+            <div className="flex gap-2">
               {demo.status === "ACTIVE" ? (
                 <>
                   {/* Only offered when there is a demo to open. */}
@@ -1077,7 +1187,7 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                   )}
                   {/* Goes to the product page ready to buy. The Add to cart
                       mutation and the sign-in redirect already live there. */}
-                  {allowed("BUY_NOW") && (
+                  {shows("action", "buy-now") && allowed("BUY_NOW") && (
                     <a href={buyHref} className="flex-1">
                       <Button className="sv-btn sv-btn-emerald w-full">
                         <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
@@ -1087,18 +1197,20 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 </>
               ) : (
                 <>
-                  {allowed("VIEW_DETAILS") && (
+                  {shows("action", "view-details") && allowed("VIEW_DETAILS") && (
                     <a href={productHref} className="flex-1">
                       <Button className="sv-btn sv-btn-cyan w-full">
                         <Eye className="h-4 w-4 mr-2" /> View details
                       </Button>
                     </a>
                   )}
-                  <a href={buyHref} className="flex-1">
-                    <Button className="sv-btn sv-btn-emerald w-full">
-                      <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
-                    </Button>
-                  </a>
+                  {shows("action", "buy-now") && allowed("BUY_NOW") && (
+                    <a href={buyHref} className="flex-1">
+                      <Button className="sv-btn sv-btn-emerald w-full">
+                        <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
+                      </Button>
+                    </a>
+                  )}
                 </>
               )}
             </div>
@@ -1122,7 +1234,13 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
               }
               if (shows("metadata", "license") && d.license)
                 cells.push({ value: d.license, label: "Licence", tone: "text-cyan-400" });
-              if (shows("platform", "platform-web") && d.platform)
+              // The registry field for the product's `deployment` column is
+              // metadata/platform. This asked for platform/platform-web, which
+              // is one of the six platform *badges* and a kind mm_card_fields()
+              // does not return at all, so the cell could never be drawn -
+              // Deployment was missing from every card on the marketplace even
+              // though two products in three carry the value.
+              if (shows("metadata", "platform") && d.platform)
                 cells.push({ value: d.platform, label: "Deployment", tone: "text-purple-400" });
               if (cells.length === 0) return null;
               return (
@@ -1148,6 +1266,7 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
                 </div>
               );
             })()}
+            </div>
           </div>
         </CardContent>
       </Card>
