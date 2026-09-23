@@ -77,7 +77,12 @@ export function ProductDetail() {
       const result = await getProductFn({ data: { slug } });
       return result;
     },
-    initialData: seededProduct as never,
+    // The loader hands over the product; the query answers with the whole page
+    // payload. Seeding it in the loader's shape left the first render looking
+    // for a product where there was none.
+    initialData: (seededProduct
+      ? { product: seededProduct, active_demos: [], seo: null }
+      : undefined) as never,
   });
 
   // A card's Buy Now arrives here as ?buy=1. Run the page's own Add to cart
@@ -90,7 +95,10 @@ export function ProductDetail() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("buy") !== "1") return;
-    const product = (data as { id?: string } | undefined) ?? undefined;
+    // The query answers with the page payload, so the product sits inside it.
+    // Reading an id off the payload itself found nothing and Buy Now quietly
+    // never started.
+    const product = (data as { product?: { id?: string } } | undefined)?.product;
     if (!product?.id) return;
     setBuyStarted(true);
     params.delete("buy");
