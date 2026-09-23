@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Toaster } from "@/components/ui/sonner";
 import { siteUrl } from "@/lib/seo/site-url";
 import { ProductDetail } from "@/components/marketplace-home/ProductDetail";
 import { resolveSeoOverride } from "@/lib/seo/page-overrides";
@@ -47,7 +48,13 @@ function readCountry(keywords: string[]): string | undefined {
 }
 
 export const Route = createFileRoute("/marketplace/product/$slug")({
-  component: ProductDetail,
+  component: () => (
+    <>
+      <ProductDetail />
+      {/* Without this, every message this page tries to show is invisible. */}
+      <Toaster />
+    </>
+  ),
 
   loader: async ({ params }): Promise<Loaded> => {
     // The product and its SEO are unrelated lookups, so one failing must not

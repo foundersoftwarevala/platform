@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Toaster } from "@/components/ui/sonner";
 import { createFileRoute } from "@tanstack/react-router";
 import "@/styles/sapphire-home.css";
 import HomeIndex from "@/components/sapphire-home/HomeIndex";
@@ -24,7 +25,13 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Index,
+  component: () => (
+    <>
+      <Index />
+      {/* Without this, every message this page tries to show is invisible. */}
+      <Toaster />
+    </>
+  ),
 });
 
 const HomeLoading = () => (

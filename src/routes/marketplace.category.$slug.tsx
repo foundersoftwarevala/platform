@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Toaster } from "@/components/ui/sonner";
 import { siteUrl } from "@/lib/seo/site-url";
 import { CategoryDetail } from "@/components/marketplace-home/CategoryDetail";
 import { getPublicProductsByCategory } from "@/lib/marketplace.functions";
@@ -31,7 +32,13 @@ function countryPhrase(countries: string[]): string {
 }
 
 export const Route = createFileRoute("/marketplace/category/$slug")({
-  component: CategoryDetail,
+  component: () => (
+    <>
+      <CategoryDetail />
+      {/* Without this, every message this page tries to show is invisible. */}
+      <Toaster />
+    </>
+  ),
 
   /**
    * The SEO and the products are separate lookups, so one failing must not cost

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Toaster } from "@/components/ui/sonner";
 import { pageHead } from "@/lib/seo-head";
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -10,7 +11,13 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/demo/$slug")({
   head: pageHead("Live Demo", "A working demo of the product, running on real software."),
-  component: DemoBrandedGatewayPage,
+  component: () => (
+    <>
+      <DemoBrandedGatewayPage />
+      {/* Without this, every message this page tries to show is invisible. */}
+      <Toaster />
+    </>
+  ),
 });
 
 function DemoBrandedGatewayPage() {

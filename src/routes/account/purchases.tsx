@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Toaster } from "@/components/ui/sonner";
 import { useEffect, useState } from "react";
 import { Copy, KeyRound, Loader2, Package, ShieldCheck } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
@@ -218,5 +219,11 @@ export const Route = createFileRoute("/account/purchases")({
   head: () => ({
     meta: [{ title: "Your purchases | Software Vala" }, { name: "robots", content: "noindex" }],
   }),
-  component: PurchasesPage,
+  component: () => (
+    <>
+      <PurchasesPage />
+      {/* Without this, every message this page tries to show is invisible. */}
+      <Toaster />
+    </>
+  ),
 });
