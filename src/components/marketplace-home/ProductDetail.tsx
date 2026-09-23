@@ -3,7 +3,15 @@ import { useParams, Link, useNavigate } from "@tanstack/react-router";
 import { useProductActions } from "@/lib/marketplace/useActionLayer";
 import { DemoForm } from "@/components/marketplace-home/FloatingElements";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ArrowLeft, Heart, Share2, Download, ExternalLink, ShoppingCart } from "lucide-react";
+import {
+  Loader2,
+  ArrowLeft,
+  Heart,
+  Share2,
+  Download,
+  ExternalLink,
+  ShoppingCart,
+} from "lucide-react";
 import { getPublicProduct, type PublicProduct } from "@/lib/marketplace.functions";
 import {
   getPublishedProductContent,
@@ -16,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { LIFETIME_LABEL, LIFETIME_MRP, LIFETIME_PRICE } from "@/lib/site-content/constants";
 // useEffect was used without ever being imported. The product page never
 // rendered - the marketplace layout swallowed it - so the reference error sat
 // unnoticed until the page was finally drawn.
@@ -81,19 +90,12 @@ export function ProductDetail() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("buy") !== "1") return;
-    // The page's data is { product, active_demos, seo }; the id is the
-    // product's. Reading data.id found nothing, so a card's Buy Now opened the
-    // page and never added the product or moved on to sign-in or checkout.
-    const product = (data as { product?: { id?: string } } | undefined)?.product;
+    const product = (data as { id?: string } | undefined) ?? undefined;
     if (!product?.id) return;
     setBuyStarted(true);
     params.delete("buy");
     const rest = params.toString();
-    window.history.replaceState(
-      {},
-      "",
-      window.location.pathname + (rest ? `?${rest}` : ""),
-    );
+    window.history.replaceState({}, "", window.location.pathname + (rest ? `?${rest}` : ""));
     cartMutation.mutate(product.id);
     // cartMutation is stable for the life of the component; data and the guard
     // are what decide whether this runs.
@@ -111,7 +113,10 @@ export function ProductDetail() {
       let element = document.head.querySelector(selector) as HTMLMetaElement | null;
       if (!element) {
         element = document.createElement("meta");
-        element.setAttribute(attribute, selector.includes("property=") ? selector.split('"')[1] : selector.split('"')[1]);
+        element.setAttribute(
+          attribute,
+          selector.includes("property=") ? selector.split('"')[1] : selector.split('"')[1],
+        );
         document.head.appendChild(element);
       }
       element.content = value;
@@ -127,14 +132,17 @@ export function ProductDetail() {
     }
     link.href = canonical;
     if (seo?.schema_json) {
-      let script = document.head.querySelector('script[data-product-schema="true"]') as HTMLScriptElement | null;
+      let script = document.head.querySelector(
+        'script[data-product-schema="true"]',
+      ) as HTMLScriptElement | null;
       if (!script) {
         script = document.createElement("script");
         script.type = "application/ld+json";
         script.dataset.productSchema = "true";
         document.head.appendChild(script);
       }
-      script.textContent = typeof seo.schema_json === "string" ? seo.schema_json : JSON.stringify(seo.schema_json);
+      script.textContent =
+        typeof seo.schema_json === "string" ? seo.schema_json : JSON.stringify(seo.schema_json);
     }
   }, [data, slug]);
 
@@ -176,7 +184,10 @@ export function ProductDetail() {
       {/* Header */}
       <div className="border-b border-cyan-500/20 bg-black/20">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <Link to="/marketplace" className="inline-flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition">
+          <Link
+            to="/marketplace"
+            className="inline-flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition"
+          >
             <ArrowLeft className="h-4 w-4" />
             <span className="text-sm font-medium">Back to Marketplace</span>
           </Link>
@@ -193,7 +204,9 @@ export function ProductDetail() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-start gap-4">
                   <div className="h-16 w-16 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center flex-shrink-0">
-                    <span className="text-2xl font-bold text-cyan-300">{product.icon.charAt(0).toUpperCase()}</span>
+                    <span className="text-2xl font-bold text-cyan-300">
+                      {product.icon.charAt(0).toUpperCase()}
+                    </span>
                   </div>
                   <div>
                     <h1 className="text-4xl font-bold mb-2">{product.name}</h1>
@@ -223,16 +236,24 @@ export function ProductDetail() {
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4 mb-8">
               <Card className="bg-white/5 border-cyan-500/20 p-4">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Rating</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  Rating
+                </div>
                 <div className="text-2xl font-bold text-cyan-300">{product.rating.toFixed(1)}</div>
                 <div className="text-xs text-muted-foreground">/ 5.0</div>
               </Card>
               <Card className="bg-white/5 border-cyan-500/20 p-4">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Downloads</div>
-                <div className="text-2xl font-bold text-emerald-300">{product.downloads_label || product.downloads.toLocaleString()}</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  Downloads
+                </div>
+                <div className="text-2xl font-bold text-emerald-300">
+                  {product.downloads_label || product.downloads.toLocaleString()}
+                </div>
               </Card>
               <Card className="bg-white/5 border-cyan-500/20 p-4">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Demos</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  Demos
+                </div>
                 <div className="text-2xl font-bold text-sky-300">{demos.length}</div>
               </Card>
             </div>
@@ -243,7 +264,10 @@ export function ProductDetail() {
                 <h2 className="text-xl font-bold mb-4">Live Demos</h2>
                 <div className="grid gap-3">
                   {demos.map((demo) => (
-                    <Card key={demo.id} className="bg-white/5 border-cyan-500/20 p-4 hover:bg-white/10 transition">
+                    <Card
+                      key={demo.id}
+                      className="bg-white/5 border-cyan-500/20 p-4 hover:bg-white/10 transition"
+                    >
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-semibold text-white">{demo.demo_name}</div>
@@ -278,11 +302,14 @@ export function ProductDetail() {
           <div className="lg:col-span-1">
             {/* Pricing Card */}
             <Card className="bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border-cyan-500/40 p-6 mb-6 sticky top-4">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Price</div>
-              <div className="text-3xl font-bold text-cyan-300 mb-1">{product.price_label || "Custom"}</div>
-              {product.price_period && (
-                <div className="text-sm text-muted-foreground mb-4">per {product.price_period}</div>
-              )}
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Price
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm text-muted-foreground line-through">{LIFETIME_MRP}</span>
+                <div className="text-3xl font-bold text-cyan-300">{LIFETIME_PRICE}</div>
+              </div>
+              <div className="text-sm text-muted-foreground mb-4">{LIFETIME_LABEL}</div>
 
               {/* Drawn from the Action Layer, not from this file. The resolver
                   decides which of these appear, in what order and with which
@@ -297,11 +324,15 @@ export function ProductDetail() {
             {/* Product Info */}
             <Card className="bg-white/5 border-cyan-500/20 p-4 space-y-3">
               <div>
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Category</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  Category
+                </div>
                 <div className="text-sm text-white">{product.industry_label || "General"}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Status</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  Status
+                </div>
                 <div className="text-sm text-emerald-300">Available</div>
               </div>
             </Card>
@@ -339,7 +370,8 @@ function PublishedProductContent({
   });
 
   const content = (data ?? {}) as PublishedContent;
-  const overview = content.long_description?.content || content.summary?.content || description || "";
+  const overview =
+    content.long_description?.content || content.summary?.content || description || "";
   const features = Array.isArray(content.features?.items)
     ? (content.features!.items as { text?: string; source?: string }[])
     : [];
@@ -371,7 +403,9 @@ function PublishedProductContent({
               </span>
             )}
           </div>
-          <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{overview}</div>
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
+            {overview}
+          </div>
         </section>
       )}
 
@@ -401,7 +435,10 @@ function PublishedProductContent({
           <h2 className="mb-3 text-xl font-bold">Benefits</h2>
           <ul className="space-y-2">
             {benefits.map((b, i) => (
-              <li key={i} className="rounded-lg border border-emerald-500/20 bg-white/5 px-3 py-2 text-sm text-slate-200">
+              <li
+                key={i}
+                className="rounded-lg border border-emerald-500/20 bg-white/5 px-3 py-2 text-sm text-slate-200"
+              >
                 {String(b)}
               </li>
             ))}
@@ -435,8 +472,13 @@ function PublishedProductContent({
           <h2 className="mb-3 text-xl font-bold">Questions</h2>
           <div className="space-y-2">
             {faq.map((f, i) => (
-              <details key={i} className="rounded-lg border border-cyan-500/20 bg-white/5 px-3 py-2">
-                <summary className="cursor-pointer text-sm font-semibold text-white">{f.question}</summary>
+              <details
+                key={i}
+                className="rounded-lg border border-cyan-500/20 bg-white/5 px-3 py-2"
+              >
+                <summary className="cursor-pointer text-sm font-semibold text-white">
+                  {f.question}
+                </summary>
                 <div className="mt-2 text-sm text-slate-300">{f.answer}</div>
               </details>
             ))}
@@ -461,8 +503,15 @@ function ProductActionButtons({
   adding,
   onAddToCart,
 }: {
-  product: { id: string; name: string; slug?: string | null; demo_url?: string | null;
-    visible?: boolean | null; price_label?: string | null; content_status?: string | null };
+  product: {
+    id: string;
+    name: string;
+    slug?: string | null;
+    demo_url?: string | null;
+    visible?: boolean | null;
+    price_label?: string | null;
+    content_status?: string | null;
+  };
   adding: boolean;
   onAddToCart: () => void;
 }) {
@@ -549,8 +598,13 @@ function ProductActionButtons({
         }
         if (a.key === "ADD_TO_CART" || a.key === "BUY_NOW") {
           return (
-            <button key={a.key} type="button" disabled={adding} onClick={onAddToCart}
-              className={`${base} disabled:opacity-50`}>
+            <button
+              key={a.key}
+              type="button"
+              disabled={adding}
+              onClick={onAddToCart}
+              className={`${base} disabled:opacity-50`}
+            >
               <ShoppingCart className="h-4 w-4" aria-hidden />
               {adding ? "Adding..." : a.label}
             </button>
@@ -558,7 +612,12 @@ function ProductActionButtons({
         }
         if (a.key === "SHARE") {
           return (
-            <button key={a.key} type="button" onClick={() => void share()} className={`${base} py-2`}>
+            <button
+              key={a.key}
+              type="button"
+              onClick={() => void share()}
+              className={`${base} py-2`}
+            >
               <Share2 className="h-4 w-4" aria-hidden />
               {a.label}
             </button>

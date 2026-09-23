@@ -1015,9 +1015,9 @@ function LoginPill({ t }: { t: (s: string) => string }) {
   // and left you standing on the home page.
   if (!userEmail) {
     return (
-      <Link to="/login" className={TRIGGER} aria-label={t("Login")}>
+      <Link to="/login" className={`${TRIGGER} sv-login-cta`} aria-label={t("Login")}>
         <LogIn className="h-3.5 w-3.5 text-emerald-300 transition-transform duration-300 group-hover:translate-x-0.5" />
-        <span className="hidden sm:inline">{t("Login")}</span>
+        <span>{t("Login")}</span>
       </Link>
     );
   }

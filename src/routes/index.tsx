@@ -1,46 +1,30 @@
 import { Suspense } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import "@/styles/marketplace-home.css";
-import HomeIndex from "@/components/marketplace-home/HomeIndex";
-import { HomeBoundary, HomeShellFallback } from "@/components/marketplace-home/SectionBoundary";
-import {
-  loadHomeRouteData,
-  type HomeRouteData,
-} from "@/lib/marketplace/home-route-data";
+import "@/styles/sapphire-home.css";
+import HomeIndex from "@/components/sapphire-home/HomeIndex";
 import { absoluteUrl } from "@/lib/seo/site-url";
 
 export const Route = createFileRoute("/")({
-  /**
-   * Fetch the first rows before the page is sent. The body lives in
-   * home-route-data so /marketplace/, which renders the same component, runs
-   * exactly the same loader rather than a copy of it.
-   */
-  loader: async (): Promise<HomeRouteData> => loadHomeRouteData(),
-
   head: () => ({
     links: [{ rel: "canonical", href: absoluteUrl("/") }],
     meta: [
-      { title: "Software Vala™ — The Name of Trust" },
+      { title: "Software Vala — 147 Software Solutions Marketplace" },
       {
         name: "description",
         content:
-          "Browse 12,000+ ready-to-deploy software solutions across 80+ master categories with live demos, full source code and lifetime access.",
+          "Browse 147 ready-to-deploy software solutions across 20 master categories with live demos, full source code and lifetime access.",
       },
-      { property: "og:title", content: "Software Vala™ — The Name of Trust" },
+      { property: "og:title", content: "Software Vala — 147 Software Solutions Marketplace" },
       {
         property: "og:description",
         content:
-          "One fixed price — $249 one-time for lifetime access. Live demos, full source code and 1 year free support across 80+ categories.",
+          "Live demos, full source code, 1 year free support and lifetime access across 20 master categories.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: Index,
-  // `/` is a protected production route. Even if the router or the loader
-  // fails, visitors must land on Software Vala — never on a blank page or the
-  // generic "this page didn't load" card from the root boundary.
-  errorComponent: () => <HomeShellFallback />,
 });
 
 const HomeLoading = () => (
@@ -52,11 +36,9 @@ const HomeLoading = () => (
 function Index() {
   return (
     <div className="mpc-home">
-      <HomeBoundary>
-        <Suspense fallback={<HomeLoading />}>
-          <HomeIndex />
-        </Suspense>
-      </HomeBoundary>
+      <Suspense fallback={<HomeLoading />}>
+        <HomeIndex />
+      </Suspense>
     </div>
   );
 }

@@ -1,19 +1,9 @@
-import {
-  Fragment,
-  createContext,
-  memo,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  useMemo,
-} from "react";
-import { SiteFooter } from "@/components/marketplace-home/SiteFooter";
-import { FloatingElements } from "@/components/marketplace-home/FloatingElements";
+import { memo, useState } from "react";
 
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+
+import { ProductLeadDialog, type LeadAction } from "@/components/sapphire-home/ProductLeadDialog";
 import {
   Play,
   Heart,
@@ -94,18 +84,28 @@ import {
   Lightbulb,
   Code2,
   Tag,
+  Facebook,
+  Linkedin,
+  MessageCircle,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import softwareValaLogo from "@/assets/software-vala-logo.jpg";
-import HeroCarousel from "@/components/marketplace-home/HeroCarousel";
-import FestiveBanner from "@/components/marketplace-home/FestiveBanner";
-import FeatureStrip from "@/components/marketplace-home/FeatureStrip";
-import CategorySlider from "@/components/marketplace-home/CategorySlider";
-import UtilityStrip from "@/components/marketplace-home/UtilityStrip";
-import SectionBoundary from "@/components/marketplace-home/SectionBoundary";
+import HeroCarousel from "@/components/sapphire-home/HeroCarousel";
+import FestiveBanner from "@/components/sapphire-home/FestiveBanner";
+import FeatureStrip from "@/components/sapphire-home/FeatureStrip";
+import CategorySlider from "@/components/sapphire-home/CategorySlider";
+import UtilityStrip from "@/components/sapphire-home/UtilityStrip";
+import ProductCarouselRow from "@/components/sapphire-home/ProductCarouselRow";
 import {
   IndustryGrid,
   AIZone,
@@ -117,21 +117,9 @@ import {
   PartnerEcosystem,
   FaqSection,
   EnterpriseCTA,
-} from "@/components/marketplace-home/RefSections";
+} from "@/components/sapphire-home/RefSections";
 import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
-import { buildRow } from "@/data/rowFill";
-import { GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
-import { useProductActions } from "@/lib/marketplace/useActionLayer";
-import { useDebouncedValue, useFavorites } from "@/lib/marketplace-home/persistentState";
-import { useMatch } from "@tanstack/react-router";
-import { useHomeRouteData, useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
-import CategoryRow from "@/components/marketplace-home/CategoryRow";
-import {
-  LIFETIME_DISCOUNT,
-  LIFETIME_MRP,
-  LIFETIME_PRICE,
-  SITE_STATS,
-} from "@/lib/site-content/constants";
+import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE } from "@/lib/site-content/constants";
 
 interface Demo {
   id: string;
@@ -3470,215 +3458,31 @@ const allDemos: Demo[] = [
 
 // Master Categories for filtering (55 rows — matches actual data values)
 const masterCategories = ["All", ...allMasterCategories55];
+const PRODUCTS_PER_ROW = 80;
 
-/* ------------------------------------------------------------------ *
- * Card composition
- *
- * Which fields, actions and badges a product card draws. The Product Card
- * Manager writes this and the card reads it, so a switch there changes what a
- * customer sees rather than only a row in a table.
- *
- * A null set means "not configured, or unreadable", and every `shows()` call
- * then returns true — the card renders as it always has. A configuration
- * lookup must never be able to strip a card down to nothing.
- * ------------------------------------------------------------------ */
-
-export type CardComposition = {
-  visual: string[];
-  metadata: string[];
-  action: string[];
-  badge: string[];
-  platform: string[];
+/** Repeat only real products from the category to create a full browsing rail. */
+const fillProductRail = (products: Demo[], target = PRODUCTS_PER_ROW) => {
+  if (products.length === 0) return [];
+  return Array.from({ length: target }, (_, index) => products[index % products.length] as Demo);
 };
-
-const CardCompositionContext = createContext<CardComposition | null>(null);
-
-export function CardCompositionProvider({
-  value,
-  children,
-}: {
-  value: CardComposition | null;
-  children: ReactNode;
-}) {
-  return (
-    <CardCompositionContext.Provider value={value}>{children}</CardCompositionContext.Provider>
-  );
-}
-
-/** Whether the card should draw this key. Unknown keys and no config: yes. */
-function useShows(): (kind: keyof CardComposition, key: string) => boolean {
-  const composition = useContext(CardCompositionContext);
-  return (kind, key) => {
-    const list = composition?.[kind];
-    if (!Array.isArray(list)) return true;
-    return list.includes(key);
-  };
-}
-
-/* ------------------------------------------------------------------ *
- * Layout Order
- *
- * Which sections the home page shows, and in what order, is a decision the
- * Marketplace Manager makes and this file carries out. Nothing below reads the
- * position of the JSX in this file to decide where a section goes.
- *
- * Every path through this code fails toward rendering. An unreadable registry,
- * an unknown key, a section the registry has never heard of - each of them ends
- * with the section on the page in its built-in position. The home page is a
- * protected route and a configuration lookup must never be able to empty it.
- * ------------------------------------------------------------------ */
-
-/**
- * One section as the registry describes it.
- *
- * Declared here rather than imported so that the server module holding the
- * loader function stays out of the browser bundle.
- */
-type SectionLayout = {
-  key: string;
-  sortOrder: number;
-  /** enabled, published and inside its schedule window, folded into one flag. */
-  liveNow: boolean;
-  visibleMobile: boolean;
-  visibleDesktop: boolean;
-};
-
-/** Read the RPC's rows into the shape above, tolerating anything missing. */
-function toSectionLayout(raw: unknown): SectionLayout[] | null {
-  if (!Array.isArray(raw) || raw.length === 0) return null;
-  const rows: SectionLayout[] = [];
-  for (const item of raw as Record<string, unknown>[]) {
-    const key = typeof item.key === "string" ? item.key : "";
-    if (!key) continue;
-    rows.push({
-      key,
-      sortOrder: Number(item.sort_order ?? 0),
-      liveNow: item.live_now !== false,
-      visibleMobile: item.visible_mobile !== false,
-      visibleDesktop: item.visible_desktop !== false,
-    });
-  }
-  if (rows.length === 0) return null;
-  rows.sort((a, b) => a.sortOrder - b.sortOrder);
-  return rows;
-}
-
-/**
- * The layout the page should render with.
- *
- * Prefers the copy the route loader resolved on the server, so the composition
- * is already correct in the HTML and nothing reshuffles after hydration. This
- * component is also drawn by the /marketplace layout, where there is no home
- * route match to read; there it asks for the layout itself.
- */
-/** The card composition the loader resolved, if this route carries one. */
-function useHomeComposition(): CardComposition | null {
-  return useHomeRouteData()?.composition ?? null;
-}
-
-function useHomeLayout(): SectionLayout[] | null {
-  const homeMatch = useHomeRouteMatch();
-  const fromServer =
-    (homeMatch?.loaderData as { layout?: SectionLayout[] | null } | undefined)?.layout ?? null;
-
-  const [fromClient, setFromClient] = useState<SectionLayout[] | null>(null);
-
-  useEffect(() => {
-    if (fromServer) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { supabase } = await import("@/integrations/supabase/client");
-        // Through the function rather than the table: the table's public policy
-        // only exposes enabled rows, so a gate reading it directly could never
-        // see the disabled section it is supposed to hide.
-        const { data, error } = await supabase.rpc("mm_homepage_sections");
-        if (cancelled || error) return;
-        const parsed = toSectionLayout(data);
-        if (parsed) setFromClient(parsed);
-      } catch {
-        /* built-in order */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fromServer]);
-
-  return fromServer ?? fromClient;
-}
-
-/**
- * Hide a section on the devices the manager has switched it off for.
- *
- * Rendered and hidden with a breakpoint class rather than dropped from the
- * tree, because the server does not know the width of the screen it is
- * rendering for. Off on both devices is the one case that renders nothing.
- */
-function deviceWrap(mobile: boolean, desktop: boolean, node: ReactNode): ReactNode {
-  if (mobile && desktop) return node;
-  if (!mobile && !desktop) return null;
-  return <div className={mobile ? "md:hidden" : "hidden md:block"}>{node}</div>;
-}
-
-/**
- * Compose the page from the registry.
- *
- * `nodes` supplies both the sections this file knows how to draw and, by the
- * order its keys are written in, the fallback order used when the registry
- * cannot be read. The registry's own numbering was seeded from that same order,
- * so a section the registry has never heard of can be placed on the same scale
- * as the ones it has.
- */
-function renderSections(
-  layout: SectionLayout[] | null,
-  nodes: Record<string, ReactNode>,
-): ReactNode {
-  const byKey = new Map((layout ?? []).map((s) => [s.key, s]));
-
-  const items = Object.keys(nodes).map((key, index) => {
-    const reg = byKey.get(key);
-    return {
-      key,
-      order: reg ? reg.sortOrder : index + 1,
-      live: reg ? reg.liveNow : true,
-      mobile: reg ? reg.visibleMobile : true,
-      desktop: reg ? reg.visibleDesktop : true,
-      // Keeps the built-in order stable when two sections share a number.
-      tie: index,
-    };
-  });
-
-  items.sort((a, b) => a.order - b.order || a.tie - b.tie);
-
-  return items
-    .filter((s) => s.live)
-    .map((s) => <Fragment key={s.key}>{deviceWrap(s.mobile, s.desktop, nodes[s.key])}</Fragment>);
-}
 
 const Index = () => {
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  // Filtering three thousand cards on every keystroke made the box unusable
-  // on a slow device; the grid now settles once typing pauses.
-  const search = useDebouncedValue(searchQuery, 220);
-  // Favourites survive a refresh instead of being thrown away.
-  const { favorites, toggle: toggleFavorite } = useFavorites();
-  const layout = useHomeLayout();
-  const composition = useHomeComposition();
+  const [favorites, setFavorites] = useState<string[]>([]);
 
   const filteredDemos = allDemos.filter((demo) => {
     const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
     const matchesSearch =
-      demo.name.toLowerCase().includes(search.toLowerCase()) ||
-      demo.description.toLowerCase().includes(search.toLowerCase()) ||
-      demo.masterCategory.toLowerCase().includes(search.toLowerCase());
+      demo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      demo.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      demo.masterCategory.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
-  // Superseded by useFavorites(), which persists. Kept for reference.
-  const toggleFavoriteInMemoryLegacy = (_id: string) => {};
-  void toggleFavoriteInMemoryLegacy;
+  const toggleFavorite = (id: string) => {
+    setFavorites((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
+  };
 
   // Count demos per master category
   const getCategoryCount = (category: string) => {
@@ -3687,634 +3491,136 @@ const Index = () => {
   };
 
   return (
-    <CardCompositionProvider value={composition}>
-      <div className="min-h-screen bg-gradient-to-br from-[#0a1628] via-[#0d1e36] to-[#0a1628]">
-        {/* Premium Header */}
-        <header className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-500 py-4 px-4 shadow-2xl">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-              <div className="flex items-center gap-4">
-                <img
-                  src={softwareValaLogo}
-                  alt="Software Vala"
-                  className="h-14 w-14 rounded-full object-cover border-2 border-white shadow-lg"
-                />
-                <div>
-                  <h1 className="text-white font-bold text-2xl">Software Vala™</h1>
-                  <p className="text-white/90 text-sm">- The Name of Trust</p>
-                </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#0a1628] via-[#0d1e36] to-[#0a1628]">
+      {/* Premium Header */}
+      <header className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-500 py-4 px-4 shadow-2xl">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-4">
+              <img
+                src={softwareValaLogo}
+                alt="Software Vala"
+                className="h-14 w-14 rounded-full object-cover border-2 border-white shadow-lg"
+              />
+              <div>
+                <h1 className="text-white font-bold text-2xl">Software Vala</h1>
+                <p className="text-white/90 text-sm">- The Name of Trust</p>
               </div>
             </div>
           </div>
-        </header>
+        </div>
+      </header>
 
-        {/* Every product card below reads the composition from here. */}
-        {/* The page is composed here, not laid out here. Which of these
-          sections appear, and in what order, comes from Layout Order in
-          the Marketplace Manager; the order the keys are written in below
-          is only the fallback used when the registry cannot be read. */}
-        {renderSections(layout, {
-          "utility-bar": (
-            <SectionBoundary label="The utility bar" fallback={null}>
-              <UtilityStrip favoritesCount={favorites.length} />
-            </SectionBoundary>
-          ),
-          "offer-banner": (
-            <SectionBoundary label="The offer banner" fallback={null}>
-              <FestiveBanner />
-            </SectionBoundary>
-          ),
-          "feature-strip": (
-            <SectionBoundary label="The feature strip" fallback={null}>
-              <FeatureStrip />
-            </SectionBoundary>
-          ),
-          "hero-carousel": (
-            <SectionBoundary label="The featured carousel">
-              <HeroCarousel />
-            </SectionBoundary>
-          ),
-          "shop-by-industry": (
-            <div className="max-w-7xl mx-auto">
-              <SectionBoundary label="Shop by Industry" fallback={null}>
-                <IndustryGrid />
-              </SectionBoundary>
-            </div>
-          ),
-          "category-slider": (
-            <SectionBoundary label="The category slider" fallback={null}>
-              <CategorySlider />
-            </SectionBoundary>
-          ),
-          "search-bar": (
-            <div className="bg-[#0d1e36]/80 backdrop-blur-sm border-b border-cyan-500/20 py-4 px-4 sticky top-0 z-40">
-              <div className="max-w-7xl mx-auto">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                    <Input
-                      placeholder="Search software..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 bg-[#1a2d4a] border-cyan-500/30 text-white placeholder:text-gray-400"
-                    />
-                  </div>
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                    {SITE_STATS.solutions} Software · {SITE_STATS.categories} Categories
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          ),
-          "catalog-rows": (
-            <section id={GRID_ANCHOR} className="scroll-mt-24 py-8 px-4">
-              <div className="max-w-7xl mx-auto">
-                {/* Group by Master Category when "All" is selected */}
-                {activeCategory === "All" && !search ? (
-                  /* The real catalogue, paged from the database. */
-                  <CatalogRows favorites={favorites} onToggleFavorite={toggleFavorite} />
-                ) : activeCategory === "All" ? (
-                  masterCategories.slice(1).map((masterCat) => {
-                    const categoryDemos = filteredDemos.filter(
-                      (d) => d.masterCategory === masterCat,
-                    );
-                    if (categoryDemos.length === 0) return null;
-                    const rowDemos = search
-                      ? categoryDemos
-                      : (buildRow(masterCat, categoryDemos) as Demo[]);
+      {/* Utility strip — clone of the feature strip, different subject */}
+      <UtilityStrip favoritesCount={favorites.length} />
 
-                    return (
-                      <CategoryRow key={masterCat} title={masterCat} count={rowDemos.length}>
-                        {rowDemos.map((demo, index) => (
-                          <div
-                            key={demo.id}
-                            className="w-[300px] flex-none snap-start sm:w-[330px]"
-                          >
-                            <DemoCard
-                              demo={demo}
-                              index={index}
-                              isFavorite={favorites.includes(demo.id)}
-                              onToggleFavorite={() => toggleFavorite(demo.id)}
-                            />
-                          </div>
-                        ))}
-                      </CategoryRow>
-                    );
-                  })
-                ) : (
-                  <CategoryRow title={activeCategory} count={filteredDemos.length}>
-                    {(search
-                      ? filteredDemos
-                      : (buildRow(activeCategory, filteredDemos) as Demo[])
-                    ).map((demo, index) => (
-                      <div key={demo.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
-                        <DemoCard
-                          demo={demo}
-                          index={index}
-                          isFavorite={favorites.includes(demo.id)}
-                          onToggleFavorite={() => toggleFavorite(demo.id)}
-                        />
-                      </div>
-                    ))}
-                  </CategoryRow>
-                )}
-              </div>
-            </section>
-          ),
-          // The four curated rows the registry has always carried. Each one
-          // draws only when its flag matches something, and its position on the
-          // page is whatever Layout Order says.
-          "featured-software": (
-            <CuratedRow
-              title="Featured Software"
-              flag="featured"
-              limit={8}
-              favorites={favorites}
-              onToggleFavorite={toggleFavorite}
-            />
-          ),
-          "trending-now": (
-            <CuratedRow
-              title="Trending Now"
-              flag="trending"
-              limit={12}
-              favorites={favorites}
-              onToggleFavorite={toggleFavorite}
-            />
-          ),
-          "top-selling": (
-            <CuratedRow
-              title="Top Selling"
-              flag="bestSeller"
-              limit={12}
-              favorites={favorites}
-              onToggleFavorite={toggleFavorite}
-            />
-          ),
-          "new-releases": (
-            <CuratedRow
-              title="New Releases"
-              flag="newRelease"
-              limit={12}
-              favorites={favorites}
-              onToggleFavorite={toggleFavorite}
-            />
-          ),
-          "ai-zone": (
-            <div className="max-w-7xl mx-auto">
-              <SectionBoundary label="AI Zone">
-                <AIZone />
-              </SectionBoundary>
-            </div>
-          ),
-          "success-stories": (
-            <div className="max-w-7xl mx-auto">
-              <SectionBoundary label="Success Stories">
-                <SuccessStories />
-              </SectionBoundary>
-            </div>
-          ),
-          "awards-champions": (
-            <div className="max-w-7xl mx-auto">
-              <SectionBoundary label="Awards">
-                <AwardsRow />
-              </SectionBoundary>
-            </div>
-          ),
-          "live-activity": (
-            <div className="max-w-7xl mx-auto">
-              <SectionBoundary label="Live Activity">
-                <LiveActivity />
-              </SectionBoundary>
-            </div>
-          ),
-          "vala-tv": (
-            <div className="max-w-7xl mx-auto">
-              <SectionBoundary label="Vala TV">
-                <ValaTV />
-              </SectionBoundary>
-            </div>
-          ),
-          "vala-academy": (
-            <div className="max-w-7xl mx-auto">
-              <SectionBoundary label="Vala Academy">
-                <ValaAcademy />
-              </SectionBoundary>
-            </div>
-          ),
-          "partner-ecosystem": (
-            <div className="max-w-7xl mx-auto">
-              <SectionBoundary label="Partner Ecosystem">
-                <PartnerEcosystem />
-              </SectionBoundary>
-            </div>
-          ),
-          faq: (
-            <div className="max-w-7xl mx-auto">
-              <SectionBoundary label="The FAQ section">
-                <FaqSection />
-              </SectionBoundary>
-            </div>
-          ),
-          "enterprise-cta": (
-            <div className="max-w-7xl mx-auto">
-              <SectionBoundary label="The enterprise panel">
-                <EnterpriseCTA />
-              </SectionBoundary>
-            </div>
-          ),
-          footer: (
-            <SectionBoundary label="The footer" fallback={null}>
-              <SiteFooter />
-            </SectionBoundary>
-          ),
-          "floating-elements": (
-            <SectionBoundary label="The floating elements" fallback={null}>
-              <FloatingElements scope="home" />
-            </SectionBoundary>
-          ),
-        })}
+      {/* Running offer ticker sits between the two strips */}
+      <FestiveBanner />
+
+      <FeatureStrip />
+
+      <HeroCarousel />
+
+      {/* Industry Grid */}
+      <div className="max-w-7xl mx-auto">
+        <IndustryGrid />
       </div>
-    </CardCompositionProvider>
-  );
-};
 
-/* ------------------------------------------------------------------ *
- * Catalogue rows, straight from the database.
- *
- * The rows below `allDemos` are the original hand-written ones and are still
- * used for search and for a single chosen category. This component is what the
- * page shows by default: real product records, paged, so the browser is never
- * handed the whole catalogue at once.
- * ------------------------------------------------------------------ */
+      {/* Category Slider (auto-scroll) */}
+      <CategorySlider />
 
-export type CatalogCard = {
-  id: string;
-  slug: string;
-  name: string;
-  icon: string | null;
-  industry: string | null;
-  price: string | null;
-  period: string | null;
-  rating: number | null;
-  downloads: string | null;
-  badge: string | null;
-  featured: boolean;
-  trending: boolean;
-  bestSeller: boolean;
-  newRelease: boolean;
-  country: string | null;
-  href: string;
-  // Real product copy and capability, which the card used to invent.
-  description: string | null;
-  features: string[];
-  tech: string[];
-  license: string | null;
-  platform: string | null;
-  subcategory: string | null;
-  hasDemo: boolean;
-};
-
-type CatalogRow = {
-  id: string;
-  title: string;
-  slug: string;
-  href: string;
-  cards: CatalogCard[];
-  total: number;
-  hasMore: boolean;
-};
-
-const ROW_PAGE = 8;
-const CARD_PAGE = 12;
-
-/**
- * How many products a category row carries.
- *
- * The row is seeded with a first page so the document itself is small and
- * crawlable, then fills to this many the moment the reader reaches it. A
- * category holding more than this keeps its "Show more" control, so a row is
- * never capped at the target - the catalogue is heading well past it.
- */
-const ROW_TARGET = 60;
-
-/** The first page of rows, as the home route's loader prepared it. */
-type CatalogSeed = {
-  rows: CatalogRow[];
-  rowOffset: number;
-  rowCount: number;
-  totalRows: number;
-  hasMoreRows: boolean;
-} | null;
-
-/** Card colours cycle through the same palette the hand-written rows use. */
-const CARD_COLORS = [
-  "from-blue-600 to-indigo-600",
-  "from-emerald-600 to-teal-600",
-  "from-fuchsia-600 to-purple-600",
-  "from-amber-500 to-orange-600",
-  "from-rose-600 to-pink-600",
-  "from-cyan-600 to-sky-600",
-];
-
-/** A catalogue row shaped like the cards this page already draws. */
-export function toDemo(card: CatalogCard, index: number): Demo {
-  return {
-    id: card.id,
-    name: card.name,
-    category: card.subcategory ?? card.industry ?? "",
-    masterCategory: card.industry ?? "",
-    // The product's own description. This used to be a sentence built out of
-    // the industry name because the description was never fetched.
-    description:
-      card.description ??
-      (card.industry
-        ? `${card.industry}${card.country ? ` · targeted at ${card.country}` : ""}`
-        : ""),
-    url: card.href,
-    icon: Package,
-    // Twelve products in the catalogue have a demo. This used to say ACTIVE
-    // for all of them.
-    status: card.hasDemo ? "ACTIVE" : "LISTED",
-    features: card.features ?? [],
-    frontend: card.tech ?? [],
-    backend: [],
-    color: CARD_COLORS[index % CARD_COLORS.length]!,
-    price: LIFETIME_PRICE,
-    discountPrice: LIFETIME_PRICE,
-    rating: card.rating,
-    license: card.license,
-    platform: card.platform,
-    hasDemo: card.hasDemo,
-  } as unknown as Demo;
-}
-
-function CatalogRowStrip({
-  row,
-  favorites,
-  onToggleFavorite,
-}: {
-  row: CatalogRow;
-  favorites: string[];
-  onToggleFavorite: (id: string) => void;
-}) {
-  const [cards, setCards] = useState<CatalogCard[]>(row.cards);
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const inView = useRef<HTMLDivElement>(null);
-  const toppedUp = useRef(false);
-
-  /** How many this row should be holding: its target, or all it has. */
-  const wanted = Math.min(row.total, ROW_TARGET);
-
-  const load = async (count: number) => {
-    if (loading || count <= 0) return;
-    setLoading(true);
-    setFailed(false);
-    try {
-      const response = await fetch(
-        `/api/marketplace/catalog?category=${encodeURIComponent(row.slug)}` +
-          `&offset=${cards.length}&limit=${count}`,
-      );
-      if (!response.ok) throw new Error(String(response.status));
-      const data = await response.json();
-      setCards((current) => [...current, ...(data.cards ?? [])]);
-    } catch {
-      setFailed(true);
-      toppedUp.current = false; // let reaching the row try again
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /**
-   * Fill the row to its target when the reader reaches it.
-   *
-   * The row arrived holding a first page and waited for a button press to show
-   * anything more, so a category of sixty products showed twelve and looked
-   * like a category of twelve. The rest are asked for in one request rather
-   * than a page at a time, because they are all going into the same strip.
-   */
-  useEffect(() => {
-    const node = inView.current;
-    if (!node || toppedUp.current || cards.length >= wanted) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0]?.isIntersecting || toppedUp.current) return;
-        toppedUp.current = true;
-        void load(wanted - cards.length);
-      },
-      { rootMargin: "400px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wanted, cards.length]);
-
-  const remaining = row.total - cards.length;
-
-  return (
-    <CategoryRow title={row.title} count={row.total}>
-      <div ref={inView} aria-hidden="true" className="w-0 flex-none" />
-      {cards.map((card, index) => (
-        <div key={card.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
-          <DemoCard
-            demo={toDemo(card, index)}
-            index={index}
-            isFavorite={favorites.includes(card.id)}
-            onToggleFavorite={() => onToggleFavorite(card.id)}
-          />
-        </div>
-      ))}
-      {remaining > 0 && (
-        <div className="flex w-[220px] flex-none items-center justify-center">
-          <button
-            type="button"
-            onClick={() => void load(Math.min(remaining, ROW_TARGET))}
-            disabled={loading}
-            className="rounded-xl border border-cyan-400/30 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-cyan-200 hover:bg-white/[0.08] disabled:opacity-60"
-          >
-            {loading ? "Loading…" : failed ? "Try again" : `Show more (${remaining} left)`}
-          </button>
-        </div>
-      )}
-    </CategoryRow>
-  );
-}
-
-/**
- * A curated row: one flag, one rail.
- *
- * The registry names these rows by the product flag behind them, so the flag is
- * the only thing that varies. Everything visual is the catalogue's own
- * CategoryRow and DemoCard, at the same card width, so a curated row is
- * indistinguishable from a category row except for its heading.
- *
- * Returns null when the flag matches nothing. A heading with an empty rail
- * under it reads as broken, and an operator publishing a row should see it
- * appear only when it has something in it.
- */
-function CuratedRow({
-  title,
-  flag,
-  limit,
-  favorites,
-  onToggleFavorite,
-}: {
-  title: string;
-  flag: "featured" | "trending" | "bestSeller" | "newRelease";
-  limit: number;
-  favorites: string[];
-  onToggleFavorite: (id: string) => void;
-}) {
-  // The same rows the server already seeded for the catalogue, flattened. No
-  // extra request: whatever the page has, these rows pick from.
-  const seeded = (useHomeRouteData()?.seed as CatalogSeed | undefined) ?? null;
-  const picked = useMemo(() => {
-    const rows = (seeded?.rows as CatalogRow[] | undefined) ?? [];
-    const out: Demo[] = [];
-    const seen = new Set<string>();
-    for (const row of rows) {
-      for (const card of (row.cards ?? []) as Demo[]) {
-        if (seen.has(card.id)) continue;
-        if (!(card as unknown as Record<string, boolean>)[flag]) continue;
-        seen.add(card.id);
-        out.push(card);
-        if (out.length >= limit) return out;
-      }
-    }
-    return out;
-  }, [seeded, flag, limit]);
-  if (picked.length === 0) return null;
-  return (
-    <div className="max-w-7xl mx-auto px-4">
-      <CategoryRow title={title} count={picked.length}>
-        {picked.map((demo, index) => (
-          <div key={demo.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
-            <DemoCard
-              demo={demo}
-              index={index}
-              isFavorite={favorites.includes(demo.id)}
-              onToggleFavorite={() => onToggleFavorite(demo.id)}
-            />
+      {/* Category Filter - Master Categories */}
+      <div className="bg-[#0d1e36]/80 backdrop-blur-sm border-b border-cyan-500/20 py-4 px-4 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <Input
+                placeholder="Search software..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-[#1a2d4a] border-cyan-500/30 text-white placeholder:text-gray-400"
+              />
+            </div>
+            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+              {filteredDemos.length} Products
+            </Badge>
           </div>
-        ))}
-      </CategoryRow>
+        </div>
+      </div>
+
+      {/* Netflix-style product rows */}
+      <section className="py-8 px-4">
+        <div className="max-w-7xl mx-auto">
+          {/* Group by Master Category when "All" is selected */}
+          {activeCategory === "All" ? (
+            masterCategories.slice(1).map((masterCat) => {
+              const categoryDemos = filteredDemos.filter((d) => d.masterCategory === masterCat);
+              if (categoryDemos.length === 0) return null;
+              const rowDemos = searchQuery.trim() ? categoryDemos : fillProductRail(categoryDemos);
+
+              return (
+                <ProductCarouselRow key={masterCat} title={masterCat} count={rowDemos.length}>
+                  {rowDemos.map((demo, index) => (
+                    <DemoCard
+                      key={`${masterCat}-${demo.id}-${index}`}
+                      demo={demo}
+                      index={index}
+                      isFavorite={favorites.includes(demo.id)}
+                      onToggleFavorite={() => toggleFavorite(demo.id)}
+                    />
+                  ))}
+                </ProductCarouselRow>
+              );
+            })
+          ) : (
+            <ProductCarouselRow
+              title={activeCategory}
+              count={(searchQuery.trim() ? filteredDemos : fillProductRail(filteredDemos)).length}
+            >
+              {(searchQuery.trim() ? filteredDemos : fillProductRail(filteredDemos)).map(
+                (demo, index) => (
+                  <DemoCard
+                    key={`${activeCategory}-${demo.id}-${index}`}
+                    demo={demo}
+                    index={index}
+                    isFavorite={favorites.includes(demo.id)}
+                    onToggleFavorite={() => toggleFavorite(demo.id)}
+                  />
+                ),
+              )}
+            </ProductCarouselRow>
+          )}
+        </div>
+      </section>
+
+      {/* Reference marketplace sections (added below product grid, keeping design intact) */}
+      <div className="max-w-7xl mx-auto">
+        <AIZone />
+        <SuccessStories />
+        <AwardsRow />
+        <LiveActivity />
+        <ValaTV />
+        <ValaAcademy />
+        <PartnerEcosystem />
+        <FaqSection />
+        <EnterpriseCTA />
+      </div>
+
+      {/* Footer */}
+      <footer className="bg-[#0a1628] border-t border-cyan-500/20 py-8 px-4">
+        <div className="max-w-7xl mx-auto text-center">
+          <p className="text-gray-400">
+            © 2024 Software Vala - The Name of Trust. All rights reserved.
+          </p>
+          <p className="text-cyan-400 mt-2">
+            55 Master Categories • {allDemos.length} Software Solutions • 20 Live Demos Ready
+          </p>
+        </div>
+      </footer>
     </div>
   );
-}
-
-function CatalogRows({
-  favorites,
-  onToggleFavorite,
-}: {
-  favorites: string[];
-  onToggleFavorite: (id: string) => void;
-}) {
-  // What the server already rendered for the home page. Starting from it means
-  // the first rows are in the HTML itself rather than appearing a moment later,
-  // and the browser does not ask twice for the same thing.
-  //
-  // This component is also drawn by the /marketplace layout, where there is no
-  // such match. Asking for the home route's data there threw, and the throw
-  // took the whole server render down with it - every page under /marketplace
-  // arrived as an empty shell that only filled in once its JavaScript ran. So
-  // the match is requested without throwing, and its absence simply means
-  // nothing was seeded and the rows are fetched as before.
-  const homeMatch = useHomeRouteMatch();
-  const seeded = (homeMatch?.loaderData as { seed?: CatalogSeed } | undefined)?.seed ?? null;
-
-  const [rows, setRows] = useState<CatalogRow[] | null>(
-    (seeded?.rows as CatalogRow[] | undefined) ?? null,
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [rowOffset, setRowOffset] = useState(seeded?.rowCount ?? 0);
-  const [hasMoreRows, setHasMoreRows] = useState(Boolean(seeded?.hasMoreRows));
-  const [loadingRows, setLoadingRows] = useState(false);
-  const sentinel = useRef<HTMLDivElement>(null);
-
-  const fetchRows = async (offset: number) => {
-    setLoadingRows(true);
-    try {
-      const response = await fetch(
-        `/api/marketplace/catalog?rows=${ROW_PAGE}&perRow=${CARD_PAGE}&rowOffset=${offset}`,
-      );
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error ?? "The catalogue could not be read.");
-      setRows((current) => [...(current ?? []), ...(data.rows ?? [])]);
-      setHasMoreRows(Boolean(data.hasMoreRows));
-      setRowOffset(offset + (data.rowCount ?? 0));
-      setError(null);
-    } catch (problem) {
-      setError(problem instanceof Error ? problem.message : "The catalogue could not be read.");
-      if (rows === null) setRows([]);
-    } finally {
-      setLoadingRows(false);
-    }
-  };
-
-  useEffect(() => {
-    // Only ask when the server sent nothing; otherwise the first page is
-    // already on screen and the next one arrives on scroll.
-    if (seeded?.rows?.length) return;
-    void fetchRows(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Rows arrive as the reader reaches the bottom, not all at once.
-  useEffect(() => {
-    const node = sentinel.current;
-    if (!node || !hasMoreRows) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && !loadingRows) void fetchRows(rowOffset);
-      },
-      { rootMargin: "600px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasMoreRows, rowOffset, loadingRows]);
-
-  if (rows === null) {
-    return (
-      <div className="px-6 py-16 text-center text-sm text-white/60">Loading the marketplace…</div>
-    );
-  }
-  if (error && rows.length === 0) {
-    return (
-      <div className="mx-6 rounded-2xl border border-dashed border-white/15 px-6 py-12 text-center">
-        <p className="text-sm text-white/70">{error}</p>
-        <button
-          type="button"
-          onClick={() => void fetchRows(0)}
-          className="mt-4 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-gray-900"
-        >
-          Try again
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {rows.map((row) => (
-        <CatalogRowStrip
-          key={row.id}
-          row={row}
-          favorites={favorites}
-          onToggleFavorite={onToggleFavorite}
-        />
-      ))}
-      <div ref={sentinel} aria-hidden="true" className="h-px" />
-      {loadingRows && (
-        <p className="py-6 text-center text-xs text-white/50">Loading more categories…</p>
-      )}
-      {error && rows.length > 0 && (
-        <p className="py-4 text-center text-xs text-white/50">{error}</p>
-      )}
-    </>
-  );
-}
+};
 
 // Demo Card Component - Enhanced with interactions
 /** Deterministic pseudo-random so SSR and client render identical numbers. */
@@ -4327,7 +3633,36 @@ const stableSeed = (key: string) => {
   return Math.abs(h);
 };
 
-export const DemoCard = memo(
+const getShareDetails = (demo: Demo) => {
+  const fallbackPath = `/?product=${encodeURIComponent(demo.id)}`;
+  const path = demo.url && demo.url !== "#" ? demo.url : fallbackPath;
+  const url = new URL(path, window.location.origin).toString();
+  return {
+    title: demo.name,
+    text: `${demo.name} — ${LIFETIME_PRICE} one-time lifetime access on Software Vala`,
+    url,
+  };
+};
+
+const openShareUrl = (url: string) => {
+  window.open(url, "_blank", "noopener,noreferrer");
+};
+
+const shareNatively = async (demo: Demo) => {
+  const details = getShareDetails(demo);
+  if (navigator.share) {
+    try {
+      await navigator.share(details);
+      return;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+    }
+  }
+  await navigator.clipboard.writeText(details.url);
+  toast.success("Product link copied");
+};
+
+const DemoCard = memo(
   ({
     demo,
     index,
@@ -4339,29 +3674,19 @@ export const DemoCard = memo(
     isFavorite: boolean;
     onToggleFavorite: () => void;
   }) => {
-    // The Action Layer's answer for this product. One shared fetch backs every
-    // card on the page, so a grid of hundreds costs a single request.
-    const { actions: layerActions } = useProductActions({
-      id: (demo as unknown as { id?: string }).id ?? null,
-      slug: (demo as unknown as { slug?: string }).slug ?? null,
-      demo_url: (demo as unknown as { url?: string }).url ?? null,
-      visible: true,
-      price_label: (demo as unknown as { discountPrice?: string }).discountPrice ?? null,
-      content_status: null,
-    });
-    const allowed = (key: string) => {
-      const a = layerActions.find((x) => x.key === key);
-      // Unknown to the registry means "not governed here" — the card keeps its
-      // existing behaviour rather than losing a button to a missing entry.
-      return a ? a.enabled && a.visibility !== "HIDDEN" : true;
-    };
-
     const Icon = demo.icon;
-    const shows = useShows();
     const [activeTab, setActiveTab] = useState<"features" | "tech">("features");
+    const [leadAction, setLeadAction] = useState<LeadAction | null>(null);
 
     return (
       <div className="sv-card-shell relative">
+        <ProductLeadDialog
+          open={leadAction !== null}
+          onOpenChange={(next) => setLeadAction(next ? leadAction : null)}
+          action={leadAction ?? "buy_intent"}
+          productName={demo.name}
+          productId={demo.id}
+        />
         <Card className="sv-card group h-full overflow-hidden border-cyan-500/20 bg-gradient-to-br from-[#1a2d4a] to-[#0d1e36]">
           <CardContent className="p-0 flex flex-col h-full">
             {/* Header with gradient */}
@@ -4378,7 +3703,6 @@ export const DemoCard = memo(
                       COMING SOON
                     </Badge>
                   )}
-                  {/* Only for a product that actually has one. */}
                   {demo.status === "ACTIVE" && (
                     <Badge className="bg-emerald-500/90 text-white font-bold text-xs flex items-center gap-1">
                       <span className="sv-live-dot" />
@@ -4416,226 +3740,217 @@ export const DemoCard = memo(
             </div>
 
             {/* Content */}
-            <div className="p-5 flex-1 flex flex-col">
-              <div className="flex items-start justify-between mb-1">
-                {shows("metadata", "product-name") && (
-                  <h3 className="text-[17px] font-extrabold tracking-[-0.01em] text-white leading-snug">
-                    {demo.name}
-                  </h3>
-                )}
+            <div className="sv-card-body p-5 flex-1 flex flex-col">
+              <div className="sv-card-title-row flex items-start justify-between mb-1">
+                <h3 className="sv-card-title text-[17px] font-extrabold tracking-normal leading-snug">
+                  {demo.name}
+                </h3>
                 {demo.status === "ACTIVE" && (
-                  <Badge className="bg-cyan-500/20 text-cyan-300 text-[10px] shrink-0 ml-2">
-                    #{index + 1}
-                  </Badge>
+                  <Badge className="sv-card-rank text-[10px] shrink-0 ml-2">#{index + 1}</Badge>
                 )}
               </div>
-              {shows("metadata", "category") && demo.category && (
-                <p className="text-cyan-300/90 text-[11px] font-semibold uppercase tracking-[0.08em] mb-2 flex items-center gap-1">
-                  <Award className="h-3 w-3" /> {demo.category}
-                </p>
-              )}
-              {shows("metadata", "short-description") && (
-                <p className="text-gray-400 text-[13px] leading-relaxed mb-3 line-clamp-2">
-                  {demo.description}
-                </p>
-              )}
+              <p className="sv-card-category text-[11px] font-semibold uppercase tracking-normal mb-2 flex items-center gap-1">
+                <Award className="h-3 w-3" /> {demo.category}
+              </p>
+              <p className="sv-card-description text-[13px] leading-relaxed mb-3 line-clamp-2">
+                {demo.description}
+              </p>
 
-              {/* Interactive Tabs — drawn only when there is something to put in
-                them. Both panels were empty on every catalogue card, because
-                toDemo passed empty arrays. */}
-              {((demo.features?.length ?? 0) > 0 ||
-                (demo.frontend?.length ?? 0) > 0 ||
-                (demo.backend?.length ?? 0) > 0) && (
-                <div className="mb-3">
-                  <div className="flex gap-1 mb-2">
-                    <button
-                      data-no-3d
-                      onClick={() => setActiveTab("features")}
-                      className={`sv-tab ${activeTab === "features" ? "sv-tab-on" : ""}`}
-                    >
-                      Features
-                    </button>
-                    <button
-                      data-no-3d
-                      onClick={() => setActiveTab("tech")}
-                      className={`sv-tab ${activeTab === "tech" ? "sv-tab-on sv-tab-alt" : ""}`}
-                    >
-                      Tech Stack
-                    </button>
-                  </div>
-
-                  <div className="min-h-[52px] sv-fade-swap" key={activeTab}>
-                    {activeTab === "features" ? (
-                      <div className="flex flex-wrap gap-1">
-                        {(demo.features ?? []).map((feature) => (
-                          <Badge
-                            key={feature}
-                            variant="outline"
-                            className="sv-chip text-[10px] border-cyan-500/30 text-cyan-300 bg-cyan-500/10"
-                          >
-                            {feature}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {[...demo.frontend, ...demo.backend].map((tech) => (
-                          <Badge
-                            key={tech}
-                            variant="outline"
-                            className="sv-chip text-[10px] border-purple-500/30 text-purple-300 bg-purple-500/10"
-                          >
-                            {tech}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+              {/* Interactive Tabs */}
+              <div className="sv-card-details mb-3">
+                <div className="flex gap-1 mb-2">
+                  <button
+                    data-no-3d
+                    onClick={() => setActiveTab("features")}
+                    className={`sv-tab ${activeTab === "features" ? "sv-tab-on" : ""}`}
+                  >
+                    Features
+                  </button>
+                  <button
+                    data-no-3d
+                    onClick={() => setActiveTab("tech")}
+                    className={`sv-tab ${activeTab === "tech" ? "sv-tab-on sv-tab-alt" : ""}`}
+                  >
+                    Tech Stack
+                  </button>
                 </div>
-              )}
+
+                <div className="min-h-[52px] sv-fade-swap" key={activeTab}>
+                  {activeTab === "features" ? (
+                    <div className="flex flex-wrap gap-1">
+                      {demo.features.map((feature) => (
+                        <Badge
+                          key={feature}
+                          variant="outline"
+                          className="sv-chip sv-chip-feature text-[10px]"
+                        >
+                          {feature}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {[...demo.frontend, ...demo.backend].map((tech) => (
+                        <Badge
+                          key={tech}
+                          variant="outline"
+                          className="sv-chip sv-chip-tech text-[10px]"
+                        >
+                          {tech}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* One fixed lifetime price across the marketplace. */}
-              {shows("metadata", "price") &&
-                (() => {
-                  return (
-                    <div className="mb-4">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-gray-500 line-through text-[13px]">
-                          {LIFETIME_MRP}
-                        </span>
-                        <span className="sv-price text-emerald-300 font-black text-[22px] tracking-[-0.02em]">
-                          {LIFETIME_PRICE}
-                        </span>
-                        <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-[10px] font-bold">
-                          {LIFETIME_DISCOUNT}
-                        </Badge>
-                      </div>
-                      <p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-cyan-300/80">
-                        One-time payment · Lifetime access
-                      </p>
-                    </div>
-                  );
-                })()}
+              <div className="sv-card-price-row flex items-baseline gap-2 mb-4">
+                <span className="sv-card-price-old line-through text-[13px]">{LIFETIME_MRP}</span>
+                <span className="sv-price font-black text-[22px] tracking-normal">
+                  {LIFETIME_PRICE}
+                </span>
+                <Badge className="sv-card-discount text-[10px] font-bold">
+                  {LIFETIME_DISCOUNT}
+                </Badge>
+                <span className="sv-card-lifetime">Lifetime</span>
+              </div>
 
-              {/* Enhanced Actions
-                Two gates, deliberately. `shows()` is the card composition -
-                whether this card displays the button. `allowed()` is the Action
-                Layer - whether the marketplace offers the action at all. A
-                second switch here would be the duplicate the brief warns
-                about, so there is none: allowed() is the resolver's answer. */}
-              {(() => {
-                // The card's own product page, and the demo it actually has.
-                // demo.url is the product page for catalogue cards and a /demo
-                // path for the seeded ones, so both are honoured.
-                const d = demo as unknown as {
-                  url?: string;
-                  href?: string;
-                  slug?: string;
-                  hasDemo?: boolean;
-                  demoUrl?: string | null;
-                };
-                const productHref =
-                  d.href ?? d.url ?? (d.slug ? `/marketplace/product/${d.slug}` : "#");
-                const demoHref =
-                  d.demoUrl ??
-                  (d.hasDemo ? productHref : d.url && d.url.startsWith("/demo/") ? d.url : null);
-                const buyHref = `${productHref}${productHref.includes("?") ? "&" : "?"}buy=1`;
-                return (
-                  <div className="flex gap-2 mt-auto">
-                    {demo.status === "ACTIVE" ? (
-                      <>
-                        {/* Only offered when there is a demo to open. */}
-                        {shows("action", "live-demo") && allowed("LIVE_DEMO") && demoHref && (
-                          <a
-                            href={demoHref}
-                            className="flex-1"
-                            target={demoHref.startsWith("http") ? "_blank" : undefined}
-                            rel="noreferrer"
-                          >
-                            <Button className="sv-btn sv-btn-cyan w-full">
-                              <Play className="h-4 w-4 mr-2" /> Live Demo
-                            </Button>
-                          </a>
-                        )}
-                        {/* Goes to the product page ready to buy. The Add to cart
-                      mutation and the sign-in redirect already live there. */}
-                        {allowed("BUY_NOW") && (
-                          <a href={buyHref} className="flex-1">
-                            <Button className="sv-btn sv-btn-emerald w-full">
-                              <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
-                            </Button>
-                          </a>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {allowed("VIEW_DETAILS") && (
-                          <a href={productHref} className="flex-1">
-                            <Button className="sv-btn sv-btn-cyan w-full">
-                              <Eye className="h-4 w-4 mr-2" /> View details
-                            </Button>
-                          </a>
-                        )}
-                        <a href={buyHref} className="flex-1">
-                          <Button className="sv-btn sv-btn-emerald w-full">
-                            <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
-                          </Button>
-                        </a>
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
+              {/* Enhanced Actions */}
+              <div className="sv-card-actions flex gap-2 mt-auto">
+                {demo.status === "ACTIVE" ? (
+                  <>
+                    <Button
+                      className="sv-btn sv-btn-cyan flex-1"
+                      onClick={() => {
+                        if (demo.url && demo.url !== "#") {
+                          window.open(demo.url, "_blank", "noopener,noreferrer");
+                          return;
+                        }
+                        setLeadAction("request_demo");
+                      }}
+                    >
+                      <Play className="h-4 w-4 mr-2" /> Live Demo
+                    </Button>
+                    <Button
+                      className="sv-btn sv-btn-emerald flex-1"
+                      onClick={() => setLeadAction("buy_intent")}
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button className="sv-btn sv-btn-coming flex-1" disabled>
+                      <Clock className="h-4 w-4 mr-2" /> Coming Soon
+                    </Button>
+                    <Button
+                      className="sv-btn sv-btn-gold flex-1"
+                      onClick={() => setLeadAction("notify_me")}
+                    >
+                      <Bell className="h-4 w-4 mr-2" /> Notify Me
+                    </Button>
+                  </>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      className="sv-btn sv-btn-share"
+                      aria-label={`Share ${demo.name}`}
+                      title="Share product"
+                    >
+                      <Share2 />
+                      <span className="sv-share-label">Share</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="sv-share-menu w-48">
+                    <DropdownMenuItem onSelect={() => void shareNatively(demo)}>
+                      <Share2 /> Share anywhere
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        const details = getShareDetails(demo);
+                        openShareUrl(
+                          `https://wa.me/?text=${encodeURIComponent(`${details.text} ${details.url}`)}`,
+                        );
+                      }}
+                    >
+                      <MessageCircle /> WhatsApp
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        const { url } = getShareDetails(demo);
+                        openShareUrl(
+                          `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+                        );
+                      }}
+                    >
+                      <Facebook /> Facebook
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        const details = getShareDetails(demo);
+                        openShareUrl(
+                          `https://twitter.com/intent/tweet?text=${encodeURIComponent(details.text)}&url=${encodeURIComponent(details.url)}`,
+                        );
+                      }}
+                    >
+                      <span className="sv-share-x" aria-hidden="true">
+                        X
+                      </span>{" "}
+                      X
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        const { url } = getShareDetails(demo);
+                        openShareUrl(
+                          `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
+                        );
+                      }}
+                    >
+                      <Linkedin /> LinkedIn
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        const details = getShareDetails(demo);
+                        window.location.href = `mailto:?subject=${encodeURIComponent(details.title)}&body=${encodeURIComponent(`${details.text}\n\n${details.url}`)}`;
+                      }}
+                    >
+                      <Mail /> Email
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={async () => {
+                        await navigator.clipboard.writeText(getShareDetails(demo).url);
+                        toast.success("Product link copied");
+                      }}
+                    >
+                      <Copy /> Copy link
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
 
-              {/* Facts the catalogue actually holds.
-                This strip used to show a client count, a rating and a delivery
-                time computed from a hash of the product id — invented numbers
-                presented as business metrics. Eight products in the catalogue
-                have a real rating; none has a client count or a delivery time.
-                Whatever is real is shown, and when nothing is, the strip is
-                not drawn. */}
-              {(() => {
-                const d = demo as unknown as {
-                  rating?: number | null;
-                  license?: string | null;
-                  platform?: string | null;
-                };
-                const cells: { value: string; label: string; tone: string }[] = [];
-                if (shows("metadata", "rating") && typeof d.rating === "number" && d.rating > 0) {
-                  cells.push({
-                    value: d.rating.toFixed(1),
-                    label: "Rating",
-                    tone: "text-emerald-400",
-                  });
-                }
-                if (shows("metadata", "license") && d.license)
-                  cells.push({ value: d.license, label: "Licence", tone: "text-cyan-400" });
-                if (shows("platform", "platform-web") && d.platform)
-                  cells.push({ value: d.platform, label: "Deployment", tone: "text-purple-400" });
-                if (cells.length === 0) return null;
-                return (
-                  // One slim strip instead of a stacked grid: the same facts and
-                  // the same tone colours, on a single line inside a glass pill.
-                  // Value and label sit side by side, so three facts cost one line
-                  // of height rather than four.
-                  <div className="sv-card-stats mt-2 flex flex-wrap items-center gap-1.5">
-                    {cells.map((c) => (
-                      <span
-                        key={c.label}
-                        title={`${c.label}: ${c.value}`}
-                        className="inline-flex min-w-0 items-baseline gap-1 rounded-full border border-cyan-500/15 bg-gradient-to-r from-white/[0.06] to-white/[0.02] px-2 py-[3px] backdrop-blur-sm"
-                      >
-                        <span className={`${c.tone} truncate text-[11px] font-bold leading-none`}>
-                          {c.value}
-                        </span>
-                        <span className="shrink-0 text-[9px] uppercase tracking-wide text-gray-500">
-                          {c.label}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                );
-              })()}
+              {/* Quick Stats on hover */}
+              <div className="sv-card-stats mt-3 grid grid-cols-3">
+                <div className="sv-card-stat text-center">
+                  <p className="sv-card-stat-value text-lg font-bold">
+                    {50 + (stableSeed(demo.id) % 50)}+
+                  </p>
+                  <p className="sv-card-stat-label text-[10px]">Clients</p>
+                </div>
+                <div className="sv-card-stat text-center">
+                  <p className="sv-card-stat-value text-lg font-bold">
+                    4.{7 + (stableSeed(demo.id + "r") % 3)}
+                  </p>
+                  <p className="sv-card-stat-label text-[10px]">Rating</p>
+                </div>
+                <div className="sv-card-stat text-center">
+                  <p className="sv-card-stat-value text-lg font-bold">
+                    {5 + (stableSeed(demo.id + "d") % 10)}h
+                  </p>
+                  <p className="sv-card-stat-label text-[10px]">Delivery</p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
