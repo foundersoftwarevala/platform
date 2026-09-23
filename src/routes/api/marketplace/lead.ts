@@ -6,6 +6,7 @@ import {
   operatorRecipients,
   send as sendMail,
 } from "@/lib/commerce/mailer";
+import { languageOf, serverTranslator } from "@/lib/i18n/server-translate.server";
 
 /**
  * Marketplace lead capture — demo requests, enquiries, notify-me and callbacks.
@@ -239,10 +240,19 @@ export const Route = createFileRoute("/api/marketplace/lead")({
           // problem is logged and swallowed rather than being reported to the
           // visitor as a failure to record their request.
           try {
+            // In the visitor's language: the one the site was showing them.
+            // Translation memory answers at once for a language seen before;
+            // otherwise the reply waits at most a few seconds and anything not
+            // translated by then is sent in English.
+            const lang = languageOf(request);
+            const t = await serverTranslator(lang, ["email"], { waitMs: 4000 });
             await sendMail({
-              ...leadAcknowledgementEmail({ name, productName: productName || null, action: ctaAction }),
+              ...leadAcknowledgementEmail(
+                { name, productName: productName || null, action: ctaAction },
+                { t, lang },
+              ),
               to: email,
-              context: { kind: "lead_acknowledgement", lead_id: leadId, action: ctaAction },
+              context: { kind: "lead_acknowledgement", lead_id: leadId, action: ctaAction, language: lang },
             });
 
             const operators = await operatorRecipients();

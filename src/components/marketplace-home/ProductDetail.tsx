@@ -81,7 +81,10 @@ export function ProductDetail() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("buy") !== "1") return;
-    const product = (data as { id?: string } | undefined) ?? undefined;
+    // The page's data is { product, active_demos, seo }; the id is the
+    // product's. Reading data.id found nothing, so a card's Buy Now opened the
+    // page and never added the product or moved on to sign-in or checkout.
+    const product = (data as { product?: { id?: string } } | undefined)?.product;
     if (!product?.id) return;
     setBuyStarted(true);
     params.delete("buy");

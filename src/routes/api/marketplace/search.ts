@@ -1,4 +1,7 @@
+import { rateLimited } from "@/lib/server/rate-limit";
 import { createFileRoute } from "@tanstack/react-router";
+
+import { toCard } from "@/lib/marketplace/catalog-card";
 
 /**
  * Catalogue search for the marketplace tools.
@@ -12,6 +15,12 @@ import { createFileRoute } from "@tanstack/react-router";
  *   ?ids=<id,id,id>         fetch a specific set, for side-by-side compare
  *   ?mode=popular           the products the marketplace is actually opening
  *   ?category=<slug>        narrow any of the above to one category
+ *   &format=cards           answer with the marketplace's product cards
+ *                           (src/lib/marketplace/catalog-card.ts) instead of
+ *                           product rows: the home page's search box
+ *
+ * This is the marketplace's one search. The home page's box used to filter a
+ * list of products written into the page's source instead of the catalogue.
  */
 
 const CACHE_MS = 60_000;
@@ -33,7 +42,9 @@ function admin() {
 const SELECT =
   "id,slug,name,industry_label,icon,rating,downloads_label,badge,demo_url," +
   "price_label,price_period,description,tech_stack,features,modules,deployment," +
-  "license,version,is_featured,is_trending,is_best_seller,is_new_release,category_id";
+  "license,version,is_featured,is_trending,is_best_seller,is_new_release,category_id," +
+  // What a product card also reads (format=cards).
+  "search_keywords,subcategory,product_demo_urls(url,status)";
 
 type ProductRow = Record<string, unknown>;
 
@@ -45,7 +56,9 @@ function terms(query: string): string[] {
         .toLowerCase()
         .replace(/[^a-z0-9\s+#.-]/g, " ")
         .split(/\s+/)
-        .filter((w) => w.length > 2 && !STOPWORDS.has(w)),
+        // Two letters is enough for "AI", "HR", "QR"; the short English
+        // words are all stopwords.
+        .filter((w) => w.length > 1 && !STOPWORDS.has(w)),
     ),
   ).slice(0, 6);
 }
@@ -87,9 +100,11 @@ function score(product: ProductRow, words: string[]) {
  * leaves the server. Callers are told only whether a demo exists; opening one
  * goes through the gated demo route.
  */
-function stripDemoUrls(rows: ProductRow[]) {
+function stripDemoUrls(rows: ProductRow[]): ProductRow[] {
   return rows.map((row) => {
     const { demo_url, ...rest } = row;
+    // The embedded demo rows carry addresses too.
+    delete rest.product_demo_urls;
     return { ...rest, has_demo: Boolean(demo_url) };
   });
 }
@@ -121,10 +136,7 @@ async function withPricing(url: string, rows: ProductRow[]) {
   }));
 }
 
-export const Route = createFileRoute("/api/marketplace/search")({
-  server: {
-    handlers: {
-      GET: async ({ request }) => {
+async function answer(request: Request): Promise<Response> {
         const url = process.env.SUPABASE_URL?.trim();
         if (!url || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
           return Response.json({ products: [], error: "Catalogue is not configured" }, { status: 503 });
@@ -136,12 +148,16 @@ export const Route = createFileRoute("/api/marketplace/search")({
         const mode = (params.get("mode") ?? "").trim();
         const category = (params.get("category") ?? "").trim();
         const limit = Math.min(Math.max(Number(params.get("limit") ?? 12) || 12, 1), 40);
+        const asCards = params.get("format") === "cards";
 
-        const cacheKey = `${query}|${ids}|${mode}|${category}|${limit}`;
+        const cacheKey = `${query}|${ids}|${mode}|${category}|${limit}|${asCards}`;
         const hit = cache.get(cacheKey);
         if (hit && Date.now() - hit.at < CACHE_MS) return Response.json(hit.payload);
 
-        const base = `${url}/rest/v1/marketplace_products?select=${SELECT}&visible=eq.true`;
+        // Published products only, like every other public list.
+        const base =
+          `${url}/rest/v1/marketplace_products?select=${SELECT}` +
+          `&visible=eq.true&content_status=eq.published`;
         // PostgREST has no subqueries, so a category slug is resolved to its id.
         let categoryFilter = "";
         if (category) {
@@ -215,6 +231,7 @@ export const Route = createFileRoute("/api/marketplace/search")({
           // ---- match a described requirement ---------------------------------
           const words = terms(query);
           if (!words.length) {
+            if (asCards) return Response.json({ cards: [], terms: [] });
             const response = await fetch(`${base}&is_featured=eq.true&limit=${limit}`, { headers: admin() });
             const rows = response.ok ? ((await response.json()) as ProductRow[]) : [];
             return Response.json({ products: await withPricing(url, rows), terms: [] });
@@ -249,7 +266,9 @@ export const Route = createFileRoute("/api/marketplace/search")({
                 : "Related to your requirement",
             }));
 
-          const payload = { products: await withPricing(url, ranked), terms: words, scanned: rows.length };
+          const payload = asCards
+            ? { cards: ranked.map(toCard), terms: words, scanned: rows.length }
+            : { products: await withPricing(url, ranked), terms: words, scanned: rows.length };
           cache.set(cacheKey, { at: Date.now(), payload });
           if (cache.size > 300) cache.clear();
           return Response.json(payload);
@@ -257,6 +276,32 @@ export const Route = createFileRoute("/api/marketplace/search")({
           console.error("[search] threw", error);
           return Response.json({ products: [], error: "Search is unavailable" }, { status: 502 });
         }
+}
+
+/**
+ * Identical searches arriving together are answered by one computation: the
+ * cache above only helps once the first answer is stored, so a burst of the
+ * same query (a popular term, the AI finder's "popular" list) used to scan the
+ * catalogue once per request.
+ */
+const running = new Map<string, Promise<Response>>();
+
+export const Route = createFileRoute("/api/marketplace/search")({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        const limited = rateLimited(request, "search");
+        if (limited) return limited;
+        const key = new URL(request.url).search;
+        let work = running.get(key);
+        if (!work) {
+          work = answer(request).finally(() => running.delete(key));
+          running.set(key, work);
+        }
+        const response = (await work).clone();
+        const headers = new Headers(response.headers);
+        if (response.ok) headers.set("Cache-Control", "public, max-age=60");
+        return new Response(response.body, { status: response.status, headers });
       },
     },
   },

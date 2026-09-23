@@ -1,3 +1,4 @@
+import { rateLimited } from "@/lib/server/rate-limit";
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 
@@ -54,6 +55,8 @@ export const Route = createFileRoute("/api/marketplace/rows")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const limited = rateLimited(request, "public");
+        if (limited) return limited;
         if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
           return Response.json({ rows: [], error: "Not configured" }, { status: 503 });
         }
