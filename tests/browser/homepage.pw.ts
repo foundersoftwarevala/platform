@@ -45,8 +45,15 @@ async function scrollToEnd(page: Page, maxSteps = 60) {
   let previous = -1;
   for (let step = 0; step < maxSteps; step++) {
     const height = await page.evaluate(() => {
-      window.scrollTo(0, document.body.scrollHeight);
-      return document.body.scrollHeight;
+      // documentElement, not body. On iOS Safari `document.body.scrollHeight`
+      // does not grow with the document the way it does in Chromium, so this
+      // helper decided it had reached the bottom after one step and reported
+      // that scrolling loaded no further rows - which looked like the
+      // catalogue's paging being broken on iPad when it was this measurement.
+      const doc = document.documentElement;
+      const height = Math.max(doc.scrollHeight, document.body.scrollHeight);
+      window.scrollTo(0, height);
+      return height;
     });
     if (height === previous) break;
     previous = height;
