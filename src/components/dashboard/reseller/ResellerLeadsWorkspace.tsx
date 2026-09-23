@@ -4,8 +4,8 @@ import {
   ArrowLeft, Plus, Search, Target, BarChart3, CalendarClock, ListChecks,
   Video, FileText, ClipboardList, Trash2, Inbox, TrendingUp,
 } from "lucide-react";
-import { type CrudRecord } from "@/lib/crud-store";
-import { useResellerLeads } from "@/lib/useResellerLeads";
+import { LocalOnlyNotice } from "./LocalOnlyNotice";
+import { useCrud, type CrudRecord } from "@/lib/crud-store";
 
 type Stage = "new" | "contacted" | "qualified" | "proposal" | "won" | "lost";
 type Tab = "pipeline" | "analytics";
@@ -23,8 +23,7 @@ const STAGES: { key: Stage; label: string; tone: string }[] = [
 const SOURCES = ["Website", "Referral", "Cold Outreach", "Event", "Partner", "Social", "Inbound Call", "Other"];
 
 export function ResellerLeadsWorkspace({ onBack }: { onBack: () => void }) {
-  // Leads are rows in the leads table, which is what the manager reads.
-  const crud = useResellerLeads();
+  const crud = useCrud("reseller", "leads");
   const [tab, setTab] = useState<Tab>("pipeline");
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
@@ -53,12 +52,13 @@ export function ResellerLeadsWorkspace({ onBack }: { onBack: () => void }) {
   function setStage(id: string, stage: Stage) {
     const rec = crud.records.find((r) => r.id === id);
     if (!rec) return;
-    void crud.update(id, { extra: { ...rec.extra, stage } });
+    crud.update(id, { extra: { ...rec.extra, stage } });
     toast.success(`Moved to ${stage}`);
   }
 
   return (
     <div className="space-y-5">
+      <LocalOnlyNotice />
       <header className="flex flex-wrap items-center gap-3">
         <button onClick={active ? () => setActiveId(null) : onBack}
           className="inline-flex items-center gap-2 rounded-lg bg-surface border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 transition">
@@ -150,15 +150,8 @@ export function ResellerLeadsWorkspace({ onBack }: { onBack: () => void }) {
       {active && (
         <LeadDetail
           rec={active}
-          onPatch={(p) => void crud.update(active.id, p)}
-          onDelete={() => {
-            void crud
-              .remove(active.id)
-              .then(() => { setActiveId(null); toast.success("Lead removed"); })
-              .catch((error: unknown) =>
-                toast.error(error instanceof Error ? error.message : "That lead was not removed."),
-              );
-          }}
+          onPatch={(p) => crud.update(active.id, p)}
+          onDelete={() => { crud.remove(active.id); setActiveId(null); toast.success("Lead removed"); }}
         />
       )}
 
@@ -166,19 +159,13 @@ export function ResellerLeadsWorkspace({ onBack }: { onBack: () => void }) {
         <CreateDialog
           onClose={() => setCreating(false)}
           onCreate={(v) => {
-            void crud
-              .create({
-                name: v.name,
-                extra: { email: v.email, company: v.company, phone: v.phone, source: v.source, value: v.value, stage: "new" as Stage } as any,
-              })
-              .then((rec) => {
-                toast.success("Lead added");
-                setCreating(false);
-                setActiveId((rec as { id?: string } | undefined)?.id ?? null);
-              })
-              .catch((error: unknown) =>
-                toast.error(error instanceof Error ? error.message : "That lead was not saved."),
-              );
+            const rec = crud.create({
+              name: v.name,
+              extra: { email: v.email, company: v.company, phone: v.phone, source: v.source, value: v.value, stage: "new" as Stage } as any,
+            });
+            toast.success("Lead added");
+            setCreating(false);
+            setActiveId(rec.id);
           }}
         />
       )}
