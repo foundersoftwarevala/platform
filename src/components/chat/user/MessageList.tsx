@@ -24,6 +24,7 @@ interface MessageListProps {
   canReact: boolean;
   canReply: boolean;
   canBookmark: boolean;
+  canDownload: boolean;
   translateTarget: string;
   autoTranslate?: boolean | undefined;
   density?: "comfortable" | "compact" | undefined;
@@ -115,7 +116,7 @@ function ReceiptTick({ message, userId }: { message: ChatMessage; userId: string
 export function MessageList(props: MessageListProps) {
   const {
     messages, pending, userId, profilesById, typingUsers, connection,
-    canReact, canReply, canBookmark, translateTarget, autoTranslate, density, highlightId,
+    canReact, canReply, canBookmark, canDownload, translateTarget, autoTranslate, density, highlightId,
     onReact, onBookmark, onReply, onOpenThread, onRetry, onDiscard,
   } = props;
   const { t, formatDate } = useTranslation();
@@ -242,7 +243,7 @@ export function MessageList(props: MessageListProps) {
               </p>
             ) : null}
             {message.attachments.map((attachment) => (
-              <AttachmentCard key={attachment.id} attachment={attachment} />
+              <AttachmentCard key={attachment.id} attachment={attachment} canDownload={canDownload} />
             ))}
 
             <div className={cn("mt-0.5 flex items-center justify-end gap-1 text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>

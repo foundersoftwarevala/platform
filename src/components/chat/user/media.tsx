@@ -83,7 +83,7 @@ export function UserAvatar({
   );
 }
 
-export function AttachmentCard({ attachment }: { attachment: Attachment }) {
+export function AttachmentCard({ attachment, canDownload = false }: { attachment: Attachment; canDownload?: boolean }) {
   const { t } = useTranslation();
   const { url, error } = useSignedUrl("chat-files", attachment.storage_path);
   const [downloading, setDownloading] = useState(false);
@@ -125,16 +125,23 @@ export function AttachmentCard({ attachment }: { attachment: Attachment }) {
             {formatBytes(attachment.size_bytes)} · {attachment.mime_type || t("chat.media.file")}
           </span>
         </span>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          aria-label={t("chat.media.download", { name: attachment.file_name })}
-          onClick={() => void download()}
-          disabled={downloading}
-        >
-          {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-        </Button>
+{/*
+          Taking a file out of the workspace is the one way content leaves it,
+          so it is offered only to whoever the Chat Manager has granted
+          attachment.download. Everyone else sees the file, and that is all.
+        */}
+        {canDownload ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label={t("chat.media.download", { name: attachment.file_name })}
+            onClick={() => void download()}
+            disabled={downloading}
+          >
+            {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+          </Button>
+        ) : null}
       </div>
       {error ? <p className="px-3 pb-2 text-xs text-destructive">{error}</p> : null}
     </div>

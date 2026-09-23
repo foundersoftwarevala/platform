@@ -462,6 +462,7 @@ export function ChatWorkspace() {
                 canReact={can("message.react")}
                 canReply={can("message.send")}
                 canBookmark={can("message.bookmark")}
+                canDownload={can("attachment.download")}
                 translateTarget={prefs.language}
                 autoTranslate={prefs.autoTranslate}
                 density={prefs.density}
