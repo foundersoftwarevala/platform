@@ -77,12 +77,7 @@ export function ProductDetail() {
       const result = await getProductFn({ data: { slug } });
       return result;
     },
-    // The loader hands over the product; the query answers with the whole page
-    // payload. Seeding it in the loader's shape left the first render looking
-    // for a product where there was none.
-    initialData: (seededProduct
-      ? { product: seededProduct, active_demos: [], seo: null }
-      : undefined) as never,
+    initialData: seededProduct as never,
   });
 
   // A card's Buy Now arrives here as ?buy=1. Run the page's own Add to cart
