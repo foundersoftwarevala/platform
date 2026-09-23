@@ -1,0 +1,14 @@
+{
+  "//": "Typechecks the marketplace home page and what it reaches, without the other 240 routes. A scoped run for working on this page; `npm run typecheck` still covers everything.",
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/components/marketplace-home/**/*.ts",
+    "src/components/marketplace-home/**/*.tsx",
+    "src/lib/marketplace/**/*.ts",
+    "src/lib/marketplace-home/**/*.ts",
+    "src/lib/storefront/**/*.ts",
+    "src/routes/index.tsx",
+    "src/routes/marketplace.index.tsx",
+    "src/routes/api/marketplace/**/*.ts"
+  ]
+}

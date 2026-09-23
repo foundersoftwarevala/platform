@@ -52,3 +52,9 @@ _archive/
 # Deploy config templates carry no secrets and belong in the repository,
 # even though "*.local" would otherwise exclude them.
 !deploy/production/system/fail2ban-sshd.local
+
+# Playwright (tests/browser)
+/playwright-report/
+/test-results/
+/blob-report/
+/.playwright/

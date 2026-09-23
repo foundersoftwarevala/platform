@@ -4,6 +4,7 @@ import { getHomeLayout, type HomeLayout } from "@/lib/marketplace/home-layout.fu
 import { getStorefrontChrome, type StorefrontChrome } from "@/lib/storefront/chrome.functions";
 import { getCardComposition, type CardComposition } from "@/lib/marketplace/card-composition.functions";
 import { listHeroSlidesPublic, type HeroSlide } from "@/lib/marketplace-content/hero.functions";
+import { getStorefrontProof, type StorefrontProof } from "@/lib/marketplace/proof.functions";
 
 /**
  * The data the marketplace home needs before it is sent.
@@ -20,6 +21,8 @@ export type HomeRouteData = {
   chrome: StorefrontChrome | null;
   composition: CardComposition | null;
   slides: HeroSlide[] | null;
+  /** Published success stories and awards. Null means "ask for them yourself". */
+  proof: StorefrontProof | null;
 };
 
 /**
@@ -33,7 +36,7 @@ export async function loadHomeRouteData(): Promise<HomeRouteData> {
   // Settled rather than all, so one failing lookup cannot take the others with
   // it. The catalogue, the layout and the chrome are unrelated questions and
   // the page has a safe answer for each of them missing.
-  const [seed, layout, chrome, composition, slides] = await Promise.allSettled([
+  const [seed, layout, chrome, composition, slides, proof] = await Promise.allSettled([
     getHomeCatalog(),
     getHomeLayout(),
     getStorefrontChrome(),
@@ -43,6 +46,10 @@ export async function loadHomeRouteData(): Promise<HomeRouteData> {
     // inside a Suspense, that single suspend replaced the whole document with a
     // spinner.
     listHeroSlidesPublic(),
+    // Success Stories and Awards used to fetch this from the browser, so
+    // neither reached the HTML and neither appeared at all when the page's
+    // JavaScript did not run.
+    getStorefrontProof(),
   ]);
   return {
     seed: seed.status === "fulfilled" ? seed.value : null,
@@ -57,6 +64,8 @@ export async function loadHomeRouteData(): Promise<HomeRouteData> {
     composition: composition.status === "fulfilled" ? composition.value : null,
     // Null means the carousel fetches them itself, as it did before.
     slides: slides.status === "fulfilled" ? slides.value : null,
+    // Null means the two sections ask for themselves, as they did before.
+    proof: proof.status === "fulfilled" ? proof.value : null,
   };
 }
 

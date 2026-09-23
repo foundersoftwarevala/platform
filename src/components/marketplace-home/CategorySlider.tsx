@@ -123,19 +123,50 @@ const CategorySlider = () => {
   const velocityRef = useRef(0);    // px / second, from drag + wheel momentum
   const lastPointer = useRef({ x: 0, t: 0 });
 
-  // Single rAF loop drives autoplay, inertia and the GPU transform.
+  /**
+   * The width of one copy of the chip list.
+   *
+   * Read from the element once and whenever it can actually have changed - the
+   * chips arriving, the viewport resizing - rather than inside the animation.
+   * `scrollWidth` forces the browser to lay the track out to answer it, so
+   * asking for it on every frame meant a synchronous layout sixty times a
+   * second, for as long as the page was open.
+   */
+  const halfRef = useRef(1);
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
+    const measure = () => {
+      halfRef.current = track.scrollWidth / 2 || 1;
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, [loop.length]);
+
+  /**
+   * Single rAF loop for autoplay, inertia and the transform.
+   *
+   * It runs only while the strip is actually on screen and the tab is in front.
+   * It used to run from mount until the page was closed, so a visitor reading
+   * the FAQ at the bottom of the home page was still paying for this strip
+   * being animated far above them.
+   */
+  useEffect(() => {
+    const track = trackRef.current;
+    const viewport = viewportRef.current;
+    if (!track || !viewport) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let raf = 0;
     let last = performance.now();
+    let onScreen = true;
     const AUTO = 28; // px per second
 
     const tick = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
-      const half = track.scrollWidth / 2 || 1;
+      const half = halfRef.current;
 
       if (!draggingRef.current) {
         if (Math.abs(velocityRef.current) > 2) {
@@ -154,8 +185,35 @@ const CategorySlider = () => {
       track.style.transform = `translate3d(${offsetRef.current.toFixed(2)}px,0,0)`;
       raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+
+    const start = () => {
+      if (raf) return;
+      last = performance.now();   // no jump for the time spent stopped
+      raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (!raf) return;
+      cancelAnimationFrame(raf);
+      raf = 0;
+    };
+    const sync = () => {
+      if (onScreen && !document.hidden) start();
+      else stop();
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      onScreen = entries[0]?.isIntersecting ?? true;
+      sync();
+    });
+    observer.observe(viewport);
+    document.addEventListener("visibilitychange", sync);
+    sync();
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", sync);
+      stop();
+    };
   }, []);
 
   // Horizontal mouse-wheel / trackpad support (non-passive so the page never scrolls with it)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Sparkles, GraduationCap, Hospital, Hotel, ShoppingBag, Wrench, Factory,
   Trophy, Award, BookOpen, Handshake, ChevronRight, Star,
@@ -160,8 +160,27 @@ type PublishedAward = {
  * unused, rather than removed.
  */
 function usePublishedProof() {
-  const [proof, setProof] = useState<{ stories: PublishedStory[]; awards: PublishedAward[] } | null>(null);
+  // What the home route already resolved on the server. Both sections used to
+  // fetch this from the browser and nothing else, so neither was ever in the
+  // HTML and neither appeared when the page's JavaScript did not run. On a
+  // route with no home loader this is absent and the request below still runs,
+  // exactly as it did before.
+  const seeded =
+    (useHomeRouteMatch()?.loaderData as {
+      proof?: { stories?: unknown; awards?: unknown } | null;
+    } | undefined)?.proof ?? null;
+
+  const [proof, setProof] = useState<{ stories: PublishedStory[]; awards: PublishedAward[] } | null>(
+    seeded
+      ? {
+          stories: (Array.isArray(seeded.stories) ? seeded.stories : []) as PublishedStory[],
+          awards: (Array.isArray(seeded.awards) ? seeded.awards : []) as PublishedAward[],
+        }
+      : null,
+  );
+
   useEffect(() => {
+    if (seeded) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -180,7 +199,7 @@ function usePublishedProof() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [seeded]);
   return proof;
 }
 
@@ -326,6 +345,7 @@ function whenAgo(at: string): string {
  */
 export const LiveActivity = () => {
   const [items, setItems] = useState<MarketplaceEvent[] | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -339,18 +359,56 @@ export const LiveActivity = () => {
         if (!cancelled) setItems([]);
       }
     };
-    void read();
-    // The feed refreshes on its own, but from the database rather than by
-    // shuffling the same five rows around.
-    const timer = setInterval(read, 30_000);
+    // The feed is read when the section comes into view and refreshes on its
+    // own from then on, from the database rather than by shuffling the same
+    // five rows around.
+    //
+    // Only while somebody is actually looking at it. Every open tab asked the
+    // marketplace for this feed every thirty seconds whether the section was on
+    // screen or not, and whether the tab was in front or not, which at any real
+    // number of visitors is the most requests the home page makes of anything.
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let onScreen = false;
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    const sync = () => {
+      const wanted = onScreen && !document.hidden;
+      if (wanted && !timer) {
+        void read();
+        timer = setInterval(read, 30_000);
+      } else if (!wanted) {
+        stop();
+      }
+    };
+    const node = sectionRef.current;
+    const observer = node
+      ? new IntersectionObserver(
+          (entries) => {
+            onScreen = entries[0]?.isIntersecting ?? false;
+            sync();
+          },
+          { rootMargin: "200px" },
+        )
+      : null;
+    if (node && observer) observer.observe(node);
+    // With nothing to observe there is no way to tell, so the feed reads as it
+    // always did rather than never reading at all.
+    else onScreen = true;
+    document.addEventListener("visibilitychange", sync);
+    sync();
+
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      stop();
+      observer?.disconnect();
+      document.removeEventListener("visibilitychange", sync);
     };
   }, []);
 
   return (
-    <section className="py-10">
+    <section ref={sectionRef} className="py-10">
       {sectionTitle("Live Marketplace Activity", undefined, "Real views, demo opens and purchases across the catalogue")}
       <div className="mx-6 overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-b from-white/[0.03] to-transparent">
         {items === null && (
@@ -604,7 +662,18 @@ export const FaqSection = () => {
     [faqs],
   );
   const [activeCat, setActiveCat] = useState<string>("All");
-  const [open, setOpen] = useState<string | null>(faqs[0]?.id ?? null);
+  /**
+   * Which answers are open. Every one starts closed, so the section opens at
+   * the height of its questions rather than at the height of its longest
+   * answer, and a visitor may leave several open to compare them.
+   */
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const toggle = (id: string) =>
+    setOpen((current) => {
+      const nextOpen = new Set(current);
+      if (!nextOpen.delete(id)) nextOpen.add(id);
+      return nextOpen;
+    });
 
   const visible = activeCat === "All" ? faqs : faqs.filter((f) => f.category === activeCat);
   if (faqs.length === 0) return null;
@@ -636,21 +705,65 @@ export const FaqSection = () => {
           </button>
         ))}
       </div>
-      <div className="mx-6 max-w-4xl space-y-2">
+      {/* One question per full-width row put twenty-eight questions across
+          roughly four screens of the home page, almost all of it empty space to
+          the right of each question. The same twenty-eight sit in a grid now -
+          three columns on a desktop, two on a tablet, one on a phone - with
+          every answer closed until it is asked for. Nothing was removed to make
+          it shorter: every published question and its own answer are here, and
+          the category filter above still narrows the same set.
+
+          `items-start` so a card that is opened grows on its own instead of
+          stretching every other card in its row to match. */}
+      <ul className="mx-6 grid grid-cols-1 items-start gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((f) => {
-          const isOpen = open === f.id;
+          const isOpen = open.has(f.id);
           return (
-            <button key={f.id} onClick={() => setOpen(isOpen ? null : f.id)} className={`w-full overflow-hidden rounded-xl border text-left transition-all ${isOpen ? "border-cyan-400/40 bg-cyan-500/[0.04]" : "border-white/[0.07] bg-white/[0.02] hover:border-white/15"}`}>
-              <div className="flex items-center gap-3 px-5 py-4">
-                <HelpCircle className={`h-4 w-4 flex-shrink-0 ${isOpen ? "text-cyan-300" : "text-white/60"}`} />
-                <span className="flex-1 text-sm font-semibold text-white">{f.question}</span>
-                <ChevronRight className={`h-4 w-4 text-white/60 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+            <li
+              key={f.id}
+              className={`overflow-hidden rounded-xl border transition-colors ${
+                isOpen
+                  ? "border-cyan-400/40 bg-cyan-500/[0.04]"
+                  : "border-white/[0.07] bg-white/[0.02] hover:border-white/15"
+              }`}
+            >
+              <h3>
+                <button
+                  type="button"
+                  id={`faq-q-${f.id}`}
+                  aria-expanded={isOpen}
+                  aria-controls={`faq-a-${f.id}`}
+                  onClick={() => toggle(f.id)}
+                  className="flex w-full items-start gap-2.5 px-4 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+                >
+                  <HelpCircle
+                    className={`mt-[3px] h-4 w-4 flex-shrink-0 ${isOpen ? "text-cyan-300" : "text-white/55"}`}
+                    aria-hidden="true"
+                  />
+                  <span className="flex-1 text-[13px] font-semibold leading-snug text-white">
+                    {f.question}
+                  </span>
+                  <ChevronRight
+                    className={`mt-[3px] h-4 w-4 flex-shrink-0 transition-transform ${
+                      isOpen ? "rotate-90 text-cyan-300" : "text-white/55"
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
+              </h3>
+              <div
+                id={`faq-a-${f.id}`}
+                role="region"
+                aria-labelledby={`faq-q-${f.id}`}
+                hidden={!isOpen}
+                className="px-4 pb-3.5 pl-[2.625rem] text-xs leading-relaxed text-white/70"
+              >
+                {f.answer}
               </div>
-              {isOpen && <p className="px-5 pb-4 pl-12 text-xs leading-relaxed text-white/70">{f.answer}</p>}
-            </button>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </section>
   );
 };
