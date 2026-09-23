@@ -47,14 +47,25 @@ console.log(`clients module open: ${await page.getByText("Client Management").co
 
 await page.getByRole("button", { name: /New Client/i }).first().click();
 await page.waitForTimeout(1500);
-await page.getByLabel("Full name *").fill(marker);
-await page.getByLabel("Company").fill("Software Vala E2E");
-await page.getByLabel("Email").fill("e2e@softwarevala.test");
-await page.getByRole("button", { name: "Create client" }).click();
-await page.waitForTimeout(6000);
+// The form's labels are not tied to their inputs, so each field is found
+// by the label sitting above it rather than by getByLabel.
+const field = (label) => page.locator(`div:has(> label:text-is("${label}")) > input`).first();
+await field("Full name *").fill(marker);
+await field("Company").fill("Software Vala E2E");
+await field("Email").fill("e2e@softwarevala.test");
+const created = page.getByRole("button", { name: "Create client" });
+console.log(`name field holds : ${JSON.stringify(await field("Full name *").inputValue().catch(() => "(not found)"))}`);
+console.log(`create button     : ${await created.count()} found, disabled=${await created.isDisabled().catch(() => "?")}`);
+await created.click();
+await page.waitForTimeout(1500);
+const early = await page.locator("[data-sonner-toast]").allInnerTexts().catch(() => []);
+console.log(`message right after clicking: ${JSON.stringify(early.slice(0, 3))}`);
+await page.waitForTimeout(5000);
 
 const inList = await page.getByText(marker).count();
 console.log(`shown in the dashboard list: ${inList > 0}`);
+const toast = await page.locator("[data-sonner-toast], [role='status'], .toaster li").allInnerTexts().catch(() => []);
+console.log(`what the screen said: ${JSON.stringify(toast.slice(0, 3))}`);
 console.log(`console errors: ${errors.length}`);
 for (const e of [...new Set(errors)].slice(0, 4)) console.log(`  ${e.slice(0, 150)}`);
 await browser.close();
