@@ -136,6 +136,12 @@ interface Demo {
   color: string;
   price: string;
   discountPrice: string;
+  /** Stands in for the stack chips where no stack may be claimed. */
+  technologyNote?: string;
+  businessType?: string;
+  softwareType?: string;
+  relatedDetails?: string;
+  disclaimer?: string;
 }
 
 const allDemos: Demo[] = [
@@ -3793,6 +3799,12 @@ const DemoCard = memo(
                         </Badge>
                       ))}
                     </div>
+                  ) : demo.technologyNote ? (
+                    // A software category is not one product, so the stack is
+                    // whatever the implementation turns out to use.
+                    <p className="sv-card-description text-[10px] leading-relaxed">
+                      {demo.technologyNote}
+                    </p>
                   ) : (
                     <div className="flex flex-wrap gap-1">
                       {[...demo.frontend, ...demo.backend].map((tech) => (

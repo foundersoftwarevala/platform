@@ -15,6 +15,10 @@ import {
   Banknote, Box, Calculator, Compass, Gavel, Hammer, Handshake, Key,
   Landmark, LayoutGrid, Lock, Map, Monitor, Network, Percent, PieChart,
   Receipt, Ruler, Scale, ScanLine, Search, Share2, Tag,
+  // And the healthcare titles below.
+  Hospital, Stethoscope, BriefcaseMedical, CalendarClock, Pill, TestTube,
+  Scan, Smile, Bone, PawPrint, Droplet, Ambulance, Siren, HeartPulse,
+  Syringe, Thermometer, Activity, Bed,
 } from "lucide-react";
 
 export interface Demo {
@@ -32,11 +36,32 @@ export interface Demo {
   color: string;
   price: string;
   discountPrice: string;
+  /**
+   * What the entry says about its technology when no stack may be claimed.
+   * A generic software category is not one product, so the honest answer is
+   * that the stack has to be read off the actual implementation. Where this
+   * is set it stands in place of the frontend/backend chips.
+   */
+  technologyNote?: string;
+  /** Who the software is for, as the catalogue copy states it. */
+  businessType?: string;
+  /** The category of software this is, in the catalogue's own words. */
+  softwareType?: string;
+  /** The parts of the workflow the copy calls out beyond the feature list. */
+  relatedDetails?: string;
+  /** The notice that this describes a category, not a commercial product. */
+  disclaimer?: string;
 }
+
+type DemoCopy = Pick<
+  Demo,
+  "technologyNote" | "businessType" | "softwareType" | "relatedDetails" | "disclaimer"
+>;
 
 const mk = (
   id: string, name: string, cat: string, mc: string, desc: string,
-  icon: any, color: string, features: string[], price: string, disc: string
+  icon: any, color: string, features: string[], price: string, disc: string,
+  copy?: DemoCopy
 ): Demo => ({
   id, name, category: cat, masterCategory: mc, description: desc,
   url: "#", icon, status: "COMING_SOON",
@@ -44,6 +69,24 @@ const mk = (
   frontend: ["React", "TypeScript", "Premium UI"],
   backend: ["Node.js", "PostgreSQL", "REST API"],
   color, price, discountPrice: disc,
+  ...copy,
+});
+
+/** The notice every generic-category entry carries. */
+const CATEGORY_DISCLAIMER =
+  "This is a generic software category/use case. Features and technology may vary by implementation and should not be treated as claims about a specific commercial product.";
+
+/** What a generic-category entry says instead of naming a stack. */
+const TECHNOLOGY_UNVERIFIED =
+  "Product-dependent; exact technology stack must be verified from the actual implementation.";
+
+/** A generic-category entry: no stack is claimed, and the notice is attached. */
+const category = (
+  businessType: string, softwareType: string, relatedDetails: string,
+  disclaimer = CATEGORY_DISCLAIMER
+): DemoCopy => ({
+  technologyNote: TECHNOLOGY_UNVERIFIED,
+  businessType, softwareType, relatedDetails, disclaimer,
 });
 
 export const extraDemos: Demo[] = [
@@ -296,6 +339,39 @@ export const extraDemos: Demo[] = [
   mk("re-78", "Property Owner Portal", "Owner Portal", "Real Estate", "Owner login for occupancy, rent received, expenses and documents.", Home, "from-emerald-600 to-green-800", ["Occupancy", "Rent Received", "Expenses", "Documents"], "₹57,999", "₹34,999"),
   mk("re-79", "Tenant Portal", "Tenant Portal", "Real Estate", "Tenant login to pay rent, raise complaints and read notices.", Key, "from-cyan-600 to-teal-800", ["Pay Rent", "Complaints", "Notices", "Lease Copy"], "₹52,999", "₹31,999"),
   mk("re-80", "Real Estate Customer Portal", "Customer Portal", "Real Estate", "Buyer login for booking status, payment schedule and possession.", Users, "from-blue-600 to-indigo-800", ["Booking Status", "Payment Schedule", "Documents", "Possession"], "₹57,999", "₹34,999"),
+
+  // Healthcare & Medical — each entry is a software category, not a product,
+  // so it names no stack and carries the notice that says so.
+  mk("hc-1", "Hospital Management Software", "Hospital Management", "Healthcare", "Complete software for managing hospital operations, patients, staff, appointments, billing, and reports.", Hospital, "from-sky-600 to-blue-700", ["Patient Management", "Appointment Management", "Doctor Management", "Billing", "Pharmacy", "Laboratory", "Reports"], "₹1,24,999", "₹74,999", category("Hospitals, Multi-Specialty Hospitals, Healthcare Centers", "Hospital Management / ERP", "OPD, IPD, Emergency, Ward Management, Staff Management, Medical Records")),
+  mk("hc-2", "Clinic Management Software", "Clinic Management", "Healthcare", "Software for managing daily clinic operations, patients, doctors, appointments, billing, and records.", Stethoscope, "from-teal-600 to-cyan-700", ["Patient Registration", "Appointment Scheduling", "Doctor Management", "Billing", "Prescription", "Reports"], "₹64,999", "₹38,999", category("Clinics, Private Practices, Healthcare Centers", "Clinic Management", "Patient History, Follow-ups, Invoices, Doctor Schedule, Notifications")),
+  mk("hc-3", "Medical Practice Management Software", "Practice Management", "Healthcare", "Software designed to manage the administrative and operational activities of medical practices.", BriefcaseMedical, "from-indigo-600 to-violet-700", ["Patient Management", "Scheduling", "Billing", "Staff Management", "Reporting", "Medical Records"], "₹69,999", "₹41,999", category("Doctors, Medical Practices, Specialist Clinics", "Practice Management", "Appointment Calendar, Patient Profiles, Billing, Staff Roles")),
+  mk("hc-4", "Patient Management Software", "Patient Management", "Healthcare", "Centralized system for managing patient profiles, visits, medical history, and healthcare records.", UserCheck, "from-emerald-600 to-teal-700", ["Patient Registration", "Medical History", "Visit Tracking", "Documents", "Search", "Reports"], "₹59,999", "₹35,999", category("Hospitals, Clinics, Diagnostic Centers", "Healthcare Management", "Patient Profiles, Visit History, Medical Documents, Follow-up Tracking")),
+  mk("hc-5", "Electronic Medical Records (EMR) Software", "EMR", "Healthcare", "Digital system for storing and managing patient medical records.", FileText, "from-blue-600 to-indigo-700", ["Medical Records", "Patient History", "Clinical Notes", "Prescriptions", "Documents", "Search"], "₹84,999", "₹50,999", category("Hospitals, Clinics, Medical Practices", "EMR", "Clinical Documentation, Patient Timeline, Doctor Access, Record Management")),
+  mk("hc-6", "Electronic Health Records (EHR) Software", "EHR", "Healthcare", "Digital healthcare record platform for managing comprehensive patient health information.", ClipboardList, "from-cyan-600 to-sky-700", ["Patient Records", "Medical History", "Clinical Data", "Prescriptions", "Reports", "Document Management"], "₹94,999", "₹56,999", category("Hospitals, Healthcare Networks, Clinics", "EHR", "Longitudinal Patient Records, Provider Access, Health Information Management")),
+  mk("hc-7", "Doctor Appointment Software", "Appointment Management", "Healthcare", "Appointment scheduling system for doctors, patients, clinics, and hospitals.", CalendarClock, "from-violet-600 to-purple-700", ["Online Booking", "Doctor Calendar", "Appointment Slots", "Rescheduling", "Cancellation", "Notifications"], "₹49,999", "₹29,999", category("Doctors, Clinics, Hospitals", "Appointment Management", "Patient Booking, Doctor Availability, SMS/Email Notifications")),
+  mk("hc-8", "Hospital Billing Software", "Hospital Billing", "Healthcare", "Billing and financial management software designed for hospital operations.", Receipt, "from-amber-600 to-orange-700", ["Patient Billing", "Invoices", "Payments", "Discounts", "Insurance Billing", "Financial Reports"], "₹74,999", "₹44,999", category("Hospitals, Healthcare Centers", "Billing / Healthcare ERP", "OPD Billing, IPD Billing, Pharmacy Billing, Laboratory Charges")),
+  mk("hc-9", "Medical Billing Software", "Medical Billing", "Healthcare", "Software for managing healthcare billing, invoices, payments, and financial records.", CreditCard, "from-orange-600 to-red-700", ["Invoicing", "Payment Tracking", "Billing Reports", "Patient Accounts", "Insurance Billing"], "₹59,999", "₹35,999", category("Clinics, Hospitals, Medical Practices", "Medical Billing", "Billing History, Receipts, Payment Status, Financial Reporting")),
+  mk("hc-10", "Medical Insurance Billing Software", "Insurance Billing", "Healthcare", "Software for managing insurance-related medical billing and claim workflows.", ShieldCheck, "from-slate-600 to-gray-700", ["Insurance Claims", "Patient Insurance", "Billing", "Claim Tracking", "Documents", "Reports"], "₹79,999", "₹47,999", category("Hospitals, Clinics, Healthcare Providers", "Insurance Billing", "Claim Records, Policy Information, Claim Status, Billing Documentation", "This is a generic software category/use case. Insurance workflows and integrations vary by country and implementation.")),
+  mk("hc-11", "Pharmacy Management Software", "Pharmacy Management", "Healthcare", "Software for managing pharmacy inventory, sales, prescriptions, suppliers, and billing.", Pill, "from-green-600 to-emerald-700", ["Medicine Inventory", "Sales", "Purchase", "Expiry Tracking", "Suppliers", "Billing"], "₹64,999", "₹38,999", category("Pharmacies, Medical Stores, Hospital Pharmacies", "Pharmacy Management / POS", "Batch Management, Expiry Alerts, Stock Control, Purchase Management", "This is a generic software category/use case. Regulatory requirements, integrations, and features may vary by implementation.")),
+  mk("hc-12", "Medical Store POS Software", "Medical Store POS", "Healthcare", "Point-of-sale software designed specifically for medical stores and pharmacies.", ScanLine, "from-lime-600 to-green-700", ["POS Billing", "Inventory", "Barcode", "Purchase", "Sales", "Customer Management"], "₹44,999", "₹26,999", category("Medical Stores, Pharmacies", "POS / Inventory", "Barcode Billing, Batch Tracking, Expiry Management, Stock Reports")),
+  mk("hc-13", "Laboratory Management Software", "Laboratory Management", "Healthcare", "Software for managing laboratory operations, patients, tests, samples, reports, and billing.", FlaskConical, "from-purple-600 to-fuchsia-700", ["Test Management", "Sample Tracking", "Patient Records", "Reports", "Billing", "Technician Management"], "₹79,999", "₹47,999", category("Medical Laboratories, Diagnostic Centers", "Laboratory Management", "Sample Collection, Test Processing, Result Entry, Report Generation", "This is a generic software category/use case. Actual laboratory workflows and integrations vary by implementation.")),
+  mk("hc-14", "Diagnostic Center Management Software", "Diagnostic Management", "Healthcare", "Management platform for diagnostic centers handling patients, tests, reports, billing, and staff.", Microscope, "from-fuchsia-600 to-pink-700", ["Patient Registration", "Test Booking", "Sample Management", "Reports", "Billing", "Staff Management"], "₹74,999", "₹44,999", category("Diagnostic Centers, Medical Labs", "Diagnostic Management", "Test Catalog, Sample Collection, Result Processing, Report Delivery")),
+  mk("hc-15", "Pathology Lab Software", "Pathology Lab", "Healthcare", "Software for managing pathology laboratory tests, samples, patients, reports, and billing.", TestTube, "from-rose-600 to-red-700", ["Test Management", "Sample Tracking", "Result Entry", "Report Generation", "Billing"], "₹69,999", "₹41,999", category("Pathology Labs, Diagnostic Centers", "Laboratory Information Management", "Sample IDs, Test Results, Doctor Referrals, Patient Reports", "This is a generic software category/use case. Laboratory workflows and technology vary by implementation.")),
+  mk("hc-16", "Radiology Management Software", "Radiology Management", "Healthcare", "Software for managing radiology departments, procedures, appointments, reports, and records.", Scan, "from-zinc-600 to-slate-700", ["Patient Management", "Radiology Orders", "Scheduling", "Reporting", "Records", "Billing"], "₹89,999", "₹53,999", category("Hospitals, Diagnostic Centers, Radiology Clinics", "Radiology Management", "Imaging Workflow, Radiologist Reports, Patient Records", "This is a generic software category/use case. Imaging integrations and standards vary by implementation.")),
+  mk("hc-17", "Dental Clinic Management Software", "Dental Clinic", "Healthcare", "Software for managing dental clinics, patients, appointments, treatments, billing, and records.", Smile, "from-sky-500 to-cyan-600", ["Patient Management", "Dental Charting", "Appointments", "Treatment Plans", "Billing"], "₹59,999", "₹35,999", category("Dental Clinics, Dental Practices", "Dental Practice Management", "Tooth Chart, Treatment History, Follow-ups, Dental Billing")),
+  mk("hc-18", "Dental Practice Management Software", "Dental Practice", "Healthcare", "Complete management system for dental practices and dental professionals.", Bone, "from-cyan-500 to-teal-600", ["Patient Records", "Scheduling", "Dental Charting", "Treatment Management", "Billing"], "₹64,999", "₹38,999", category("Dentists, Dental Clinics", "Practice Management", "Treatment Plans, Patient History, Doctor Calendar, Payments")),
+  mk("hc-19", "Veterinary Clinic Software", "Veterinary Management", "Healthcare", "Management software for veterinary clinics, animal hospitals, pet records, appointments, and billing.", PawPrint, "from-amber-500 to-yellow-600", ["Animal Records", "Appointments", "Treatment Records", "Vaccination Tracking", "Billing"], "₹54,999", "₹32,999", category("Veterinary Clinics, Animal Hospitals, Pet Care Centers", "Veterinary Management", "Pet Profiles, Vaccination History, Treatment Records, Owner Management")),
+  mk("hc-20", "Blood Bank Management Software", "Blood Bank", "Healthcare", "Software for managing blood inventory, donors, blood groups, collections, and distributions.", Droplet, "from-red-600 to-rose-700", ["Donor Management", "Blood Inventory", "Blood Groups", "Collection Records", "Distribution Tracking"], "₹74,999", "₹44,999", category("Blood Banks, Hospitals", "Blood Bank Management", "Blood Units, Compatibility Records, Stock Monitoring, Donor History", "This is a generic software category/use case. Healthcare regulations and workflows vary by jurisdiction and implementation.")),
+  mk("hc-21", "Blood Donor Management Software", "Donor Management", "Healthcare", "Platform for managing blood donors, donor records, appointments, eligibility information, and communication.", HeartHandshake, "from-rose-600 to-pink-700", ["Donor Registration", "Donor History", "Scheduling", "Blood Group Management", "Notifications"], "₹49,999", "₹29,999", category("Blood Banks, NGOs, Healthcare Organizations", "Donor Management", "Donor Profiles, Donation History, Eligibility Records", "This is a generic software category/use case. Actual eligibility and medical rules must follow applicable healthcare regulations.")),
+  mk("hc-22", "Ambulance Management Software", "Ambulance Management", "Healthcare", "Software for coordinating ambulance fleets, emergency requests, drivers, vehicles, and trip records.", Ambulance, "from-red-500 to-orange-600", ["Ambulance Dispatch", "Driver Management", "Vehicle Tracking", "Emergency Requests", "Trip Records"], "₹69,999", "₹41,999", category("Hospitals, Ambulance Services, Emergency Providers", "Fleet / Emergency Management", "Dispatch, Vehicle Status, Driver Assignment, Trip History", "This is a generic software category/use case. Real-time tracking and emergency integrations depend on implementation.")),
+  mk("hc-23", "Emergency Room Management Software", "Emergency Management", "Healthcare", "Software for managing emergency department patients, staff, beds, treatment workflows, and records.", Siren, "from-orange-600 to-red-700", ["Emergency Registration", "Triage Records", "Bed Management", "Patient Tracking", "Billing"], "₹89,999", "₹53,999", category("Hospitals, Emergency Departments", "Emergency Management", "Emergency Queue, Patient Status, Doctor Assignment, Bed Allocation", "This is a generic software category/use case. Clinical workflows and requirements vary by healthcare facility.")),
+  mk("hc-24", "ICU Management Software", "ICU Management", "Healthcare", "Software for managing ICU patients, beds, monitoring records, staff, and clinical documentation.", HeartPulse, "from-pink-600 to-rose-700", ["ICU Bed Management", "Patient Records", "Monitoring Data", "Staff Management", "Reports"], "₹99,999", "₹59,999", category("Hospitals, Intensive Care Units", "ICU Management", "Bed Status, Patient Monitoring Records, Doctor/Nurse Assignment", "This is a generic software category/use case. Medical-device integrations and clinical workflows require specific verification.")),
+  mk("hc-25", "Operation Theatre Management Software", "OT Management", "Healthcare", "Software for scheduling and managing operation theatre procedures, patients, doctors, and resources.", Syringe, "from-teal-600 to-emerald-700", ["OT Scheduling", "Surgery Records", "Doctor Assignment", "Resource Management", "Billing"], "₹94,999", "₹56,999", category("Hospitals, Surgical Centers", "OT Management", "Surgery Calendar, OT Availability, Staff Assignment, Procedure Records", "This is a generic software category/use case. Clinical and surgical workflows vary by implementation.")),
+  mk("hc-26", "Nursing Management Software", "Nursing Management", "Healthcare", "Software for managing nursing staff, schedules, patient assignments, tasks, and records.", Users, "from-blue-500 to-sky-600", ["Nurse Scheduling", "Patient Assignment", "Task Management", "Shift Management", "Reports"], "₹59,999", "₹35,999", category("Hospitals, Nursing Facilities", "Nursing Management", "Shift Roster, Ward Assignment, Task Tracking")),
+  mk("hc-27", "Nursing Home Management Software", "Nursing Home", "Healthcare", "Management platform for nursing homes, residents, staff, billing, care plans, and daily operations.", Bed, "from-indigo-500 to-blue-600", ["Resident Management", "Staff Management", "Care Plans", "Billing", "Scheduling"], "₹69,999", "₹41,999", category("Nursing Homes, Care Facilities", "Healthcare Management", "Resident Records, Room Management, Staff Scheduling", "This is a generic software category/use case. Care requirements and regulations vary by location.")),
+  mk("hc-28", "Maternity Hospital Management Software", "Maternity Hospital", "Healthcare", "Software for managing maternity hospitals, pregnant patients, appointments, admissions, billing, and records.", Baby, "from-pink-500 to-fuchsia-600", ["Patient Management", "Pregnancy Records", "Appointments", "Admission", "Billing"], "₹84,999", "₹50,999", category("Maternity Hospitals, Gynecology Clinics", "Hospital Management", "Antenatal Records, Delivery Records, Patient History", "This is a generic software category/use case. Clinical workflows and medical requirements vary by provider.")),
+  mk("hc-29", "Pediatric Clinic Software", "Pediatric Clinic", "Healthcare", "Management software designed for pediatric clinics and child healthcare providers.", Thermometer, "from-yellow-500 to-amber-600", ["Child Patient Records", "Appointments", "Vaccination Records", "Prescriptions", "Billing"], "₹54,999", "₹32,999", category("Pediatric Clinics, Children's Hospitals", "Clinic Management", "Growth Records, Vaccination History, Pediatric Visits", "This is a generic software category/use case. Clinical requirements vary by implementation.")),
+  mk("hc-30", "Physiotherapy Clinic Software", "Physiotherapy Clinic", "Healthcare", "Software for managing physiotherapy patients, sessions, treatment plans, appointments, and billing.", Activity, "from-emerald-500 to-green-600", ["Patient Records", "Therapy Plans", "Session Tracking", "Scheduling", "Billing"], "₹49,999", "₹29,999", category("Physiotherapy Clinics, Rehabilitation Centers", "Clinic Management", "Exercise Plans, Treatment Sessions, Progress Records")),
 ];
 
 // 55 unique master categories that will render as rows (each has products).
