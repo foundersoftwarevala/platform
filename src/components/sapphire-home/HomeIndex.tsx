@@ -1,4 +1,6 @@
 import { memo, useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { catalogueSlug } from "@/data/catalogue";
 
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -3686,6 +3688,17 @@ const DemoCard = memo(
     onToggleFavorite: () => void;
   }) => {
     const Icon = demo.icon;
+    const navigate = useNavigate();
+    // The page this card opens. An author's upload takes the same address, so
+    // the card keeps working when the real product arrives behind it.
+    const productSlug = catalogueSlug(demo.name);
+    const productHref = `/marketplace/product/${productSlug}`;
+    const openProduct = (search?: Record<string, string>) =>
+      void navigate({
+        to: "/marketplace/product/$slug",
+        params: { slug: productSlug },
+        ...(search ? { search } : {}),
+      });
     const [activeTab, setActiveTab] = useState<"features" | "tech">("features");
     const [leadAction, setLeadAction] = useState<LeadAction | null>(null);
 
@@ -3698,7 +3711,14 @@ const DemoCard = memo(
           productName={demo.name}
           productId={demo.id}
         />
-        <Card className="sv-card group h-full overflow-hidden border-cyan-500/20 bg-gradient-to-br from-[#1a2d4a] to-[#0d1e36]">
+        <Card
+          className="sv-card group h-full overflow-hidden border-cyan-500/20 bg-gradient-to-br from-[#1a2d4a] to-[#0d1e36]"
+          onClick={(event) => {
+            // Anything with its own destination keeps it.
+            if ((event.target as HTMLElement).closest("a,button")) return;
+            openProduct();
+          }}
+        >
           <CardContent className="p-0 flex flex-col h-full">
             {/* Header with gradient */}
             <div
@@ -3740,7 +3760,7 @@ const DemoCard = memo(
                   />
                 </button>
                 <a
-                  href={demo.url}
+                  href={demo.url && demo.url !== "#" ? demo.url : productHref}
                   onClick={(e) => e.stopPropagation()}
                   aria-label={`Preview ${demo.name}`}
                   className="sv-icon-btn"
@@ -3753,9 +3773,16 @@ const DemoCard = memo(
             {/* Content */}
             <div className="sv-card-body p-5 flex-1 flex flex-col">
               <div className="sv-card-title-row flex items-start justify-between mb-1">
-                <h3 className="sv-card-title text-[17px] font-extrabold tracking-normal leading-snug">
-                  {demo.name}
-                </h3>
+                <Link
+                  to="/marketplace/product/$slug"
+                  params={{ slug: productSlug }}
+                  className="min-w-0"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <h3 className="sv-card-title text-[17px] font-extrabold tracking-normal leading-snug">
+                    {demo.name}
+                  </h3>
+                </Link>
                 {demo.status === "ACTIVE" && (
                   <Badge className="sv-card-rank text-[10px] shrink-0 ml-2">#{index + 1}</Badge>
                 )}
@@ -3844,14 +3871,14 @@ const DemoCard = memo(
                           window.open(demo.url, "_blank", "noopener,noreferrer");
                           return;
                         }
-                        setLeadAction("request_demo");
+                        openProduct();
                       }}
                     >
                       <Play className="h-4 w-4 mr-2" /> Live Demo
                     </Button>
                     <Button
                       className="sv-btn sv-btn-emerald flex-1"
-                      onClick={() => setLeadAction("buy_intent")}
+                      onClick={() => openProduct({ buy: "1" })}
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
                     </Button>

@@ -7,6 +7,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
+import { catalogueEntries } from "@/data/catalogue";
+import { LIFETIME_PRICE } from "@/lib/site-content/constants";
 
 export type ProductDemoBinding = {
   id: string;
@@ -199,6 +201,37 @@ function slugify(value: string) {
     .replace(/(^-|-$)/g, "") || "product";
 }
 
+/**
+ * The home page catalogue as product pages.
+ *
+ * A card on the home page has to open something. Until an author uploads the
+ * product for that slug - at which point the database row is found first and
+ * this is never reached - the page is built from the catalogue entry itself.
+ */
+function buildHomeCatalogFallback(): PublicProduct[] {
+  return catalogueEntries.map((entry) => ({
+    id: entry.slug,
+    slug: entry.slug,
+    name: entry.name,
+    category_name: entry.category,
+    industry_label: entry.masterCategory,
+    icon: "Sparkles",
+    price_label: LIFETIME_PRICE,
+    price_period: "lifetime",
+    rating: 0,
+    downloads: 0,
+    downloads_label: null,
+    badge: null,
+    description: entry.description,
+    tags: [entry.masterCategory, entry.category].filter(Boolean),
+    tech_stack: entry.techStack,
+    features: entry.features,
+    content_status: "published",
+    demo_count: 0,
+    demo_urls: [],
+  }));
+}
+
 function buildSuppliedCatalogFallback(): PublicProduct[] {
   return SUPPLIED_DEMOS_16.map((demo) => ({
     id: demo.slug,
@@ -222,6 +255,14 @@ function buildSuppliedCatalogFallback(): PublicProduct[] {
       url: demo.demoUrl,
     }],
   }));
+}
+
+/** The product page for a slug no author has uploaded yet, if there is one. */
+function findFallbackProduct(slug: string): PublicProduct | undefined {
+  return (
+    buildSuppliedCatalogFallback().find((product) => product.slug === slug) ??
+    buildHomeCatalogFallback().find((product) => product.slug === slug)
+  );
 }
 
 function toProduct(r: any): MarketProduct {
@@ -369,7 +410,7 @@ export const getPublicProduct = createServerFn({ method: "GET" })
       const { row: productRow } = await loadPublicProductBySlugFromSupabase(sb, data.slug);
 
       if (!productRow) {
-        const fallbackProduct = buildSuppliedCatalogFallback().find((product) => product.slug === data.slug);
+        const fallbackProduct = findFallbackProduct(data.slug);
         if (fallbackProduct) {
           return {
             product: fallbackProduct,
@@ -401,7 +442,7 @@ export const getPublicProduct = createServerFn({ method: "GET" })
       };
     } catch (err) {
       console.error("getPublicProduct error:", err);
-      const fallbackProduct = buildSuppliedCatalogFallback().find((product) => product.slug === data.slug);
+      const fallbackProduct = findFallbackProduct(data.slug);
       if (fallbackProduct) {
         return {
           product: fallbackProduct,
