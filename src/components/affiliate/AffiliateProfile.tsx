@@ -36,14 +36,26 @@ export function useAffiliateProfileData(id: string | undefined) {
     enabled: !!id,
     staleTime: 15_000,
     queryFn: async () => {
+      // The table is activity_logs, and what an entry is about lives in its
+      // metadata rather than in columns of its own.
       const { data, error } = await supabase
-        .from("activity_log")
-        .select("id, action, entity, entity_id, metadata, created_at")
-        .or(`entity_id.eq.${id},affiliate_id.eq.${id}`)
+        .from("activity_logs")
+        .select("id, activity, metadata, created_at")
+        .or(`metadata->>entity_id.eq.${id},metadata->>affiliate_id.eq.${id}`)
         .order("created_at", { ascending: false })
         .limit(25);
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []).map((row) => {
+        const meta = (row.metadata ?? {}) as Record<string, unknown>;
+        return {
+          id: row.id,
+          action: row.activity,
+          entity: (meta.entity as string | null) ?? null,
+          entity_id: (meta.entity_id as string | null) ?? null,
+          metadata: meta,
+          created_at: row.created_at,
+        };
+      });
     },
   });
 

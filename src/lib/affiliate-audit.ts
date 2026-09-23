@@ -14,10 +14,13 @@ export async function logAudit(
   try {
     const { data: sess } = await supabase.auth.getSession();
     const actor = sess.session?.user?.id ?? null;
-    await supabase.from("activity_log").insert({
-      action,
-      entity,
-      metadata: { ...metadata, actor, ts: new Date().toISOString() },
+    // activity_logs records what was done under `activity`; everything else
+    // about it belongs in `metadata`. Written to activity_log - no plural -
+    // every one of these was refused and nothing was ever recorded.
+    await supabase.from("activity_logs").insert({
+      user_id: actor,
+      activity: action,
+      metadata: { ...metadata, entity, actor, ts: new Date().toISOString() },
     });
   } catch (err) {
     // Audit must never break the caller; surface to console for triage.

@@ -65,14 +65,31 @@ async function fetchTop(): Promise<TopAffiliate[]> {
   if (error) throw error;
   return (data ?? []) as TopAffiliate[];
 }
+/**
+ * The recent-activity feed.
+ *
+ * It read a table called activity_log, which does not exist - the table is
+ * activity_logs - so the feed answered 404 and stayed empty. That table holds
+ * what was done under `activity` and everything about it under `metadata`,
+ * so the rows are carried out under the names this screen already uses.
+ */
 async function fetchActivity(): Promise<ActivityRow[]> {
   const { data, error } = await supabase
-    .from("activity_log")
-    .select("id, action, entity, created_at, metadata")
+    .from("activity_logs")
+    .select("id, activity, metadata, created_at")
     .order("created_at", { ascending: false })
     .limit(12);
   if (error) throw error;
-  return (data ?? []) as ActivityRow[];
+  return (data ?? []).map((row) => {
+    const meta = (row.metadata ?? {}) as Record<string, unknown>;
+    return {
+      id: row.id,
+      action: row.activity,
+      entity: (meta.entity as string | null) ?? null,
+      created_at: row.created_at,
+      metadata: meta,
+    };
+  }) as ActivityRow[];
 }
 
 const money = (cents: number | null | undefined, currency = "USD") =>

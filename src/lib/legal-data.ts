@@ -121,6 +121,15 @@ export function useMisuseAlerts() {
   });
 }
 
+/**
+ * The legal audit trail.
+ *
+ * It asked the table to order by logged_at, which is not one of its columns -
+ * the column is created_at - so every request came back 400 and the audit list
+ * on the Legal Manager never loaded at all. Four screens read `logged_at` off
+ * these rows, so the real column is carried out under that name as well and
+ * none of them had to change.
+ */
 export function useLegalLogs() {
   return useQuery({
     queryKey: ["legal_logs"],
@@ -128,13 +137,24 @@ export function useLegalLogs() {
       const { data, error } = await supabase
         .from("legal_logs")
         .select("*")
-        .order("logged_at", { ascending: false });
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []).map((row) => ({
+        ...row,
+        logged_at: (row as { created_at?: string }).created_at,
+      }));
     },
   });
 }
 
+/**
+ * Write one entry to the audit trail.
+ *
+ * It sent category, details and immutable, none of which are columns on this
+ * table, so every write was refused and nothing a person did in the Legal
+ * Manager was ever recorded. The same four things are written to the columns
+ * that hold them: what was done, who did it, what it was about and why.
+ */
 async function appendLog(entry: {
   action: string;
   category: string;
@@ -143,8 +163,11 @@ async function appendLog(entry: {
 }) {
   const { error } = await supabase.from("legal_logs").insert({
     ref_code: `LOG-${Date.now().toString(36).toUpperCase()}`,
-    immutable: true,
-    ...entry,
+    action: entry.action,
+    actor: entry.actor,
+    entity_type: entry.category,
+    reason: entry.details,
+    result: "recorded",
   });
   if (error) throw error;
 }
