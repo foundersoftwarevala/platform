@@ -3706,7 +3706,10 @@ const DemoCard = memo(
     // the card keeps working when the real product arrives behind it.
     const productSlug = catalogueSlug(demo.name);
     const productHref = `/marketplace/product/${productSlug}`;
-    const openProduct = (search?: Record<string, string>) =>
+    // The router writes search values as JSON, so a string arrives quoted -
+    // ?buy=%221%22 - and the product page, which looks for exactly "1", never
+    // sees it. A number survives the round trip as itself.
+    const openProduct = (search?: Record<string, number>) =>
       void navigate({
         to: "/marketplace/product/$slug",
         params: { slug: productSlug },
@@ -3891,7 +3894,7 @@ const DemoCard = memo(
                     </Button>
                     <Button
                       className="sv-btn sv-btn-emerald flex-1"
-                      onClick={() => openProduct({ buy: "1" })}
+                      onClick={() => openProduct({ buy: 1 })}
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
                     </Button>

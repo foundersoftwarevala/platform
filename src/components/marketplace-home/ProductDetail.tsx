@@ -89,7 +89,9 @@ export function ProductDetail() {
     if (buyStarted) return;
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("buy") !== "1") return;
+    // Accept the marker however the address carries it: 1, "1" or true.
+    const marker = (params.get("buy") ?? "").replace(/^"|"$/g, "");
+    if (marker !== "1" && marker !== "true") return;
     // The query answers with the page payload, so the product sits inside it.
     // Reading an id off the payload itself found nothing and Buy Now quietly
     // never started.
