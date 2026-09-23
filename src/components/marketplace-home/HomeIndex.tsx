@@ -1072,11 +1072,17 @@ export const DemoCard = memo(({ demo, index, isFavorite, onToggleFavorite }: {
             {(hasFeatures || hasTech) && (
             <div className="mb-3">
               {/* A tab is offered only for a panel that has something in it.
-                  Both were offered before, so 54 of the 110 cards the home page
-                  renders carried a "Tech Stack" tab that opened an empty box -
-                  no product in the catalogue records a tech stack. When only one
-                  panel has content there is nothing to switch between, so the
-                  heading is a label rather than a pair of buttons. */}
+                  Both were offered whenever *either* had content, so a product
+                  with features and no tech stack carried a "Tech Stack" tab
+                  that opened an empty box. Across 398 catalogue cards sampled
+                  from the live marketplace that is one card - 173 carry both
+                  and 224 carry neither - so this is an edge rather than a
+                  widespread fault, and it is still not something to draw.
+
+                  When only one panel has content there is nothing to switch
+                  between, so the heading is a label rather than a pair of
+                  buttons. The panel's fixed 52px minimum went with it: it was
+                  reserving the height of chips that were not there. */}
               <div className="flex gap-1 mb-2">
                 {panels.map((panel) =>
                   panels.length > 1 ? (

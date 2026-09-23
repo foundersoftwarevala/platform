@@ -36,9 +36,27 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
+  // Three widths, because the layout promises three: three FAQ columns on a
+  // desktop, two on a tablet, one on a phone.
+  //
+  // `tablet-chromium` exists because the iPad descriptors run on WebKit, and a
+  // run with only Chromium installed fails every tablet test in four
+  // milliseconds - which reads exactly like eleven broken tests rather than one
+  // missing browser. This one needs nothing but Chromium, so the tablet width
+  // is always covered; `tablet-safari` adds the real engine when WebKit is
+  // installed (`npx playwright install webkit`).
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
-    { name: "tablet", use: { ...devices["iPad (gen 7)"] } },
+    {
+      name: "tablet-chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 820, height: 1180 },
+        isMobile: false,
+        hasTouch: true,
+      },
+    },
+    { name: "tablet-safari", use: { ...devices["iPad (gen 7)"] } },
     { name: "mobile", use: { ...devices["Pixel 7"] } },
   ],
   // Only started when the tests are pointed at localhost; a run against the

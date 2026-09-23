@@ -207,13 +207,36 @@ test.describe("home page", () => {
 
     // A tab is only offered for a panel with something in it, so a tab that is
     // drawn must open onto at least one chip.
-    const tabs = card.locator("button.sv-tab");
+    //
+    // Checked on a card that actually has tabs. Taking the first card on the
+    // page made this pass without testing anything: that card has no tabs, so
+    // the loop body never ran and the test went green having asserted nothing.
+    //
+    // What it is looking for is a tab offered over an empty panel. Most cards
+    // that draw tabs carry both features and a tech stack and are fine; the
+    // fault is a card with one and not the other. Sampling 398 catalogue cards
+    // found one such card, so this will usually pass - it is here to catch the
+    // case, not to prove it is common.
+    const withTabs = page.locator(".sv-card-shell").filter({ has: page.locator("button.sv-tab") });
+    const tabbedCount = await withTabs.count();
+    if (tabbedCount === 0) {
+      // eslint-disable-next-line no-console
+      console.log("  no card on this page draws tabs - nothing to check");
+      return;
+    }
+    // eslint-disable-next-line no-console
+    console.log(`  ${tabbedCount} of ${await page.locator(".sv-card-shell").count()} cards draw tabs`);
+
+    const tabbed = withTabs.first();
+    await tabbed.scrollIntoViewIfNeeded();
+    const tabs = tabbed.locator("button.sv-tab");
     for (let i = 0; i < (await tabs.count()); i++) {
+      const label = (await tabs.nth(i).textContent())?.trim();
       await tabs.nth(i).click();
       await expect(
-        card.locator(".sv-chip").first(),
-        "a tab was offered and opened onto an empty panel",
-      ).toBeVisible();
+        tabbed.locator(".sv-chip").first(),
+        `the "${label}" tab is offered and opens onto an empty panel`,
+      ).toBeVisible({ timeout: 5_000 });
     }
   });
 
@@ -273,9 +296,24 @@ test.describe("home page", () => {
     const faq = page.locator("#faq");
     await faq.scrollIntoViewIfNeeded();
 
+    // The questions have to be reachable as buttons that say whether they are
+    // open. The layout this asserts - a grid, everything closed, aria-expanded
+    // on each question - is the redesigned FAQ; against the previous full-width
+    // accordion, which wrapped question and answer in one button carrying no
+    // aria-expanded, this fails, and that is the point of it.
+    const anyQuestion = faq.locator("button");
+    expect(
+      await anyQuestion.count(),
+      "the FAQ section rendered no questions at all",
+    ).toBeGreaterThan(0);
+
     const questions = faq.getByRole("button", { expanded: false });
     const total = await questions.count();
-    expect(total, "the FAQ rendered no questions").toBeGreaterThan(0);
+    expect(
+      total,
+      "no FAQ question reports its open/closed state (aria-expanded). Either the " +
+        "redesigned FAQ is not deployed, or the accordion is not announcing itself.",
+    ).toBeGreaterThan(0);
     // eslint-disable-next-line no-console
     console.log(`  ${total} questions, all closed`);
 
@@ -287,8 +325,14 @@ test.describe("home page", () => {
     const columns = await faq.locator("ul").first().evaluate(
       (el) => getComputedStyle(el).gridTemplateColumns.split(" ").length,
     );
-    const expected = { desktop: 3, tablet: 2, mobile: 1 }[testInfo.project.name] ?? 1;
-    expect(columns, `${testInfo.project.name} should lay the FAQ out in ${expected} columns`).toBe(expected);
+    // Keyed on the width the project runs at, not on its name, so adding a
+    // browser does not silently change what is expected of it.
+    const width = page.viewportSize()?.width ?? 0;
+    const expected = width >= 1024 ? 3 : width >= 640 ? 2 : 1;
+    expect(
+      columns,
+      `at ${width}px the FAQ should be laid out in ${expected} column(s)`,
+    ).toBe(expected);
 
     await questions.first().click();
     await expect(faq.getByRole("button", { expanded: true })).toHaveCount(1);
@@ -314,19 +358,23 @@ test.describe("home page", () => {
     // navigation, which is what this repository is responsible for.
     const ours = hrefs.filter((h) => !h.startsWith("/marketplace/product/")).slice(0, 25);
 
-    // Asked for in parallel with a deadline each: serially, against an origin
-    // that takes a second a page, twenty-five links outlast the test.
-    const results = await Promise.all(
-      ours.map(async (href) => {
-        try {
-          const response = await page.request.get(href, { maxRedirects: 3, timeout: 20_000 });
-          return response.status() >= 400 ? `${response.status()} ${href}` : null;
-        } catch {
-          return `timed out ${href}`;
-        }
-      }),
-    );
-    const broken = results.filter((r): r is string => r !== null);
+    // One at a time, not in parallel.
+    //
+    // Asking for all twenty-five at once reported every one of them as a dead
+    // link, and none of them was: served one at a time they all answer 200. The
+    // origin renders each of these pages fresh - it is a single process and the
+    // HTML is not cached at the edge - so twenty-five at once queue behind each
+    // other and outlast any per-request deadline. That is worth knowing, and it
+    // is a capacity question; this test is about whether the links go anywhere.
+    const broken: string[] = [];
+    for (const href of ours) {
+      try {
+        const response = await page.request.get(href, { maxRedirects: 3, timeout: 45_000 });
+        if (response.status() >= 400) broken.push(`${response.status()} ${href}`);
+      } catch (error) {
+        broken.push(`did not answer in 45s: ${href}`);
+      }
+    }
     expect(broken, `dead links:\n${broken.join("\n")}`).toEqual([]);
   });
 });
