@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Play, Video } from "lucide-react";
-import { embedUrl, hasPlayableVideo, listPublishedVideos, VIDEO_CATEGORIES } from "@/lib/site-content/videos";
+import { embedUrl, hasPlayableVideo, VIDEO_CATEGORIES } from "@/lib/site-content/videos";
+import { getStorefrontChrome, type StorefrontVideo } from "@/lib/storefront/chrome.functions";
 import "@/styles/marketplace-home.css";
 
 /**
@@ -9,9 +10,26 @@ import "@/styles/marketplace-home.css";
  * Marketplace Manager -> Growth -> Vala TV; this page shows whatever is
  * published there and says plainly when a film has no URL set yet rather than
  * opening something unrelated.
+ *
+ * It used to read a browser-side store, so a film published in the manager
+ * reached the home page - which asks the server - and never reached this page.
+ * Both now read the same published rows.
  */
 function ValaTvPage() {
-  const videos = useMemo(() => listPublishedVideos(), []);
+  const published = Route.useLoaderData();
+  const videos = useMemo(
+    () =>
+      published.map((video: StorefrontVideo) => ({
+        id: video.id,
+        title: video.title,
+        url: video.url ?? "",
+        thumbnail: video.thumbnail ?? "",
+        duration: video.duration ?? "",
+        views: video.views == null ? "" : String(video.views),
+        category: video.category ?? "",
+      })),
+    [published],
+  );
   const [filter, setFilter] = useState<string>("All");
   const [playing, setPlaying] = useState<string | null>(null);
 
@@ -134,5 +152,9 @@ export const Route = createFileRoute("/vala-tv")({
       { property: "og:type", content: "website" },
     ],
   }),
+  loader: async () => {
+    const chrome = await getStorefrontChrome();
+    return chrome.videos;
+  },
   component: ValaTvPage,
 });
