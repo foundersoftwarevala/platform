@@ -38,6 +38,24 @@ sv_ssh() {
       "$SV_SSH_HOST" "$@"
 }
 
+# Shell snippet that frees the application port of anything PM2 does not
+# manage. Printed rather than run, so it can be sent over the same session that
+# does the restart.
+orphan_guard() {
+  cat <<GUARD
+managed=\$(pm2 jlist | python3 -c 'import sys,json;print(" ".join(str(p.get("pid")) for p in json.load(sys.stdin) if p.get("pid")))' 2>/dev/null)
+for pid in \$(ss -ltnp 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u); do
+  ss -ltnp 2>/dev/null | grep ":3000 " | grep -q "pid=\$pid" || continue
+  case " \$managed " in *" \$pid "*) continue ;; esac
+  echo "  port 3000 is held by \$pid, which PM2 does not manage - stopping it"
+  kill \$pid 2>/dev/null
+  for i in 1 2 3 4 5 6 7 8 9 10; do ss -ltn 2>/dev/null | grep -q ":3000 " || break; sleep 1; done
+  ss -ltn 2>/dev/null | grep -q ":3000 " && kill -9 \$pid 2>/dev/null
+done
+true
+GUARD
+}
+
 case "${1:-help}" in
 
 # ----------------------------------------------------------------- the server
@@ -57,6 +75,36 @@ status)
 
 # What is actually on disk where the build is served from. This is the question
 # that was unanswerable while the eight chunks were answering 500.
+# Is the process that answers the world the one PM2 thinks it is, and is it
+# running the build that is on disk? Those two came apart here for more than a
+# day and nothing noticed, because the site answered 200 throughout.
+doctor)
+  sv_ssh "cd ${SV_APP_DIR:-/var/www/softwarevala} 2>/dev/null || exit 1
+    echo '== who answers on port 3000 =='
+    holder=\$(ss -ltnp 2>/dev/null | grep ':3000 ' | grep -o 'pid=[0-9]*' | cut -d= -f2 | head -1)
+    managed=\$(pm2 pid ${SV_PM2_NAME:-softwarevala-staging} 2>/dev/null)
+    echo \"   port 3000 : \${holder:-nobody}\"
+    echo \"   pm2 says  : \${managed:-none}\"
+    if [ -n \"\$holder\" ] && [ \"\$holder\" != \"\$managed\" ]; then
+      echo '   MISMATCH - an unmanaged process is serving the site. Run: sv.sh deploy, or restart.'
+    else
+      echo '   ok - the managed process is the one serving'
+    fi
+    echo
+    echo '== is the running build the one on disk =='
+    served=\$(curl -s http://127.0.0.1:3000/ | grep -ao '/assets/index-[A-Za-z0-9_-]*\.js' | head -1)
+    ondisk=/assets/\$(ls -1 .output/public/assets 2>/dev/null | grep -o '^index-[A-Za-z0-9_-]*\.js' | head -1)
+    echo \"   page asks for : \${served:-none}\"
+    echo \"   on disk       : \${ondisk:-none}\"
+    [ \"\$served\" = \"\$ondisk\" ] && echo '   ok - they match' || echo '   MISMATCH - the process is serving a build that is no longer on disk. Restart it.'
+    echo
+    echo '== recent file-not-found errors from the app =='
+    pm2 logs ${SV_PM2_NAME:-softwarevala-staging} --lines 200 --nostream 2>/dev/null | grep -c ENOENT | sed 's/^/   ENOENT lines in the last 200: /'
+    echo
+    echo '== other builds lying around =='
+    find / -maxdepth 5 -type d -name .output -not -path '*/node_modules/*' 2>/dev/null | head -8"
+  ;;
+
 assets-on-disk)
   sv_ssh "cd ${SV_APP_DIR:-/var/www/softwarevala}/.output/public/assets 2>/dev/null || exit 1;
           echo \"files: \$(ls -1 | wc -l)\";
@@ -86,7 +134,17 @@ deploy)
   " || die "the build failed - nothing was restarted, the site is untouched"
 
   echo "==> restarting"
-  sv_ssh "pm2 restart ${SV_PM2_NAME:-softwarevala-staging} --update-env && sleep 4 && pm2 describe ${SV_PM2_NAME:-softwarevala-staging} | grep -E 'status|restarts'"
+  # `--update-env` is deliberately not passed. PM2 holds this application's
+  # environment - the Supabase URL and keys among it - and --update-env replaces
+  # it with whatever the shell running the deploy happens to have, which is
+  # nothing. The stored environment is the one that works.
+  #
+  # The port is cleared first. A build swap without a restart left an older
+  # node process holding 3000 for over a day: PM2 restarted its own child, the
+  # child could not bind, and the orphan carried on serving a manifest whose
+  # files had just been deleted underneath it. That is what made the home page
+  # answer 500 for eight of its own chunks.
+  sv_ssh "$(orphan_guard) && pm2 restart ${SV_PM2_NAME:-softwarevala-staging} && sleep 5 && pm2 describe ${SV_PM2_NAME:-softwarevala-staging} | grep -E 'status|restart time'"
 
   echo "==> checking the site it now serves"
   if "$ROOT/scripts/ops/verify-assets.sh" --origin; then

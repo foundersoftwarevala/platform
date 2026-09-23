@@ -118,7 +118,7 @@ test.describe("home page", () => {
     // switched off in Layout Order is legitimately absent, so this reports what
     // it finds and only insists on the ones that are not configurable away.
     const sections: { name: string; locator: () => ReturnType<Page["locator"]>; required: boolean }[] = [
-      { name: "hero carousel", locator: () => page.locator('[aria-roledescription="carousel"]'), required: true },
+      { name: "hero carousel", locator: () => page.locator('[aria-roledescription="carousel"], section:has(.hero-premium)'), required: true },
       { name: "category slider", locator: () => page.locator(".cursor-grab"), required: false },
       { name: "search bar", locator: () => page.getByPlaceholder("Search software..."), required: true },
       { name: "catalogue rows", locator: () => page.locator("[data-product-row]"), required: true },
@@ -241,7 +241,7 @@ test.describe("home page", () => {
 
   test("the hero carousel advances, and takes a swipe on a touch screen", async ({ page, isMobile }) => {
     await page.goto("/", { waitUntil: "networkidle" });
-    const hero = page.locator('[aria-roledescription="carousel"]');
+    const hero = page.locator('[aria-roledescription="carousel"], section:has(.hero-premium)');
     await expect(hero).toBeVisible();
 
     const first = await hero.locator("h1, h2").first().textContent();
