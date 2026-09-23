@@ -5,6 +5,8 @@ import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
 
 export const config: WallConfig = {
+  // Reads and writes franchise_settings.
+  resource: "franchise_settings",
   scope: "franchise-settings",
   entity: "setting",
   eyebrow: "Settings",
@@ -12,6 +14,7 @@ export const config: WallConfig = {
   subtitle: "Configure rules, templates, security, integrations and system operations.",
   icon: Settings,
   primaryLabel: "New Record",
+  creatable: false,
   seed: [],
   kpis: [
     { label: "Total", icon: Gauge, compute: (r) => r.length ? r.length : "—" },
@@ -20,13 +23,15 @@ export const config: WallConfig = {
     { label: "Attention", icon: ShieldCheck, compute: (r) => r.length ? r.length : "—" },
   ],
   columns: [
-    { key: "name", header: "Name" },
-    { key: "owner", header: "Owner" },
-    { key: "scope", header: "Scope" },
-    { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
+    { key: "key", header: "Key", render: (r) => <span className="font-mono text-[12px]">{r.key || "—"}</span> },
+    { key: "label", header: "Label", render: (r) => <div className="font-semibold text-[13px]">{r.label || "—"}</div> },
+    { key: "description", header: "Description" },
+    { key: "value", header: "Value" },
     { key: "updated_at", header: "Updated" },
   ],
-  filters: [{ key: "status", label: "Status", options: STATUSES }],
+  filters: [
+
+  ],
   bulkActions: [
     { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
     { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
@@ -37,12 +42,10 @@ export const config: WallConfig = {
     { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
   ],
   formFields: [
-    { key: "name", label: "Name", type: "text", required: true },
-    { key: "owner", label: "Owner", type: "text" },
-    { key: "scope", label: "Scope", type: "text" },
-    { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },
-    { key: "updated_at", label: "Updated", type: "text" },
+    { key: "label", label: "Label", type: "text" },
+    { key: "description", label: "Description", type: "textarea" },
+    { key: "value", label: "Value", type: "text" },
   ],
-  searchFields: ["name", "owner", "scope"],
-  primaryField: "name",
+  searchFields: ["key", "label"],
+  primaryField: "label",
 };

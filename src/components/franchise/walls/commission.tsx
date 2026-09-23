@@ -5,6 +5,8 @@ import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
 
 export const config: WallConfig = {
+  // Reads franchise_royalties - what each franchise is owed and has been paid.
+  resource: "franchise_royalties",
   scope: "franchise-commission",
   entity: "commission",
   eyebrow: "Commission",

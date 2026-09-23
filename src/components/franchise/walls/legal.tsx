@@ -2,9 +2,11 @@ import { Activity, CheckCircle2, Coins, Gauge, Pause, Scale, ShieldCheck, Trash2
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
-const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
+const STATUSES = ["draft", "active", "expired", "terminated"] as const;
 
 export const config: WallConfig = {
+  // Reads and writes franchise_contracts.
+  resource: "franchise_contracts",
   scope: "franchise-legal",
   entity: "legal",
   eyebrow: "Legal",
@@ -12,6 +14,7 @@ export const config: WallConfig = {
   subtitle: "Master franchise agreements, NDAs, policies and digital signatures.",
   icon: Scale,
   primaryLabel: "New Record",
+  creatable: false,
   seed: [],
   kpis: [
     { label: "Agreements Active", icon: Gauge, compute: (r) => r.length ? r.length : "—" },
@@ -20,30 +23,31 @@ export const config: WallConfig = {
     { label: "Disputes Open", icon: ShieldCheck, compute: (r) => r.length ? r.length : "—" },
   ],
   columns: [
-    { key: "name", header: "Name" },
-    { key: "owner", header: "Owner" },
-    { key: "scope", header: "Scope" },
+    { key: "contract_no", header: "Contract", render: (r) => <span className="font-mono text-[12px] font-semibold">{r.contract_no || "—"}</span> },
+    { key: "contract_type", header: "Type" },
+    { key: "start_date", header: "Start" },
+    { key: "end_date", header: "End" },
+    { key: "value", header: "Value", align: "right", render: (r) => <span className="font-semibold">{r.value ? `₹${Number(r.value).toLocaleString()}` : "—"}</span> },
+    { key: "renewal_status", header: "Renewal", render: (r) => <StatusPill value={r.renewal_status} /> },
     { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
-    { key: "updated_at", header: "Updated" },
   ],
-  filters: [{ key: "status", label: "Status", options: STATUSES }],
+  filters: [
+    { key: "status", label: "Status", options: STATUSES },
+  ],
   bulkActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
+    { key: "active", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
+    { key: "terminated", label: "Terminate", icon: Pause, patch: { status: "terminated" }, variant: "destructive" },
   ],
   rowActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
+    { key: "active", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
+    { key: "terminated", label: "Terminate", icon: Pause, patch: { status: "terminated" }, destructive: true },
   ],
   formFields: [
-    { key: "name", label: "Name", type: "text", required: true },
-    { key: "owner", label: "Owner", type: "text" },
-    { key: "scope", label: "Scope", type: "text" },
-    { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },
-    { key: "updated_at", label: "Updated", type: "text" },
+    { key: "status", label: "Status", type: "select", options: STATUSES },
+    { key: "renewal_status", label: "Renewal", type: "text" },
+    { key: "end_date", label: "End date", type: "text", placeholder: "YYYY-MM-DD" },
   ],
-  searchFields: ["name", "owner", "scope"],
-  primaryField: "name",
-  panels: [{ title: "Document Types", items: ["Live source pending", "Owner", "Last sync"] }, { title: "Legal Register", items: ["Live source pending", "Owner", "Last sync"] }],
+  searchFields: ["contract_no", "contract_type", "status"],
+  primaryField: "contract_no",
+  panels: [{ title: "Document Types", items: ["Owner", "Last sync"] }, { title: "Legal Register", items: ["Live source pending", "Owner", "Last sync"] }],
 };

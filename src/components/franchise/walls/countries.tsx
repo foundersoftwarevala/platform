@@ -2,9 +2,11 @@ import { Activity, CheckCircle2, Coins, Flag, Gauge, Pause, ShieldCheck, Trash2,
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
-const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
+const STATUSES = ["active", "pending", "suspended", "closed"] as const;
 
 export const config: WallConfig = {
+  // Reads the franchises table, which is where a country is recorded.
+  resource: "franchises",
   scope: "franchise-countries",
   entity: "countrie",
   eyebrow: "Countries",
@@ -20,30 +22,31 @@ export const config: WallConfig = {
     { label: "Coverage %", icon: ShieldCheck, compute: (r) => r.length ? r.length : "—" },
   ],
   columns: [
-    { key: "name", header: "Name" },
-    { key: "owner", header: "Owner" },
-    { key: "scope", header: "Scope" },
+    { key: "country", header: "Country", render: (r) => <div className="font-semibold text-[13px]">{r.country || "—"}</div> },
+    { key: "franchise", header: "Franchise" },
+    { key: "code", header: "Code", render: (r) => <span className="font-mono text-[12px]">{r.code || "—"}</span> },
+    { key: "state", header: "State" },
+    { key: "city", header: "City" },
+    { key: "revenue_mtd", header: "Revenue", align: "right" },
     { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
-    { key: "updated_at", header: "Updated" },
   ],
-  filters: [{ key: "status", label: "Status", options: STATUSES }],
+  filters: [
+    { key: "status", label: "Status", options: STATUSES },
+  ],
   bulkActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
+    { key: "active", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
+    { key: "suspended", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
   ],
   rowActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
+    { key: "active", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
+    { key: "suspended", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
   ],
   formFields: [
-    { key: "name", label: "Name", type: "text", required: true },
-    { key: "owner", label: "Owner", type: "text" },
-    { key: "scope", label: "Scope", type: "text" },
-    { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },
-    { key: "updated_at", label: "Updated", type: "text" },
+    { key: "country", label: "Country", type: "text" },
+    { key: "state", label: "State", type: "text" },
+    { key: "city", label: "City", type: "text" },
   ],
-  searchFields: ["name", "owner", "scope"],
-  primaryField: "name",
-  panels: [{ title: "Countries", items: ["Live source pending", "Owner", "Last sync"] }],
+  searchFields: ["code", "franchise", "country"],
+  primaryField: "country",
+  panels: [{ title: "Countries", items: ["Owner", "Last sync"] }],
 };

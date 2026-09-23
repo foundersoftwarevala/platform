@@ -2,9 +2,11 @@ import { Activity, CheckCircle2, Coins, Gauge, Pause, ShieldCheck, Target, Trash
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
-const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
+const STATUSES = ["new", "contacted", "qualified", "won", "lost"] as const;
 
 export const config: WallConfig = {
+  // Reads and writes franchise_leads.
+  resource: "franchise_leads",
   scope: "franchise-leads",
   entity: "lead",
   eyebrow: "Leads",
@@ -22,30 +24,34 @@ export const config: WallConfig = {
     { label: "Conversion Rate", icon: Activity, compute: (r) => r.length ? r.length : "—" },
   ],
   columns: [
-    { key: "name", header: "Name" },
-    { key: "owner", header: "Owner" },
-    { key: "scope", header: "Scope" },
-    { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
-    { key: "updated_at", header: "Updated" },
+    { key: "name", header: "Lead", render: (r) => <div className="font-semibold text-[13px]">{r.name || "—"}</div> },
+    { key: "company", header: "Company" },
+    { key: "value", header: "Value", align: "right", render: (r) => <span className="font-semibold">{r.value ? `₹${Number(r.value).toLocaleString()}` : "—"}</span> },
+    { key: "source", header: "Source" },
+    { key: "created_at", header: "Received" },
+    { key: "stage", header: "Stage", render: (r) => <StatusPill value={r.stage} /> },
   ],
-  filters: [{ key: "status", label: "Status", options: STATUSES }],
+  filters: [
+    { key: "stage", label: "Stage", options: STATUSES },
+  ],
   bulkActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
+    { key: "qualified", label: "Qualify", icon: CheckCircle2, patch: { stage: "qualified" } },
+    { key: "lost", label: "Mark Lost", icon: Pause, patch: { stage: "lost" }, variant: "destructive" },
   ],
   rowActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
+    { key: "qualified", label: "Qualify", icon: CheckCircle2, patch: { stage: "qualified" } },
+    { key: "lost", label: "Mark Lost", icon: Pause, patch: { stage: "lost" }, destructive: true },
   ],
   formFields: [
-    { key: "name", label: "Name", type: "text", required: true },
-    { key: "owner", label: "Owner", type: "text" },
-    { key: "scope", label: "Scope", type: "text" },
-    { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },
-    { key: "updated_at", label: "Updated", type: "text" },
+    { key: "name", label: "Lead name", type: "text", required: true },
+    { key: "company", label: "Company", type: "text" },
+    { key: "value", label: "Value", type: "number" },
+    { key: "source", label: "Source", type: "text" },
+    { key: "stage", label: "Stage", type: "select", options: STATUSES },
+    { key: "notes", label: "Notes", type: "textarea" },
   ],
-  searchFields: ["name", "owner", "scope"],
+  searchFields: ["name", "company", "stage", "source"],
   primaryField: "name",
-  panels: [{ title: "Pipeline", items: ["Live source pending", "Owner", "Last sync"] }],
+  statusField: "stage",
+  panels: [{ title: "Pipeline", items: ["Owner", "Last sync"] }],
 };

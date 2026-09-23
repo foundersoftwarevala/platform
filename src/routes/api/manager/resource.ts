@@ -642,6 +642,173 @@ const RESOURCES: Record<string, Resource> = {
     label: "Reseller notification",
   },
 
+  // --------------------------------------------------------------- franchise
+  // Sixteen franchise tables existed and no screen read any of them either.
+  franchises: {
+    table: "franchises",
+    select: ["id", "code", "name", "owner_name", "business_name", "email", "phone", "status",
+      "territory", "country", "state", "city", "commission_rate", "royalty_rate",
+      "total_sales", "performance_score", "health", "conversion_rate", "sla_adherence",
+      "active_resellers", "joined_date", "last_active", "created_at"],
+    editable: ["name", "owner_name", "business_name", "email", "phone", "status", "territory",
+      "country", "state", "city", "commission_rate", "royalty_rate"],
+    searchable: ["code", "name", "owner_name", "email", "status"],
+    creatable: ["code", "name", "owner_name", "business_name", "email", "phone", "status",
+      "territory", "country", "state", "city", "commission_rate", "royalty_rate"],
+    required: ["name"],
+    // The directory wall was built calling these three something else. The
+    // screen keeps its own words and the table keeps its own columns.
+    rename: { name: "franchise", commission_rate: "commission", total_sales: "revenue_mtd" },
+    order: "created_at.desc",
+    label: "Franchises",
+  },
+
+  franchise_applications: {
+    table: "franchise_applications",
+    select: ["id", "code", "business_name", "owner_name", "email", "phone",
+      "requested_territory", "city", "state", "country", "business_type",
+      "investment_capacity", "kyc_status", "status", "review_notes", "applied_at", "created_at"],
+    editable: ["status", "kyc_status", "review_notes", "requested_territory"],
+    searchable: ["code", "business_name", "owner_name", "email", "status"],
+    order: "created_at.desc",
+    label: "Franchise applications",
+  },
+
+  franchise_leads: {
+    table: "franchise_leads",
+    select: ["id", "franchise_id", "name", "company", "value", "stage", "source", "notes", "created_at"],
+    editable: ["name", "company", "value", "stage", "source", "notes"],
+    searchable: ["name", "company", "stage", "source"],
+    creatable: ["name", "company", "value", "stage", "source", "notes"],
+    required: ["name"],
+    order: "created_at.desc",
+    label: "Franchise leads",
+  },
+
+  franchise_branches: {
+    table: "franchise_branches",
+    select: ["id", "franchise_id", "code", "name", "city", "region", "manager", "status",
+      "total_sales", "active_employees", "performance_score", "joined_date", "created_at"],
+    editable: ["name", "city", "region", "manager", "status"],
+    searchable: ["code", "name", "city", "region", "manager"],
+    order: "created_at.desc",
+    label: "Franchise branches",
+  },
+
+  franchise_employees: {
+    table: "franchise_employees",
+    select: ["id", "franchise_id", "branch_id", "full_name", "email", "role", "status",
+      "performance", "availability", "joined_at", "created_at"],
+    editable: ["full_name", "email", "role", "status", "availability"],
+    searchable: ["full_name", "email", "role", "status"],
+    order: "created_at.desc",
+    label: "Franchise employees",
+  },
+
+  franchise_compliance: {
+    table: "franchise_compliance",
+    select: ["id", "franchise_id", "requirement", "category", "status", "severity",
+      "due_date", "last_checked", "notes", "created_at"],
+    editable: ["status", "severity", "due_date", "notes"],
+    searchable: ["requirement", "category", "status"],
+    order: "due_date.asc",
+    label: "Franchise compliance",
+  },
+
+  franchise_documents: {
+    table: "franchise_documents",
+    select: ["id", "franchise_id", "application_id", "name", "doc_type", "status",
+      "file_url", "uploaded_at", "expires_at", "created_at"],
+    editable: ["name", "doc_type", "status", "expires_at"],
+    searchable: ["name", "doc_type", "status"],
+    order: "uploaded_at.desc",
+    label: "Franchise documents",
+  },
+
+  franchise_contracts: {
+    table: "franchise_contracts",
+    select: ["id", "franchise_id", "contract_no", "contract_type", "start_date", "end_date",
+      "value", "status", "renewal_status", "signed_at", "created_at"],
+    editable: ["status", "renewal_status", "end_date"],
+    searchable: ["contract_no", "contract_type", "status"],
+    order: "created_at.desc",
+    label: "Franchise contracts",
+  },
+
+  // Money owed and money paid. The amounts are earned, not typed in.
+  franchise_royalties: {
+    table: "franchise_royalties",
+    select: ["id", "franchise_id", "period", "gross_sales", "royalty_rate", "royalty_due",
+      "commission_due", "paid_amount", "status", "due_date", "paid_at", "created_at"],
+    editable: ["status"],
+    searchable: ["period", "status"],
+    order: "due_date.desc",
+    retirable: false,
+    label: "Franchise royalties",
+  },
+
+  franchise_performance: {
+    table: "franchise_performance",
+    select: ["id", "franchise_id", "period", "revenue", "leads", "conversions", "tickets",
+      "csat", "sla_percent", "created_at"],
+    editable: [],
+    searchable: ["period"],
+    order: "created_at.desc",
+    retirable: false,
+    label: "Franchise performance",
+  },
+
+  franchise_notifications: {
+    table: "franchise_notifications",
+    select: ["id", "franchise_id", "title", "message", "type", "read", "created_at"],
+    editable: ["title", "message", "type", "read"],
+    searchable: ["title", "message", "type"],
+    creatable: ["title", "message", "type"],
+    required: ["title"],
+    order: "created_at.desc",
+    retirable: true,
+    label: "Franchise notification",
+  },
+
+  franchise_escalations: {
+    table: "franchise_escalations",
+    select: ["id", "franchise_id", "title", "category", "priority", "status", "raised_by",
+      "assigned_to", "sla_due", "resolution", "created_at"],
+    editable: ["status", "priority", "assigned_to", "resolution"],
+    searchable: ["title", "category", "status"],
+    order: "created_at.desc",
+    label: "Franchise escalations",
+  },
+
+  franchise_settings: {
+    table: "franchise_settings",
+    select: ["id", "key", "label", "description", "value", "updated_at"],
+    editable: ["label", "description", "value"],
+    searchable: ["key", "label"],
+    order: "key.asc",
+    label: "Franchise settings",
+  },
+
+  franchise_audit_logs: {
+    table: "franchise_audit_logs",
+    select: ["id", "actor", "action", "entity_type", "entity_id", "result", "details", "created_at"],
+    editable: [],
+    searchable: ["actor", "action", "entity_type"],
+    order: "created_at.desc",
+    retirable: false,
+    label: "Franchise audit",
+  },
+
+  franchise_fraud_alerts: {
+    table: "franchise_fraud_alerts",
+    select: ["id", "franchise_id", "alert_type", "severity", "risk_score", "description",
+      "status", "detected_at", "created_at"],
+    editable: ["status", "severity"],
+    searchable: ["alert_type", "severity", "status"],
+    order: "detected_at.desc",
+    label: "Franchise fraud alerts",
+  },
+
   products: {
     table: "marketplace_products",
     select: ["id", "name", "slug", "industry_label", "price_label", "rating", "downloads_label",

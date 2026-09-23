@@ -2,9 +2,11 @@ import { Activity, CheckCircle2, Coins, Gauge, MessagesSquare, Pause, ShieldChec
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
-const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
+const STATUSES = ["info", "warning", "success", "critical"] as const;
 
 export const config: WallConfig = {
+  // Reads and writes franchise_notifications.
+  resource: "franchise_notifications",
   scope: "franchise-communication",
   entity: "communication",
   eyebrow: "Communication",
@@ -20,30 +22,28 @@ export const config: WallConfig = {
     { label: "Active Meetings", icon: ShieldCheck, compute: (r) => r.length ? r.length : "—" },
   ],
   columns: [
-    { key: "name", header: "Name" },
-    { key: "owner", header: "Owner" },
-    { key: "scope", header: "Scope" },
-    { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
-    { key: "updated_at", header: "Updated" },
+    { key: "title", header: "Title", render: (r) => <div className="font-semibold text-[13px]">{r.title || "—"}</div> },
+    { key: "message", header: "Message", render: (r) => <span className="text-[12px]">{String(r.message ?? "").slice(0, 60) || "—"}</span> },
+    { key: "type", header: "Type", render: (r) => <StatusPill value={r.type} /> },
+    { key: "read", header: "Read", render: (r) => <StatusPill value={r.read ? "read" : "unread"} /> },
+    { key: "created_at", header: "Sent" },
   ],
-  filters: [{ key: "status", label: "Status", options: STATUSES }],
+  filters: [
+    { key: "type", label: "Type", options: STATUSES },
+  ],
   bulkActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
+    { key: "true", label: "Mark Read", icon: CheckCircle2, patch: { read: true } },
   ],
   rowActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
+    { key: "true", label: "Mark Read", icon: CheckCircle2, patch: { read: true } },
   ],
   formFields: [
-    { key: "name", label: "Name", type: "text", required: true },
-    { key: "owner", label: "Owner", type: "text" },
-    { key: "scope", label: "Scope", type: "text" },
-    { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },
-    { key: "updated_at", label: "Updated", type: "text" },
+    { key: "title", label: "Title", type: "text", required: true },
+    { key: "message", label: "Message", type: "textarea" },
+    { key: "type", label: "Type", type: "select", options: STATUSES },
   ],
-  searchFields: ["name", "owner", "scope"],
-  primaryField: "name",
-  panels: [{ title: "Channels", items: ["Live source pending", "Owner", "Last sync"] }, { title: "Outbox", items: ["Live source pending", "Owner", "Last sync"] }],
+  searchFields: ["title", "message", "type"],
+  primaryField: "title",
+  statusField: "type",
+  panels: [{ title: "Channels", items: ["Owner", "Last sync"] }, { title: "Outbox", items: ["Live source pending", "Owner", "Last sync"] }],
 };

@@ -5,6 +5,8 @@ import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
 
 export const config: WallConfig = {
+  // Reads the marketplace catalogue a franchise sells from.
+  resource: "products",
   scope: "franchise-products",
   entity: "product",
   eyebrow: "Products",

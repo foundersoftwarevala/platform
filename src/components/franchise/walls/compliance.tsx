@@ -2,9 +2,11 @@ import { Activity, CheckCircle2, Coins, Gauge, Pause, Scale, ShieldCheck, Trash2
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
-const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
+const STATUSES = ["pending", "in_progress", "met", "breached"] as const;
 
 export const config: WallConfig = {
+  // Reads and writes franchise_compliance.
+  resource: "franchise_compliance",
   scope: "franchise-compliance",
   entity: "compliance",
   eyebrow: "Compliance",
@@ -21,30 +23,31 @@ export const config: WallConfig = {
     { label: "Avg. Risk Score", icon: Users, compute: (r) => r.length ? r.length : "—" },
   ],
   columns: [
-    { key: "name", header: "Name" },
-    { key: "owner", header: "Owner" },
-    { key: "scope", header: "Scope" },
+    { key: "requirement", header: "Requirement", render: (r) => <div className="font-semibold text-[13px]">{r.requirement || "—"}</div> },
+    { key: "category", header: "Category" },
+    { key: "severity", header: "Severity", render: (r) => <StatusPill value={r.severity} /> },
+    { key: "due_date", header: "Due" },
+    { key: "last_checked", header: "Last checked" },
     { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
-    { key: "updated_at", header: "Updated" },
   ],
-  filters: [{ key: "status", label: "Status", options: STATUSES }],
+  filters: [
+    { key: "status", label: "Status", options: STATUSES },
+  ],
   bulkActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
+    { key: "met", label: "Mark Met", icon: CheckCircle2, patch: { status: "met" } },
+    { key: "breached", label: "Mark Breached", icon: Pause, patch: { status: "breached" }, variant: "destructive" },
   ],
   rowActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
+    { key: "met", label: "Mark Met", icon: CheckCircle2, patch: { status: "met" } },
+    { key: "breached", label: "Mark Breached", icon: Pause, patch: { status: "breached" }, destructive: true },
   ],
   formFields: [
-    { key: "name", label: "Name", type: "text", required: true },
-    { key: "owner", label: "Owner", type: "text" },
-    { key: "scope", label: "Scope", type: "text" },
-    { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },
-    { key: "updated_at", label: "Updated", type: "text" },
+    { key: "status", label: "Status", type: "select", options: STATUSES },
+    { key: "severity", label: "Severity", type: "text" },
+    { key: "due_date", label: "Due date", type: "text", placeholder: "YYYY-MM-DD" },
+    { key: "notes", label: "Notes", type: "textarea" },
   ],
-  searchFields: ["name", "owner", "scope"],
-  primaryField: "name",
-  panels: [{ title: "Compliance Register", items: ["Live source pending", "Owner", "Last sync"] }],
+  searchFields: ["requirement", "category", "status"],
+  primaryField: "requirement",
+  panels: [{ title: "Compliance Register", items: ["Owner", "Last sync"] }],
 };

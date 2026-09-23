@@ -5,6 +5,9 @@ import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
 
 export const config: WallConfig = {
+  // Reads and writes the franchises table. The wall is unchanged; the three
+  // columns it names differently are translated by the endpoint.
+  resource: "franchises",
   scope: "franchise-directory",
   entity: "directory",
   eyebrow: "Directory",
@@ -14,17 +17,32 @@ export const config: WallConfig = {
   primaryLabel: "New Record",
   seed: [],
   kpis: [
-    { label: "Total Franchises", icon: Gauge, compute: (r) => r.length ? r.length : "—" },
-    { label: "Active", icon: TrendingUp, compute: (r) => r.length ? r.length : "—" },
-    { label: "Suspended", icon: Coins, compute: (r) => r.length ? r.length : "—" },
-    { label: "High Risk", icon: ShieldCheck, compute: (r) => r.length ? r.length : "—" },
-    { label: "Avg Health Score", icon: Users, compute: (r) => r.length ? r.length : "—" },
-    { label: "Avg Commission %", icon: Activity, compute: (r) => r.length ? r.length : "—" },
+    { label: "Total Franchises", icon: Gauge, compute: (r) => (r.length ? r.length : "—") },
+    { label: "Active", icon: TrendingUp, compute: (r) => (r.length ? r.filter((x) => x.status === "active").length : "—") },
+    { label: "Suspended", icon: Coins, compute: (r) => (r.length ? r.filter((x) => x.status === "suspended").length : "—") },
+    { label: "Countries", icon: ShieldCheck, compute: (r) => (r.length ? new Set(r.map((x) => x.country).filter(Boolean)).size : "—") },
+    {
+      label: "Avg Health Score", icon: Users,
+      compute: (r) => {
+        const scored = r.filter((x) => x.health != null);
+        return scored.length ? Math.round(scored.reduce((s, x) => s + Number(x.health), 0) / scored.length) : "—";
+      },
+    },
+    {
+      label: "Avg Commission %", icon: Activity,
+      compute: (r) => {
+        const rated = r.filter((x) => x.commission != null);
+        return rated.length ? `${(rated.reduce((s, x) => s + Number(x.commission), 0) / rated.length).toFixed(1)}%` : "—";
+      },
+    },
   ],
   columns: [
     { key: "code", header: "Code" },
     { key: "franchise", header: "Franchise" },
-    { key: "location", header: "Location" },
+    {
+      key: "location", header: "Location",
+      render: (r) => [r.city, r.state, r.country].filter(Boolean).join(", ") || "—",
+    },
     { key: "tier", header: "Tier", render: (r) => <StatusPill value={r.tier} /> },
     { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
     { key: "commission", header: "Commission" },

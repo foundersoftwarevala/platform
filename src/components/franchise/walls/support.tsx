@@ -2,9 +2,11 @@ import { Activity, CheckCircle2, Coins, Gauge, HeartHandshake, Pause, ShieldChec
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
-const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
+const STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
 
 export const config: WallConfig = {
+  // Reads and writes franchise_escalations.
+  resource: "franchise_escalations",
   scope: "franchise-support",
   entity: "support",
   eyebrow: "Support",
@@ -22,30 +24,31 @@ export const config: WallConfig = {
     { label: "Scheduled Meetings", icon: Activity, compute: (r) => r.length ? r.length : "—" },
   ],
   columns: [
-    { key: "name", header: "Name" },
-    { key: "owner", header: "Owner" },
-    { key: "scope", header: "Scope" },
+    { key: "title", header: "Escalation", render: (r) => <div className="font-semibold text-[13px]">{r.title || "—"}</div> },
+    { key: "category", header: "Category" },
+    { key: "priority", header: "Priority", render: (r) => <StatusPill value={r.priority} /> },
+    { key: "assigned_to", header: "Assigned" },
+    { key: "sla_due", header: "SLA due" },
     { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
-    { key: "updated_at", header: "Updated" },
   ],
-  filters: [{ key: "status", label: "Status", options: STATUSES }],
+  filters: [
+    { key: "status", label: "Status", options: STATUSES },
+  ],
   bulkActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
+    { key: "resolved", label: "Resolve", icon: CheckCircle2, patch: { status: "resolved" } },
+    { key: "closed", label: "Close", icon: Pause, patch: { status: "closed" }, variant: "destructive" },
   ],
   rowActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
+    { key: "resolved", label: "Resolve", icon: CheckCircle2, patch: { status: "resolved" } },
+    { key: "closed", label: "Close", icon: Pause, patch: { status: "closed" }, destructive: true },
   ],
   formFields: [
-    { key: "name", label: "Name", type: "text", required: true },
-    { key: "owner", label: "Owner", type: "text" },
-    { key: "scope", label: "Scope", type: "text" },
-    { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },
-    { key: "updated_at", label: "Updated", type: "text" },
+    { key: "status", label: "Status", type: "select", options: STATUSES },
+    { key: "priority", label: "Priority", type: "text" },
+    { key: "assigned_to", label: "Assigned to", type: "text" },
+    { key: "resolution", label: "Resolution", type: "textarea" },
   ],
-  searchFields: ["name", "owner", "scope"],
-  primaryField: "name",
-  panels: [{ title: "Channels", items: ["Live source pending", "Owner", "Last sync"] }, { title: "Tickets", items: ["Live source pending", "Owner", "Last sync"] }],
+  searchFields: ["title", "category", "status"],
+  primaryField: "title",
+  panels: [{ title: "Channels", items: ["Owner", "Last sync"] }, { title: "Tickets", items: ["Live source pending", "Owner", "Last sync"] }],
 };

@@ -5,6 +5,8 @@ import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
 
 export const config: WallConfig = {
+  // Reads and writes franchise_documents.
+  resource: "franchise_documents",
   scope: "franchise-documents",
   entity: "document",
   eyebrow: "Documents",

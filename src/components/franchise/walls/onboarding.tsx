@@ -2,9 +2,11 @@ import { Activity, CheckCircle2, Coins, Gauge, Pause, ShieldCheck, Trash2, Trend
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
-const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
+const STATUSES = ["pending", "approved", "rejected", "clarification"] as const;
 
 export const config: WallConfig = {
+  // Reads and writes franchise_applications - the partners asking to join.
+  resource: "franchise_applications",
   scope: "franchise-onboarding",
   entity: "onboarding",
   eyebrow: "Onboarding",
@@ -21,30 +23,33 @@ export const config: WallConfig = {
     { label: "Avg. Time to Go-Live", icon: Users, compute: (r) => r.length ? r.length : "—" },
   ],
   columns: [
-    { key: "name", header: "Name" },
-    { key: "owner", header: "Owner" },
-    { key: "scope", header: "Scope" },
+    { key: "code", header: "Code", render: (r) => <span className="font-mono text-[12px]">{r.code || "—"}</span> },
+    { key: "business_name", header: "Business", render: (r) => <div className="font-semibold text-[13px]">{r.business_name || "—"}</div> },
+    { key: "owner_name", header: "Owner" },
+    { key: "email", header: "Email" },
+    { key: "requested_territory", header: "Territory" },
+    { key: "kyc_status", header: "KYC", render: (r) => <StatusPill value={r.kyc_status} /> },
+    { key: "applied_at", header: "Applied" },
     { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
-    { key: "updated_at", header: "Updated" },
   ],
-  filters: [{ key: "status", label: "Status", options: STATUSES }],
+  filters: [
+    { key: "status", label: "Status", options: STATUSES },
+  ],
   bulkActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
+    { key: "approved", label: "Approve", icon: CheckCircle2, patch: { status: "approved" } },
+    { key: "rejected", label: "Reject", icon: Pause, patch: { status: "rejected" }, variant: "destructive" },
   ],
   rowActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
+    { key: "approved", label: "Approve", icon: CheckCircle2, patch: { status: "approved" } },
+    { key: "rejected", label: "Reject", icon: Pause, patch: { status: "rejected" }, destructive: true },
   ],
   formFields: [
-    { key: "name", label: "Name", type: "text", required: true },
-    { key: "owner", label: "Owner", type: "text" },
-    { key: "scope", label: "Scope", type: "text" },
-    { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },
-    { key: "updated_at", label: "Updated", type: "text" },
+    { key: "status", label: "Status", type: "select", options: STATUSES },
+    { key: "kyc_status", label: "KYC", type: "text" },
+    { key: "requested_territory", label: "Territory", type: "text" },
+    { key: "review_notes", label: "Review notes", type: "textarea" },
   ],
-  searchFields: ["name", "owner", "scope"],
-  primaryField: "name",
-  panels: [{ title: "Standard Journey", items: ["Live source pending", "Owner", "Last sync"] }, { title: "Active Onboardings", items: ["Live source pending", "Owner", "Last sync"] }],
+  searchFields: ["code", "business_name", "owner_name", "email", "status"],
+  primaryField: "business_name",
+  panels: [{ title: "Standard Journey", items: ["Owner", "Last sync"] }, { title: "Active Onboardings", items: ["Live source pending", "Owner", "Last sync"] }],
 };
