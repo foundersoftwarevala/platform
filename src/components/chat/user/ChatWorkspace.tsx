@@ -198,7 +198,30 @@ export function ChatWorkspace() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <main className="flex h-[100dvh] w-full overflow-hidden bg-background">
+      {/*
+        What is said here stays here. Copying, right-click menus and dragging
+        text out are all refused, so a conversation cannot be lifted out of the
+        workspace by hand. Typing into the composer is unaffected.
+      */}
+      <main
+        className="flex h-[100dvh] w-full select-none overflow-hidden bg-background"
+        onContextMenu={(event) => {
+          const target = event.target as HTMLElement;
+          if (target.closest("input, textarea, [contenteditable='true']")) return;
+          event.preventDefault();
+        }}
+        onCopy={(event) => {
+          const target = event.target as HTMLElement;
+          if (target.closest("input, textarea, [contenteditable='true']")) return;
+          event.preventDefault();
+        }}
+        onCut={(event) => {
+          const target = event.target as HTMLElement;
+          if (target.closest("input, textarea, [contenteditable='true']")) return;
+          event.preventDefault();
+        }}
+        onDragStart={(event) => event.preventDefault()}
+      >
         <div className={cn("h-full w-full shrink-0 md:w-80 md:border-r md:border-border/60", showList ? "flex" : "hidden md:flex")}>
           <ConversationSidebar
             conversations={conversations}

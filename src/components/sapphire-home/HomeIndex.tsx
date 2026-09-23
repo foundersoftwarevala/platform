@@ -3631,6 +3631,20 @@ const Index = () => {
           </p>
         </div>
       </footer>
+
+      {/*
+        Connect Chat, reachable from the home page as well as from every
+        dashboard's top bar, so a visitor can talk to Software Vala directly
+        rather than hunting for a form.
+      */}
+      <Link
+        to="/chat"
+        aria-label="Open Connect Chat"
+        className="sv-chat-fab fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_-12px_rgba(8,145,178,0.8)] transition hover:-translate-y-0.5"
+      >
+        <MessageCircle className="h-5 w-5" />
+        <span className="hidden sm:inline">Chat with us</span>
+      </Link>
     </div>
   );
 };
