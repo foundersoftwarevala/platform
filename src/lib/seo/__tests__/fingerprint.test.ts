@@ -56,6 +56,19 @@ describe("normalising", () => {
     expect(text).not.toContain("var x");
   });
 
+  it("decodes the entities the renderer actually writes", () => {
+    // The renderer writes an apostrophe as &#x27;, which once cost every
+    // Cote d'Ivoire page its place in the sitemap.
+    const text = htmlToText(
+      "<p>Academy Software in Cote d&#x27;Ivoire &amp; more &#38; still more</p>",
+    );
+    expect(text).toBe("Academy Software in Cote d'Ivoire & more & still more");
+  });
+
+  it("does not turn an escaped entity into a character", () => {
+    expect(htmlToText("<p>&amp;#x27;</p>")).toBe("&#x27;");
+  });
+
   it("reduces a URL to the part that identifies a page", () => {
     expect(normalizeUrl("https://softwarevala.net/marketplace/healthcare/kenya/")).toBe(
       "/marketplace/healthcare/kenya",

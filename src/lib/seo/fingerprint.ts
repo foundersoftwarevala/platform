@@ -85,20 +85,32 @@ export function normalizeText(input: string): string {
 
 /** Visible text of an HTML fragment, with script, style and markup removed. */
 export function htmlToText(html: string): string {
-  return html
-    .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
-    .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    html
+      .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      // Numeric character references, decimal and hexadecimal. This is not a
+      // nicety: the renderer writes an apostrophe as &#x27;, so every page for
+      // Cote d'Ivoire failed the check that the page names its own country -
+      // ninety-one real pages held back over an entity the reader would have
+      // spelled out. A gate that fails closed must still fail for the right
+      // reason.
+      .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+      .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+      .replace(/&apos;/gi, "'")
+      .replace(/&quot;/gi, '"')
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      // Ampersand last, so "&amp;#x27;" cannot be turned into an apostrophe by
+      // the passes above.
+      .replace(/&amp;/gi, "&")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 /** A URL with the parts that never change meaning removed. */
