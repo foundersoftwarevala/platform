@@ -3521,7 +3521,7 @@ const CountryRailCards = memo(function CountryRailCards({
 
   useEffect(() => {
     if (!slug) return;
-    const node = anchor.current;
+    const node = anchor.current?.closest("section.sv-product-row") ?? anchor.current;
     if (!node) return;
     const controller = new AbortController();
     const observer = new IntersectionObserver(
