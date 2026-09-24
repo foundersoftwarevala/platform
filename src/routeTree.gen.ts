@@ -266,6 +266,7 @@ import { Route as ApiInternalEmailFlushRouteImport } from './routes/api/internal
 import { Route as ApiInternalMarketplaceMigrationRouteImport } from './routes/api/internal/marketplace-migration'
 import { Route as ApiInternalSellerAdminRouteImport } from './routes/api/internal/seller-admin'
 import { Route as ApiInternalSeoAuditRouteImport } from './routes/api/internal/seo-audit'
+import { Route as ApiInternalSeoGateRouteImport } from './routes/api/internal/seo-gate'
 import { Route as ApiInternalSeoPageRouteImport } from './routes/api/internal/seo-page'
 import { Route as ApiInternalSettleCommissionsRouteImport } from './routes/api/internal/settle-commissions'
 import { Route as ApiLeadsConsoleRouteImport } from './routes/api/leads/console'
@@ -1637,6 +1638,11 @@ const ApiInternalSeoAuditRoute = ApiInternalSeoAuditRouteImport.update({
   path: '/api/internal/seo-audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalSeoGateRoute = ApiInternalSeoGateRouteImport.update({
+  id: '/api/internal/seo-gate',
+  path: '/api/internal/seo-gate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInternalSeoPageRoute = ApiInternalSeoPageRouteImport.update({
   id: '/api/internal/seo-page',
   path: '/api/internal/seo-page',
@@ -2178,6 +2184,7 @@ export interface FileRoutesByFullPath {
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
   '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
   '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
+  '/api/internal/seo-gate': typeof ApiInternalSeoGateRoute
   '/api/internal/seo-page': typeof ApiInternalSeoPageRoute
   '/api/internal/settle-commissions': typeof ApiInternalSettleCommissionsRoute
   '/api/leads/console': typeof ApiLeadsConsoleRoute
@@ -2482,6 +2489,7 @@ export interface FileRoutesByTo {
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
   '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
   '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
+  '/api/internal/seo-gate': typeof ApiInternalSeoGateRoute
   '/api/internal/seo-page': typeof ApiInternalSeoPageRoute
   '/api/internal/settle-commissions': typeof ApiInternalSettleCommissionsRoute
   '/api/leads/console': typeof ApiLeadsConsoleRoute
@@ -2797,6 +2805,7 @@ export interface FileRoutesById {
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
   '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
   '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
+  '/api/internal/seo-gate': typeof ApiInternalSeoGateRoute
   '/api/internal/seo-page': typeof ApiInternalSeoPageRoute
   '/api/internal/settle-commissions': typeof ApiInternalSettleCommissionsRoute
   '/api/leads/console': typeof ApiLeadsConsoleRoute
@@ -3113,6 +3122,7 @@ export interface FileRouteTypes {
     | '/api/internal/marketplace-migration'
     | '/api/internal/seller-admin'
     | '/api/internal/seo-audit'
+    | '/api/internal/seo-gate'
     | '/api/internal/seo-page'
     | '/api/internal/settle-commissions'
     | '/api/leads/console'
@@ -3417,6 +3427,7 @@ export interface FileRouteTypes {
     | '/api/internal/marketplace-migration'
     | '/api/internal/seller-admin'
     | '/api/internal/seo-audit'
+    | '/api/internal/seo-gate'
     | '/api/internal/seo-page'
     | '/api/internal/settle-commissions'
     | '/api/leads/console'
@@ -3731,6 +3742,7 @@ export interface FileRouteTypes {
     | '/api/internal/marketplace-migration'
     | '/api/internal/seller-admin'
     | '/api/internal/seo-audit'
+    | '/api/internal/seo-gate'
     | '/api/internal/seo-page'
     | '/api/internal/settle-commissions'
     | '/api/leads/console'
@@ -3896,6 +3908,7 @@ export interface RootRouteChildren {
   ApiInternalMarketplaceMigrationRoute: typeof ApiInternalMarketplaceMigrationRoute
   ApiInternalSellerAdminRoute: typeof ApiInternalSellerAdminRoute
   ApiInternalSeoAuditRoute: typeof ApiInternalSeoAuditRoute
+  ApiInternalSeoGateRoute: typeof ApiInternalSeoGateRoute
   ApiInternalSeoPageRoute: typeof ApiInternalSeoPageRoute
   ApiInternalSettleCommissionsRoute: typeof ApiInternalSettleCommissionsRoute
   ApiLeadsConsoleRoute: typeof ApiLeadsConsoleRoute
@@ -5739,6 +5752,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalSeoAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/seo-gate': {
+      id: '/api/internal/seo-gate'
+      path: '/api/internal/seo-gate'
+      fullPath: '/api/internal/seo-gate'
+      preLoaderRoute: typeof ApiInternalSeoGateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/internal/seo-page': {
       id: '/api/internal/seo-page'
       path: '/api/internal/seo-page'
@@ -6685,6 +6705,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInternalMarketplaceMigrationRoute: ApiInternalMarketplaceMigrationRoute,
   ApiInternalSellerAdminRoute: ApiInternalSellerAdminRoute,
   ApiInternalSeoAuditRoute: ApiInternalSeoAuditRoute,
+  ApiInternalSeoGateRoute: ApiInternalSeoGateRoute,
   ApiInternalSeoPageRoute: ApiInternalSeoPageRoute,
   ApiInternalSettleCommissionsRoute: ApiInternalSettleCommissionsRoute,
   ApiLeadsConsoleRoute: ApiLeadsConsoleRoute,
