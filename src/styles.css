@@ -740,19 +740,26 @@
    changes: the same cards, the same rails, the same spacing - there is simply
    more room for them.
 
-   Scoped to the home page's own wrapper rather than to every max-w-7xl in the
-   project, because the same class caps the vendor manager, and a manager is
-   not a shelf.
+   This was first written against the home page's own wrapper, on the belief
+   that scoping it there kept it away from the managers. It did not: the
+   vendor manager sets that same wrapper on itself, so it was already
+   included, while /marketplace and the product pages - which are the same
+   shelves under a different route - were left out. The owner asked for the
+   whole project, so the cap is raised wherever it is used.
+
+   It is only ever raised, never removed, and only above widths no laptop
+   reaches. The manager consoles mostly cap at 1600px already and are
+   untouched by this.
    ------------------------------------------------------------------------ */
 
 @media (min-width: 2300px) {
-  .mpc-home .max-w-7xl { max-width: 1536px; }
+  .max-w-7xl { max-width: 1536px; }
 }
 
 @media (min-width: 2800px) {
-  .mpc-home .max-w-7xl { max-width: 1728px; }
+  .max-w-7xl { max-width: 1728px; }
 }
 
 @media (min-width: 3400px) {
-  .mpc-home .max-w-7xl { max-width: 1920px; }
+  .max-w-7xl { max-width: 1920px; }
 }
