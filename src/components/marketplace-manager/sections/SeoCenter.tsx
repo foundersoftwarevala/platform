@@ -1976,7 +1976,7 @@ function KeywordClusterModule() {
               Mapped to {c.pages} {c.pages === 1 ? "page" : "pages"}
             </div>
             <div className="mt-3 flex flex-wrap gap-1">
-              {c.intents.map((t) => (<Chip key={t}>{t}</Chip>))}
+              {c.intents.map((intent) => (<Chip key={intent}>{intent}</Chip>))}
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-[11px]">
               <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.volume")}</div><div className="font-mono tabular">{c.volume.toLocaleString()}</div></div>
@@ -2954,18 +2954,20 @@ function ToolGrid({ items, state }: {
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {items.map((t) => {
-        const status = text(t, "status");
+      {items.map((service) => {
+        const status = text(service, "status");
         return (
-          <Card key={String(t.id)}>
+          <Card key={String(service.id)}>
             <div className="flex items-start justify-between">
               <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent"><Globe2 className="h-4 w-4" /></div>
               <Chip tone={status === "connected" ? "success" : status === "pending" ? "warning" : "destructive"}>{status}</Chip>
             </div>
-            <div className="mt-3 text-sm font-bold">{text(t, "display_name")}</div>
-            <div className="text-[11px] text-muted-foreground">{text(t, "category")} · {text(t, "provider")}</div>
+            <div className="mt-3 text-sm font-bold">{text(service, "display_name")}</div>
+            <div className="text-[11px] text-muted-foreground">{text(service, "category")} · {text(service, "provider")}</div>
             <div className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-              {text(t, "last_sync_at", "") ? `Last sync ${text(t, "last_sync_at").slice(0, 10)}` : t("seo.never_synced")}
+              {text(service, "last_sync_at", "")
+                ? t("seo.last_sync", { on: text(service, "last_sync_at").slice(0, 10) })
+                : t("seo.never_synced")}
             </div>
           </Card>
         );

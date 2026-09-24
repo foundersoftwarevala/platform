@@ -252,4 +252,5 @@ export const SEO_MESSAGES = {
   "seo.with_seo_title": "With SEO title",
   "seo.words": "Words",
   "seo.x_preview": "X preview",
+  "seo.last_sync": ["Last sync {on}", "when an integration last brought data in"],
 } as const;
