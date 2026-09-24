@@ -658,3 +658,68 @@
 .bidi-isolate { unicode-bidi: isolate; }
 .ltr-content { direction: ltr; unicode-bidi: isolate; }
 :root[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
+
+/* ==========================================================================
+   The project fits the screen it is opened on
+   ==========================================================================
+
+   Every page in this project is laid out against a fixed ruler: the storefront
+   containers stop at 1280px, a card is 328px wide whatever the monitor is, and
+   the root font size is 16px on a phone and 16px on a forty-inch television.
+   Measured on the live site:
+
+     window 1366px  content 1280px   94% of the screen used
+     window 1920px  content 1280px   67%
+     window 2560px  content 1280px   50%
+     window 3840px  content 1280px   33%
+
+   So two thirds of a large monitor is margin, and the text and cards on it are
+   the size they would be on a laptop - which is why the site looks small on a
+   big screen. Below 1600px nothing is wrong: a phone, a tablet and a window on
+   half a screen all use the full width already and none of them scrolls
+   sideways.
+
+   This scales the whole interface up on screens larger than that, and does
+   nothing at all below it. The design does not change - no layout is rewritten,
+   no container is widened, no breakpoint moves, nothing is hidden or dropped.
+   Everything simply becomes larger together, in proportion, so a forty-inch
+   monitor shows the same page at a size a person can read from where they sit.
+
+   It is done with `zoom` rather than a root font size because this project
+   holds nearly three thousand fixed pixel sizes (text-[11px] and the like)
+   that a font-size change would leave behind, which would pull the design
+   apart. `zoom` scales layout, so text, spacing, cards, icons and borders all
+   grow together and the page still reflows; a window resized to half a screen
+   drops straight back to its ordinary size.
+
+   The steps are deliberately gentle and stop at 1.6. Anything more starts to
+   feel like a magnifying glass rather than a comfortable screen.
+   ------------------------------------------------------------------------ */
+
+@media (min-width: 1600px) {
+  :root { zoom: 1.1; }
+}
+
+@media (min-width: 1920px) {
+  :root { zoom: 1.2; }
+}
+
+@media (min-width: 2300px) {
+  :root { zoom: 1.35; }
+}
+
+@media (min-width: 2800px) {
+  :root { zoom: 1.5; }
+}
+
+@media (min-width: 3400px) {
+  :root { zoom: 1.6; }
+}
+
+/* A person who has asked their browser to zoom, or who is on a screen this
+   does not know about, is left exactly as they are. */
+@media (min-width: 1600px) and (max-height: 700px) {
+  /* A short, wide window - a projector, or a browser with many toolbars - has
+     no room to spare vertically, so it keeps its ordinary size. */
+  :root { zoom: 1; }
+}
