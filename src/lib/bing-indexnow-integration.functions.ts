@@ -357,26 +357,42 @@ export const pingIndexNow = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as {
     host: string;
     key: string;
+    key_location?: string;
     url: string;
   })
   .handler(async ({ data }) => {
+    // This used to call https://www.bing-ping.org/?q=<url>, which is not an
+    // endpoint Microsoft operates, and then counted a 404 as a success - so it
+    // reported "URL pinged to Bing" whatever happened, including when nothing
+    // happened. It now submits the one URL through IndexNow itself, which is
+    // the protocol the rest of this file already speaks, and reports the status
+    // the service actually returned.
+    //
+    // IndexNow answers 200 or 202 when it has accepted the submission. Every
+    // other status is a refusal and is returned as one, with the body, because
+    // a refusal that reads as a success is worse than no ping at all.
     try {
-      const response = await fetch("https://www.bing-ping.org/?q=" + encodeURIComponent(data.url), {
-        method: "GET",
+      const response = await fetch("https://api.indexnow.org/indexnow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          host: data.host,
+          key: data.key,
+          keyLocation: data.key_location,
+          urlList: [data.url],
+        }),
       });
-
-      const success = response.ok || response.status === 404;
-
+      const body = await response.text();
+      const accepted = response.status === 200 || response.status === 202;
       return {
-        success,
+        success: accepted,
         url: data.url,
         status: response.status,
-        message: success ? "URL pinged to Bing" : "Ping request failed",
+        message: accepted
+          ? "IndexNow accepted the URL"
+          : `IndexNow refused the URL: ${response.status} ${body.slice(0, 200)}`,
       };
     } catch (error) {
-      return {
-        success: false,
-        error: String(error),
-      };
+      return { success: false, url: data.url, status: 0, error: String(error) };
     }
   });
