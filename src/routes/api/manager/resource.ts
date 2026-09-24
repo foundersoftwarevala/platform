@@ -2887,6 +2887,59 @@ const RESOURCES: Record<string, Resource> = {
     order: "seo_score.desc",
     label: "SEO pages",
   },
+  // The safety gate's own record. Read-only here on purpose: an indexing
+  // decision is the output of an audit, and letting an operator type over it
+  // would let a page into the sitemap that nothing had actually checked. To
+  // change a verdict, fix the page and run the gate again.
+  seo_indexing_decisions: {
+    table: "seo_indexing_decisions",
+    select: [
+      "id",
+      "url",
+      "entity_type",
+      "state",
+      "indexable",
+      "sitemap_eligible",
+      "quality_status",
+      "quality_score",
+      "fingerprint_class",
+      "canonical_status",
+      "schema_status",
+      "hreflang_status",
+      "content_status",
+      "http_status",
+      "blocking_reason",
+      "duplicate_of",
+      "audit_version",
+      "evaluated_at",
+    ],
+    editable: [],
+    searchable: ["url", "state", "entity_type", "fingerprint_class", "quality_status"],
+    order: "evaluated_at.desc",
+    label: "Indexing decisions",
+  },
+  // What each page's content actually is, layer by layer. body_masked is the
+  // one that answers "is this the neighbouring page with the country swapped".
+  seo_fingerprints: {
+    table: "seo_fingerprints",
+    select: [
+      "id",
+      "url",
+      "entity_type",
+      "layer",
+      "algorithm",
+      "hash",
+      "simhash",
+      "token_count",
+      "sample",
+      "audit_version",
+      "computed_at",
+    ],
+    editable: [],
+    searchable: ["url", "layer", "hash", "entity_type"],
+    order: "computed_at.desc",
+    label: "Content fingerprints",
+  },
   seo_issues: {
     table: "seo_issues",
     select: [

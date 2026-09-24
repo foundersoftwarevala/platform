@@ -1,14 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { absoluteUrl, indexable } from "@/lib/seo/site-url";
-import { readBlogIndex } from "@/lib/seo/blog";
+import { eligibleUrls } from "@/lib/seo/sitemap-gate";
 
 /**
  * The articles.
  *
- * Only a post that is published and actually has a body appears. A row marked
- * published with nothing stored in it would be an empty page, and advertising
- * one to a crawler is how a site teaches search engines that its pages are
- * thin. Those rows are left out, and the manager can see how many there are.
+ * Which articles is not decided here. This asks the safety gate for the blog
+ * URLs that passed, which already excludes the rows marked published with no
+ * body stored - a headline over nothing is a thin page, and telling a crawler
+ * about one teaches it what to expect from the rest.
  */
 
 const OPEN = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
@@ -35,15 +35,12 @@ export const Route = createFileRoute("/sitemap-blog.xml")({
           return new Response(`${OPEN}\n${CLOSE}`, { headers: HEADERS });
         }
         try {
-          const { posts } = await readBlogIndex(1000);
-          const entries = posts.map((post) => {
-            const lastmod = String(post.updatedAt ?? post.publishedAt ?? "").slice(0, 10);
-            return (
-              `<url><loc>${escapeXml(absoluteUrl(post.url))}</loc>` +
-              (lastmod ? `<lastmod>${lastmod}</lastmod>` : "") +
-              `<changefreq>monthly</changefreq><priority>0.6</priority></url>`
-            );
-          });
+          const entries = (await eligibleUrls("blog", 0, 1000)).map(
+            (entry) =>
+              `<url><loc>${escapeXml(absoluteUrl(entry.url))}</loc>` +
+              (entry.lastmod ? `<lastmod>${entry.lastmod}</lastmod>` : "") +
+              `<changefreq>monthly</changefreq><priority>0.6</priority></url>`,
+          );
           return new Response(`${OPEN}\n${entries.join("\n")}\n${CLOSE}`, { headers: HEADERS });
         } catch (error) {
           console.error("[sitemap blog] failed", error);

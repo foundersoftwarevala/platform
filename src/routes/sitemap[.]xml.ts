@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { absoluteUrl, indexable } from "@/lib/seo/site-url";
+import { eligibleCount } from "@/lib/seo/sitemap-gate";
 
 /**
  * The sitemap index.
@@ -40,24 +41,16 @@ async function countPublished(): Promise<number> {
 }
 
 /**
- * How many card slots actually have a product in them.
+ * How many card slots the safety gate passed.
  *
- * A vacant slot keeps its URL so the grid stays whole, but it has nothing to
- * show, so it is not advertised here. The count decides how many pages of the
- * slot map exist, exactly as the product count does for the product map.
+ * Not how many are occupied: a slot can hold a product and still carry a
+ * broken canonical, a thin body or the same text as its neighbour with the
+ * country swapped. The count of pages in the slot map is the count of slots
+ * that passed every required check, so a map page is never generated for URLs
+ * that will not be in it.
  */
-async function countOccupiedSlots(): Promise<number> {
-  if (!url()) return 0;
-  try {
-    const response = await fetch(
-      `${url()}/rest/v1/marketplace_card_slots?select=id&status=eq.occupied&limit=1`,
-      { headers: { ...admin(), Prefer: "count=exact" } },
-    );
-    const range = response.headers.get("content-range") ?? "";
-    return Number(range.split("/")[1]) || 0;
-  } catch {
-    return 0;
-  }
+async function countEligibleSlots(): Promise<number> {
+  return eligibleCount("slot");
 }
 
 export const Route = createFileRoute("/sitemap.xml")({
@@ -77,7 +70,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           );
         }
 
-        const [total, slots] = await Promise.all([countPublished(), countOccupiedSlots()]);
+        const [total, slots] = await Promise.all([countPublished(), countEligibleSlots()]);
         const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
         const slotPages = Math.ceil(slots / PAGE_SIZE);
         const today = new Date().toISOString().slice(0, 10);
