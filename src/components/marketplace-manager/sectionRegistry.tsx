@@ -8,6 +8,13 @@ import { DashboardSection } from "./sections/DashboardSection";
 import { FaqManagerSection, ValaTvSection } from "./sections/ContentStudio";
 import { StoriesAwardsSection } from "./sections/StoriesAwards";
 import { OrdersSection as OrdersLive } from "./sections/OrdersLive";
+// The module screens that were designed as shells and are now reading their
+// tables. The originals stay exported from ./sections/CatalogSections.
+import {
+  ProductMediaLive, DemoSystemLive, BlogLive, LicenseLive, DownloadsLive,
+  AuthorsLive, VendorsLive, ResellersLive, AffiliateLive, InfluencerLive,
+  QrLive, ReportsLive,
+} from "./sections/LiveModules";
 import { RoleMatrix } from "./sections/RoleMatrix";
 import { AutomationConsole } from "./sections/AutomationConsole";
 import { MicroInteractions } from "./sections/MicroInteractions";
@@ -28,7 +35,7 @@ const designedSections: Record<string, SectionComponent> = {
   // Overview
   Dashboard: DashboardSection as SectionComponent,
   Analytics: S.AnalyticsSection,
-  Reports: S.ReportsSection,
+  Reports: ReportsLive,
 
   // Homepage
   "Top Bar": S.TopBarManagerSection,
@@ -45,11 +52,11 @@ const designedSections: Record<string, SectionComponent> = {
   Categories: S.CategoriesSection,
   Products: S.ProductsSection,
   "Product Content": S.ProductContentSection,
-  "Product Media": S.ProductMediaSection,
+  "Product Media": ProductMediaLive,
   "Card Manager": S.CardManagerSection,
   Cards: S.CardsSection,
   Filters: S.FiltersSection,
-  "Demo System": S.DemoSection,
+  "Demo System": DemoSystemLive,
 
   // Commerce
   Pricing: S.PricingSection,
@@ -60,8 +67,8 @@ const designedSections: Record<string, SectionComponent> = {
   // fills them from the real tables.
   Orders: OrdersLive,
   Payments: S.PaymentsSection,
-  License: S.LicenseSection,
-  Downloads: S.DownloadsSection,
+  License: LicenseLive,
+  Downloads: DownloadsLive,
   Releases: S.ReleasesSection,
   Customers: S.CustomersSection,
   Offers: S.OffersSection,
@@ -74,14 +81,14 @@ const designedSections: Record<string, SectionComponent> = {
   Search: S.SearchSection,
   "AI Recs": S.AiSection,
   Notifications: S.NotificationsSection,
-  Blog: S.BlogSection,
+  Blog: BlogLive,
   "Vala TV": ValaTvSection,
   Partners: S.PartnersSection,
-  Affiliate: S.AffiliateSection,
-  Influencer: S.InfluencerSection,
-  Authors: S.AuthorsSection,
-  Vendors: S.VendorsSection,
-  Resellers: S.ResellersSection,
+  Affiliate: AffiliateLive,
+  Influencer: InfluencerLive,
+  Authors: AuthorsLive,
+  Vendors: VendorsLive,
+  Resellers: ResellersLive,
   Reviews: S.ReviewsSection,
   Trust: S.TrustSection,
   // The home page reads marketplace_stories and marketplace_awards and
@@ -90,7 +97,7 @@ const designedSections: Record<string, SectionComponent> = {
   "Stories & Awards": StoriesAwardsSection,
   FAQ: S.FaqSection,
   Contact: S.ContactSection,
-  "QR System": S.QrSection,
+  "QR System": QrLive,
 
   // Governance
   "Author Approval": S.AuthorApprovalSection,
