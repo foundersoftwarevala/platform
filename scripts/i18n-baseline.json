@@ -722,6 +722,7 @@
  "src/routes/api/internal/marketplace-migration.ts": 1,
  "src/routes/api/internal/seller-admin.ts": 6,
  "src/routes/api/internal/seo-audit.ts": 2,
+ "src/routes/api/internal/seo-gate.ts": 4,
  "src/routes/api/internal/seo-page.ts": 6,
  "src/routes/api/internal/settle-commissions.ts": 2,
  "src/routes/api/leads/console.ts": 1,
