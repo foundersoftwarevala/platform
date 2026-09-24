@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { siteUrl } from "@/lib/seo/site-url";
 import { ProductDetail } from "@/components/marketplace-home/ProductDetail";
-import { resolveSeoOverride } from "@/lib/seo/page-overrides";
+import { getSeoOverride } from "@/lib/seo/page-overrides.functions";
 import { getProductSeo } from "@/lib/seo/category-seo";
 import { getPublicProduct } from "@/lib/marketplace.functions";
 
@@ -71,17 +71,19 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
       // What the SEO Manager says about this page, if anything. A record it has
       // never been given simply resolves to null and the product speaks for
       // itself, exactly as before.
-      const override = await resolveSeoOverride(
-        `/marketplace/product/${params.slug}`,
-        {
-          page_name: seo.name,
-          title: seo.name,
-          product: seo.name,
-          country: seo.country ?? undefined,
-          industry: seo.deployment ?? undefined,
-          excerpt: seo.description ?? undefined,
+      const override = await getSeoOverride({
+        data: {
+          path: `/marketplace/product/${params.slug}`,
+          variables: {
+            page_name: seo.name,
+            title: seo.name,
+            product: seo.name,
+            country: seo.country ?? undefined,
+            industry: seo.deployment ?? undefined,
+            excerpt: seo.description ?? undefined,
+          },
         },
-      );
+      });
       return {
         name: seo.name,
         description: seo.description,
