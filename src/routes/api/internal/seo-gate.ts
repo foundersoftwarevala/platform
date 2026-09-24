@@ -32,7 +32,16 @@ import {
  */
 
 const AUDIT_VERSION = "v1";
-const CONCURRENCY = 8;
+/**
+ * How many pages the audit asks for at once.
+ *
+ * Deliberately small. This job reads the site it is auditing, from the same
+ * server that is serving visitors, and eight at a time alongside live traffic
+ * was enough to push response times from under a second into the tens of
+ * seconds. An audit that degrades the pages it is measuring is measuring
+ * something it caused. Three is slower and leaves the site alone.
+ */
+const CONCURRENCY = 3;
 
 function supabaseUrl(): string {
   return process.env.SUPABASE_URL?.trim() ?? "";
