@@ -890,6 +890,54 @@ const RESOURCES: Record<string, Resource> = {
     label: "Order history",
   },
 
+  // What a partner earned and what was paid to them. Amounts are what the
+  // sale produced; an operator decides only whether to approve or reverse.
+  partner_commissions: {
+    table: "partner_commissions",
+    select: ["id", "partner_kind", "partner_id", "order_id", "gross_amount",
+      "commission_amount", "currency", "status", "payout_id", "earned_at", "approved_at"],
+    editable: ["status"],
+    searchable: ["partner_kind", "status", "currency"],
+    order: "earned_at.desc",
+    retirable: false,
+    label: "Partner commissions",
+  },
+
+  partner_payouts: {
+    table: "partner_payouts",
+    select: ["id", "partner_kind", "partner_id", "amount", "currency", "status",
+      "payment_method", "provider", "provider_reference", "failure_reason",
+      "period_start", "period_end", "requested_at", "approved_at", "completed_at"],
+    editable: ["status", "payment_method", "provider", "provider_reference", "failure_reason"],
+    searchable: ["partner_kind", "status", "provider_reference"],
+    order: "requested_at.desc",
+    retirable: false,
+    label: "Partner payouts",
+  },
+
+  affiliate_clicks: {
+    table: "affiliate_clicks",
+    select: ["id", "partner_id", "referral_code", "product_id", "landing_path",
+      "referrer_host", "country", "device_type", "converted_order_id", "converted_at", "created_at"],
+    editable: [],
+    searchable: ["referral_code", "country", "landing_path"],
+    order: "created_at.desc",
+    retirable: false,
+    label: "Affiliate clicks",
+  },
+
+  // A scan of a QR code. The visitor is a one-way hash and the row carries
+  // its own purge date, so this counts traffic rather than following anyone.
+  qr_events: {
+    table: "product_qr_events",
+    select: ["id", "qr_id", "product_id", "campaign", "country", "device_type", "browser", "created_at"],
+    editable: [],
+    searchable: ["campaign", "country", "device_type"],
+    order: "created_at.desc",
+    retirable: false,
+    label: "QR scans",
+  },
+
   payments: {
     table: "payment_logs",
     select: ["id", "order_id", "event_type", "provider", "signature_valid", "payload", "created_at"],

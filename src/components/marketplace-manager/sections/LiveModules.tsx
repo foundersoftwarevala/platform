@@ -144,12 +144,14 @@ export function AuthorsLive() {
         { label: "All", resource: "authors" },
         { label: "Verified", resource: "authors", filter: { status: "verified" } },
         { label: "Products", resource: "products" },
+        { label: "Earnings", resource: "partner_commissions" },
+        { label: "Payouts", resource: "partner_payouts" },
       ]}
       counters={[
         { label: "Authors", resource: "authors" },
         { label: "Verified", resource: "authors", filter: { status: "verified" }, tone: "success" },
         { label: "Products", resource: "products" },
-        { label: "Payouts", absent: "There is no author payout ledger on this platform yet." },
+        { label: "Payouts", resource: "partner_payouts" },
       ]}
       footnote={ENDPOINT}
     />
@@ -165,12 +167,14 @@ export function VendorsLive() {
       tabs={[
         { label: "All", resource: "vendors" },
         { label: "Verified", resource: "vendors", filter: { status: "verified" } },
+        { label: "Commission", resource: "partner_commissions" },
+        { label: "Payouts", resource: "partner_payouts" },
       ]}
       counters={[
         { label: "Vendors", resource: "vendors" },
         { label: "Verified", resource: "vendors", filter: { status: "verified" }, tone: "success" },
-        { label: "Commission", absent: "Vendor commission is set per seller record rather than counted here." },
-        { label: "Payouts", absent: "There is no vendor payout ledger on this platform yet." },
+        { label: "Commission", resource: "partner_commissions" },
+        { label: "Payouts", resource: "partner_payouts" },
       ]}
       footnote={ENDPOINT}
     />
@@ -208,14 +212,16 @@ export function AffiliateLive() {
       Icon={Link2}
       tabs={[
         { label: "Partners", resource: "affiliate" },
+        { label: "Clicks", resource: "affiliate_clicks" },
+        { label: "Commission", resource: "partner_commissions" },
+        { label: "Payouts", resource: "partner_payouts" },
         { label: "QR", resource: "qr_system" },
-        { label: "UTM", absent: "UTM parameters are carried on a link rather than stored as rows." },
       ]}
       counters={[
         { label: "Affiliates", resource: "affiliate" },
-        { label: "QR Codes", resource: "qr_system" },
-        { label: "Clicks", absent: "Affiliate clicks are not recorded on this platform yet." },
-        { label: "Payouts", absent: "There is no affiliate payout ledger on this platform yet." },
+        { label: "Clicks", resource: "affiliate_clicks" },
+        { label: "Commission", resource: "partner_commissions" },
+        { label: "Payouts", resource: "partner_payouts" },
       ]}
       footnote={ENDPOINT}
     />
@@ -249,10 +255,13 @@ export function QrLive() {
       eyebrow="QR System" title="QR System"
       description="Every code the platform has issued."
       Icon={QrCode}
-      tabs={[{ label: "All", resource: "qr_system" }]}
+      tabs={[
+        { label: "All", resource: "qr_system" },
+        { label: "Scans", resource: "qr_events" },
+      ]}
       counters={[
         { label: "QR Codes", resource: "qr_system" },
-        { label: "Scans", absent: "Scans are not counted against a code on this platform yet." },
+        { label: "Scans", resource: "qr_events" },
         { label: "Protected", absent: "No protection flag is held against a code." },
         { label: "Expired", absent: "No expiry is held against a code." },
       ]}
