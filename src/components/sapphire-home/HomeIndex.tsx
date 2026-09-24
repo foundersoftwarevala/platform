@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { catalogueSlug } from "@/data/catalogue";
 import { useSavedProducts } from "@/lib/useSavedProducts";
@@ -3508,7 +3508,8 @@ const CountryRailCards = memo(function CountryRailCards({
 }: {
   shelf: string;
   colour: string;
-  already: Set<string>;
+  /** The slugs the shelf already shows, joined, so the memo around this holds. */
+  already: string;
   favorites: string[];
   onToggleFavorite: (slug: string) => void;
   onLoaded: (shelf: string, count: number) => void;
@@ -3516,6 +3517,7 @@ const CountryRailCards = memo(function CountryRailCards({
   const [cards, setCards] = useState<Demo[]>([]);
   const anchor = useRef<HTMLSpanElement>(null);
   const slug = catalogueSlugForShelf(shelf);
+  const skip = useMemo(() => new Set(already.split(",").filter(Boolean)), [already]);
 
   useEffect(() => {
     if (!slug) return;
@@ -3530,7 +3532,7 @@ const CountryRailCards = memo(function CountryRailCards({
           const page = await fetchCountryRail(slug, RAIL_COUNTRIES.length, controller.signal);
           if (!page) return;
           const mapped = page.cards
-            .filter((card) => !already.has(catalogueSlug(card.name)))
+            .filter((card) => !skip.has(catalogueSlug(card.name)))
             .map((card) => railCardToDemo(card, shelf, colour));
           setCards(mapped);
           onLoaded(shelf, mapped.length);
@@ -3543,10 +3545,7 @@ const CountryRailCards = memo(function CountryRailCards({
       observer.disconnect();
       controller.abort();
     };
-    // `already` is rebuilt on every render by the parent; the shelf it belongs
-    // to is what decides the request, so the shelf is the dependency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, shelf, colour, onLoaded]);
+  }, [slug, shelf, colour, onLoaded, skip]);
 
   return (
     <>
@@ -3683,7 +3682,7 @@ const Index = () => {
                     <CountryRailCards
                       shelf={masterCat}
                       colour={shelfColour(categoryDemos)}
-                      already={new Set(categoryDemos.map((d) => catalogueSlug(d.name)))}
+                      already={categoryDemos.map((d) => catalogueSlug(d.name)).join(",")}
                       favorites={favorites}
                       onToggleFavorite={toggleFavorite}
                       onLoaded={noteAdded}
