@@ -87,7 +87,10 @@ export function CategoryDetail() {
       {/* Header */}
       <div className="border-b border-cyan-500/20 bg-black/20">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <Link to="/marketplace" className="inline-flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition">
+          <Link
+            to="/marketplace"
+            className="inline-flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition"
+          >
             <ArrowLeft className="h-4 w-4" />
             <span className="text-sm font-medium">Back to Marketplace</span>
           </Link>
@@ -100,7 +103,9 @@ export function CategoryDetail() {
         <div className="mb-12">
           <div className="flex items-start gap-6 mb-8">
             <div className="h-20 w-20 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0">
-              <span className="text-4xl font-bold text-cyan-300">{category.name.charAt(0).toUpperCase()}</span>
+              <span className="text-4xl font-bold text-cyan-300">
+                {category.name.charAt(0).toUpperCase()}
+              </span>
             </div>
             <div>
               <h1 className="text-4xl font-bold mb-2">{category.name}</h1>
@@ -120,7 +125,7 @@ export function CategoryDetail() {
                 const isFavorite = favorites.has(product.id);
                 const activeDemo = product.demo_urls?.[0];
                 const demoGatewayUrl = `/demo/${product.slug}`;
-                
+
                 return (
                   <Card
                     key={product.id}
@@ -129,7 +134,25 @@ export function CategoryDetail() {
                   >
                     <div className="bg-linear-to-r from-cyan-600 to-blue-600 p-4 flex justify-between items-start">
                       <div>
-                        <h3 className="text-lg font-bold text-white">{product.name}</h3>
+                        {/* The card has always navigated to the product, but it
+                            did it with an onClick, so the page a crawler
+                            receives listed ninety-one product names and no way
+                            to reach any of them: one link in the whole document,
+                            against a hundred and fifteen on the country page.
+                            The name is the link now. Nothing moves - the anchor
+                            inherits the heading's styling - and the card's own
+                            click still works; the propagation stop only keeps
+                            the two from firing at once. */}
+                        <h3 className="text-lg font-bold text-white">
+                          <Link
+                            to="/marketplace/product/$slug"
+                            params={{ slug: product.slug }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-white hover:underline"
+                          >
+                            {product.name}
+                          </Link>
+                        </h3>
                         <p className="text-xs text-cyan-100 opacity-75 mt-1">{category.name}</p>
                       </div>
                       <button
@@ -139,15 +162,18 @@ export function CategoryDetail() {
                         }}
                         className="p-2 hover:bg-white/20 rounded transition"
                       >
-                        <Heart className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : "text-white"}`} />
+                        <Heart
+                          className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : "text-white"}`}
+                        />
                       </button>
                     </div>
-                    
+
                     <div className="p-4 space-y-3">
                       {/* Product Info */}
                       <div>
                         <p className="text-sm text-gray-300 line-clamp-2">
-                          {product.industry_label || "Software solution available in the marketplace."}
+                          {product.industry_label ||
+                            "Software solution available in the marketplace."}
                         </p>
                       </div>
 
@@ -170,11 +196,15 @@ export function CategoryDetail() {
                           <div className="text-muted-foreground text-[10px]">Rating</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-emerald-300 font-bold">{product.downloads_label || "N/A"}</div>
+                          <div className="text-emerald-300 font-bold">
+                            {product.downloads_label || "N/A"}
+                          </div>
                           <div className="text-muted-foreground text-[10px]">Downloads</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-sky-300 font-bold">{product.price_label || "Custom"}</div>
+                          <div className="text-sky-300 font-bold">
+                            {product.price_label || "Custom"}
+                          </div>
                           <div className="text-muted-foreground text-[10px]">Price</div>
                         </div>
                       </div>
@@ -182,7 +212,12 @@ export function CategoryDetail() {
                       {/* Actions */}
                       <div className="flex gap-2 pt-2">
                         {activeDemo && (
-                          <a href={demoGatewayUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
+                          <a
+                            href={demoGatewayUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1"
+                          >
                             <Button size="sm" className="w-full bg-cyan-500 hover:bg-cyan-600">
                               <Play className="h-3 w-3 mr-1" />
                               Try Live
@@ -211,7 +246,9 @@ export function CategoryDetail() {
           </div>
         ) : (
           <Card className="bg-white/5 border-cyan-500/20 p-12 text-center">
-            <p className="text-muted-foreground text-lg">No products available in this category yet.</p>
+            <p className="text-muted-foreground text-lg">
+              No products available in this category yet.
+            </p>
           </Card>
         )}
       </div>
