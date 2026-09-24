@@ -299,6 +299,7 @@ import { Route as ApiSecuritySettingsRouteImport } from './routes/api/security/s
 import { Route as ApiSellerMetricsRouteImport } from './routes/api/seller/metrics'
 import { Route as ApiSeoConsoleRouteImport } from './routes/api/seo/console'
 import { Route as ApiTrackRefRouteImport } from './routes/api/track/ref'
+import { Route as MarketplaceCategoryCountryRouteImport } from './routes/marketplace.$category.$country'
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
 import { Route as MarketplaceCountryCountryRouteImport } from './routes/marketplace.country.$country'
 import { Route as MarketplaceProductSlugRouteImport } from './routes/marketplace.product.$slug'
@@ -1803,6 +1804,12 @@ const ApiTrackRefRoute = ApiTrackRefRouteImport.update({
   path: '/api/track/ref',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MarketplaceCategoryCountryRoute =
+  MarketplaceCategoryCountryRouteImport.update({
+    id: '/$category/$country',
+    path: '/$category/$country',
+    getParentRoute: () => MarketplaceRoute,
+  } as any)
 const MarketplaceCategorySlugRoute = MarketplaceCategorySlugRouteImport.update({
   id: '/category/$slug',
   path: '/category/$slug',
@@ -2180,6 +2187,7 @@ export interface FileRoutesByFullPath {
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
   '/api/seo/console': typeof ApiSeoConsoleRoute
   '/api/track/ref': typeof ApiTrackRefRoute
+  '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -2479,6 +2487,7 @@ export interface FileRoutesByTo {
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
   '/api/seo/console': typeof ApiSeoConsoleRoute
   '/api/track/ref': typeof ApiTrackRefRoute
+  '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -2789,6 +2798,7 @@ export interface FileRoutesById {
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
   '/api/seo/console': typeof ApiSeoConsoleRoute
   '/api/track/ref': typeof ApiTrackRefRoute
+  '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
@@ -3100,6 +3110,7 @@ export interface FileRouteTypes {
     | '/api/seller/metrics'
     | '/api/seo/console'
     | '/api/track/ref'
+    | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
@@ -3399,6 +3410,7 @@ export interface FileRouteTypes {
     | '/api/seller/metrics'
     | '/api/seo/console'
     | '/api/track/ref'
+    | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
@@ -3708,6 +3720,7 @@ export interface FileRouteTypes {
     | '/api/seller/metrics'
     | '/api/seo/console'
     | '/api/track/ref'
+    | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
@@ -5905,6 +5918,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTrackRefRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/marketplace/$category/$country': {
+      id: '/marketplace/$category/$country'
+      path: '/$category/$country'
+      fullPath: '/marketplace/$category/$country'
+      preLoaderRoute: typeof MarketplaceCategoryCountryRouteImport
+      parentRoute: typeof MarketplaceRoute
+    }
     '/marketplace/category/$slug': {
       id: '/marketplace/category/$slug'
       path: '/category/$slug'
@@ -6399,6 +6419,7 @@ const MarketingRouteWithChildren = MarketingRoute._addFileChildren(
 
 interface MarketplaceRouteChildren {
   MarketplaceIndexRoute: typeof MarketplaceIndexRoute
+  MarketplaceCategoryCountryRoute: typeof MarketplaceCategoryCountryRoute
   MarketplaceCategorySlugRoute: typeof MarketplaceCategorySlugRoute
   MarketplaceCountryCountryRoute: typeof MarketplaceCountryCountryRoute
   MarketplaceProductSlugRoute: typeof MarketplaceProductSlugRoute
@@ -6406,6 +6427,7 @@ interface MarketplaceRouteChildren {
 
 const MarketplaceRouteChildren: MarketplaceRouteChildren = {
   MarketplaceIndexRoute: MarketplaceIndexRoute,
+  MarketplaceCategoryCountryRoute: MarketplaceCategoryCountryRoute,
   MarketplaceCategorySlugRoute: MarketplaceCategorySlugRoute,
   MarketplaceCountryCountryRoute: MarketplaceCountryCountryRoute,
   MarketplaceProductSlugRoute: MarketplaceProductSlugRoute,
@@ -6623,7 +6645,6 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
 import type { getRouter } from './router.tsx'
 import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {

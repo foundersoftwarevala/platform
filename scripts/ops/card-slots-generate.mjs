@@ -48,7 +48,8 @@ async function readAll(path) {
     const res = await fetch(`${BASE}/rest/v1/${path}`, {
       headers: { ...HEAD, Range: `${from}-${from + 999}` },
     });
-    if (!res.ok) throw new Error(`${path} -> HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+    if (!res.ok)
+      throw new Error(`${path} -> HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
     const page = await res.json();
     rows.push(...page);
     if (page.length < 1000) return rows;
@@ -132,7 +133,9 @@ const products = await readAll(
 console.log(`rail countries : ${countries.length}`);
 console.log(`categories     : ${categories.length}`);
 console.log(`published rows : ${products.length}`);
-console.log(`slots expected : ${categories.length} x ${countries.length} = ${categories.length * countries.length}`);
+console.log(
+  `slots expected : ${categories.length} x ${countries.length} = ${categories.length * countries.length}`,
+);
 
 const byMarker = new Map(countries.map((c) => [c.marker, c]));
 
@@ -166,15 +169,21 @@ const regionUnknown = countries.filter((c) => !regionOf.has(c.marker)).map((c) =
 // Which product holds which country in which category. The first in catalogue
 // order takes the country, which is the rule the live country rail already
 // uses, so the grid this writes matches the grid the home page draws.
-const heldBy = new Map();      // `${category_id}|${marker}` -> product
-const contested = [];          // a second product marked for a taken country
+const heldBy = new Map(); // `${category_id}|${marker}` -> product
+const contested = []; // a second product marked for a taken country
 let noCountry = 0;
 let offRail = 0;
 for (const product of products) {
   if (!product.category_id) continue;
   const marker = productCountry(product.search_keywords);
-  if (!marker) { noCountry += 1; continue; }
-  if (!byMarker.has(marker)) { offRail += 1; continue; }
+  if (!marker) {
+    noCountry += 1;
+    continue;
+  }
+  if (!byMarker.has(marker)) {
+    offRail += 1;
+    continue;
+  }
   const key = `${product.category_id}|${marker}`;
   if (heldBy.has(key)) contested.push({ key, product: product.name });
   else heldBy.set(key, product);
@@ -219,13 +228,18 @@ console.log(`occupied / vacant       : ${occupied} / ${vacant}`);
 console.log(`products with no country: ${noCountry}`);
 console.log(`products off the rail   : ${offRail}`);
 console.log(`contested countries     : ${contested.length}`);
-console.log(`countries with no region: ${regionUnknown.length}${regionUnknown.length ? " -> " + regionUnknown.join(", ") : ""}`);
+console.log(
+  `countries with no region: ${regionUnknown.length}${regionUnknown.length ? " -> " + regionUnknown.join(", ") : ""}`,
+);
 for (const line of regionSplit) console.log(`  region disagreement   : ${line}`);
 
 const problems = [];
-if (rows.length !== categories.length * countries.length) problems.push("row count is not categories x countries");
-if (positions.size !== rows.length) problems.push("a category holds two slots at the same position");
-if (addresses.size !== rows.length) problems.push("a category holds two slots for the same country");
+if (rows.length !== categories.length * countries.length)
+  problems.push("row count is not categories x countries");
+if (positions.size !== rows.length)
+  problems.push("a category holds two slots at the same position");
+if (addresses.size !== rows.length)
+  problems.push("a category holds two slots for the same country");
 if (urls.size !== rows.length) problems.push("two slots share a URL");
 if (problems.length) {
   console.error("\nREFUSED — " + problems.join("; "));
