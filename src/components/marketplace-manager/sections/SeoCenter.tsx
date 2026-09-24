@@ -2458,10 +2458,26 @@ function CanonicalModule() {
   const pages = useResource("seo_pages", { limit: 200 });
   const urls = useResource("product_urls", { limit: 200 });
 
+  // A page's address is recorded either as a path or with the site in front of
+  // it, and its canonical is written out in full, so comparing the two as
+  // strings called a page cross-canonical when it points at itself. The origin
+  // and any trailing slash come off both sides before they are compared.
+  const bareTarget = (value: string) => {
+    let path = value;
+    const scheme = path.indexOf("://");
+    if (scheme >= 0) {
+      const afterHost = path.indexOf("/", scheme + 3);
+      path = afterHost >= 0 ? path.slice(afterHost) : "/";
+    }
+    while (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
+    return path.toLowerCase();
+  };
+  const sameTarget = (a: string, b: string) => bareTarget(a) === bareTarget(b);
+
   const rows = pages.rows.map((page) => {
     const url = text(page, "url");
     const canonical = text(page, "canonical_url", "");
-    const kind = canonical === "" ? "Missing" : canonical === url ? "Self" : "Cross";
+    const kind = canonical === "" ? "Missing" : sameTarget(canonical, url) ? "Self" : "Cross";
     return { url, canonical, kind };
   });
   const missing = rows.filter((r) => r.kind === "Missing").length;
