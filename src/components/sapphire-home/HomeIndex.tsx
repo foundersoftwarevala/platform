@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { catalogueSlug } from "@/data/catalogue";
 import { useSavedProducts } from "@/lib/useSavedProducts";
@@ -122,6 +122,9 @@ import {
   EnterpriseCTA,
 } from "@/components/sapphire-home/RefSections";
 import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
+import { catalogueSlugForShelf } from "@/lib/marketplace/home-category-map";
+import { fetchCountryRail, railCardToDemo, shelfColour } from "@/lib/marketplace/country-rail";
+import { RAIL_COUNTRIES } from "@/lib/marketplace/rail-countries";
 import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE } from "@/lib/site-content/constants";
 
 interface Demo {
@@ -3480,9 +3483,97 @@ const fillProductRail = (products: Demo[], target = PRODUCTS_PER_ROW) => {
   return Array.from({ length }, (_, index) => products[index % products.length] as Demo);
 };
 
+
+/**
+ * The real catalogue products for one shelf, added after the shelf's own cards.
+ *
+ * A shelf is one category and every card it adds is one country, in the order
+ * src/lib/marketplace/rail-countries.ts publishes, so the same position is the
+ * same country on every shelf. The catalogue already holds one product per
+ * category per country; this asks for that shelf's row and renders it with the
+ * card the page has always used.
+ *
+ * It fetches nothing until the shelf is close to the screen, and nothing at
+ * all on a shelf with no catalogue row, so the page it arrives on is exactly
+ * the page that arrived before. A product the shelf already shows is not shown
+ * twice, and a failed request leaves the shelf as it was.
+ */
+const CountryRailCards = memo(function CountryRailCards({
+  shelf,
+  colour,
+  already,
+  favorites,
+  onToggleFavorite,
+  onLoaded,
+}: {
+  shelf: string;
+  colour: string;
+  already: Set<string>;
+  favorites: string[];
+  onToggleFavorite: (slug: string) => void;
+  onLoaded: (shelf: string, count: number) => void;
+}) {
+  const [cards, setCards] = useState<Demo[]>([]);
+  const anchor = useRef<HTMLSpanElement>(null);
+  const slug = catalogueSlugForShelf(shelf);
+
+  useEffect(() => {
+    if (!slug) return;
+    const node = anchor.current;
+    if (!node) return;
+    const controller = new AbortController();
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        observer.disconnect();
+        void (async () => {
+          const page = await fetchCountryRail(slug, RAIL_COUNTRIES.length, controller.signal);
+          if (!page) return;
+          const mapped = page.cards
+            .filter((card) => !already.has(catalogueSlug(card.name)))
+            .map((card) => railCardToDemo(card, shelf, colour));
+          setCards(mapped);
+          onLoaded(shelf, mapped.length);
+        })();
+      },
+      { rootMargin: "700px 0px" },
+    );
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      controller.abort();
+    };
+    // `already` is rebuilt on every render by the parent; the shelf it belongs
+    // to is what decides the request, so the shelf is the dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, shelf, colour, onLoaded]);
+
+  return (
+    <>
+      <span ref={anchor} aria-hidden className="block w-0 shrink-0" />
+      {cards.map((demo, index) => (
+        <DemoCard
+          key={`${shelf}-country-${demo.id}`}
+          demo={demo}
+          index={index}
+          isFavorite={favorites.includes(catalogueSlug(demo.name))}
+          onToggleFavorite={() => onToggleFavorite(catalogueSlug(demo.name))}
+        />
+      ))}
+    </>
+  );
+});
+
 const Index = () => {
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  // How many real catalogue products each shelf has added. A shelf that has
+  // added none is padded exactly as it was before, so a page where the
+  // catalogue cannot be reached is the page that shipped yesterday.
+  const [addedByShelf, setAddedByShelf] = useState<Record<string, number>>({});
+  const noteAdded = useCallback((shelf: string, count: number) => {
+    setAddedByShelf((current) => (current[shelf] === count ? current : { ...current, [shelf]: count }));
+  }, []);
   // Saved products belong to the person, not to one browser. Signed out,
   // they are kept in this browser as before and carried up on the next sign-in.
   const { favorites, toggle: toggleFavorite } = useSavedProducts();
@@ -3569,10 +3660,16 @@ const Index = () => {
             masterCategories.slice(1).map((masterCat) => {
               const categoryDemos = filteredDemos.filter((d) => d.masterCategory === masterCat);
               if (categoryDemos.length === 0) return null;
-              const rowDemos = searchQuery.trim() ? categoryDemos : fillProductRail(categoryDemos);
+              // The shelf's own cards are repeated only as far as the real
+              // catalogue cards do not already fill the rail: a country card
+              // takes the place of a duplicate, never of a real one.
+              const added = addedByShelf[masterCat] ?? 0;
+              const rowDemos = searchQuery.trim()
+                ? categoryDemos
+                : fillProductRail(categoryDemos, Math.max(PRODUCTS_PER_ROW - added, 0));
 
               return (
-                <ProductCarouselRow key={masterCat} title={masterCat} count={rowDemos.length}>
+                <ProductCarouselRow key={masterCat} title={masterCat} count={rowDemos.length + added}>
                   {rowDemos.map((demo, index) => (
                     <DemoCard
                       key={`${masterCat}-${demo.id}-${index}`}
@@ -3582,6 +3679,16 @@ const Index = () => {
                       onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
                     />
                   ))}
+                  {!searchQuery.trim() && (
+                    <CountryRailCards
+                      shelf={masterCat}
+                      colour={shelfColour(categoryDemos)}
+                      already={new Set(categoryDemos.map((d) => catalogueSlug(d.name)))}
+                      favorites={favorites}
+                      onToggleFavorite={toggleFavorite}
+                      onLoaded={noteAdded}
+                    />
+                  )}
                 </ProductCarouselRow>
               );
             })
