@@ -239,10 +239,128 @@ for (const row of decisions) {
   byKind[row.entity_type].total += 1;
   if (row.sitemap_eligible) byKind[row.entity_type].eligible += 1;
 }
+const eligible = decisions.filter((row) => row.sitemap_eligible).length;
 console.log("\n== decisions ==");
 console.log(`  total            : ${decisions.length}`);
-console.log(`  sitemap eligible : ${decisions.filter((row) => row.sitemap_eligible).length}`);
+console.log(`  sitemap eligible : ${eligible}`);
 console.log(`  by state         : ${JSON.stringify(byState)}`);
 for (const [kind, counts] of Object.entries(byKind)) {
   console.log(`  ${kind.padEnd(9)} ${counts.eligible}/${counts.total} eligible`);
 }
+
+// ------------------------------------------------ into the SEO Manager itself
+/**
+ * Put the run where the SEO Manager already looks.
+ *
+ * seo_audits and seo_technical_checks have been the Manager's own screens
+ * since it was built. Writing the gate's result into them is what makes the
+ * gate visible to an operator without a second console being built beside the
+ * first, which is the failure this platform has had enough of.
+ *
+ * Nothing existing is deleted: a new audit row is added, and each named check
+ * is added with the moment it was made.
+ */
+async function write(table, body) {
+  const res = await fetch(`${BASE}/rest/v1/${table}`, {
+    method: "POST",
+    headers: { ...HEAD, Prefer: "return=minimal" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    console.error(
+      `  could not record into ${table}: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`,
+    );
+    return false;
+  }
+  return true;
+}
+
+const now = new Date().toISOString();
+const blockedRows = decisions.length - eligible;
+// The score is the share of evaluated pages the gate passed. It is a count of
+// rows, not an estimate, and it is explicitly this platform's own measure -
+// nothing here claims to know what a search engine thinks.
+const score = decisions.length ? Math.round((eligible / decisions.length) * 100) : 0;
+
+const recorded = await write("seo_audits", {
+  name: `SEO safety gate — ${eligible} of ${decisions.length} pages eligible`,
+  status: "completed",
+  started_at: now,
+  completed_at: now,
+  pages_crawled: decisions.length,
+  issues_found: blockedRows,
+  score,
+  breakdown: {
+    audit: "safety gate (quality + fingerprint + indexing)",
+    audit_version: "v1",
+    by_state: byState,
+    by_entity_type: byKind,
+    exact_duplicate_groups: exactGroups.length,
+    exact_duplicate_pages: exactGroups.flat().length,
+    country_swap_groups: maskedGroups.length,
+    country_swap_pages: maskedGroups.flat().length,
+    fingerprint_layers: 7,
+    note:
+      "Software Vala SEO quality status. This is a count of checks this platform performed " +
+      "on its own pages; it is not a ranking, a search-engine score or a prediction of one.",
+  },
+});
+console.log(`\n  recorded into seo_audits: ${recorded ? "yes" : "no"}`);
+
+const checks = [
+  [
+    "Indexing gate coverage",
+    "indexing",
+    decisions.length ? "pass" : "fail",
+    `${decisions.length} URLs carry a decision; a URL without one cannot enter a sitemap.`,
+    decisions.length,
+  ],
+  [
+    "Sitemap eligibility",
+    "indexing",
+    "pass",
+    `${eligible} URLs passed every required check and are the only ones any sitemap will serve.`,
+    eligible,
+  ],
+  [
+    "Exact duplicate content",
+    "content",
+    exactGroups.length ? "fail" : "pass",
+    exactGroups.length
+      ? `${exactGroups.length} groups of pages are word for word identical (${exactGroups.flat().length} pages), and all of them are held back.`
+      : "No two pages carry the same text.",
+    exactGroups.flat().length,
+  ],
+  [
+    "Country-name-only duplication",
+    "content",
+    maskedGroups.length ? "fail" : "pass",
+    maskedGroups.length
+      ? `${maskedGroups.length} groups differ from each other only by their country, category or product names (${maskedGroups.flat().length} pages).`
+      : "Every page differs from every other by more than its names.",
+    maskedGroups.flat().length,
+  ],
+  [
+    "Pages held back",
+    "indexing",
+    blockedRows ? "warning" : "pass",
+    `${blockedRows} URLs are not eligible; each carries the reason in seo_indexing_decisions.blocking_reason.`,
+    blockedRows,
+  ],
+];
+let wroteChecks = 0;
+for (const [name, category, status, detail, affected] of checks) {
+  if (
+    await write("seo_technical_checks", {
+      name,
+      category,
+      status,
+      detail,
+      affected_urls: affected,
+      last_checked_at: now,
+    })
+  ) {
+    wroteChecks += 1;
+  }
+}
+console.log(`  recorded into seo_technical_checks: ${wroteChecks}/${checks.length}`);
