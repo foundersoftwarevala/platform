@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { absoluteUrl } from "@/lib/seo/site-url";
 import { ArrowRight, Rocket } from "lucide-react";
 import "@/styles/marketplace-home.css";
 import { ROLES } from "@/lib/applications/config";
 
 export const Route = createFileRoute("/apply/")({
   head: () => ({
+    links: [{ rel: "canonical", href: absoluteUrl("/apply") }],
     meta: [
       { title: "Apply to Software Vala — Vendor, Author, Reseller & More" },
       {
@@ -15,7 +17,8 @@ export const Route = createFileRoute("/apply/")({
       { property: "og:title", content: "Apply to Software Vala — Role Applications" },
       {
         property: "og:description",
-        content: "Seven dedicated application forms with separate approval workflows and dashboard access.",
+        content:
+          "Seven dedicated application forms with separate approval workflows and dashboard access.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -33,8 +36,9 @@ function ApplyIndex() {
         </span>
         <h1 className="mt-3 text-3xl font-black sm:text-4xl">Role Based Application System</h1>
         <p className="mt-2 max-w-3xl text-[14px] text-white/65">
-          Every apply option opens a dedicated application page. Each role has a separate form, different fields, a
-          different approval workflow, fee structure, agreement and dashboard access.
+          Every apply option opens a dedicated application page. Each role has a separate form,
+          different fields, a different approval workflow, fee structure, agreement and dashboard
+          access.
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -69,7 +73,10 @@ function ApplyIndex() {
         </div>
 
         <div className="mt-10 flex flex-wrap gap-3">
-          <Link to="/" className="rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-[13px] font-bold">
+          <Link
+            to="/"
+            className="rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-[13px] font-bold"
+          >
             Back to home
           </Link>
           <Link
