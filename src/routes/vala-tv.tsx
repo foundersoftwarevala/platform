@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { absoluteUrl } from "@/lib/seo/site-url";
 import { useMemo, useState } from "react";
 import { Play, Video } from "lucide-react";
 import { embedUrl, hasPlayableVideo, VIDEO_CATEGORIES } from "@/lib/site-content/videos";
@@ -42,7 +43,10 @@ function ValaTvPage() {
   return (
     <main className="min-h-screen bg-[#050b18] px-4 py-10 text-white sm:px-6 lg:px-10">
       <div className="mx-auto max-w-6xl">
-        <a href="/" className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-cyan-300 hover:text-cyan-200">
+        <a
+          href="/"
+          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-cyan-300 hover:text-cyan-200"
+        >
           &larr; Back to marketplace
         </a>
         <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Vala TV</h1>
@@ -77,7 +81,10 @@ function ValaTvPage() {
               {shown.map((video) => {
                 const playable = hasPlayableVideo(video.url);
                 return (
-                  <article key={video.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+                  <article
+                    key={video.id}
+                    className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
+                  >
                     <div className="relative aspect-video bg-black/40">
                       {playing === video.id && playable ? (
                         <iframe
@@ -130,7 +137,9 @@ function ValaTvPage() {
                         {video.category}
                       </span>
                       <h2 className="mt-1.5 text-sm font-bold leading-snug">{video.title}</h2>
-                      {video.views && <p className="mt-1 text-[11px] text-white/50">{video.views} views</p>}
+                      {video.views && (
+                        <p className="mt-1 text-[11px] text-white/50">{video.views} views</p>
+                      )}
                     </div>
                   </article>
                 );
@@ -145,9 +154,14 @@ function ValaTvPage() {
 
 export const Route = createFileRoute("/vala-tv")({
   head: () => ({
+    links: [{ rel: "canonical", href: absoluteUrl("/vala-tv") }],
     meta: [
       { title: "Vala TV | Software Vala" },
-      { name: "description", content: "Product demos, walkthroughs and customer films from the Software Vala marketplace." },
+      {
+        name: "description",
+        content:
+          "Product demos, walkthroughs and customer films from the Software Vala marketplace.",
+      },
       { property: "og:title", content: "Vala TV | Software Vala" },
       { property: "og:type", content: "website" },
     ],

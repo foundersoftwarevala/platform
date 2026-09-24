@@ -12,6 +12,10 @@ import { pageHead } from "@/lib/seo-head";
  * through its own index route.
  */
 export const Route = createFileRoute("/marketplace")({
-  head: pageHead("Marketplace", "Browse ready-to-deploy software with live demos, full source code and lifetime access."),
+  head: pageHead(
+    "Marketplace",
+    "Browse ready-to-deploy software with live demos, full source code and lifetime access.",
+    "/marketplace",
+  ),
   component: () => <Outlet />,
 });

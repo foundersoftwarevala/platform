@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { absoluteUrl } from "@/lib/seo/site-url";
 import { BookOpen, GraduationCap } from "lucide-react";
 import { listCourses } from "@/lib/site-content/academy";
 import "@/styles/marketplace-home.css";
@@ -14,7 +15,10 @@ function AcademyPage() {
   return (
     <main className="min-h-screen bg-[#050b18] px-4 py-10 text-white sm:px-6 lg:px-10">
       <div className="mx-auto max-w-5xl">
-        <a href="/" className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-cyan-300 hover:text-cyan-200">
+        <a
+          href="/"
+          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-cyan-300 hover:text-cyan-200"
+        >
           &larr; Back to marketplace
         </a>
         <div className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-cyan-300">
@@ -27,13 +31,18 @@ function AcademyPage() {
 
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {courses.map((course) => (
-            <article key={course.slug} className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <article
+              key={course.slug}
+              className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5"
+            >
               <BookOpen className="h-6 w-6 text-cyan-300" aria-hidden="true" />
               <h2 className="mt-3 text-sm font-bold">{course.title}</h2>
               <p className="mt-2 flex-1 text-xs leading-relaxed text-white/60">{course.summary}</p>
               <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px]">
                 <span className="text-white/60">{course.lessons} lessons</span>
-                <span className={`rounded-full border px-2 py-0.5 font-semibold ${LEVEL_TONE[course.level]}`}>
+                <span
+                  className={`rounded-full border px-2 py-0.5 font-semibold ${LEVEL_TONE[course.level]}`}
+                >
                   {course.level}
                 </span>
               </div>
@@ -53,9 +62,13 @@ function AcademyPage() {
 
 export const Route = createFileRoute("/academy/")({
   head: () => ({
+    links: [{ rel: "canonical", href: absoluteUrl("/academy") }],
     meta: [
       { title: "Vala Academy | Software Vala" },
-      { name: "description", content: "Learning paths for Software Vala buyers, vendors and implementation teams." },
+      {
+        name: "description",
+        content: "Learning paths for Software Vala buyers, vendors and implementation teams.",
+      },
       { property: "og:title", content: "Vala Academy | Software Vala" },
       { property: "og:type", content: "website" },
     ],
