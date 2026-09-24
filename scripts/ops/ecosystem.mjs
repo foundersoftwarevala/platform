@@ -119,10 +119,19 @@ for (const s of ["LIVE", "HELD, UNREAD", "READ, EMPTY", "UNUSED", "UNREADABLE"])
 }
 
 const orphanRows = by("HELD, UNREAD").filter((r) => (r.rows ?? 0) > 0);
-console.log(`\ndata nobody can see — ${orphanRows.length} tables, ${orphanRows.reduce((s, r) => s + (r.rows ?? 0), 0)} rows:`);
+console.log(`\ntables with rows that no source file names — ${orphanRows.length} tables, ${orphanRows.reduce((s, r) => s + (r.rows ?? 0), 0)} rows:`);
 for (const r of orphanRows.slice(0, showAll ? 999 : 30)) {
   console.log(`  ${String(r.rows).padStart(6)}  ${r.table}`);
 }
+console.log(
+  `\n  Careful with that list. It only says the source code does not name the\n` +
+  `  table. A table can still be read or written by a database function or a\n` +
+  `  trigger, which this cannot see: of sixty tables it listed on 23 September,\n` +
+  `  fifty-one turned out to be used by a SECURITY DEFINER function - the\n` +
+  `  affiliate permission matrix among them. Check a name against pg_proc\n` +
+  `  before calling anything disconnected:\n` +
+  `    node scripts/ops/db.mjs --sql "select proname from pg_proc where prosrc like '%<table>%'"`,
+);
 
 const biggestLive = by("LIVE").slice(0, 15);
 console.log(`\nthe platform's largest live tables:`);
