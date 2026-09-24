@@ -38,6 +38,13 @@ const VIEWS = [
   { key: "finance_gateways", label: "Gateways" },
   { key: "finance_plans", label: "Plans" },
   { key: "invoices", label: "Invoices" },
+  // The three tables the survey found last: six hundred and seventy-two hours
+  // of transaction activity, two hundred and twenty-five days of AI spend and
+  // the controls set against it.
+  { key: "finance_activity_heat", label: "Activity by hour" },
+  { key: "finance_ai_api_usage", label: "AI and API spend" },
+  { key: "finance_ai_controls", label: "AI spend controls" },
+  { key: "payment_audit_logs", label: "Payment audit" },
 ] as const;
 
 type Totals = { revenue: number; expenses: number; profit: number; days: number } | null;

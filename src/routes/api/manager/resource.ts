@@ -1272,6 +1272,57 @@ const RESOURCES: Record<string, Resource> = {
     order: "updated_at.desc",
     label: "Product URLs",
   },
+  // ------------------------------------------- the last of the finance tables
+  // Six hundred and seventy-two hours of transaction activity, two hundred and
+  // twenty-five days of AI spend, and the audit trail behind payment proofs.
+  // None of the three was named anywhere in the code.
+  finance_activity_heat: {
+    table: "finance_activity_heat",
+    select: ["id", "activity_date", "hour_slot", "txn_count", "volume"],
+    editable: [],
+    searchable: [],
+    order: "activity_date.desc",
+    label: "Activity by hour",
+  },
+  finance_ai_api_usage: {
+    table: "finance_ai_api_usage",
+    select: ["id", "provider", "service", "usage_date", "requests", "tokens",
+      "cost", "billed_to", "created_at"],
+    editable: [],
+    searchable: ["provider", "service", "billed_to"],
+    order: "usage_date.desc",
+    label: "AI and API spend",
+  },
+  // A budget and a threshold are decisions, so those can be changed; what was
+  // spent against them is a measurement and cannot.
+  finance_ai_controls: {
+    table: "finance_ai_controls",
+    select: ["id", "provider", "service", "status", "budget", "spike_threshold",
+      "auto_stop_percent", "updated_at"],
+    editable: ["status", "budget", "spike_threshold", "auto_stop_percent"],
+    searchable: ["provider", "service", "status"],
+    order: "provider.asc",
+    label: "AI spend controls",
+  },
+  // An audit row is never edited and never removed.
+  payment_audit_logs: {
+    table: "payment_audit_logs",
+    select: ["id", "actor_id", "action", "intent_id", "payment_id", "amount",
+      "status", "source_ip", "created_at"],
+    editable: [],
+    searchable: ["action", "status"],
+    order: "created_at.desc",
+    label: "Payment audit",
+  },
+  // The ladder each role climbs, which the AMS role manager draws.
+  ams_role_stages: {
+    table: "ams_role_stages",
+    select: ["id", "role", "stage", "title", "tagline", "min_xp", "created_at"],
+    editable: ["title", "tagline", "min_xp"],
+    searchable: ["role", "title"],
+    order: "min_xp.asc",
+    label: "Role stages",
+  },
   seo_pages: {
     table: "seo_pages",
     select: ["id", "url", "title", "meta_title", "meta_description", "h1",

@@ -52,14 +52,24 @@ for (const file of source) {
   try { code += readFileSync(file, "utf8"); } catch { /* unreadable */ }
 }
 
-/** Does anything in the codebase name this table? */
+/**
+ * Does anything in the codebase name this table?
+ *
+ * This used to look only for from("x") and table: "x", which missed every
+ * screen that reaches its table through a helper - the Marketing Manager calls
+ * tableQuery("marketing_campaigns"), a manager console names a resource in a
+ * whitelist, a server function names it in a string of its own. Twenty-five
+ * marketing tables were reported as data nobody can see while a fully built
+ * console was reading every one of them.
+ *
+ * So the test is now the honest one it can actually prove: does the quoted
+ * name appear anywhere in the source. A name that appears only in a comment
+ * counts as named, which is the direction to err in - it is better to miss a
+ * table that is read than to tell someone a working console is disconnected.
+ */
 function isRead(table) {
-  return (
-    code.includes(`from("${table}")`) ||
-    code.includes(`from('${table}')`) ||
-    code.includes(`table: "${table}"`) ||
-    code.includes(`"${table}"`) && new RegExp(`(from|table|rpc)\\s*[:(]\\s*["']${table}["']`).test(code)
-  );
+  const quoted = JSON.stringify(table);
+  return code.includes(quoted) || code.includes("'" + table + "'");
 }
 
 // -------------------------------------------------------------- how many rows

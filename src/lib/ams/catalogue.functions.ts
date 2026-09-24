@@ -61,6 +61,22 @@ export type CatalogueSimple = {
   holders: number;
 };
 
+/**
+ * One step on a role's XP ladder.
+ *
+ * A hundred and eighty of these are held - ten stages for each of eighteen
+ * roles, with the title the role earns at that step and the XP it takes to
+ * reach it - and nothing in the project read them.
+ */
+export type CatalogueRoleStage = {
+  id: string;
+  role: string;
+  stage: number;
+  title: string;
+  tagline: string | null;
+  minXp: number;
+};
+
 export type AmsCatalogue = {
   authenticated: boolean;
   trophies: CatalogueTrophy[];
@@ -68,6 +84,7 @@ export type AmsCatalogue = {
   ranks: CatalogueRank[];
   achievements: CatalogueSimple[];
   badges: CatalogueSimple[];
+  roleStages: CatalogueRoleStage[];
   /** Names of anything that could not be read, so the UI can say so. */
   degraded: string[];
 };
@@ -79,6 +96,7 @@ const EMPTY: AmsCatalogue = {
   ranks: [],
   achievements: [],
   badges: [],
+  roleStages: [],
   degraded: [],
 };
 
@@ -123,7 +141,7 @@ export const getAmsCatalogue = createServerFn({ method: "GET" }).handler(
     };
 
     const [trophies, levels, ranks, achievements, badges,
-           heldTrophies, heldBadges, heldAchievements, xp] = await Promise.all([
+           heldTrophies, heldBadges, heldAchievements, xp, roleStages] = await Promise.all([
       supabase.from("trophies")
         .select("id,slug,name,description,tier,status,conditions").order("slug"),
       supabase.from("levels")
@@ -138,6 +156,8 @@ export const getAmsCatalogue = createServerFn({ method: "GET" }).handler(
       supabase.from("user_badges").select("badge_id"),
       supabase.from("user_achievements").select("achievement_id"),
       supabase.from("user_xp").select("current_level,current_rank"),
+      supabase.from("ams_role_stages")
+        .select("id,role,stage,title,tagline,min_xp").order("role").order("stage"),
     ]);
 
     note("trophies", trophies.error);
@@ -145,6 +165,7 @@ export const getAmsCatalogue = createServerFn({ method: "GET" }).handler(
     note("ranks", ranks.error);
     note("achievements", achievements.error);
     note("badges", badges.error);
+    note("role stages", roleStages.error);
 
     const trophyHolders = tally(heldTrophies.data, "trophy_id");
     const badgeHolders = tally(heldBadges.data, "badge_id");
@@ -208,6 +229,14 @@ export const getAmsCatalogue = createServerFn({ method: "GET" }).handler(
         rarity: String(b.rarity),
         status: String(b.status),
         holders: badgeHolders.get(b.id) ?? 0,
+      })),
+      roleStages: (roleStages.data ?? []).map((s) => ({
+        id: s.id,
+        role: String(s.role),
+        stage: Number(s.stage),
+        title: String(s.title),
+        tagline: s.tagline ?? null,
+        minXp: Number(s.min_xp ?? 0),
       })),
       degraded,
     };
