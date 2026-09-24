@@ -80,6 +80,16 @@ function site(): string {
 
 type Work = { facts: PageFacts; url: string };
 
+/**
+ * A slice of the inventory, and how many rows the underlying query returned.
+ *
+ * The two are not the same: a product with no slug has no URL, so it is not
+ * work, but the query did return it. Deciding the walk is finished from the
+ * work count rather than the row count would stop the whole pass at the first
+ * slice that held one, and every page after it would be skipped in silence.
+ */
+type Slice = { work: Work[]; rows: number };
+
 const countrySlug = (country: string): string =>
   country
     .toLowerCase()
@@ -89,7 +99,7 @@ const countrySlug = (country: string): string =>
     .replace(/^-|-$/g, "");
 
 /** Which pages of one kind this slice covers. */
-async function inventory(kind: string, offset: number, limit: number): Promise<Work[]> {
+async function inventory(kind: string, offset: number, limit: number): Promise<Slice> {
   const host = site();
 
   if (kind === "slot") {
@@ -104,7 +114,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<W
       `marketplace_card_slots?select=id,slot_url,country_marker,status,current_product_id,` +
         `marketplace_categories(name)&order=slot_url.asc&limit=${limit}&offset=${offset}`,
     );
-    if (!slots.length) return [];
+    if (!slots.length) return { work: [], rows: 0 };
 
     // One query for the tenants of this slice, rather than one per slot.
     const ids = slots.map((slot) => slot.current_product_id).filter(Boolean) as string[];
@@ -115,7 +125,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<W
       : [];
     const byId = new Map(products.map((product) => [product.id, product]));
 
-    return slots.map((slot) => {
+    const work = slots.map((slot) => {
       const tenant = slot.current_product_id ? byId.get(slot.current_product_id) : undefined;
       return {
         url: slot.slot_url,
@@ -140,6 +150,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<W
         },
       };
     });
+    return { work, rows: slots.length };
   }
 
   if (kind === "product") {
@@ -155,7 +166,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<W
       `marketplace_products?select=id,slug,name,visible,content_status,search_keywords,` +
         `marketplace_categories(name)&order=id.asc&limit=${limit}&offset=${offset}`,
     );
-    return products
+    const work = products
       .filter((product) => product.slug)
       .map((product) => {
         const marker = (product.search_keywords ?? []).find((k) => k.startsWith("country:"));
@@ -185,13 +196,14 @@ async function inventory(kind: string, offset: number, limit: number): Promise<W
           },
         } satisfies Work;
       });
+    return { work, rows: products.length };
   }
 
   if (kind === "category") {
     const categories = await rows<{ id: string; slug: string; name: string; is_hidden: boolean }>(
       `marketplace_categories?select=id,slug,name,is_hidden&order=sort_order.asc&limit=${limit}&offset=${offset}`,
     );
-    return categories.map((category) => ({
+    const work = categories.map((category) => ({
       url: `/marketplace/category/${category.slug}`,
       facts: {
         url: `/marketplace/category/${category.slug}`,
@@ -206,6 +218,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<W
         minInternalLinks: 3,
       },
     }));
+    return { work, rows: categories.length };
   }
 
   if (kind === "country") {
@@ -234,7 +247,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<W
         },
       });
     }
-    return out;
+    return { work: out, rows: countries.length };
   }
 
   if (kind === "blog") {
@@ -247,7 +260,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<W
     }>(
       `seo_content_items?select=id,url,title,status,body&order=created_at.desc&limit=${limit}&offset=${offset}`,
     );
-    return posts
+    const work = posts
       .filter((post) => post.url)
       .map((post) => ({
         url: String(post.url),
@@ -270,6 +283,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<W
           minInternalLinks: 1,
         },
       }));
+    return { work, rows: posts.length };
   }
 
   throw new Error(`unknown kind "${kind}"`);
@@ -348,14 +362,16 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
         const offset = Math.max(0, Number(params.get("offset") ?? 0) || 0);
         const limit = Math.min(500, Math.max(1, Number(params.get("limit") ?? 100) || 100));
 
-        let work: Work[];
+        let slice: Slice;
         try {
-          work = await inventory(kind, offset, limit);
+          slice = await inventory(kind, offset, limit);
         } catch (error) {
           return Response.json({ error: String(error).slice(0, 200) }, { status: 400 });
         }
-        if (!work.length)
+        const work = slice.work;
+        if (!slice.rows) {
           return Response.json({ ok: true, kind, offset, evaluated: 0, done: true });
+        }
 
         const decisions: Decision[] = [];
         const queue = [...work];
@@ -440,7 +456,7 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
               state: decision.state,
               reason: decision.blockingReason,
             })),
-          done: settled.length < limit,
+          done: slice.rows < limit,
         });
       },
     },
