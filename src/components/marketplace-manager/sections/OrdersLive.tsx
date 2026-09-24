@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { ShoppingBag } from "lucide-react";
 
 import { authHeaders } from "@/lib/auth/operator-fetch";
@@ -59,6 +60,7 @@ export function OrdersSection() {
     };
   }, []);
 
+  const { t } = useTranslation();
   const figure = (value: number | undefined) =>
     failed ? "—" : counts === undefined || counts === null ? "…" : String(value ?? 0);
 
@@ -66,24 +68,24 @@ export function OrdersSection() {
     <div className="px-4 py-8 md:px-8">
       <PageHeader
         eyebrow="Orders & Payments"
-        title="Orders"
+        title={t("manager.orders.title")}
         description="Invoices, payments, refunds, returns and status timeline."
       />
 
       <SubNav items={[...TABS]} active={active} onChange={setActive} />
 
       <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Orders" value={figure(counts?.orders)} />
-        <StatCard label="Paid" value={figure(counts?.paid)} tone="success" />
-        <StatCard label="Refunded" value={figure(counts?.refunded)} tone="warning" />
-        <StatCard label="Awaiting payment" value={figure(counts?.pending)} tone="default" />
+        <StatCard label={t("manager.orders.title")} value={figure(counts?.orders)} />
+        <StatCard label={t("manager.orders.paid")} value={figure(counts?.paid)} tone="success" />
+        <StatCard label={t("manager.orders.refunded")} value={figure(counts?.refunded)} tone="warning" />
+        <StatCard label={t("manager.orders.awaiting")} value={figure(counts?.pending)} tone="default" />
       </div>
 
       <div className="mt-6">
         {active === "All Orders" && (
           <LiveTable
             resource="orders"
-            title="Orders"
+            title={t("manager.orders.title")}
             columns={["order_no", "order_number", "status", "total", "currency", "payment_gateway", "txnid", "created_at"]}
             description="Reading the orders…"
           />
@@ -91,7 +93,7 @@ export function OrdersSection() {
         {active === "Invoices" && (
           <LiveTable
             resource="invoices"
-            title="Invoices"
+            title={t("manager.orders.invoices")}
             columns={["invoice_no", "client_name", "total", "status", "issue_date", "auto_generated"]}
             description="Reading the invoices…"
           />
@@ -99,7 +101,7 @@ export function OrdersSection() {
         {active === "Payments" && (
           <LiveTable
             resource="payments"
-            title="Payment log"
+            title={t("manager.orders.payment_log")}
             columns={["order_id", "event_type", "provider", "signature_valid", "created_at"]}
             description="Reading the payment log…"
           />
@@ -107,7 +109,7 @@ export function OrdersSection() {
         {active === "Refunds" && (
           <LiveTable
             resource="refunds"
-            title="Refunds"
+            title={t("manager.orders.refunds")}
             columns={["order_id", "amount", "currency", "status", "reason", "provider", "created_at"]}
             description="Reading the refunds…"
           />
@@ -115,7 +117,7 @@ export function OrdersSection() {
         {active === "Returns" && (
           <Card>
             <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-              <ShoppingBag className="h-4 w-4 text-accent" /> Returns
+              <ShoppingBag className="h-4 w-4 text-accent" /> {t("manager.orders.returns")}
             </div>
             <EmptyHint text="Software is licensed rather than shipped, so this platform keeps no returns table. A return here is a refund, which the tab beside this one shows." />
           </Card>
@@ -123,9 +125,10 @@ export function OrdersSection() {
       </div>
 
       <p className="mt-4 text-[11px] text-muted-foreground">
-        Every tab above reads the real table through{" "}
-        <span className="font-mono">/api/manager/resource</span>. An order&apos;s money is never
-        editable from a screen; what an operator may change is its status.
+        {t("manager.orders.endpoint_note_before")}{" "}
+        {/* The endpoint's path is an address, not prose: it is the same in every language. */}
+        <span className="font-mono" translate="no">/api/manager/resource</span>
+        {t("manager.orders.endpoint_note_after")}
       </p>
     </div>
   );

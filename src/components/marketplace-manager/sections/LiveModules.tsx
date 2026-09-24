@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 
 import { LiveModule } from "./LiveModule";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 /**
  * The module screens that were waiting for data, now reading it.
@@ -23,9 +24,10 @@ const ENDPOINT =
   "Every tab above reads its real table through /api/manager/resource, which only lets a screen change the columns it is allowed to.";
 
 export function ProductMediaLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="Product Media" title="Product Media"
+      eyebrow="Product Media" title={t("manager.module.product_media")}
       description="Thumbnails, gallery, video and downloadable files."
       Icon={ImageIcon}
       tabs={[
@@ -46,9 +48,10 @@ export function ProductMediaLive() {
 }
 
 export function DemoSystemLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="Demo System" title="Demo System"
+      eyebrow="Demo System" title={t("manager.module.demo_system")}
       description="Every demo the marketplace can open, and the state it was last found in."
       Icon={MonitorPlay}
       tabs={[
@@ -69,9 +72,10 @@ export function DemoSystemLive() {
 }
 
 export function BlogLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="Blog & Content" title="Blog"
+      eyebrow="Blog & Content" title={t("manager.module.blog")}
       description="Posts, their state and when each one goes out."
       Icon={Newspaper}
       tabs={[
@@ -91,9 +95,10 @@ export function BlogLive() {
 }
 
 export function LicenseLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="Licensing" title="License"
+      eyebrow="Licensing" title={t("manager.module.license")}
       description="Every licence the platform has issued, and whether it still works."
       Icon={KeyRound}
       tabs={[
@@ -113,9 +118,10 @@ export function LicenseLive() {
 }
 
 export function DownloadsLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="Download Center" title="Downloads"
+      eyebrow="Download Center" title={t("manager.module.downloads")}
       description="What buyers can download, and what has been taken."
       Icon={Download}
       tabs={[
@@ -135,9 +141,10 @@ export function DownloadsLive() {
 }
 
 export function AuthorsLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="Author Network" title="Authors"
+      eyebrow="Author Network" title={t("manager.module.authors")}
       description="Everyone who publishes on the marketplace, and where they stand."
       Icon={PenTool}
       tabs={[
@@ -159,9 +166,10 @@ export function AuthorsLive() {
 }
 
 export function VendorsLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="Vendor Network" title="Vendors"
+      eyebrow="Vendor Network" title={t("manager.module.vendors")}
       description="Vendors and authors share one seller record."
       Icon={Store}
       tabs={[
@@ -182,9 +190,10 @@ export function VendorsLive() {
 }
 
 export function ResellersLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="Reseller Network" title="Resellers"
+      eyebrow="Reseller Network" title={t("manager.module.resellers")}
       description="Every partner in the channel, what they are owed and what they have been paid."
       Icon={Handshake}
       tabs={[
@@ -205,9 +214,10 @@ export function ResellersLive() {
 }
 
 export function AffiliateLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="Affiliate Program" title="Affiliate"
+      eyebrow="Affiliate Program" title={t("manager.module.affiliate")}
       description="Partners, the links they share and what those links brought in."
       Icon={Link2}
       tabs={[
@@ -229,9 +239,10 @@ export function AffiliateLive() {
 }
 
 export function InfluencerLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="Creator & Influencer" title="Influencer"
+      eyebrow="Creator & Influencer" title={t("manager.module.influencer")}
       description="Creators, and the work they have been given."
       Icon={Users}
       tabs={[
@@ -250,9 +261,10 @@ export function InfluencerLive() {
 }
 
 export function QrLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="QR System" title="QR System"
+      eyebrow="QR System" title={t("manager.module.qr_system")}
       description="Every code the platform has issued."
       Icon={QrCode}
       tabs={[
@@ -271,9 +283,10 @@ export function QrLive() {
 }
 
 export function ReportsLive() {
+  const { t } = useTranslation();
   return (
     <LiveModule
-      eyebrow="Reports Center" title="Reports"
+      eyebrow="Reports Center" title={t("manager.module.reports")}
       description="Scheduled exports and the analyses they carry."
       Icon={BarChart3}
       tabs={[{ label: "All", resource: "reports" }]}

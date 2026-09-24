@@ -15,6 +15,7 @@ import { Card, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import { SeoSection as LegacySeoEditor } from "./SeoSection";
 
 import { notBuilt } from "@/lib/ui/not-built";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { authHeaders } from "@/lib/auth/operator-fetch";
 import {
   countWhere, figure, groupBy, mean, num, sum, text, useResource,
@@ -770,6 +771,7 @@ export function renderSeoModule(id: string) {
  * the three Core Web Vitals that are measured stand in its place.
  */
 function DashboardModule() {
+  const { t } = useTranslation();
   const perf = useResource("seo_performance", { limit: 90 });
   const pages = useResource("seo_pages", { limit: 200 });
   const keywords = useResource("keywords", { limit: 200 });
@@ -860,9 +862,9 @@ function DashboardModule() {
           <div className="mb-3 flex items-center justify-between">
             <div>
               <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                Organic performance · {days} days recorded
+                {t("seo.organic_performance")} {days} days recorded
               </div>
-              <div className="mt-0.5 text-sm font-bold">Clicks vs Impressions</div>
+              <div className="mt-0.5 text-sm font-bold">{t("seo.clicks_vs_impressions")}</div>
             </div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               seo_performance_metrics
@@ -870,16 +872,16 @@ function DashboardModule() {
           </div>
           <PerformanceChart rows={trend} loading={perf.loading} failed={perf.failed} />
           <div className="mt-3 grid grid-cols-4 gap-3 border-t border-border pt-3 text-[11px]">
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Clicks</div><div className="font-mono text-lg font-bold tabular text-accent">{figure(sum(perf.rows, "clicks"), perf)}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Impressions</div><div className="font-mono text-lg font-bold tabular text-premium">{figure(sum(perf.rows, "impressions"), perf)}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">CTR</div><div className="font-mono text-lg font-bold tabular text-success">{decimal(ctr, perf, 2, "%")}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Position</div><div className="font-mono text-lg font-bold tabular">{decimal(position, perf, 1)}</div></div>
+            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.clicks")}</div><div className="font-mono text-lg font-bold tabular text-accent">{figure(sum(perf.rows, "clicks"), perf)}</div></div>
+            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.impressions")}</div><div className="font-mono text-lg font-bold tabular text-premium">{figure(sum(perf.rows, "impressions"), perf)}</div></div>
+            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.ctr")}</div><div className="font-mono text-lg font-bold tabular text-success">{decimal(ctr, perf, 2, "%")}</div></div>
+            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.position")}</div><div className="font-mono text-lg font-bold tabular">{decimal(position, perf, 1)}</div></div>
           </div>
         </Card>
 
         <Card>
           <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-            Core Web Vitals · measured over {days} days
+            {t("seo.core_web_vitals_measured_over")} {days} days
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[
@@ -901,7 +903,7 @@ function DashboardModule() {
                       {r.v === null ? "—" : r.suffix === "ms" ? `${Math.round(r.v)}ms` : r.l === "CLS" ? r.v.toFixed(3) : String(r.v)}
                     </div>
                     <div className={`text-[10px] ${passing ? "text-success" : "text-warning"}`}>
-                      {r.v === null ? "not measured" : passing ? "Good" : "Needs work"}
+                      {r.v === null ? "not measured" : passing ? t("seo.good") : t("seo.needs_work")}
                     </div>
                   </div>
                 </div>
@@ -909,9 +911,7 @@ function DashboardModule() {
             })}
           </div>
           <div className="mt-3 border-t border-border pt-3 text-[10px] leading-relaxed text-muted-foreground">
-            Thresholds are the published Core Web Vitals ones: LCP 2.5s, INP 200ms, CLS 0.1. The SEO score
-            is the mean of the scores held against the pages that have been crawled.
-          </div>
+            {t("seo.thresholds_are_the_published_core_web_vitals_o")}</div>
         </Card>
       </div>
 
@@ -919,7 +919,7 @@ function DashboardModule() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Busiest pages</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.busiest_pages")}</div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">seo_page_behavior</div>
           </div>
           <Table
@@ -935,14 +935,14 @@ function DashboardModule() {
           />
           {!behaviour.loading && topPages.length === 0 && (
             <div className="px-1 py-3 text-[11px] text-muted-foreground">
-              {behaviour.failed ? "Page behaviour could not be read." : "No page behaviour has been recorded yet."}
+              {behaviour.failed ? t("seo.page_behaviour_could_not_be_read") : t("seo.no_page_behaviour_has_been_recorded_yet")}
             </div>
           )}
         </Card>
 
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Top ranking keywords</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.top_ranking_keywords")}</div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">seo_keywords</div>
           </div>
           <Table
@@ -958,7 +958,7 @@ function DashboardModule() {
           />
           {!keywords.loading && keywords.rows.length === 0 && (
             <div className="px-1 py-3 text-[11px] text-muted-foreground">
-              {keywords.failed ? "Keywords could not be read." : "No keywords are tracked yet."}
+              {keywords.failed ? t("seo.keywords_could_not_be_read") : t("seo.no_keywords_are_tracked_yet")}
             </div>
           )}
         </Card>
@@ -998,10 +998,10 @@ function PerformanceChart({
     return (
       <div className="flex h-40 w-full items-center justify-center rounded-lg border border-border bg-background/40 text-[11px] text-muted-foreground">
         {loading
-          ? "Reading the performance table…"
+          ? t("seo.reading_the_performance_table")
           : failed
-            ? "Performance could not be read."
-            : "No performance has been recorded yet."}
+            ? t("seo.performance_could_not_be_read")
+            : t("seo.no_performance_has_been_recorded_yet")}
       </div>
     );
   }
@@ -1063,6 +1063,7 @@ function humaniseKey(key: string): string {
  * different claim from a count of everything.
  */
 function HealthModule() {
+  const { t } = useTranslation();
   const audits = useResource("seo_audits", { limit: 30 });
   const checks = useResource("seo_technical_checks", { limit: 50 });
   const sample = useResource("seo_issues", { limit: 200, filters: ["status.eq.open"] });
@@ -1118,26 +1119,26 @@ function HealthModule() {
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_1.5fr]">
       <Card>
-        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Overall health</div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.overall_health")}</div>
         <div className="mt-3 flex items-center gap-4">
           <ScoreRing value={score ?? 0} size={96} />
           <div>
             <div className={`text-3xl font-bold ${verdictTone}`}>{audits.loading ? "…" : verdict}</div>
             <div className="text-xs text-muted-foreground">
               {audits.loading
-                ? "Reading the audit table…"
+                ? t("seo.reading_the_audit_table")
                 : audits.failed
-                  ? "Audits could not be read."
+                  ? t("seo.audits_could_not_be_read")
                   : latest
                     ? `${text(latest, "started_at").slice(0, 10)} · ${num(latest, "pages_crawled").toLocaleString()} pages crawled, ${num(latest, "issues_found").toLocaleString()} issues found`
-                    : "No audit has been run yet."}
+                    : t("seo.no_audit_has_been_run_yet")}
             </div>
           </div>
         </div>
         <div className="mt-4 space-y-2">
           {bars.length > 0 && (
             <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              {scores ? "Score by category" : "Issues by severity, as this run counted them"}
+              {scores ? t("seo.score_by_category") : t("seo.issues_by_severity_as_this_run_counted_them")}
             </div>
           )}
           {bars.map((r) => (
@@ -1155,7 +1156,7 @@ function HealthModule() {
             </div>
           ))}
           {!audits.loading && bars.length === 0 && (
-            <div className="text-[11px] text-muted-foreground">The latest audit carries no category breakdown.</div>
+            <div className="text-[11px] text-muted-foreground">{t("seo.the_latest_audit_carries_no_category_breakdown")}</div>
           )}
         </div>
         {emptyRuns > 0 && !audits.loading && (
@@ -1165,7 +1166,7 @@ function HealthModule() {
           </div>
         )}
         <div className="mt-4 border-t border-border pt-3">
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Technical checks</div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.technical_checks")}</div>
           <div className="flex flex-wrap gap-1">
             {checks.rows.slice(0, 12).map((check) => {
               const status = text(check, "status");
@@ -1176,7 +1177,7 @@ function HealthModule() {
               );
             })}
             {!checks.loading && checks.rows.length === 0 && (
-              <span className="text-[11px] text-muted-foreground">No technical check has been recorded.</span>
+              <span className="text-[11px] text-muted-foreground">{t("seo.no_technical_check_has_been_recorded")}</span>
             )}
           </div>
         </div>
@@ -1184,7 +1185,7 @@ function HealthModule() {
 
       <Card>
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Issues to fix</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.issues_to_fix")}</div>
           <div className="flex gap-1">
             <Chip tone="destructive">{figure(high.total, high)} high</Chip>
             <Chip tone="warning">{figure(medium.total, medium)} medium</Chip>
@@ -1211,10 +1212,10 @@ function HealthModule() {
               </div>
             );
           })}
-          {sample.loading && <div className="text-[11px] text-muted-foreground">{"Reading the issue table…"}</div>}
+          {sample.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_issue_table")}</div>}
           {!sample.loading && grouped.length === 0 && (
             <div className="text-[11px] text-muted-foreground">
-              {sample.failed ? "Issues could not be read." : "No open issue is recorded."}
+              {sample.failed ? t("seo.issues_could_not_be_read") : t("seo.no_open_issue_is_recorded")}
             </div>
           )}
         </div>
@@ -1244,6 +1245,7 @@ function HealthModule() {
  * the figures it carries.
  */
 function ReportsModule() {
+  const { t } = useTranslation();
   const reports = useResource("seo_reports_center", { limit: 50 });
   const audits = useResource("seo_audits", { limit: 25 });
 
@@ -1254,11 +1256,11 @@ function ReportsModule() {
 
   return (
     <div className="space-y-4">
-      <Toolbar title="Report Library" count={reports.total} />
-      {reports.loading && <div className="text-[11px] text-muted-foreground">Reading the report table…</div>}
+      <Toolbar title={t("seo.report_library")} count={reports.total} />
+      {reports.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_report_table")}</div>}
       {!reports.loading && reports.rows.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
-          {reports.failed ? "Reports could not be read." : "No report has been generated yet."}
+          {reports.failed ? t("seo.reports_could_not_be_read") : t("seo.no_report_has_been_generated_yet")}
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1289,14 +1291,14 @@ function ReportsModule() {
                 </div>
               )}
               <div className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-                Generated {text(r, "generated_at").slice(0, 10)}
+                {t("seo.generated")} {text(r, "generated_at").slice(0, 10)}
               </div>
             </Card>
           );
         })}
       </div>
 
-      <Toolbar title="Audits" count={audits.total} />
+      <Toolbar title={t("seo.audits")} count={audits.total} />
       <Table
         head={["Audit", "Status", "Score", "Pages crawled", "Issues found", "Started", "Completed"]}
         rows={audits.rows.map((a) => [
@@ -1311,7 +1313,7 @@ function ReportsModule() {
       />
       {!audits.loading && audits.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {audits.failed ? "Audits could not be read." : "No audit has been run yet."}
+          {audits.failed ? t("seo.audits_could_not_be_read") : t("seo.no_audit_has_been_run_yet")}
         </div>
       )}
     </div>
@@ -1352,9 +1354,9 @@ function PagesOfType({
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label={title} value={figure(pages.total, pages)} icon={<Icon className="h-4 w-4" />} />
-        <StatCard label="Avg SEO Score" value={score === null ? (pages.loading ? "…" : "—") : score.toFixed(0)} tone="success" />
-        <StatCard label="Indexed" value={pages.loading ? "…" : String(indexed)} tone="success" />
-        <StatCard label="Issues found" value={pages.loading ? "…" : String(issues)} tone={issues > 0 ? "warning" : "success"} />
+        <StatCard label={t("seo.avg_seo_score")} value={score === null ? (pages.loading ? "…" : "—") : score.toFixed(0)} tone="success" />
+        <StatCard label={t("seo.indexed")} value={pages.loading ? "…" : String(indexed)} tone="success" />
+        <StatCard label={t("seo.issues_found")} value={pages.loading ? "…" : String(issues)} tone={issues > 0 ? "warning" : "success"} />
       </div>
       <Toolbar title={title} count={pages.total} />
       <Table
@@ -1371,10 +1373,10 @@ function PagesOfType({
           <span key="c" className="font-mono text-[11px] text-muted-foreground">{text(r, "last_crawled_at").slice(0, 10)}</span>,
         ])}
       />
-      {pages.loading && <div className="text-[11px] text-muted-foreground">Reading the page table…</div>}
+      {pages.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_page_table")}</div>}
       {!pages.loading && pages.rows.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
-          {pages.failed ? "Pages could not be read." : `No page of this kind has been crawled yet.`}
+          {pages.failed ? t("seo.pages_could_not_be_read") : t("seo.no_page_of_this_kind_has_been_crawled_yet")}
         </div>
       )}
       {noDescription > 0 && (
@@ -1387,12 +1389,13 @@ function PagesOfType({
 }
 
 function ProductSeoModule() {
+  const { t } = useTranslation();
   const entries = useResource("seo_product_entries", { limit: 100 });
   return (
     <div className="space-y-6">
-      <PagesOfType kind="product" title="Product pages" Icon={Boxes} />
+      <PagesOfType kind="product" title={t("seo.product_pages")} Icon={Boxes} />
       <div>
-        <Toolbar title="Product SEO entries" count={entries.total} />
+        <Toolbar title={t("seo.product_seo_entries")} count={entries.total} />
         <Table
           head={["Product", "Category", "Meta title", "Meta description", "Status", "Updated"]}
           rows={entries.rows.map((r) => [
@@ -1406,7 +1409,7 @@ function ProductSeoModule() {
         />
         {!entries.loading && entries.rows.length === 0 && (
           <div className="mt-2 text-[11px] text-muted-foreground">
-            {entries.failed ? "Product SEO entries could not be read." : "No product SEO entry is recorded."}
+            {entries.failed ? t("seo.product_seo_entries_could_not_be_read") : t("seo.no_product_seo_entry_is_recorded")}
           </div>
         )}
       </div>
@@ -1423,6 +1426,7 @@ function ProductSeoModule() {
  * those columns are gone rather than guessed.
  */
 function CategorySeoModule() {
+  const { t } = useTranslation();
   const categories = useResource("categories", { limit: 200 });
   const hidden = countWhere(categories.rows, (row) => Boolean(row.is_hidden));
   const featured = countWhere(categories.rows, (row) => Boolean(row.is_featured));
@@ -1430,12 +1434,12 @@ function CategorySeoModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Categories" value={figure(categories.total, categories)} icon={<LayoutGrid className="h-4 w-4" />} />
-        <StatCard label="Visible" value={categories.loading ? "…" : String(categories.rows.length - hidden)} tone="success" />
-        <StatCard label="Hidden" value={categories.loading ? "…" : String(hidden)} tone="warning" />
-        <StatCard label="Featured" value={categories.loading ? "…" : String(featured)} tone="premium" />
+        <StatCard label={t("seo.categories")} value={figure(categories.total, categories)} icon={<LayoutGrid className="h-4 w-4" />} />
+        <StatCard label={t("seo.visible")} value={categories.loading ? "…" : String(categories.rows.length - hidden)} tone="success" />
+        <StatCard label={t("seo.hidden")} value={categories.loading ? "…" : String(hidden)} tone="warning" />
+        <StatCard label={t("seo.featured")} value={categories.loading ? "…" : String(featured)} tone="premium" />
       </div>
-      <Toolbar title="Categories" count={categories.total} />
+      <Toolbar title={t("seo.categories")} count={categories.total} />
       <Table
         head={["Category", "Slug", "Icon", "Order", "Visible", "Featured", "Updated"]}
         rows={categories.rows.map((r) => [
@@ -1448,10 +1452,10 @@ function CategorySeoModule() {
           <span key="u" className="font-mono text-[11px] text-muted-foreground">{text(r, "updated_at").slice(0, 10)}</span>,
         ])}
       />
-      {categories.loading && <div className="text-[11px] text-muted-foreground">Reading the category table…</div>}
+      {categories.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_category_table")}</div>}
       {!categories.loading && categories.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {categories.failed ? "Categories could not be read." : "No category is recorded."}
+          {categories.failed ? t("seo.categories_could_not_be_read") : t("seo.no_category_is_recorded")}
         </div>
       )}
     </div>
@@ -1459,6 +1463,7 @@ function CategorySeoModule() {
 }
 
 function BlogSeoModule() {
+  const { t } = useTranslation();
   const posts = useResource("blog", { limit: 200 });
   const score = mean(posts.rows, "seo_score");
   const words = mean(posts.rows, "word_count");
@@ -1466,12 +1471,12 @@ function BlogSeoModule() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Content items" value={figure(posts.total, posts)} icon={<Rss className="h-4 w-4" />} />
-        <StatCard label="Avg SEO Score" value={score === null ? (posts.loading ? "…" : "—") : score.toFixed(0)} tone="success" />
-        <StatCard label="Published" value={posts.loading ? "…" : String(countWhere(posts.rows, (r) => text(r, "status") === "published"))} tone="success" />
-        <StatCard label="Avg words" value={words === null ? "—" : Math.round(words).toLocaleString()} tone="premium" />
+        <StatCard label={t("seo.content_items")} value={figure(posts.total, posts)} icon={<Rss className="h-4 w-4" />} />
+        <StatCard label={t("seo.avg_seo_score")} value={score === null ? (posts.loading ? "…" : "—") : score.toFixed(0)} tone="success" />
+        <StatCard label={t("seo.published")} value={posts.loading ? "…" : String(countWhere(posts.rows, (r) => text(r, "status") === "published"))} tone="success" />
+        <StatCard label={t("seo.avg_words")} value={words === null ? "—" : Math.round(words).toLocaleString()} tone="premium" />
       </div>
-      <Toolbar title="Blog SEO" count={posts.total} />
+      <Toolbar title={t("seo.blog_seo")} count={posts.total} />
       <Table
         head={["Title", "Type", "Target keyword", "Words", "SEO Score", "URL", "Status", "Published"]}
         rows={posts.rows.map((r) => [
@@ -1485,19 +1490,20 @@ function BlogSeoModule() {
           <span key="p" className="font-mono text-[11px] text-muted-foreground">{text(r, "published_at").slice(0, 10)}</span>,
         ])}
       />
-      {posts.loading && <div className="text-[11px] text-muted-foreground">Reading the content table…</div>}
+      {posts.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_content_table")}</div>}
       {!posts.loading && posts.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {posts.failed ? "Content could not be read." : "No content item is recorded."}
+          {posts.failed ? t("seo.content_could_not_be_read") : t("seo.no_content_item_is_recorded")}
         </div>
       )}
-      <PagesOfType kind="blog" title="Crawled blog pages" Icon={Rss} />
+      <PagesOfType kind="blog" title={t("seo.crawled_blog_pages")} Icon={Rss} />
     </div>
   );
 }
 
 function LandingSeoModule() {
-  return <PagesOfType kind="landing" title="Landing pages" Icon={Rocket} />;
+  const { t } = useTranslation();
+  return <PagesOfType kind="landing" title={t("seo.landing_pages")} Icon={Rocket} />;
 }
 
 /* =========================================================
@@ -1513,6 +1519,7 @@ function LandingSeoModule() {
  * crawled pages with the title and description they really serve.
  */
 function MetaManagerModule() {
+  const { t } = useTranslation();
   const rules = useResource("seo_meta_rules", { limit: 50 });
   const pages = useResource("seo_pages", { limit: 200 });
   const [chosen, setChosen] = useState(0);
@@ -1523,8 +1530,8 @@ function MetaManagerModule() {
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Meta Tag Manager</div>
-            <div className="mt-0.5 text-sm font-bold">The rules, in the order they are applied</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{t("seo.meta_tag_manager")}</div>
+            <div className="mt-0.5 text-sm font-bold">{t("seo.the_rules_in_the_order_they_are_applied")}</div>
           </div>
           <Chip tone="accent">{figure(rules.total, rules)} rules</Chip>
         </div>
@@ -1543,22 +1550,22 @@ function MetaManagerModule() {
                 <div><span className="text-muted-foreground">title</span> <span className="font-mono">{text(rule, "title_template")}</span></div>
                 <div><span className="text-muted-foreground">description</span> <span className="font-mono">{text(rule, "description_template")}</span></div>
                 {text(rule, "og_image_template", "") !== "" && (
-                  <div><span className="text-muted-foreground">og:image</span> <span className="font-mono">{text(rule, "og_image_template")}</span></div>
+                  <div><span className="text-muted-foreground">{t("seo.og_image")}</span> <span className="font-mono">{text(rule, "og_image_template")}</span></div>
                 )}
               </div>
             </div>
           ))}
-          {rules.loading && <div className="text-[11px] text-muted-foreground">Reading the meta rules…</div>}
+          {rules.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_meta_rules")}</div>}
           {!rules.loading && rules.rows.length === 0 && (
             <div className="text-[11px] text-muted-foreground">
-              {rules.failed ? "Meta rules could not be read." : "No meta rule is configured; pages serve their own title and description."}
+              {rules.failed ? t("seo.meta_rules_could_not_be_read") : t("seo.no_meta_rule_is_configured_pages_serve_their_o")}
             </div>
           )}
         </div>
       </Card>
 
       <Card>
-        <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">What a page serves</div>
+        <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.what_a_page_serves")}</div>
         <select
           value={chosen}
           onChange={(event) => setChosen(Number(event.target.value))}
@@ -1577,18 +1584,16 @@ function MetaManagerModule() {
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">H1</div><div className="truncate">{text(page, "h1")}</div></div>
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Canonical</div><div className="truncate font-mono">{text(page, "canonical_url")}</div></div>
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Index</div><div>{text(page, "index_status")}</div></div>
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Words</div><div className="font-mono tabular">{num(page, "word_count").toLocaleString()}</div></div>
+              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.canonical")}</div><div className="truncate font-mono">{text(page, "canonical_url")}</div></div>
+              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.index")}</div><div>{text(page, "index_status")}</div></div>
+              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.words")}</div><div className="font-mono tabular">{num(page, "word_count").toLocaleString()}</div></div>
             </div>
             <div className="text-[10px] leading-relaxed text-muted-foreground">
-              Read from the crawl record for this page. Open Graph and Twitter tags are shown on their own
-              screens, from the same record.
-            </div>
+              {t("seo.read_from_the_crawl_record_for_this_page_open")}</div>
           </div>
         ) : (
           <div className="text-[11px] text-muted-foreground">
-            {pages.loading ? "Reading the page table…" : pages.failed ? "Pages could not be read." : "No page has been crawled."}
+            {pages.loading ? t("seo.reading_the_page_table") : pages.failed ? t("seo.pages_could_not_be_read") : t("seo.no_page_has_been_crawled")}
           </div>
         )}
       </Card>
@@ -1611,6 +1616,7 @@ function MetaManagerModule() {
  * from a list of types someone expected to find.
  */
 function SchemaModule() {
+  const { t } = useTranslation();
   const pages = useResource("seo_pages", { limit: 200 });
   const entries = useResource("seo_product_entries", { limit: 100 });
 
@@ -1639,18 +1645,18 @@ function SchemaModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Records carrying schema" value={loading ? "…" : String(carrying)} icon={<FileCode2 className="h-4 w-4" />} />
-        <StatCard label="Types found" value={loading ? "…" : String(types.length)} tone="success" />
-        <StatCard label="Pages read" value={figure(pages.total, pages)} tone="default" />
-        <StatCard label="Product entries read" value={figure(entries.total, entries)} tone="default" />
+        <StatCard label={t("seo.records_carrying_schema")} value={loading ? "…" : String(carrying)} icon={<FileCode2 className="h-4 w-4" />} />
+        <StatCard label={t("seo.types_found")} value={loading ? "…" : String(types.length)} tone="success" />
+        <StatCard label={t("seo.pages_read")} value={figure(pages.total, pages)} tone="default" />
+        <StatCard label={t("seo.product_entries_read")} value={figure(entries.total, entries)} tone="default" />
       </div>
-      <Toolbar title="Schema Types" count={types.length} />
+      <Toolbar title={t("seo.schema_types")} count={types.length} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {types.map(([type, count]) => (
           <Card key={type}>
             <div className="flex items-start justify-between">
               <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent"><FileCode2 className="h-4 w-4" /></div>
-              <Chip tone="success">Parsed</Chip>
+              <Chip tone="success">{t("seo.parsed")}</Chip>
             </div>
             <div className="mt-3 text-sm font-bold">{type}</div>
             <div className="text-[11px] text-muted-foreground">
@@ -1659,17 +1665,13 @@ function SchemaModule() {
           </Card>
         ))}
       </div>
-      {loading && <div className="text-[11px] text-muted-foreground">Reading the structured data…</div>}
+      {loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_structured_data")}</div>}
       {!loading && types.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
-          No crawled page or product entry carries structured data. The site emits JSON-LD on its product
-          pages; what is stored against a record is what this screen can count.
-        </div>
+          {t("seo.no_crawled_page_or_product_entry_carries_struc")}</div>
       )}
       <div className="text-[10px] leading-relaxed text-muted-foreground">
-        A type is counted where the stored JSON declares it. Nothing here validates the JSON against
-        schema.org, so no "valid" or "error" count is shown: that would be a claim nothing has checked.
-      </div>
+        {t("seo.a_type_is_counted_where_the_stored_json_declar")}</div>
     </div>
   );
 }
@@ -1690,11 +1692,12 @@ function SchemaModule() {
  * filename that does not exist.
  */
 function SocialCardPreview({ kind, page }: { kind: "og" | "twitter"; page: ResourceRow | undefined }) {
+  const { t } = useTranslation();
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       <div className="flex h-40 items-end bg-gradient-to-br from-primary/60 via-surface to-accent/40 p-3">
         <span className="rounded bg-black/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-white/80 backdrop-blur">
-          {kind === "og" ? "1200 × 630 · no og:image is stored" : "1200 × 675 · no twitter:image is stored"}
+          {kind === "og" ? t("seo.1200_630_no_og_image_is_stored") : t("seo.1200_675_no_twitter_image_is_stored")}
         </span>
       </div>
       <div className="space-y-1 border-t border-border bg-background/60 p-3">
@@ -1709,6 +1712,7 @@ function SocialCardPreview({ kind, page }: { kind: "og" | "twitter"; page: Resou
 }
 
 function SocialModule({ kind, title }: { kind: "og" | "twitter"; title: string }) {
+  const { t } = useTranslation();
   const pages = useResource("seo_pages", { limit: 200 });
   const [chosen, setChosen] = useState(0);
   const page = pages.rows[Math.min(chosen, Math.max(pages.rows.length - 1, 0))];
@@ -1753,14 +1757,14 @@ function SocialModule({ kind, title }: { kind: "og" | "twitter"; title: string }
           ))}
           {!page && (
             <div className="text-[11px] text-muted-foreground">
-              {pages.loading ? "Reading the page table…" : pages.failed ? "Pages could not be read." : "No page has been crawled."}
+              {pages.loading ? t("seo.reading_the_page_table") : pages.failed ? t("seo.pages_could_not_be_read") : t("seo.no_page_has_been_crawled")}
             </div>
           )}
         </div>
       </Card>
       <Card>
         <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-          {kind === "og" ? "Facebook preview" : "X preview"}
+          {kind === "og" ? t("seo.facebook_preview") : t("seo.x_preview")}
         </div>
         <SocialCardPreview kind={kind} page={page} />
       </Card>
@@ -1769,11 +1773,13 @@ function SocialModule({ kind, title }: { kind: "og" | "twitter"; title: string }
 }
 
 function OgModule() {
-  return <SocialModule kind="og" title="Open Graph, from the page" />;
+  const { t } = useTranslation();
+  return <SocialModule kind="og" title={t("seo.open_graph_from_the_page")} />;
 }
 
 function TwitterModule() {
-  return <SocialModule kind="twitter" title="Twitter Card, from the page" />;
+  const { t } = useTranslation();
+  return <SocialModule kind="twitter" title={t("seo.twitter_card_from_the_page")} />;
 }
 
 function Row({ label, value, absent }: { label: string; value: string; absent?: boolean }) {
@@ -1798,6 +1804,7 @@ function Row({ label, value, absent }: { label: string; value: string; absent?: 
  * those are counted here by how often each one is used.
  */
 function TagManagerModule() {
+  const { t } = useTranslation();
   const faqs = useResource("faqs", { limit: 200 });
   const content = useResource("blog", { limit: 200 });
 
@@ -1820,12 +1827,12 @@ function TagManagerModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Tags in use" value={loading ? "…" : String(tags.length)} icon={<TagIcon className="h-4 w-4" />} />
-        <StatCard label="Used more than once" value={loading ? "…" : String(tags.length - once)} tone="success" />
-        <StatCard label="Used once" value={loading ? "…" : String(once)} tone="warning" />
-        <StatCard label="Records read" value={loading ? "…" : String(faqs.rows.length + content.rows.length)} tone="default" />
+        <StatCard label={t("seo.tags_in_use")} value={loading ? "…" : String(tags.length)} icon={<TagIcon className="h-4 w-4" />} />
+        <StatCard label={t("seo.used_more_than_once")} value={loading ? "…" : String(tags.length - once)} tone="success" />
+        <StatCard label={t("seo.used_once")} value={loading ? "…" : String(once)} tone="warning" />
+        <StatCard label={t("seo.records_read")} value={loading ? "…" : String(faqs.rows.length + content.rows.length)} tone="default" />
       </div>
-      <Toolbar title="Tags" count={tags.length} />
+      <Toolbar title={t("seo.tags")} count={tags.length} />
       <Table
         head={["Tag", "Uses"]}
         rows={tags.map(([tag, uses]) => [
@@ -1833,15 +1840,13 @@ function TagManagerModule() {
           <span key="u" className="font-mono tabular">{uses}</span>,
         ])}
       />
-      {loading && <div className="text-[11px] text-muted-foreground">Counting the tags in use…</div>}
+      {loading && <div className="text-[11px] text-muted-foreground">{t("seo.counting_the_tags_in_use")}</div>}
       {!loading && tags.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
-          Nothing carries a tag yet. Tags are read from the tags on questions and the target keyword on
-          content; there is no separate tag table to score or merge.
-        </div>
+          {t("seo.nothing_carries_a_tag_yet_tags_are_read_from_t")}</div>
       )}
       <div className="text-[10px] leading-relaxed text-muted-foreground">
-        Counted over {faqs.rows.length} questions and {content.rows.length} content items. No SEO score or
+        {t("seo.counted_over")} {faqs.rows.length} questions and {content.rows.length} content items. No SEO score or
         trend is held against a tag, so neither is shown.
       </div>
     </div>
@@ -1864,6 +1869,7 @@ function TagManagerModule() {
  * were, which is a smaller claim and a true one.
  */
 function KeywordCenterModule() {
+  const { t } = useTranslation();
   const keywords = useResource("keywords", { limit: 200 });
   // A keyword that has never been measured is held at position 0, and 3,665 of
   // the 3,689 are. Asking for "position at most 3" would count every one of
@@ -1877,13 +1883,13 @@ function KeywordCenterModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <StatCard label="Keywords" value={figure(keywords.total, keywords)} icon={<Hash className="h-4 w-4" />} />
-        <StatCard label="Measured" value={figure(researched.total, researched)} tone="premium" delta="has a position" />
-        <StatCard label="Top 3" value={figure(top3.total, top3)} tone="premium" />
-        <StatCard label="Top 10" value={figure(top10.total, top10)} tone="success" />
-        <StatCard label="Planned, unmeasured" value={figure(planned.total, planned)} tone="warning" delta="position 0" />
+        <StatCard label={t("seo.keywords")} value={figure(keywords.total, keywords)} icon={<Hash className="h-4 w-4" />} />
+        <StatCard label={t("seo.measured")} value={figure(researched.total, researched)} tone="premium" delta="has a position" />
+        <StatCard label={t("seo.top_3")} value={figure(top3.total, top3)} tone="premium" />
+        <StatCard label={t("seo.top_10")} value={figure(top10.total, top10)} tone="success" />
+        <StatCard label={t("seo.planned_unmeasured")} value={figure(planned.total, planned)} tone="warning" delta="position 0" />
       </div>
-      <Toolbar title="Keywords" count={keywords.total} />
+      <Toolbar title={t("seo.keywords")} count={keywords.total} />
       <Table
         head={["Keyword", "Intent", "Volume", "Difficulty", "Country", "CPC", "Pos", "Δ", "Status"]}
         rows={keywords.rows.map((k) => {
@@ -1906,10 +1912,10 @@ function KeywordCenterModule() {
           ];
         })}
       />
-      {keywords.loading && <div className="text-[11px] text-muted-foreground">Reading the keyword table…</div>}
+      {keywords.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_keyword_table")}</div>}
       {!keywords.loading && keywords.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {keywords.failed ? "Keywords could not be read." : "No keyword is tracked yet."}
+          {keywords.failed ? t("seo.keywords_could_not_be_read") : t("seo.no_keyword_is_tracked_yet")}
         </div>
       )}
       {keywords.rows.length > 0 && (
@@ -1932,6 +1938,7 @@ function KeywordCenterModule() {
  * real grouping is the industry column, which this reads.
  */
 function KeywordClusterModule() {
+  const { t } = useTranslation();
   const keywords = useResource("keywords", { limit: 200 });
   const clusters = groupBy(keywords.rows, "industry")
     .map((group) => ({
@@ -1945,9 +1952,9 @@ function KeywordClusterModule() {
     }))
     .sort((a, b) => b.volume - a.volume);
 
-  if (keywords.loading) return <div className="text-[11px] text-muted-foreground">Reading the keyword table…</div>;
-  if (keywords.failed) return <div className="text-[11px] text-muted-foreground">Keywords could not be read.</div>;
-  if (clusters.length === 0) return <div className="text-[11px] text-muted-foreground">No keyword is tracked yet.</div>;
+  if (keywords.loading) return <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_keyword_table")}</div>;
+  if (keywords.failed) return <div className="text-[11px] text-muted-foreground">{t("seo.keywords_could_not_be_read")}</div>;
+  if (clusters.length === 0) return <div className="text-[11px] text-muted-foreground">{t("seo.no_keyword_is_tracked_yet")}</div>;
 
   return (
     <div className="space-y-3">
@@ -1970,9 +1977,9 @@ function KeywordClusterModule() {
               {c.intents.map((t) => (<Chip key={t}>{t}</Chip>))}
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-[11px]">
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Volume</div><div className="font-mono tabular">{c.volume.toLocaleString()}</div></div>
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Avg pos</div><div className="font-mono tabular">{c.position === null ? "—" : c.position.toFixed(1)}</div></div>
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Top 10</div><div className="font-mono tabular text-success">{c.topTen}</div></div>
+              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.volume")}</div><div className="font-mono tabular">{c.volume.toLocaleString()}</div></div>
+              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.avg_pos")}</div><div className="font-mono tabular">{c.position === null ? "—" : c.position.toFixed(1)}</div></div>
+              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.top_10")}</div><div className="font-mono tabular text-success">{c.topTen}</div></div>
             </div>
           </Card>
         ))}
@@ -1999,6 +2006,7 @@ function KeywordClusterModule() {
  * because nothing records them.
  */
 function RankingModule() {
+  const { t } = useTranslation();
   const rankings = useResource("seo_rankings", { limit: 200 });
 
   type Series = {
@@ -2045,12 +2053,12 @@ function RankingModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Avg Position" value={average === null ? (rankings.loading ? "…" : "—") : average.toFixed(1)} tone="success" icon={<Award className="h-4 w-4" />} />
-        <StatCard label="Rising" value={rankings.loading ? "…" : String(rising)} tone="success" />
-        <StatCard label="Falling" value={rankings.loading ? "…" : String(falling)} tone="destructive" />
-        <StatCard label="Stable" value={rankings.loading ? "…" : String(stable)} tone="default" />
+        <StatCard label={t("seo.avg_position")} value={average === null ? (rankings.loading ? "…" : "—") : average.toFixed(1)} tone="success" icon={<Award className="h-4 w-4" />} />
+        <StatCard label={t("seo.rising")} value={rankings.loading ? "…" : String(rising)} tone="success" />
+        <StatCard label={t("seo.falling")} value={rankings.loading ? "…" : String(falling)} tone="destructive" />
+        <StatCard label={t("seo.stable")} value={rankings.loading ? "…" : String(stable)} tone="default" />
       </div>
-      <Toolbar title="Google Ranking" count={rows.length} />
+      <Toolbar title={t("seo.google_ranking")} count={rows.length} />
       <Table
         head={["Keyword", "Cur", "Prev", "Δ", "URL", "Country", "Clicks", "Impr.", "CTR", "Days", "Trend"]}
         rows={rows.map((r) => {
@@ -2071,10 +2079,10 @@ function RankingModule() {
           ];
         })}
       />
-      {rankings.loading && <div className="text-[11px] text-muted-foreground">Reading the ranking table…</div>}
+      {rankings.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_ranking_table")}</div>}
       {!rankings.loading && rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {rankings.failed ? "Rankings could not be read." : "No ranking has been recorded yet."}
+          {rankings.failed ? t("seo.rankings_could_not_be_read") : t("seo.no_ranking_has_been_recorded_yet")}
         </div>
       )}
       {rows.length > 0 && (
@@ -2091,6 +2099,7 @@ function RankingModule() {
    14) COMPETITOR
    ========================================================= */
 function CompetitorModule() {
+  const { t } = useTranslation();
   const rivals = useResource("seo_competitors", { limit: 50 });
   const gaps = useResource("seo_competitor_gaps", { limit: 100 });
 
@@ -2098,11 +2107,11 @@ function CompetitorModule() {
 
   return (
     <div className="space-y-4">
-      <Toolbar title="Competitors" count={rivals.total} />
-      {rivals.loading && <div className="text-[11px] text-muted-foreground">Reading the competitor table…</div>}
+      <Toolbar title={t("seo.competitors")} count={rivals.total} />
+      {rivals.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_competitor_table")}</div>}
       {!rivals.loading && rivals.rows.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
-          {rivals.failed ? "Competitors could not be read." : "No competitor is being tracked yet."}
+          {rivals.failed ? t("seo.competitors_could_not_be_read") : t("seo.no_competitor_is_being_tracked_yet")}
         </div>
       )}
       <div className="grid gap-3 lg:grid-cols-2">
@@ -2119,20 +2128,20 @@ function CompetitorModule() {
                 <Chip tone={authority >= 80 ? "premium" : authority >= 60 ? "accent" : "default"}>DA {authority}</Chip>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2 text-[11px]">
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Keywords</div><div className="font-mono tabular">{num(r, "keywords_count").toLocaleString()}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Traffic</div><div className="font-mono tabular text-success">{num(r, "traffic_estimate").toLocaleString()}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Backlinks</div><div className="font-mono tabular">{num(r, "backlinks_count").toLocaleString()}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Visibility</div><div className="font-mono tabular text-accent">{num(r, "visibility_score")}</div></div>
+                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.keywords")}</div><div className="font-mono tabular">{num(r, "keywords_count").toLocaleString()}</div></div>
+                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.traffic")}</div><div className="font-mono tabular text-success">{num(r, "traffic_estimate").toLocaleString()}</div></div>
+                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.backlinks")}</div><div className="font-mono tabular">{num(r, "backlinks_count").toLocaleString()}</div></div>
+                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.visibility")}</div><div className="font-mono tabular text-accent">{num(r, "visibility_score")}</div></div>
               </div>
               {theirs.length > 0 && (
                 <div className="mt-3 border-t border-border pt-3">
-                  <div className="mb-2 text-[9px] uppercase tracking-wider text-muted-foreground">Keyword gaps ({theirs.length})</div>
+                  <div className="mb-2 text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.keyword_gaps")}{theirs.length})</div>
                   <div className="space-y-1">
                     {theirs.slice(0, 4).map((gap) => (
                       <div key={String(gap.id)} className="flex items-center justify-between text-[11px]">
                         <span className="truncate pr-2">{text(gap, "keyword")}</span>
                         <span className="shrink-0 font-mono tabular text-muted-foreground">
-                          them {text(gap, "their_position")} · us {text(gap, "our_position")}
+                          them {text(gap, "their_position")} {t("seo.us")} {text(gap, "our_position")}
                         </span>
                       </div>
                     ))}
@@ -2143,7 +2152,7 @@ function CompetitorModule() {
           );
         })}
       </div>
-      <Toolbar title="Keyword gaps" count={gaps.total} />
+      <Toolbar title={t("seo.keyword_gaps_2")} count={gaps.total} />
       <Table
         head={["Keyword", "Their position", "Our position", "Search volume", "Opportunity"]}
         rows={gaps.rows.map((g) => [
@@ -2159,6 +2168,7 @@ function CompetitorModule() {
 }
 
 function BacklinkModule() {
+  const { t } = useTranslation();
   const links = useResource("seo_backlinks", { limit: 200 });
   const domains = new Set(links.rows.map((row) => text(row, "source_domain"))).size;
   const authority = mean(links.rows, "domain_authority");
@@ -2170,14 +2180,14 @@ function BacklinkModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-        <StatCard label="Total Backlinks" value={figure(links.total, links)} icon={<LinkIcon className="h-4 w-4" />} />
-        <StatCard label="Ref. Domains" value={figure(domains, links)} tone="success" />
-        <StatCard label="Avg Authority" value={authority === null ? "—" : authority.toFixed(0)} tone="premium" />
-        <StatCard label="Avg Spam Score" value={spam === null ? "—" : spam.toFixed(1)} tone={(spam ?? 0) > 20 ? "destructive" : "success"} />
-        <StatCard label="Active" value={figure(active, links)} tone="success" />
-        <StatCard label="Toxic / Lost" value={links.loading ? "…" : `${toxic} / ${lost}`} tone="destructive" />
+        <StatCard label={t("seo.total_backlinks")} value={figure(links.total, links)} icon={<LinkIcon className="h-4 w-4" />} />
+        <StatCard label={t("seo.ref_domains")} value={figure(domains, links)} tone="success" />
+        <StatCard label={t("seo.avg_authority")} value={authority === null ? "—" : authority.toFixed(0)} tone="premium" />
+        <StatCard label={t("seo.avg_spam_score")} value={spam === null ? "—" : spam.toFixed(1)} tone={(spam ?? 0) > 20 ? "destructive" : "success"} />
+        <StatCard label={t("seo.active")} value={figure(active, links)} tone="success" />
+        <StatCard label={t("seo.toxic_lost")} value={links.loading ? "…" : `${toxic} / ${lost}`} tone="destructive" />
       </div>
-      <Toolbar title="Backlinks" count={links.total} />
+      <Toolbar title={t("seo.backlinks")} count={links.total} />
       <Table
         head={["Domain", "DA", "Anchor", "Target URL", "Type", "Spam", "Status", "First seen", "Last checked"]}
         rows={links.rows.map((r) => {
@@ -2196,10 +2206,10 @@ function BacklinkModule() {
           ];
         })}
       />
-      {links.loading && <div className="text-[11px] text-muted-foreground">Reading the backlink table…</div>}
+      {links.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_backlink_table")}</div>}
       {!links.loading && links.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {links.failed ? "Backlinks could not be read." : "No backlink has been recorded yet."}
+          {links.failed ? t("seo.backlinks_could_not_be_read") : t("seo.no_backlink_has_been_recorded_yet")}
         </div>
       )}
     </div>
@@ -2227,10 +2237,10 @@ function AbsentModule({
             <Icon className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <div className="text-[13px] font-bold">Nothing records this yet</div>
+            <div className="text-[13px] font-bold">{t("seo.nothing_records_this_yet")}</div>
             <div className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{what}</div>
             <div className="mt-3 rounded-lg border border-border bg-background/40 p-3 text-[11px] leading-relaxed text-muted-foreground">
-              <span className="font-semibold uppercase tracking-wider">What it would take</span>
+              <span className="font-semibold uppercase tracking-wider">{t("seo.what_it_would_take")}</span>
               <div className="mt-1">{needs}</div>
             </div>
           </div>
@@ -2241,9 +2251,10 @@ function AbsentModule({
 }
 
 function InternalLinkModule() {
+  const { t } = useTranslation();
   return (
     <AbsentModule
-      title="Internal Linking"
+      title={t("seo.internal_linking")}
       Icon={Compass}
       what="This screen showed 48,214 internal links, 42 orphan pages and five example rows. None of it came from anywhere: the database holds no table of links between pages, and nothing crawls the site to build one."
       needs="A crawl that walks every page, records each link it finds with its source, target and anchor, and stores the result. Until that exists, any number here would be a guess."
@@ -2252,9 +2263,10 @@ function InternalLinkModule() {
 }
 
 function ExternalLinkModule() {
+  const { t } = useTranslation();
   return (
     <AbsentModule
-      title="External Links"
+      title={t("seo.external_links")}
       Icon={ExternalLink}
       what="This screen showed 6,204 outbound links and three example rows, one of them deliberately broken. The platform records no outbound link and checks none of them."
       needs="The same crawl as internal linking, plus a checker that follows each outbound target and keeps its response code, so that 'Broken' means a request that actually failed."
@@ -2276,6 +2288,7 @@ function ExternalLinkModule() {
  * transcript against a video - it is gone, and the panel says so.
  */
 function ImageSeoModule() {
+  const { t } = useTranslation();
   const assets = useResource("media_library", { limit: 200 });
   const images = assets.rows.filter((row) => text(row, "mime_type", "").startsWith("image/") || text(row, "asset_type", "") === "image");
   const notWebp = images.filter((row) => !text(row, "mime_type", "").includes("webp")).length;
@@ -2285,12 +2298,12 @@ function ImageSeoModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Assets" value={figure(assets.total, assets)} icon={<ImageIcon className="h-4 w-4" />} />
-        <StatCard label="Images" value={assets.loading ? "…" : String(images.length)} tone="success" />
-        <StatCard label="Not WebP" value={assets.loading ? "…" : String(notWebp)} tone="warning" />
-        <StatCard label="Over 300 KB" value={assets.loading ? "…" : String(heavy)} tone={heavy > 0 ? "warning" : "success"} />
+        <StatCard label={t("seo.assets")} value={figure(assets.total, assets)} icon={<ImageIcon className="h-4 w-4" />} />
+        <StatCard label={t("seo.images")} value={assets.loading ? "…" : String(images.length)} tone="success" />
+        <StatCard label={t("seo.not_webp")} value={assets.loading ? "…" : String(notWebp)} tone="warning" />
+        <StatCard label={t("seo.over_300_kb")} value={assets.loading ? "…" : String(heavy)} tone={heavy > 0 ? "warning" : "success"} />
       </div>
-      <Toolbar title="Image SEO" count={images.length} />
+      <Toolbar title={t("seo.image_seo")} count={images.length} />
       <Table
         head={["File", "Type", "Dimensions", "Size", "Format", "Approved", "Active"]}
         rows={images.map((r) => [
@@ -2306,10 +2319,10 @@ function ImageSeoModule() {
           <Chip key="ac" tone={r.active ? "success" : "default"}>{r.active ? "yes" : "no"}</Chip>,
         ])}
       />
-      {assets.loading && <div className="text-[11px] text-muted-foreground">Reading the asset library…</div>}
+      {assets.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_asset_library")}</div>}
       {!assets.loading && images.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {assets.failed ? "The asset library could not be read." : "No image is held in the asset library."}
+          {assets.failed ? t("seo.the_asset_library_could_not_be_read") : t("seo.no_image_is_held_in_the_asset_library")}
         </div>
       )}
       <div className="text-[10px] leading-relaxed text-muted-foreground">
@@ -2321,18 +2334,19 @@ function ImageSeoModule() {
 }
 
 function VideoSeoModule() {
+  const { t } = useTranslation();
   const videos = useResource("vala_tv_videos", { limit: 200 });
   const withSeo = countWhere(videos.rows, (row) => text(row, "seo_title", "") !== "");
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Videos" value={figure(videos.total, videos)} icon={<Video className="h-4 w-4" />} />
-        <StatCard label="With SEO title" value={videos.loading ? "…" : String(withSeo)} tone="success" />
-        <StatCard label="Published" value={videos.loading ? "…" : String(countWhere(videos.rows, (r) => text(r, "status") === "published"))} tone="success" />
-        <StatCard label="Featured" value={videos.loading ? "…" : String(countWhere(videos.rows, (r) => Boolean(r.featured)))} tone="premium" />
+        <StatCard label={t("seo.videos")} value={figure(videos.total, videos)} icon={<Video className="h-4 w-4" />} />
+        <StatCard label={t("seo.with_seo_title")} value={videos.loading ? "…" : String(withSeo)} tone="success" />
+        <StatCard label={t("seo.published")} value={videos.loading ? "…" : String(countWhere(videos.rows, (r) => text(r, "status") === "published"))} tone="success" />
+        <StatCard label={t("seo.featured")} value={videos.loading ? "…" : String(countWhere(videos.rows, (r) => Boolean(r.featured)))} tone="premium" />
       </div>
-      <Toolbar title="Video SEO" count={videos.total} />
+      <Toolbar title={t("seo.video_seo")} count={videos.total} />
       <Table
         head={["Video", "Thumb", "Duration", "SEO title", "SEO description", "Language", "Status"]}
         rows={videos.rows.map((r) => [
@@ -2347,10 +2361,10 @@ function VideoSeoModule() {
           <Chip key="s" tone={text(r, "status") === "published" ? "success" : "warning"}>{text(r, "status")}</Chip>,
         ])}
       />
-      {videos.loading && <div className="text-[11px] text-muted-foreground">Reading the video library…</div>}
+      {videos.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_video_library")}</div>}
       {!videos.loading && videos.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {videos.failed ? "The video library could not be read." : "No video is published yet."}
+          {videos.failed ? t("seo.the_video_library_could_not_be_read") : t("seo.no_video_is_published_yet")}
         </div>
       )}
     </div>
@@ -2358,18 +2372,19 @@ function VideoSeoModule() {
 }
 
 function FaqSeoModule() {
+  const { t } = useTranslation();
   const faqs = useResource("faqs", { limit: 200 });
   const withSeo = countWhere(faqs.rows, (row) => text(row, "seo_title", "") !== "");
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Questions" value={figure(faqs.total, faqs)} icon={<HelpCircle className="h-4 w-4" />} />
-        <StatCard label="With SEO title" value={faqs.loading ? "…" : String(withSeo)} tone="success" />
-        <StatCard label="Published" value={faqs.loading ? "…" : String(countWhere(faqs.rows, (r) => text(r, "status") === "published"))} tone="success" />
-        <StatCard label="AI drafted" value={faqs.loading ? "…" : String(countWhere(faqs.rows, (r) => Boolean(r.ai_generated)))} tone="premium" />
+        <StatCard label={t("seo.questions")} value={figure(faqs.total, faqs)} icon={<HelpCircle className="h-4 w-4" />} />
+        <StatCard label={t("seo.with_seo_title")} value={faqs.loading ? "…" : String(withSeo)} tone="success" />
+        <StatCard label={t("seo.published")} value={faqs.loading ? "…" : String(countWhere(faqs.rows, (r) => text(r, "status") === "published"))} tone="success" />
+        <StatCard label={t("seo.ai_drafted")} value={faqs.loading ? "…" : String(countWhere(faqs.rows, (r) => Boolean(r.ai_generated)))} tone="premium" />
       </div>
-      <Toolbar title="FAQ" count={faqs.total} />
+      <Toolbar title={t("seo.faq")} count={faqs.total} />
       <Table
         head={["Question", "SEO title", "SEO description", "Language", "Status", "AI", "Published"]}
         rows={faqs.rows.map((r) => [
@@ -2382,10 +2397,10 @@ function FaqSeoModule() {
           <span key="p" className="font-mono text-[11px] text-muted-foreground">{text(r, "published_at").slice(0, 10)}</span>,
         ])}
       />
-      {faqs.loading && <div className="text-[11px] text-muted-foreground">Reading the FAQ table…</div>}
+      {faqs.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_faq_table")}</div>}
       {!faqs.loading && faqs.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {faqs.failed ? "FAQs could not be read." : "No question is recorded."}
+          {faqs.failed ? t("seo.faqs_could_not_be_read") : t("seo.no_question_is_recorded")}
         </div>
       )}
     </div>
@@ -2405,12 +2420,13 @@ function FaqSeoModule() {
  * it. Both now do.
  */
 function RedirectModule() {
+  const { t } = useTranslation();
   const urls = useResource("product_urls", { limit: 200 });
   const redirecting = urls.rows.filter((row) => text(row, "redirect_to", "") !== "");
 
   return (
     <div className="space-y-4">
-      <Toolbar title="Redirects" count={redirecting.length} />
+      <Toolbar title={t("seo.redirects")} count={redirecting.length} />
       <Table
         head={["From", "To", "Language", "Status", "Canonical", "Updated"]}
         rows={redirecting.map((r) => [
@@ -2422,11 +2438,11 @@ function RedirectModule() {
           <span key="u" className="font-mono text-[11px] text-muted-foreground">{text(r, "updated_at").slice(0, 10)}</span>,
         ])}
       />
-      {urls.loading && <div className="text-[11px] text-muted-foreground">Reading the URL table…</div>}
+      {urls.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_url_table")}</div>}
       {!urls.loading && redirecting.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
           {urls.failed
-            ? "Product URLs could not be read."
+            ? t("seo.product_urls_could_not_be_read")
             : `No redirect is set. ${figure(urls.total, urls)} product ${urls.total === 1 ? "address" : "addresses"} are recorded and every one of them serves its own page.`}
         </div>
       )}
@@ -2435,6 +2451,7 @@ function RedirectModule() {
 }
 
 function CanonicalModule() {
+  const { t } = useTranslation();
   const pages = useResource("seo_pages", { limit: 200 });
   const urls = useResource("product_urls", { limit: 200 });
 
@@ -2450,12 +2467,12 @@ function CanonicalModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Pages" value={figure(pages.total, pages)} icon={<LinkIcon className="h-4 w-4" />} />
-        <StatCard label="Self-canonical" value={pages.loading ? "…" : String(rows.length - missing - cross)} tone="success" />
-        <StatCard label="Cross-canonical" value={pages.loading ? "…" : String(cross)} tone="warning" />
-        <StatCard label="No canonical" value={pages.loading ? "…" : String(missing)} tone={missing > 0 ? "destructive" : "success"} />
+        <StatCard label={t("seo.pages")} value={figure(pages.total, pages)} icon={<LinkIcon className="h-4 w-4" />} />
+        <StatCard label={t("seo.self_canonical")} value={pages.loading ? "…" : String(rows.length - missing - cross)} tone="success" />
+        <StatCard label={t("seo.cross_canonical")} value={pages.loading ? "…" : String(cross)} tone="warning" />
+        <StatCard label={t("seo.no_canonical")} value={pages.loading ? "…" : String(missing)} tone={missing > 0 ? "destructive" : "success"} />
       </div>
-      <Toolbar title="Canonicals" count={pages.total} />
+      <Toolbar title={t("seo.canonicals")} count={pages.total} />
       <Table
         head={["URL", "Canonical", "Type"]}
         rows={rows.map((r) => [
@@ -2464,10 +2481,10 @@ function CanonicalModule() {
           <Chip key="s" tone={r.kind === "Self" ? "success" : r.kind === "Cross" ? "warning" : "destructive"}>{r.kind}</Chip>,
         ])}
       />
-      {pages.loading && <div className="text-[11px] text-muted-foreground">Reading the page table…</div>}
+      {pages.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_page_table")}</div>}
       {!pages.loading && rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {pages.failed ? "Pages could not be read." : "No page has been crawled yet."}
+          {pages.failed ? t("seo.pages_could_not_be_read") : t("seo.no_page_has_been_crawled_yet")}
         </div>
       )}
       <div className="text-[10px] leading-relaxed text-muted-foreground">
@@ -2527,6 +2544,7 @@ function useSeoConsole() {
 }
 
 function SitemapModule() {
+  const { t } = useTranslation();
   const { data, state } = useSeoConsole();
   const base = data?.base ?? "";
   const parts = data?.sitemap?.parts ?? [];
@@ -2535,17 +2553,17 @@ function SitemapModule() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <a href={`${base}/sitemap.xml`} target="_blank" rel="noreferrer">
-          <PillButton variant="primary"><span className="inline-flex items-center gap-1"><MapIcon className="h-3 w-3" /> Open sitemap.xml</span></PillButton>
+          <PillButton variant="primary"><span className="inline-flex items-center gap-1"><MapIcon className="h-3 w-3" /> {t("seo.open_sitemap_xml")}</span></PillButton>
         </a>
         <a href={`${base}/robots.txt`} target="_blank" rel="noreferrer">
-          <PillButton variant="ghost"><span className="inline-flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Open robots.txt</span></PillButton>
+          <PillButton variant="ghost"><span className="inline-flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> {t("seo.open_robots_txt")}</span></PillButton>
         </a>
       </div>
       <div className="rounded-xl border border-border bg-background/40 p-3 text-[11px] leading-relaxed text-muted-foreground">
         {state === "loading"
-          ? "Fetching the sitemap this site serves…"
+          ? t("seo.fetching_the_sitemap_this_site_serves")
           : state === "failed"
-            ? "The sitemap could not be fetched."
+            ? t("seo.the_sitemap_could_not_be_fetched")
             : `${(data?.sitemap?.urls ?? 0).toLocaleString()} URLs across ${parts.length} ${parts.length === 1 ? "sitemap" : "sitemaps"}, counted by fetching each one. The site generates these; there is nothing to regenerate from here.`}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -2555,13 +2573,13 @@ function SitemapModule() {
             <Card key={m.url}>
               <div className="flex items-start justify-between">
                 <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent"><MapIcon className="h-4 w-4" /></div>
-                <Chip tone={m.urls > 0 ? "success" : "warning"}>{m.urls > 0 ? "OK" : "Empty"}</Chip>
+                <Chip tone={m.urls > 0 ? "success" : "warning"}>{m.urls > 0 ? "OK" : t("seo.empty")}</Chip>
               </div>
               <div className="mt-3 font-mono text-[12px] font-bold">{name}</div>
-              <div className="mt-1 text-[11px] text-muted-foreground">{m.urls.toLocaleString()} URLs</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">{m.urls.toLocaleString()} {t("seo.urls")}</div>
               <div className="mt-3">
                 <a href={m.url} target="_blank" rel="noreferrer" className="block w-full rounded-md border border-border bg-background/60 px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">
-                  Open
+                  {t("seo.open")}
                 </a>
               </div>
             </Card>
@@ -2569,13 +2587,14 @@ function SitemapModule() {
         })}
       </div>
       {state === "ready" && parts.length === 0 && (
-        <div className="text-[11px] text-muted-foreground">The sitemap index names no child sitemaps.</div>
+        <div className="text-[11px] text-muted-foreground">{t("seo.the_sitemap_index_names_no_child_sitemaps")}</div>
       )}
     </div>
   );
 }
 
 function RobotsModule() {
+  const { t } = useTranslation();
   const { data, state } = useSeoConsole();
   const [served, setServed] = useState<string | null>(null);
   const base = data?.base ?? "";
@@ -2613,19 +2632,17 @@ function RobotsModule() {
         <div className="mb-3 flex items-center justify-between">
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">robots.txt · as served</div>
           <a href={`${base}/robots.txt`} target="_blank" rel="noreferrer">
-            <PillButton variant="ghost"><span className="inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Open</span></PillButton>
+            <PillButton variant="ghost"><span className="inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> {t("seo.open")}</span></PillButton>
           </a>
         </div>
         <pre className="h-72 w-full overflow-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-[12px] leading-relaxed">
-          {served ?? (state === "loading" ? "Fetching the served file…" : "The file could not be fetched.")}
+          {served ?? (state === "loading" ? t("seo.fetching_the_served_file") : t("seo.the_file_could_not_be_fetched"))}
         </pre>
         <div className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          This is the file a crawler receives, fetched from the site. It is served as a static file, so it is
-          shown here rather than edited: an editor over it would save nothing.
-        </div>
+          {t("seo.this_is_the_file_a_crawler_receives_fetched_fr")}</div>
       </Card>
       <Card>
-        <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Validation</div>
+        <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.validation")}</div>
         <div className="space-y-2 text-[12px]">
           {checks.map((c) => (
             <div key={c.l} className="flex items-center gap-2 rounded-md border border-border bg-background/40 px-2 py-1.5">
@@ -2635,16 +2652,16 @@ function RobotsModule() {
           ))}
           {checks.length === 0 && (
             <div className="text-[11px] text-muted-foreground">
-              {state === "loading" ? "Reading the served file…" : "robots.txt could not be read, so nothing can be checked."}
+              {state === "loading" ? t("seo.reading_the_served_file") : "robots.txt could not be read, so nothing can be checked."}
             </div>
           )}
         </div>
         {rules && (
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-[11px]">
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Rules</div><div className="font-mono tabular">{rules.rules}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Allow</div><div className="font-mono tabular text-success">{rules.allow}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Disallow</div><div className="font-mono tabular text-warning">{rules.disallow}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Sitemaps</div><div className="font-mono tabular text-accent">{rules.sitemap}</div></div>
+            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.rules")}</div><div className="font-mono tabular">{rules.rules}</div></div>
+            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.allow")}</div><div className="font-mono tabular text-success">{rules.allow}</div></div>
+            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.disallow")}</div><div className="font-mono tabular text-warning">{rules.disallow}</div></div>
+            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.sitemaps")}</div><div className="font-mono tabular text-accent">{rules.sitemap}</div></div>
           </div>
         )}
       </Card>
@@ -2656,9 +2673,10 @@ function RobotsModule() {
    19) LOCAL / INTERNATIONAL
    ========================================================= */
 function LocalSeoModule() {
+  const { t } = useTranslation();
   return (
     <AbsentModule
-      title="Local SEO"
+      title={t("seo.local_seo")}
       Icon={Building2}
       what="This screen showed a Google Business Profile - a company name, an address, a phone number, opening hours and 1,284 reviews at 4.8 stars - and four verified office locations. None of it is held anywhere on this platform; every line was written into the file."
       needs="A record of the business locations, and a connection to the Google Business Profile API for the profile and its reviews. The Integrations screen shows which connections exist; this is not one of them."
@@ -2675,13 +2693,14 @@ function LocalSeoModule() {
  * keywords each one has and how they are growing, which is what this shows.
  */
 function IntlSeoModule() {
+  const { t } = useTranslation();
   const regions = useResource("seo_regions", { limit: 100 });
   const keywords = useResource("keywords", { limit: 200 });
   const byCountry = groupBy(keywords.rows, "country").sort((a, b) => b.rows.length - a.rows.length);
 
   return (
     <div className="space-y-4">
-      <Toolbar title="Regions" count={regions.total} />
+      <Toolbar title={t("seo.regions")} count={regions.total} />
       <Table
         head={["Region", "Code", "Group", "Keywords", "Traffic share", "Growth"]}
         rows={regions.rows.map((r) => [
@@ -2695,10 +2714,10 @@ function IntlSeoModule() {
           </span>,
         ])}
       />
-      {regions.loading && <div className="text-[11px] text-muted-foreground">Reading the region table…</div>}
+      {regions.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_region_table")}</div>}
       {!regions.loading && regions.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {regions.failed ? "Regions could not be read." : "No region is recorded."}
+          {regions.failed ? t("seo.regions_could_not_be_read") : t("seo.no_region_is_recorded")}
         </div>
       )}
 
@@ -2731,6 +2750,7 @@ function IntlSeoModule() {
  * Views and read time are not recorded, so those columns are gone.
  */
 function BlogCenterModule() {
+  const { t } = useTranslation();
   const posts = useResource("blog", { limit: 200 });
   const [tab, setTab] = useState("All");
   const statuses = [...new Set(posts.rows.map((row) => text(row, "status")))];
@@ -2741,13 +2761,13 @@ function BlogCenterModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Content items" value={figure(posts.total, posts)} icon={<Rss className="h-4 w-4" />} />
-        <StatCard label="Published" value={posts.loading ? "…" : String(countWhere(posts.rows, (r) => text(r, "status") === "published"))} tone="success" />
-        <StatCard label="Draft" value={posts.loading ? "…" : String(countWhere(posts.rows, (r) => text(r, "status") === "draft"))} tone="warning" />
-        <StatCard label="Avg SEO Score" value={score === null ? (posts.loading ? "…" : "—") : score.toFixed(0)} tone="premium" />
+        <StatCard label={t("seo.content_items")} value={figure(posts.total, posts)} icon={<Rss className="h-4 w-4" />} />
+        <StatCard label={t("seo.published")} value={posts.loading ? "…" : String(countWhere(posts.rows, (r) => text(r, "status") === "published"))} tone="success" />
+        <StatCard label={t("seo.draft")} value={posts.loading ? "…" : String(countWhere(posts.rows, (r) => text(r, "status") === "draft"))} tone="warning" />
+        <StatCard label={t("seo.avg_seo_score")} value={score === null ? (posts.loading ? "…" : "—") : score.toFixed(0)} tone="premium" />
       </div>
       <div data-skip-drawer><SubNav items={blogTabs} active={tab} onChange={setTab} /></div>
-      <Toolbar title="Content" count={shown.length} />
+      <Toolbar title={t("seo.content")} count={shown.length} />
       <Table
         head={["Title", "Type", "Target keyword", "Words", "SEO Score", "Model", "Status", "Published"]}
         rows={shown.map((b) => [
@@ -2763,10 +2783,10 @@ function BlogCenterModule() {
           <span key="p" className="font-mono text-[11px] text-muted-foreground">{text(b, "published_at").slice(0, 10)}</span>,
         ])}
       />
-      {posts.loading && <div className="text-[11px] text-muted-foreground">Reading the content table…</div>}
+      {posts.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_content_table")}</div>}
       {!posts.loading && shown.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {posts.failed ? "Content could not be read." : "No content item matches this tab."}
+          {posts.failed ? t("seo.content_could_not_be_read") : t("seo.no_content_item_matches_this_tab")}
         </div>
       )}
     </div>
@@ -2788,6 +2808,7 @@ function BlogCenterModule() {
  * says plainly that generating from here is not built.
  */
 function AiWriterModule() {
+  const { t } = useTranslation();
   const suggestions = useResource("seo_ai_suggestions", { limit: 100 });
   const content = useResource("blog", { limit: 200 });
   const reels = useResource("seo_reels", { limit: 50 });
@@ -2799,24 +2820,22 @@ function AiWriterModule() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-[var(--shadow-glow)]"><Wand2 className="h-5 w-5" /></div>
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">AI Content</div>
-            <div className="text-sm font-bold">What has been drafted, and what is being suggested.</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{t("seo.ai_content")}</div>
+            <div className="text-sm font-bold">{t("seo.what_has_been_drafted_and_what_is_being_sugges")}</div>
             <div className="mt-1 text-[11px] text-muted-foreground">
-              There is no generation endpoint on this platform yet, so nothing is generated from this screen.
-              The rows below are the output and the suggestions that are already recorded.
-            </div>
+              {t("seo.there_is_no_generation_endpoint_on_this_platfo")}</div>
           </div>
         </div>
       </Card>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Suggestions" value={figure(suggestions.total, suggestions)} icon={<Sparkles className="h-4 w-4" />} />
-        <StatCard label="Accepted" value={suggestions.loading ? "…" : String(countWhere(suggestions.rows, (r) => text(r, "status") === "accepted"))} tone="success" />
-        <StatCard label="AI-drafted content" value={content.loading ? "…" : String(drafted.length)} tone="premium" />
-        <StatCard label="Reels" value={figure(reels.total, reels)} tone="default" />
+        <StatCard label={t("seo.suggestions")} value={figure(suggestions.total, suggestions)} icon={<Sparkles className="h-4 w-4" />} />
+        <StatCard label={t("seo.accepted")} value={suggestions.loading ? "…" : String(countWhere(suggestions.rows, (r) => text(r, "status") === "accepted"))} tone="success" />
+        <StatCard label={t("seo.ai_drafted_content")} value={content.loading ? "…" : String(drafted.length)} tone="premium" />
+        <StatCard label={t("seo.reels")} value={figure(reels.total, reels)} tone="default" />
       </div>
 
-      <Toolbar title="Suggestions" count={suggestions.total} />
+      <Toolbar title={t("seo.suggestions")} count={suggestions.total} />
       <Table
         head={["Suggestion", "Target", "Impact", "Confidence", "Model", "Status"]}
         rows={suggestions.rows.map((r) => [
@@ -2831,14 +2850,14 @@ function AiWriterModule() {
           <Chip key="st" tone={text(r, "status") === "accepted" ? "success" : text(r, "status") === "rejected" ? "destructive" : "warning"}>{text(r, "status")}</Chip>,
         ])}
       />
-      {suggestions.loading && <div className="text-[11px] text-muted-foreground">Reading the suggestions…</div>}
+      {suggestions.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_suggestions")}</div>}
       {!suggestions.loading && suggestions.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {suggestions.failed ? "Suggestions could not be read." : "No suggestion has been recorded."}
+          {suggestions.failed ? t("seo.suggestions_could_not_be_read") : t("seo.no_suggestion_has_been_recorded")}
         </div>
       )}
 
-      <Toolbar title="Reels" count={reels.total} />
+      <Toolbar title={t("seo.reels")} count={reels.total} />
       <Table
         head={["Title", "Platform", "Duration", "Views", "Model", "Status"]}
         rows={reels.rows.map((r) => [
@@ -2852,7 +2871,7 @@ function AiWriterModule() {
       />
       {!reels.loading && reels.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {reels.failed ? "Reels could not be read." : "No reel has been produced."}
+          {reels.failed ? t("seo.reels_could_not_be_read") : t("seo.no_reel_has_been_produced")}
         </div>
       )}
     </div>
@@ -2860,6 +2879,7 @@ function AiWriterModule() {
 }
 
 function AiKeywordModule() {
+  const { t } = useTranslation();
   const suggestions = useResource("seo_ai_suggestions", { limit: 100 });
   const planned = useResource("keywords", { limit: 200, filters: ["status.eq.planned"] });
   const forKeywords = suggestions.rows.filter((row) => /keyword/i.test(text(row, "target_type")));
@@ -2867,14 +2887,11 @@ function AiKeywordModule() {
   return (
     <div className="space-y-4">
       <Card>
-        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">AI Keyword</div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{t("seo.ai_keyword")}</div>
         <div className="mt-1 text-[12px] text-muted-foreground">
-          Research is not run from this screen: nothing here calls a keyword API, and a Research button that
-          returned invented rows is what this replaced. Below are the keyword suggestions that have been
-          recorded, and the keywords already planned but not yet tracked.
-        </div>
+          {t("seo.research_is_not_run_from_this_screen_nothing_h")}</div>
       </Card>
-      <Toolbar title="Keyword suggestions" count={forKeywords.length} />
+      <Toolbar title={t("seo.keyword_suggestions")} count={forKeywords.length} />
       <Table
         head={["Suggestion", "Target", "Impact", "Confidence", "Status"]}
         rows={forKeywords.map((r) => [
@@ -2887,10 +2904,10 @@ function AiKeywordModule() {
       />
       {!suggestions.loading && forKeywords.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {suggestions.failed ? "Suggestions could not be read." : "No keyword suggestion has been recorded."}
+          {suggestions.failed ? t("seo.suggestions_could_not_be_read") : t("seo.no_keyword_suggestion_has_been_recorded")}
         </div>
       )}
-      <Toolbar title="Planned, not yet tracked" count={planned.total} />
+      <Toolbar title={t("seo.planned_not_yet_tracked")} count={planned.total} />
       <Table
         head={["Keyword", "Volume", "Difficulty", "Intent", "Country"]}
         rows={planned.rows.slice(0, 50).map((r) => [
@@ -2901,7 +2918,7 @@ function AiKeywordModule() {
           <span key="c" className="text-[11px] text-muted-foreground">{text(r, "country")}</span>,
         ])}
       />
-      {planned.loading && <div className="text-[11px] text-muted-foreground">Reading the keyword table…</div>}
+      {planned.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_keyword_table")}</div>}
     </div>
   );
 }
@@ -2922,12 +2939,12 @@ function ToolGrid({ items, state }: {
   items: ResourceRow[];
   state: { loading: boolean; failed: boolean };
 }) {
-  if (state.loading) return <div className="text-[11px] text-muted-foreground">Reading the integrations table…</div>;
-  if (state.failed) return <div className="text-[11px] text-muted-foreground">Integrations could not be read.</div>;
+  if (state.loading) return <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_integrations_table")}</div>;
+  if (state.failed) return <div className="text-[11px] text-muted-foreground">{t("seo.integrations_could_not_be_read")}</div>;
   if (items.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
-        No integration of this kind is recorded.
+        {t("seo.no_integration_of_this_kind_is_recorded")}
       </div>
     );
   }
@@ -2944,7 +2961,7 @@ function ToolGrid({ items, state }: {
             <div className="mt-3 text-sm font-bold">{text(t, "display_name")}</div>
             <div className="text-[11px] text-muted-foreground">{text(t, "category")} · {text(t, "provider")}</div>
             <div className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-              {text(t, "last_sync_at", "") ? `Last sync ${text(t, "last_sync_at").slice(0, 10)}` : "Never synced"}
+              {text(t, "last_sync_at", "") ? `Last sync ${text(t, "last_sync_at").slice(0, 10)}` : t("seo.never_synced")}
             </div>
           </Card>
         );
@@ -2987,6 +3004,7 @@ function OtherToolsModule() {
  * shows. Nothing here starts a job, because nothing here ever could.
  */
 function BulkOpsModule() {
+  const { t } = useTranslation();
   const automations = useResource("seo_automations", { limit: 50 });
   const runs = useResource("seo_automation_runs", { limit: 100 });
 
@@ -2995,10 +3013,10 @@ function BulkOpsModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Automations" value={figure(automations.total, automations)} icon={<Zap className="h-4 w-4" />} />
-        <StatCard label="Active" value={automations.loading ? "…" : String(countWhere(automations.rows, (r) => text(r, "status") === "active"))} tone="success" />
-        <StatCard label="Paused" value={automations.loading ? "…" : String(countWhere(automations.rows, (r) => text(r, "status") === "paused"))} tone="warning" />
-        <StatCard label="Runs recorded" value={figure(runs.total, runs)} tone="premium" />
+        <StatCard label={t("seo.automations")} value={figure(automations.total, automations)} icon={<Zap className="h-4 w-4" />} />
+        <StatCard label={t("seo.active")} value={automations.loading ? "…" : String(countWhere(automations.rows, (r) => text(r, "status") === "active"))} tone="success" />
+        <StatCard label={t("seo.paused")} value={automations.loading ? "…" : String(countWhere(automations.rows, (r) => text(r, "status") === "paused"))} tone="warning" />
+        <StatCard label={t("seo.runs_recorded")} value={figure(runs.total, runs)} tone="premium" />
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {automations.rows.map((o) => {
@@ -3013,26 +3031,26 @@ function BulkOpsModule() {
               <div className="mt-3 text-sm font-bold">{text(o, "name")}</div>
               <div className="text-[11px] text-muted-foreground">{text(o, "description")}</div>
               <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-[11px]">
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Schedule</div><div className="font-mono">{text(o, "schedule")}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Runs</div><div className="font-mono tabular">{num(o, "runs_count")}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Last run</div><div className="font-mono">{text(o, "last_run_at").slice(0, 10)}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Next run</div><div className="font-mono">{text(o, "next_run_at").slice(0, 10)}</div></div>
+                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.schedule")}</div><div className="font-mono">{text(o, "schedule")}</div></div>
+                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.runs")}</div><div className="font-mono tabular">{num(o, "runs_count")}</div></div>
+                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.last_run")}</div><div className="font-mono">{text(o, "last_run_at").slice(0, 10)}</div></div>
+                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.next_run")}</div><div className="font-mono">{text(o, "next_run_at").slice(0, 10)}</div></div>
               </div>
               <div className="mt-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-                {num(o, "success_rate")}% succeeded · {mine.length} {mine.length === 1 ? "run" : "runs"} in the log below
+                {num(o, "success_rate")}{t("seo.succeeded")} {mine.length} {mine.length === 1 ? "run" : "runs"} in the log below
               </div>
             </Card>
           );
         })}
       </div>
-      {automations.loading && <div className="text-[11px] text-muted-foreground">Reading the automation table…</div>}
+      {automations.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_automation_table")}</div>}
       {!automations.loading && automations.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {automations.failed ? "Automations could not be read." : "No automation is configured."}
+          {automations.failed ? t("seo.automations_could_not_be_read") : t("seo.no_automation_is_configured")}
         </div>
       )}
       <Card>
-        <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Recent runs</div>
+        <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.recent_runs")}</div>
         <Table
           head={["Started", "Finished", "Status", "Items processed", "Message"]}
           rows={runs.rows.map((r) => [
@@ -3043,10 +3061,10 @@ function BulkOpsModule() {
             <span key="m" className="max-w-[320px] truncate text-[11px] text-muted-foreground">{text(r, "message")}</span>,
           ])}
         />
-        {runs.loading && <div className="mt-2 text-[11px] text-muted-foreground">Reading the run log…</div>}
+        {runs.loading && <div className="mt-2 text-[11px] text-muted-foreground">{t("seo.reading_the_run_log")}</div>}
         {!runs.loading && runs.rows.length === 0 && (
           <div className="mt-2 text-[11px] text-muted-foreground">
-            {runs.failed ? "The run log could not be read." : "No automation has run yet."}
+            {runs.failed ? t("seo.the_run_log_could_not_be_read") : t("seo.no_automation_has_run_yet")}
           </div>
         )}
       </Card>
@@ -3069,6 +3087,7 @@ function BulkOpsModule() {
  * an SEO table, by whom and when. Nothing had ever read that log. This does.
  */
 function SettingsModule() {
+  const { t } = useTranslation();
   const integrations = useResource("seo_integrations", { limit: 100 });
   const alerts = useResource("seo_alerts", { limit: 50 });
   const activity = useResource("seo_activity", { limit: 100 });
@@ -3076,15 +3095,15 @@ function SettingsModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Integrations" value={figure(integrations.total, integrations)} icon={<Settings className="h-4 w-4" />} />
-        <StatCard label="Connected" value={integrations.loading ? "…" : String(countWhere(integrations.rows, (r) => text(r, "status") === "connected"))} tone="success" />
-        <StatCard label="Open alerts" value={alerts.loading ? "…" : String(countWhere(alerts.rows, (r) => !r.acknowledged))} tone="warning" />
-        <StatCard label="Recorded changes" value={figure(activity.total, activity)} tone="premium" icon={<ClipboardList className="h-4 w-4" />} />
+        <StatCard label={t("seo.integrations")} value={figure(integrations.total, integrations)} icon={<Settings className="h-4 w-4" />} />
+        <StatCard label={t("seo.connected")} value={integrations.loading ? "…" : String(countWhere(integrations.rows, (r) => text(r, "status") === "connected"))} tone="success" />
+        <StatCard label={t("seo.open_alerts")} value={alerts.loading ? "…" : String(countWhere(alerts.rows, (r) => !r.acknowledged))} tone="warning" />
+        <StatCard label={t("seo.recorded_changes")} value={figure(activity.total, activity)} tone="premium" icon={<ClipboardList className="h-4 w-4" />} />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Card>
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Integrations</div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{t("seo.integrations")}</div>
           <div className="space-y-2">
             {integrations.rows.map((it) => {
               const status = text(it, "status");
@@ -3100,14 +3119,14 @@ function SettingsModule() {
             })}
             {!integrations.loading && integrations.rows.length === 0 && (
               <div className="text-[11px] text-muted-foreground">
-                {integrations.failed ? "Integrations could not be read." : "No integration is recorded."}
+                {integrations.failed ? t("seo.integrations_could_not_be_read") : t("seo.no_integration_is_recorded")}
               </div>
             )}
           </div>
         </Card>
 
         <Card>
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Alerts</div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{t("seo.alerts")}</div>
           <div className="space-y-2">
             {alerts.rows.map((a) => {
               const severity = text(a, "severity");
@@ -3126,14 +3145,14 @@ function SettingsModule() {
             })}
             {!alerts.loading && alerts.rows.length === 0 && (
               <div className="text-[11px] text-muted-foreground">
-                {alerts.failed ? "Alerts could not be read." : "No alert has been raised."}
+                {alerts.failed ? t("seo.alerts_could_not_be_read") : t("seo.no_alert_has_been_raised")}
               </div>
             )}
           </div>
         </Card>
       </div>
 
-      <Toolbar title="Activity" count={activity.total} />
+      <Toolbar title={t("seo.activity")} count={activity.total} />
       <Table
         head={["When", "Table", "Action", "Actor", "Record"]}
         rows={activity.rows.map((a) => [
@@ -3144,10 +3163,10 @@ function SettingsModule() {
           <span key="r" className="font-mono text-[10px] text-muted-foreground">{text(a, "record_id").slice(0, 8)}</span>,
         ])}
       />
-      {activity.loading && <div className="text-[11px] text-muted-foreground">Reading the activity log…</div>}
+      {activity.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_activity_log")}</div>}
       {!activity.loading && activity.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {activity.failed ? "The activity log could not be read." : "Nothing has been recorded."}
+          {activity.failed ? t("seo.the_activity_log_could_not_be_read") : t("seo.nothing_has_been_recorded")}
         </div>
       )}
       {activity.rows.length > 0 && (

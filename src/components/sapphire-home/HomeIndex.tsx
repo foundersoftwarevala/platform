@@ -125,6 +125,7 @@ import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { catalogueSlugForShelf } from "@/lib/marketplace/home-category-map";
 import { fetchCountryRail, railCardToDemo, shelfColour } from "@/lib/marketplace/country-rail";
 import { RAIL_COUNTRIES } from "@/lib/marketplace/rail-countries";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE } from "@/lib/site-content/constants";
 
 interface Demo {
@@ -3564,6 +3565,7 @@ const CountryRailCards = memo(function CountryRailCards({
 });
 
 const Index = () => {
+  const { t } = useTranslation();
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   // How many real catalogue products each shelf has added. A shelf that has
@@ -3744,11 +3746,11 @@ const Index = () => {
       */}
       <Link
         to="/chat"
-        aria-label="Open Connect Chat"
+        aria-label={t("manager.home.open_chat")}
         className="sv-chat-fab fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_-12px_rgba(8,145,178,0.8)] transition hover:-translate-y-0.5"
       >
         <MessageCircle className="h-5 w-5" />
-        <span className="hidden sm:inline">Chat with us</span>
+        <span className="hidden sm:inline">{t("manager.home.chat_with_us")}</span>
       </Link>
     </div>
   );

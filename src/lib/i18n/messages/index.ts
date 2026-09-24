@@ -32,6 +32,8 @@ import { CHAT_MESSAGES } from "./chat";
 import { CHECKOUT_MESSAGES } from "./checkout";
 import { COMMON_MESSAGES } from "./common";
 import { EMAIL_MESSAGES } from "./email";
+import { MANAGER_MESSAGES } from "./manager";
+import { SEO_MESSAGES } from "./seo";
 import { MARKETPLACE_MESSAGES } from "./marketplace";
 import { NOTIFICATIONS_MESSAGES } from "./notifications";
 import { PAYMENT_MESSAGES } from "./payment";
@@ -47,10 +49,13 @@ export const MODULES = {
   checkout: CHECKOUT_MESSAGES,
   common: COMMON_MESSAGES,
   email: EMAIL_MESSAGES,
+  manager: MANAGER_MESSAGES,
+
   marketplace: MARKETPLACE_MESSAGES,
   notifications: NOTIFICATIONS_MESSAGES,
   payment: PAYMENT_MESSAGES,
   reseller: RESELLER_MESSAGES,
+  seo: SEO_MESSAGES,
 } as const;
 
 type Modules = typeof MODULES;
