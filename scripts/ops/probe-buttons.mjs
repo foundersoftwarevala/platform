@@ -63,6 +63,11 @@ for (const label of unique) {
   // What the page already showed, so new content counts as an answer.
   const textBefore = await page.evaluate(() => (document.body.innerText ?? "").length);
   const controlsBefore = await page.evaluate(() => document.querySelectorAll("input,textarea,select").length);
+  const activeBefore = await page.evaluate(() =>
+    [...document.querySelectorAll("[aria-selected='true'],[data-state='active'],.sv-tab-on")]
+      .map((e) => (e.textContent ?? "").trim()).join("|"),
+  );
+  const shapeBefore = await page.evaluate(() => (document.body.innerText ?? "").replace(/s+/g, " "));
   const calls = [];
   const onRequest = (r) => {
     const u = r.url();
@@ -73,7 +78,15 @@ for (const label of unique) {
   const target = page.getByRole("button", { name: label, exact: true }).first();
   let outcome;
   try {
-    await target.click({ timeout: 8000 });
+    // Some buttons only appear on hover, or sit under a sticky bar. Bring the
+    // button into view and hover its card first, and click through anything
+    // that overlaps rather than reporting the button as unreachable.
+    await target.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
+    await target.hover({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(400);
+    await target.click({ timeout: 6000 }).catch(async () => {
+      await target.click({ force: true, timeout: 6000 });
+    });
     // A message can come and go, so look early as well as late.
     await page.waitForTimeout(900);
     const earlyToast = await page.locator("[data-sonner-toast]").allInnerTexts().catch(() => []);
@@ -84,11 +97,18 @@ for (const label of unique) {
     const toast = earlyToast.length ? earlyToast : lateToast;
     const textAfter = await page.evaluate(() => (document.body.innerText ?? "").length);
     const controlsAfter = await page.evaluate(() => document.querySelectorAll("input,textarea,select").length);
+    const activeAfter = await page.evaluate(() =>
+      [...document.querySelectorAll("[aria-selected='true'],[data-state='active'],.sv-tab-on")]
+        .map((e) => (e.textContent ?? "").trim()).join("|"),
+    );
+    const shapeAfter = await page.evaluate(() => (document.body.innerText ?? "").replace(/s+/g, " "));
     if (after !== before) outcome = `went to ${after.replace(site, "")}`;
     else if (toast.length) outcome = `said "${toast[0].slice(0, 44)}"`;
     else if (dialog) outcome = "opened a panel";
     else if (controlsAfter > controlsBefore) outcome = `opened a form (+${controlsAfter - controlsBefore} fields)`;
     else if (Math.abs(textAfter - textBefore) > 40) outcome = `changed the page (${textAfter - textBefore > 0 ? "+" : ""}${textAfter - textBefore} characters)`;
+    else if (activeAfter !== activeBefore) outcome = "switched what is showing";
+    else if (shapeAfter !== shapeBefore) outcome = "changed what the page says";
     else if (calls.length) outcome = `asked the server (${[...new Set(calls)][0].slice(0, 44)})`;
     else outcome = "NOTHING";
   } catch (error) {
