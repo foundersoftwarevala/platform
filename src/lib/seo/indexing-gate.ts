@@ -176,7 +176,18 @@ export function extract(html: string): Extracted {
   };
 }
 
-function meaningful(value: string | null | undefined, minWords = 2): boolean {
+/**
+ * Whether a piece of copy says something.
+ *
+ * The word count is deliberately low for a heading and a title. A category
+ * page's H1 is its category - "Academy", "Healthcare" - and demanding two
+ * words of it blocked all ninety-one category pages on the first run, which is
+ * the gate being wrong rather than the pages being wrong. What actually
+ * catches an empty heading is emptiness, and what catches a lazy one is the
+ * placeholder list; a prose field like a meta description is held to a higher
+ * bar by its caller.
+ */
+function meaningful(value: string | null | undefined, minWords = 1): boolean {
   const text = (value ?? "").trim();
   if (!text) return false;
   const lower = text.toLowerCase();
@@ -346,7 +357,7 @@ export function evaluatePage(facts: PageFacts, rendered: Rendered): Decision {
   }
 
   // --- title, H1, description ---------------------------------------------
-  const titleOk = meaningful(page.title, 2);
+  const titleOk = meaningful(page.title);
   add(
     "title",
     true,
@@ -355,7 +366,7 @@ export function evaluatePage(facts: PageFacts, rendered: Rendered): Decision {
       ? `"${page.title}"`
       : `The title is missing or placeholder text: ${JSON.stringify(page.title)}`,
   );
-  const h1Ok = meaningful(page.h1, 2);
+  const h1Ok = meaningful(page.h1);
   add(
     "h1",
     true,

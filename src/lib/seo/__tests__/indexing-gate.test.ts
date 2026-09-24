@@ -191,6 +191,19 @@ describe("metadata and content", () => {
     expect(decision.blockingReason).toContain("title");
   });
 
+  it("accepts a one-word heading, because a category's H1 is its category", () => {
+    // Demanding two words of an H1 once blocked all ninety-one category pages,
+    // whose headings are "Academy", "Healthcare", "Logistics".
+    const raw = html().replace(/<h1[^>]*>[\s\S]*?<\/h1>/, "<h1>Healthcare</h1>");
+    const decision = evaluatePage(facts(), { status: 200, html: raw });
+    expect(decision.checks.find((check) => check.name === "h1")?.result).toBe("PASS");
+  });
+
+  it("still blocks an empty heading", () => {
+    const raw = html().replace(/<h1[^>]*>[\s\S]*?<\/h1>/, "<h1>   </h1>");
+    expect(evaluatePage(facts(), { status: 200, html: raw }).indexable).toBe(false);
+  });
+
   it("blocks a missing description", () => {
     const raw = html().replace(/<meta name="description"[^>]*\/>/, "");
     expect(evaluatePage(facts(), { status: 200, html: raw }).indexable).toBe(false);
