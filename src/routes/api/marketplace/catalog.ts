@@ -5,6 +5,7 @@ import {
   catalogConfigured,
   readCatalogRows,
   readCategoryRow,
+  readCountryRow,
 } from "@/lib/marketplace/catalog.server";
 import { SingleFlightCache } from "@/lib/server/single-flight-cache";
 
@@ -14,6 +15,9 @@ import { SingleFlightCache } from "@/lib/server/single-flight-cache";
  *
  *   ?rows=N&perRow=M&rowOffset=K   N category rows from row K, M products each
  *   ?category=<slug>&offset=&limit=  more products for one row ("load more")
+ *   ?category=<slug>&order=country   that row in country order, one card per
+ *                                    country, the same country in the same
+ *                                    place in every row
  *
  * Reads through src/lib/marketplace/catalog.server.ts, the same reader the
  * home page's server-rendered first page uses, so every page respects what
@@ -51,10 +55,22 @@ export const Route = createFileRoute("/api/marketplace/catalog")({
         const rowOffset = Math.max(Number(params.get("rowOffset") ?? 0) || 0, 0);
         // A row asked for at twelve and again at sixty is two different
         // answers, so the limit is part of the cache key.
-        const limit = Math.min(Math.max(Number(params.get("limit") ?? perRow) || perRow, 1), 60);
-        const key = `${category}|${offset}|${perRow}|${limit}|${rowCount}|${rowOffset}`;
+        // A country row is as long as the country list, which grows; every
+        // other read keeps the sixty it has always had.
+        const order = params.get("order") === "country" ? "country" : "catalogue";
+        const ceiling = order === "country" ? 400 : 60;
+        const limit = Math.min(
+          Math.max(Number(params.get("limit") ?? perRow) || perRow, 1),
+          ceiling,
+        );
+        const key = `${category}|${offset}|${perRow}|${limit}|${rowCount}|${rowOffset}|${order}`;
         try {
           const payload = await cache.get(key, async () => {
+            if (category && order === "country") {
+              const row = await readCountryRow(category, limit);
+              if (!row) throw new UnknownCategory();
+              return { ...row, offset: 0, limit, order, hasMore: row.cards.length < row.total };
+            }
             if (category) {
               const row = await readCategoryRow(category, offset, limit);
               if (!row) throw new UnknownCategory();

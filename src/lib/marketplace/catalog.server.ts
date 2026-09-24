@@ -1,5 +1,6 @@
 import { SingleFlightCache } from "@/lib/server/single-flight-cache";
 import { CARD_FIELDS, toCard, type CatalogCard } from "./catalog-card";
+import { RAIL_COUNTRIES, RAIL_COUNTRY_BY_MARKER } from "./rail-countries";
 
 /**
  * The marketplace catalogue as the home page shows it: category rows (and the
@@ -316,5 +317,87 @@ export async function readCategoryRow(
   return {
     category: { name: String(category.name ?? ""), slug: String(category.slug ?? "") },
     ...page,
+  };
+}
+/**
+ * One row's products in country order.
+ *
+ * A home page row is one category and every card in it is one country, so the
+ * fifth card has to be the same country in every row: a visitor in Kenya
+ * scrolling the page sees sixty different products, each one targeted at
+ * Kenya. The catalogue already holds that relationship - one product per
+ * category per country, the country written on the product as
+ * "country:<name>" in search_keywords - and this reads it in the order
+ * src/lib/marketplace/rail-countries.ts publishes.
+ *
+ * It does not replace readCategoryRow, which orders a row the way the
+ * Marketplace Manager places it and is what /marketplace uses. This is a
+ * second way of reading the same rows, asked for by ?order=country.
+ *
+ * A product with no country marker is not dropped - it goes after the
+ * country cards, in catalogue order, so nothing already on a shelf leaves it.
+ * PostgREST cannot sort by an arbitrary list, so the row is read once and
+ * ordered here; a row is sixty to a hundred products, and the answer is
+ * cached for a minute by the route that asks for it.
+ */
+export async function readCountryRow(
+  slug: string,
+  limit: number,
+): Promise<{
+  category: { name: string; slug: string };
+  cards: CatalogCard[];
+  total: number;
+  countries: number;
+} | null> {
+  const categoryResponse = await fetch(
+    `${url()}/rest/v1/marketplace_categories?select=id,name,slug` +
+      `&slug=eq.${encodeURIComponent(slug)}&limit=1`,
+    { headers: admin() },
+  );
+  if (!categoryResponse.ok) return null;
+  const category = ((await categoryResponse.json()) as Row[])[0];
+  if (!category) return null;
+
+  // The whole row, once. A category holds sixty to a hundred and twelve
+  // products today and the ceiling is the country list, so this is bounded by
+  // how many countries the platform targets rather than by the catalogue.
+  const ceiling = Math.max(limit, RAIL_COUNTRIES.length) + 40;
+  const response = await fetch(
+    `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}${PUBLISHED}` +
+      `&category_id=eq.${encodeURIComponent(String(category.id))}` +
+      `&order=sort_order.asc,name.asc&limit=${ceiling}`,
+    { headers: { ...admin(), Prefer: "count=exact" } },
+  );
+  if (!response.ok) return null;
+  const rows = (await response.json()) as Row[];
+  const range = response.headers.get("content-range") ?? "";
+  const total = Number(range.split("/")[1]) || rows.length;
+
+  const cards = rows.map(toCard);
+  const placed: CatalogCard[] = [];
+  const unplaced: CatalogCard[] = [];
+  const takenByCountry = new Map<string, CatalogCard>();
+  for (const card of cards) {
+    const marker = card.country;
+    if (!marker || !RAIL_COUNTRY_BY_MARKER.has(marker)) {
+      unplaced.push(card);
+      continue;
+    }
+    // Two products marked for the same country: the first in catalogue order
+    // takes the country's place and the second goes after the country cards,
+    // so no product disappears and no country gets two cards.
+    if (takenByCountry.has(marker)) unplaced.push(card);
+    else takenByCountry.set(marker, card);
+  }
+  for (const country of RAIL_COUNTRIES) {
+    const card = takenByCountry.get(country.marker);
+    if (card) placed.push(card);
+  }
+
+  return {
+    category: { name: String(category.name ?? ""), slug: String(category.slug ?? "") },
+    cards: [...placed, ...unplaced].slice(0, limit),
+    total,
+    countries: placed.length,
   };
 }
