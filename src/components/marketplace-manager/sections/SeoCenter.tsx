@@ -978,6 +978,7 @@ function DashboardModule() {
 function PerformanceChart({
   rows, loading, failed,
 }: { rows: ResourceRow[]; loading: boolean; failed: boolean }) {
+  const { t } = useTranslation();
   const width = 400;
   const height = 120;
   const clicks = rows.map((r) => num(r, "clicks"));
@@ -1344,6 +1345,7 @@ function PageEditorModule() {
 function PagesOfType({
   kind, title, Icon,
 }: { kind: string; title: string; Icon: typeof Boxes }) {
+  const { t } = useTranslation();
   const pages = useResource("seo_pages", { limit: 200, filters: [`page_type.eq.${kind}`] });
   const score = mean(pages.rows, "seo_score");
   const indexed = countWhere(pages.rows, (row) => text(row, "index_status") === "indexed");
@@ -2228,6 +2230,7 @@ function BacklinkModule() {
 function AbsentModule({
   title, Icon, what, needs,
 }: { title: string; Icon: typeof Compass; what: string; needs: string }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <Toolbar title={title} />
@@ -2939,6 +2942,7 @@ function ToolGrid({ items, state }: {
   items: ResourceRow[];
   state: { loading: boolean; failed: boolean };
 }) {
+  const { t } = useTranslation();
   if (state.loading) return <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_integrations_table")}</div>;
   if (state.failed) return <div className="text-[11px] text-muted-foreground">{t("seo.integrations_could_not_be_read")}</div>;
   if (items.length === 0) {
