@@ -204,8 +204,20 @@ for (const urls of maskedGroups.slice(0, 5)) {
   );
 }
 
-async function block(urls, classification, reason) {
-  let done = 0;
+/**
+ * Hold a group of duplicate pages back.
+ *
+ * A page that was already blocked keeps the reason it was already blocked for.
+ * Writing the duplicate verdict over it destroys the more useful answer: a
+ * product page carrying fifty-two words of text is thin, and thin is what an
+ * operator can act on. It also reads as a different problem than it is -
+ * fourteen hundred pages appeared to be duplicates of each other when what
+ * they actually are is fourteen hundred pages too slight to tell apart.
+ *
+ * So the classification is recorded on every page in the group, and the state
+ * and the reason are written only where the page would otherwise have passed.
+ */
+async function patch(urls, body) {
   for (let at = 0; at < urls.length; at += 100) {
     const slice = urls.slice(at, at + 100);
     const res = await fetch(
@@ -213,24 +225,55 @@ async function block(urls, classification, reason) {
       {
         method: "PATCH",
         headers: { ...HEAD, Prefer: "return=minimal" },
-        body: JSON.stringify({
-          fingerprint_class: classification,
-          // sitemap_eligible must be cleared first or the check constraint that
-          // keeps a non-indexable page out of the sitemap would refuse the row.
-          sitemap_eligible: false,
-          indexable: false,
-          state: "CONTENT_NOT_READY",
-          blocking_reason: reason,
-        }),
+        body: JSON.stringify(body),
       },
     );
     if (!res.ok) {
       console.error(`    PATCH failed: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
       process.exit(1);
     }
-    done += slice.length;
   }
-  return done;
+}
+
+async function block(urls, classification, reason) {
+  if (!urls.length) return 0;
+
+  // Which of these were still passing. Only those change state; the rest keep
+  // the first thing that was wrong with them.
+  const passing = new Set();
+  for (let at = 0; at < urls.length; at += 100) {
+    const slice = urls.slice(at, at + 100);
+    const res = await fetch(
+      `${BASE}/rest/v1/seo_indexing_decisions?select=url&sitemap_eligible=is.true` +
+        `&url=in.(${slice.map((u) => `"${u}"`).join(",")})`,
+      { headers: HEAD },
+    );
+    if (!res.ok) {
+      console.error(`    read failed: HTTP ${res.status}`);
+      process.exit(1);
+    }
+    for (const row of await res.json()) passing.add(row.url);
+  }
+
+  // The classification belongs on every page in the group: it is a fact about
+  // the content, whatever else is wrong with the page.
+  await patch(urls, { fingerprint_class: classification });
+
+  const toBlock = urls.filter((url) => passing.has(url));
+  if (toBlock.length) {
+    // sitemap_eligible must go with indexable, or the check constraint that
+    // keeps a non-indexable page out of the sitemap refuses the row.
+    await patch(toBlock, {
+      sitemap_eligible: false,
+      indexable: false,
+      state: "CONTENT_NOT_READY",
+      blocking_reason: reason,
+    });
+  }
+  console.log(
+    `    ${classification}: ${urls.length} pages classified, ${toBlock.length} of them newly held back`,
+  );
+  return toBlock.length;
 }
 
 let blocked = 0;
