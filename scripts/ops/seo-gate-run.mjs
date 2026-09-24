@@ -97,16 +97,40 @@ async function runKind(kind) {
   const totals = { evaluated: 0, eligible: 0, byState: {} };
   const samples = [];
   for (;;) {
-    const res = await fetch(
-      `${ORIGIN}/api/internal/seo-gate?kind=${kind}&offset=${offset}&limit=${SLICE}`,
-      { method: "POST", headers: { "x-internal-token": TOKEN } },
-    );
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`${kind} at ${offset} -> HTTP ${res.status} ${body.slice(0, 300)}`);
+    /**
+     * One slice, retried.
+     *
+     * The audit puts the server under load while it reads from it, and a
+     * database query that is merely slow becomes a query that times out. A
+     * single such answer used to end the whole walk: 7,347 products stopped at
+     * 5,400, twice, on one 500. A transient failure is worth waiting out; a
+     * persistent one still stops the run, after it has been given three
+     * chances and said so each time.
+     */
+    let payload = null;
+    let lastError = "";
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const res = await fetch(
+        `${ORIGIN}/api/internal/seo-gate?kind=${kind}&offset=${offset}&limit=${SLICE}`,
+        { method: "POST", headers: { "x-internal-token": TOKEN } },
+      ).catch((error) => ({ ok: false, status: 0, text: async () => String(error) }));
+
+      if (res.ok) {
+        const body = await res.json();
+        if (!body.error) {
+          payload = body;
+          break;
+        }
+        lastError = String(body.error);
+      } else {
+        lastError = `HTTP ${res.status} ${(await res.text()).slice(0, 200)}`;
+      }
+      console.log(`\n  ${kind} at ${offset}: attempt ${attempt} failed - ${lastError}`);
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 5000));
     }
-    const payload = await res.json();
-    if (payload.error) throw new Error(`${kind} at ${offset} -> ${payload.error}`);
+    if (!payload) {
+      throw new Error(`${kind} at ${offset} failed three times -> ${lastError}`);
+    }
 
     totals.evaluated += payload.evaluated ?? 0;
     totals.eligible += payload.eligible ?? 0;

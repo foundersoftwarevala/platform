@@ -90,6 +90,29 @@ type Work = { facts: PageFacts; url: string };
  */
 type Slice = { work: Work[]; rows: number };
 
+/**
+ * Category names, by id, read once and held for a minute.
+ *
+ * The product inventory used to reach them through an embedded join. With a
+ * large offset that query took three seconds where the same query without the
+ * embed took one, and under the load of the audit itself it eventually took
+ * long enough for PostgREST to answer 500 - which ended a walk of 7,347
+ * products at 5,400, twice. There are ninety-one categories. Reading them once
+ * is cheaper than joining them onto every slice, and it cannot time out.
+ */
+let categoryNames: { at: number; byId: Map<string, string> } | null = null;
+
+async function categoryNameMap(): Promise<Map<string, string>> {
+  const now = Date.now();
+  if (categoryNames && now - categoryNames.at < 60_000) return categoryNames.byId;
+  const list = await rows<{ id: string; name: string }>(
+    "marketplace_categories?select=id,name&limit=1000",
+  );
+  const byId = new Map(list.map((row) => [row.id, row.name]));
+  categoryNames = { at: now, byId };
+  return byId;
+}
+
 const countrySlug = (country: string): string =>
   country
     .toLowerCase()
@@ -154,6 +177,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
   }
 
   if (kind === "product") {
+    const byCategory = await categoryNameMap();
     const products = await rows<{
       id: string;
       slug: string;
@@ -161,10 +185,10 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
       visible: boolean;
       content_status: string;
       search_keywords: string[] | null;
-      marketplace_categories: { name: string } | null;
+      category_id: string | null;
     }>(
       `marketplace_products?select=id,slug,name,visible,content_status,search_keywords,` +
-        `marketplace_categories(name)&order=id.asc&limit=${limit}&offset=${offset}`,
+        `category_id&order=id.asc&limit=${limit}&offset=${offset}`,
     );
     const work: Work[] = products
       .filter((product) => product.slug)
@@ -188,7 +212,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
             entityExists: true,
             terms: {
               country: marker ? marker.slice("country:".length) : null,
-              category: product.marketplace_categories?.name ?? null,
+              category: product.category_id ? (byCategory.get(product.category_id) ?? null) : null,
               product: product.name,
             },
             expectedHreflang: null,
