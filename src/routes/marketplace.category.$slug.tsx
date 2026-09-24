@@ -15,8 +15,6 @@ import { getCategorySeo, type CategorySeo } from "@/lib/seo/category-seo";
  * rather than the route failing.
  */
 
-
-
 const GENERIC = {
   title: "Category — Software Vala Marketplace",
   description: "Browse products by category on the Software Vala marketplace.",
@@ -62,8 +60,29 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
   head: ({ loaderData, params }) => {
     const data = (loaderData as { seo?: CategorySeo | null } | null)?.seo ?? null;
     if (!data) {
+      // The SEO lookup can fail on a loaded server, and when it did this page
+      // used to lose its canonical, its OpenGraph and its structured data all
+      // at once - and take the same generic title as every other page in the
+      // same position, so two categories advertised themselves as one. A
+      // sample of ten caught three of them.
+      //
+      // None of that needs the lookup. The canonical is the slug, which is in
+      // hand whatever the database is doing, and the slug also names the
+      // category well enough to keep two pages apart. A momentary failure now
+      // costs the page its description, not its identity.
+      const canonical = `${siteUrl()}/marketplace/category/${params.slug}`;
+      const named = params.slug
+        .split("-")
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
       return {
-        meta: [{ title: GENERIC.title }, { name: "description", content: GENERIC.description }],
+        meta: [
+          { title: named ? `${named} Software | Software Vala` : GENERIC.title },
+          { name: "description", content: GENERIC.description },
+          { property: "og:url", content: canonical },
+        ],
+        links: [{ rel: "canonical", href: canonical }],
       };
     }
 
@@ -113,7 +132,13 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
       url: canonical,
       isPartOf: { "@type": "WebSite", name: "Software Vala", url: siteUrl() },
       ...(count > 0
-        ? { mainEntity: { "@type": "ItemList", numberOfItems: count, name: `${data.name} software` } }
+        ? {
+            mainEntity: {
+              "@type": "ItemList",
+              numberOfItems: count,
+              name: `${data.name} software`,
+            },
+          }
         : {}),
     };
 
