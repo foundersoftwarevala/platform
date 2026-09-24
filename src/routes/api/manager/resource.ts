@@ -866,6 +866,30 @@ const RESOURCES: Record<string, Resource> = {
     order: "issued_at.desc",
     label: "Licences",
   },
+  // Money returned. An operator decides whether a refund is granted; the
+  // amount and the provider's own reference are what happened, not a choice.
+  refunds: {
+    table: "marketplace_order_refunds",
+    select: ["id", "order_id", "provider", "provider_refund_id", "amount", "currency",
+      "status", "reason", "created_at", "processed_at"],
+    editable: ["status", "reason"],
+    searchable: ["status", "provider", "provider_refund_id"],
+    order: "created_at.desc",
+    retirable: false,
+    label: "Refunds",
+  },
+
+  // How an order got to where it is.
+  order_history: {
+    table: "marketplace_order_status_history",
+    select: ["id", "order_id", "from_status", "to_status", "actor_id", "created_at"],
+    editable: [],
+    searchable: ["from_status", "to_status"],
+    order: "created_at.desc",
+    retirable: false,
+    label: "Order history",
+  },
+
   payments: {
     table: "payment_logs",
     select: ["id", "order_id", "event_type", "provider", "signature_valid", "payload", "created_at"],

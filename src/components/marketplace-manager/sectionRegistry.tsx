@@ -7,6 +7,7 @@ import { DashboardSection } from "./sections/DashboardSection";
 // connected screen in sections/index.
 import { FaqManagerSection, ValaTvSection } from "./sections/ContentStudio";
 import { StoriesAwardsSection } from "./sections/StoriesAwards";
+import { OrdersSection as OrdersLive } from "./sections/OrdersLive";
 import { RoleMatrix } from "./sections/RoleMatrix";
 import { AutomationConsole } from "./sections/AutomationConsole";
 import { MicroInteractions } from "./sections/MicroInteractions";
@@ -52,7 +53,12 @@ const designedSections: Record<string, SectionComponent> = {
 
   // Commerce
   Pricing: S.PricingSection,
-  Orders: S.OrdersSection,
+  // S.OrdersSection is the designed shell and is still exported. It carried
+  // five tabs, four counters and the words "Awaiting live data" over twenty-one
+  // orders, a hundred and thirty-one invoices and a refund that were all in the
+  // database. The screen below keeps every one of those tabs and counters and
+  // fills them from the real tables.
+  Orders: OrdersLive,
   Payments: S.PaymentsSection,
   License: S.LicenseSection,
   Downloads: S.DownloadsSection,
