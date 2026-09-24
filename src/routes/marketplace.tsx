@@ -12,10 +12,14 @@ import { pageHead } from "@/lib/seo-head";
  * through its own index route.
  */
 export const Route = createFileRoute("/marketplace")({
+  // No canonical here. This is the layout every /marketplace page sits
+  // inside, and a canonical declared on it is inherited by every child, so a
+  // slot, a product and a category page all announced themselves as
+  // /marketplace - forty-three of them in a sample of forty-six. The canonical
+  // for /marketplace itself belongs on its index route, which is the page.
   head: pageHead(
     "Marketplace",
     "Browse ready-to-deploy software with live demos, full source code and lifetime access.",
-    "/marketplace",
   ),
   component: () => <Outlet />,
 });
