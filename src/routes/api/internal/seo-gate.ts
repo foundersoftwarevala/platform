@@ -1,6 +1,7 @@
 ﻿import { createFileRoute } from "@tanstack/react-router";
 
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { RAIL_COUNTRY_BY_MARKER } from "@/lib/marketplace/rail-countries";
 import {
   applyCrossPageFindings,
   evaluatePage,
@@ -203,6 +204,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
       .filter((product) => product.slug)
       .map((product) => {
         const marker = (product.search_keywords ?? []).find((k) => k.startsWith("country:"));
+        const country = marker ? marker.slice("country:".length) : null;
         const published = product.visible === true && product.content_status === "published";
         return {
           url: `/marketplace/product/${product.slug}`,
@@ -220,10 +222,17 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
                   : "unknown",
             entityExists: true,
             terms: {
-              country: marker ? marker.slice("country:".length) : null,
+              country,
               category: product.category_id ? (byCategory.get(product.category_id) ?? null) : null,
               product: product.name,
             },
+            // Told, rather than left unknown. These were omitted, so the gate
+            // had no answer and returned UNVERIFIED - which is not indexable,
+            // and 1,312 products were held back on a question the gate could
+            // have answered from data it already had. Failing closed is right;
+            // failing closed because nobody asked is not.
+            countryKnown: country ? RAIL_COUNTRY_BY_MARKER.has(country) : undefined,
+            categoryKnown: product.category_id ? byCategory.has(product.category_id) : undefined,
             expectedHreflang: null,
             minInternalLinks: 3,
           },
