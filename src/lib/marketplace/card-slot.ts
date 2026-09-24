@@ -105,10 +105,26 @@ function fill(template: string, values: Record<string, string | null>): string {
   for (const [name, value] of Object.entries(values)) {
     out = out.split(`{${name}}`).join(value ?? "");
   }
-  return out
+  out = out
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([,.])/g, "$1")
     .trim();
+
+  // A separator left holding nothing. "Healthcare Software in Kenya — |
+  // Price…" is what a vacant slot would read as when its title names the
+  // product, so each part between the bars is cleaned of a dangling dash and
+  // any part left with nothing but punctuation is dropped.
+  return out
+    .split("|")
+    .map((part) =>
+      part
+        .trim()
+        .replace(/^[—–-]+\s*/, "")
+        .replace(/\s*[—–-]+$/, "")
+        .trim(),
+    )
+    .filter((part) => /\p{L}|\p{N}/u.test(part))
+    .join(" | ");
 }
 
 /**
