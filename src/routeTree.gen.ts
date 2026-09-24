@@ -51,6 +51,7 @@ import { Route as SalesCrmRouteImport } from './routes/sales-crm'
 import { Route as SalesSupportManagerRouteImport } from './routes/sales-support-manager'
 import { Route as SeoManagerRouteImport } from './routes/seo-manager'
 import { Route as ServerManagerRouteImport } from './routes/server-manager'
+import { Route as SitemapBlogDotxmlRouteImport } from './routes/sitemap-blog[.]xml'
 import { Route as SitemapCategoriesDotxmlRouteImport } from './routes/sitemap-categories[.]xml'
 import { Route as SitemapCountriesDotxmlRouteImport } from './routes/sitemap-countries[.]xml'
 import { Route as SitemapPagesDotxmlRouteImport } from './routes/sitemap-pages[.]xml'
@@ -168,6 +169,8 @@ import { Route as AmsXpCrystalVaultRouteImport } from './routes/ams.xp-crystal-v
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApplyIndexRouteImport } from './routes/apply.index'
 import { Route as ApplyRoleRouteImport } from './routes/apply.$role'
+import { Route as BlogIndexRouteImport } from './routes/blog.index'
+import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as DashboardRoleRouteImport } from './routes/dashboard.$role'
 import { Route as DemoRouteImport } from './routes/demo.'
 import { Route as DemoSlugRouteImport } from './routes/demo.$slug'
@@ -209,6 +212,7 @@ import { Route as PromiseTrackerRulesRouteImport } from './routes/promise-tracke
 import { Route as PromiseTrackerSettingsRouteImport } from './routes/promise-tracker.settings'
 import { Route as SCodeRouteImport } from './routes/s.$code'
 import { Route as SitemapProductsPageDotxmlRouteImport } from './routes/sitemap-products/$page[.]xml'
+import { Route as SitemapSlotsPageDotxmlRouteImport } from './routes/sitemap-slots/$page[.]xml'
 import { Route as ValaAiIndexRouteImport } from './routes/vala-ai.index'
 import { Route as ValaAiCreditsRouteImport } from './routes/vala-ai.credits'
 import { Route as ValaAiErrorsRouteImport } from './routes/vala-ai.errors'
@@ -526,6 +530,11 @@ const SeoManagerRoute = SeoManagerRouteImport.update({
 const ServerManagerRoute = ServerManagerRouteImport.update({
   id: '/server-manager',
   path: '/server-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapBlogDotxmlRoute = SitemapBlogDotxmlRouteImport.update({
+  id: '/sitemap-blog.xml',
+  path: '/sitemap-blog.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SitemapCategoriesDotxmlRoute = SitemapCategoriesDotxmlRouteImport.update({
@@ -1133,6 +1142,16 @@ const ApplyRoleRoute = ApplyRoleRouteImport.update({
   path: '/apply/$role',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoleRoute = DashboardRoleRouteImport.update({
   id: '/dashboard/$role',
   path: '/dashboard/$role',
@@ -1342,6 +1361,11 @@ const SitemapProductsPageDotxmlRoute =
     path: '/sitemap-products/$page.xml',
     getParentRoute: () => rootRouteImport,
   } as any)
+const SitemapSlotsPageDotxmlRoute = SitemapSlotsPageDotxmlRouteImport.update({
+  id: '/sitemap-slots/$page.xml',
+  path: '/sitemap-slots/$page.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ValaAiIndexRoute = ValaAiIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -1944,6 +1968,7 @@ export interface FileRoutesByFullPath {
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
   '/server-manager': typeof ServerManagerRoute
+  '/sitemap-blog.xml': typeof SitemapBlogDotxmlRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
   '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
   '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
@@ -2057,6 +2082,7 @@ export interface FileRoutesByFullPath {
   '/ams/xp-crystal-vault': typeof AmsXpCrystalVaultRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/$role': typeof DashboardRoleRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
@@ -2092,6 +2118,7 @@ export interface FileRoutesByFullPath {
   '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
   '/s/$code': typeof SCodeRoute
   '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
+  '/sitemap-slots/$page.xml': typeof SitemapSlotsPageDotxmlRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -2107,6 +2134,7 @@ export interface FileRoutesByFullPath {
   '/ai-ceo/': typeof AiCeoIndexRoute
   '/ams/': typeof AmsIndexRoute
   '/apply/': typeof ApplyIndexRoute
+  '/blog/': typeof BlogIndexRoute
   '/lead-manager/': typeof LeadManagerIndexRoute
   '/manager/': typeof ManagerIndexRoute
   '/marketing/': typeof MarketingIndexRoute
@@ -2246,6 +2274,7 @@ export interface FileRoutesByTo {
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
   '/server-manager': typeof ServerManagerRoute
+  '/sitemap-blog.xml': typeof SitemapBlogDotxmlRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
   '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
   '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
@@ -2357,6 +2386,7 @@ export interface FileRoutesByTo {
   '/ams/xp-crystal-vault': typeof AmsXpCrystalVaultRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/$role': typeof DashboardRoleRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
@@ -2392,6 +2422,7 @@ export interface FileRoutesByTo {
   '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
   '/s/$code': typeof SCodeRoute
   '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
+  '/sitemap-slots/$page.xml': typeof SitemapSlotsPageDotxmlRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -2407,6 +2438,7 @@ export interface FileRoutesByTo {
   '/ai-ceo': typeof AiCeoIndexRoute
   '/ams': typeof AmsIndexRoute
   '/apply': typeof ApplyIndexRoute
+  '/blog': typeof BlogIndexRoute
   '/lead-manager': typeof LeadManagerIndexRoute
   '/manager': typeof ManagerIndexRoute
   '/marketing': typeof MarketingIndexRoute
@@ -2555,6 +2587,7 @@ export interface FileRoutesById {
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
   '/server-manager': typeof ServerManagerRoute
+  '/sitemap-blog.xml': typeof SitemapBlogDotxmlRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
   '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
   '/sitemap-pages.xml': typeof SitemapPagesDotxmlRoute
@@ -2668,6 +2701,7 @@ export interface FileRoutesById {
   '/ams/xp-crystal-vault': typeof AmsXpCrystalVaultRoute
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/$role': typeof DashboardRoleRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
@@ -2703,6 +2737,7 @@ export interface FileRoutesById {
   '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
   '/s/$code': typeof SCodeRoute
   '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
+  '/sitemap-slots/$page.xml': typeof SitemapSlotsPageDotxmlRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -2718,6 +2753,7 @@ export interface FileRoutesById {
   '/ai-ceo/': typeof AiCeoIndexRoute
   '/ams/': typeof AmsIndexRoute
   '/apply/': typeof ApplyIndexRoute
+  '/blog/': typeof BlogIndexRoute
   '/lead-manager/': typeof LeadManagerIndexRoute
   '/manager/': typeof ManagerIndexRoute
   '/marketing/': typeof MarketingIndexRoute
@@ -2867,6 +2903,7 @@ export interface FileRouteTypes {
     | '/sales-support-manager'
     | '/seo-manager'
     | '/server-manager'
+    | '/sitemap-blog.xml'
     | '/sitemap-categories.xml'
     | '/sitemap-countries.xml'
     | '/sitemap-pages.xml'
@@ -2980,6 +3017,7 @@ export interface FileRouteTypes {
     | '/ams/xp-crystal-vault'
     | '/api/chat'
     | '/apply/$role'
+    | '/blog/$slug'
     | '/dashboard/$role'
     | '/demo/$slug'
     | '/manager/$section'
@@ -3015,6 +3053,7 @@ export interface FileRouteTypes {
     | '/promise-tracker/settings'
     | '/s/$code'
     | '/sitemap-products/$page.xml'
+    | '/sitemap-slots/$page.xml'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -3030,6 +3069,7 @@ export interface FileRouteTypes {
     | '/ai-ceo/'
     | '/ams/'
     | '/apply/'
+    | '/blog/'
     | '/lead-manager/'
     | '/manager/'
     | '/marketing/'
@@ -3169,6 +3209,7 @@ export interface FileRouteTypes {
     | '/sales-support-manager'
     | '/seo-manager'
     | '/server-manager'
+    | '/sitemap-blog.xml'
     | '/sitemap-categories.xml'
     | '/sitemap-countries.xml'
     | '/sitemap-pages.xml'
@@ -3280,6 +3321,7 @@ export interface FileRouteTypes {
     | '/ams/xp-crystal-vault'
     | '/api/chat'
     | '/apply/$role'
+    | '/blog/$slug'
     | '/dashboard/$role'
     | '/demo/$slug'
     | '/manager/$section'
@@ -3315,6 +3357,7 @@ export interface FileRouteTypes {
     | '/promise-tracker/settings'
     | '/s/$code'
     | '/sitemap-products/$page.xml'
+    | '/sitemap-slots/$page.xml'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -3330,6 +3373,7 @@ export interface FileRouteTypes {
     | '/ai-ceo'
     | '/ams'
     | '/apply'
+    | '/blog'
     | '/lead-manager'
     | '/manager'
     | '/marketing'
@@ -3477,6 +3521,7 @@ export interface FileRouteTypes {
     | '/sales-support-manager'
     | '/seo-manager'
     | '/server-manager'
+    | '/sitemap-blog.xml'
     | '/sitemap-categories.xml'
     | '/sitemap-countries.xml'
     | '/sitemap-pages.xml'
@@ -3590,6 +3635,7 @@ export interface FileRouteTypes {
     | '/ams/xp-crystal-vault'
     | '/api/chat'
     | '/apply/$role'
+    | '/blog/$slug'
     | '/dashboard/$role'
     | '/demo/$slug'
     | '/manager/$section'
@@ -3625,6 +3671,7 @@ export interface FileRouteTypes {
     | '/promise-tracker/settings'
     | '/s/$code'
     | '/sitemap-products/$page.xml'
+    | '/sitemap-slots/$page.xml'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -3640,6 +3687,7 @@ export interface FileRouteTypes {
     | '/ai-ceo/'
     | '/ams/'
     | '/apply/'
+    | '/blog/'
     | '/lead-manager/'
     | '/manager/'
     | '/marketing/'
@@ -3788,6 +3836,7 @@ export interface RootRouteChildren {
   SalesSupportManagerRoute: typeof SalesSupportManagerRoute
   SeoManagerRoute: typeof SeoManagerRoute
   ServerManagerRoute: typeof ServerManagerRoute
+  SitemapBlogDotxmlRoute: typeof SitemapBlogDotxmlRoute
   SitemapCategoriesDotxmlRoute: typeof SitemapCategoriesDotxmlRoute
   SitemapCountriesDotxmlRoute: typeof SitemapCountriesDotxmlRoute
   SitemapPagesDotxmlRoute: typeof SitemapPagesDotxmlRoute
@@ -3810,15 +3859,18 @@ export interface RootRouteChildren {
   AiRecommendRoute: typeof AiRecommendRoute
   ApiChatRoute: typeof ApiChatRoute
   ApplyRoleRoute: typeof ApplyRoleRoute
+  BlogSlugRoute: typeof BlogSlugRoute
   DashboardRoleRoute: typeof DashboardRoleRoute
   DemoSlugRoute: typeof DemoSlugRoute
   PaymentFailRoute: typeof PaymentFailRoute
   PaymentSuccessRoute: typeof PaymentSuccessRoute
   SCodeRoute: typeof SCodeRoute
   SitemapProductsPageDotxmlRoute: typeof SitemapProductsPageDotxmlRoute
+  SitemapSlotsPageDotxmlRoute: typeof SitemapSlotsPageDotxmlRoute
   VerifyCodeRoute: typeof VerifyCodeRoute
   AcademyIndexRoute: typeof AcademyIndexRoute
   ApplyIndexRoute: typeof ApplyIndexRoute
+  BlogIndexRoute: typeof BlogIndexRoute
   ProxyDemoRoute: typeof ProxyDemoRoute
   ApiAccountPurchasesRoute: typeof ApiAccountPurchasesRoute
   ApiActionsConfigRoute: typeof ApiActionsConfigRoute
@@ -4180,6 +4232,13 @@ declare module '@tanstack/react-router' {
       path: '/server-manager'
       fullPath: '/server-manager'
       preLoaderRoute: typeof ServerManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap-blog.xml': {
+      id: '/sitemap-blog.xml'
+      path: '/sitemap-blog.xml'
+      fullPath: '/sitemap-blog.xml'
+      preLoaderRoute: typeof SitemapBlogDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sitemap-categories.xml': {
@@ -5001,6 +5060,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApplyRoleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/blog/': {
+      id: '/blog/'
+      path: '/blog'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof BlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/$role': {
       id: '/dashboard/$role'
       path: '/dashboard/$role'
@@ -5286,6 +5359,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap-products/$page.xml'
       fullPath: '/sitemap-products/$page.xml'
       preLoaderRoute: typeof SitemapProductsPageDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap-slots/$page.xml': {
+      id: '/sitemap-slots/$page.xml'
+      path: '/sitemap-slots/$page.xml'
+      fullPath: '/sitemap-slots/$page.xml'
+      preLoaderRoute: typeof SitemapSlotsPageDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vala-ai/': {
@@ -6545,6 +6625,7 @@ const rootRouteChildren: RootRouteChildren = {
   SalesSupportManagerRoute: SalesSupportManagerRoute,
   SeoManagerRoute: SeoManagerRoute,
   ServerManagerRoute: ServerManagerRoute,
+  SitemapBlogDotxmlRoute: SitemapBlogDotxmlRoute,
   SitemapCategoriesDotxmlRoute: SitemapCategoriesDotxmlRoute,
   SitemapCountriesDotxmlRoute: SitemapCountriesDotxmlRoute,
   SitemapPagesDotxmlRoute: SitemapPagesDotxmlRoute,
@@ -6567,15 +6648,18 @@ const rootRouteChildren: RootRouteChildren = {
   AiRecommendRoute: AiRecommendRoute,
   ApiChatRoute: ApiChatRoute,
   ApplyRoleRoute: ApplyRoleRoute,
+  BlogSlugRoute: BlogSlugRoute,
   DashboardRoleRoute: DashboardRoleRoute,
   DemoSlugRoute: DemoSlugRoute,
   PaymentFailRoute: PaymentFailRoute,
   PaymentSuccessRoute: PaymentSuccessRoute,
   SCodeRoute: SCodeRoute,
   SitemapProductsPageDotxmlRoute: SitemapProductsPageDotxmlRoute,
+  SitemapSlotsPageDotxmlRoute: SitemapSlotsPageDotxmlRoute,
   VerifyCodeRoute: VerifyCodeRoute,
   AcademyIndexRoute: AcademyIndexRoute,
   ApplyIndexRoute: ApplyIndexRoute,
+  BlogIndexRoute: BlogIndexRoute,
   ProxyDemoRoute: ProxyDemoRoute,
   ApiAccountPurchasesRoute: ApiAccountPurchasesRoute,
   ApiActionsConfigRoute: ApiActionsConfigRoute,

@@ -13,7 +13,7 @@ import { absoluteUrl, indexable } from "@/lib/seo/site-url";
  * testing copy can never put a competing set of the same URLs into the index.
  */
 
-const PAGE_SIZE = 1000;   // matches the per-page cap in the product sitemap
+const PAGE_SIZE = 1000; // matches the per-page cap in the product sitemap
 
 function url() {
   return process.env.SUPABASE_URL?.trim() ?? "";
@@ -30,6 +30,27 @@ async function countPublished(): Promise<number> {
     const response = await fetch(
       `${url()}/rest/v1/marketplace_products?select=id&visible=eq.true` +
         `&content_status=eq.published&limit=1`,
+      { headers: { ...admin(), Prefer: "count=exact" } },
+    );
+    const range = response.headers.get("content-range") ?? "";
+    return Number(range.split("/")[1]) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * How many card slots actually have a product in them.
+ *
+ * A vacant slot keeps its URL so the grid stays whole, but it has nothing to
+ * show, so it is not advertised here. The count decides how many pages of the
+ * slot map exist, exactly as the product count does for the product map.
+ */
+async function countOccupiedSlots(): Promise<number> {
+  if (!url()) return 0;
+  try {
+    const response = await fetch(
+      `${url()}/rest/v1/marketplace_card_slots?select=id&status=eq.occupied&limit=1`,
       { headers: { ...admin(), Prefer: "count=exact" } },
     );
     const range = response.headers.get("content-range") ?? "";
@@ -56,17 +77,30 @@ export const Route = createFileRoute("/sitemap.xml")({
           );
         }
 
-        const total = await countPublished();
+        const [total, slots] = await Promise.all([countPublished(), countOccupiedSlots()]);
         const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        const slotPages = Math.ceil(slots / PAGE_SIZE);
         const today = new Date().toISOString().slice(0, 10);
 
         const entries = [
           `<sitemap><loc>${absoluteUrl("/sitemap-pages.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
           `<sitemap><loc>${absoluteUrl("/sitemap-categories.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
           `<sitemap><loc>${absoluteUrl("/sitemap-countries.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
-          ...Array.from({ length: pages }, (_, i) =>
-            `<sitemap><loc>${absoluteUrl(`/sitemap-products/${i + 1}.xml`)}</loc>` +
-            `<lastmod>${today}</lastmod></sitemap>`,
+          `<sitemap><loc>${absoluteUrl("/sitemap-blog.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
+          // The card slots: the canonical address of every category-and-country
+          // card. Nothing appears until a slot has a product in it, so this is
+          // empty rather than misleading on a fresh database.
+          ...Array.from(
+            { length: slotPages },
+            (_, i) =>
+              `<sitemap><loc>${absoluteUrl(`/sitemap-slots/${i + 1}.xml`)}</loc>` +
+              `<lastmod>${today}</lastmod></sitemap>`,
+          ),
+          ...Array.from(
+            { length: pages },
+            (_, i) =>
+              `<sitemap><loc>${absoluteUrl(`/sitemap-products/${i + 1}.xml`)}</loc>` +
+              `<lastmod>${today}</lastmod></sitemap>`,
           ),
         ];
 
