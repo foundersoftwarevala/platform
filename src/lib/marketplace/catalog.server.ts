@@ -348,6 +348,8 @@ export async function readCountryRow(
   cards: CatalogCard[];
   total: number;
   countries: number;
+  /** Countries in the rail that this category has no published product for. */
+  missing: string[];
 } | null> {
   const categoryResponse = await fetch(
     `${url()}/rest/v1/marketplace_categories?select=id,name,slug` +
@@ -394,10 +396,15 @@ export async function readCountryRow(
     if (card) placed.push(card);
   }
 
+  // Which countries this row cannot show. A card is never invented to fill a
+  // gap; the gap is reported so it can be filled with a real product.
+  const missing = RAIL_COUNTRIES.filter((c) => !takenByCountry.has(c.marker)).map((c) => c.marker);
+
   return {
     category: { name: String(category.name ?? ""), slug: String(category.slug ?? "") },
     cards: [...placed, ...unplaced].slice(0, limit),
     total,
     countries: placed.length,
+    missing,
   };
 }
