@@ -125,7 +125,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
       : [];
     const byId = new Map(products.map((product) => [product.id, product]));
 
-    const work = slots.map((slot) => {
+    const work: Work[] = slots.map((slot) => {
       const tenant = slot.current_product_id ? byId.get(slot.current_product_id) : undefined;
       return {
         url: slot.slot_url,
@@ -166,7 +166,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
       `marketplace_products?select=id,slug,name,visible,content_status,search_keywords,` +
         `marketplace_categories(name)&order=id.asc&limit=${limit}&offset=${offset}`,
     );
-    const work = products
+    const work: Work[] = products
       .filter((product) => product.slug)
       .map((product) => {
         const marker = (product.search_keywords ?? []).find((k) => k.startsWith("country:"));
@@ -203,7 +203,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
     const categories = await rows<{ id: string; slug: string; name: string; is_hidden: boolean }>(
       `marketplace_categories?select=id,slug,name,is_hidden&order=sort_order.asc&limit=${limit}&offset=${offset}`,
     );
-    const work = categories.map((category) => ({
+    const work: Work[] = categories.map((category) => ({
       url: `/marketplace/category/${category.slug}`,
       facts: {
         url: `/marketplace/category/${category.slug}`,
@@ -260,7 +260,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
     }>(
       `seo_content_items?select=id,url,title,status,body&order=created_at.desc&limit=${limit}&offset=${offset}`,
     );
-    const work = posts
+    const work: Work[] = posts
       .filter((post) => post.url)
       .map((post) => ({
         url: String(post.url),
