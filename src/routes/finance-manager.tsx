@@ -17,7 +17,7 @@ import { FinanceManager } from "@/components/finance/FinanceManager";
 function view(): string {
   if (typeof window === "undefined") return "billing";
   const asked = new URLSearchParams(window.location.search).get("view") ?? "";
-  return ["billing", "memberships", "wallet", "audit"].includes(asked) ? asked : "billing";
+  return ["billing", "memberships", "wallet", "audit", "ledger"].includes(asked) ? asked : "billing";
 }
 
 export const Route = createFileRoute("/finance-manager")({
