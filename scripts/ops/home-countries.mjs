@@ -20,7 +20,10 @@ const ops = readEnv(".env.ops");
 const h = { apikey: ops.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${ops.SUPABASE_SERVICE_ROLE_KEY}` };
 
 // The owner's published order, first geographic batch.
-const ORDER = ["USA","UAE","Canada","UK","Australia","Saudi Arabia","Kenya","Nigeria","South Africa","Malaysia","Nepal","Bangladesh","Philippines","Tanzania","Ghana","Uganda","Zambia","Zimbabwe","Rwanda","Botswana","Mauritius","Singapore","New Zealand","Thailand","Vietnam","Indonesia","Cambodia","Sri Lanka","Qatar","Kuwait","Oman","Bahrain","Italy","Germany","France","Netherlands","Ireland","Portugal","Spain","Japan","South Korea","Israel","Jordan","Egypt","Morocco","Mozambique","Angola","Namibia","Cameroon","Côte d’Ivoire","Senegal","Ethiopia","Guyana","Trinidad & Tobago","Fiji","Brunei","Georgia","Cyprus","Türkiye","Kazakhstan"];
+const ORDER = ["USA","UAE","Canada","UK","Australia","Saudi Arabia","Kenya","Nigeria","South Africa","Malaysia","Nepal","Bangladesh","Philippines","Tanzania","Ghana","Uganda","Zambia","Zimbabwe","Rwanda","Botswana","Mauritius","Singapore","New Zealand","Thailand","Vietnam","Indonesia","Cambodia","Sri Lanka","Qatar","Kuwait","Oman","Bahrain","Italy","Germany","France","Netherlands","Ireland","Portugal","Spain","Japan","South Korea","Israel","Jordan","Egypt","Morocco","Mozambique","Angola","Namibia","Cameroon","Côte d’Ivoire","Senegal","Ethiopia","Guyana","Trinidad & Tobago","Fiji","Brunei","Georgia","Cyprus","Türkiye","Kazakhstan",
+  // The owner's approved second batch, appended so the first sixty keep their
+  // places: the fifth card must stay the fifth country it has always been.
+  "Switzerland","Sweden","Norway","Denmark","Finland","Belgium","Austria","Poland","Czechia","Romania","Hungary","Greece","Luxembourg","Estonia","Lithuania","Latvia","Serbia","Croatia","Slovenia","Taiwan"];
 
 // What the catalogue actually marks products with.
 const markers = new Set();
