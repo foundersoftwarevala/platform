@@ -106,7 +106,15 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
 
     const override = data.override ?? null;
 
-    const defaultTitle = data.country
+    // The country is appended only where the name does not already say it.
+    // The geographic batch names a card after its country - "Healthcare
+    // Software — Taiwan" - and appending again read "Taiwan — Taiwan", which
+    // is a duplicate title on the page and in the search result. Every name
+    // that does not carry its country is unaffected.
+    const namesItsCountry = Boolean(
+      data.country && data.name.toLowerCase().includes(data.country.toLowerCase()),
+    );
+    const defaultTitle = data.country && !namesItsCountry
       ? `${data.name} — ${data.country} | Software Vala`
       : `${data.name} | Software Vala`;
     const defaultDescription =
