@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useLoaderData } from "@tanstack/react-router";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { ArrowLeft, ExternalLink, Globe2, Layers, MapPin, Package } from "lucide-react";
 
 import { absoluteUrl, siteUrl } from "@/lib/seo/site-url";
@@ -173,13 +174,14 @@ export const Route = createFileRoute("/marketplace/$category/$country")({
 
 function SlotPage() {
   const { slot } = useLoaderData({ from: "/marketplace/$category/$country" });
+  const { t } = useTranslation();
 
   if (!slot) {
     return (
       <div className="min-h-screen bg-slate-950 px-6 py-20 text-center text-white">
-        <p className="text-sm text-white/70">There is no card at that address.</p>
+        <p className="text-sm text-white/70">{t("marketplace.slot.not_found")}</p>
         <Link to="/marketplace" className="mt-4 inline-block text-sm font-semibold text-cyan-300">
-          Back to the marketplace
+          {t("marketplace.slot.back")}
         </Link>
       </div>
     );
@@ -192,12 +194,12 @@ function SlotPage() {
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="border-b border-white/10 px-6 py-4">
         <nav
-          aria-label="Breadcrumb"
+          aria-label={t("marketplace.slot.breadcrumb")}
           className="flex flex-wrap items-center gap-2 text-sm text-white/60"
         >
           <Link to="/marketplace" className="inline-flex items-center gap-2 hover:text-white">
             <ArrowLeft className="h-4 w-4" />
-            Marketplace
+            {t("marketplace.slot.marketplace")}
           </Link>
           <span aria-hidden="true">/</span>
           <Link
@@ -231,7 +233,10 @@ function SlotPage() {
           </span>
           <span className="inline-flex items-center gap-1.5">
             <Globe2 className="h-3.5 w-3.5" />
-            Card {slot.slotNo} of {slot.countries.length}
+            {t("marketplace.slot.card_position", {
+              position: slot.slotNo,
+              total: slot.countries.length,
+            })}
           </span>
         </p>
         <h1 className="mt-3 text-3xl font-black sm:text-4xl">{slot.h1}</h1>
@@ -241,7 +246,7 @@ function SlotPage() {
       {/* ------------------------------------------------------- the tenant */}
       <section className="px-6 pb-10">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-white/50">
-          {slot.h2s[2] ?? "Features and Modules"}
+          {slot.h2s[2] ?? t("marketplace.slot.features_heading")}
         </h2>
 
         {product ? (
@@ -280,26 +285,28 @@ function SlotPage() {
             <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-white/10 pt-5 text-xs sm:grid-cols-4">
               {product.platform && (
                 <div>
-                  <dt className="text-white/45">Deployment</dt>
+                  <dt className="text-white/45">{t("marketplace.slot.deployment")}</dt>
                   <dd className="mt-0.5 font-semibold text-white/80">{product.platform}</dd>
                 </div>
               )}
               {product.license && (
                 <div>
-                  <dt className="text-white/45">Licence</dt>
+                  <dt className="text-white/45">{t("marketplace.slot.licence")}</dt>
                   <dd className="mt-0.5 font-semibold text-white/80">{product.license}</dd>
                 </div>
               )}
               {product.subcategory && (
                 <div>
-                  <dt className="text-white/45">Type</dt>
+                  <dt className="text-white/45">{t("marketplace.slot.type")}</dt>
                   <dd className="mt-0.5 font-semibold text-white/80">{product.subcategory}</dd>
                 </div>
               )}
               <div>
-                <dt className="text-white/45">Live demo</dt>
+                <dt className="text-white/45">{t("marketplace.slot.live_demo")}</dt>
                 <dd className="mt-0.5 font-semibold text-white/80">
-                  {product.hasDemo ? "Available" : "On request"}
+                  {product.hasDemo
+                    ? t("marketplace.slot.demo_available")
+                    : t("marketplace.slot.demo_on_request")}
                 </dd>
               </div>
             </dl>
@@ -309,8 +316,8 @@ function SlotPage() {
                 that the catalogue does not hold. */}
             <p className="mt-4 text-[11px] text-white/45">
               {product.tech.length
-                ? `Technology: ${product.tech.join(", ")}.`
-                : "Technology is product-dependent and must be verified from the actual implementation."}
+                ? t("marketplace.slot.technology_listed", { stack: product.tech.join(", ") })
+                : t("marketplace.slot.technology_unknown")}
             </p>
 
             <Link
@@ -318,7 +325,7 @@ function SlotPage() {
               params={{ slug: product.slug }}
               className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-500/90 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-400"
             >
-              Open {product.name}
+              {t("marketplace.slot.open_product", { product: product.name })}
               <ExternalLink className="h-4 w-4" />
             </Link>
           </article>
@@ -326,19 +333,20 @@ function SlotPage() {
           <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-6">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-white/80">
               <Package className="h-4 w-4 text-white/40" />
-              This card is open
+              {t("marketplace.slot.vacant_title")}
             </p>
             <p className="mt-2 max-w-xl text-sm text-white/60">
-              No {slot.categoryName.toLowerCase()} product is published for {slot.country} yet. The
-              card keeps its place in the row, and the next product accepted for this category and
-              country takes it.
+              {t("marketplace.slot.vacant_body", {
+                category: slot.categoryName.toLowerCase(),
+                country: slot.country,
+              })}
             </p>
             <Link
               to="/marketplace/category/$slug"
               params={{ slug: slot.categorySlug }}
               className="mt-4 inline-block text-sm font-semibold text-cyan-300"
             >
-              See every {slot.categoryName} product
+              {t("marketplace.slot.see_all_category", { category: slot.categoryName })}
             </Link>
           </div>
         )}
@@ -347,11 +355,13 @@ function SlotPage() {
       {/* ------------------------------ the same card, in every other country */}
       <section className="border-t border-white/10 px-6 py-10">
         <h2 className="text-sm font-bold uppercase tracking-wider text-white/50">
-          {slot.categoryName} in other countries
+          {t("marketplace.slot.other_countries", { category: slot.categoryName })}
         </h2>
         <p className="mt-2 text-xs text-white/45">
-          The same card exists in {slot.countries.length} countries, {occupiedCountries} of them
-          filled.
+          {t("marketplace.slot.countries_filled", {
+            total: slot.countries.length,
+            filled: occupiedCountries,
+          })}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           {slot.countries.map((sibling) => (
@@ -374,7 +384,7 @@ function SlotPage() {
       {/* ------------------------------ every other card, in the same country */}
       <section className="border-t border-white/10 px-6 py-10">
         <h2 className="text-sm font-bold uppercase tracking-wider text-white/50">
-          Other software for {slot.country}
+          {t("marketplace.slot.other_software", { country: slot.country })}
         </h2>
         <div className="mt-4 flex flex-wrap gap-2">
           {slot.categories.map((sibling) => (
@@ -393,14 +403,14 @@ function SlotPage() {
           params={{ country: slot.countrySlug }}
           className="mt-5 inline-block text-sm font-semibold text-cyan-300"
         >
-          Everything the catalogue holds for {slot.country}
+          {t("marketplace.slot.everything_for", { country: slot.country })}
         </Link>
       </section>
 
       {slot.faqs.length > 0 && (
         <section className="border-t border-white/10 px-6 py-10">
           <h2 className="text-sm font-bold uppercase tracking-wider text-white/50">
-            {slot.h2s[7] ?? "Frequently Asked Questions"}
+            {slot.h2s[7] ?? t("marketplace.slot.faq_heading")}
           </h2>
           <dl className="mt-4 max-w-3xl space-y-5">
             {slot.faqs.map((faq) => (

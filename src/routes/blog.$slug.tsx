@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useLoaderData } from "@tanstack/react-router";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { ArrowLeft } from "lucide-react";
 
 import { absoluteUrl } from "@/lib/seo/site-url";
@@ -83,13 +84,14 @@ export const Route = createFileRoute("/blog/$slug")({
 
 function BlogPostPage() {
   const { post } = useLoaderData({ from: "/blog/$slug" });
+  const { t } = useTranslation();
 
   if (!post) {
     return (
       <div className="min-h-screen bg-slate-950 px-6 py-20 text-center text-white">
-        <p className="text-sm text-white/70">That article is not available.</p>
+        <p className="text-sm text-white/70">{t("blog.not_available")}</p>
         <Link to="/blog" className="mt-4 inline-block text-sm font-semibold text-cyan-300">
-          Back to the blog
+          {t("blog.back_to_index")}
         </Link>
       </div>
     );
@@ -105,7 +107,7 @@ function BlogPostPage() {
           className="inline-flex items-center gap-2 text-sm text-white/60 hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" />
-          Blog
+          {t("blog.title")}
         </Link>
       </div>
 

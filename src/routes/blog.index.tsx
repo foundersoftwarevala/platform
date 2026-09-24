@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useLoaderData } from "@tanstack/react-router";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { ArrowLeft, FileText } from "lucide-react";
 
 import { absoluteUrl } from "@/lib/seo/site-url";
@@ -57,6 +58,7 @@ export const Route = createFileRoute("/blog/")({
 
 function BlogIndexPage() {
   const data = useLoaderData({ from: "/blog/" });
+  const { t } = useTranslation();
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -66,15 +68,13 @@ function BlogIndexPage() {
           className="inline-flex items-center gap-2 text-sm text-white/60 hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Software Vala
+          {t("blog.back_to_site")}
         </Link>
       </div>
 
       <header className="px-6 py-10">
-        <h1 className="text-3xl font-black sm:text-4xl">Blog</h1>
-        <p className="mt-3 max-w-2xl text-sm text-white/70">
-          Guides on choosing, buying and running business software.
-        </p>
+        <h1 className="text-3xl font-black sm:text-4xl">{t("blog.title")}</h1>
+        <p className="mt-3 max-w-2xl text-sm text-white/70">{t("blog.tagline")}</p>
       </header>
 
       <section className="px-6 pb-16">
@@ -82,12 +82,9 @@ function BlogIndexPage() {
           <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-6">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-white/80">
               <FileText className="h-4 w-4 text-white/40" />
-              Nothing to read here yet
+              {t("blog.empty_title")}
             </p>
-            <p className="mt-2 max-w-xl text-sm text-white/60">
-              Articles are written and published from the SEO Manager. As soon as one has its text
-              saved, it appears here.
-            </p>
+            <p className="mt-2 max-w-xl text-sm text-white/60">{t("blog.empty_body")}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

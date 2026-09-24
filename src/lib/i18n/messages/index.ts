@@ -28,6 +28,7 @@
 import { ACCOUNT_MESSAGES } from "./account";
 import { APPLY_MESSAGES } from "./apply";
 import { AUTH_MESSAGES } from "./auth";
+import { BLOG_MESSAGES } from "./blog";
 import { CHAT_MESSAGES } from "./chat";
 import { CHECKOUT_MESSAGES } from "./checkout";
 import { COMMON_MESSAGES } from "./common";
@@ -45,6 +46,7 @@ export const MODULES = {
   account: ACCOUNT_MESSAGES,
   apply: APPLY_MESSAGES,
   auth: AUTH_MESSAGES,
+  blog: BLOG_MESSAGES,
   chat: CHAT_MESSAGES,
   checkout: CHECKOUT_MESSAGES,
   common: COMMON_MESSAGES,
