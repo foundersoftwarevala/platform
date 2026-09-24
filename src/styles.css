@@ -723,3 +723,36 @@
      no room to spare vertically, so it keeps its ordinary size. */
   :root { zoom: 1; }
 }
+
+/* --------------------------------------------------------------------------
+   The home page's shelves use the width a large screen actually has
+   --------------------------------------------------------------------------
+
+   Scaling everything up makes a big screen readable, but the storefront's
+   containers still stop at 1280px, so a 3840px monitor was still showing half
+   its width as margin after the scale above. On a marketplace that width is
+   worth having: it is more of the shelf visible at once, not a bigger picture
+   of less.
+
+   So on very wide screens the home page's containers are allowed to grow. The
+   cap is raised, never removed, and only above widths no laptop reaches, so
+   every screen below this is exactly as it was. Nothing inside the container
+   changes: the same cards, the same rails, the same spacing - there is simply
+   more room for them.
+
+   Scoped to the home page's own wrapper rather than to every max-w-7xl in the
+   project, because the same class caps the vendor manager, and a manager is
+   not a shelf.
+   ------------------------------------------------------------------------ */
+
+@media (min-width: 2300px) {
+  .mpc-home .max-w-7xl { max-width: 1536px; }
+}
+
+@media (min-width: 2800px) {
+  .mpc-home .max-w-7xl { max-width: 1728px; }
+}
+
+@media (min-width: 3400px) {
+  .mpc-home .max-w-7xl { max-width: 1920px; }
+}
