@@ -339,3 +339,123 @@ export async function upsertFingerprints(rows: FingerprintRow[]): Promise<void> 
     );
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * The manager screens.
+ *
+ * The Marketplace Manager reads every table it exposes through one generic
+ * handler that builds a PostgREST query. Two of the tables it exposes are the
+ * two that moved, so once they are no longer in Supabase that handler would
+ * find nothing and the "Indexing decisions" and "Fingerprints" screens would go
+ * blank - a working screen broken by a storage change it has nothing to do
+ * with. What follows is the same query, in SQL.
+ * ------------------------------------------------------------------ */
+
+/** The tables this module is responsible for. */
+export const SEO_STORE_TABLES: ReadonlySet<string> = new Set([
+  "seo_fingerprints",
+  "seo_indexing_decisions",
+]);
+
+/** Whether a manager resource should be read from here rather than PostgREST. */
+export function storeOwns(table: string): boolean {
+  return seoStoreBackend() === "vps" && SEO_STORE_TABLES.has(table);
+}
+
+export type ResourceQuery = {
+  table: string;
+  select: string[];
+  /** "column.asc" or "column.desc", as the resource definition writes it. */
+  order: string;
+  limit: number;
+  offset: number;
+  filters: { column: string; operator: string; value: string }[];
+  search: string;
+  searchable: string[];
+};
+
+const SAFE_NAME = /^[a-z_][a-z0-9_]*$/;
+const SQL_OPERATOR: Record<string, string> = {
+  eq: "=",
+  neq: "<>",
+  gt: ">",
+  gte: ">=",
+  lt: "<",
+  lte: "<=",
+  like: "like",
+  ilike: "ilike",
+};
+
+function identifier(name: string): string {
+  if (!SAFE_NAME.test(name)) throw new Error(`refusing to build SQL for "${name}"`);
+  return name;
+}
+
+/**
+ * One page of a manager resource, and the total the pager needs.
+ *
+ * The caller has already checked every column against the resource's own
+ * whitelist and every operator against its fixed list; each is checked again
+ * here, because a function that writes SQL should not trust that someone else
+ * did it. Values are never interpolated - they are bound parameters - so the
+ * only thing that reaches the statement as text is a name that matched
+ * /^[a-z_][a-z0-9_]*$/.
+ */
+export async function readResourceRows(
+  query: ResourceQuery,
+): Promise<{ rows: Record<string, unknown>[]; total: number }> {
+  const sql = await vps();
+  const table = identifier(query.table);
+  const columns = query.select.map(identifier).join(", ");
+
+  const where: string[] = [];
+  const params: unknown[] = [];
+
+  for (const filter of query.filters) {
+    const column = identifier(filter.column);
+    if (filter.operator === "is") {
+      // PostgREST spells these is.null, is.true and is.false; anything else is
+      // dropped rather than guessed at.
+      const word = filter.value.toLowerCase();
+      if (word === "null") where.push(`${column} is null`);
+      else if (word === "true") where.push(`${column} is true`);
+      else if (word === "false") where.push(`${column} is false`);
+      continue;
+    }
+    const operator = SQL_OPERATOR[filter.operator];
+    if (!operator) continue;
+    params.push(filter.value);
+    where.push(`${column}::text ${operator} $${params.length}`);
+  }
+
+  // The wildcards a LIKE pattern would read as instructions are removed rather
+  // than escaped, so a search for "50%" looks for "50", not for everything.
+  const term = query.search.replace(/[(),*%_\\]/g, " ").trim();
+  if (term && query.searchable.length) {
+    params.push(`%${term}%`);
+    const at = params.length;
+    const any = query.searchable.map((c) => `${identifier(c)}::text ilike $${at}`).join(" or ");
+    where.push(`(${any})`);
+  }
+
+  const clause = where.length ? `where ${where.join(" and ")}` : "";
+
+  const [column, direction] = query.order.split(".");
+  const by = identifier(column ?? "id");
+  const dir = direction === "desc" ? "desc" : "asc";
+
+  const rows = (await sql.unsafe(
+    `select ${columns} from public.${table} ${clause}
+      order by ${by} ${dir} nulls last
+      limit ${Math.min(Math.max(Math.trunc(query.limit) || 50, 1), 200)}
+      offset ${Math.max(Math.trunc(query.offset) || 0, 0)}`,
+    params as never[],
+  )) as unknown as Record<string, unknown>[];
+
+  const counted = (await sql.unsafe(
+    `select count(*)::text as n from public.${table} ${clause}`,
+    params as never[],
+  )) as unknown as { n: string }[];
+
+  return { rows: [...rows], total: Number(counted[0]?.n ?? 0) || 0 };
+}

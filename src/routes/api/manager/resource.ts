@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { readResourceRows, storeOwns } from "@/lib/seo/seo-store.server";
 
 /**
  * The Marketplace Manager's window onto the real marketplace.
@@ -3455,6 +3456,10 @@ export const Route = createFileRoute("/api/manager/resource")({
         // else is dropped rather than passed through to the database.
         const OPERATORS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is"]);
         const filters: string[] = [];
+        // The same filters, kept as their parts as well as as a query string.
+        // Two of the tables this handler exposes no longer live in Supabase, and
+        // for those the clause has to be built as SQL instead of as PostgREST.
+        const parsedFilters: { column: string; operator: string; value: string }[] = [];
         for (const raw of params.getAll("filter")) {
           const [asked, operator, ...rest] = String(raw).split(".");
           const value = rest.join(".");
@@ -3463,6 +3468,7 @@ export const Route = createFileRoute("/api/manager/resource")({
           if (!OPERATORS.has(operator)) continue;
           if (!value || value.length > 200) continue;
           filters.push(`${column}=${operator}.${encodeURIComponent(value)}`);
+          parsedFilters.push({ column, operator, value });
         }
 
         let query =
@@ -3476,18 +3482,41 @@ export const Route = createFileRoute("/api/manager/resource")({
         }
 
         try {
-          const response = await fetch(`${url()}/rest/v1/${query}`, {
-            headers: { ...admin(), Prefer: "count=exact" },
-          });
-          if (!response.ok) {
-            console.error("[manager] read failed", resource.table, response.status);
-            return Response.json({ error: `Could not read ${resource.label}` }, { status: 502 });
+          let returned: Record<string, unknown>[];
+          let total: number;
+
+          if (storeOwns(resource.table)) {
+            // The SEO gate's two tables answer from our own PostgreSQL. Same
+            // columns, same order, same filters, same page - read from the
+            // database they are now in, so this screen keeps working.
+            const page = await readResourceRows({
+              table: resource.table,
+              select: resource.select,
+              order,
+              limit,
+              offset,
+              filters: parsedFilters,
+              search,
+              searchable: resource.searchable,
+            });
+            returned = page.rows;
+            total = page.total;
+          } else {
+            const response = await fetch(`${url()}/rest/v1/${query}`, {
+              headers: { ...admin(), Prefer: "count=exact" },
+            });
+            if (!response.ok) {
+              console.error("[manager] read failed", resource.table, response.status);
+              return Response.json({ error: `Could not read ${resource.label}` }, { status: 502 });
+            }
+            returned = (await response.json()) as Record<string, unknown>[];
+            const range = response.headers.get("content-range") ?? "";
+            total = Number(range.split("/")[1]) || 0;
           }
-          const returned = (await response.json()) as Record<string, unknown>[];
+
           // Handed back under the names the screen renders, not the table's.
           const rows = returned.map((row) => toScreen(resource, row));
           const named = (list: string[]) => list.map((c) => outward(resource, c));
-          const range = response.headers.get("content-range") ?? "";
           return Response.json({
             resource: name,
             label: resource.label,
@@ -3506,7 +3535,7 @@ export const Route = createFileRoute("/api/manager/resource")({
             required: named(resource.required ?? []),
             retirable: Boolean(resource.archive),
             rows,
-            total: Number(range.split("/")[1]) || (rows as unknown[]).length,
+            total: total || (rows as unknown[]).length,
             limit,
             offset,
           });
