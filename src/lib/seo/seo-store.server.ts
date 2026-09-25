@@ -110,10 +110,14 @@ async function vps(): Promise<Sql> {
  * plain unquoted lower-case column name first and the statement is refused
  * otherwise. The row data is never interpolated: it is the one bound parameter.
  *
- * The rows are handed over as an array, not as a JSON string. postgres.js
- * encodes whatever it is given for a json parameter, so a string that is
- * already JSON arrives double-encoded and PostgreSQL rejects it with "cannot
- * call json_populate_recordset on a scalar". That was found by running it.
+ * The parameter is cast text-first, `$1::text::json`, and that is deliberate.
+ * postgres.js looks at the cast to decide a parameter's type: with `$1::json`
+ * it encodes the value as JSON itself, so a string that is already JSON
+ * arrives double-encoded and PostgreSQL refuses it - "cannot call
+ * json_populate_recordset on a scalar". Casting through text tells the driver
+ * to send the string as a string, and PostgreSQL parses it. Passing the array
+ * itself also works at runtime, but the driver's own types reject it, so this
+ * is the form that both runs and typechecks.
  */
 function upsertStatement(table: string, columns: string[], conflict: string[]): string {
   const safe = /^[a-z_][a-z0-9_]*$/;
@@ -248,7 +252,7 @@ export async function upsertDecisions(rows: DecisionRow[]): Promise<void> {
     const sql = await vps();
     await sql.unsafe(
       upsertStatement("public.seo_indexing_decisions", Object.keys(rows[0]!), ["url"]),
-      [rows],
+      [JSON.stringify(rows)],
     );
     return;
   }
@@ -271,7 +275,7 @@ export async function upsertFingerprints(rows: FingerprintRow[]): Promise<void> 
     const sql = await vps();
     await sql.unsafe(
       upsertStatement("public.seo_fingerprints", Object.keys(rows[0]!), ["url", "layer"]),
-      [rows],
+      [JSON.stringify(rows)],
     );
     return;
   }
