@@ -43,7 +43,10 @@ export type IntakeResult = {
 };
 
 async function rest(base: string, headers: Headers, path: string, init?: RequestInit) {
-  return fetch(`${base}/rest/v1/${path}`, { ...init, headers: { ...headers, ...(init?.headers ?? {}) } });
+  return fetch(`${base}/rest/v1/${path}`, {
+    ...init,
+    headers: { ...headers, ...(init?.headers ?? {}) },
+  });
 }
 
 async function rows<T>(base: string, headers: Headers, path: string): Promise<T[]> {
@@ -63,9 +66,13 @@ async function rows<T>(base: string, headers: Headers, path: string): Promise<T[
  * evidence that produced it so an operator can see why the number is what it
  * is. Nothing here guesses at information the lead did not give.
  */
-function scoreLead(lead: {
-  email?: string | null; phone?: string | null; company?: string | null;
-  cta_action?: string | null; product_id?: string | null; country?: string | null;
+export function scoreLead(lead: {
+  email?: string | null;
+  phone?: string | null;
+  company?: string | null;
+  cta_action?: string | null;
+  product_id?: string | null;
+  country?: string | null;
   requirements?: string | null;
 }): {
   score: number;
@@ -83,25 +90,42 @@ function scoreLead(lead: {
   coverage: number;
 } {
   const factors: { factor: string; weight: number; evidence: string }[] = [];
-  const add = (factor: string, weight: number, evidence: string) => factors.push({ factor, weight, evidence });
+  const add = (factor: string, weight: number, evidence: string) =>
+    factors.push({ factor, weight, evidence });
 
   // Intent, from the button they actually pressed.
   const cta = String(lead.cta_action ?? "");
-  if (cta === "request_demo") add("demo_request", 25, "Asked for a demo, which is the highest-intent CTA on a product page.");
-  else if (cta === "contact_sales" || cta === "enterprise") add("sales_contact", 30, "Asked to speak to sales.");
+  if (cta === "request_demo")
+    add("demo_request", 25, "Asked for a demo, which is the highest-intent CTA on a product page.");
+  else if (cta === "contact_sales" || cta === "enterprise")
+    add("sales_contact", 30, "Asked to speak to sales.");
   else if (cta === "callback") add("callback_request", 20, "Asked to be called back.");
   else if (cta === "whatsapp") add("whatsapp", 15, "Came through WhatsApp.");
-  else if (cta === "brochure") add("brochure", 8, "Downloaded a brochure, which is research rather than intent.");
+  else if (cta === "brochure")
+    add("brochure", 8, "Downloaded a brochure, which is research rather than intent.");
   else add("enquiry", 5, `General enquiry (${cta || "unspecified"}).`);
 
-  if (lead.product_id) add("product_identified", 15, "The enquiry is about a specific product in the catalogue.");
-  if (lead.phone && String(lead.phone).trim().length >= 7) add("phone_given", 12, "Gave a phone number, so they can be reached directly.");
+  if (lead.product_id)
+    add("product_identified", 15, "The enquiry is about a specific product in the catalogue.");
+  if (lead.phone && String(lead.phone).trim().length >= 7)
+    add("phone_given", 12, "Gave a phone number, so they can be reached directly.");
   if (lead.company && String(lead.company).trim()) add("company_given", 10, "Named a company.");
   const requirements = String(lead.requirements ?? "").trim();
-  if (requirements.length > 120) add("detailed_requirement", 10, `Wrote ${requirements.length} characters about what they need.`);
+  if (requirements.length > 120)
+    add(
+      "detailed_requirement",
+      10,
+      `Wrote ${requirements.length} characters about what they need.`,
+    );
   if (lead.country) add("country_known", 3, `Country recorded as ${lead.country}.`);
 
-  const score = Math.max(0, Math.min(100, factors.reduce((t, f) => t + f.weight, 0)));
+  const score = Math.max(
+    0,
+    Math.min(
+      100,
+      factors.reduce((t, f) => t + f.weight, 0),
+    ),
+  );
   // Nothing but the CTA means there is not enough here to call it a score.
   const sufficient = factors.length > 1;
   // Seven signals are possible: the CTA, a product, a phone, a company, a
@@ -118,8 +142,13 @@ export async function runLeadIntake(
   const id = String(lead.id ?? "");
   const steps: Record<string, string> = {};
   const result: IntakeResult = {
-    duplicate_of: null, score: null, score_factors: [],
-    assigned_agent_id: null, assigned_agent_name: null, follow_up_due: null, steps,
+    duplicate_of: null,
+    score: null,
+    score_factors: [],
+    assigned_agent_id: null,
+    assigned_agent_name: null,
+    follow_up_due: null,
+    steps,
   };
   if (!id) {
     steps.all = "skipped — the lead has no id";
@@ -128,14 +157,17 @@ export async function runLeadIntake(
 
   /* ---------------------------------------------------------- deduplicate */
   try {
-    const email = String(lead.email ?? "").trim().toLowerCase();
+    const email = String(lead.email ?? "")
+      .trim()
+      .toLowerCase();
     const phone = String(lead.phone ?? "").trim();
     const clauses: string[] = [];
     if (email) clauses.push(`email.eq.${encodeURIComponent(email)}`);
     if (phone.length >= 7) clauses.push(`phone.eq.${encodeURIComponent(phone)}`);
     if (clauses.length) {
       const earlier = await rows<{ id: string; created_at: string }>(
-        base, headers,
+        base,
+        headers,
         `leads?select=id,created_at&or=(${clauses.join(",")})&id=neq.${id}&order=created_at.asc&limit=1`,
       );
       if (earlier[0]) {
@@ -159,7 +191,9 @@ export async function runLeadIntake(
 
   /* ---------------------------------------------------------------- score */
   try {
-    const { score, factors, sufficient, coverage } = scoreLead(lead as Parameters<typeof scoreLead>[0]);
+    const { score, factors, sufficient, coverage } = scoreLead(
+      lead as Parameters<typeof scoreLead>[0],
+    );
     result.score = sufficient ? score : null;
     result.score_factors = factors;
 
@@ -176,7 +210,14 @@ export async function runLeadIntake(
         confidence: coverage,
         factors: sufficient
           ? factors
-          : [...factors, { factor: "insufficient_data", weight: 0, evidence: "Only the CTA is known, which is not enough to score." }],
+          : [
+              ...factors,
+              {
+                factor: "insufficient_data",
+                weight: 0,
+                evidence: "Only the CTA is known, which is not enough to score.",
+              },
+            ],
         model_version: "lead-intake-v1",
       }),
     });
@@ -205,7 +246,9 @@ export async function runLeadIntake(
   /* ------------------------------------------------------ route and assign */
   try {
     const rules = await rows<{ rule_key: string; strategy: string; is_active: boolean }>(
-      base, headers, "lead_routing_rules?select=rule_key,strategy,is_active&is_active=eq.true&limit=5",
+      base,
+      headers,
+      "lead_routing_rules?select=rule_key,strategy,is_active&is_active=eq.true&limit=5",
     );
     const strategy = rules.find((r) => r.rule_key === "auto_assignment")?.strategy ?? null;
 
@@ -214,15 +257,19 @@ export async function runLeadIntake(
     } else {
       // Only agents who are actually available. Section 15.
       const agents = await rows<{ id: string; name: string; capacity: number; status: string }>(
-        base, headers, "lead_agents?select=id,name,capacity,status&status=eq.online&order=name.asc&limit=50",
+        base,
+        headers,
+        "lead_agents?select=id,name,capacity,status&status=eq.online&order=name.asc&limit=50",
       );
       if (agents.length === 0) {
-        steps.route = "no agent is online, so the lead is left unassigned rather than given to somebody who is not there";
+        steps.route =
+          "no agent is online, so the lead is left unassigned rather than given to somebody who is not there";
       } else {
         // Current load per agent, so round robin is least-loaded rather than
         // blind: an agent already holding the most open leads is not next.
         const open = await rows<{ assigned_agent_id: string }>(
-          base, headers,
+          base,
+          headers,
           "leads?select=assigned_agent_id&assigned_agent_id=not.is.null" +
             "&status=in.(new,contacted,follow_up,interested,negotiation)&limit=5000",
         );
@@ -252,9 +299,12 @@ export async function runLeadIntake(
             method: "POST",
             headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
             body: JSON.stringify({
-              lead_id: id, agent_id: chosen.id, previous_agent_id: null,
+              lead_id: id,
+              agent_id: chosen.id,
+              previous_agent_id: null,
               reason: `${strategy}, least loaded of ${eligible.length} available agent(s)`,
-              auto_assigned: true, assignment_score: result.score,
+              auto_assigned: true,
+              assignment_score: result.score,
             }),
           });
           result.assigned_agent_id = chosen.id;
@@ -282,7 +332,9 @@ export async function runLeadIntake(
         method: "POST",
         headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({
-          lead_id: id, agent_id: result.assigned_agent_id, scheduled_at: due,
+          lead_id: id,
+          agent_id: result.assigned_agent_id,
+          scheduled_at: due,
           follow_up_type: "first_contact",
           notes: "First contact SLA from capture. Two hours from assignment.",
           is_completed: false,

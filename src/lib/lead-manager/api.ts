@@ -28,13 +28,145 @@ function unwrap<T>(res: { data: T; error: { message: string } | null }): NonNull
   return res.data as NonNullable<T>;
 }
 
+/**
+ * Which budget band a lead falls in, and what that band is worth.
+ *
+ * This used to be written as two substring tests:
+ *
+ *   budget.includes("10L") ? 25 : budget.includes("6L") ? 18 : 10
+ *
+ * The bands actually stored are "₹10L+", "₹6L - ₹10L", "₹3L - ₹6L",
+ * "₹1L - ₹3L" and "Under ₹1L". "₹6L - ₹10L" contains "10L", so the band below
+ * the top one scored as the top one - 24 leads in the current data. "₹3L - ₹6L"
+ * contains "6L" and took the middle weight for the same reason, another 24.
+ *
+ * The three weights are unchanged, because which band is worth what is a
+ * business decision. What changed is which band each lead lands in: the top
+ * band is the one that is open-ended, the middle band is the one that runs to
+ * ten lakh, and everything below them takes the base weight. Currency symbols,
+ * spaces and case are removed first so a differently typed label still lands
+ * in the right place, and anything unrecognised - a bare number, say - takes
+ * the base weight rather than guessing.
+ */
+function budgetBandWeight(raw: string): number {
+  const band = raw.replace(/[^0-9a-z+]/gi, "").toLowerCase();
+  // The plus is what marks the open-ended top band, so it is matched literally.
+  // Written as 10l+ it would mean "ten followed by one or more L", which is
+  // true of "6l10l" as well and puts the band below the top one back on the
+  // top weight - the exact fault this function exists to remove.
+  if (/10l\+/.test(band)) return 25;
+  if (/6l10l/.test(band)) return 18;
+  return 10;
+}
+
+/**
+ * What a re-score works out, from the lead record alone.
+ *
+ * Separated from the database call so it can be checked without one. The
+ * caller stores the result; everything decided here is decided from the four
+ * fields below and nothing else.
+ */
+export function rescoreFromRecord(lead: {
+  budget_range?: string | null;
+  source?: string | null;
+  intent_score?: number | null;
+  last_contact_at?: string | null;
+  created_at?: string | null;
+}): {
+  score: number;
+  probability: number;
+  /** How many of the four inputs the lead supplied, as a percentage. */
+  coverage: number;
+  factors: { factor: string; weight: number; evidence: string }[];
+} {
+  const factors: { factor: string; weight: number; evidence: string }[] = [];
+  let known = 0;
+  const total = 4;
+
+  const budget = String(lead.budget_range ?? "");
+  if (budget) {
+    known += 1;
+    const weight = budgetBandWeight(budget);
+    factors.push({ factor: "budget", weight, evidence: `Budget recorded as ${budget}.` });
+  } else {
+    factors.push({
+      factor: "budget",
+      weight: 10,
+      evidence: "No budget recorded; scored at the base weight.",
+    });
+  }
+
+  if (lead.source) {
+    known += 1;
+    const strong = ["referral", "website", "whatsapp"].includes(lead.source);
+    factors.push({
+      factor: "source",
+      weight: strong ? 18 : 10,
+      evidence: `Came from ${lead.source}${strong ? ", which converts better than average." : "."}`,
+    });
+  } else {
+    factors.push({
+      factor: "source",
+      weight: 10,
+      evidence: "Source not recorded; scored at the base weight.",
+    });
+  }
+
+  // Engagement, from what is actually known. Nothing in the platform writes
+  // intent_score, so when it is absent it counts for nothing rather than for
+  // a number chosen here.
+  const contacted = Boolean(lead.last_contact_at);
+  if (lead.intent_score != null) {
+    known += 1;
+    factors.push({
+      factor: "engagement",
+      weight: Math.min(25, Math.round(lead.intent_score / 4) + (contacted ? 6 : 0)),
+      evidence: `Intent score ${lead.intent_score}${contacted ? ", and the lead has been contacted." : ", not yet contacted."}`,
+    });
+  } else {
+    factors.push({
+      factor: "engagement",
+      weight: contacted ? 6 : 0,
+      evidence: contacted
+        ? "No intent score recorded; counted only that the lead has been contacted."
+        : "No intent score recorded and no contact yet, so engagement adds nothing.",
+    });
+  }
+
+  if (lead.created_at) {
+    known += 1;
+    const days = Math.floor((Date.now() - new Date(lead.created_at).getTime()) / 86_400_000);
+    factors.push({
+      factor: "freshness",
+      weight: Math.max(0, 20 - days),
+      evidence: `Arrived ${days} day${days === 1 ? "" : "s"} ago.`,
+    });
+  }
+
+  const score = Math.max(
+    5,
+    Math.min(
+      99,
+      factors.reduce((t, f) => t + f.weight, 0),
+    ),
+  );
+  return {
+    score,
+    probability: Math.max(2, Math.min(97, score - 6)),
+    coverage: Math.round((known / total) * 100),
+    factors,
+  };
+}
+
 export const leadApi = {
-  async listLeads(filters: {
-    status?: string;
-    source?: string;
-    search?: string;
-    limit?: number;
-  } = {}) {
+  async listLeads(
+    filters: {
+      status?: string;
+      source?: string;
+      search?: string;
+      limit?: number;
+    } = {},
+  ) {
     let query = supabase
       .from("leads")
       .select("*")
@@ -63,6 +195,95 @@ export const leadApi = {
 
   async listSources() {
     return unwrap(await supabase.from("lead_sources").select("*").order("name"));
+  },
+
+  /**
+   * The twelve numbers the overview shows, counted by the database.
+   *
+   * They used to be worked out in the browser from listLeads(), which stops at
+   * two hundred rows. With 139 leads that gave the right answers; the moment a
+   * two-hundred-and-first arrived, every figure on the dashboard would have
+   * started shrinking - total, hot, cold, conversion rate, pipeline value - with
+   * nothing on screen to say so. A dashboard that quietly under-reports as the
+   * business grows is worse than one that fails loudly.
+   *
+   * Counts are asked for as exact counts with no rows returned, so the database
+   * does the counting and the row limit stops mattering. The two money totals
+   * need each matching row's deal_value, so those page through to the end
+   * rather than taking the first page and calling it a total.
+   */
+  async leadOverviewStats() {
+    const CLOSED = "(won,lost,spam)";
+    const sinceIso = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+    const head = () => supabase.from("leads").select("id", { count: "exact", head: true });
+    const took = (r: { count: number | null; error: { message: string } | null }) => {
+      if (r.error) throw new Error(r.error.message);
+      return r.count ?? 0;
+    };
+
+    /** Every deal_value for one set of leads, to the last page. */
+    const sumDealValue = async (closed: boolean): Promise<number> => {
+      const PAGE = 1000;
+      let from = 0;
+      let sum = 0;
+      for (;;) {
+        const q = supabase
+          .from("leads")
+          .select("deal_value")
+          .range(from, from + PAGE - 1);
+        const { data, error } = closed
+          ? await q.eq("status", "won")
+          : await q.not("status", "in", CLOSED);
+        if (error) throw new Error(error.message);
+        const rows = (data ?? []) as { deal_value: number | null }[];
+        for (const row of rows) sum += row.deal_value ?? 0;
+        if (rows.length < PAGE) return sum;
+        from += PAGE;
+      }
+    };
+
+    const [
+      total,
+      active,
+      hot,
+      cold,
+      today,
+      week,
+      month,
+      won,
+      unassigned,
+      duplicates,
+      wonValue,
+      pipelineValue,
+    ] = await Promise.all([
+      head().then(took),
+      head().not("status", "in", CLOSED).then(took),
+      head().eq("temperature", "hot").then(took),
+      head().eq("temperature", "cold").then(took),
+      head().gte("created_at", sinceIso(1)).then(took),
+      head().gte("created_at", sinceIso(7)).then(took),
+      head().gte("created_at", sinceIso(30)).then(took),
+      head().eq("status", "won").then(took),
+      head().is("assigned_agent_id", null).not("status", "in", CLOSED).then(took),
+      head().eq("is_duplicate", true).then(took),
+      sumDealValue(true),
+      sumDealValue(false),
+    ]);
+
+    return {
+      total,
+      active,
+      hot,
+      cold,
+      today,
+      week,
+      month,
+      won,
+      unassigned,
+      duplicates,
+      wonValue,
+      pipelineValue,
+    };
   },
 
   async listAlerts() {
@@ -177,9 +398,7 @@ export const leadApi = {
   },
 
   async deleteLead(id: string, name: string) {
-    if (
-      unwrap(await supabase.from("leads").delete().eq("id", id).select("id")).length === 0
-    ) {
+    if (unwrap(await supabase.from("leads").delete().eq("id", id).select("id")).length === 0) {
       throw new Error("Lead could not be deleted");
     }
     await writeAudit({
@@ -211,7 +430,10 @@ export const leadApi = {
     if (assignmentError) {
       await supabase
         .from("leads")
-        .update({ assigned_agent_id: previous.assigned_agent_id, assigned_at: previous.assigned_at })
+        .update({
+          assigned_agent_id: previous.assigned_agent_id,
+          assigned_at: previous.assigned_at,
+        })
         .eq("id", leadId);
       throw new Error(assignmentError.message);
     }
@@ -355,7 +577,11 @@ export const leadApi = {
     const row = unwrap(
       await supabase
         .from("lead_escalations")
-        .update({ is_resolved: true, resolved_at: new Date().toISOString(), resolution_notes: notes })
+        .update({
+          is_resolved: true,
+          resolved_at: new Date().toISOString(),
+          resolution_notes: notes,
+        })
         .eq("id", id)
         .select()
         .single(),
@@ -380,41 +606,45 @@ export const leadApi = {
     );
   },
 
+  /**
+   * Re-score a lead from what is on its record.
+   *
+   * This is arithmetic over four stored fields. It is not a model, and it is no
+   * longer described as one: it used to write score_type "ai_quality" with a
+   * confidence of 82 and an audit line reading "AI Re-Scored", none of which was
+   * true - there is no AI anywhere in this path, and 82 was a constant typed
+   * into the source.
+   *
+   * What replaces the invented confidence is coverage: how many of the four
+   * inputs the lead actually supplied, which is the same thing the intake
+   * scorer records and means something an operator can act on. A lead scored
+   * from one known field and three blanks now says so instead of claiming 82%
+   * certainty.
+   *
+   * The weights themselves are unchanged - they are a business decision, not
+   * mine to alter - except that a missing intent score is now treated as
+   * missing. It used to be replaced with 50, which fed a made-up number into a
+   * real score; nothing in this platform ever computes intent_score, so that
+   * substitution was inventing the very thing it was standing in for.
+   */
   async rescoreLead(leadId: string) {
     const lead = await leadApi.getLead(leadId);
-    const budgetWeight =
-      lead.budget_range?.includes("10L") ? 25 : lead.budget_range?.includes("6L") ? 18 : 10;
-    const sourceWeight = ["referral", "website", "whatsapp"].includes(lead.source) ? 18 : 10;
-    const engagementWeight = Math.min(
-      25,
-      Math.round((lead.intent_score ?? 50) / 4) + (lead.last_contact_at ? 6 : 0),
-    );
-    const freshness = Math.max(
-      0,
-      20 -
-        Math.floor(
-          (Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24),
-        ),
-    );
-    const score = Math.max(5, Math.min(99, budgetWeight + sourceWeight + engagementWeight + freshness));
-    const probability = Math.max(2, Math.min(97, score - 6));
+    const { score, probability, coverage, factors } = rescoreFromRecord(lead);
 
     await supabase.from("lead_scores").insert({
       lead_id: leadId,
-      score_type: "ai_quality",
+      // Named for what it is. The intake scorer writes "rule_based" for the same
+      // kind of arithmetic, so the two agree about what they are.
+      score_type: "rule_based",
       score,
-      confidence: 82,
-      factors: {
-        budget: budgetWeight,
-        source: sourceWeight,
-        engagement: engagementWeight,
-        freshness,
-      } as never,
+      // Not a model confidence. How much of the lead was there to score.
+      confidence: coverage,
+      factors: factors as never,
     });
     return leadApi.updateLead(
       leadId,
       { ai_score: score, conversion_probability: probability },
-      "AI Re-Scored",
+      "Re-scored from the lead record",
     );
   },
 
@@ -468,7 +698,12 @@ export const leadApi = {
 
   async toggleSource(id: string, value: boolean) {
     return unwrap(
-      await supabase.from("lead_sources").update({ is_active: value }).eq("id", id).select().single(),
+      await supabase
+        .from("lead_sources")
+        .update({ is_active: value })
+        .eq("id", id)
+        .select()
+        .single(),
     );
   },
 
@@ -558,7 +793,6 @@ export const leadApi = {
     const chosen = candidates[0];
     if (!chosen) throw new Error("No eligible agent is available");
     return leadApi.assignLead(leadId, chosen.id, `Auto-routed to ${chosen.name} (load balancing)`);
-
   },
 
   async bulkAutoAssign(leadIds: string[]) {
@@ -612,4 +846,3 @@ export const leadApi = {
     );
   },
 };
-
