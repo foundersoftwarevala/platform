@@ -90,6 +90,40 @@ async function vps(): Promise<Sql> {
   return pool;
 }
 
+/**
+ * The SQL for "insert these rows, replacing any that are already there".
+ *
+ * PostgREST spells this `on_conflict=url` and a one-line header. In SQL it is
+ * written out, and written out once, here.
+ *
+ * The rows arrive as a single JSON parameter and `json_populate_recordset`
+ * turns them into rows of the target table, which means the types come from the
+ * table definition rather than from whatever the driver guesses - a jsonb
+ * column stays jsonb, a timestamptz stays a timestamptz. Only the columns the
+ * caller actually supplied are listed, so every column it left out takes its
+ * default instead of becoming null and failing a NOT NULL check.
+ *
+ * Identifiers are interpolated, so each one is checked against the shape of a
+ * plain unquoted lower-case column name first and the statement is refused
+ * otherwise. The row data is never interpolated: it is the one bound parameter.
+ */
+function upsertStatement(table: string, columns: string[], conflict: string[]): string {
+  const safe = /^[a-z_][a-z0-9_]*$/;
+  for (const column of columns) {
+    if (!safe.test(column)) throw new Error(`refusing to build SQL for column "${column}"`);
+  }
+  const list = columns.join(", ");
+  const updates = columns
+    .filter((column) => !conflict.includes(column))
+    .map((column) => `${column} = excluded.${column}`)
+    .join(", ");
+  return (
+    `insert into ${table} (${list})\n` +
+    `select ${list} from json_populate_recordset(null::${table}, $1::json)\n` +
+    `on conflict (${conflict.join(", ")}) do update set ${updates}`
+  );
+}
+
 /* ------------------------------------------------------------------ *
  * The operations. Each one fails closed: on any error the caller is told
  * "no" rather than "yes", because this gate decides what search engines
@@ -204,14 +238,10 @@ export async function upsertDecisions(rows: DecisionRow[]): Promise<void> {
   if (!rows.length) return;
   if (seoStoreBackend() === "vps") {
     const sql = await vps();
-    const columns = Object.keys(rows[0]!);
-    await sql`
-      insert into public.seo_indexing_decisions ${sql(rows, ...columns)}
-      on conflict (url) do update set ${sql(
-        columns
-          .filter((c) => c !== "url")
-          .reduce<Record<string, unknown>>((acc, c) => ({ ...acc, [c]: sql`excluded.${sql(c)}` }), {}),
-      )}`;
+    await sql.unsafe(
+      upsertStatement("public.seo_indexing_decisions", Object.keys(rows[0]!), ["url"]),
+      [JSON.stringify(rows)],
+    );
     return;
   }
   const response = await restFetch("seo_indexing_decisions?on_conflict=url", {
@@ -229,14 +259,10 @@ export async function upsertFingerprints(rows: FingerprintRow[]): Promise<void> 
   if (!rows.length) return;
   if (seoStoreBackend() === "vps") {
     const sql = await vps();
-    const columns = Object.keys(rows[0]!);
-    await sql`
-      insert into public.seo_fingerprints ${sql(rows, ...columns)}
-      on conflict (url, layer) do update set ${sql(
-        columns
-          .filter((c) => c !== "url" && c !== "layer")
-          .reduce<Record<string, unknown>>((acc, c) => ({ ...acc, [c]: sql`excluded.${sql(c)}` }), {}),
-      )}`;
+    await sql.unsafe(
+      upsertStatement("public.seo_fingerprints", Object.keys(rows[0]!), ["url", "layer"]),
+      [JSON.stringify(rows)],
+    );
     return;
   }
   const response = await restFetch("seo_fingerprints?on_conflict=url,layer", {
