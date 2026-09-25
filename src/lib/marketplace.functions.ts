@@ -486,36 +486,100 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
         return { category: categoryData as Category, products: [] };
       }
       
-      // Education & Coaching is the public live-demo catalog. Include visible
-      // products with active demos even when older rows use a child category.
-      let catalogRows = productRows;
+      // Education & Coaching is the public live-demo catalog: it shows its own
+      // products plus any visible product that has a live demo, wherever that
+      // product happens to be filed.
+      //
+      // The way that was expressed asked for every visible product in the
+      // catalogue - 7,357 of them against this category's own 80 - and then,
+      // below, opened one demo lookup per row. The page stopped answering at
+      // all: 504 from the edge, and nothing over the loopback after two
+      // minutes.
+      //
+      // It did not fail alone. Seven thousand concurrent queries leave the
+      // application unable to answer what comes next, so a sweep of all
+      // ninety-one category pages found three 504s - this one, healthcare and
+      // legal - and the other two answer in 1.6s and 0.7s when asked on their
+      // own. That is also why a sample of twenty pages only ever found one.
+      //
+      // The set it was reaching for can be asked for directly: the products
+      // that actually have an active demo. That is one product today, so the
+      // page loads 81 rows instead of 7,357 and shows what a working version
+      // of the old code would have shown.
+      type CatalogRow = { id: string };
+      let catalogRows = productRows as unknown as CatalogRow[];
+
       if (categoryData.slug === "education-coaching") {
-        const { data: liveRows, error: liveError } = await sb
-          .from("marketplace_products")
-          .select(PRODUCT_COLS)
-          .eq("visible", true)
-          .order("sort_order");
-        if (!liveError && Array.isArray(liveRows)) catalogRows = liveRows;
+        const { data: demoRows } = await sb
+          .from("product_demo_urls")
+          .select("product_id")
+          .eq("status", "active");
+
+        const already = new Set(catalogRows.map((row) => row.id));
+        const extraIds = [
+          ...new Set(
+            ((demoRows ?? []) as { product_id: string }[])
+              .map((row) => row.product_id)
+              .filter((id) => id && !already.has(id)),
+          ),
+        ];
+
+        if (extraIds.length) {
+          const { data: liveRows, error: liveError } = await sb
+            .from("marketplace_products")
+            .select(PRODUCT_COLS)
+            .in("id", extraIds)
+            .eq("visible", true)
+            .order("sort_order");
+          if (!liveError && Array.isArray(liveRows)) {
+            catalogRows = [...catalogRows, ...(liveRows as unknown as CatalogRow[])];
+          }
+        }
       }
 
-      // Enrich products with demo URLs
-      const productsWithDemos = await Promise.all(
-        catalogRows.map(async (product: any) => {
-          const activeDemos = withoutAddress(
-            (await loadPublicDemosForProduct(sb, product.id)).filter((demo) => {
-              if (!demo.url) return false;
-              return /^https?:\/\//i.test(demo.url);
-            }),
-          );
-          
-          const mapped = mapProductRecord(product);
-          return {
-            ...mapped,
-            demo_count: activeDemos.length,
-            demo_urls: activeDemos,
-          } as PublicProduct;
-        }),
-      );
+      // Every product's demos, in one query per batch instead of one per product.
+      //
+      // The loop below used to await a separate lookup for each row inside a
+      // Promise.all, so a category of eighty products opened eighty of them at
+      // once and Education & Coaching opened seven thousand.
+      //
+      // The ids go over in the query string, so they are sent in batches rather
+      // than all at once: a category is free to grow past the largest one today
+      // without the request growing into a 414.
+      const demosByProduct = new Map<string, ProductDemoBinding[]>();
+      const ID_BATCH = 200;
+      for (let at = 0; at < catalogRows.length; at += ID_BATCH) {
+        const ids = catalogRows.slice(at, at + ID_BATCH).map((row) => row.id);
+        const { data: demoRows, error: demoError } = await sb
+          .from("product_demo_urls")
+          .select("id, demo_name, role_name, status, environment, url, product_id")
+          .in("product_id", ids)
+          .eq("status", "active")
+          .order("sort_order");
+
+        if (demoError || !Array.isArray(demoRows)) continue;
+        for (const demo of demoRows as (ProductDemoBinding & { product_id: string })[]) {
+          const list = demosByProduct.get(demo.product_id);
+          if (list) list.push(demo);
+          else demosByProduct.set(demo.product_id, [demo]);
+        }
+      }
+
+      const productsWithDemos = catalogRows.map((product) => {
+        const activeDemos = withoutAddress(
+          (demosByProduct.get(product.id) ?? []).filter((demo) => {
+            if (!demo.url) return false;
+            return /^https?:\/\//i.test(demo.url);
+          }),
+        );
+
+        const mapped = mapProductRecord(product);
+        return {
+          ...mapped,
+          demo_count: activeDemos.length,
+          demo_urls: activeDemos,
+        } as PublicProduct;
+      });
       
       return {
         category: categoryData as Category,
