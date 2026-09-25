@@ -58,7 +58,8 @@ async function readAllRest(path, base, key) {
     const res = await fetch(`${b}/rest/v1/${path}`, {
       headers: { ...head, Range: `${from}-${from + 999}` },
     });
-    if (!res.ok) throw new Error(`${path} -> HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+    if (!res.ok)
+      throw new Error(`${path} -> HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
     const page = await res.json();
     out.push(...page);
     if (page.length < 1000) return out;
@@ -154,6 +155,7 @@ export async function patchDecisions(urls, body, base, key) {
         body: JSON.stringify(body),
       },
     );
-    if (!res.ok) throw new Error(`patchDecisions -> HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+    if (!res.ok)
+      throw new Error(`patchDecisions -> HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
   }
 }

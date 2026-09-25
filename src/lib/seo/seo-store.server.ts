@@ -253,7 +253,9 @@ export async function upsertDecisions(rows: DecisionRow[]): Promise<void> {
     body: JSON.stringify(rows),
   });
   if (!response.ok) {
-    throw new Error(`upsertDecisions -> HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
+    throw new Error(
+      `upsertDecisions -> HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`,
+    );
   }
 }
 
@@ -274,6 +276,8 @@ export async function upsertFingerprints(rows: FingerprintRow[]): Promise<void> 
     body: JSON.stringify(rows),
   });
   if (!response.ok) {
-    throw new Error(`upsertFingerprints -> HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
+    throw new Error(
+      `upsertFingerprints -> HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`,
+    );
   }
 }
