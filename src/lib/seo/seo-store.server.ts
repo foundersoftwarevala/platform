@@ -82,9 +82,12 @@ async function vps(): Promise<Sql> {
     idle_timeout: 30,
     connect_timeout: 10,
     // The gate's own audit runs alongside live traffic. A statement that has
-    // taken half a minute is a statement that is hurting the site more than the
-    // answer is worth.
-    statement_timeout: 30_000,
+    // taken half a minute is hurting the site more than the answer is worth.
+    // This is a server setting, not a driver setting, so it is sent as a
+    // startup parameter rather than a top-level option.
+    // A bare number is milliseconds to PostgreSQL, which is what the driver's
+    // type wants here too.
+    connection: { statement_timeout: 30_000 },
     onnotice: () => {},
   });
   return pool;
