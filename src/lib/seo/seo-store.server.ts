@@ -33,9 +33,58 @@ export type SitemapRow = { url: string; evaluated_at: string | null };
 export type IndexVerdict = { state: string; indexable: boolean; blocking_reason: string | null };
 export type StateRow = { state: string; indexable: boolean; sitemap_eligible: boolean };
 
+/**
+ * A setting, taken from the environment, or from the deployment's own env file
+ * when the environment does not carry it.
+ *
+ * The file is the fallback because of how this application is actually run. PM2
+ * holds the environment it was first started with, and on this server PM2 has
+ * lost track of which process holds the port, so `pm2 restart` does not reach
+ * the process that is serving and a new variable never arrives. The env file
+ * beside the build is read on every boot instead, whoever did the starting.
+ *
+ * The directory is not hardcoded: `DEPLOY_REPO_DIR` is already part of this
+ * application's environment and already points at it. Without that variable
+ * there is no fallback and the environment is the only source, so nothing about
+ * a local or test process changes.
+ *
+ * Read once and remembered, so this costs one stat per process, not one per
+ * request. The environment always wins when it has a value.
+ */
+let fileSettings: Record<string, string> | null = null;
+
+function deploymentSetting(name: string): string {
+  const fromEnv = process.env[name]?.trim();
+  if (fromEnv) return fromEnv;
+
+  if (fileSettings === null) {
+    fileSettings = {};
+    const dir = process.env.DEPLOY_REPO_DIR?.trim();
+    if (dir) {
+      try {
+        // Required lazily: a browser bundle must never pull node:fs in, and
+        // this module is only ever reached from the server.
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { readFileSync } = require("node:fs") as typeof import("node:fs");
+        for (const line of readFileSync(`${dir}/.env`, "utf8").split("\n")) {
+          const at = line.indexOf("=");
+          if (at <= 0 || line.trimStart().startsWith("#")) continue;
+          fileSettings[line.slice(0, at).trim()] = line
+            .slice(at + 1)
+            .trim()
+            .replace(/^(["'])([\s\S]*)\1$/, "$2");
+        }
+      } catch {
+        // No file, or unreadable. The environment was the only source anyway.
+      }
+    }
+  }
+  return fileSettings[name]?.trim() ?? "";
+}
+
 /** Which database answers for these two tables. */
 export function seoStoreBackend(): "vps" | "supabase" {
-  return process.env.SEO_STORE?.trim().toLowerCase() === "vps" ? "vps" : "supabase";
+  return deploymentSetting("SEO_STORE").toLowerCase() === "vps" ? "vps" : "supabase";
 }
 
 /* ------------------------------------------------------------------ *
@@ -74,7 +123,7 @@ let pool: Sql | null = null;
  */
 async function vps(): Promise<Sql> {
   if (pool) return pool;
-  const url = process.env.VPS_DATABASE_URL?.trim();
+  const url = deploymentSetting("VPS_DATABASE_URL");
   if (!url) throw new Error("SEO_STORE=vps but VPS_DATABASE_URL is not set");
   const { default: postgres } = await import("postgres");
   pool = postgres(url, {

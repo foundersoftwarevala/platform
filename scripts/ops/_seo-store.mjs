@@ -16,16 +16,54 @@
  * that listens on localhost is possible at all.
  */
 
+import { readFileSync } from "node:fs";
+
 let pool = null;
+
+/**
+ * A setting, from the environment, or from the deployment's env file when the
+ * environment does not carry it - the same rule the server module follows, so
+ * an operator running a script by hand and the application itself never
+ * disagree about which database they are talking to.
+ *
+ * The directory comes from DEPLOY_REPO_DIR, which the deployment already sets;
+ * it is not hardcoded here. The environment always wins when it has a value.
+ */
+let fileSettings = null;
+
+function deploymentSetting(name) {
+  const fromEnv = (process.env[name] || "").trim();
+  if (fromEnv) return fromEnv;
+
+  if (fileSettings === null) {
+    fileSettings = {};
+    const dir = (process.env.DEPLOY_REPO_DIR || "").trim();
+    if (dir) {
+      try {
+        for (const line of readFileSync(`${dir}/.env`, "utf8").split("\n")) {
+          const at = line.indexOf("=");
+          if (at <= 0 || line.trimStart().startsWith("#")) continue;
+          fileSettings[line.slice(0, at).trim()] = line
+            .slice(at + 1)
+            .trim()
+            .replace(/^(["'])([\s\S]*)\1$/, "$2");
+        }
+      } catch {
+        // No file, or unreadable. The environment was the only source anyway.
+      }
+    }
+  }
+  return (fileSettings[name] || "").trim();
+}
 
 /** Which database answers. */
 export function backend() {
-  return (process.env.SEO_STORE || "").trim().toLowerCase() === "vps" ? "vps" : "supabase";
+  return deploymentSetting("SEO_STORE").toLowerCase() === "vps" ? "vps" : "supabase";
 }
 
 async function sql() {
   if (pool) return pool;
-  const url = (process.env.VPS_DATABASE_URL || "").trim();
+  const url = deploymentSetting("VPS_DATABASE_URL");
   if (!url) throw new Error("SEO_STORE=vps but VPS_DATABASE_URL is not set");
   const { default: postgres } = await import("postgres");
   pool = postgres(url, { max: 2, idle_timeout: 20, connect_timeout: 10, onnotice: () => {} });
