@@ -3,6 +3,11 @@
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { RAIL_COUNTRY_BY_MARKER } from "@/lib/marketplace/rail-countries";
 import {
+  allDecisionStates,
+  upsertDecisions,
+  upsertFingerprints,
+} from "@/lib/seo/seo-store.server";
+import {
   applyCrossPageFindings,
   evaluatePage,
   type Decision,
@@ -376,12 +381,13 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
       GET: async ({ request }) => {
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
-        const response = await rest(
-          "seo_indexing_decisions?select=state,indexable,sitemap_eligible&limit=20000",
-        );
-        if (!response.ok)
+        let all: { state: string; sitemap_eligible: boolean }[];
+        try {
+          all = await allDecisionStates();
+        } catch (error) {
+          console.error("[seo gate] could not read decisions", error);
           return Response.json({ error: "Could not read decisions" }, { status: 502 });
-        const all = (await response.json()) as { state: string; sitemap_eligible: boolean }[];
+        }
         const byState: Record<string, number> = {};
         for (const row of all) byState[row.state] = (byState[row.state] ?? 0) + 1;
         return Response.json({
@@ -437,15 +443,11 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
         // scripts/ops/seo-gate-run.mjs.
         const settled = applyCrossPageFindings(decisions.map((decision) => ({ decision })));
 
-        const wrote = await rest("seo_indexing_decisions?on_conflict=url", {
-          method: "POST",
-          headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-          body: JSON.stringify(settled.map(decisionRow)),
-        });
-        if (!wrote.ok) {
-          const detail = await wrote.text();
+        try {
+          await upsertDecisions(settled.map(decisionRow));
+        } catch (error) {
           return Response.json(
-            { error: "Could not record the decisions", detail: detail.slice(0, 300) },
+            { error: "Could not record the decisions", detail: String(error).slice(0, 300) },
             { status: 502 },
           );
         }
@@ -465,15 +467,11 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
           })),
         );
         if (prints.length) {
-          const wrotePrints = await rest("seo_fingerprints?on_conflict=url,layer", {
-            method: "POST",
-            headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-            body: JSON.stringify(prints),
-          });
-          if (!wrotePrints.ok) {
-            const detail = await wrotePrints.text();
+          try {
+            await upsertFingerprints(prints);
+          } catch (error) {
             return Response.json(
-              { error: "Could not record the fingerprints", detail: detail.slice(0, 300) },
+              { error: "Could not record the fingerprints", detail: String(error).slice(0, 300) },
               { status: 502 },
             );
           }

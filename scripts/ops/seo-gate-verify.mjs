@@ -11,6 +11,7 @@
  *   node scripts/ops/seo-gate-verify.mjs https://softwarevala.net
  */
 import { readFileSync } from "node:fs";
+import { close as closeSeoStore, decisionsForKinds } from "./_seo-store.mjs";
 
 function readEnv(file) {
   const out = {};
@@ -71,10 +72,7 @@ for (const child of gated) {
 console.log(`URLs advertised by the gated sitemaps: ${advertised.size}`);
 
 // ------------------------------------------------------------ the decisions
-const decisions = await readAll(
-  "seo_indexing_decisions?select=url,entity_type,state,indexable,sitemap_eligible,blocking_reason" +
-    "&entity_type=in.(slot,blog)&order=url.asc",
-);
+const decisions = await decisionsForKinds(["slot", "blog"], BASE, KEY);
 const byUrl = new Map(decisions.map((row) => [row.url, row]));
 const eligible = new Set(decisions.filter((row) => row.sitemap_eligible).map((row) => row.url));
 console.log(`decisions for those kinds : ${decisions.length}`);
@@ -134,3 +132,6 @@ if (failures.length) {
 console.log(
   "PASS — every advertised URL has a passing decision, and every passing decision is advertised.",
 );
+
+// Release the pool so a run against our own PostgreSQL exits cleanly.
+await closeSeoStore();

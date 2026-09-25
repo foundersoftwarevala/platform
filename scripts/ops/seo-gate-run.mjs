@@ -20,6 +20,13 @@
  */
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
+import {
+  allDecisions,
+  close as closeSeoStore,
+  fingerprintsByLayer,
+  passingUrls,
+  patchDecisions,
+} from "./_seo-store.mjs";
 
 const args = process.argv.slice(2);
 const only = args.includes("--kind") ? args[args.indexOf("--kind") + 1] : null;
@@ -172,8 +179,8 @@ if (!crossOnly) {
  * be done here and why it would still be affordable at eighteen thousand.
  */
 console.log("\n== duplicate pass ==");
-const masked = await readAll("seo_fingerprints?select=url,hash&layer=eq.body_masked&order=url.asc");
-const exact = await readAll("seo_fingerprints?select=url,hash&layer=eq.body&order=url.asc");
+const masked = await fingerprintsByLayer("body_masked", BASE, KEY);
+const exact = await fingerprintsByLayer("body", BASE, KEY);
 console.log(`  masked fingerprints : ${masked.length}`);
 console.log(`  body fingerprints   : ${exact.length}`);
 
@@ -218,20 +225,11 @@ for (const urls of maskedGroups.slice(0, 5)) {
  * and the reason are written only where the page would otherwise have passed.
  */
 async function patch(urls, body) {
-  for (let at = 0; at < urls.length; at += 100) {
-    const slice = urls.slice(at, at + 100);
-    const res = await fetch(
-      `${BASE}/rest/v1/seo_indexing_decisions?url=in.(${slice.map((u) => `"${u}"`).join(",")})`,
-      {
-        method: "PATCH",
-        headers: { ...HEAD, Prefer: "return=minimal" },
-        body: JSON.stringify(body),
-      },
-    );
-    if (!res.ok) {
-      console.error(`    PATCH failed: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
-      process.exit(1);
-    }
+  try {
+    await patchDecisions(urls, body, BASE, KEY);
+  } catch (error) {
+    console.error(`    PATCH failed: ${error}`);
+    process.exit(1);
   }
 }
 
@@ -240,19 +238,12 @@ async function block(urls, classification, reason) {
 
   // Which of these were still passing. Only those change state; the rest keep
   // the first thing that was wrong with them.
-  const passing = new Set();
-  for (let at = 0; at < urls.length; at += 100) {
-    const slice = urls.slice(at, at + 100);
-    const res = await fetch(
-      `${BASE}/rest/v1/seo_indexing_decisions?select=url&sitemap_eligible=is.true` +
-        `&url=in.(${slice.map((u) => `"${u}"`).join(",")})`,
-      { headers: HEAD },
-    );
-    if (!res.ok) {
-      console.error(`    read failed: HTTP ${res.status}`);
-      process.exit(1);
-    }
-    for (const row of await res.json()) passing.add(row.url);
+  let passing;
+  try {
+    passing = await passingUrls(urls, BASE, KEY);
+  } catch (error) {
+    console.error(`    read failed: ${error}`);
+    process.exit(1);
   }
 
   // The classification belongs on every page in the group: it is a fact about
@@ -295,9 +286,7 @@ if (maskedGroups.length) {
 console.log(`  pages held back by the duplicate pass: ${blocked}`);
 
 // ------------------------------------------------------------------ summary
-const decisions = await readAll(
-  "seo_indexing_decisions?select=state,entity_type,sitemap_eligible&order=url.asc",
-);
+const decisions = await allDecisions(BASE, KEY);
 const byState = {};
 const byKind = {};
 for (const row of decisions) {
@@ -431,3 +420,7 @@ for (const [name, category, status, detail, affected] of checks) {
   }
 }
 console.log(`  recorded into seo_technical_checks: ${wroteChecks}/${checks.length}`);
+
+// Close the pool so a run against our own PostgreSQL exits instead of hanging
+// on an idle connection. Harmless when the store is still Supabase.
+await closeSeoStore();
