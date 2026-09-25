@@ -37,8 +37,31 @@ export const dateTime = (iso?: string | null) =>
       })
     : "—";
 
-export const maskPhone = (phone: string, unmasked: boolean) =>
-  unmasked ? phone : phone.replace(/(\+?\d{2,3})(\d+)(\d{3})/, (_m, a, b, c) => `${a}${"•".repeat(b.length)}${c}`);
+export const maskPhone = (phone: string, unmasked: boolean) => {
+  if (unmasked) return phone;
+  // The rule here used to be one regex over an unbroken run of digits:
+  //
+  //   /(\+?\d{2,3})(\d+)(\d{3})/
+  //
+  // It masks "919876543210" and does nothing at all to "+91 98765 43210" - the
+  // space breaks every run below the six digits the pattern needs, so the match
+  // fails and `replace` hands the string straight back. Numbers are stored the
+  // way people type them, with spaces, dashes and brackets, so in practice
+  // almost nothing was ever masked.
+  //
+  // Masking now walks the digits and leaves the punctuation where it is. The
+  // country code and the last three digits stay, which is enough for an agent
+  // to recognise a number they are already talking to and not enough for
+  // anyone to dial it.
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 5) return phone.replace(/\d/g, "•");
+  const keepLead = phone.trimStart().startsWith("+") ? Math.min(3, digits.length - 4) : 0;
+  let seen = 0;
+  return phone.replace(/\d/g, (d) => {
+    const at = seen++;
+    return at < keepLead || at >= digits.length - 3 ? d : "•";
+  });
+};
 
 export const maskEmail = (email: string, unmasked: boolean) => {
   if (unmasked) return email;
@@ -414,7 +437,26 @@ export function LoadingRows({ rows = 5 }: { rows?: number }) {
   );
 }
 
-export function exportLeadsCsv(leads: Lead[], filename = "leads") {
+/**
+ * A CSV of leads, with the download itself.
+ *
+ * Masking on screen is worth very little if the Export button beside it hands
+ * over the same addresses and numbers in plain text, so the flag travels with
+ * the download.
+ */
+export function exportLeadsCsv(leads: Lead[], filename = "leads", unmasked = false) {
+  const url = URL.createObjectURL(
+    new Blob([leadsToCsv(leads, unmasked)], { type: "text/csv;charset=utf-8;" }),
+  );
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** The CSV text itself, split out so the masking above can be tested. */
+export function leadsToCsv(leads: Lead[], unmasked = false) {
   const cols = [
     "name",
     "email",
@@ -444,12 +486,15 @@ export function exportLeadsCsv(leads: Lead[], filename = "leads") {
   const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const csv = [
     cols.join(","),
-    ...leads.map((l) => cols.map((c) => escape(l[c])).join(",")),
+    ...leads.map((l) =>
+      cols
+        .map((c) => {
+          if (c === "email") return escape(maskEmail(l.email, unmasked));
+          if (c === "phone") return escape(maskPhone(l.phone, unmasked));
+          return escape(l[c]);
+        })
+        .join(","),
+    ),
   ].join("\n");
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  return csv;
 }

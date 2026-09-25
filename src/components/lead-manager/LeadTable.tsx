@@ -1,4 +1,5 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useCurrentAgent } from "@/lib/lead-manager/queries";
 import type { Agent, Lead, LeadStatus } from "@/lib/lead-manager/types";
 import {
   EmptyState,
@@ -18,7 +19,7 @@ export function LeadTable({
   agents,
   isLoading,
   onSelect,
-  unmasked = true,
+  unmasked,
   emptyTitle = "No leads match this view",
   emptyDescription,
   columns = ["source", "status", "priority", "agent", "score", "value", "created"],
@@ -27,6 +28,7 @@ export function LeadTable({
   agents: Agent[];
   isLoading?: boolean;
   onSelect: (lead: Lead) => void;
+  /** Left out on purpose by every caller: the agent's can_unmask decides. */
   unmasked?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -44,6 +46,14 @@ export function LeadTable({
     | "followup"
   )[];
 }) {
+  // Contact details were shown to everyone: the default was `unmasked = true`
+  // and no screen ever passed the prop, so the per-agent Unmask switch on the
+  // Security screen wrote a database row and changed nothing on screen. The
+  // switch decides now. Someone who is not on the agent roster at all - an
+  // owner, an admin - keeps the full view they have always had.
+  const { data: agent } = useCurrentAgent();
+  const reveal = unmasked ?? (agent ? agent.can_unmask : true);
+
   if (isLoading) return <LoadingRows rows={8} />;
   if (leads.length === 0)
     return <EmptyState title={emptyTitle} {...(emptyDescription ? { description: emptyDescription } : {})} />;
@@ -154,9 +164,9 @@ export function LeadTable({
                   case "contact":
                     return (
                       <TableCell key={c} className="text-xs">
-                        <span className="block">{maskEmail(lead.email, unmasked)}</span>
+                        <span className="block">{maskEmail(lead.email, reveal)}</span>
                         <span className="block text-muted-foreground">
-                          {maskPhone(lead.phone, unmasked)}
+                          {maskPhone(lead.phone, reveal)}
                         </span>
                       </TableCell>
                     );

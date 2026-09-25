@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { LeadInsert, LeadStatus, LeadUpdate } from "./types";
+import type { Agent, LeadInsert, LeadStatus, LeadUpdate } from "./types";
 
 /** Records an immutable audit entry for every privileged Lead Manager action. */
 export async function writeAudit(entry: {
@@ -165,28 +165,109 @@ export const leadApi = {
       source?: string;
       search?: string;
       limit?: number;
+      offset?: number;
     } = {},
   ) {
+    // The default page is what a screen shows. An export asks for pages
+    // explicitly and walks to the end rather than accepting this first one.
+    const limit = filters.limit ?? 200;
+    const offset = filters.offset ?? 0;
     let query = supabase
       .from("leads")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(filters.limit ?? 200);
+      .range(offset, offset + limit - 1);
 
     if (filters.status && filters.status !== "all")
       query = query.eq("status", filters.status as LeadStatus);
     if (filters.source && filters.source !== "all")
       query = query.eq("source", filters.source as never);
-    if (filters.search)
-      query = query.or(
-        `name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,company.ilike.%${filters.search}%,city.ilike.%${filters.search}%`,
-      );
+    if (filters.search) {
+      // The search term is pasted into a PostgREST `or` expression, where a
+      // comma separates conditions, brackets group them, and * is the wildcard.
+      // Typed straight in, a search for "Acme, Ltd" split into two conditions
+      // and a stray bracket made the whole filter unparseable - the list either
+      // returned the wrong rows or failed outright. Those characters are
+      // removed, and the % and _ that ilike reads as wildcards with them, so a
+      // search for "50%" looks for "50" rather than for everything.
+      const term = filters.search
+        .replace(/[(),*%_\\"']/g, " ")
+        .trim()
+        .slice(0, 120);
+      if (term) {
+        query = query.or(
+          ["name", "email", "company", "city"].map((c) => `${c}.ilike.%${term}%`).join(","),
+        );
+      }
+    }
 
     return unwrap(await query);
   },
 
   async getLead(id: string) {
     return unwrap(await supabase.from("leads").select("*").eq("id", id).single());
+  },
+
+  /**
+   * The agent record belonging to whoever is signed in, if there is one.
+   *
+   * The Security screen offers a per-agent Export and Unmask switch, and both
+   * were writing to the database and changing nothing, because nothing in the
+   * Lead Manager ever asked who was using it. lead_agents carries no user_id,
+   * so the link is made on email, which both tables already hold.
+   *
+   * A signed-in user with no agent record - an owner or an admin who is not on
+   * the sales roster - gets null, and the callers treat that as "not an agent,
+   * so the agent switches do not apply". That keeps today's behaviour for them
+   * rather than locking out the people who own the system.
+   */
+  async currentAgent(): Promise<Agent | null> {
+    const { data, error } = await supabase.auth.getUser();
+    const email = data.user?.email?.trim().toLowerCase();
+    if (error || !email) return null;
+
+    // ilike is a pattern match, not a comparison: %, _ and * are wildcards in
+    // it, and _ is perfectly legal in an email address. Left unescaped, a user
+    // whose own address contains one could match an agent row belonging to
+    // somebody else - somebody who may be allowed to export and unmask. The
+    // pattern is escaped, and the row that comes back is then checked for a
+    // real equality, so a wildcard cannot decide who anyone is.
+    const pattern = email.replace(/[%_*\\]/g, (ch) => "\\" + ch);
+    const rows = unwrap(
+      await supabase.from("lead_agents").select("*").ilike("email", pattern).limit(5),
+    ) as unknown as Agent[];
+    return rows.find((row) => row.email?.trim().toLowerCase() === email) ?? null;
+  },
+
+  /**
+   * Whether this export is allowed, recorded either way.
+   *
+   * can_export was read in two places - a counter and a badge - and checked in
+   * none, so an agent whose export switch was off could still download every
+   * lead. Refusing here is what makes the switch mean something, and the
+   * refusal is written to the audit trail, because an attempt that was blocked
+   * is exactly the kind of thing an audit trail is for.
+   */
+  async assertCanExport(what: string) {
+    const agent = await leadApi.currentAgent();
+    if (agent && !agent.can_export) {
+      await writeAudit({
+        action: "Export Denied",
+        action_type: "read",
+        details: `${agent.name} tried to export ${what} without export permission.`,
+        actor: agent.name,
+        actor_role: agent.role ?? undefined,
+      });
+      throw new Error("Your account does not have permission to export leads.");
+    }
+    await writeAudit({
+      action: "Bulk Export",
+      action_type: "read",
+      details: `Exported ${what}.`,
+      actor: agent?.name,
+      actor_role: agent?.role ?? undefined,
+    });
+    return true;
   },
 
   async listAgents() {
@@ -207,35 +288,43 @@ export const leadApi = {
    * nothing on screen to say so. A dashboard that quietly under-reports as the
    * business grows is worse than one that fails loudly.
    *
-   * Counts are asked for as exact counts with no rows returned, so the database
-   * does the counting and the row limit stops mattering. The two money totals
-   * need each matching row's deal_value, so those page through to the end
-   * rather than taking the first page and calling it a total.
+   * Every query is written out rather than built by a shared helper. A helper
+   * returning the query builder widened its type to a union of every table in
+   * the database, which cost the column names their meaning - the typechecker
+   * started objecting that deal_value does not exist on ai_models. Written
+   * inline, each from("leads") keeps the table it names.
+   *
+   * Counts ask for an exact count with no rows returned, so the row limit stops
+   * mattering. The two money totals need each matching row's deal_value, so
+   * those page to the end rather than taking the first page as a total.
    */
   async leadOverviewStats() {
     const CLOSED = "(won,lost,spam)";
-    const sinceIso = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
-    const head = () => supabase.from("leads").select("id", { count: "exact", head: true });
-    const took = (r: { count: number | null; error: { message: string } | null }) => {
+    const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+    const count = (r: { count: number | null; error: { message: string } | null }) => {
       if (r.error) throw new Error(r.error.message);
       return r.count ?? 0;
     };
 
     /** Every deal_value for one set of leads, to the last page. */
-    const sumDealValue = async (closed: boolean): Promise<number> => {
+    const sumDealValue = async (onlyWon: boolean): Promise<number> => {
       const PAGE = 1000;
       let from = 0;
       let sum = 0;
       for (;;) {
-        const q = supabase
-          .from("leads")
-          .select("deal_value")
-          .range(from, from + PAGE - 1);
-        const { data, error } = closed
-          ? await q.eq("status", "won")
-          : await q.not("status", "in", CLOSED);
-        if (error) throw new Error(error.message);
-        const rows = (data ?? []) as { deal_value: number | null }[];
+        const page = onlyWon
+          ? await supabase
+              .from("leads")
+              .select("deal_value")
+              .eq("status", "won")
+              .range(from, from + PAGE - 1)
+          : await supabase
+              .from("leads")
+              .select("deal_value")
+              .not("status", "in", CLOSED)
+              .range(from, from + PAGE - 1);
+        if (page.error) throw new Error(page.error.message);
+        const rows = (page.data ?? []) as unknown as { deal_value: number | null }[];
         for (const row of rows) sum += row.deal_value ?? 0;
         if (rows.length < PAGE) return sum;
         from += PAGE;
@@ -256,16 +345,53 @@ export const leadApi = {
       wonValue,
       pipelineValue,
     ] = await Promise.all([
-      head().then(took),
-      head().not("status", "in", CLOSED).then(took),
-      head().eq("temperature", "hot").then(took),
-      head().eq("temperature", "cold").then(took),
-      head().gte("created_at", sinceIso(1)).then(took),
-      head().gte("created_at", sinceIso(7)).then(took),
-      head().gte("created_at", sinceIso(30)).then(took),
-      head().eq("status", "won").then(took),
-      head().is("assigned_agent_id", null).not("status", "in", CLOSED).then(took),
-      head().eq("is_duplicate", true).then(took),
+      supabase.from("leads").select("id", { count: "exact", head: true }).then(count),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .not("status", "in", CLOSED)
+        .then(count),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .filter("temperature", "eq", "hot")
+        .then(count),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .filter("temperature", "eq", "cold")
+        .then(count),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", ago(1))
+        .then(count),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", ago(7))
+        .then(count),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", ago(30))
+        .then(count),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "won")
+        .then(count),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .is("assigned_agent_id", null)
+        .not("status", "in", CLOSED)
+        .then(count),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .filter("is_duplicate", "eq", true)
+        .then(count),
       sumDealValue(true),
       sumDealValue(false),
     ]);
@@ -284,6 +410,169 @@ export const leadApi = {
       wonValue,
       pipelineValue,
     };
+  },
+
+  /**
+   * The report figures, grouped by the database.
+   *
+   * Source-wise totals, the funnel and the lost-reason breakdown were all
+   * worked out in the browser from listLeads(), which stops at two hundred
+   * rows. At a few hundred leads that is invisible; at the volume this platform
+   * is built for - hundreds of orders a day across hundreds of resellers - every
+   * report would silently describe the newest two hundred leads and call it the
+   * business.
+   *
+   * These counts are asked for as exact counts with no rows returned, so the
+   * number of leads stops mattering to the cost. Deal values are summed by
+   * paging to the end of each group rather than taking a first page.
+   */
+  async leadReportStats(): Promise<{
+    bySource: { source: string; total: number; won: number; value: number }[];
+    byStage: { status: string; total: number; value: number }[];
+    byLostReason: { reason: string; total: number }[];
+  }> {
+    const SOURCES = [
+      "website",
+      "seo",
+      "social",
+      "ads",
+      "marketplace",
+      "referral",
+      "manual",
+      "api",
+      "whatsapp",
+    ] as const;
+    const STAGES = [
+      "new",
+      "contacted",
+      "interested",
+      "follow_up",
+      "negotiation",
+      "won",
+      "lost",
+      "spam",
+    ] as const;
+
+    const countWhere = async (
+      build: () => PromiseLike<{ count: number | null; error: { message: string } | null }>,
+    ) => {
+      const r = await build();
+      if (r.error) throw new Error(r.error.message);
+      return r.count ?? 0;
+    };
+
+    /** Sum deal_value across every matching row, one page at a time. */
+    const sumValue = async (column: "source" | "status", value: string): Promise<number> => {
+      const PAGE = 1000;
+      let from = 0;
+      let sum = 0;
+      for (;;) {
+        const page =
+          column === "source"
+            ? await supabase
+                .from("leads")
+                .select("deal_value")
+                .filter("source", "eq", value)
+                .eq("status", "won")
+                .range(from, from + PAGE - 1)
+            : await supabase
+                .from("leads")
+                .select("deal_value")
+                .eq("status", value as never)
+                .range(from, from + PAGE - 1);
+        if (page.error) throw new Error(page.error.message);
+        const rows = (page.data ?? []) as unknown as { deal_value: number | null }[];
+        for (const row of rows) sum += row.deal_value ?? 0;
+        if (rows.length < PAGE) return sum;
+        from += PAGE;
+      }
+    };
+
+    const bySource = await Promise.all(
+      SOURCES.map(async (source) => ({
+        source,
+        total: await countWhere(() =>
+          supabase
+            .from("leads")
+            .select("id", { count: "exact", head: true })
+            .filter("source", "eq", source),
+        ),
+        won: await countWhere(() =>
+          supabase
+            .from("leads")
+            .select("id", { count: "exact", head: true })
+            .filter("source", "eq", source)
+            .eq("status", "won"),
+        ),
+        value: await sumValue("source", source),
+      })),
+    );
+
+    const byStage = await Promise.all(
+      STAGES.map(async (status) => ({
+        status,
+        total: await countWhere(() =>
+          supabase
+            .from("leads")
+            .select("id", { count: "exact", head: true })
+            .filter("status", "eq", status),
+        ),
+        value: await sumValue("status", status),
+      })),
+    );
+
+    // Lost reasons are free text, so the distinct set has to be read. Only lost
+    // leads carry one, which keeps this bounded by the number of lost deals.
+    const lostRows: { lost_reason: string | null }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const page = await supabase
+        .from("leads")
+        .select("lost_reason")
+        .eq("status", "lost")
+        .range(from, from + 999);
+      if (page.error) throw new Error(page.error.message);
+      const rows = (page.data ?? []) as unknown as { lost_reason: string | null }[];
+      lostRows.push(...rows);
+      if (rows.length < 1000) break;
+    }
+    const reasons = new Map<string, number>();
+    for (const row of lostRows) {
+      const reason = row.lost_reason ?? "Not recorded";
+      reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+    }
+
+    return {
+      bySource: bySource.filter((r) => r.total > 0).sort((a, b) => b.total - a.total),
+      byStage,
+      byLostReason: [...reasons.entries()]
+        .map(([reason, total]) => ({ reason, total }))
+        .sort((a, b) => b.total - a.total),
+    };
+  },
+
+  /**
+   * Every lead matching a filter, for an export.
+   *
+   * exportLeadsCsv used to be handed whatever was already on screen, which is
+   * listLeads() and therefore at most two hundred rows. An operator exporting
+   * "all leads" got the newest two hundred and a file that looked complete. At
+   * the volume this platform is built for that is not a rounding error, it is
+   * most of the business missing from the spreadsheet.
+   *
+   * This pages to the end. The caller passes the same filters the screen is
+   * showing, so what is exported is what was asked for - all of it.
+   */
+  async fetchLeadsForExport(filters: { status?: string; source?: string; search?: string } = {}) {
+    const PAGE = 1000;
+    const all: Awaited<ReturnType<typeof leadApi.listLeads>> = [];
+    for (let from = 0; ; from += PAGE) {
+      const rows = await leadApi.listLeads({ ...filters, limit: PAGE, offset: from });
+      all.push(...rows);
+      if (rows.length < PAGE) return all;
+      // A safety stop so a filter that somehow never narrows cannot page for
+      // ever; 200k rows is far beyond any single export anyone wants.
+      if (all.length >= 200_000) return all;
+    }
   },
 
   async listAlerts() {
@@ -384,15 +673,62 @@ export const leadApi = {
     return lead;
   },
 
-  async updateLead(id: string, updates: LeadUpdate, auditAction = "Lead Edited") {
+  /**
+   * Change a lead, and record what actually changed.
+   *
+   * The audit line used to be `Updated fields: status, closed_at` - the names
+   * of the columns and nothing else. Asked who moved a lead out of Negotiation
+   * and what it was before, the trail could answer neither. lead_audit_logs has
+   * carried `metadata` (jsonb) and `actor` columns all along; the seeded rows
+   * use them and the live path never did, so every row the application wrote
+   * said "Lead Manager Console" and held an empty object.
+   *
+   * The row is now read before it is changed, and each field that genuinely
+   * moved is recorded with the value it held and the value it took. A field
+   * written with the value it already had is not reported as a change, because
+   * an audit trail full of things that did not happen is harder to read than a
+   * short one.
+   */
+  async updateLead(
+    id: string,
+    updates: LeadUpdate,
+    auditAction = "Lead Edited",
+    actor?: { name?: string; role?: string },
+  ) {
+    // Before, so the trail can say what it was and not only what it became.
+    let before: Record<string, unknown> | null = null;
+    try {
+      before = (await leadApi.getLead(id)) as unknown as Record<string, unknown>;
+    } catch {
+      // A lead that cannot be read is still worth updating; the change is then
+      // recorded without its previous values rather than not at all.
+    }
+
     const lead = unwrap(
       await supabase.from("leads").update(updates).eq("id", id).select().single(),
     );
+
+    const changed: Record<string, { from: unknown; to: unknown }> = {};
+    for (const [field, to] of Object.entries(updates)) {
+      const from = before ? before[field] : undefined;
+      if (before && Object.is(from, to)) continue;
+      changed[field] = { from: before ? (from ?? null) : "unknown", to: to ?? null };
+    }
+
+    const fields = Object.keys(changed);
     await writeAudit({
       lead_id: id,
       action: auditAction,
       action_type: "update",
-      details: `Updated fields: ${Object.keys(updates).join(", ")}`,
+      details: fields.length
+        ? fields
+            .map((f) => `${f}: ${String(changed[f]?.from)} → ${String(changed[f]?.to)}`)
+            .join("; ")
+            .slice(0, 500)
+        : "No field changed value.",
+      actor: actor?.name,
+      actor_role: actor?.role,
+      metadata: { changed },
     });
     return lead;
   },
@@ -446,14 +782,29 @@ export const leadApi = {
     return lead;
   },
 
+  /**
+   * Move a lead to another stage.
+   *
+   * Any stage may follow any other: there is no sequence enforced here, and
+   * that is left as it was - a lead genuinely can come back from lost.
+   *
+   * What changed is that the reasons survive. This used to null lost_reason
+   * and spam_reason on every change that was not itself a lost or spam with a
+   * reason attached, so reopening a lost lead erased why it had been lost, and
+   * re-marking one as lost without retyping the reason erased it too. The
+   * reason for closing a deal is exactly the kind of thing a pipeline is kept
+   * for, and it was being thrown away by a branch that read as tidying up.
+   *
+   * Now a reason is written when one is given, and otherwise left alone. The
+   * only thing cleared is closed_at, because a lead that is open again has no
+   * closing date - that one is a fact about the present, not a record of the
+   * past.
+   */
   async changeStatus(leadId: string, status: LeadStatus, reason?: string) {
     const updates: LeadUpdate = { status };
-    if (status === "won" || status === "lost") updates.closed_at = new Date().toISOString();
-    else updates.closed_at = null;
+    updates.closed_at = status === "won" || status === "lost" ? new Date().toISOString() : null;
     if (status === "lost" && reason) updates.lost_reason = reason;
-    else updates.lost_reason = null;
     if (status === "spam" && reason) updates.spam_reason = reason;
-    else updates.spam_reason = null;
     return leadApi.updateLead(leadId, updates, `Status → ${status}`);
   },
 
@@ -720,15 +1071,33 @@ export const leadApi = {
   },
 
   async setAgentPermissions(id: string, perms: { can_export?: boolean; can_unmask?: boolean }) {
+    // Who is granting this, and what it was before.
+    //
+    // The entry used to read "Agent Permissions Updated - Priya Patel:
+    // can_export=true", signed by "Lead Manager Console". For an ordinary edit
+    // that is enough; for the one screen that hands out the right to export
+    // every customer's contact details it is not. The question an audit of this
+    // table has to answer is who granted it and what changed, and neither was
+    // recorded. Both are now.
+    const actor = await leadApi.currentAgent();
+    const before = unwrap(
+      await supabase.from("lead_agents").select("can_export, can_unmask").eq("id", id).single(),
+    ) as unknown as Pick<Agent, "can_export" | "can_unmask">;
     const row = unwrap(
       await supabase.from("lead_agents").update(perms).eq("id", id).select().single(),
     );
+
+    const changed = Object.entries(perms)
+      .filter(([key, value]) => before[key as keyof typeof before] !== value)
+      .map(([key, value]) => `${key}: ${before[key as keyof typeof before]} → ${value}`);
+
     await writeAudit({
       action: "Agent Permissions Updated",
       action_type: "update",
-      details: `${row.name}: ${Object.entries(perms)
-        .map(([k, v]) => `${k}=${v}`)
-        .join(", ")}`,
+      details: `${row.name} — ${changed.length ? changed.join("; ") : "no effective change"}`,
+      actor: actor?.name,
+      actor_role: actor?.role ?? undefined,
+      metadata: { agent_id: id, before, after: perms },
     });
     return row;
   },
