@@ -1,11 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import {
-  DegradedNotice,
-  LoadingState,
-  PageBanner,
-  PageShell,
-} from "@/components/ai-ceo/PageShell";
+import { DegradedNotice, LoadingState, PageBanner, PageShell } from "@/components/ai-ceo/PageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,9 +26,15 @@ import {
   RefreshCw,
   Lightbulb,
   Target,
-  BarChart3
+  BarChart3,
 } from "lucide-react";
-import { useCEOSuggestions, type CEOSuggestion, type AIObservation, type ActivityEvent } from "@/hooks/useCEOSuggestions";
+import {
+  useCEOSuggestions,
+  type CEOSuggestion,
+  type AIObservation,
+  type ActivityEvent,
+} from "@/hooks/useCEOSuggestions";
+import { CommandCenterIntelligence } from "@/components/ai-ceo/sections/CommandCenterIntelligence";
 import { toast } from "sonner";
 
 /**
@@ -50,37 +51,50 @@ const formatMetric = (value: number | null): string =>
 // Helper functions for styling
 const getImpactStyle = (impact: string) => {
   switch (impact) {
-    case 'high': return 'bg-destructive/20 text-destructive border-destructive/30';
-    case 'medium': return 'bg-accent-amber/20 text-accent-amber border-accent-amber/30';
-    default: return 'bg-accent-emerald/20 text-accent-emerald border-accent-emerald/30';
+    case "high":
+      return "bg-destructive/20 text-destructive border-destructive/30";
+    case "medium":
+      return "bg-accent-amber/20 text-accent-amber border-accent-amber/30";
+    default:
+      return "bg-accent-emerald/20 text-accent-emerald border-accent-emerald/30";
   }
 };
 
 const getSeverityStyle = (severity: string) => {
   switch (severity) {
-    case 'critical': return { bg: 'bg-destructive/10', border: 'border-destructive/30', text: 'text-destructive' };
-    case 'warning': return { bg: 'bg-accent-amber/10', border: 'border-accent-amber/30', text: 'text-accent-amber' };
-    default: return { bg: 'bg-primary/10', border: 'border-primary/30', text: 'text-primary-glow' };
+    case "critical":
+      return { bg: "bg-destructive/10", border: "border-destructive/30", text: "text-destructive" };
+    case "warning":
+      return {
+        bg: "bg-accent-amber/10",
+        border: "border-accent-amber/30",
+        text: "text-accent-amber",
+      };
+    default:
+      return { bg: "bg-primary/10", border: "border-primary/30", text: "text-primary-glow" };
   }
 };
 
 const getEventImpactStyle = (impact: string) => {
   switch (impact) {
-    case 'positive': return 'text-accent-emerald';
-    case 'negative': return 'text-destructive';
-    default: return 'text-muted-foreground';
+    case "positive":
+      return "text-accent-emerald";
+    case "negative":
+      return "text-destructive";
+    default:
+      return "text-muted-foreground";
   }
 };
 
 const getTypeColor = (type: string) => {
   const colors: Record<string, string> = {
-    risk: 'bg-destructive/20 text-destructive',
-    revenue: 'bg-accent-emerald/20 text-accent-emerald',
-    operations: 'bg-primary/20 text-primary-glow',
-    security: 'bg-accent-amber/20 text-accent-amber',
-    compliance: 'bg-accent-pink/20 text-accent-pink'
+    risk: "bg-destructive/20 text-destructive",
+    revenue: "bg-accent-emerald/20 text-accent-emerald",
+    operations: "bg-primary/20 text-primary-glow",
+    security: "bg-accent-amber/20 text-accent-amber",
+    compliance: "bg-accent-pink/20 text-accent-pink",
   };
-  return colors[type] || 'bg-muted/20 text-muted-foreground';
+  return colors[type] || "bg-muted/20 text-muted-foreground";
 };
 
 const AICEODashboardMain = () => {
@@ -97,25 +111,26 @@ const AICEODashboardMain = () => {
     refresh,
     sendToBoss,
     getObservationsByCategory,
-    getEventsByType
+    getEventsByType,
   } = useCEOSuggestions();
 
-  const [activityFilter, setActivityFilter] = useState<string>('all');
+  const [activityFilter, setActivityFilter] = useState<string>("all");
   const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
 
   const handleSendToBoss = async (suggestion: CEOSuggestion) => {
-    setSendingIds(prev => new Set(prev).add(suggestion.id));
+    setSendingIds((prev) => new Set(prev).add(suggestion.id));
     await sendToBoss(suggestion.id);
-    setSendingIds(prev => {
+    setSendingIds((prev) => {
       const next = new Set(prev);
       next.delete(suggestion.id);
       return next;
     });
   };
 
-  const filteredEvents = activityFilter === 'all' 
-    ? activityEvents 
-    : getEventsByType(activityFilter as ActivityEvent['type']);
+  const filteredEvents =
+    activityFilter === "all"
+      ? activityEvents
+      : getEventsByType(activityFilter as ActivityEvent["type"]);
 
   return (
     <PageShell>
@@ -145,58 +160,122 @@ const AICEODashboardMain = () => {
       <DegradedNotice sources={degraded} />
 
       {/* Ecosystem Monitor - Live Metrics */}
-      {isLoading && !ecosystemMetrics && <LoadingState label="Syncing ecosystem metrics…" rows={2} />}
+      {isLoading && !ecosystemMetrics && (
+        <LoadingState label="Syncing ecosystem metrics…" rows={2} />
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-6">
-
-        {ecosystemMetrics && ([
-          { key: "systemActivityRate" as const, label: "System Activity", unit: "/24h", icon: Activity, color: "text-primary-glow", bg: "bg-primary/10" },
-          { key: "deploymentFrequency" as const, label: "Deployments", unit: "/week", icon: Server, color: "text-accent-pink", bg: "bg-accent-pink/10" },
-          { key: "errorVelocity" as const, label: "Upstream Errors", unit: "/hr", icon: AlertTriangle, color: "text-accent-amber", bg: "bg-accent-amber/10" },
-          { key: "activeUsers" as const, label: "Accounts", unit: "", icon: Users, color: "text-accent-emerald", bg: "bg-accent-emerald/10" },
-          { key: "transactionsToday" as const, label: "Orders Today", unit: "", icon: DollarSign, color: "text-primary-glow", bg: "bg-primary/10" },
-          { key: "apiLatency" as const, label: "API Latency", unit: "ms", icon: Zap, color: "text-accent-amber", bg: "bg-accent-amber/10" },
-        ].map((tile) => {
-          const raw = ecosystemMetrics[tile.key];
-          return {
-            ...tile,
-            value: formatMetric(raw),
-            unit: raw === null ? "" : tile.unit,
-            source: metricSources?.[tile.key] ?? "",
-            tracked: raw !== null,
-          };
-        })).map((metric, i) => (
-          <motion.div
-            key={metric.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-          >
-            <Card
-              className="card3d premium-halo hover-lift shimmer-sweep enter-soft rounded-2xl"
-              title={metric.source}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`w-8 h-8 rounded-lg ${metric.bg} flex items-center justify-center`}>
-                    <metric.icon className={`w-4 h-4 ${metric.color}`} />
-                  </div>
-                  {metric.tracked && (
-                    <Radio className="w-2 h-2 text-accent-emerald animate-pulse" aria-hidden="true" />
-                  )}
-                </div>
-                <p className={`text-xl font-bold ${metric.tracked ? metric.color : "text-muted-foreground"}`}>
-                  {metric.value}{metric.unit}
-                </p>
-                <p className="text-xs text-muted-foreground">{metric.label}</p>
-                {!metric.tracked && (
-                  <p className="mt-0.5 text-[10px] text-muted-foreground/70">not tracked yet</p>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
+        {ecosystemMetrics &&
+          [
+            {
+              key: "systemActivityRate" as const,
+              label: "System Activity",
+              unit: "/24h",
+              icon: Activity,
+              color: "text-primary-glow",
+              bg: "bg-primary/10",
+            },
+            {
+              key: "deploymentFrequency" as const,
+              label: "Deployments",
+              unit: "/week",
+              icon: Server,
+              color: "text-accent-pink",
+              bg: "bg-accent-pink/10",
+            },
+            {
+              key: "errorVelocity" as const,
+              label: "Upstream Errors",
+              unit: "/hr",
+              icon: AlertTriangle,
+              color: "text-accent-amber",
+              bg: "bg-accent-amber/10",
+            },
+            {
+              key: "activeUsers" as const,
+              label: "Accounts",
+              unit: "",
+              icon: Users,
+              color: "text-accent-emerald",
+              bg: "bg-accent-emerald/10",
+            },
+            {
+              key: "transactionsToday" as const,
+              label: "Orders Today",
+              unit: "",
+              icon: DollarSign,
+              color: "text-primary-glow",
+              bg: "bg-primary/10",
+            },
+            {
+              key: "apiLatency" as const,
+              label: "API Latency",
+              unit: "ms",
+              icon: Zap,
+              color: "text-accent-amber",
+              bg: "bg-accent-amber/10",
+            },
+          ]
+            .map((tile) => {
+              const raw = ecosystemMetrics[tile.key];
+              return {
+                ...tile,
+                value: formatMetric(raw),
+                unit: raw === null ? "" : tile.unit,
+                source: metricSources?.[tile.key] ?? "",
+                tracked: raw !== null,
+              };
+            })
+            .map((metric, i) => (
+              <motion.div
+                key={metric.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <Card
+                  className="card3d premium-halo hover-lift shimmer-sweep enter-soft rounded-2xl"
+                  title={metric.source}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div
+                        className={`w-8 h-8 rounded-lg ${metric.bg} flex items-center justify-center`}
+                      >
+                        <metric.icon className={`w-4 h-4 ${metric.color}`} />
+                      </div>
+                      {metric.tracked && (
+                        <Radio
+                          className="w-2 h-2 text-accent-emerald animate-pulse"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </div>
+                    <p
+                      className={`text-xl font-bold ${metric.tracked ? metric.color : "text-muted-foreground"}`}
+                    >
+                      {metric.value}
+                      {metric.unit}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{metric.label}</p>
+                    {!metric.tracked && (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground/70">not tracked yet</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
       </div>
+
+      {/*
+        What the counters above cannot say.
+        The tiles count the platform; this reads the company — what needs
+        attention, which KPI has drifted, what is waiting on a person, and
+        which domain is unhealthy and why. It reads the operating state that
+        already exists rather than querying tables again, so there is one
+        answer rather than two that can disagree.
+      */}
+      <CommandCenterIntelligence />
 
       {/* Main Grid: Observations + Suggestions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -211,12 +290,18 @@ const AICEODashboardMain = () => {
           <CardContent>
             <Tabs defaultValue="change" className="w-full">
               <TabsList className="mb-4 flex w-full max-w-full justify-start overflow-x-auto bg-surface border border-border">
-                <TabsTrigger value="change" className="text-xs">What Changed Today</TabsTrigger>
-                <TabsTrigger value="attention" className="text-xs">Needs Attention</TabsTrigger>
-                <TabsTrigger value="revenue" className="text-xs">Revenue Impact</TabsTrigger>
+                <TabsTrigger value="change" className="text-xs">
+                  What Changed Today
+                </TabsTrigger>
+                <TabsTrigger value="attention" className="text-xs">
+                  Needs Attention
+                </TabsTrigger>
+                <TabsTrigger value="revenue" className="text-xs">
+                  Revenue Impact
+                </TabsTrigger>
               </TabsList>
-              
-              {(['change', 'attention', 'revenue'] as const).map(category => (
+
+              {(["change", "attention", "revenue"] as const).map((category) => (
                 <TabsContent key={category} value={category}>
                   <ScrollArea className="h-[200px]">
                     <div className="space-y-3">
@@ -239,7 +324,9 @@ const AICEODashboardMain = () => {
                                 <Badge className={`${style.bg} ${style.text} text-xs`}>
                                   {obs.severity}
                                 </Badge>
-                                <span className="text-xs text-muted-foreground">{obs.timestamp}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {obs.timestamp}
+                                </span>
                               </div>
                             </div>
                           </motion.div>
@@ -260,7 +347,7 @@ const AICEODashboardMain = () => {
               <Lightbulb className="w-5 h-5 text-accent-amber" />
               CEO Suggestions
               <Badge className="ml-auto bg-accent-amber/20 text-accent-amber">
-                {suggestions.filter(s => s.status === 'pending').length} Pending
+                {suggestions.filter((s) => s.status === "pending").length} Pending
               </Badge>
             </CardTitle>
           </CardHeader>
@@ -276,12 +363,16 @@ const AICEODashboardMain = () => {
                     className="p-3 rounded-lg bg-surface border border-border hover:border-accent-amber/30 transition-colors"
                   >
                     <div className="flex items-start justify-between mb-2">
-                      <p className="text-sm font-medium text-foreground line-clamp-1">{suggestion.title}</p>
+                      <p className="text-sm font-medium text-foreground line-clamp-1">
+                        {suggestion.title}
+                      </p>
                       <Badge className={getImpactStyle(suggestion.impact)}>
                         {suggestion.impact}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{suggestion.description}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                      {suggestion.description}
+                    </p>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Progress value={suggestion.confidence} className="h-1 w-16" />
@@ -292,10 +383,10 @@ const AICEODashboardMain = () => {
                         variant="ghost"
                         className="h-6 px-2 text-xs text-primary-glow hover:text-primary-glow hover:bg-primary/10"
                         onClick={() => handleSendToBoss(suggestion)}
-                        disabled={sendingIds.has(suggestion.id) || suggestion.status !== 'pending'}
+                        disabled={sendingIds.has(suggestion.id) || suggestion.status !== "pending"}
                       >
                         <Send className="w-3 h-3 mr-1" />
-                        {suggestion.status === 'reviewed' ? 'Sent' : 'Send to Boss'}
+                        {suggestion.status === "reviewed" ? "Sent" : "Send to Boss"}
                       </Button>
                     </div>
                   </motion.div>
@@ -315,15 +406,15 @@ const AICEODashboardMain = () => {
               <span className="truncate">Live Activity Feed</span>
             </CardTitle>
             <div className="-mx-1 flex gap-2 overflow-x-auto px-1 lg:justify-end">
-              {['all', 'risk', 'revenue', 'operations', 'security', 'compliance'].map(filter => (
+              {["all", "risk", "revenue", "operations", "security", "compliance"].map((filter) => (
                 <Button
                   key={filter}
                   size="sm"
                   variant="ghost"
                   className={`h-7 px-3 text-xs ${
-                    activityFilter === filter 
-                      ? 'bg-primary/20 text-primary-glow' 
-                      : 'text-muted-foreground hover:text-foreground'
+                    activityFilter === filter
+                      ? "bg-primary/20 text-primary-glow"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                   onClick={() => setActivityFilter(filter)}
                 >
@@ -345,9 +436,7 @@ const AICEODashboardMain = () => {
                   className="flex items-center justify-between p-3 rounded-lg bg-surface/60 border border-border/20 hover:border-secondary/40 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <Badge className={getTypeColor(event.type)}>
-                      {event.type}
-                    </Badge>
+                    <Badge className={getTypeColor(event.type)}>{event.type}</Badge>
                     <div>
                       <p className="text-sm text-foreground">
                         <span className="font-medium">{event.actor}</span>
@@ -360,7 +449,7 @@ const AICEODashboardMain = () => {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-xs font-medium ${getEventImpactStyle(event.impact)}`}>
-                      {event.impact === 'positive' ? '↑' : event.impact === 'negative' ? '↓' : '—'}
+                      {event.impact === "positive" ? "↑" : event.impact === "negative" ? "↓" : "—"}
                     </span>
                     <span className="text-xs text-muted-foreground">{event.timestamp}</span>
                   </div>
@@ -376,10 +465,10 @@ const AICEODashboardMain = () => {
         <div className="flex items-center gap-3">
           <Brain className="w-5 h-5 text-primary-glow" />
           <p className="text-sm text-primary-glow/80">
-            <strong>AI CEO Notice:</strong> Observations, metrics and the activity feed are
-            measured from the platform's own tables and are read-only. Suggestions are advisory:
-            nothing is executed until the Boss approves it, and "Send to Boss" records the
-            suggestion in the approval queue.
+            <strong>AI CEO Notice:</strong> Observations, metrics and the activity feed are measured
+            from the platform's own tables and are read-only. Suggestions are advisory: nothing is
+            executed until the Boss approves it, and "Send to Boss" records the suggestion in the
+            approval queue.
           </p>
         </div>
       </div>

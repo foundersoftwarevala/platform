@@ -1,17 +1,24 @@
 /**
  * Run SQL against the database the application actually reads.
  *
- * That database is PostgreSQL on the VPS — `sv_platform`, served to the app by
- * PostgREST behind the nginx gateway on 127.0.0.1:3010. It is not the hosted
- * Supabase project, and the difference is not cosmetic: this script used to
- * connect straight to `db.<ref>.supabase.co`, so a migration run through it
- * created its tables on a database the application never opens. The tables
- * existed, the script said "done", and production was unchanged.
+ * Two databases answer to this project and they are not interchangeable:
  *
- * So the VPS is the default target and the hosted project has to be asked for
- * by name. The VPS database listens only on localhost, which is correct, so
- * this reaches it the same way an operator would: psql over the existing ssh
- * key. Nothing is exposed and no password crosses the network.
+ *   vps    — PostgreSQL on the VPS, `sv_platform`, reached with psql over the
+ *            existing ssh key. It listens on localhost only, which is how it
+ *            should stay. **This is the source of truth and the default.**
+ *   hosted — the Supabase project named in SUPABASE_URL. Some runtime
+ *            configuration still points at it, and it has to be asked for by
+ *            name.
+ *
+ * The owner has settled which one this work targets: the Founder AI programme
+ * is built and verified on the VPS, no Supabase migration is to be applied for
+ * it, and the database architecture is not to be switched. So the default is
+ * the VPS, and any run against the hosted project is deliberate and typed out
+ * in full.
+ *
+ * The banner exists because getting this wrong is invisible: a migration can
+ * create every table it promised, print "done", and leave the database that
+ * matters untouched. Every run therefore says out loud which one it reached.
  *
  *   node scripts/ops/db.mjs --file supabase/migrations/xxxx.sql
  *   node scripts/ops/db.mjs --sql "select count(*) from marketplace_products"
@@ -38,7 +45,7 @@ const args = process.argv.slice(2);
 const targetAt = args.indexOf("--target");
 const target = targetAt >= 0 ? args[targetAt + 1] : "vps";
 if (target !== "vps" && target !== "hosted") {
-  console.error("--target takes either vps (the database the app reads) or hosted");
+  console.error("--target takes either vps (the default, and where this work belongs) or hosted");
   process.exit(1);
 }
 const fileAt = args.indexOf("--file");
@@ -75,7 +82,7 @@ if (target === "vps") {
 
   const ssh = ["-i", keyPath, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes"];
   try {
-    console.log(`target  : VPS ${database} (the database the application reads)\n`);
+    console.log(`target  : VPS ${database} — the source of truth for this work\n`);
     execFileSync("scp", [...ssh, local, `${host}:${remote}`], { stdio: "pipe" });
     const out = execFileSync(
       "ssh",
@@ -104,7 +111,7 @@ if (!ref || !password) {
   console.error("SUPABASE_PROJECT_REF and SUPABASE_DB_PASSWORD are needed in .env.ops");
   process.exit(1);
 }
-console.log("target  : HOSTED Supabase — note the application does not read this database\n");
+console.log("target  : HOSTED Supabase — asked for by name; the VPS is the default\n");
 
 // Supabase serves the same database on a direct host and through poolers in
 // each region; whichever answers first is the one used.
