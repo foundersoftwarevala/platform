@@ -56,6 +56,8 @@ const MODULES = [
   ["canonical", "Canonical"],
   ["sitemap", "Sitemap"],
   ["reports", "SEO Reports"],
+  ["languages", "Language SEO"],
+  ["indexnow", "IndexNow"],
 ];
 
 const browser = await chromium.launch();
