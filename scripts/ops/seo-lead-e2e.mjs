@@ -71,7 +71,12 @@ function appEnv() {
   }
 }
 
-const env = { ...readEnv(".env.ops"), ...appEnv(), ...process.env };
+// The running application last, deliberately. A shell that has sourced the
+// deployment's .env - which still names the hosted project the platform moved
+// off - would otherwise override the very value this function exists to find,
+// and the check would silently test the wrong database. It did exactly that
+// the first time it was run this way.
+const env = { ...readEnv(".env.ops"), ...process.env, ...appEnv() };
 const BASE = (env.SUPABASE_URL || "").trim();
 const KEY = (env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 if (!BASE || !KEY) {
