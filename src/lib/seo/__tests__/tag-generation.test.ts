@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTagPrompt, parseTagResponse } from "@/lib/seo/tag-generation.server";
+import { buildTagPrompt, isNotConfigured, parseTagResponse } from "@/lib/seo/tag-generation.server";
 
 /**
  * Reading a provider's reply, and telling it what it may say.
@@ -102,5 +102,38 @@ describe("parseTagResponse", () => {
     expect(parseTagResponse("I cannot help with that.")).toBeNull();
     expect(parseTagResponse("{ primary: unquoted }")).toBeNull();
     expect(parseTagResponse("")).toBeNull();
+  });
+});
+
+describe("isNotConfigured", () => {
+  /**
+   * The live state of this platform. api_services holds 188 services; the two
+   * LLM ones (OpenAI, Anthropic) are active with endpoints, but no provider
+   * credential exists in the server environment and the stored keys do not
+   * match the shape the executor expects. So the SEO tag service returns
+   * NOT_CONFIGURED, and these are the exact words it has to recognise.
+   */
+  it("recognises every message AI API Manager throws when nothing is set up", () => {
+    for (const message of [
+      "No active AI provider is configured in AI API Manager.",
+      "No real production credential is configured for OpenAI API. Add it in AI API Manager or server environment.",
+      "The selected AI service is not registered in AI API Manager.",
+      "AI service Anthropic API has no execution endpoint configured.",
+      "Supabase is not configured on the server.",
+    ]) {
+      expect(isNotConfigured(message), message).toBe(true);
+    }
+  });
+
+  it("does not mistake a provider fault for a missing provider", () => {
+    for (const message of [
+      "AI provider returned HTTP 429.",
+      "AI provider returned HTTP 500.",
+      "Rate limit exceeded",
+      "fetch failed",
+      "The model refused the request.",
+    ]) {
+      expect(isNotConfigured(message), message).toBe(false);
+    }
   });
 });

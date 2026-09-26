@@ -137,6 +137,20 @@ export function parseTagResponse(text: string): TagBundle | null {
   };
 }
 
+/**
+ * Whether a failure from AI API Manager means "nothing is set up" or
+ * "something went wrong".
+ *
+ * These are the messages executeAiRequest throws when the registry has nothing
+ * it can use. They are a configuration state, not a fault: an operator answers
+ * the first by adding a provider and the second by looking at a log, so
+ * reporting both as one would send them to the wrong place.
+ */
+export function isNotConfigured(message: string): boolean {
+  return /no active ai provider|no real production credential|not registered|no execution endpoint|is not configured/i.test(
+    message,
+  );
+}
 function rest(path: string, init?: RequestInit) {
   const url = process.env.SUPABASE_URL?.trim() ?? "";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
@@ -252,10 +266,7 @@ export const generateSlotTags = createServerFn({ method: "POST" })
       // executeAiRequest throws these when the registry has nothing usable.
       // That is a configuration state, not a failure of this request, and the
       // two are reported differently so an operator knows which to act on.
-      const notConfigured =
-        /no active ai provider|no real production credential|not registered|no execution endpoint/i.test(
-          message,
-        );
+      const notConfigured = isNotConfigured(message);
       return {
         ...empty,
         state: notConfigured ? "NOT_CONFIGURED" : "PROVIDER_ERROR",

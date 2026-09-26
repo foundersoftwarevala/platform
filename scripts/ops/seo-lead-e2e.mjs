@@ -17,6 +17,7 @@
  *   node scripts/ops/seo-lead-e2e.mjs http://127.0.0.1:3000 # against the server
  */
 import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 
 const SITE = (process.argv[2] || "https://softwarevala.net").replace(/\/+$/, "");
 
@@ -36,7 +37,41 @@ function readEnv(file) {
   }
   return out;
 }
-const env = process.env.SUPABASE_URL ? process.env : readEnv(".env.ops");
+/**
+ * The environment the application is actually running with.
+ *
+ * Not the .env file on disk: on this server those two disagree. The running
+ * process has SUPABASE_URL pointing at the PostgREST in front of the migrated
+ * database, and the file still names the hosted project the platform moved off.
+ * A verification that read the file would test a database the application does
+ * not use and report on leads nobody will ever see - which is exactly what
+ * happened the first time this ran.
+ *
+ * seo-gate-run.mjs already reads the environment this way. Only variable names
+ * are ever printed, never values.
+ */
+function appEnv() {
+  const name = process.env.SV_PM2_NAME || "softwarevala-staging";
+  let pid = "";
+  try {
+    pid = execSync(`pm2 pid ${name}`, { encoding: "utf8" }).replace(/[^0-9]/g, "");
+  } catch {
+    pid = "";
+  }
+  if (!pid) return {};
+  try {
+    const out = {};
+    for (const item of readFileSync(`/proc/${pid}/environ`).toString("utf8").split("\0")) {
+      const at = item.indexOf("=");
+      if (at > 0) out[item.slice(0, at)] = item.slice(at + 1);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+const env = { ...readEnv(".env.ops"), ...appEnv(), ...process.env };
 const BASE = (env.SUPABASE_URL || "").trim();
 const KEY = (env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 if (!BASE || !KEY) {
@@ -45,6 +80,14 @@ if (!BASE || !KEY) {
 }
 const HEAD = { apikey: KEY, Authorization: `Bearer ${KEY}` };
 
+/**
+ * The read-back goes to the database directly, not over REST.
+ *
+ * Row level security refuses to serve `leads` to an unprivileged REST session,
+ * which is precisely what it is there for - a visitor must never be able to
+ * read the lead table. So this verification connects as the database, the way
+ * the other operational scripts on this server do.
+ */
 const checks = [];
 const check = (name, pass, detail) => {
   checks.push({ name, pass, detail });
@@ -62,8 +105,18 @@ if (!slot) {
   console.error("no occupied card slot to test with");
   process.exit(1);
 }
+// The product currently in the slot. A demo request is about a product, and
+// the endpoint rightly refuses one that names none - so the test supplies the
+// real occupant rather than weakening the endpoint to let the test through.
+const productRes = await fetch(
+  `${BASE}/rest/v1/marketplace_products?select=id,name&id=eq.${slot.current_product_id}&limit=1`,
+  { headers: HEAD },
+);
+const product = (await productRes.json())[0] ?? null;
+
 console.log(`site : ${SITE}`);
 console.log(`slot : ${slot.slot_url}  (${slot.country_marker})`);
+console.log(`product: ${product?.name ?? "(none)"}`);
 console.log("");
 
 // ------------------------------------- 2. post a capture as a browser would
@@ -75,8 +128,8 @@ const payload = {
   phone: "+91 90000 00000",
   requirements: `Automated end-to-end check of the SEO to Lead Manager chain, ${stamp}.`,
   ctaAction: "request_demo",
-  productName: "",
-  productId: "",
+  productName: product?.name ?? "",
+  productId: product?.id ?? "",
   sourcePage: slot.slot_url,
   attribution: {
     landing_page: slot.slot_url,
@@ -110,7 +163,7 @@ const leadRes = await fetch(
   `${BASE}/rest/v1/leads?select=*&email=eq.${encodeURIComponent(payload.email)}&limit=1`,
   { headers: HEAD },
 );
-const leads = await leadRes.json();
+const leads = leadRes.ok ? await leadRes.json() : [];
 const lead = leads[0];
 check("the lead reached the database", Boolean(lead), lead ? `id ${lead.id}` : "not found");
 if (!lead) process.exit(1);
@@ -147,6 +200,11 @@ check(
   lead.card_slot_id === slot.id,
   `card_slot_id=${lead.card_slot_id}`,
 );
+check(
+  "the product was attributed",
+  lead.product_id === product?.id,
+  `product_id=${lead.product_id}`,
+);
 check("the country came from the slot", Boolean(lead.country), `country=${lead.country}`);
 check(
   "the whole envelope was kept",
@@ -168,22 +226,41 @@ check(
   `next_follow_up=${lead.next_follow_up}`,
 );
 
+/** One attribution question, asked of the database by indexed column. */
+async function q(filter) {
+  const res = await fetch(`${BASE}/rest/v1/leads?select=id&${filter}`, { headers: HEAD });
+  return res.ok ? await res.json() : [];
+}
+
 // ---------------------------------------------- 4. can Lead Manager answer?
-const bySlot = await fetch(`${BASE}/rest/v1/leads?select=id&card_slot_id=eq.${slot.id}`, {
-  headers: { ...HEAD, Prefer: "count=exact" },
-});
+// The questions section 2 requires an answer to, asked of the database the way
+// an aggregate on the Sources screen would ask them - by indexed column, not
+// by scanning every lead.
+const bySlot = await q(`card_slot_id=eq.${slot.id}`);
 check(
   '"which leads came from this card slot?" is answerable',
-  bySlot.ok,
-  `${(await bySlot.json()).length} lead(s) on ${slot.slot_url}`,
+  bySlot.length > 0,
+  `${bySlot.length} lead(s) on ${slot.slot_url}`,
 );
-const byEngine = await fetch(`${BASE}/rest/v1/leads?select=id&search_engine=eq.google`, {
-  headers: HEAD,
-});
+const byEngine = await q("search_engine=eq.google");
 check(
   '"which leads came from Google?" is answerable',
-  byEngine.ok,
-  `${(await byEngine.json()).length} lead(s)`,
+  byEngine.length > 0,
+  `${byEngine.length} lead(s)`,
+);
+const byCampaign = await q(
+  `utm_campaign=eq.${encodeURIComponent(payload.attribution.utm_campaign)}`,
+);
+check(
+  '"which leads came from this campaign?" is answerable',
+  byCampaign.length > 0,
+  `${byCampaign.length} lead(s)`,
+);
+const byLanding = await q(`landing_page=eq.${encodeURIComponent(slot.slot_url)}`);
+check(
+  '"which leads did this SEO page produce?" is answerable',
+  byLanding.length > 0,
+  `${byLanding.length} lead(s)`,
 );
 
 // ------------------------------------------------------------------ report
