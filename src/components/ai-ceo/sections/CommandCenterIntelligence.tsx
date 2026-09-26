@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock,
   Gauge,
+  Radio,
   ShieldAlert,
   Target,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFounderState } from "@/hooks/useFounderState";
+import { useFounderSignalRoutes } from "@/hooks/useFounderSignalRoutes";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import type { AttentionItem, Kpi, PendingApproval, Risk } from "@/lib/founder/state.types";
 
@@ -116,6 +118,7 @@ export function CommandCenterIntelligence() {
     denied,
     refetch,
   } = useFounderState();
+  const { routes } = useFounderSignalRoutes();
 
   if (isLoading) {
     return <LoadingState label={t("ceo.ci_loading")} rows={2} />;
@@ -374,6 +377,43 @@ export function CommandCenterIntelligence() {
           </CardContent>
         </Card>
       </div>
+
+      {/*
+        What a Monitoring Agent's signal earns at each severity.
+        Read from founder_signal_routes rather than written in here, because
+        the ladder lives in a table so it can be changed without a deployment
+        — a screen that hardcoded it would start lying the first time it was.
+      */}
+      {routes.length > 0 && (
+        <Card className="card3d premium-halo enter-soft rounded-2xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <Radio className="w-5 h-5 text-accent-amber" />
+              {t("ceo.ci_ladder")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              {routes.map((route) => (
+                <div
+                  key={route.severity}
+                  className="p-3 rounded-lg bg-surface border border-border"
+                >
+                  <Badge className={severityStyle(route.severity)}>{route.severity}</Badge>
+                  <p className="mt-2 text-sm text-foreground">{route.label}</p>
+                  <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                    {route.raisesAttention && <span>{t("ceo.ci_ladder_item")}</span>}
+                    {route.notifies && <span>{t("ceo.ci_ladder_alert")}</span>}
+                    {route.escalates && <span>{t("ceo.ci_ladder_escalate")}</span>}
+                    {route.opensDecision && <span>{t("ceo.ci_ladder_decision")}</span>}
+                    {!route.raisesAttention && <span>{t("ceo.ci_ladder_silent")}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Where this section's answer came from, and how old each part is. */}
       {Object.keys(sources).length > 0 && (

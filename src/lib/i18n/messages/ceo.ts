@@ -246,4 +246,15 @@ export const CEO_MESSAGES = {
   "ceo.ci_stale": ["older than a day", "freshness of a measurement more than a day old"],
   "ceo.ci_never": ["never measured", "freshness where nothing has ever been measured"],
   "ceo.ci_no_timestamp": ["no timestamp", "shown where a record carries no time"],
+
+  // The severity ladder: what a Monitoring Agent's signal earns at each band.
+  "ceo.ci_ladder": ["What a signal earns", "heading over the severity routing ladder"],
+  "ceo.ci_ladder_item": ["raises an item", "this severity creates something a person can work"],
+  "ceo.ci_ladder_alert": ["alerts a person", "this severity sends a notification"],
+  "ceo.ci_ladder_escalate": ["escalates", "this severity demands a named human response"],
+  "ceo.ci_ladder_decision": [
+    "opens a decision",
+    "this severity opens a governed decision for approval",
+  ],
+  "ceo.ci_ladder_silent": ["recorded only", "this severity is watched but raises nothing"],
 } as const;
