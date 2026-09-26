@@ -48,8 +48,8 @@ export const Route = createFileRoute("/api/seo/change")({
                   : null;
 
           if (!change) {
-            // i18n-ignore: names the accepted values, not copy.
             return Response.json(
+              // i18n-ignore: names the accepted values, not copy.
               { error: "action must be approve, publish or rollback" },
               { status: 400 },
             );
