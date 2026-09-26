@@ -459,7 +459,12 @@ export const SEO_MODULE_GROUPS: {
       { id: "score", label: "Page Score", icon: Gauge },
       { id: "changes", label: "Change Control", icon: ClipboardList },
       { id: "graph", label: "Entity Graph", icon: GitBranch },
-      { id: "links", label: "Internal Links", icon: Compass },
+      // "Internal Links" is already the name of the audit screen below, which
+      // reports the links a page has. This one proposes links it could have,
+      // so it is named for what it holds rather than taking a name that is
+      // taken - two sidebar items reading the same thing resolve to whichever
+      // was registered last, and the other becomes unreachable.
+      { id: "links", label: "Link Recommendations", icon: Compass },
       { id: "opportunities", label: "Opportunities", icon: Target },
       { id: "events", label: "Errors & Spam", icon: AlertTriangle },
       { id: "seoleads", label: "SEO Leads", icon: Users2 },

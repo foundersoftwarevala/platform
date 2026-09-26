@@ -67,6 +67,9 @@ const MODULES = [
   ["bulk", "Bulk Ops"],
   ["score", "Page Score"],
   ["changes", "Change Control"],
+  ["graph", "Entity Graph"],
+  ["links", "Internal Links"],
+  ["opportunities", "Opportunities"],
 ];
 
 const browser = await chromium.launch();
@@ -114,6 +117,17 @@ for (const [id, name] of MODULES) {
     opened = false;
   }
 
+  // A module id the workspace does not recognise opens the dashboard, and a
+  // dashboard full of real figures reads as a healthy screen - which is how a
+  // screen that could not be reached at all was reported as passing. The
+  // executive banner renders for the dashboard and for nothing else, so its
+  // presence on any other module means the id never resolved.
+  const fellBack =
+    id !== "dashboard" &&
+    (await page.evaluate(() =>
+      /what needs my attention right now/i.test(document.body.innerText ?? ""),
+    ));
+
   const seen = await page.evaluate(() => {
     const body = document.body.innerText ?? "";
     // A figure worth reporting: a number of two digits or more, or any number
@@ -135,6 +149,7 @@ for (const [id, name] of MODULES) {
   rows.push({
     name,
     opened,
+    fellBack,
     ...seen,
     errors: consoleErrors.length - before,
   });
@@ -143,10 +158,10 @@ for (const [id, name] of MODULES) {
 await browser.close();
 
 console.log("");
-console.log("module            opened  table rows  figures  largest    console errors");
+console.log("module               opened  table rows  figures  largest    console errors");
 for (const r of rows) {
   console.log(
-    `${r.name.padEnd(17)} ${String(r.opened).padEnd(7)} ${String(r.rows).padEnd(11)} ` +
+    `${r.name.padEnd(20)} ${String(r.fellBack ? "DASHBOARD" : r.opened).padEnd(7)} ${String(r.rows).padEnd(11)} ` +
       `${String(r.figures).padEnd(8)} ${String(r.biggest).padEnd(10)} ${r.errors}`,
   );
 }
@@ -154,10 +169,15 @@ for (const r of rows) {
 const empty = rows.filter((r) => r.opened && r.rows === 0 && r.figures === 0);
 const unopened = rows.filter((r) => !r.opened);
 const noisy = rows.filter((r) => r.errors > 0);
+const fallen = rows.filter((r) => r.fellBack);
 
 console.log("");
 if (unopened.length) console.log(`could not open: ${unopened.map((r) => r.name).join(", ")}`);
 if (empty.length) console.log(`opened but showed nothing: ${empty.map((r) => r.name).join(", ")}`);
+if (fallen.length)
+  console.log(
+    `never reached - the dashboard answered instead: ${fallen.map((r) => r.name).join(", ")}`,
+  );
 if (noisy.length) {
   console.log(`console errors on: ${noisy.map((r) => r.name).join(", ")}`);
   // The distinct messages, not one line per occurrence: the same failure on
@@ -168,10 +188,9 @@ if (noisy.length) {
   for (const line of distinct.slice(0, 12)) console.log(`  ${line}`);
 }
 
-if (unopened.length || empty.length) {
-  console.log(
-    `\nRESULT: ${rows.length - unopened.length - empty.length}/${rows.length} modules show something.`,
-  );
+if (unopened.length || empty.length || fallen.length) {
+  const bad = new Set([...unopened, ...empty, ...fallen]);
+  console.log(`\nRESULT: ${rows.length - bad.size}/${rows.length} modules show their own screen.`);
   process.exit(1);
 }
 console.log(`\nRESULT: all ${rows.length} modules opened and showed real figures.`);
