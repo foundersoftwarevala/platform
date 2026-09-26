@@ -65,6 +65,8 @@ const MODULES = [
   ["events", "Errors and Spam"],
   ["seoleads", "SEO Leads"],
   ["bulk", "Bulk Ops"],
+  ["score", "Page Score"],
+  ["changes", "Change Control"],
 ];
 
 const browser = await chromium.launch();
