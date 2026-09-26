@@ -1,16 +1,26 @@
 /**
- * Run SQL against the project's database.
+ * Run SQL against the database the application actually reads.
  *
- * The Management API refuses the keys this machine has, and there is no psql
- * on the server, so a migration had no way to be applied at all. This connects
- * with the database password from .env.ops - which never leaves this machine
- * and is never printed - and runs a file, or a statement given on the command
- * line.
+ * That database is PostgreSQL on the VPS — `sv_platform`, served to the app by
+ * PostgREST behind the nginx gateway on 127.0.0.1:3010. It is not the hosted
+ * Supabase project, and the difference is not cosmetic: this script used to
+ * connect straight to `db.<ref>.supabase.co`, so a migration run through it
+ * created its tables on a database the application never opens. The tables
+ * existed, the script said "done", and production was unchanged.
+ *
+ * So the VPS is the default target and the hosted project has to be asked for
+ * by name. The VPS database listens only on localhost, which is correct, so
+ * this reaches it the same way an operator would: psql over the existing ssh
+ * key. Nothing is exposed and no password crosses the network.
  *
  *   node scripts/ops/db.mjs --file supabase/migrations/xxxx.sql
  *   node scripts/ops/db.mjs --sql "select count(*) from marketplace_products"
+ *   node scripts/ops/db.mjs --target hosted --sql "..."   # the Supabase project
  */
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import postgres from "postgres";
 
 function readEnv(file) {
@@ -23,24 +33,78 @@ function readEnv(file) {
 }
 
 const ops = readEnv(".env.ops");
+const args = process.argv.slice(2);
+
+const targetAt = args.indexOf("--target");
+const target = targetAt >= 0 ? args[targetAt + 1] : "vps";
+if (target !== "vps" && target !== "hosted") {
+  console.error("--target takes either vps (the database the app reads) or hosted");
+  process.exit(1);
+}
+const fileAt = args.indexOf("--file");
+const sqlAt = args.indexOf("--sql");
+const body =
+  fileAt >= 0 ? readFileSync(args[fileAt + 1], "utf8") : sqlAt >= 0 ? args[sqlAt + 1] : null;
+if (!body) {
+  console.error("give either --file <path> or --sql <statement>");
+  process.exit(1);
+}
+
+/**
+ * The VPS route: psql on the server, over the ssh key the other ops scripts
+ * use. The database listens on localhost only — which is how it should stay —
+ * so this runs the statement where the database already is rather than opening
+ * it to the network.
+ */
+if (target === "vps") {
+  const host = ops.SV_SSH_HOST;
+  const keyPath = (ops.SV_SSH_KEY ?? "").replace(
+    /^~/,
+    process.env.HOME ?? process.env.USERPROFILE ?? "~",
+  );
+  const database = ops.SV_DB_NAME ?? "sv_platform";
+  if (!host || !keyPath) {
+    console.error("SV_SSH_HOST and SV_SSH_KEY are needed in .env.ops to reach the VPS database");
+    process.exit(1);
+  }
+
+  const scratch = mkdtempSync(join(tmpdir(), "sv-db-"));
+  const local = join(scratch, "statement.sql");
+  const remote = `/tmp/sv-db-${Date.now().toString(36)}.sql`;
+  writeFileSync(local, body, "utf8");
+
+  const ssh = ["-i", keyPath, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes"];
+  try {
+    console.log(`target  : VPS ${database} (the database the application reads)\n`);
+    execFileSync("scp", [...ssh, local, `${host}:${remote}`], { stdio: "pipe" });
+    const out = execFileSync(
+      "ssh",
+      [
+        ...ssh,
+        host,
+        `sudo -u postgres psql -v ON_ERROR_STOP=1 -f ${remote} ${database}; rm -f ${remote}`,
+      ],
+      { encoding: "utf8" },
+    );
+    console.log(out.trimEnd() || "done — no rows returned");
+  } catch (error) {
+    const detail =
+      `${error.stdout ?? ""}${error.stderr ?? ""}`.trim() || String(error.message ?? error);
+    console.error("SQL failed:\n" + detail.slice(0, 1200));
+    process.exitCode = 1;
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+  process.exit(process.exitCode ?? 0);
+}
+
 const ref = ops.SUPABASE_PROJECT_REF;
 const password = ops.SUPABASE_DB_PASSWORD;
 if (!ref || !password) {
   console.error("SUPABASE_PROJECT_REF and SUPABASE_DB_PASSWORD are needed in .env.ops");
   process.exit(1);
 }
-
-const args = process.argv.slice(2);
-const fileAt = args.indexOf("--file");
-const sqlAt = args.indexOf("--sql");
-const body =
-  fileAt >= 0 ? readFileSync(args[fileAt + 1], "utf8")
-  : sqlAt >= 0 ? args[sqlAt + 1]
-  : null;
-if (!body) {
-  console.error("give either --file <path> or --sql <statement>");
-  process.exit(1);
-}
+console.log("target  : HOSTED Supabase — note the application does not read this database\n");
 
 // Supabase serves the same database on a direct host and through poolers in
 // each region; whichever answers first is the one used.
