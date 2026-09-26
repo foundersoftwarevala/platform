@@ -68,8 +68,12 @@ const MODULES = [
   ["score", "Page Score"],
   ["changes", "Change Control"],
   ["graph", "Entity Graph"],
-  ["links", "Internal Links"],
+  ["links", "Link Recommendations"],
   ["opportunities", "Opportunities"],
+  // The link audit, which is a different screen from the recommendations and
+  // was never on this list - the two sharing a name is what made one of them
+  // unreachable, so both are walked from here on.
+  ["internal", "Internal Links"],
 ];
 
 const browser = await chromium.launch();

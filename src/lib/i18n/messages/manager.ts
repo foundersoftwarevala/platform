@@ -10,32 +10,52 @@
  * longer names anything.
  */
 export const MANAGER_MESSAGES = {
-
   // SEO: the entity graph, the link engine and the opportunity list.
   "manager.seo.entity_no_page": ["no page", "shown when an entity has no URL of its own"],
   "manager.seo.entity_derived": ["derived", "shown when an entity came from no single table"],
   "manager.seo.entity_graph": ["Entity graph", "heading of the SEO entity graph screen"],
-  "manager.seo.entity_graph_note": ["Categories, cards, products, countries, regions, industries and the pages that represent them, each derived from a row that already existed and each relationship naming the column that proved it.", "what the entity graph screen shows"],
+  "manager.seo.entity_graph_note": [
+    "Categories, cards, products, countries, regions, industries and the pages that represent them, each derived from a row that already existed and each relationship naming the column that proved it.",
+    "what the entity graph screen shows",
+  ],
   "manager.seo.entities": ["Entities", "count of things in the SEO entity graph"],
   "manager.seo.relationships": ["Relationships", "count of edges in the SEO entity graph"],
   "manager.seo.all_with_evidence": ["all with evidence", "note under the relationship count"],
   "manager.seo.cards": ["Cards", "count of marketplace card slots"],
   "manager.seo.products": ["Products", "count of products"],
-  "manager.seo.relationships_and_proof": ["Relationships, and what proved each", "heading over the evidence table"],
-  "manager.seo.internal_links": ["Internal links", "heading of the internal link screen"],
-  "manager.seo.internal_links_note": ["Derived from the entity graph, capped at a handful per page, and refused where the target is a page the gate holds back. Nothing has been published: each of these is an argument waiting to be accepted or refused.", "what the internal link screen shows"],
+  "manager.seo.relationships_and_proof": [
+    "Relationships, and what proved each",
+    "heading over the evidence table",
+  ],
+  "manager.seo.internal_links": [
+    "Link recommendations",
+    "heading of the link recommendation screen - not the internal link audit, which is a different screen",
+  ],
+  "manager.seo.internal_links_note": [
+    "Derived from the entity graph, capped at a handful per page, and refused where the target is a page the gate holds back. Nothing has been published: each of these is an argument waiting to be accepted or refused.",
+    "what the internal link screen shows",
+  ],
   "manager.seo.recommendations": ["Recommendations", "count of proposed internal links"],
   "manager.seo.awaiting_review": ["Awaiting review", "links proposed but not yet accepted"],
-  "manager.seo.nothing_published_yet": ["nothing published yet", "note under the awaiting-review count"],
+  "manager.seo.nothing_published_yet": [
+    "nothing published yet",
+    "note under the awaiting-review count",
+  ],
   "manager.seo.published_links": ["Published", "links that have been accepted and applied"],
   "manager.seo.highest_priority": ["Highest priority", "the strongest link recommendations"],
   "manager.seo.same_ecosystem": ["same ecosystem", "note under the highest-priority count"],
   "manager.seo.opportunities": ["Opportunities", "heading of the SEO opportunity screen"],
-  "manager.seo.opportunities_note": ["Each derived from evidence already on this platform: page scores, the indexing gate, the entity graph, the link engine and Lead Manager. Anonymous traffic is not a lead and is not counted as one here.", "what the opportunity screen shows"],
+  "manager.seo.opportunities_note": [
+    "Each derived from evidence already on this platform: page scores, the indexing gate, the entity graph, the link engine and Lead Manager. Anonymous traffic is not a lead and is not counted as one here.",
+    "what the opportunity screen shows",
+  ],
   "manager.seo.open": ["Open", "opportunities not yet dealt with"],
   "manager.seo.critical": ["Critical", "most severe opportunities"],
   "manager.seo.high": ["High", "high severity opportunities"],
-  "manager.seo.cannot_judge_yet": ["Cannot be judged yet", "opportunities blocked for want of search data"],
+  "manager.seo.cannot_judge_yet": [
+    "Cannot be judged yet",
+    "opportunities blocked for want of search data",
+  ],
   "manager.seo.needs_search_data": ["needs search data", "why an opportunity cannot be judged"],
   // Lead Manager: where a lead came from.
   "manager.lead.attribution": ["Attribution", "heading over where a lead came from"],
