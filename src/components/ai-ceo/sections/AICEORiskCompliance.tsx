@@ -1,5 +1,13 @@
 import { motion } from "framer-motion";
-import { PageBanner, PageShell, SeedNotice } from "@/components/ai-ceo/PageShell";
+import { useTranslation } from "@/lib/i18n/use-translation";
+import {
+  DegradedNotice,
+  ErrorState,
+  LoadingState,
+  PageBanner,
+  PageShell,
+} from "@/components/ai-ceo/PageShell";
+import { useFounderGovernance } from "@/hooks/useFounderGovernance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -15,68 +23,27 @@ import {
   CheckCircle
 } from "lucide-react";
 
-// Mock risk data
-const riskCategories = [
-  { 
-    id: 1, 
-    category: "Security Risk", 
-    level: "medium",
-    score: 45,
-    issues: 3,
-    trend: "stable",
-    icon: Shield
-  },
-  { 
-    id: 2, 
-    category: "Legal Risk", 
-    level: "low",
-    score: 18,
-    issues: 1,
-    trend: "improving",
-    icon: FileWarning
-  },
-  { 
-    id: 3, 
-    category: "Financial Exposure", 
-    level: "high",
-    score: 72,
-    issues: 5,
-    trend: "worsening",
-    icon: DollarSign
-  },
-  { 
-    id: 4, 
-    category: "SLA Breach", 
-    level: "low",
-    score: 12,
-    issues: 0,
-    trend: "stable",
-    icon: Clock
-  },
-  { 
-    id: 5, 
-    category: "Policy Violation", 
-    level: "medium",
-    score: 38,
-    issues: 2,
-    trend: "improving",
-    icon: Lock
-  },
-];
+/**
+ * An icon for a risk area.
+ *
+ * The areas are whatever the risk register actually holds, so this matches on
+ * what the area is about and falls back rather than assuming a fixed five.
+ */
+const areaIcon = (area: string) => {
+  const key = area.toLowerCase();
+  if (key.includes("secur")) return Shield;
+  if (key.includes("legal") || key.includes("complian")) return FileWarning;
+  if (key.includes("financ") || key.includes("cost") || key.includes("revenue")) return DollarSign;
+  if (key.includes("sla") || key.includes("deadline") || key.includes("time")) return Clock;
+  return Lock;
+};
 
-const complianceItems = [
-  { id: 1, policy: "Data Protection (GDPR)", status: "compliant", lastAudit: "2 days ago" },
-  { id: 2, policy: "Financial Regulations", status: "warning", lastAudit: "1 week ago" },
-  { id: 3, policy: "User Privacy Policy", status: "compliant", lastAudit: "3 days ago" },
-  { id: 4, policy: "Access Control Policy", status: "compliant", lastAudit: "Today" },
-  { id: 5, policy: "Incident Response Plan", status: "review", lastAudit: "2 weeks ago" },
-];
-
-const preventiveSuggestions = [
-  "Implement additional MFA for high-value transactions",
-  "Review franchise payment thresholds - potential over-limit patterns detected",
-  "Schedule security audit for APAC region servers",
-];
+/** A stored date, shown as a day rather than an invented "2 days ago". */
+const reviewedOn = (value: string | null) => {
+  if (!value) return "not recorded";
+  const at = new Date(value);
+  return Number.isFinite(at.getTime()) ? at.toISOString().slice(0, 10) : value;
+};
 
 const getLevelStyle = (level: string) => {
   switch (level) {
@@ -97,16 +64,59 @@ const getStatusStyle = (status: string) => {
 };
 
 const AICEORiskCompliance = () => {
+  const { t } = useTranslation();
+  const {
+    riskCategories,
+    compliance,
+    preventive,
+    openRisks,
+    criticalRisks,
+    degraded,
+    isLoading,
+    failed,
+    refetch,
+  } = useFounderGovernance();
+
+  if (isLoading) {
+    return (
+      <PageShell>
+        <PageBanner
+          icon={ShieldAlert}
+          title={t("ceo.risk_compliance")}
+          subtitle="Fraud detection, anomaly flagging and compliance posture across the ecosystem."
+        />
+        <LoadingState label={t("ceo.risk_loading")} />
+      </PageShell>
+    );
+  }
+
+  if (failed) {
+    return (
+      <PageShell>
+        <PageBanner icon={ShieldAlert} title={t("ceo.risk_compliance")} />
+        <ErrorState
+          title={t("ceo.risk_failed")}
+          description="The risk register and policy set could not be read, so this screen cannot say what is outstanding."
+          onRetry={() => void refetch()}
+        />
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell>
       <PageBanner
         icon={ShieldAlert}
-        title="Risk & Compliance"
+        title={t("ceo.risk_compliance")}
         subtitle="Fraud detection, anomaly flagging and compliance posture across the ecosystem."
-        status="Monitoring 24/7"
+        status={
+          criticalRisks > 0
+            ? `${criticalRisks} critical of ${openRisks} open`
+            : `${openRisks} open risk${openRisks === 1 ? "" : "s"}`
+        }
       />
 
-      <SeedNotice waitingFor="a risk scoring engine and a compliance register" />
+      {degraded.length > 0 && <DegradedNotice sources={degraded} />}
 
       {/* Risk Categories Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
@@ -122,17 +132,22 @@ const AICEORiskCompliance = () => {
               <Card className={`bg-card ${style.border} backdrop-blur-xl`}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <risk.icon className={`w-5 h-5 ${style.text}`} />
+                    {(() => {
+                      const Icon = areaIcon(risk.category);
+                      return <Icon className={`w-5 h-5 ${style.text}`} />;
+                    })()}
                     <Badge className={`${style.bg} ${style.text} text-xs`}>
                       {risk.level}
                     </Badge>
                   </div>
                   <p className="text-sm text-foreground font-medium mb-2">{risk.category}</p>
                   <div className="space-y-2">
-                    <Progress value={risk.score} className="h-1.5" />
+                    <Progress value={risk.score ?? 0} className="h-1.5" />
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">{risk.issues} issues</span>
-                      <span className={style.text}>{risk.score}%</span>
+                      <span className={style.text} title={risk.scoringMethod ?? undefined}>
+                        {risk.score === null ? "not scored" : `${risk.score}%`}
+                      </span>
                     </div>
                   </div>
                 </CardContent>
@@ -148,20 +163,23 @@ const AICEORiskCompliance = () => {
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
               <CheckCircle className="w-5 h-5 text-accent-emerald" />
-              Compliance Status
+              {t("ceo.compliance_status")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[300px]">
               <div className="space-y-3">
-                {complianceItems.map((item) => (
+                {compliance.map((item) => (
                   <div 
                     key={item.id} 
                     className="flex items-center justify-between p-3 rounded-lg bg-surface border border-border"
                   >
                     <div>
                       <p className="text-sm font-medium text-foreground">{item.policy}</p>
-                      <p className="text-xs text-muted-foreground">Last audit: {item.lastAudit}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Effective {reviewedOn(item.lastReviewed)} · {item.source}
+                        {item.scope ? " · " + item.scope : ""}
+                      </p>
                     </div>
                     <Badge className={getStatusStyle(item.status)}>
                       {item.status}
@@ -178,14 +196,14 @@ const AICEORiskCompliance = () => {
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-accent-amber" />
-              AI Preventive Suggestions
+              {t("ceo.preventive_suggestions")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {preventiveSuggestions.map((suggestion, i) => (
+              {preventive.map((suggestion, i) => (
                 <motion.div
-                  key={i}
+                  key={suggestion.id}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.1 }}
@@ -193,7 +211,12 @@ const AICEORiskCompliance = () => {
                 >
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-accent-amber flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-foreground">{suggestion}</p>
+                    <div>
+                      <p className="text-sm text-foreground">{suggestion.text}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {suggestion.severity.toLowerCase()} · from {suggestion.source}
+                      </p>
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -207,7 +230,7 @@ const AICEORiskCompliance = () => {
         <div className="flex items-center gap-3">
           <ShieldAlert className="w-5 h-5 text-accent-amber" />
           <p className="text-sm text-accent-amber/80">
-            <strong>Risk Monitoring:</strong> AI continuously monitors all risk vectors. Critical issues are escalated to Boss immediately.
+            <strong>{t("ceo.risk_monitoring")}</strong> AI continuously monitors all risk vectors. Critical issues are escalated to Boss immediately.
           </p>
         </div>
       </div>

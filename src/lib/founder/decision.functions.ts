@@ -3,6 +3,7 @@ import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 import type { ApprovalSuggestion, DecisionDetail, DecisionRecord } from "./decision.types";
+import type { GovernanceView } from "./governance.server";
 
 /**
  * The Decision Engine's API.
@@ -284,5 +285,20 @@ export const expireFounderApprovals = createServerFn({ method: "POST" }).handler
     const { expireOverdueApprovals } = await import("./approvals.server");
     const result = await expireOverdueApprovals();
     return { ok: true, expired: result.expired };
+  },
+);
+
+/**
+ * What the Risk & Compliance screen shows.
+ *
+ * That screen carried three hardcoded arrays under a comment reading "Mock
+ * risk data", and a notice saying it was waiting for a risk scoring engine and
+ * a compliance register. Both exist now, so it reads them.
+ */
+export const loadFounderGovernance = createServerFn({ method: "GET" }).handler(
+  async (): Promise<GovernanceView> => {
+    await requireRead();
+    const { loadGovernance } = await import("./governance.server");
+    return loadGovernance();
   },
 );

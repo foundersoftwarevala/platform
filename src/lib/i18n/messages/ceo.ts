@@ -101,4 +101,52 @@ export const CEO_MESSAGES = {
     "shown · read from",
     "joins a row count to the database table it was read from",
   ],
+  // Risk and compliance, and the governed approval queue.
+  "ceo.risk_compliance": ["Risk & Compliance", "heading of the risk and compliance screen"],
+  "ceo.risk_loading": "Reading the risk register and the policy set…",
+  "ceo.risk_failed": "The governance tables didn't load",
+  "ceo.issues": ["issues", "how many risks are recorded against an area"],
+  "ceo.not_scored": ["not scored", "shown where no risk in a group carries a score"],
+  "ceo.compliance_status": ["Compliance Status", "heading over the policy register"],
+  "ceo.effective": ["Effective", "precedes the date a policy came into force"],
+  "ceo.preventive_suggestions": ["AI Preventive Suggestions", "heading over recorded mitigations"],
+  "ceo.from_source": ["· from", "precedes the table a suggestion was read from"],
+  "ceo.risk_monitoring": ["Risk Monitoring:", "label on the risk screen notice"],
+  "ceo.risk_monitoring_note":
+    "AI continuously monitors all risk vectors. Critical issues are escalated to Boss immediately.",
+  "ceo.governed_decisions": ["Governed decisions", "heading of the governed approval queue"],
+  "ceo.risk_word": ["risk", "follows a severity, as in high risk"],
+  "ceo.impact_word": ["impact", "follows a severity, as in high impact"],
+  "ceo.of_word": ["of", "joins two counts, as in 3 of 7"],
+  "ceo.evidence_sourced": [
+    "pieces of evidence are sourced",
+    "how much of a case is measured rather than inferred",
+  ],
+  "ceo.confidence_word": ["confidence", "precedes a confidence percentage"],
+  "ceo.awaiting_word": ["awaiting", "precedes the role that must decide"],
+  "ceo.gap_blocks_approval": "— this cannot be approved until the evidence is resolved",
+  "ceo.recommended_label": ["Recommended:", "precedes the recommended option"],
+  "ceo.reason_placeholder": "Why — this is recorded against the decision and cannot be left blank.",
+  "ceo.approve": ["Approve", "button that approves a governed decision"],
+  "ceo.reject": ["Reject", "button that rejects a governed decision"],
+  "ceo.cancel": ["Cancel", "button that closes the decision form"],
+  "ceo.decide": ["Decide", "button that opens the decision form"],
+  "ceo.request_expired":
+    "This request expired and has to be raised again before anyone can act on it.",
+  "ceo.decision_recorded": ["Decision recorded", "confirmation after an approval verdict"],
+  // The governed queue reads these as whole sentences rather than as words
+  // glued to numbers, because a fragment like "of" cannot be translated.
+  "ceo.risk_badge": ["{level} risk", "severity badge, as in high risk"],
+  "ceo.impact_badge": ["{level} impact", "severity badge, as in high impact"],
+  "ceo.evidence_ratio": [
+    "{sourced} of {total} pieces of evidence are sourced",
+    "how much of a case is measured rather than inferred",
+  ],
+  "ceo.confidence_value": ["confidence {score}%", "the derived confidence in a decision"],
+  "ceo.awaiting_role_value": ["awaiting {role}", "which role still has to decide"],
+  "ceo.gap_blocks": [
+    "{gap} — this cannot be approved until the evidence is resolved",
+    "shown when a decision is missing the evidence to be approved",
+  ],
+  "ceo.recommended_prefix": ["Recommended: ", "precedes the recommended option"],
 } as const;
