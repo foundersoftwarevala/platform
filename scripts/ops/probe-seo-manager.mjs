@@ -147,7 +147,15 @@ const noisy = rows.filter((r) => r.errors > 0);
 console.log("");
 if (unopened.length) console.log(`could not open: ${unopened.map((r) => r.name).join(", ")}`);
 if (empty.length) console.log(`opened but showed nothing: ${empty.map((r) => r.name).join(", ")}`);
-if (noisy.length) console.log(`console errors on: ${noisy.map((r) => r.name).join(", ")}`);
+if (noisy.length) {
+  console.log(`console errors on: ${noisy.map((r) => r.name).join(", ")}`);
+  // The distinct messages, not one line per occurrence: the same failure on
+  // nine screens is one fault, and printing it nine times hides that.
+  const distinct = [...new Set(consoleErrors.map((e) => String(e).slice(0, 160)))];
+  console.log("");
+  console.log(`distinct console errors (${distinct.length}):`);
+  for (const line of distinct.slice(0, 12)) console.log(`  ${line}`);
+}
 
 if (unopened.length || empty.length) {
   console.log(
