@@ -1,15 +1,81 @@
 import { useState, useEffect, type ReactNode, type MouseEvent as ReactMouseEvent } from "react";
 import {
-  Sparkles, Globe2, Hash, Tag as TagIcon, Link as LinkIcon, FileCode2, Languages,
-  Map as MapIcon, Image as ImageIcon, ShieldCheck, CheckCircle2, Plus, Search,
-  Smartphone, Monitor, AlertTriangle, Star, MessageSquare, Copy, TrendingUp,
-  TrendingDown, Minus, ArrowUpRight, Download, Upload, Filter, MoreHorizontal,
-  Play, Pause, RefreshCw, Eye, EyeOff, Edit3, Trash2, Zap, Bot, FileText,
-  Rss, LayoutGrid, PieChart, BarChart3, Activity, Target, Compass, Radar,
-  Award, Layers, Clock, Calendar, ChevronRight, ArrowRight, Rocket, Bell,
-  MapPin, Video, HelpCircle, Building2, GitBranch, Code2, Wand2,
-  ClipboardList, PenTool, Share2, Settings, Gauge, Boxes, LineChart,
-  ExternalLink, ScanLine, ListFilter, Users2, Flame, Send, X, Save, CircleDot,
+  Sparkles,
+  Globe2,
+  Hash,
+  Tag as TagIcon,
+  Link as LinkIcon,
+  FileCode2,
+  Languages,
+  Map as MapIcon,
+  Image as ImageIcon,
+  ShieldCheck,
+  CheckCircle2,
+  Plus,
+  Search,
+  Smartphone,
+  Monitor,
+  AlertTriangle,
+  Star,
+  MessageSquare,
+  Copy,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  ArrowUpRight,
+  Download,
+  Upload,
+  Filter,
+  MoreHorizontal,
+  Play,
+  Pause,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Edit3,
+  Trash2,
+  Zap,
+  Bot,
+  FileText,
+  Rss,
+  LayoutGrid,
+  PieChart,
+  BarChart3,
+  Activity,
+  Target,
+  Compass,
+  Radar,
+  Award,
+  Layers,
+  Clock,
+  Calendar,
+  ChevronRight,
+  ArrowRight,
+  Rocket,
+  Bell,
+  MapPin,
+  Video,
+  HelpCircle,
+  Building2,
+  GitBranch,
+  Code2,
+  Wand2,
+  ClipboardList,
+  PenTool,
+  Share2,
+  Settings,
+  Gauge,
+  Boxes,
+  LineChart,
+  ExternalLink,
+  ScanLine,
+  ListFilter,
+  Users2,
+  Flame,
+  Send,
+  X,
+  Save,
+  CircleDot,
 } from "lucide-react";
 import { Card, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import { SeoSection as LegacySeoEditor } from "./SeoSection";
@@ -18,15 +84,30 @@ import { notBuilt } from "@/lib/ui/not-built";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { authHeaders } from "@/lib/auth/operator-fetch";
 import {
-  countWhere, figure, groupBy, mean, num, sum, text, useResource,
+  countWhere,
+  figure,
+  groupBy,
+  mean,
+  num,
+  sum,
+  text,
+  useResource,
   type Row as ResourceRow,
 } from "@/lib/manager/use-resource";
 /* =========================================================
    UNIVERSAL ACTION DRAWER — wires every button to a workflow
    ========================================================= */
 type DrawerKind =
-  | "edit" | "create" | "preview" | "download" | "run" | "delete"
-  | "connect" | "fix" | "history" | "info";
+  | "edit"
+  | "create"
+  | "preview"
+  | "download"
+  | "run"
+  | "delete"
+  | "connect"
+  | "fix"
+  | "history"
+  | "info";
 
 type DrawerState = { open: boolean; title: string; subtitle?: string; kind: DrawerKind };
 
@@ -62,13 +143,27 @@ function DrawerBody({ kind, title }: { kind: DrawerKind; title: string }) {
     return (
       <div className="space-y-3">
         <div className="rounded-xl border border-border bg-background/40 p-4">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">softwarevala.com</div>
-          <div className="mt-1 text-[16px] font-bold text-[hsl(210_100%_75%)]">{title} — Software Vala</div>
-          <div className="text-[12px] text-muted-foreground">Live SERP preview · Desktop · Google IN</div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            softwarevala.com
+          </div>
+          <div className="mt-1 text-[16px] font-bold text-[hsl(210_100%_75%)]">
+            {title} — Software Vala
+          </div>
+          <div className="text-[12px] text-muted-foreground">
+            Live SERP preview · Desktop · Google IN
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-border bg-background/40 p-3 text-[11px]"><div className="text-[9px] uppercase tracking-wider text-muted-foreground">Position</div><div className="font-mono text-lg font-bold text-accent">3</div></div>
-          <div className="rounded-lg border border-border bg-background/40 p-3 text-[11px]"><div className="text-[9px] uppercase tracking-wider text-muted-foreground">CTR</div><div className="font-mono text-lg font-bold text-success">5.3%</div></div>
+          <div className="rounded-lg border border-border bg-background/40 p-3 text-[11px]">
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+              Position
+            </div>
+            <div className="font-mono text-lg font-bold text-accent">3</div>
+          </div>
+          <div className="rounded-lg border border-border bg-background/40 p-3 text-[11px]">
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground">CTR</div>
+            <div className="font-mono text-lg font-bold text-success">5.3%</div>
+          </div>
         </div>
         <pre className="max-h-40 overflow-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-[11px] leading-relaxed">{`<title>${title} — Software Vala</title>\n<meta name="description" content="Enterprise-ready…" />\n<link rel="canonical" href="https://softwarevala.com/…" />`}</pre>
       </div>
@@ -80,14 +175,27 @@ function DrawerBody({ kind, title }: { kind: DrawerKind; title: string }) {
         <div className="text-[12px] text-muted-foreground">Choose export format for "{title}".</div>
         <div className="grid grid-cols-2 gap-2">
           {["CSV", "XLSX", "PDF", "JSON"].map((f) => (
-            <label key={f} className="flex cursor-pointer items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2 text-[12px] hover:border-accent/40">
+            <label
+              key={f}
+              className="flex cursor-pointer items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2 text-[12px] hover:border-accent/40"
+            >
               <span className="font-semibold">{f}</span>
-              <input type="radio" name="fmt" defaultChecked={f === "CSV"} className="accent-[color:var(--accent)]" />
+              <input
+                type="radio"
+                name="fmt"
+                defaultChecked={f === "CSV"}
+                className="accent-[color:var(--accent)]"
+              />
             </label>
           ))}
         </div>
-        <label className="flex items-center gap-2 text-[12px]"><input type="checkbox" defaultChecked className="accent-[color:var(--accent)]" /> Include trend graphs (last 30d)</label>
-        <label className="flex items-center gap-2 text-[12px]"><input type="checkbox" className="accent-[color:var(--accent)]" /> Email me the report</label>
+        <label className="flex items-center gap-2 text-[12px]">
+          <input type="checkbox" defaultChecked className="accent-[color:var(--accent)]" /> Include
+          trend graphs (last 30d)
+        </label>
+        <label className="flex items-center gap-2 text-[12px]">
+          <input type="checkbox" className="accent-[color:var(--accent)]" /> Email me the report
+        </label>
       </div>
     );
   }
@@ -95,38 +203,75 @@ function DrawerBody({ kind, title }: { kind: DrawerKind; title: string }) {
     return (
       <div className="space-y-3">
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-[12px] text-destructive">
-          <div className="mb-1 font-bold uppercase tracking-wider">This action cannot be undone.</div>
+          <div className="mb-1 font-bold uppercase tracking-wider">
+            This action cannot be undone.
+          </div>
           "{title}" and its associated data will be permanently removed.
         </div>
-        <label className="flex items-center gap-2 text-[12px]"><input type="checkbox" className="accent-[color:var(--destructive)]" /> I understand this is permanent.</label>
-        <input placeholder='Type "DELETE" to confirm' className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-destructive" />
+        <label className="flex items-center gap-2 text-[12px]">
+          <input type="checkbox" className="accent-[color:var(--destructive)]" /> I understand this
+          is permanent.
+        </label>
+        <input
+          placeholder='Type "DELETE" to confirm'
+          className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-destructive"
+        />
       </div>
     );
   }
   if (kind === "run" || kind === "fix") {
     return (
       <div className="space-y-3">
-        <div className="text-[12px] text-muted-foreground">Job will run in the background. You'll be notified when complete.</div>
+        <div className="text-[12px] text-muted-foreground">
+          Job will run in the background. You'll be notified when complete.
+        </div>
         <div className="rounded-xl border border-border bg-background/40 p-3">
-          <div className="mb-2 text-[10px] uppercase tracking-wider text-muted-foreground">Scope</div>
+          <div className="mb-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+            Scope
+          </div>
           <div className="grid grid-cols-2 gap-2 text-[12px]">
             {["All items", "Filtered results", "Selected only", "Uploaded CSV"].map((s, i) => (
-              <label key={s} className="flex items-center gap-2"><input type="radio" name="scope" defaultChecked={i === 0} className="accent-[color:var(--accent)]" />{s}</label>
+              <label key={s} className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="scope"
+                  defaultChecked={i === 0}
+                  className="accent-[color:var(--accent)]"
+                />
+                {s}
+              </label>
             ))}
           </div>
         </div>
-        <label className="flex items-center gap-2 text-[12px]"><input type="checkbox" defaultChecked className="accent-[color:var(--accent)]" /> Send email digest when finished</label>
-        <label className="flex items-center gap-2 text-[12px]"><input type="checkbox" className="accent-[color:var(--accent)]" /> Auto-rollback on error</label>
+        <label className="flex items-center gap-2 text-[12px]">
+          <input type="checkbox" defaultChecked className="accent-[color:var(--accent)]" /> Send
+          email digest when finished
+        </label>
+        <label className="flex items-center gap-2 text-[12px]">
+          <input type="checkbox" className="accent-[color:var(--accent)]" /> Auto-rollback on error
+        </label>
       </div>
     );
   }
   if (kind === "connect") {
     return (
       <div className="space-y-3">
-        <div className="text-[12px] text-muted-foreground">Paste your API credentials for {title}.</div>
-        <input placeholder="Client ID" className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent" />
-        <input placeholder="Client Secret" type="password" className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent" />
-        <input placeholder="Property / Site URL" className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent" />
+        <div className="text-[12px] text-muted-foreground">
+          Paste your API credentials for {title}.
+        </div>
+        <input
+          placeholder="Client ID"
+          className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent"
+        />
+        <input
+          placeholder="Client Secret"
+          type="password"
+          className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent"
+        />
+        <input
+          placeholder="Property / Site URL"
+          className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent"
+        />
       </div>
     );
   }
@@ -140,12 +285,22 @@ function DrawerBody({ kind, title }: { kind: DrawerKind; title: string }) {
           { t: "1d ago", w: "System · scheduled sitemap ping", tone: "default" },
           { t: "3d ago", w: "Vikram · fixed 12 broken links", tone: "success" },
         ].map((e, i) => (
-          <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-background/40 p-3 text-[12px]">
+          <div
+            key={i}
+            className="flex items-start gap-3 rounded-lg border border-border bg-background/40 p-3 text-[12px]"
+          >
             <div className="mt-1 h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_currentColor]" />
-            <div className="flex-1"><div className="font-semibold">{e.w}</div><div className="text-[10px] text-muted-foreground">{e.t}</div></div>
+            <div className="flex-1">
+              <div className="font-semibold">{e.w}</div>
+              <div className="text-[10px] text-muted-foreground">{e.t}</div>
+            </div>
             <button
-        type="button"
-        onClick={() => notBuilt("Restore")} className="text-[10px] font-bold uppercase tracking-wider text-accent">Restore</button>
+              type="button"
+              onClick={() => notBuilt("Restore")}
+              className="text-[10px] font-bold uppercase tracking-wider text-accent"
+            >
+              Restore
+            </button>
           </div>
         ))}
       </div>
@@ -156,7 +311,12 @@ function DrawerBody({ kind, title }: { kind: DrawerKind; title: string }) {
     <div className="space-y-3">
       {[
         { l: "Meta Title", v: `${title} — Software Vala`, hint: "58 / 60" },
-        { l: "Meta Description", v: "Enterprise-ready SEO copy tuned for search intent and CTR.", hint: "142 / 160", area: true },
+        {
+          l: "Meta Description",
+          v: "Enterprise-ready SEO copy tuned for search intent and CTR.",
+          hint: "142 / 160",
+          area: true,
+        },
         { l: "Focus Keyword", v: "" },
         { l: "Secondary Keyword", v: "" },
         { l: "Canonical URL", v: "https://softwarevala.com/" },
@@ -164,20 +324,34 @@ function DrawerBody({ kind, title }: { kind: DrawerKind; title: string }) {
       ].map((f) => (
         <div key={f.l}>
           <div className="mb-1 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-            <span>{f.l}</span>{f.hint && <span className="font-mono text-accent">{f.hint}</span>}
+            <span>{f.l}</span>
+            {f.hint && <span className="font-mono text-accent">{f.hint}</span>}
           </div>
           {f.area ? (
-            <textarea rows={3} defaultValue={f.v} className="w-full rounded-lg border border-border bg-background/60 p-2.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent" />
+            <textarea
+              rows={3}
+              defaultValue={f.v}
+              className="w-full rounded-lg border border-border bg-background/60 p-2.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent"
+            />
           ) : (
-            <input defaultValue={f.v} placeholder={`Enter ${f.l.toLowerCase()}…`} className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent" />
+            <input
+              defaultValue={f.v}
+              placeholder={`Enter ${f.l.toLowerCase()}…`}
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent"
+            />
           )}
         </div>
       ))}
       <div className="grid grid-cols-3 gap-2 border-t border-border pt-3">
         {[
-          { l: "Index", v: "Yes" }, { l: "Follow", v: "Yes" }, { l: "Sitemap", v: "Yes" },
+          { l: "Index", v: "Yes" },
+          { l: "Follow", v: "Yes" },
+          { l: "Sitemap", v: "Yes" },
         ].map((s) => (
-          <div key={s.l} className="rounded-lg border border-border bg-background/40 px-3 py-2 text-[11px]">
+          <div
+            key={s.l}
+            className="rounded-lg border border-border bg-background/40 px-3 py-2 text-[11px]"
+          >
             <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{s.l}</div>
             <div className="font-mono font-bold text-success">{s.v}</div>
           </div>
@@ -189,7 +363,9 @@ function DrawerBody({ kind, title }: { kind: DrawerKind; title: string }) {
 
 function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => void }) {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     if (state.open) document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [state.open, onClose]);
@@ -207,34 +383,57 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
         className={`absolute right-0 top-0 flex h-full w-full max-w-[520px] flex-col border-l border-border bg-[oklch(0.18_0.035_240)] shadow-[var(--shadow-elegant)] transition-transform duration-300 ${state.open ? "translate-x-0" : "translate-x-full"}`}
       >
         <header className="flex items-start gap-3 border-b border-border p-4">
-          <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-background/60 text-${meta.tone}`}>
+          <div
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-background/60 text-${meta.tone}`}
+          >
             <Icon className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{state.kind}</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+              {state.kind}
+            </div>
             <div className="truncate text-[15px] font-bold text-foreground">{state.title}</div>
-            {state.subtitle && <div className="truncate text-[11px] text-muted-foreground">{state.subtitle}</div>}
+            {state.subtitle && (
+              <div className="truncate text-[11px] text-muted-foreground">{state.subtitle}</div>
+            )}
           </div>
-          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-destructive/40 hover:text-destructive"><X className="h-4 w-4" /></button>
+          <button
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </header>
         <div className="flex-1 overflow-y-auto p-4">
           <DrawerBody kind={state.kind} title={state.title} />
         </div>
         <footer className="flex items-center justify-between gap-2 border-t border-border bg-background/40 p-3">
-          <button onClick={onClose} className="rounded-full border border-border bg-background/60 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground">Cancel</button>
+          <button
+            onClick={onClose}
+            className="rounded-full border border-border bg-background/60 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+          >
+            Cancel
+          </button>
           <div className="flex items-center gap-2">
             {state.kind === "edit" || state.kind === "create" ? (
               <button
-        type="button"
-        onClick={() => notBuilt("Save draft")} className="rounded-full border border-border bg-background/60 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-accent">Save draft</button>
+                type="button"
+                onClick={() => notBuilt("Save draft")}
+                className="rounded-full border border-border bg-background/60 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-accent"
+              >
+                Save draft
+              </button>
             ) : null}
             <button
               onClick={onClose}
               className={`inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-[11px] font-bold uppercase tracking-wider text-primary-foreground shadow-[var(--shadow-glow)] ${
-                state.kind === "delete" ? "bg-destructive" : "bg-gradient-to-r from-primary to-accent"
+                state.kind === "delete"
+                  ? "bg-destructive"
+                  : "bg-gradient-to-r from-primary to-accent"
               }`}
             >
-              <Save className="h-3.5 w-3.5" />{meta.cta}
+              <Save className="h-3.5 w-3.5" />
+              {meta.cta}
             </button>
           </div>
         </footer>
@@ -246,7 +445,10 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
 /* =========================================================
    MODULE NAV
    ========================================================= */
-export const SEO_MODULE_GROUPS: { label: string; items: { id: string; label: string; icon: any }[] }[] = [
+export const SEO_MODULE_GROUPS: {
+  label: string;
+  items: { id: string; label: string; icon: any }[];
+}[] = [
   {
     label: "Overview",
     items: [
@@ -326,8 +528,12 @@ export const SEO_MODULE_GROUPS: { label: string; items: { id: string; label: str
    SHARED PRIMITIVES
    ========================================================= */
 function Chip({
-  children, tone = "default",
-}: { children: ReactNode; tone?: "default" | "success" | "warning" | "destructive" | "premium" | "accent" }) {
+  children,
+  tone = "default",
+}: {
+  children: ReactNode;
+  tone?: "default" | "success" | "warning" | "destructive" | "premium" | "accent";
+}) {
   const toneMap: Record<string, string> = {
     default: "border-border bg-white/[0.03] text-muted-foreground",
     success: "border-success/40 bg-success/10 text-success",
@@ -337,7 +543,9 @@ function Chip({
     accent: "border-accent/40 bg-accent/10 text-accent",
   };
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${toneMap[tone]}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${toneMap[tone]}`}
+    >
       {children}
     </span>
   );
@@ -347,16 +555,39 @@ function ScoreRing({ value, size = 56 }: { value: number; size?: number }) {
   const r = size / 2 - 4;
   const c = 2 * Math.PI * r;
   const off = c - (value / 100) * c;
-  const tone = value >= 80 ? "oklch(0.78 0.17 152)" : value >= 60 ? "oklch(0.82 0.16 75)" : "oklch(0.62 0.18 25)";
+  const tone =
+    value >= 80
+      ? "oklch(0.78 0.17 152)"
+      : value >= 60
+        ? "oklch(0.82 0.16 75)"
+        : "oklch(0.62 0.18 25)";
   return (
     <div className="relative inline-grid place-items-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="oklch(1 0 0 / 0.08)" strokeWidth="4" fill="none" />
-        <circle cx={size / 2} cy={size / 2} r={r} stroke={tone} strokeWidth="4" fill="none"
-          strokeDasharray={c} strokeDashoffset={off} strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset .6s ease" }} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke="oklch(1 0 0 / 0.08)"
+          strokeWidth="4"
+          fill="none"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={tone}
+          strokeWidth="4"
+          fill="none"
+          strokeDasharray={c}
+          strokeDashoffset={off}
+          strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset .6s ease" }}
+        />
       </svg>
-      <div className="absolute font-mono text-[13px] font-bold tabular" style={{ color: tone }}>{value}</div>
+      <div className="absolute font-mono text-[13px] font-bold tabular" style={{ color: tone }}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -366,7 +597,9 @@ function Delta({ v }: { v: number }) {
   const tone = v > 0 ? "text-success" : v < 0 ? "text-destructive" : "text-muted-foreground";
   return (
     <span className={`inline-flex items-center gap-1 font-mono text-[11px] tabular ${tone}`}>
-      <Icon className="h-3 w-3" />{v > 0 ? "+" : ""}{v}
+      <Icon className="h-3 w-3" />
+      {v > 0 ? "+" : ""}
+      {v}
     </span>
   );
 }
@@ -425,9 +658,7 @@ function downloadCsv(snapshot: TableSnapshot, name: string) {
 
 const SEARCH_INPUT_ID = "seo-center-search";
 
-function Toolbar({
-  title, count, right,
-}: { title: string; count?: number; right?: ReactNode }) {
+function Toolbar({ title, count, right }: { title: string; count?: number; right?: ReactNode }) {
   const query = useTableQuery();
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -457,11 +688,18 @@ function Toolbar({
   };
 
   return (
-    <div data-skip-drawer className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/40 p-2">
+    <div
+      data-skip-drawer
+      className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/40 p-2"
+    >
       <div className="flex items-center gap-2 pl-2">
-        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{title}</div>
+        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          {title}
+        </div>
         {typeof count === "number" && (
-          <span className="rounded-full border border-border bg-background/60 px-2 py-0.5 font-mono text-[10px] tabular text-muted-foreground">{count.toLocaleString()}</span>
+          <span className="rounded-full border border-border bg-background/60 px-2 py-0.5 font-mono text-[10px] tabular text-muted-foreground">
+            {count.toLocaleString()}
+          </span>
         )}
       </div>
       <div className="relative ml-2 flex-1 min-w-[180px] max-w-md">
@@ -539,22 +777,32 @@ function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
           <thead className="bg-background/60 text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
               {head.map((h) => (
-                <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">{h}</th>
+                <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {visible.map((row, i) => (
-              <tr key={i} className="border-t border-border transition-colors hover:bg-white/[0.03]">
+              <tr
+                key={i}
+                className="border-t border-border transition-colors hover:bg-white/[0.03]"
+              >
                 {row.map((c, j) => (
-                  <td key={j} className="whitespace-nowrap px-3 py-2 align-middle">{c}</td>
+                  <td key={j} className="whitespace-nowrap px-3 py-2 align-middle">
+                    {c}
+                  </td>
                 ))}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div data-skip-drawer className="flex items-center justify-between border-t border-border bg-background/40 px-3 py-2 text-[11px] text-muted-foreground">
+      <div
+        data-skip-drawer
+        className="flex items-center justify-between border-t border-border bg-background/40 px-3 py-2 text-[11px] text-muted-foreground"
+      >
         <div>
           {matching.length === 0
             ? "No rows match that search"
@@ -607,17 +855,35 @@ function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
   );
 }
 
-function MiniSpark({ data, tone = "accent" }: { data: number[]; tone?: "accent" | "success" | "destructive" | "warning" }) {
+function MiniSpark({
+  data,
+  tone = "accent",
+}: {
+  data: number[];
+  tone?: "accent" | "success" | "destructive" | "warning";
+}) {
   const max = Math.max(...data, 1);
   const stroke: Record<string, string> = {
-    accent: "oklch(0.80 0.13 192)", success: "oklch(0.78 0.17 152)",
-    destructive: "oklch(0.62 0.18 25)", warning: "oklch(0.82 0.16 75)",
+    accent: "oklch(0.80 0.13 192)",
+    success: "oklch(0.78 0.17 152)",
+    destructive: "oklch(0.62 0.18 25)",
+    warning: "oklch(0.82 0.16 75)",
   };
-  const w = 84, h = 24;
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - (v / max) * (h - 2) - 1}`).join(" ");
+  const w = 84,
+    h = 24;
+  const pts = data
+    .map((v, i) => `${(i / (data.length - 1)) * w},${h - (v / max) * (h - 2) - 1}`)
+    .join(" ");
   return (
     <svg width={w} height={h} className="inline-block">
-      <polyline points={pts} fill="none" stroke={stroke[tone]} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={stroke[tone]}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -627,13 +893,28 @@ function RowActs() {
     <div className="inline-flex items-center gap-1">
       <button
         type="button"
-        onClick={() => notBuilt("View")} className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-accent/40 hover:text-accent" title="View"><Eye className="h-3 w-3" /></button>
+        onClick={() => notBuilt("View")}
+        className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-accent/40 hover:text-accent"
+        title="View"
+      >
+        <Eye className="h-3 w-3" />
+      </button>
       <button
         type="button"
-        onClick={() => notBuilt("Edit")} className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-accent/40 hover:text-accent" title="Edit"><Edit3 className="h-3 w-3" /></button>
+        onClick={() => notBuilt("Edit")}
+        className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-accent/40 hover:text-accent"
+        title="Edit"
+      >
+        <Edit3 className="h-3 w-3" />
+      </button>
       <button
         type="button"
-        onClick={() => notBuilt("More")} className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-warning/40 hover:text-warning" title="More"><MoreHorizontal className="h-3 w-3" /></button>
+        onClick={() => notBuilt("More")}
+        className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-warning/40 hover:text-warning"
+        title="More"
+      >
+        <MoreHorizontal className="h-3 w-3" />
+      </button>
     </div>
   );
 }
@@ -672,9 +953,32 @@ export function SeoCenter() {
           description="Semrush + Ahrefs + Search Console level control — indexing, keywords, schema, backlinks, blogs and AI, all inside your Marketplace Manager."
           actions={
             <>
-              <button onClick={() => setDrawer({ open: true, title: "Recrawl entire site", kind: "run" })} className="rounded-full border border-border bg-white/[0.03] px-5 py-2 text-[12px] font-bold tracking-tight text-foreground transition-all hover:border-accent/40 hover:bg-white/[0.06] hover:text-accent"><span className="inline-flex items-center gap-1.5"><RefreshCw className="h-3.5 w-3.5" /> Recrawl</span></button>
-              <button onClick={() => setDrawer({ open: true, title: "Export Full SEO Report", kind: "download" })} className="rounded-full border border-border bg-white/[0.03] px-5 py-2 text-[12px] font-bold tracking-tight text-foreground transition-all hover:border-accent/40 hover:bg-white/[0.06] hover:text-accent"><span className="inline-flex items-center gap-1.5"><Download className="h-3.5 w-3.5" /> Export Report</span></button>
-              <button onClick={() => setDrawer({ open: true, title: "AI SEO Assistant", kind: "create" })} className="rounded-full bg-accent px-5 py-2 text-[12px] font-bold tracking-tight text-accent-foreground shadow-[0_8px_24px_-8px_oklch(0.80_0.13_192/0.6),inset_0_1px_0_oklch(1_0_0/0.25)] transition-all hover:brightness-110"><span className="inline-flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> AI SEO Assistant</span></button>
+              <button
+                onClick={() => setDrawer({ open: true, title: "Recrawl entire site", kind: "run" })}
+                className="rounded-full border border-border bg-white/[0.03] px-5 py-2 text-[12px] font-bold tracking-tight text-foreground transition-all hover:border-accent/40 hover:bg-white/[0.06] hover:text-accent"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <RefreshCw className="h-3.5 w-3.5" /> Recrawl
+                </span>
+              </button>
+              <button
+                onClick={() =>
+                  setDrawer({ open: true, title: "Export Full SEO Report", kind: "download" })
+                }
+                className="rounded-full border border-border bg-white/[0.03] px-5 py-2 text-[12px] font-bold tracking-tight text-foreground transition-all hover:border-accent/40 hover:bg-white/[0.06] hover:text-accent"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <Download className="h-3.5 w-3.5" /> Export Report
+                </span>
+              </button>
+              <button
+                onClick={() => setDrawer({ open: true, title: "AI SEO Assistant", kind: "create" })}
+                className="rounded-full bg-accent px-5 py-2 text-[12px] font-bold tracking-tight text-accent-foreground shadow-[0_8px_24px_-8px_oklch(0.80_0.13_192/0.6),inset_0_1px_0_oklch(1_0_0/0.25)] transition-all hover:brightness-110"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" /> AI SEO Assistant
+                </span>
+              </button>
             </>
           }
         />
@@ -685,18 +989,26 @@ export function SeoCenter() {
         <div className="flex flex-wrap gap-x-6 gap-y-3">
           {SEO_MODULE_GROUPS.map((g) => (
             <div key={g.label} className="min-w-[180px]">
-              <div className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{g.label}</div>
+              <div className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                {g.label}
+              </div>
               <div className="flex flex-wrap gap-1">
                 {g.items.map((it) => {
                   const active = module === it.id;
                   const Icon = it.icon;
                   return (
-                    <button key={it.id} onClick={() => setModule(it.id)}
+                    <button
+                      key={it.id}
+                      onClick={() => setModule(it.id)}
                       className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold transition-all ${
-                        active ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[var(--shadow-glow)]"
+                        active
+                          ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[var(--shadow-glow)]"
                           : "border border-border bg-background/60 text-muted-foreground hover:border-accent/40 hover:text-accent"
                       }`}
-                    ><Icon className="h-3 w-3" />{it.label}</button>
+                    >
+                      <Icon className="h-3 w-3" />
+                      {it.label}
+                    </button>
                   );
                 })}
               </div>
@@ -715,45 +1027,84 @@ export function SeoCenter() {
 
 export function renderSeoModule(id: string) {
   switch (id) {
-    case "dashboard": return <DashboardModule />;
-    case "health": return <HealthModule />;
-    case "reports": return <ReportsModule />;
-    case "gate": return <GateModule />;
-    case "page": return <PageEditorModule />;
-    case "product": return <ProductSeoModule />;
-    case "category": return <CategorySeoModule />;
-    case "blog": return <BlogSeoModule />;
-    case "landing": return <LandingSeoModule />;
-    case "meta": return <MetaManagerModule />;
-    case "schema": return <SchemaModule />;
-    case "og": return <OgModule />;
-    case "twitter": return <TwitterModule />;
-    case "tags": return <TagManagerModule />;
-    case "cards": return <CardSeoModule />;
-    case "keywords": return <KeywordCenterModule />;
-    case "cluster": return <KeywordClusterModule />;
-    case "ranking": return <RankingModule />;
-    case "competitor": return <CompetitorModule />;
-    case "backlinks": return <BacklinkModule />;
-    case "internal": return <InternalLinkModule />;
-    case "external": return <ExternalLinkModule />;
-    case "image": return <ImageSeoModule />;
-    case "video": return <VideoSeoModule />;
-    case "faq": return <FaqSeoModule />;
-    case "redirect": return <RedirectModule />;
-    case "canonical": return <CanonicalModule />;
-    case "sitemap": return <SitemapModule />;
-    case "robots": return <RobotsModule />;
-    case "local": return <LocalSeoModule />;
-    case "intl": return <IntlSeoModule />;
-    case "blogcenter": return <BlogCenterModule />;
-    case "aiwriter": return <AiWriterModule />;
-    case "aikeyword": return <AiKeywordModule />;
-    case "google": return <GoogleToolsModule />;
-    case "others": return <OtherToolsModule />;
-    case "bulk": return <BulkOpsModule />;
-    case "settings": return <SettingsModule />;
-    default: return null;
+    case "dashboard":
+      return <DashboardModule />;
+    case "health":
+      return <HealthModule />;
+    case "reports":
+      return <ReportsModule />;
+    case "gate":
+      return <GateModule />;
+    case "page":
+      return <PageEditorModule />;
+    case "product":
+      return <ProductSeoModule />;
+    case "category":
+      return <CategorySeoModule />;
+    case "blog":
+      return <BlogSeoModule />;
+    case "landing":
+      return <LandingSeoModule />;
+    case "meta":
+      return <MetaManagerModule />;
+    case "schema":
+      return <SchemaModule />;
+    case "og":
+      return <OgModule />;
+    case "twitter":
+      return <TwitterModule />;
+    case "tags":
+      return <TagManagerModule />;
+    case "cards":
+      return <CardSeoModule />;
+    case "keywords":
+      return <KeywordCenterModule />;
+    case "cluster":
+      return <KeywordClusterModule />;
+    case "ranking":
+      return <RankingModule />;
+    case "competitor":
+      return <CompetitorModule />;
+    case "backlinks":
+      return <BacklinkModule />;
+    case "internal":
+      return <InternalLinkModule />;
+    case "external":
+      return <ExternalLinkModule />;
+    case "image":
+      return <ImageSeoModule />;
+    case "video":
+      return <VideoSeoModule />;
+    case "faq":
+      return <FaqSeoModule />;
+    case "redirect":
+      return <RedirectModule />;
+    case "canonical":
+      return <CanonicalModule />;
+    case "sitemap":
+      return <SitemapModule />;
+    case "robots":
+      return <RobotsModule />;
+    case "local":
+      return <LocalSeoModule />;
+    case "intl":
+      return <IntlSeoModule />;
+    case "blogcenter":
+      return <BlogCenterModule />;
+    case "aiwriter":
+      return <AiWriterModule />;
+    case "aikeyword":
+      return <AiKeywordModule />;
+    case "google":
+      return <GoogleToolsModule />;
+    case "others":
+      return <OtherToolsModule />;
+    case "bulk":
+      return <BulkOpsModule />;
+    case "settings":
+      return <SettingsModule />;
+    default:
+      return null;
   }
 }
 
@@ -788,10 +1139,14 @@ function DashboardModule() {
   const low = useResource("seo_issues", { limit: 1, filters: ["severity.eq.low"] });
   const metaIssues = useResource("seo_issues", { limit: 1, filters: ["category.eq.metadata"] });
   const contentIssues = useResource("seo_issues", { limit: 1, filters: ["category.eq.content"] });
-  const technicalIssues = useResource("seo_issues", { limit: 1, filters: ["category.eq.technical"] });
+  const technicalIssues = useResource("seo_issues", {
+    limit: 1,
+    filters: ["category.eq.technical"],
+  });
   const measured = useResource("keywords", { limit: 1, filters: ["position.gte.1"] });
 
-  const byStatus = (status: string) => countWhere(pages.rows, (row) => text(row, "index_status") === status);
+  const byStatus = (status: string) =>
+    countWhere(pages.rows, (row) => text(row, "index_status") === status);
   const score = mean(pages.rows, "seo_score");
   const ctr = mean(perf.rows, "ctr");
   const position = mean(perf.rows, "avg_position");
@@ -800,42 +1155,216 @@ function DashboardModule() {
   const cls = mean(perf.rows, "cls");
   const days = perf.rows.length;
 
-  const decimal = (value: number | null, source: { loading: boolean; failed: boolean }, digits = 1, suffix = "") =>
-    source.loading ? "…" : value === null || source.failed ? "—" : `${value.toFixed(digits)}${suffix}`;
+  const decimal = (
+    value: number | null,
+    source: { loading: boolean; failed: boolean },
+    digits = 1,
+    suffix = "",
+  ) =>
+    source.loading
+      ? "…"
+      : value === null || source.failed
+        ? "—"
+        : `${value.toFixed(digits)}${suffix}`;
 
   const cards: {
-    label: string; value: string; delta?: string;
-    tone: "default" | "success" | "warning" | "premium" | "destructive"; icon: ReactNode;
+    label: string;
+    value: string;
+    delta?: string;
+    tone: "default" | "success" | "warning" | "premium" | "destructive";
+    icon: ReactNode;
   }[] = [
-    { label: "SEO Score", value: decimal(score, pages, 0), tone: "success", delta: `mean of ${pages.rows.length} crawled pages`, icon: <Gauge className="h-4 w-4" /> },
-    { label: "Pages Crawled", value: figure(pages.total, pages), tone: "default", delta: "seo_pages", icon: <ScanLine className="h-4 w-4" /> },
-    { label: "Indexable", value: figure(byStatus("indexable"), pages), tone: "success", icon: <ShieldCheck className="h-4 w-4" /> },
-    { label: "Indexed", value: figure(byStatus("indexed"), pages), tone: "success", icon: <FileText className="h-4 w-4" /> },
-    { label: "Pending", value: figure(byStatus("pending"), pages), tone: "warning", delta: "Queue", icon: <Clock className="h-4 w-4" /> },
-    { label: "Crawled, Not Indexed", value: figure(byStatus("crawled_not_indexed"), pages), tone: "warning", icon: <EyeOff className="h-4 w-4" /> },
-    { label: "Noindex", value: figure(byStatus("noindex"), pages), tone: "warning", icon: <EyeOff className="h-4 w-4" /> },
-    { label: "Errors", value: figure(byStatus("error"), pages), tone: "destructive", icon: <AlertTriangle className="h-4 w-4" /> },
-    { label: "Open Issues", value: figure(open.total, open), tone: "warning", delta: "status = open", icon: <AlertTriangle className="h-4 w-4" /> },
-    { label: "High Severity", value: figure(high.total, high), tone: "destructive", icon: <Flame className="h-4 w-4" /> },
-    { label: "Medium Severity", value: figure(medium.total, medium), tone: "warning", icon: <AlertTriangle className="h-4 w-4" /> },
-    { label: "Low Severity", value: figure(low.total, low), tone: "default", icon: <CircleDot className="h-4 w-4" /> },
-    { label: "Metadata Issues", value: figure(metaIssues.total, metaIssues), tone: "warning", icon: <FileText className="h-4 w-4" /> },
-    { label: "Content Issues", value: figure(contentIssues.total, contentIssues), tone: "warning", icon: <PenTool className="h-4 w-4" /> },
-    { label: "Technical Issues", value: figure(technicalIssues.total, technicalIssues), tone: "warning", icon: <FileCode2 className="h-4 w-4" /> },
-    { label: "Keywords", value: figure(keywords.total, keywords), tone: "premium", delta: "seo_keywords", icon: <Hash className="h-4 w-4" /> },
-    { label: "Keywords Measured", value: figure(measured.total, measured), tone: "success", delta: "has a position", icon: <TrendingUp className="h-4 w-4" /> },
-    { label: "Backlinks", value: figure(backlinks.total, backlinks), tone: "default", icon: <LinkIcon className="h-4 w-4" /> },
-    { label: "Toxic Backlinks", value: figure(countWhere(backlinks.rows, (r) => text(r, "status") === "toxic"), backlinks), tone: "destructive", icon: <AlertTriangle className="h-4 w-4" /> },
-    { label: "Organic Clicks", value: figure(sum(perf.rows, "clicks"), perf), tone: "success", delta: `${days} days recorded`, icon: <ArrowUpRight className="h-4 w-4" /> },
-    { label: "Impressions", value: figure(sum(perf.rows, "impressions"), perf), tone: "premium", delta: `${days} days recorded`, icon: <Eye className="h-4 w-4" /> },
-    { label: "Organic Sessions", value: figure(sum(perf.rows, "organic_sessions"), perf), tone: "success", icon: <Users2 className="h-4 w-4" /> },
-    { label: "Conversions", value: figure(sum(perf.rows, "conversions"), perf), tone: "premium", icon: <Target className="h-4 w-4" /> },
-    { label: "CTR", value: decimal(ctr, perf, 2, "%"), tone: "success", delta: "mean, measured", icon: <Target className="h-4 w-4" /> },
-    { label: "Avg Position", value: decimal(position, perf, 1), tone: "success", delta: "mean, measured", icon: <Award className="h-4 w-4" /> },
-    { label: "LCP", value: decimal(lcp === null ? null : lcp / 1000, perf, 2, "s"), tone: lcp !== null && lcp <= 2500 ? "success" : "warning", delta: "good ≤ 2.50s", icon: <Zap className="h-4 w-4" /> },
-    { label: "INP", value: decimal(inp, perf, 0, "ms"), tone: inp !== null && inp <= 200 ? "success" : "warning", delta: "good ≤ 200ms", icon: <Activity className="h-4 w-4" /> },
-    { label: "CLS", value: decimal(cls, perf, 3), tone: cls !== null && cls <= 0.1 ? "success" : "warning", delta: "good ≤ 0.100", icon: <Layers className="h-4 w-4" /> },
-    { label: "Sessions Measured", value: figure(sum(behaviour.rows, "sessions"), behaviour), tone: "default", delta: "page behaviour", icon: <BarChart3 className="h-4 w-4" /> },
+    {
+      label: "SEO Score",
+      value: decimal(score, pages, 0),
+      tone: "success",
+      delta: `mean of ${pages.rows.length} crawled pages`,
+      icon: <Gauge className="h-4 w-4" />,
+    },
+    {
+      label: "Pages Crawled",
+      value: figure(pages.total, pages),
+      tone: "default",
+      delta: "seo_pages",
+      icon: <ScanLine className="h-4 w-4" />,
+    },
+    {
+      label: "Indexable",
+      value: figure(byStatus("indexable"), pages),
+      tone: "success",
+      icon: <ShieldCheck className="h-4 w-4" />,
+    },
+    {
+      label: "Indexed",
+      value: figure(byStatus("indexed"), pages),
+      tone: "success",
+      icon: <FileText className="h-4 w-4" />,
+    },
+    {
+      label: "Pending",
+      value: figure(byStatus("pending"), pages),
+      tone: "warning",
+      delta: "Queue",
+      icon: <Clock className="h-4 w-4" />,
+    },
+    {
+      label: "Crawled, Not Indexed",
+      value: figure(byStatus("crawled_not_indexed"), pages),
+      tone: "warning",
+      icon: <EyeOff className="h-4 w-4" />,
+    },
+    {
+      label: "Noindex",
+      value: figure(byStatus("noindex"), pages),
+      tone: "warning",
+      icon: <EyeOff className="h-4 w-4" />,
+    },
+    {
+      label: "Errors",
+      value: figure(byStatus("error"), pages),
+      tone: "destructive",
+      icon: <AlertTriangle className="h-4 w-4" />,
+    },
+    {
+      label: "Open Issues",
+      value: figure(open.total, open),
+      tone: "warning",
+      delta: "status = open",
+      icon: <AlertTriangle className="h-4 w-4" />,
+    },
+    {
+      label: "High Severity",
+      value: figure(high.total, high),
+      tone: "destructive",
+      icon: <Flame className="h-4 w-4" />,
+    },
+    {
+      label: "Medium Severity",
+      value: figure(medium.total, medium),
+      tone: "warning",
+      icon: <AlertTriangle className="h-4 w-4" />,
+    },
+    {
+      label: "Low Severity",
+      value: figure(low.total, low),
+      tone: "default",
+      icon: <CircleDot className="h-4 w-4" />,
+    },
+    {
+      label: "Metadata Issues",
+      value: figure(metaIssues.total, metaIssues),
+      tone: "warning",
+      icon: <FileText className="h-4 w-4" />,
+    },
+    {
+      label: "Content Issues",
+      value: figure(contentIssues.total, contentIssues),
+      tone: "warning",
+      icon: <PenTool className="h-4 w-4" />,
+    },
+    {
+      label: "Technical Issues",
+      value: figure(technicalIssues.total, technicalIssues),
+      tone: "warning",
+      icon: <FileCode2 className="h-4 w-4" />,
+    },
+    {
+      label: "Keywords",
+      value: figure(keywords.total, keywords),
+      tone: "premium",
+      delta: "seo_keywords",
+      icon: <Hash className="h-4 w-4" />,
+    },
+    {
+      label: "Keywords Measured",
+      value: figure(measured.total, measured),
+      tone: "success",
+      delta: "has a position",
+      icon: <TrendingUp className="h-4 w-4" />,
+    },
+    {
+      label: "Backlinks",
+      value: figure(backlinks.total, backlinks),
+      tone: "default",
+      icon: <LinkIcon className="h-4 w-4" />,
+    },
+    {
+      label: "Toxic Backlinks",
+      value: figure(
+        countWhere(backlinks.rows, (r) => text(r, "status") === "toxic"),
+        backlinks,
+      ),
+      tone: "destructive",
+      icon: <AlertTriangle className="h-4 w-4" />,
+    },
+    {
+      label: "Organic Clicks",
+      value: figure(sum(perf.rows, "clicks"), perf),
+      tone: "success",
+      delta: `${days} days recorded`,
+      icon: <ArrowUpRight className="h-4 w-4" />,
+    },
+    {
+      label: "Impressions",
+      value: figure(sum(perf.rows, "impressions"), perf),
+      tone: "premium",
+      delta: `${days} days recorded`,
+      icon: <Eye className="h-4 w-4" />,
+    },
+    {
+      label: "Organic Sessions",
+      value: figure(sum(perf.rows, "organic_sessions"), perf),
+      tone: "success",
+      icon: <Users2 className="h-4 w-4" />,
+    },
+    {
+      label: "Conversions",
+      value: figure(sum(perf.rows, "conversions"), perf),
+      tone: "premium",
+      icon: <Target className="h-4 w-4" />,
+    },
+    {
+      label: "CTR",
+      value: decimal(ctr, perf, 2, "%"),
+      tone: "success",
+      delta: "mean, measured",
+      icon: <Target className="h-4 w-4" />,
+    },
+    {
+      label: "Avg Position",
+      value: decimal(position, perf, 1),
+      tone: "success",
+      delta: "mean, measured",
+      icon: <Award className="h-4 w-4" />,
+    },
+    {
+      label: "LCP",
+      value: decimal(lcp === null ? null : lcp / 1000, perf, 2, "s"),
+      tone: lcp !== null && lcp <= 2500 ? "success" : "warning",
+      delta: "good ≤ 2.50s",
+      icon: <Zap className="h-4 w-4" />,
+    },
+    {
+      label: "INP",
+      value: decimal(inp, perf, 0, "ms"),
+      tone: inp !== null && inp <= 200 ? "success" : "warning",
+      delta: "good ≤ 200ms",
+      icon: <Activity className="h-4 w-4" />,
+    },
+    {
+      label: "CLS",
+      value: decimal(cls, perf, 3),
+      tone: cls !== null && cls <= 0.1 ? "success" : "warning",
+      delta: "good ≤ 0.100",
+      icon: <Layers className="h-4 w-4" />,
+    },
+    {
+      label: "Sessions Measured",
+      value: figure(sum(behaviour.rows, "sessions"), behaviour),
+      tone: "default",
+      delta: "page behaviour",
+      icon: <BarChart3 className="h-4 w-4" />,
+    },
   ];
 
   const trend = [...perf.rows].reverse();
@@ -856,7 +1385,14 @@ function DashboardModule() {
       {/* Mega stat wall */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
         {cards.map((s) => (
-          <StatCard key={s.label} label={s.label} value={s.value} tone={s.tone} delta={s.delta} icon={s.icon} />
+          <StatCard
+            key={s.label}
+            label={s.label}
+            value={s.value}
+            tone={s.tone}
+            delta={s.delta}
+            icon={s.icon}
+          />
         ))}
       </div>
 
@@ -876,10 +1412,38 @@ function DashboardModule() {
           </div>
           <PerformanceChart rows={trend} loading={perf.loading} failed={perf.failed} />
           <div className="mt-3 grid grid-cols-4 gap-3 border-t border-border pt-3 text-[11px]">
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.clicks")}</div><div className="font-mono text-lg font-bold tabular text-accent">{figure(sum(perf.rows, "clicks"), perf)}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.impressions")}</div><div className="font-mono text-lg font-bold tabular text-premium">{figure(sum(perf.rows, "impressions"), perf)}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.ctr")}</div><div className="font-mono text-lg font-bold tabular text-success">{decimal(ctr, perf, 2, "%")}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.position")}</div><div className="font-mono text-lg font-bold tabular">{decimal(position, perf, 1)}</div></div>
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                {t("seo.clicks")}
+              </div>
+              <div className="font-mono text-lg font-bold tabular text-accent">
+                {figure(sum(perf.rows, "clicks"), perf)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                {t("seo.impressions")}
+              </div>
+              <div className="font-mono text-lg font-bold tabular text-premium">
+                {figure(sum(perf.rows, "impressions"), perf)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                {t("seo.ctr")}
+              </div>
+              <div className="font-mono text-lg font-bold tabular text-success">
+                {decimal(ctr, perf, 2, "%")}
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                {t("seo.position")}
+              </div>
+              <div className="font-mono text-lg font-bold tabular">
+                {decimal(position, perf, 1)}
+              </div>
+            </div>
           </div>
         </Card>
 
@@ -889,25 +1453,49 @@ function DashboardModule() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { l: "SEO Score", v: score === null ? null : Math.round(score), suffix: "", good: undefined as number | undefined },
+              {
+                l: "SEO Score",
+                v: score === null ? null : Math.round(score),
+                suffix: "",
+                good: undefined as number | undefined,
+              },
               { l: "LCP", v: lcp, suffix: "ms", good: 2500 },
               { l: "INP", v: inp, suffix: "ms", good: 200 },
               { l: "CLS", v: cls, suffix: "", good: 0.1 },
             ].map((r) => {
-              const passing = r.good === undefined ? (r.v ?? 0) >= 80 : r.v !== null && r.v <= r.good;
-              const ringValue = r.good === undefined
-                ? Math.round(r.v ?? 0)
-                : r.v === null ? 0 : Math.max(0, Math.min(100, Math.round(100 - ((r.v / r.good) - 1) * 100)));
+              const passing =
+                r.good === undefined ? (r.v ?? 0) >= 80 : r.v !== null && r.v <= r.good;
+              const ringValue =
+                r.good === undefined
+                  ? Math.round(r.v ?? 0)
+                  : r.v === null
+                    ? 0
+                    : Math.max(0, Math.min(100, Math.round(100 - (r.v / r.good - 1) * 100)));
               return (
-                <div key={r.l} className="flex items-center gap-3 rounded-lg border border-border bg-background/40 p-3">
+                <div
+                  key={r.l}
+                  className="flex items-center gap-3 rounded-lg border border-border bg-background/40 p-3"
+                >
                   <ScoreRing value={ringValue} />
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{r.l}</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {r.l}
+                    </div>
                     <div className="font-mono text-xs font-semibold text-foreground">
-                      {r.v === null ? "—" : r.suffix === "ms" ? `${Math.round(r.v)}ms` : r.l === "CLS" ? r.v.toFixed(3) : String(r.v)}
+                      {r.v === null
+                        ? "—"
+                        : r.suffix === "ms"
+                          ? `${Math.round(r.v)}ms`
+                          : r.l === "CLS"
+                            ? r.v.toFixed(3)
+                            : String(r.v)}
                     </div>
                     <div className={`text-[10px] ${passing ? "text-success" : "text-warning"}`}>
-                      {r.v === null ? "not measured" : passing ? t("seo.good") : t("seo.needs_work")}
+                      {r.v === null
+                        ? "not measured"
+                        : passing
+                          ? t("seo.good")
+                          : t("seo.needs_work")}
                     </div>
                   </div>
                 </div>
@@ -915,7 +1503,8 @@ function DashboardModule() {
             })}
           </div>
           <div className="mt-3 border-t border-border pt-3 text-[10px] leading-relaxed text-muted-foreground">
-            {t("seo.thresholds_are_the_published_core_web_vitals_o")}</div>
+            {t("seo.thresholds_are_the_published_core_web_vitals_o")}
+          </div>
         </Card>
       </div>
 
@@ -923,46 +1512,83 @@ function DashboardModule() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.busiest_pages")}</div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">seo_page_behavior</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              {t("seo.busiest_pages")}
+            </div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              seo_page_behavior
+            </div>
           </div>
           <Table
             head={["URL", "Sessions", "Clicks", "Avg time", "Scroll", "Bounce"]}
             rows={topPages.map((p) => [
-              <span key="u" className="font-mono text-[11px]">{p.url}</span>,
-              <span key="s" className="font-mono tabular">{p.sessions.toLocaleString()}</span>,
-              <span key="c" className="font-mono tabular">{p.clicks.toLocaleString()}</span>,
-              <span key="t" className="font-mono tabular">{p.seconds === null ? "—" : `${Math.round(p.seconds)}s`}</span>,
-              <span key="d" className="font-mono tabular">{p.scroll === null ? "—" : `${Math.round(p.scroll)}%`}</span>,
-              <span key="b" className={`font-mono tabular ${(p.bounce ?? 0) > 50 ? "text-warning" : "text-success"}`}>{p.bounce === null ? "—" : `${p.bounce.toFixed(1)}%`}</span>,
+              <span key="u" className="font-mono text-[11px]">
+                {p.url}
+              </span>,
+              <span key="s" className="font-mono tabular">
+                {p.sessions.toLocaleString()}
+              </span>,
+              <span key="c" className="font-mono tabular">
+                {p.clicks.toLocaleString()}
+              </span>,
+              <span key="t" className="font-mono tabular">
+                {p.seconds === null ? "—" : `${Math.round(p.seconds)}s`}
+              </span>,
+              <span key="d" className="font-mono tabular">
+                {p.scroll === null ? "—" : `${Math.round(p.scroll)}%`}
+              </span>,
+              <span
+                key="b"
+                className={`font-mono tabular ${(p.bounce ?? 0) > 50 ? "text-warning" : "text-success"}`}
+              >
+                {p.bounce === null ? "—" : `${p.bounce.toFixed(1)}%`}
+              </span>,
             ])}
           />
           {!behaviour.loading && topPages.length === 0 && (
             <div className="px-1 py-3 text-[11px] text-muted-foreground">
-              {behaviour.failed ? t("seo.page_behaviour_could_not_be_read") : t("seo.no_page_behaviour_has_been_recorded_yet")}
+              {behaviour.failed
+                ? t("seo.page_behaviour_could_not_be_read")
+                : t("seo.no_page_behaviour_has_been_recorded_yet")}
             </div>
           )}
         </Card>
 
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.top_ranking_keywords")}</div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">seo_keywords</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              {t("seo.top_ranking_keywords")}
+            </div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              seo_keywords
+            </div>
           </div>
           <Table
             head={["Keyword", "Pos", "Δ", "Vol", "CPC", "URL"]}
             rows={keywords.rows.slice(0, 5).map((k) => [
-              <span key="k" className="font-semibold">{text(k, "keyword")}</span>,
-              <span key="p" className="font-mono tabular text-accent">{text(k, "position")}</span>,
+              <span key="k" className="font-semibold">
+                {text(k, "keyword")}
+              </span>,
+              <span key="p" className="font-mono tabular text-accent">
+                {text(k, "position")}
+              </span>,
               <Delta key="d" v={num(k, "previous_position") - num(k, "position")} />,
-              <span key="v" className="font-mono tabular">{num(k, "search_volume").toLocaleString()}</span>,
-              <span key="c" className="font-mono tabular">{k.cpc === null || k.cpc === undefined ? "—" : `$${num(k, "cpc").toFixed(2)}`}</span>,
-              <span key="u" className="font-mono text-[11px] text-muted-foreground">{text(k, "target_url")}</span>,
+              <span key="v" className="font-mono tabular">
+                {num(k, "search_volume").toLocaleString()}
+              </span>,
+              <span key="c" className="font-mono tabular">
+                {k.cpc === null || k.cpc === undefined ? "—" : `$${num(k, "cpc").toFixed(2)}`}
+              </span>,
+              <span key="u" className="font-mono text-[11px] text-muted-foreground">
+                {text(k, "target_url")}
+              </span>,
             ])}
           />
           {!keywords.loading && keywords.rows.length === 0 && (
             <div className="px-1 py-3 text-[11px] text-muted-foreground">
-              {keywords.failed ? t("seo.keywords_could_not_be_read") : t("seo.no_keywords_are_tracked_yet")}
+              {keywords.failed
+                ? t("seo.keywords_could_not_be_read")
+                : t("seo.no_keywords_are_tracked_yet")}
             </div>
           )}
         </Card>
@@ -980,8 +1606,14 @@ function DashboardModule() {
  * there is nothing to plot.
  */
 function PerformanceChart({
-  rows, loading, failed,
-}: { rows: ResourceRow[]; loading: boolean; failed: boolean }) {
+  rows,
+  loading,
+  failed,
+}: {
+  rows: ResourceRow[];
+  loading: boolean;
+  failed: boolean;
+}) {
   const { t } = useTranslation();
   const width = 400;
   const height = 120;
@@ -1028,13 +1660,31 @@ function PerformanceChart({
             <stop offset="1" stopColor="oklch(0.85 0.16 92)" stopOpacity="0" />
           </linearGradient>
         </defs>
-        <polyline points={path(impressions, peakImpressions)} fill="none" stroke="oklch(0.85 0.16 92)" strokeWidth="1.5" />
-        <polygon points={`${path(impressions, peakImpressions)} ${width},${height} 0,${height}`} fill="url(#gb)" />
-        <polyline points={path(clicks, peakClicks)} fill="none" stroke="oklch(0.80 0.13 192)" strokeWidth="1.8" />
-        <polygon points={`${path(clicks, peakClicks)} ${width},${height} 0,${height}`} fill="url(#ga)" />
+        <polyline
+          points={path(impressions, peakImpressions)}
+          fill="none"
+          stroke="oklch(0.85 0.16 92)"
+          strokeWidth="1.5"
+        />
+        <polygon
+          points={`${path(impressions, peakImpressions)} ${width},${height} 0,${height}`}
+          fill="url(#gb)"
+        />
+        <polyline
+          points={path(clicks, peakClicks)}
+          fill="none"
+          stroke="oklch(0.80 0.13 192)"
+          strokeWidth="1.8"
+        />
+        <polygon
+          points={`${path(clicks, peakClicks)} ${width},${height} 0,${height}`}
+          fill="url(#ga)"
+        />
       </svg>
       <div className="pointer-events-none absolute inset-x-3 bottom-2 flex justify-between text-[9px] uppercase tracking-wider text-muted-foreground">
-        <span>{first}</span><span>{middle}</span><span>{last}</span>
+        <span>{first}</span>
+        <span>{middle}</span>
+        <span>{last}</span>
       </div>
     </div>
   );
@@ -1067,6 +1717,16 @@ function humaniseKey(key: string): string {
  * them the grouping was taken from, because a count from a sample is a
  * different claim from a count of everything.
  */
+/**
+ * How many rows one page of a large table asks the database for.
+ *
+ * Matched to the table's own page size on purpose. Fetch more than the table
+ * shows and the screen grows a second set of Prev/Next controls inside the
+ * first, each counting something different - one through the rows that were
+ * fetched, one through the rows that exist.
+ */
+const PAGE_SIZE = TABLE_PAGE_SIZE;
+
 /* =========================================================
    THE INDEXING GATE — the verdict on every page the site serves
    ========================================================= */
@@ -1119,6 +1779,78 @@ function humaniseKey(key: string): string {
  * keywords - a slot that keeps the keywords it has is in a better state than
  * one given made-up ones.
  */
+
+/**
+ * Move through a table that is larger than one request.
+ *
+ * The console's own table paginates whatever it was handed, so a screen that
+ * fetched fifty rows offered pages through fifty rows and called it done. Over
+ * 7,280 card slots that is a sample presented as a list. This asks the
+ * database for the next page instead.
+ */
+function Pager({
+  offset,
+  page,
+  total,
+  loading,
+  onChange,
+}: {
+  offset: number;
+  page: number;
+  total: number;
+  loading: boolean;
+  onChange: (next: number) => void;
+}) {
+  const from = total === 0 ? 0 : offset + 1;
+  const to = Math.min(offset + page, total);
+  const last = Math.max(0, Math.floor(Math.max(total - 1, 0) / page) * page);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 py-2 text-[11px] text-muted-foreground">
+      <span>
+        {loading
+          ? "Reading…"
+          : `Showing ${from.toLocaleString()}–${to.toLocaleString()} of ${total.toLocaleString()}`}
+      </span>
+      <span className="flex items-center gap-1">
+        <PagerButton label="First" disabled={offset === 0} onClick={() => onChange(0)} />
+        <PagerButton
+          label="Back"
+          disabled={offset === 0}
+          onClick={() => onChange(Math.max(0, offset - page))}
+        />
+        <PagerButton
+          label="Next"
+          disabled={offset + page >= total}
+          onClick={() => onChange(offset + page)}
+        />
+        <PagerButton label="Last" disabled={offset >= last} onClick={() => onChange(last)} />
+      </span>
+    </div>
+  );
+}
+
+function PagerButton({
+  label,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-md border border-border px-2 py-1 font-semibold transition hover:bg-muted disabled:opacity-40"
+    >
+      {label}
+    </button>
+  );
+}
+
 function CardTagAction({ slotUrl }: { slotUrl: string }) {
   const [state, setState] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1207,7 +1939,15 @@ function CardSeoModule() {
   // from it means the search happens in the database across all 7,280 slots,
   // rather than filtering whichever sixty rows happened to be fetched.
   const search = useTableQuery();
-  const slots = useResource("card_slots", { limit: 60, search: search || undefined });
+  const [offset, setOffset] = useState(0);
+  const slots = useResource("card_slots", {
+    limit: PAGE_SIZE,
+    offset,
+    search: search || undefined,
+  });
+  // A new search is a new list; staying on page nine of the old one would
+  // show an empty table and look like no match.
+  useEffect(() => setOffset(0), [search]);
   const withKeyword = useResource("card_slots", {
     limit: 1,
     filters: ["primary_keyword.not.is.null"],
@@ -1226,7 +1966,9 @@ function CardSeoModule() {
   return (
     <div className="space-y-4">
       <Card>
-        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Card SEO</div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          Card SEO
+        </div>
         <div className="mt-1 text-[12px] text-muted-foreground">
           The keyword blueprint held against each permanent card slot. The slot's identity — its
           category, country and URL — does not change when the product inside it does, so this is
@@ -1235,27 +1977,66 @@ function CardSeoModule() {
       </Card>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Card slots" value={figure(all.total, all)} tone="default" delta="marketplace_card_slots" icon={<LayoutGrid className="h-4 w-4" />} />
-        <StatCard label="With a primary keyword" value={figure(withKeyword.total, withKeyword)} tone="success" icon={<Hash className="h-4 w-4" />} />
-        <StatCard label="Occupied by a product" value={figure(occupied.total, occupied)} tone="premium" icon={<Boxes className="h-4 w-4" />} />
-        <StatCard label="Showing" value={String(slots.rows.length)} tone="default" delta="search to narrow" icon={<ListFilter className="h-4 w-4" />} />
+        <StatCard
+          label="Card slots"
+          value={figure(all.total, all)}
+          tone="default"
+          delta="marketplace_card_slots"
+          icon={<LayoutGrid className="h-4 w-4" />}
+        />
+        <StatCard
+          label="With a primary keyword"
+          value={figure(withKeyword.total, withKeyword)}
+          tone="success"
+          icon={<Hash className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Occupied by a product"
+          value={figure(occupied.total, occupied)}
+          tone="premium"
+          icon={<Boxes className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Showing"
+          value={String(slots.rows.length)}
+          tone="default"
+          delta="search to narrow"
+          icon={<ListFilter className="h-4 w-4" />}
+        />
       </div>
 
       <Toolbar title="Slots" count={slots.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={slots.total}
+        loading={slots.loading}
+        onChange={setOffset}
+      />
       <Table
         head={["Slot", "Country", "Primary keyword", "Keywords", "FAQs", "Tags"]}
         rows={slots.rows.map((row) => [
-          <span key="u" className="max-w-[260px] truncate font-mono text-[11px]">{text(row, "slot_url")}</span>,
-          <Chip key="c" tone="default">{text(row, "country_marker")}</Chip>,
-          <span key="p" className="max-w-[240px] truncate">{text(row, "primary_keyword") || "—"}</span>,
-          <span key="k" className="font-mono tabular">{setSize(row)}</span>,
+          <span key="u" className="max-w-[260px] truncate font-mono text-[11px]">
+            {text(row, "slot_url")}
+          </span>,
+          <Chip key="c" tone="default">
+            {text(row, "country_marker")}
+          </Chip>,
+          <span key="p" className="max-w-[240px] truncate">
+            {text(row, "primary_keyword") || "—"}
+          </span>,
+          <span key="k" className="font-mono tabular">
+            {setSize(row)}
+          </span>,
           <span key="f" className="font-mono tabular">
             {Array.isArray(row.faq_set) ? row.faq_set.length : 0}
           </span>,
           <CardTagAction key="a" slotUrl={text(row, "slot_url")} />,
         ])}
       />
-      {slots.loading && <div className="text-[11px] text-muted-foreground">Reading the card slots…</div>}
+      {slots.loading && (
+        <div className="text-[11px] text-muted-foreground">Reading the card slots…</div>
+      )}
       {!slots.loading && slots.failed && (
         <div className="text-[11px] text-muted-foreground">The card slots could not be read.</div>
       )}
@@ -1268,20 +2049,65 @@ function GateSummary({ scope }: { scope?: string }) {
   const all = useResource("seo_gate", { limit: 1, filters: scope ? [scope] : [] });
   const ready = useResource("seo_gate", { limit: 1, filters: where("state.eq.READY_FOR_INDEX") });
   const indexable = useResource("seo_gate", { limit: 1, filters: where("indexable.eq.true") });
-  const eligible = useResource("seo_gate", { limit: 1, filters: where("sitemap_eligible.eq.true") });
+  const eligible = useResource("seo_gate", {
+    limit: 1,
+    filters: where("sitemap_eligible.eq.true"),
+  });
   const blocked = useResource("seo_gate", { limit: 1, filters: where("state.eq.BLOCKED") });
-  const notReady = useResource("seo_gate", { limit: 1, filters: where("state.eq.CONTENT_NOT_READY") });
+  const notReady = useResource("seo_gate", {
+    limit: 1,
+    filters: where("state.eq.CONTENT_NOT_READY"),
+  });
   const unverified = useResource("seo_gate", { limit: 1, filters: where("state.eq.UNVERIFIED") });
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-      <StatCard label="Pages judged" value={figure(all.total, all)} tone="default" delta="seo_indexing_decisions" icon={<ScanLine className="h-4 w-4" />} />
-      <StatCard label="Ready for index" value={figure(ready.total, ready)} tone="success" icon={<ShieldCheck className="h-4 w-4" />} />
-      <StatCard label="Indexable" value={figure(indexable.total, indexable)} tone="success" icon={<Eye className="h-4 w-4" />} />
-      <StatCard label="Sitemap eligible" value={figure(eligible.total, eligible)} tone="success" delta="advertised to search" icon={<MapIcon className="h-4 w-4" />} />
-      <StatCard label="Blocked" value={figure(blocked.total, blocked)} tone="destructive" delta="held back by the gate" icon={<EyeOff className="h-4 w-4" />} />
-      <StatCard label="Content not ready" value={figure(notReady.total, notReady)} tone="warning" icon={<Clock className="h-4 w-4" />} />
-      <StatCard label="Unverified" value={figure(unverified.total, unverified)} tone="warning" delta="could not be checked" icon={<AlertTriangle className="h-4 w-4" />} />
+      <StatCard
+        label="Pages judged"
+        value={figure(all.total, all)}
+        tone="default"
+        delta="seo_indexing_decisions"
+        icon={<ScanLine className="h-4 w-4" />}
+      />
+      <StatCard
+        label="Ready for index"
+        value={figure(ready.total, ready)}
+        tone="success"
+        icon={<ShieldCheck className="h-4 w-4" />}
+      />
+      <StatCard
+        label="Indexable"
+        value={figure(indexable.total, indexable)}
+        tone="success"
+        icon={<Eye className="h-4 w-4" />}
+      />
+      <StatCard
+        label="Sitemap eligible"
+        value={figure(eligible.total, eligible)}
+        tone="success"
+        delta="advertised to search"
+        icon={<MapIcon className="h-4 w-4" />}
+      />
+      <StatCard
+        label="Blocked"
+        value={figure(blocked.total, blocked)}
+        tone="destructive"
+        delta="held back by the gate"
+        icon={<EyeOff className="h-4 w-4" />}
+      />
+      <StatCard
+        label="Content not ready"
+        value={figure(notReady.total, notReady)}
+        tone="warning"
+        icon={<Clock className="h-4 w-4" />}
+      />
+      <StatCard
+        label="Unverified"
+        value={figure(unverified.total, unverified)}
+        tone="warning"
+        delta="could not be checked"
+        icon={<AlertTriangle className="h-4 w-4" />}
+      />
     </div>
   );
 }
@@ -1295,8 +2121,10 @@ function GateSummary({ scope }: { scope?: string }) {
  */
 function GateBreakdown() {
   const kinds = ["slot", "product", "category", "country", "blog"];
+  const [offset, setOffset] = useState(0);
   const held = useResource("seo_gate", {
-    limit: 60,
+    limit: PAGE_SIZE,
+    offset,
     filters: ["sitemap_eligible.eq.false"],
   });
 
@@ -1310,11 +2138,22 @@ function GateBreakdown() {
       </div>
 
       <Toolbar title="Held back, and why" count={held.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={held.total}
+        loading={held.loading}
+        onChange={setOffset}
+      />
       <Table
         head={["Page", "Kind", "State", "Reason"]}
-        rows={held.rows.slice(0, 40).map((row) => [
-          <span key="u" className="max-w-[320px] truncate font-mono text-[11px]">{text(row, "url")}</span>,
-          <Chip key="k" tone="default">{text(row, "entity_type")}</Chip>,
+        rows={held.rows.map((row) => [
+          <span key="u" className="max-w-[320px] truncate font-mono text-[11px]">
+            {text(row, "url")}
+          </span>,
+          <Chip key="k" tone="default">
+            {text(row, "entity_type")}
+          </Chip>,
           <Chip key="s" tone={text(row, "state") === "BLOCKED" ? "destructive" : "warning"}>
             {text(row, "state")}
           </Chip>,
@@ -1403,17 +2242,37 @@ function HealthModule() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 8);
 
-  const verdict = score === null ? "Unknown" : score >= 90 ? "Excellent" : score >= 75 ? "Good" : score >= 50 ? "Fair" : "Needs work";
-  const verdictTone = score === null ? "text-muted-foreground" : score >= 75 ? "text-success" : score >= 50 ? "text-warning" : "text-destructive";
+  const verdict =
+    score === null
+      ? "Unknown"
+      : score >= 90
+        ? "Excellent"
+        : score >= 75
+          ? "Good"
+          : score >= 50
+            ? "Fair"
+            : "Needs work";
+  const verdictTone =
+    score === null
+      ? "text-muted-foreground"
+      : score >= 75
+        ? "text-success"
+        : score >= 50
+          ? "text-warning"
+          : "text-destructive";
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_1.5fr]">
       <Card>
-        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.overall_health")}</div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          {t("seo.overall_health")}
+        </div>
         <div className="mt-3 flex items-center gap-4">
           <ScoreRing value={score ?? 0} size={96} />
           <div>
-            <div className={`text-3xl font-bold ${verdictTone}`}>{audits.loading ? "…" : verdict}</div>
+            <div className={`text-3xl font-bold ${verdictTone}`}>
+              {audits.loading ? "…" : verdict}
+            </div>
             <div className="text-xs text-muted-foreground">
               {audits.loading
                 ? t("seo.reading_the_audit_table")
@@ -1428,46 +2287,64 @@ function HealthModule() {
         <div className="mt-4 space-y-2">
           {bars.length > 0 && (
             <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              {scores ? t("seo.score_by_category") : t("seo.issues_by_severity_as_this_run_counted_them")}
+              {scores
+                ? t("seo.score_by_category")
+                : t("seo.issues_by_severity_as_this_run_counted_them")}
             </div>
           )}
           {bars.map((r) => (
             <div key={r.l}>
               <div className="mb-1 flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground">{r.l}</span>
-                <span className="font-mono tabular">{scores ? `${r.v}%` : r.v.toLocaleString()}</span>
+                <span className="font-mono tabular">
+                  {scores ? `${r.v}%` : r.v.toLocaleString()}
+                </span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-background/60">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-accent to-cyan-glow"
-                  style={{ width: `${peak > 0 ? Math.max(2, Math.round((r.v / peak) * 100)) : 0}%` }}
+                  style={{
+                    width: `${peak > 0 ? Math.max(2, Math.round((r.v / peak) * 100)) : 0}%`,
+                  }}
                 />
               </div>
             </div>
           ))}
           {!audits.loading && bars.length === 0 && (
-            <div className="text-[11px] text-muted-foreground">{t("seo.the_latest_audit_carries_no_category_breakdown")}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {t("seo.the_latest_audit_carries_no_category_breakdown")}
+            </div>
           )}
         </div>
         {emptyRuns > 0 && !audits.loading && (
           <div className="mt-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-[11px] leading-relaxed text-warning">
-            The {emptyRuns} most recent {emptyRuns === 1 ? "audit run" : "audit runs"} recorded no score, no
-            pages crawled and no breakdown. The figures above are from the last run that measured anything.
+            The {emptyRuns} most recent {emptyRuns === 1 ? "audit run" : "audit runs"} recorded no
+            score, no pages crawled and no breakdown. The figures above are from the last run that
+            measured anything.
           </div>
         )}
         <div className="mt-4 border-t border-border pt-3">
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.technical_checks")}</div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            {t("seo.technical_checks")}
+          </div>
           <div className="flex flex-wrap gap-1">
             {checks.rows.slice(0, 12).map((check) => {
               const status = text(check, "status");
               return (
-                <Chip key={String(check.id)} tone={status === "pass" ? "success" : status === "warn" ? "warning" : "destructive"}>
+                <Chip
+                  key={String(check.id)}
+                  tone={
+                    status === "pass" ? "success" : status === "warn" ? "warning" : "destructive"
+                  }
+                >
                   {text(check, "name")}
                 </Chip>
               );
             })}
             {!checks.loading && checks.rows.length === 0 && (
-              <span className="text-[11px] text-muted-foreground">{t("seo.no_technical_check_has_been_recorded")}</span>
+              <span className="text-[11px] text-muted-foreground">
+                {t("seo.no_technical_check_has_been_recorded")}
+              </span>
             )}
           </div>
         </div>
@@ -1475,7 +2352,9 @@ function HealthModule() {
 
       <Card>
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.issues_to_fix")}</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            {t("seo.issues_to_fix")}
+          </div>
           <div className="flex gap-1">
             <Chip tone="destructive">{figure(high.total, high)} high</Chip>
             <Chip tone="warning">{figure(medium.total, medium)} medium</Chip>
@@ -1484,14 +2363,26 @@ function HealthModule() {
         </div>
         <div className="space-y-2">
           {grouped.map((i) => {
-            const tone = i.severity === "high" ? "destructive" : i.severity === "medium" ? "warning" : "default";
+            const tone =
+              i.severity === "high"
+                ? "destructive"
+                : i.severity === "medium"
+                  ? "warning"
+                  : "default";
             const Icon = i.severity === "low" ? CheckCircle2 : AlertTriangle;
             return (
-              <div key={i.type} className="group flex items-start gap-3 rounded-xl border border-border bg-background/40 p-3 transition-colors hover:border-accent/40">
-                <Icon className={`mt-0.5 h-4 w-4 ${tone === "destructive" ? "text-destructive" : tone === "warning" ? "text-warning" : "text-accent"}`} />
+              <div
+                key={i.type}
+                className="group flex items-start gap-3 rounded-xl border border-border bg-background/40 p-3 transition-colors hover:border-accent/40"
+              >
+                <Icon
+                  className={`mt-0.5 h-4 w-4 ${tone === "destructive" ? "text-destructive" : tone === "warning" ? "text-warning" : "text-accent"}`}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1 truncate text-[13px] font-bold">{i.description || i.type}</div>
+                    <div className="min-w-0 flex-1 truncate text-[13px] font-bold">
+                      {i.description || i.type}
+                    </div>
                     <Chip tone={tone as any}>{i.count}</Chip>
                   </div>
                   <div className="text-[11px] text-muted-foreground">
@@ -1502,17 +2393,24 @@ function HealthModule() {
               </div>
             );
           })}
-          {sample.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_issue_table")}</div>}
+          {sample.loading && (
+            <div className="text-[11px] text-muted-foreground">
+              {t("seo.reading_the_issue_table")}
+            </div>
+          )}
           {!sample.loading && grouped.length === 0 && (
             <div className="text-[11px] text-muted-foreground">
-              {sample.failed ? t("seo.issues_could_not_be_read") : t("seo.no_open_issue_is_recorded")}
+              {sample.failed
+                ? t("seo.issues_could_not_be_read")
+                : t("seo.no_open_issue_is_recorded")}
             </div>
           )}
         </div>
         {grouped.length > 0 && (
           <div className="mt-3 border-t border-border pt-3 text-[10px] leading-relaxed text-muted-foreground">
-            Grouped from the {sample.rows.length} most recently detected of {figure(sample.total, sample)} open issues.
-            The counts on the chips above are of every issue at that severity, not of the sample.
+            Grouped from the {sample.rows.length} most recently detected of{" "}
+            {figure(sample.total, sample)} open issues. The counts on the chips above are of every
+            issue at that severity, not of the sample.
           </div>
         )}
       </Card>
@@ -1540,17 +2438,27 @@ function ReportsModule() {
   const audits = useResource("seo_audits", { limit: 25 });
 
   const icons: Record<string, typeof Calendar> = {
-    monthly: Calendar, weekly: BarChart3, daily: Clock, technical: ScanLine,
-    keyword: Hash, content: Rss, traffic: BarChart3, executive: Award,
+    monthly: Calendar,
+    weekly: BarChart3,
+    daily: Clock,
+    technical: ScanLine,
+    keyword: Hash,
+    content: Rss,
+    traffic: BarChart3,
+    executive: Award,
   };
 
   return (
     <div className="space-y-4">
       <Toolbar title={t("seo.report_library")} count={reports.total} />
-      {reports.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_report_table")}</div>}
+      {reports.loading && (
+        <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_report_table")}</div>
+      )}
       {!reports.loading && reports.rows.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
-          {reports.failed ? t("seo.reports_could_not_be_read") : t("seo.no_report_has_been_generated_yet")}
+          {reports.failed
+            ? t("seo.reports_could_not_be_read")
+            : t("seo.no_report_has_been_generated_yet")}
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1558,12 +2466,15 @@ function ReportsModule() {
           const type = text(r, "report_type", "report");
           const Icon = icons[type] ?? FileText;
           const status = text(r, "status");
-          const tone = status === "ready" ? "success" : status === "failed" ? "destructive" : "warning";
+          const tone =
+            status === "ready" ? "success" : status === "failed" ? "destructive" : "warning";
           const summary = (r.summary ?? null) as Record<string, unknown> | null;
           return (
             <Card key={String(r.id)}>
               <div className="flex items-start justify-between">
-                <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent"><Icon className="h-4 w-4" /></div>
+                <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent">
+                  <Icon className="h-4 w-4" />
+                </div>
                 <Chip tone={tone as any}>{status}</Chip>
               </div>
               <div className="mt-3 text-sm font-bold">{text(r, "name")}</div>
@@ -1572,12 +2483,18 @@ function ReportsModule() {
               </div>
               {summary && (
                 <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-[11px]">
-                  {Object.entries(summary).slice(0, 4).map(([key, value]) => (
-                    <div key={key}>
-                      <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{key.replace(/_/g, " ")}</div>
-                      <div className="font-mono tabular">{typeof value === "number" ? value.toLocaleString() : String(value)}</div>
-                    </div>
-                  ))}
+                  {Object.entries(summary)
+                    .slice(0, 4)
+                    .map(([key, value]) => (
+                      <div key={key}>
+                        <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                          {key.replace(/_/g, " ")}
+                        </div>
+                        <div className="font-mono tabular">
+                          {typeof value === "number" ? value.toLocaleString() : String(value)}
+                        </div>
+                      </div>
+                    ))}
                 </div>
               )}
               <div className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -1592,13 +2509,25 @@ function ReportsModule() {
       <Table
         head={["Audit", "Status", "Score", "Pages crawled", "Issues found", "Started", "Completed"]}
         rows={audits.rows.map((a) => [
-          <span key="n" className="font-semibold">{text(a, "name")}</span>,
-          <Chip key="s" tone={text(a, "status") === "completed" ? "success" : "warning"}>{text(a, "status")}</Chip>,
+          <span key="n" className="font-semibold">
+            {text(a, "name")}
+          </span>,
+          <Chip key="s" tone={text(a, "status") === "completed" ? "success" : "warning"}>
+            {text(a, "status")}
+          </Chip>,
           <ScoreRing key="sc" value={num(a, "score")} size={28} />,
-          <span key="p" className="font-mono tabular">{num(a, "pages_crawled").toLocaleString()}</span>,
-          <span key="i" className="font-mono tabular text-warning">{num(a, "issues_found").toLocaleString()}</span>,
-          <span key="st" className="font-mono text-[11px] text-muted-foreground">{text(a, "started_at").slice(0, 10)}</span>,
-          <span key="c" className="font-mono text-[11px] text-muted-foreground">{text(a, "completed_at").slice(0, 10)}</span>,
+          <span key="p" className="font-mono tabular">
+            {num(a, "pages_crawled").toLocaleString()}
+          </span>,
+          <span key="i" className="font-mono tabular text-warning">
+            {num(a, "issues_found").toLocaleString()}
+          </span>,
+          <span key="st" className="font-mono text-[11px] text-muted-foreground">
+            {text(a, "started_at").slice(0, 10)}
+          </span>,
+          <span key="c" className="font-mono text-[11px] text-muted-foreground">
+            {text(a, "completed_at").slice(0, 10)}
+          </span>,
         ])}
       />
       {!audits.loading && audits.rows.length === 0 && (
@@ -1615,7 +2544,11 @@ function ReportsModule() {
    ========================================================= */
 function PageEditorModule() {
   // legacy editor already includes PageHeader; wrap to hide its own header via negative padding trick
-  return <div className="-mx-4 -my-8 md:-mx-8"><LegacySeoEditor /></div>;
+  return (
+    <div className="-mx-4 -my-8 md:-mx-8">
+      <LegacySeoEditor />
+    </div>
+  );
 }
 
 /* =========================================================
@@ -1631,9 +2564,7 @@ function PageEditorModule() {
  * index status and how many issues were found on it. That is one table and
  * three filters over it.
  */
-function PagesOfType({
-  kind, title, Icon,
-}: { kind: string; title: string; Icon: typeof Boxes }) {
+function PagesOfType({ kind, title, Icon }: { kind: string; title: string; Icon: typeof Boxes }) {
   const { t } = useTranslation();
   const pages = useResource("seo_pages", { limit: 200, filters: [`page_type.eq.${kind}`] });
   const score = mean(pages.rows, "seo_score");
@@ -1644,30 +2575,88 @@ function PagesOfType({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={title} value={figure(pages.total, pages)} icon={<Icon className="h-4 w-4" />} />
-        <StatCard label={t("seo.avg_seo_score")} value={score === null ? (pages.loading ? "…" : "—") : score.toFixed(0)} tone="success" />
-        <StatCard label={t("seo.indexed")} value={pages.loading ? "…" : String(indexed)} tone="success" />
-        <StatCard label={t("seo.issues_found")} value={pages.loading ? "…" : String(issues)} tone={issues > 0 ? "warning" : "success"} />
+        <StatCard
+          label={title}
+          value={figure(pages.total, pages)}
+          icon={<Icon className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.avg_seo_score")}
+          value={score === null ? (pages.loading ? "…" : "—") : score.toFixed(0)}
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.indexed")}
+          value={pages.loading ? "…" : String(indexed)}
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.issues_found")}
+          value={pages.loading ? "…" : String(issues)}
+          tone={issues > 0 ? "warning" : "success"}
+        />
       </div>
       <Toolbar title={title} count={pages.total} />
       <Table
-        head={["URL", "Title", "Meta description", "H1", "Words", "Score", "Index", "Issues", "Crawled"]}
+        head={[
+          "URL",
+          "Title",
+          "Meta description",
+          "H1",
+          "Words",
+          "Score",
+          "Index",
+          "Issues",
+          "Crawled",
+        ]}
         rows={pages.rows.map((r) => [
-          <span key="u" className="max-w-[240px] truncate font-mono text-[11px]">{text(r, "url")}</span>,
-          <span key="t" className="max-w-[220px] truncate font-semibold">{text(r, "meta_title") || text(r, "title")}</span>,
-          <span key="d" className="max-w-[260px] truncate text-[11px] text-muted-foreground">{text(r, "meta_description")}</span>,
-          <span key="h" className="max-w-[180px] truncate text-[11px]">{text(r, "h1")}</span>,
-          <span key="w" className="font-mono tabular">{num(r, "word_count").toLocaleString()}</span>,
+          <span key="u" className="max-w-[240px] truncate font-mono text-[11px]">
+            {text(r, "url")}
+          </span>,
+          <span key="t" className="max-w-[220px] truncate font-semibold">
+            {text(r, "meta_title") || text(r, "title")}
+          </span>,
+          <span key="d" className="max-w-[260px] truncate text-[11px] text-muted-foreground">
+            {text(r, "meta_description")}
+          </span>,
+          <span key="h" className="max-w-[180px] truncate text-[11px]">
+            {text(r, "h1")}
+          </span>,
+          <span key="w" className="font-mono tabular">
+            {num(r, "word_count").toLocaleString()}
+          </span>,
           <ScoreRing key="sc" value={num(r, "seo_score")} size={28} />,
-          <Chip key="i" tone={text(r, "index_status") === "indexed" || text(r, "index_status") === "indexable" ? "success" : text(r, "index_status") === "error" ? "destructive" : "warning"}>{text(r, "index_status")}</Chip>,
-          <span key="is" className={`font-mono tabular ${num(r, "issues_count") > 0 ? "text-warning" : "text-muted-foreground"}`}>{num(r, "issues_count")}</span>,
-          <span key="c" className="font-mono text-[11px] text-muted-foreground">{text(r, "last_crawled_at").slice(0, 10)}</span>,
+          <Chip
+            key="i"
+            tone={
+              text(r, "index_status") === "indexed" || text(r, "index_status") === "indexable"
+                ? "success"
+                : text(r, "index_status") === "error"
+                  ? "destructive"
+                  : "warning"
+            }
+          >
+            {text(r, "index_status")}
+          </Chip>,
+          <span
+            key="is"
+            className={`font-mono tabular ${num(r, "issues_count") > 0 ? "text-warning" : "text-muted-foreground"}`}
+          >
+            {num(r, "issues_count")}
+          </span>,
+          <span key="c" className="font-mono text-[11px] text-muted-foreground">
+            {text(r, "last_crawled_at").slice(0, 10)}
+          </span>,
         ])}
       />
-      {pages.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_page_table")}</div>}
+      {pages.loading && (
+        <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_page_table")}</div>
+      )}
       {!pages.loading && pages.rows.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
-          {pages.failed ? t("seo.pages_could_not_be_read") : t("seo.no_page_of_this_kind_has_been_crawled_yet")}
+          {pages.failed
+            ? t("seo.pages_could_not_be_read")
+            : t("seo.no_page_of_this_kind_has_been_crawled_yet")}
         </div>
       )}
       {noDescription > 0 && (
@@ -1690,17 +2679,29 @@ function ProductSeoModule() {
         <Table
           head={["Product", "Category", "Meta title", "Meta description", "Status", "Updated"]}
           rows={entries.rows.map((r) => [
-            <span key="p" className="font-semibold">{text(r, "product_name")}</span>,
+            <span key="p" className="font-semibold">
+              {text(r, "product_name")}
+            </span>,
             <Chip key="c">{text(r, "category")}</Chip>,
-            <span key="t" className="max-w-[220px] truncate text-[11px]">{text(r, "meta_title")}</span>,
-            <span key="d" className="max-w-[260px] truncate text-[11px] text-muted-foreground">{text(r, "meta_description")}</span>,
-            <Chip key="s" tone={text(r, "status") === "published" ? "success" : "warning"}>{text(r, "status")}</Chip>,
-            <span key="u" className="font-mono text-[11px] text-muted-foreground">{text(r, "updated_at").slice(0, 10)}</span>,
+            <span key="t" className="max-w-[220px] truncate text-[11px]">
+              {text(r, "meta_title")}
+            </span>,
+            <span key="d" className="max-w-[260px] truncate text-[11px] text-muted-foreground">
+              {text(r, "meta_description")}
+            </span>,
+            <Chip key="s" tone={text(r, "status") === "published" ? "success" : "warning"}>
+              {text(r, "status")}
+            </Chip>,
+            <span key="u" className="font-mono text-[11px] text-muted-foreground">
+              {text(r, "updated_at").slice(0, 10)}
+            </span>,
           ])}
         />
         {!entries.loading && entries.rows.length === 0 && (
           <div className="mt-2 text-[11px] text-muted-foreground">
-            {entries.failed ? t("seo.product_seo_entries_could_not_be_read") : t("seo.no_product_seo_entry_is_recorded")}
+            {entries.failed
+              ? t("seo.product_seo_entries_could_not_be_read")
+              : t("seo.no_product_seo_entry_is_recorded")}
           </div>
         )}
       </div>
@@ -1725,28 +2726,64 @@ function CategorySeoModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.categories")} value={figure(categories.total, categories)} icon={<LayoutGrid className="h-4 w-4" />} />
-        <StatCard label={t("seo.visible")} value={categories.loading ? "…" : String(categories.rows.length - hidden)} tone="success" />
-        <StatCard label={t("seo.hidden")} value={categories.loading ? "…" : String(hidden)} tone="warning" />
-        <StatCard label={t("seo.featured")} value={categories.loading ? "…" : String(featured)} tone="premium" />
+        <StatCard
+          label={t("seo.categories")}
+          value={figure(categories.total, categories)}
+          icon={<LayoutGrid className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.visible")}
+          value={categories.loading ? "…" : String(categories.rows.length - hidden)}
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.hidden")}
+          value={categories.loading ? "…" : String(hidden)}
+          tone="warning"
+        />
+        <StatCard
+          label={t("seo.featured")}
+          value={categories.loading ? "…" : String(featured)}
+          tone="premium"
+        />
       </div>
       <Toolbar title={t("seo.categories")} count={categories.total} />
       <Table
         head={["Category", "Slug", "Icon", "Order", "Visible", "Featured", "Updated"]}
         rows={categories.rows.map((r) => [
-          <span key="c" className="font-semibold">{text(r, "name")}</span>,
-          <span key="s" className="font-mono text-[11px] text-muted-foreground">/{text(r, "slug")}</span>,
-          <span key="i" className="text-[11px]">{text(r, "icon")}</span>,
-          <span key="o" className="font-mono tabular">{num(r, "sort_order")}</span>,
-          <Chip key="v" tone={r.is_hidden ? "warning" : "success"}>{r.is_hidden ? "hidden" : "visible"}</Chip>,
-          <Chip key="f" tone={r.is_featured ? "premium" : "default"}>{r.is_featured ? "yes" : "no"}</Chip>,
-          <span key="u" className="font-mono text-[11px] text-muted-foreground">{text(r, "updated_at").slice(0, 10)}</span>,
+          <span key="c" className="font-semibold">
+            {text(r, "name")}
+          </span>,
+          <span key="s" className="font-mono text-[11px] text-muted-foreground">
+            /{text(r, "slug")}
+          </span>,
+          <span key="i" className="text-[11px]">
+            {text(r, "icon")}
+          </span>,
+          <span key="o" className="font-mono tabular">
+            {num(r, "sort_order")}
+          </span>,
+          <Chip key="v" tone={r.is_hidden ? "warning" : "success"}>
+            {r.is_hidden ? "hidden" : "visible"}
+          </Chip>,
+          <Chip key="f" tone={r.is_featured ? "premium" : "default"}>
+            {r.is_featured ? "yes" : "no"}
+          </Chip>,
+          <span key="u" className="font-mono text-[11px] text-muted-foreground">
+            {text(r, "updated_at").slice(0, 10)}
+          </span>,
         ])}
       />
-      {categories.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_category_table")}</div>}
+      {categories.loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_category_table")}
+        </div>
+      )}
       {!categories.loading && categories.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {categories.failed ? t("seo.categories_could_not_be_read") : t("seo.no_category_is_recorded")}
+          {categories.failed
+            ? t("seo.categories_could_not_be_read")
+            : t("seo.no_category_is_recorded")}
         </div>
       )}
     </div>
@@ -1762,26 +2799,83 @@ function BlogSeoModule() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.content_items")} value={figure(posts.total, posts)} icon={<Rss className="h-4 w-4" />} />
-        <StatCard label={t("seo.avg_seo_score")} value={score === null ? (posts.loading ? "…" : "—") : score.toFixed(0)} tone="success" />
-        <StatCard label={t("seo.published")} value={posts.loading ? "…" : String(countWhere(posts.rows, (r) => text(r, "status") === "published"))} tone="success" />
-        <StatCard label={t("seo.avg_words")} value={words === null ? "—" : Math.round(words).toLocaleString()} tone="premium" />
+        <StatCard
+          label={t("seo.content_items")}
+          value={figure(posts.total, posts)}
+          icon={<Rss className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.avg_seo_score")}
+          value={score === null ? (posts.loading ? "…" : "—") : score.toFixed(0)}
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.published")}
+          value={
+            posts.loading
+              ? "…"
+              : String(countWhere(posts.rows, (r) => text(r, "status") === "published"))
+          }
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.avg_words")}
+          value={words === null ? "—" : Math.round(words).toLocaleString()}
+          tone="premium"
+        />
       </div>
       <Toolbar title={t("seo.blog_seo")} count={posts.total} />
       <Table
-        head={["Title", "Type", "Target keyword", "Words", "SEO Score", "URL", "Status", "Published"]}
+        head={[
+          "Title",
+          "Type",
+          "Target keyword",
+          "Words",
+          "SEO Score",
+          "URL",
+          "Status",
+          "Published",
+        ]}
         rows={posts.rows.map((r) => [
-          <span key="t" className="max-w-[240px] truncate font-semibold">{text(r, "title")}</span>,
+          <span key="t" className="max-w-[240px] truncate font-semibold">
+            {text(r, "title")}
+          </span>,
           <Chip key="c">{text(r, "content_type")}</Chip>,
-          <span key="k" className="text-[11px]">{text(r, "target_keyword")}</span>,
-          <span key="w" className="font-mono tabular">{num(r, "word_count").toLocaleString()}</span>,
+          <span key="k" className="text-[11px]">
+            {text(r, "target_keyword")}
+          </span>,
+          <span key="w" className="font-mono tabular">
+            {num(r, "word_count").toLocaleString()}
+          </span>,
           <ScoreRing key="sc" value={num(r, "seo_score")} size={28} />,
-          <span key="u" className="max-w-[200px] truncate font-mono text-[11px] text-muted-foreground">{text(r, "url")}</span>,
-          <Chip key="st" tone={text(r, "status") === "published" ? "success" : text(r, "status") === "draft" ? "default" : "warning"}>{text(r, "status")}</Chip>,
-          <span key="p" className="font-mono text-[11px] text-muted-foreground">{text(r, "published_at").slice(0, 10)}</span>,
+          <span
+            key="u"
+            className="max-w-[200px] truncate font-mono text-[11px] text-muted-foreground"
+          >
+            {text(r, "url")}
+          </span>,
+          <Chip
+            key="st"
+            tone={
+              text(r, "status") === "published"
+                ? "success"
+                : text(r, "status") === "draft"
+                  ? "default"
+                  : "warning"
+            }
+          >
+            {text(r, "status")}
+          </Chip>,
+          <span key="p" className="font-mono text-[11px] text-muted-foreground">
+            {text(r, "published_at").slice(0, 10)}
+          </span>,
         ])}
       />
-      {posts.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_content_table")}</div>}
+      {posts.loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_content_table")}
+        </div>
+      )}
       {!posts.loading && posts.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
           {posts.failed ? t("seo.content_could_not_be_read") : t("seo.no_content_item_is_recorded")}
@@ -1821,70 +2915,129 @@ function MetaManagerModule() {
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{t("seo.meta_tag_manager")}</div>
-            <div className="mt-0.5 text-sm font-bold">{t("seo.the_rules_in_the_order_they_are_applied")}</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+              {t("seo.meta_tag_manager")}
+            </div>
+            <div className="mt-0.5 text-sm font-bold">
+              {t("seo.the_rules_in_the_order_they_are_applied")}
+            </div>
           </div>
           <Chip tone="accent">{figure(rules.total, rules)} rules</Chip>
         </div>
         <div className="space-y-3">
           {rules.rows.map((rule) => (
-            <div key={String(rule.id)} className="rounded-lg border border-border bg-background/40 p-3">
+            <div
+              key={String(rule.id)}
+              className="rounded-lg border border-border bg-background/40 p-3"
+            >
               <div className="flex items-center justify-between gap-2">
                 <div className="text-[13px] font-bold">{text(rule, "name")}</div>
                 <div className="flex items-center gap-1">
                   <Chip tone="default">priority {num(rule, "priority")}</Chip>
-                  <Chip tone={text(rule, "status") === "active" ? "success" : "warning"}>{text(rule, "status")}</Chip>
+                  <Chip tone={text(rule, "status") === "active" ? "success" : "warning"}>
+                    {text(rule, "status")}
+                  </Chip>
                 </div>
               </div>
-              <div className="mt-1 font-mono text-[11px] text-muted-foreground">{text(rule, "url_pattern")} · {text(rule, "applies_to")}</div>
+              <div className="mt-1 font-mono text-[11px] text-muted-foreground">
+                {text(rule, "url_pattern")} · {text(rule, "applies_to")}
+              </div>
               <div className="mt-2 space-y-1 text-[11px]">
-                <div><span className="text-muted-foreground">title</span> <span className="font-mono">{text(rule, "title_template")}</span></div>
-                <div><span className="text-muted-foreground">description</span> <span className="font-mono">{text(rule, "description_template")}</span></div>
+                <div>
+                  <span className="text-muted-foreground">title</span>{" "}
+                  <span className="font-mono">{text(rule, "title_template")}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">description</span>{" "}
+                  <span className="font-mono">{text(rule, "description_template")}</span>
+                </div>
                 {text(rule, "og_image_template", "") !== "" && (
-                  <div><span className="text-muted-foreground">{t("seo.og_image")}</span> <span className="font-mono">{text(rule, "og_image_template")}</span></div>
+                  <div>
+                    <span className="text-muted-foreground">{t("seo.og_image")}</span>{" "}
+                    <span className="font-mono">{text(rule, "og_image_template")}</span>
+                  </div>
                 )}
               </div>
             </div>
           ))}
-          {rules.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_meta_rules")}</div>}
+          {rules.loading && (
+            <div className="text-[11px] text-muted-foreground">
+              {t("seo.reading_the_meta_rules")}
+            </div>
+          )}
           {!rules.loading && rules.rows.length === 0 && (
             <div className="text-[11px] text-muted-foreground">
-              {rules.failed ? t("seo.meta_rules_could_not_be_read") : t("seo.no_meta_rule_is_configured_pages_serve_their_o")}
+              {rules.failed
+                ? t("seo.meta_rules_could_not_be_read")
+                : t("seo.no_meta_rule_is_configured_pages_serve_their_o")}
             </div>
           )}
         </div>
       </Card>
 
       <Card>
-        <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.what_a_page_serves")}</div>
+        <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          {t("seo.what_a_page_serves")}
+        </div>
         <select
           value={chosen}
           onChange={(event) => setChosen(Number(event.target.value))}
           className="mb-3 w-full rounded-lg border border-border bg-background/60 px-2 py-1.5 text-xs"
         >
           {pages.rows.map((row, index) => (
-            <option key={String(row.id)} value={index}>{text(row, "url")}</option>
+            <option key={String(row.id)} value={index}>
+              {text(row, "url")}
+            </option>
           ))}
         </select>
         {page ? (
           <div className="space-y-3">
             <div className="rounded-lg border border-border bg-background/40 p-3">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{text(page, "url")}</div>
-              <div className="mt-1 text-[16px] font-bold text-[hsl(210_100%_75%)]">{text(page, "meta_title") || text(page, "title")}</div>
-              <div className="text-[11px] text-muted-foreground">{text(page, "meta_description")}</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                {text(page, "url")}
+              </div>
+              <div className="mt-1 text-[16px] font-bold text-[hsl(210_100%_75%)]">
+                {text(page, "meta_title") || text(page, "title")}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                {text(page, "meta_description")}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">H1</div><div className="truncate">{text(page, "h1")}</div></div>
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.canonical")}</div><div className="truncate font-mono">{text(page, "canonical_url")}</div></div>
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.index")}</div><div>{text(page, "index_status")}</div></div>
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.words")}</div><div className="font-mono tabular">{num(page, "word_count").toLocaleString()}</div></div>
+              <div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">H1</div>
+                <div className="truncate">{text(page, "h1")}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                  {t("seo.canonical")}
+                </div>
+                <div className="truncate font-mono">{text(page, "canonical_url")}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                  {t("seo.index")}
+                </div>
+                <div>{text(page, "index_status")}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                  {t("seo.words")}
+                </div>
+                <div className="font-mono tabular">{num(page, "word_count").toLocaleString()}</div>
+              </div>
             </div>
             <div className="text-[10px] leading-relaxed text-muted-foreground">
-              {t("seo.read_from_the_crawl_record_for_this_page_open")}</div>
+              {t("seo.read_from_the_crawl_record_for_this_page_open")}
+            </div>
           </div>
         ) : (
           <div className="text-[11px] text-muted-foreground">
-            {pages.loading ? t("seo.reading_the_page_table") : pages.failed ? t("seo.pages_could_not_be_read") : t("seo.no_page_has_been_crawled")}
+            {pages.loading
+              ? t("seo.reading_the_page_table")
+              : pages.failed
+                ? t("seo.pages_could_not_be_read")
+                : t("seo.no_page_has_been_crawled")}
           </div>
         )}
       </Card>
@@ -1936,17 +3089,31 @@ function SchemaModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.records_carrying_schema")} value={loading ? "…" : String(carrying)} icon={<FileCode2 className="h-4 w-4" />} />
-        <StatCard label={t("seo.types_found")} value={loading ? "…" : String(types.length)} tone="success" />
+        <StatCard
+          label={t("seo.records_carrying_schema")}
+          value={loading ? "…" : String(carrying)}
+          icon={<FileCode2 className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.types_found")}
+          value={loading ? "…" : String(types.length)}
+          tone="success"
+        />
         <StatCard label={t("seo.pages_read")} value={figure(pages.total, pages)} tone="default" />
-        <StatCard label={t("seo.product_entries_read")} value={figure(entries.total, entries)} tone="default" />
+        <StatCard
+          label={t("seo.product_entries_read")}
+          value={figure(entries.total, entries)}
+          tone="default"
+        />
       </div>
       <Toolbar title={t("seo.schema_types")} count={types.length} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {types.map(([type, count]) => (
           <Card key={type}>
             <div className="flex items-start justify-between">
-              <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent"><FileCode2 className="h-4 w-4" /></div>
+              <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent">
+                <FileCode2 className="h-4 w-4" />
+              </div>
               <Chip tone="success">{t("seo.parsed")}</Chip>
             </div>
             <div className="mt-3 text-sm font-bold">{type}</div>
@@ -1956,13 +3123,19 @@ function SchemaModule() {
           </Card>
         ))}
       </div>
-      {loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_structured_data")}</div>}
+      {loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_structured_data")}
+        </div>
+      )}
       {!loading && types.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
-          {t("seo.no_crawled_page_or_product_entry_carries_struc")}</div>
+          {t("seo.no_crawled_page_or_product_entry_carries_struc")}
+        </div>
       )}
       <div className="text-[10px] leading-relaxed text-muted-foreground">
-        {t("seo.a_type_is_counted_where_the_stored_json_declar")}</div>
+        {t("seo.a_type_is_counted_where_the_stored_json_declar")}
+      </div>
     </div>
   );
 }
@@ -1982,21 +3155,33 @@ function SchemaModule() {
  * og:image is not held against a page - the row says so instead of showing a
  * filename that does not exist.
  */
-function SocialCardPreview({ kind, page }: { kind: "og" | "twitter"; page: ResourceRow | undefined }) {
+function SocialCardPreview({
+  kind,
+  page,
+}: {
+  kind: "og" | "twitter";
+  page: ResourceRow | undefined;
+}) {
   const { t } = useTranslation();
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       <div className="flex h-40 items-end bg-gradient-to-br from-primary/60 via-surface to-accent/40 p-3">
         <span className="rounded bg-black/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-white/80 backdrop-blur">
-          {kind === "og" ? t("seo.1200_630_no_og_image_is_stored") : t("seo.1200_675_no_twitter_image_is_stored")}
+          {kind === "og"
+            ? t("seo.1200_630_no_og_image_is_stored")
+            : t("seo.1200_675_no_twitter_image_is_stored")}
         </span>
       </div>
       <div className="space-y-1 border-t border-border bg-background/60 p-3">
         <div className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
           {page ? text(page, "url") : "—"}
         </div>
-        <div className="text-[13px] font-bold">{page ? text(page, "meta_title") || text(page, "title") : "—"}</div>
-        <div className="line-clamp-2 text-[11px] text-muted-foreground">{page ? text(page, "meta_description") : "—"}</div>
+        <div className="text-[13px] font-bold">
+          {page ? text(page, "meta_title") || text(page, "title") : "—"}
+        </div>
+        <div className="line-clamp-2 text-[11px] text-muted-foreground">
+          {page ? text(page, "meta_description") : "—"}
+        </div>
       </div>
     </div>
   );
@@ -2032,14 +3217,18 @@ function SocialModule({ kind, title }: { kind: "og" | "twitter"; title: string }
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
-        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          {title}
+        </div>
         <select
           value={chosen}
           onChange={(event) => setChosen(Number(event.target.value))}
           className="mt-3 w-full rounded-lg border border-border bg-background/60 px-2 py-1.5 text-xs"
         >
           {pages.rows.map((row, index) => (
-            <option key={String(row.id)} value={index}>{text(row, "url")}</option>
+            <option key={String(row.id)} value={index}>
+              {text(row, "url")}
+            </option>
           ))}
         </select>
         <div className="mt-3 space-y-2">
@@ -2048,7 +3237,11 @@ function SocialModule({ kind, title }: { kind: "og" | "twitter"; title: string }
           ))}
           {!page && (
             <div className="text-[11px] text-muted-foreground">
-              {pages.loading ? t("seo.reading_the_page_table") : pages.failed ? t("seo.pages_could_not_be_read") : t("seo.no_page_has_been_crawled")}
+              {pages.loading
+                ? t("seo.reading_the_page_table")
+                : pages.failed
+                  ? t("seo.pages_could_not_be_read")
+                  : t("seo.no_page_has_been_crawled")}
             </div>
           )}
         </div>
@@ -2077,7 +3270,9 @@ function Row({ label, value, absent }: { label: string; value: string; absent?: 
   return (
     <div className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2 text-[12px]">
       <span className="font-mono text-[11px] text-muted-foreground">{label}</span>
-      <span className={`max-w-[220px] truncate ${absent ? "text-muted-foreground italic" : ""}`}>{value || "—"}</span>
+      <span className={`max-w-[220px] truncate ${absent ? "text-muted-foreground italic" : ""}`}>
+        {value || "—"}
+      </span>
     </div>
   );
 }
@@ -2118,27 +3313,49 @@ function TagManagerModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.tags_in_use")} value={loading ? "…" : String(tags.length)} icon={<TagIcon className="h-4 w-4" />} />
-        <StatCard label={t("seo.used_more_than_once")} value={loading ? "…" : String(tags.length - once)} tone="success" />
+        <StatCard
+          label={t("seo.tags_in_use")}
+          value={loading ? "…" : String(tags.length)}
+          icon={<TagIcon className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.used_more_than_once")}
+          value={loading ? "…" : String(tags.length - once)}
+          tone="success"
+        />
         <StatCard label={t("seo.used_once")} value={loading ? "…" : String(once)} tone="warning" />
-        <StatCard label={t("seo.records_read")} value={loading ? "…" : String(faqs.rows.length + content.rows.length)} tone="default" />
+        <StatCard
+          label={t("seo.records_read")}
+          value={loading ? "…" : String(faqs.rows.length + content.rows.length)}
+          tone="default"
+        />
       </div>
       <Toolbar title={t("seo.tags")} count={tags.length} />
       <Table
         head={["Tag", "Uses"]}
         rows={tags.map(([tag, uses]) => [
-          <span key="n" className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 font-mono text-[11px] text-accent">#{tag}</span>,
-          <span key="u" className="font-mono tabular">{uses}</span>,
+          <span
+            key="n"
+            className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 font-mono text-[11px] text-accent"
+          >
+            #{tag}
+          </span>,
+          <span key="u" className="font-mono tabular">
+            {uses}
+          </span>,
         ])}
       />
-      {loading && <div className="text-[11px] text-muted-foreground">{t("seo.counting_the_tags_in_use")}</div>}
+      {loading && (
+        <div className="text-[11px] text-muted-foreground">{t("seo.counting_the_tags_in_use")}</div>
+      )}
       {!loading && tags.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
-          {t("seo.nothing_carries_a_tag_yet_tags_are_read_from_t")}</div>
+          {t("seo.nothing_carries_a_tag_yet_tags_are_read_from_t")}
+        </div>
       )}
       <div className="text-[10px] leading-relaxed text-muted-foreground">
-        {t("seo.counted_over")} {faqs.rows.length} questions and {content.rows.length} content items. No SEO score or
-        trend is held against a tag, so neither is shown.
+        {t("seo.counted_over")} {faqs.rows.length} questions and {content.rows.length} content
+        items. No SEO score or trend is held against a tag, so neither is shown.
       </div>
     </div>
   );
@@ -2168,17 +3385,34 @@ function KeywordCenterModule() {
   // of at least one as well.
   const researched = useResource("keywords", { limit: 1, filters: ["position.gte.1"] });
   const top3 = useResource("keywords", { limit: 1, filters: ["position.gte.1", "position.lte.3"] });
-  const top10 = useResource("keywords", { limit: 1, filters: ["position.gte.1", "position.lte.10"] });
+  const top10 = useResource("keywords", {
+    limit: 1,
+    filters: ["position.gte.1", "position.lte.10"],
+  });
   const planned = useResource("keywords", { limit: 1, filters: ["position.eq.0"] });
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <StatCard label={t("seo.keywords")} value={figure(keywords.total, keywords)} icon={<Hash className="h-4 w-4" />} />
-        <StatCard label={t("seo.measured")} value={figure(researched.total, researched)} tone="premium" delta="has a position" />
+        <StatCard
+          label={t("seo.keywords")}
+          value={figure(keywords.total, keywords)}
+          icon={<Hash className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.measured")}
+          value={figure(researched.total, researched)}
+          tone="premium"
+          delta="has a position"
+        />
         <StatCard label={t("seo.top_3")} value={figure(top3.total, top3)} tone="premium" />
         <StatCard label={t("seo.top_10")} value={figure(top10.total, top10)} tone="success" />
-        <StatCard label={t("seo.planned_unmeasured")} value={figure(planned.total, planned)} tone="warning" delta="position 0" />
+        <StatCard
+          label={t("seo.planned_unmeasured")}
+          value={figure(planned.total, planned)}
+          tone="warning"
+          delta="position 0"
+        />
       </div>
       <Toolbar title={t("seo.keywords")} count={keywords.total} />
       <Table
@@ -2186,35 +3420,77 @@ function KeywordCenterModule() {
         rows={keywords.rows.map((k) => {
           const difficulty = num(k, "difficulty");
           return [
-            <span key="k" className="font-semibold">{text(k, "keyword")}</span>,
-            <Chip key="t" tone={text(k, "intent") === "commercial" ? "accent" : text(k, "intent") === "transactional" ? "premium" : "default"}>{text(k, "intent")}</Chip>,
-            <span key="v" className="font-mono tabular">{num(k, "search_volume").toLocaleString()}</span>,
+            <span key="k" className="font-semibold">
+              {text(k, "keyword")}
+            </span>,
+            <Chip
+              key="t"
+              tone={
+                text(k, "intent") === "commercial"
+                  ? "accent"
+                  : text(k, "intent") === "transactional"
+                    ? "premium"
+                    : "default"
+              }
+            >
+              {text(k, "intent")}
+            </Chip>,
+            <span key="v" className="font-mono tabular">
+              {num(k, "search_volume").toLocaleString()}
+            </span>,
             <div key="d" className="flex items-center gap-1.5 font-mono tabular">
               <div className="h-1 w-10 overflow-hidden rounded-full bg-background/60">
-                <div className={`h-full ${difficulty > 60 ? "bg-destructive" : difficulty > 40 ? "bg-warning" : "bg-success"}`} style={{ width: `${Math.max(0, Math.min(100, difficulty))}%` }} />
+                <div
+                  className={`h-full ${difficulty > 60 ? "bg-destructive" : difficulty > 40 ? "bg-warning" : "bg-success"}`}
+                  style={{ width: `${Math.max(0, Math.min(100, difficulty))}%` }}
+                />
               </div>
               {difficulty}
             </div>,
-            <span key="c" className="text-[11px] text-muted-foreground">{text(k, "country")}</span>,
-            <span key="cp" className="font-mono tabular">{k.cpc === null || k.cpc === undefined ? "—" : `$${num(k, "cpc").toFixed(2)}`}</span>,
-            <span key="p" className="font-mono tabular text-accent">{text(k, "position")}</span>,
+            <span key="c" className="text-[11px] text-muted-foreground">
+              {text(k, "country")}
+            </span>,
+            <span key="cp" className="font-mono tabular">
+              {k.cpc === null || k.cpc === undefined ? "—" : `$${num(k, "cpc").toFixed(2)}`}
+            </span>,
+            <span key="p" className="font-mono tabular text-accent">
+              {text(k, "position")}
+            </span>,
             <Delta key="dl" v={num(k, "previous_position") - num(k, "position")} />,
-            <Chip key="s" tone={text(k, "status") === "tracking" ? "success" : text(k, "status") === "paused" ? "warning" : "default"}>{text(k, "status")}</Chip>,
+            <Chip
+              key="s"
+              tone={
+                text(k, "status") === "tracking"
+                  ? "success"
+                  : text(k, "status") === "paused"
+                    ? "warning"
+                    : "default"
+              }
+            >
+              {text(k, "status")}
+            </Chip>,
           ];
         })}
       />
-      {keywords.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_keyword_table")}</div>}
+      {keywords.loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_keyword_table")}
+        </div>
+      )}
       {!keywords.loading && keywords.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {keywords.failed ? t("seo.keywords_could_not_be_read") : t("seo.no_keyword_is_tracked_yet")}
+          {keywords.failed
+            ? t("seo.keywords_could_not_be_read")
+            : t("seo.no_keyword_is_tracked_yet")}
         </div>
       )}
       {keywords.rows.length > 0 && (
         <div className="text-[10px] leading-relaxed text-muted-foreground">
-          Showing the {keywords.rows.length} highest-volume of {figure(keywords.total, keywords)} keywords. The counters
-          above are of every keyword, counted by the database rather than by this page. Most of the list is
-          planned work rather than measured: a keyword with no position, volume or difficulty has not been
-          researched yet, and shows zero rather than a guess.
+          Showing the {keywords.rows.length} highest-volume of {figure(keywords.total, keywords)}{" "}
+          keywords. The counters above are of every keyword, counted by the database rather than by
+          this page. Most of the list is planned work rather than measured: a keyword with no
+          position, volume or difficulty has not been researched yet, and shows zero rather than a
+          guess.
         </div>
       )}
     </div>
@@ -2238,21 +3514,34 @@ function KeywordClusterModule() {
       pages: new Set(group.rows.map((row) => text(row, "target_url"))).size,
       volume: sum(group.rows, "search_volume"),
       position: mean(group.rows, "position"),
-      topTen: countWhere(group.rows, (row) => num(row, "position") > 0 && num(row, "position") <= 10),
+      topTen: countWhere(
+        group.rows,
+        (row) => num(row, "position") > 0 && num(row, "position") <= 10,
+      ),
       intents: [...new Set(group.rows.map((row) => text(row, "intent")))],
     }))
     .sort((a, b) => b.volume - a.volume);
 
-  if (keywords.loading) return <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_keyword_table")}</div>;
-  if (keywords.failed) return <div className="text-[11px] text-muted-foreground">{t("seo.keywords_could_not_be_read")}</div>;
-  if (clusters.length === 0) return <div className="text-[11px] text-muted-foreground">{t("seo.no_keyword_is_tracked_yet")}</div>;
+  if (keywords.loading)
+    return (
+      <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_keyword_table")}</div>
+    );
+  if (keywords.failed)
+    return (
+      <div className="text-[11px] text-muted-foreground">{t("seo.keywords_could_not_be_read")}</div>
+    );
+  if (clusters.length === 0)
+    return (
+      <div className="text-[11px] text-muted-foreground">{t("seo.no_keyword_is_tracked_yet")}</div>
+    );
 
   return (
     <div className="space-y-3">
       <div className="text-[10px] leading-relaxed text-muted-foreground">
-        Grouped by industry over the {keywords.rows.length} highest-volume of {figure(keywords.total, keywords)} keywords,
-        of which {countWhere(keywords.rows, (row) => num(row, "position") > 0)} have been measured. A cluster of
-        planned keywords shows a volume of zero because nothing has researched them yet.
+        Grouped by industry over the {keywords.rows.length} highest-volume of{" "}
+        {figure(keywords.total, keywords)} keywords, of which{" "}
+        {countWhere(keywords.rows, (row) => num(row, "position") > 0)} have been measured. A cluster
+        of planned keywords shows a volume of zero because nothing has researched them yet.
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {clusters.map((c) => (
@@ -2265,12 +3554,31 @@ function KeywordClusterModule() {
               Mapped to {c.pages} {c.pages === 1 ? "page" : "pages"}
             </div>
             <div className="mt-3 flex flex-wrap gap-1">
-              {c.intents.map((intent) => (<Chip key={intent}>{intent}</Chip>))}
+              {c.intents.map((intent) => (
+                <Chip key={intent}>{intent}</Chip>
+              ))}
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-[11px]">
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.volume")}</div><div className="font-mono tabular">{c.volume.toLocaleString()}</div></div>
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.avg_pos")}</div><div className="font-mono tabular">{c.position === null ? "—" : c.position.toFixed(1)}</div></div>
-              <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.top_10")}</div><div className="font-mono tabular text-success">{c.topTen}</div></div>
+              <div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                  {t("seo.volume")}
+                </div>
+                <div className="font-mono tabular">{c.volume.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                  {t("seo.avg_pos")}
+                </div>
+                <div className="font-mono tabular">
+                  {c.position === null ? "—" : c.position.toFixed(1)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                  {t("seo.top_10")}
+                </div>
+                <div className="font-mono tabular text-success">{c.topTen}</div>
+              </div>
             </div>
           </Card>
         ))}
@@ -2301,9 +3609,15 @@ function RankingModule() {
   const rankings = useResource("seo_rankings", { limit: 200 });
 
   type Series = {
-    keyword: string; url: string; country: string;
-    current: number; previous: number | null;
-    clicks: number; impressions: number; positions: number[]; days: number;
+    keyword: string;
+    url: string;
+    country: string;
+    current: number;
+    previous: number | null;
+    clicks: number;
+    impressions: number;
+    positions: number[];
+    days: number;
   };
 
   const byKeyword = new Map<string, Series>();
@@ -2339,47 +3653,107 @@ function RankingModule() {
   const rising = rows.filter((r) => r.previous !== null && r.current < r.previous).length;
   const falling = rows.filter((r) => r.previous !== null && r.current > r.previous).length;
   const stable = rows.filter((r) => r.previous !== null && r.current === r.previous).length;
-  const average = rows.length ? rows.reduce((total, r) => total + r.current, 0) / rows.length : null;
+  const average = rows.length
+    ? rows.reduce((total, r) => total + r.current, 0) / rows.length
+    : null;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.avg_position")} value={average === null ? (rankings.loading ? "…" : "—") : average.toFixed(1)} tone="success" icon={<Award className="h-4 w-4" />} />
-        <StatCard label={t("seo.rising")} value={rankings.loading ? "…" : String(rising)} tone="success" />
-        <StatCard label={t("seo.falling")} value={rankings.loading ? "…" : String(falling)} tone="destructive" />
-        <StatCard label={t("seo.stable")} value={rankings.loading ? "…" : String(stable)} tone="default" />
+        <StatCard
+          label={t("seo.avg_position")}
+          value={average === null ? (rankings.loading ? "…" : "—") : average.toFixed(1)}
+          tone="success"
+          icon={<Award className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.rising")}
+          value={rankings.loading ? "…" : String(rising)}
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.falling")}
+          value={rankings.loading ? "…" : String(falling)}
+          tone="destructive"
+        />
+        <StatCard
+          label={t("seo.stable")}
+          value={rankings.loading ? "…" : String(stable)}
+          tone="default"
+        />
       </div>
       <Toolbar title={t("seo.google_ranking")} count={rows.length} />
       <Table
-        head={["Keyword", "Cur", "Prev", "Δ", "URL", "Country", "Clicks", "Impr.", "CTR", "Days", "Trend"]}
+        head={[
+          "Keyword",
+          "Cur",
+          "Prev",
+          "Δ",
+          "URL",
+          "Country",
+          "Clicks",
+          "Impr.",
+          "CTR",
+          "Days",
+          "Trend",
+        ]}
         rows={rows.map((r) => {
           const ctr = r.impressions > 0 ? (r.clicks / r.impressions) * 100 : null;
           const change = r.previous === null ? 0 : r.previous - r.current;
           return [
-            <span key="k" className="font-semibold">{r.keyword}</span>,
-            <span key="c" className="font-mono tabular text-accent">{r.current}</span>,
-            <span key="p" className="font-mono tabular text-muted-foreground">{r.previous === null ? "—" : r.previous}</span>,
+            <span key="k" className="font-semibold">
+              {r.keyword}
+            </span>,
+            <span key="c" className="font-mono tabular text-accent">
+              {r.current}
+            </span>,
+            <span key="p" className="font-mono tabular text-muted-foreground">
+              {r.previous === null ? "—" : r.previous}
+            </span>,
             <Delta key="d" v={change} />,
-            <span key="u" className="font-mono text-[11px] text-muted-foreground">{r.url}</span>,
-            <span key="co" className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" />{r.country}</span>,
-            <span key="cl" className="font-mono tabular">{r.clicks.toLocaleString()}</span>,
-            <span key="im" className="font-mono tabular text-muted-foreground">{r.impressions.toLocaleString()}</span>,
-            <span key="ct" className="font-mono tabular text-accent">{ctr === null ? "—" : `${ctr.toFixed(2)}%`}</span>,
-            <span key="dy" className="font-mono tabular text-muted-foreground">{r.days}</span>,
-            <MiniSpark key="tr" data={[...r.positions].reverse()} tone={change >= 0 ? "success" : "destructive"} />,
+            <span key="u" className="font-mono text-[11px] text-muted-foreground">
+              {r.url}
+            </span>,
+            <span key="co" className="inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3 text-muted-foreground" />
+              {r.country}
+            </span>,
+            <span key="cl" className="font-mono tabular">
+              {r.clicks.toLocaleString()}
+            </span>,
+            <span key="im" className="font-mono tabular text-muted-foreground">
+              {r.impressions.toLocaleString()}
+            </span>,
+            <span key="ct" className="font-mono tabular text-accent">
+              {ctr === null ? "—" : `${ctr.toFixed(2)}%`}
+            </span>,
+            <span key="dy" className="font-mono tabular text-muted-foreground">
+              {r.days}
+            </span>,
+            <MiniSpark
+              key="tr"
+              data={[...r.positions].reverse()}
+              tone={change >= 0 ? "success" : "destructive"}
+            />,
           ];
         })}
       />
-      {rankings.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_ranking_table")}</div>}
+      {rankings.loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_ranking_table")}
+        </div>
+      )}
       {!rankings.loading && rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {rankings.failed ? t("seo.rankings_could_not_be_read") : t("seo.no_ranking_has_been_recorded_yet")}
+          {rankings.failed
+            ? t("seo.rankings_could_not_be_read")
+            : t("seo.no_ranking_has_been_recorded_yet")}
         </div>
       )}
       {rows.length > 0 && (
         <div className="text-[10px] leading-relaxed text-muted-foreground">
-          Folded from the {rankings.rows.length} most recent of {figure(rankings.total, rankings)} daily measurements,
-          which is why a keyword shows the number of days it was found in them.
+          Folded from the {rankings.rows.length} most recent of {figure(rankings.total, rankings)}{" "}
+          daily measurements, which is why a keyword shows the number of days it was found in them.
         </div>
       )}
     </div>
@@ -2399,10 +3773,16 @@ function CompetitorModule() {
   return (
     <div className="space-y-4">
       <Toolbar title={t("seo.competitors")} count={rivals.total} />
-      {rivals.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_competitor_table")}</div>}
+      {rivals.loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_competitor_table")}
+        </div>
+      )}
       {!rivals.loading && rivals.rows.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
-          {rivals.failed ? t("seo.competitors_could_not_be_read") : t("seo.no_competitor_is_being_tracked_yet")}
+          {rivals.failed
+            ? t("seo.competitors_could_not_be_read")
+            : t("seo.no_competitor_is_being_tracked_yet")}
         </div>
       )}
       <div className="grid gap-3 lg:grid-cols-2">
@@ -2413,26 +3793,66 @@ function CompetitorModule() {
             <Card key={String(r.id)}>
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="inline-flex items-center gap-2 text-[13px] font-bold"><Globe2 className="h-4 w-4 text-accent" />{text(r, "domain")}</div>
-                  <div className="mt-1 text-[11px] text-muted-foreground">{text(r, "name")} · {text(r, "region")}</div>
+                  <div className="inline-flex items-center gap-2 text-[13px] font-bold">
+                    <Globe2 className="h-4 w-4 text-accent" />
+                    {text(r, "domain")}
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    {text(r, "name")} · {text(r, "region")}
+                  </div>
                 </div>
-                <Chip tone={authority >= 80 ? "premium" : authority >= 60 ? "accent" : "default"}>DA {authority}</Chip>
+                <Chip tone={authority >= 80 ? "premium" : authority >= 60 ? "accent" : "default"}>
+                  DA {authority}
+                </Chip>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2 text-[11px]">
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.keywords")}</div><div className="font-mono tabular">{num(r, "keywords_count").toLocaleString()}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.traffic")}</div><div className="font-mono tabular text-success">{num(r, "traffic_estimate").toLocaleString()}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.backlinks")}</div><div className="font-mono tabular">{num(r, "backlinks_count").toLocaleString()}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.visibility")}</div><div className="font-mono tabular text-accent">{num(r, "visibility_score")}</div></div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {t("seo.keywords")}
+                  </div>
+                  <div className="font-mono tabular">
+                    {num(r, "keywords_count").toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {t("seo.traffic")}
+                  </div>
+                  <div className="font-mono tabular text-success">
+                    {num(r, "traffic_estimate").toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {t("seo.backlinks")}
+                  </div>
+                  <div className="font-mono tabular">
+                    {num(r, "backlinks_count").toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {t("seo.visibility")}
+                  </div>
+                  <div className="font-mono tabular text-accent">{num(r, "visibility_score")}</div>
+                </div>
               </div>
               {theirs.length > 0 && (
                 <div className="mt-3 border-t border-border pt-3">
-                  <div className="mb-2 text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.keyword_gaps")}{theirs.length})</div>
+                  <div className="mb-2 text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {t("seo.keyword_gaps")}
+                    {theirs.length})
+                  </div>
                   <div className="space-y-1">
                     {theirs.slice(0, 4).map((gap) => (
-                      <div key={String(gap.id)} className="flex items-center justify-between text-[11px]">
+                      <div
+                        key={String(gap.id)}
+                        className="flex items-center justify-between text-[11px]"
+                      >
                         <span className="truncate pr-2">{text(gap, "keyword")}</span>
                         <span className="shrink-0 font-mono tabular text-muted-foreground">
-                          them {text(gap, "their_position")} {t("seo.us")} {text(gap, "our_position")}
+                          them {text(gap, "their_position")} {t("seo.us")}{" "}
+                          {text(gap, "our_position")}
                         </span>
                       </div>
                     ))}
@@ -2447,11 +3867,21 @@ function CompetitorModule() {
       <Table
         head={["Keyword", "Their position", "Our position", "Search volume", "Opportunity"]}
         rows={gaps.rows.map((g) => [
-          <span key="k" className="font-semibold">{text(g, "keyword")}</span>,
-          <span key="t" className="font-mono tabular text-destructive">{text(g, "their_position")}</span>,
-          <span key="o" className="font-mono tabular text-accent">{text(g, "our_position")}</span>,
-          <span key="v" className="font-mono tabular">{num(g, "search_volume").toLocaleString()}</span>,
-          <Chip key="op" tone="premium">{text(g, "opportunity")}</Chip>,
+          <span key="k" className="font-semibold">
+            {text(g, "keyword")}
+          </span>,
+          <span key="t" className="font-mono tabular text-destructive">
+            {text(g, "their_position")}
+          </span>,
+          <span key="o" className="font-mono tabular text-accent">
+            {text(g, "our_position")}
+          </span>,
+          <span key="v" className="font-mono tabular">
+            {num(g, "search_volume").toLocaleString()}
+          </span>,
+          <Chip key="op" tone="premium">
+            {text(g, "opportunity")}
+          </Chip>,
         ])}
       />
     </div>
@@ -2471,36 +3901,93 @@ function BacklinkModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-        <StatCard label={t("seo.total_backlinks")} value={figure(links.total, links)} icon={<LinkIcon className="h-4 w-4" />} />
+        <StatCard
+          label={t("seo.total_backlinks")}
+          value={figure(links.total, links)}
+          icon={<LinkIcon className="h-4 w-4" />}
+        />
         <StatCard label={t("seo.ref_domains")} value={figure(domains, links)} tone="success" />
-        <StatCard label={t("seo.avg_authority")} value={authority === null ? "—" : authority.toFixed(0)} tone="premium" />
-        <StatCard label={t("seo.avg_spam_score")} value={spam === null ? "—" : spam.toFixed(1)} tone={(spam ?? 0) > 20 ? "destructive" : "success"} />
+        <StatCard
+          label={t("seo.avg_authority")}
+          value={authority === null ? "—" : authority.toFixed(0)}
+          tone="premium"
+        />
+        <StatCard
+          label={t("seo.avg_spam_score")}
+          value={spam === null ? "—" : spam.toFixed(1)}
+          tone={(spam ?? 0) > 20 ? "destructive" : "success"}
+        />
         <StatCard label={t("seo.active")} value={figure(active, links)} tone="success" />
-        <StatCard label={t("seo.toxic_lost")} value={links.loading ? "…" : `${toxic} / ${lost}`} tone="destructive" />
+        <StatCard
+          label={t("seo.toxic_lost")}
+          value={links.loading ? "…" : `${toxic} / ${lost}`}
+          tone="destructive"
+        />
       </div>
       <Toolbar title={t("seo.backlinks")} count={links.total} />
       <Table
-        head={["Domain", "DA", "Anchor", "Target URL", "Type", "Spam", "Status", "First seen", "Last checked"]}
+        head={[
+          "Domain",
+          "DA",
+          "Anchor",
+          "Target URL",
+          "Type",
+          "Spam",
+          "Status",
+          "First seen",
+          "Last checked",
+        ]}
         rows={links.rows.map((r) => {
           const da = num(r, "domain_authority");
           const status = text(r, "status");
           return [
-            <span key="d" className="inline-flex items-center gap-2"><Globe2 className="h-3.5 w-3.5 text-muted-foreground" /><span className="font-semibold">{text(r, "source_domain")}</span></span>,
-            <span key="dr" className={`font-mono tabular ${da > 70 ? "text-success" : da > 30 ? "text-warning" : "text-destructive"}`}>{da}</span>,
-            <span key="a" className="text-[11px]">{text(r, "anchor_text")}</span>,
-            <span key="u" className="font-mono text-[11px] text-muted-foreground">{text(r, "target_url")}</span>,
-            <Chip key="t" tone={text(r, "link_type") === "dofollow" ? "success" : "default"}>{text(r, "link_type")}</Chip>,
-            <span key="sp" className="font-mono tabular text-muted-foreground">{text(r, "spam_score")}</span>,
-            <Chip key="s" tone={status === "active" ? "success" : status === "lost" ? "warning" : "destructive"}>{status}</Chip>,
-            <span key="f" className="font-mono text-[11px] text-muted-foreground">{text(r, "first_seen_at").slice(0, 10)}</span>,
-            <span key="l" className="font-mono text-[11px] text-muted-foreground">{text(r, "last_checked_at").slice(0, 10)}</span>,
+            <span key="d" className="inline-flex items-center gap-2">
+              <Globe2 className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="font-semibold">{text(r, "source_domain")}</span>
+            </span>,
+            <span
+              key="dr"
+              className={`font-mono tabular ${da > 70 ? "text-success" : da > 30 ? "text-warning" : "text-destructive"}`}
+            >
+              {da}
+            </span>,
+            <span key="a" className="text-[11px]">
+              {text(r, "anchor_text")}
+            </span>,
+            <span key="u" className="font-mono text-[11px] text-muted-foreground">
+              {text(r, "target_url")}
+            </span>,
+            <Chip key="t" tone={text(r, "link_type") === "dofollow" ? "success" : "default"}>
+              {text(r, "link_type")}
+            </Chip>,
+            <span key="sp" className="font-mono tabular text-muted-foreground">
+              {text(r, "spam_score")}
+            </span>,
+            <Chip
+              key="s"
+              tone={status === "active" ? "success" : status === "lost" ? "warning" : "destructive"}
+            >
+              {status}
+            </Chip>,
+            <span key="f" className="font-mono text-[11px] text-muted-foreground">
+              {text(r, "first_seen_at").slice(0, 10)}
+            </span>,
+            <span key="l" className="font-mono text-[11px] text-muted-foreground">
+              {text(r, "last_checked_at").slice(0, 10)}
+            </span>,
           ];
         })}
       />
-      {links.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_backlink_table")}</div>}
+      {links.loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_backlink_table")}
+        </div>
+      )}
       {!links.loading && links.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {links.failed ? t("seo.backlinks_could_not_be_read") : t("seo.no_backlink_has_been_recorded_yet")}
+          {links.failed
+            ? t("seo.backlinks_could_not_be_read")
+            : t("seo.no_backlink_has_been_recorded_yet")}
         </div>
       )}
     </div>
@@ -2517,8 +4004,16 @@ function BacklinkModule() {
  * the screen names what is missing and what would have to exist instead.
  */
 function AbsentModule({
-  title, Icon, what, needs,
-}: { title: string; Icon: typeof Compass; what: string; needs: string }) {
+  title,
+  Icon,
+  what,
+  needs,
+}: {
+  title: string;
+  Icon: typeof Compass;
+  what: string;
+  needs: string;
+}) {
   const { t } = useTranslation();
   return (
     <div className="space-y-4">
@@ -2532,7 +4027,9 @@ function AbsentModule({
             <div className="text-[13px] font-bold">{t("seo.nothing_records_this_yet")}</div>
             <div className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{what}</div>
             <div className="mt-3 rounded-lg border border-border bg-background/40 p-3 text-[11px] leading-relaxed text-muted-foreground">
-              <span className="font-semibold uppercase tracking-wider">{t("seo.what_it_would_take")}</span>
+              <span className="font-semibold uppercase tracking-wider">
+                {t("seo.what_it_would_take")}
+              </span>
               <div className="mt-1">{needs}</div>
             </div>
           </div>
@@ -2582,44 +4079,85 @@ function ExternalLinkModule() {
 function ImageSeoModule() {
   const { t } = useTranslation();
   const assets = useResource("media_library", { limit: 200 });
-  const images = assets.rows.filter((row) => text(row, "mime_type", "").startsWith("image/") || text(row, "asset_type", "") === "image");
+  const images = assets.rows.filter(
+    (row) =>
+      text(row, "mime_type", "").startsWith("image/") || text(row, "asset_type", "") === "image",
+  );
   const notWebp = images.filter((row) => !text(row, "mime_type", "").includes("webp")).length;
   const heavy = images.filter((row) => num(row, "size_bytes") > 300 * 1024).length;
-  const kb = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`);
+  const kb = (bytes: number) =>
+    bytes >= 1024 * 1024
+      ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+      : `${Math.round(bytes / 1024)} KB`;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.assets")} value={figure(assets.total, assets)} icon={<ImageIcon className="h-4 w-4" />} />
-        <StatCard label={t("seo.images")} value={assets.loading ? "…" : String(images.length)} tone="success" />
-        <StatCard label={t("seo.not_webp")} value={assets.loading ? "…" : String(notWebp)} tone="warning" />
-        <StatCard label={t("seo.over_300_kb")} value={assets.loading ? "…" : String(heavy)} tone={heavy > 0 ? "warning" : "success"} />
+        <StatCard
+          label={t("seo.assets")}
+          value={figure(assets.total, assets)}
+          icon={<ImageIcon className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.images")}
+          value={assets.loading ? "…" : String(images.length)}
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.not_webp")}
+          value={assets.loading ? "…" : String(notWebp)}
+          tone="warning"
+        />
+        <StatCard
+          label={t("seo.over_300_kb")}
+          value={assets.loading ? "…" : String(heavy)}
+          tone={heavy > 0 ? "warning" : "success"}
+        />
       </div>
       <Toolbar title={t("seo.image_seo")} count={images.length} />
       <Table
         head={["File", "Type", "Dimensions", "Size", "Format", "Approved", "Active"]}
         rows={images.map((r) => [
           <span key="f" className="inline-flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-md border border-border bg-gradient-to-br from-primary/30 to-accent/30"><ImageIcon className="h-3.5 w-3.5 text-muted-foreground" /></div>
+            <div className="grid h-8 w-8 place-items-center rounded-md border border-border bg-gradient-to-br from-primary/30 to-accent/30">
+              <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+            </div>
             <span className="font-mono text-[11px]">{text(r, "name")}</span>
           </span>,
           <Chip key="t">{text(r, "asset_type")}</Chip>,
-          <span key="d" className="font-mono tabular">{num(r, "width") && num(r, "height") ? `${num(r, "width")}×${num(r, "height")}` : "—"}</span>,
-          <span key="s" className="font-mono tabular">{num(r, "size_bytes") ? kb(num(r, "size_bytes")) : "—"}</span>,
-          <span key="m" className="font-mono text-[11px] text-muted-foreground">{text(r, "mime_type")}</span>,
-          <Chip key="ap" tone={r.approved ? "success" : "warning"}>{r.approved ? "yes" : "no"}</Chip>,
-          <Chip key="ac" tone={r.active ? "success" : "default"}>{r.active ? "yes" : "no"}</Chip>,
+          <span key="d" className="font-mono tabular">
+            {num(r, "width") && num(r, "height") ? `${num(r, "width")}×${num(r, "height")}` : "—"}
+          </span>,
+          <span key="s" className="font-mono tabular">
+            {num(r, "size_bytes") ? kb(num(r, "size_bytes")) : "—"}
+          </span>,
+          <span key="m" className="font-mono text-[11px] text-muted-foreground">
+            {text(r, "mime_type")}
+          </span>,
+          <Chip key="ap" tone={r.approved ? "success" : "warning"}>
+            {r.approved ? "yes" : "no"}
+          </Chip>,
+          <Chip key="ac" tone={r.active ? "success" : "default"}>
+            {r.active ? "yes" : "no"}
+          </Chip>,
         ])}
       />
-      {assets.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_asset_library")}</div>}
+      {assets.loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_asset_library")}
+        </div>
+      )}
       {!assets.loading && images.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {assets.failed ? t("seo.the_asset_library_could_not_be_read") : t("seo.no_image_is_held_in_the_asset_library")}
+          {assets.failed
+            ? t("seo.the_asset_library_could_not_be_read")
+            : t("seo.no_image_is_held_in_the_asset_library")}
         </div>
       )}
       <div className="text-[10px] leading-relaxed text-muted-foreground">
-        No alt text, compression ratio or lazy-loading flag is recorded against an asset, so those columns are
-        gone rather than filled in. Dimensions, size and format are what the library holds.
+        No alt text, compression ratio or lazy-loading flag is recorded against an asset, so those
+        columns are gone rather than filled in. Dimensions, size and format are what the library
+        holds.
       </div>
     </div>
   );
@@ -2633,30 +4171,73 @@ function VideoSeoModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.videos")} value={figure(videos.total, videos)} icon={<Video className="h-4 w-4" />} />
-        <StatCard label={t("seo.with_seo_title")} value={videos.loading ? "…" : String(withSeo)} tone="success" />
-        <StatCard label={t("seo.published")} value={videos.loading ? "…" : String(countWhere(videos.rows, (r) => text(r, "status") === "published"))} tone="success" />
-        <StatCard label={t("seo.featured")} value={videos.loading ? "…" : String(countWhere(videos.rows, (r) => Boolean(r.featured)))} tone="premium" />
+        <StatCard
+          label={t("seo.videos")}
+          value={figure(videos.total, videos)}
+          icon={<Video className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.with_seo_title")}
+          value={videos.loading ? "…" : String(withSeo)}
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.published")}
+          value={
+            videos.loading
+              ? "…"
+              : String(countWhere(videos.rows, (r) => text(r, "status") === "published"))
+          }
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.featured")}
+          value={videos.loading ? "…" : String(countWhere(videos.rows, (r) => Boolean(r.featured)))}
+          tone="premium"
+        />
       </div>
       <Toolbar title={t("seo.video_seo")} count={videos.total} />
       <Table
         head={["Video", "Thumb", "Duration", "SEO title", "SEO description", "Language", "Status"]}
         rows={videos.rows.map((r) => [
-          <span key="f" className="font-semibold">{text(r, "title")}</span>,
-          <div key="t" className="grid h-8 w-14 place-items-center overflow-hidden rounded-md border border-border bg-gradient-to-br from-primary/40 to-accent/30">
-            {text(r, "thumbnail_url", "") ? <img src={text(r, "thumbnail_url")} alt="" className="h-full w-full object-cover" /> : <Play className="h-3.5 w-3.5 text-white/80" />}
+          <span key="f" className="font-semibold">
+            {text(r, "title")}
+          </span>,
+          <div
+            key="t"
+            className="grid h-8 w-14 place-items-center overflow-hidden rounded-md border border-border bg-gradient-to-br from-primary/40 to-accent/30"
+          >
+            {text(r, "thumbnail_url", "") ? (
+              <img src={text(r, "thumbnail_url")} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <Play className="h-3.5 w-3.5 text-white/80" />
+            )}
           </div>,
-          <span key="d" className="font-mono tabular">{text(r, "duration")}</span>,
-          <span key="st" className="text-[11px]">{text(r, "seo_title")}</span>,
-          <span key="sd" className="max-w-[220px] truncate text-[11px] text-muted-foreground">{text(r, "seo_description")}</span>,
+          <span key="d" className="font-mono tabular">
+            {text(r, "duration")}
+          </span>,
+          <span key="st" className="text-[11px]">
+            {text(r, "seo_title")}
+          </span>,
+          <span key="sd" className="max-w-[220px] truncate text-[11px] text-muted-foreground">
+            {text(r, "seo_description")}
+          </span>,
           <Chip key="l">{text(r, "language")}</Chip>,
-          <Chip key="s" tone={text(r, "status") === "published" ? "success" : "warning"}>{text(r, "status")}</Chip>,
+          <Chip key="s" tone={text(r, "status") === "published" ? "success" : "warning"}>
+            {text(r, "status")}
+          </Chip>,
         ])}
       />
-      {videos.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_video_library")}</div>}
+      {videos.loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_video_library")}
+        </div>
+      )}
       {!videos.loading && videos.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {videos.failed ? t("seo.the_video_library_could_not_be_read") : t("seo.no_video_is_published_yet")}
+          {videos.failed
+            ? t("seo.the_video_library_could_not_be_read")
+            : t("seo.no_video_is_published_yet")}
         </div>
       )}
     </div>
@@ -2671,25 +4252,59 @@ function FaqSeoModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.questions")} value={figure(faqs.total, faqs)} icon={<HelpCircle className="h-4 w-4" />} />
-        <StatCard label={t("seo.with_seo_title")} value={faqs.loading ? "…" : String(withSeo)} tone="success" />
-        <StatCard label={t("seo.published")} value={faqs.loading ? "…" : String(countWhere(faqs.rows, (r) => text(r, "status") === "published"))} tone="success" />
-        <StatCard label={t("seo.ai_drafted")} value={faqs.loading ? "…" : String(countWhere(faqs.rows, (r) => Boolean(r.ai_generated)))} tone="premium" />
+        <StatCard
+          label={t("seo.questions")}
+          value={figure(faqs.total, faqs)}
+          icon={<HelpCircle className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.with_seo_title")}
+          value={faqs.loading ? "…" : String(withSeo)}
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.published")}
+          value={
+            faqs.loading
+              ? "…"
+              : String(countWhere(faqs.rows, (r) => text(r, "status") === "published"))
+          }
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.ai_drafted")}
+          value={faqs.loading ? "…" : String(countWhere(faqs.rows, (r) => Boolean(r.ai_generated)))}
+          tone="premium"
+        />
       </div>
       <Toolbar title={t("seo.faq")} count={faqs.total} />
       <Table
         head={["Question", "SEO title", "SEO description", "Language", "Status", "AI", "Published"]}
         rows={faqs.rows.map((r) => [
-          <span key="q" className="max-w-[260px] truncate font-semibold">{text(r, "question")}</span>,
-          <span key="t" className="max-w-[200px] truncate text-[11px]">{text(r, "seo_title")}</span>,
-          <span key="d" className="max-w-[240px] truncate text-[11px] text-muted-foreground">{text(r, "seo_description")}</span>,
+          <span key="q" className="max-w-[260px] truncate font-semibold">
+            {text(r, "question")}
+          </span>,
+          <span key="t" className="max-w-[200px] truncate text-[11px]">
+            {text(r, "seo_title")}
+          </span>,
+          <span key="d" className="max-w-[240px] truncate text-[11px] text-muted-foreground">
+            {text(r, "seo_description")}
+          </span>,
           <Chip key="l">{text(r, "language")}</Chip>,
-          <Chip key="s" tone={text(r, "status") === "published" ? "success" : "warning"}>{text(r, "status")}</Chip>,
-          <Chip key="a" tone={r.ai_generated ? "premium" : "default"}>{r.ai_generated ? "yes" : "no"}</Chip>,
-          <span key="p" className="font-mono text-[11px] text-muted-foreground">{text(r, "published_at").slice(0, 10)}</span>,
+          <Chip key="s" tone={text(r, "status") === "published" ? "success" : "warning"}>
+            {text(r, "status")}
+          </Chip>,
+          <Chip key="a" tone={r.ai_generated ? "premium" : "default"}>
+            {r.ai_generated ? "yes" : "no"}
+          </Chip>,
+          <span key="p" className="font-mono text-[11px] text-muted-foreground">
+            {text(r, "published_at").slice(0, 10)}
+          </span>,
         ])}
       />
-      {faqs.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_faq_table")}</div>}
+      {faqs.loading && (
+        <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_faq_table")}</div>
+      )}
       {!faqs.loading && faqs.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
           {faqs.failed ? t("seo.faqs_could_not_be_read") : t("seo.no_question_is_recorded")}
@@ -2722,15 +4337,27 @@ function RedirectModule() {
       <Table
         head={["From", "To", "Language", "Status", "Canonical", "Updated"]}
         rows={redirecting.map((r) => [
-          <span key="f" className="font-mono text-[11px]">{text(r, "path")}</span>,
-          <span key="t" className="font-mono text-[11px] text-accent">{text(r, "redirect_to")}</span>,
+          <span key="f" className="font-mono text-[11px]">
+            {text(r, "path")}
+          </span>,
+          <span key="t" className="font-mono text-[11px] text-accent">
+            {text(r, "redirect_to")}
+          </span>,
           <Chip key="l">{text(r, "language")}</Chip>,
-          <Chip key="s" tone={text(r, "status") === "active" ? "success" : "warning"}>{text(r, "status")}</Chip>,
-          <Chip key="c" tone={r.is_canonical ? "accent" : "default"}>{r.is_canonical ? "yes" : "no"}</Chip>,
-          <span key="u" className="font-mono text-[11px] text-muted-foreground">{text(r, "updated_at").slice(0, 10)}</span>,
+          <Chip key="s" tone={text(r, "status") === "active" ? "success" : "warning"}>
+            {text(r, "status")}
+          </Chip>,
+          <Chip key="c" tone={r.is_canonical ? "accent" : "default"}>
+            {r.is_canonical ? "yes" : "no"}
+          </Chip>,
+          <span key="u" className="font-mono text-[11px] text-muted-foreground">
+            {text(r, "updated_at").slice(0, 10)}
+          </span>,
         ])}
       />
-      {urls.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_url_table")}</div>}
+      {urls.loading && (
+        <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_url_table")}</div>
+      )}
       {!urls.loading && redirecting.length === 0 && (
         <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
           {urls.failed
@@ -2775,21 +4402,48 @@ function CanonicalModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.pages")} value={figure(pages.total, pages)} icon={<LinkIcon className="h-4 w-4" />} />
-        <StatCard label={t("seo.self_canonical")} value={pages.loading ? "…" : String(rows.length - missing - cross)} tone="success" />
-        <StatCard label={t("seo.cross_canonical")} value={pages.loading ? "…" : String(cross)} tone="warning" />
-        <StatCard label={t("seo.no_canonical")} value={pages.loading ? "…" : String(missing)} tone={missing > 0 ? "destructive" : "success"} />
+        <StatCard
+          label={t("seo.pages")}
+          value={figure(pages.total, pages)}
+          icon={<LinkIcon className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.self_canonical")}
+          value={pages.loading ? "…" : String(rows.length - missing - cross)}
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.cross_canonical")}
+          value={pages.loading ? "…" : String(cross)}
+          tone="warning"
+        />
+        <StatCard
+          label={t("seo.no_canonical")}
+          value={pages.loading ? "…" : String(missing)}
+          tone={missing > 0 ? "destructive" : "success"}
+        />
       </div>
       <Toolbar title={t("seo.canonicals")} count={pages.total} />
       <Table
         head={["URL", "Canonical", "Type"]}
         rows={rows.map((r) => [
-          <span key="u" className="font-mono text-[11px]">{r.url}</span>,
-          <span key="c" className="font-mono text-[11px] text-accent">{r.canonical || "—"}</span>,
-          <Chip key="s" tone={r.kind === "Self" ? "success" : r.kind === "Cross" ? "warning" : "destructive"}>{r.kind}</Chip>,
+          <span key="u" className="font-mono text-[11px]">
+            {r.url}
+          </span>,
+          <span key="c" className="font-mono text-[11px] text-accent">
+            {r.canonical || "—"}
+          </span>,
+          <Chip
+            key="s"
+            tone={r.kind === "Self" ? "success" : r.kind === "Cross" ? "warning" : "destructive"}
+          >
+            {r.kind}
+          </Chip>,
         ])}
       />
-      {pages.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_page_table")}</div>}
+      {pages.loading && (
+        <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_page_table")}</div>
+      )}
       {!pages.loading && rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
           {pages.failed ? t("seo.pages_could_not_be_read") : t("seo.no_page_has_been_crawled_yet")}
@@ -2823,8 +4477,13 @@ type SeoConsole = {
   base?: string;
   sitemap?: { urls: number | null; parts: { url: string; urls: number }[]; note?: string };
   robots?: {
-    agents: number; allow: number; disallow: number; sitemap: number; rules: number;
-    protects_control_panel: boolean; protects_api: boolean;
+    agents: number;
+    allow: number;
+    disallow: number;
+    sitemap: number;
+    rules: number;
+    protects_control_panel: boolean;
+    protects_api: boolean;
   } | null;
 };
 
@@ -2846,7 +4505,9 @@ function useSeoConsole() {
         if (alive) setState("failed");
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
   return { data, state };
 }
@@ -2861,10 +4522,18 @@ function SitemapModule() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <a href={`${base}/sitemap.xml`} target="_blank" rel="noreferrer">
-          <PillButton variant="primary"><span className="inline-flex items-center gap-1"><MapIcon className="h-3 w-3" /> {t("seo.open_sitemap_xml")}</span></PillButton>
+          <PillButton variant="primary">
+            <span className="inline-flex items-center gap-1">
+              <MapIcon className="h-3 w-3" /> {t("seo.open_sitemap_xml")}
+            </span>
+          </PillButton>
         </a>
         <a href={`${base}/robots.txt`} target="_blank" rel="noreferrer">
-          <PillButton variant="ghost"><span className="inline-flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> {t("seo.open_robots_txt")}</span></PillButton>
+          <PillButton variant="ghost">
+            <span className="inline-flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3" /> {t("seo.open_robots_txt")}
+            </span>
+          </PillButton>
         </a>
       </div>
       <div className="rounded-xl border border-border bg-background/40 p-3 text-[11px] leading-relaxed text-muted-foreground">
@@ -2880,13 +4549,24 @@ function SitemapModule() {
           return (
             <Card key={m.url}>
               <div className="flex items-start justify-between">
-                <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent"><MapIcon className="h-4 w-4" /></div>
-                <Chip tone={m.urls > 0 ? "success" : "warning"}>{m.urls > 0 ? "OK" : t("seo.empty")}</Chip>
+                <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent">
+                  <MapIcon className="h-4 w-4" />
+                </div>
+                <Chip tone={m.urls > 0 ? "success" : "warning"}>
+                  {m.urls > 0 ? "OK" : t("seo.empty")}
+                </Chip>
               </div>
               <div className="mt-3 font-mono text-[12px] font-bold">{name}</div>
-              <div className="mt-1 text-[11px] text-muted-foreground">{m.urls.toLocaleString()} {t("seo.urls")}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                {m.urls.toLocaleString()} {t("seo.urls")}
+              </div>
               <div className="mt-3">
-                <a href={m.url} target="_blank" rel="noreferrer" className="block w-full rounded-md border border-border bg-background/60 px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent">
+                <a
+                  href={m.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block w-full rounded-md border border-border bg-background/60 px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wider hover:border-accent/40 hover:text-accent"
+                >
                   {t("seo.open")}
                 </a>
               </div>
@@ -2895,7 +4575,9 @@ function SitemapModule() {
         })}
       </div>
       {state === "ready" && parts.length === 0 && (
-        <div className="text-[11px] text-muted-foreground">{t("seo.the_sitemap_index_names_no_child_sitemaps")}</div>
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.the_sitemap_index_names_no_child_sitemaps")}
+        </div>
       )}
     </div>
   );
@@ -2920,17 +4602,25 @@ function RobotsModule() {
         if (alive) setServed(null);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [base]);
 
   const checks = rules
     ? [
         { l: "Served and readable", ok: true },
         { l: "Sitemap declared", ok: rules.sitemap > 0 },
-        { l: "Not disallowing the whole site", ok: rules.disallow === 0 || rules.rules > rules.disallow },
+        {
+          l: "Not disallowing the whole site",
+          ok: rules.disallow === 0 || rules.rules > rules.disallow,
+        },
         { l: "Control panel kept out of the index", ok: rules.protects_control_panel },
         { l: "API kept out of the index", ok: rules.protects_api },
-        { l: `${rules.agents} user-agent ${rules.agents === 1 ? "block" : "blocks"}`, ok: rules.agents > 0 },
+        {
+          l: `${rules.agents} user-agent ${rules.agents === 1 ? "block" : "blocks"}`,
+          ok: rules.agents > 0,
+        },
       ]
     : [];
 
@@ -2938,38 +4628,79 @@ function RobotsModule() {
     <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
       <Card>
         <div className="mb-3 flex items-center justify-between">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">robots.txt · as served</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            robots.txt · as served
+          </div>
           <a href={`${base}/robots.txt`} target="_blank" rel="noreferrer">
-            <PillButton variant="ghost"><span className="inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> {t("seo.open")}</span></PillButton>
+            <PillButton variant="ghost">
+              <span className="inline-flex items-center gap-1">
+                <ExternalLink className="h-3 w-3" /> {t("seo.open")}
+              </span>
+            </PillButton>
           </a>
         </div>
         <pre className="h-72 w-full overflow-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-[12px] leading-relaxed">
-          {served ?? (state === "loading" ? t("seo.fetching_the_served_file") : t("seo.the_file_could_not_be_fetched"))}
+          {served ??
+            (state === "loading"
+              ? t("seo.fetching_the_served_file")
+              : t("seo.the_file_could_not_be_fetched"))}
         </pre>
         <div className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-          {t("seo.this_is_the_file_a_crawler_receives_fetched_fr")}</div>
+          {t("seo.this_is_the_file_a_crawler_receives_fetched_fr")}
+        </div>
       </Card>
       <Card>
-        <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.validation")}</div>
+        <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          {t("seo.validation")}
+        </div>
         <div className="space-y-2 text-[12px]">
           {checks.map((c) => (
-            <div key={c.l} className="flex items-center gap-2 rounded-md border border-border bg-background/40 px-2 py-1.5">
-              {c.ok ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> : <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
+            <div
+              key={c.l}
+              className="flex items-center gap-2 rounded-md border border-border bg-background/40 px-2 py-1.5"
+            >
+              {c.ok ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+              ) : (
+                <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+              )}
               {c.l}
             </div>
           ))}
           {checks.length === 0 && (
             <div className="text-[11px] text-muted-foreground">
-              {state === "loading" ? t("seo.reading_the_served_file") : "robots.txt could not be read, so nothing can be checked."}
+              {state === "loading"
+                ? t("seo.reading_the_served_file")
+                : "robots.txt could not be read, so nothing can be checked."}
             </div>
           )}
         </div>
         {rules && (
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-[11px]">
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.rules")}</div><div className="font-mono tabular">{rules.rules}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.allow")}</div><div className="font-mono tabular text-success">{rules.allow}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.disallow")}</div><div className="font-mono tabular text-warning">{rules.disallow}</div></div>
-            <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.sitemaps")}</div><div className="font-mono tabular text-accent">{rules.sitemap}</div></div>
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                {t("seo.rules")}
+              </div>
+              <div className="font-mono tabular">{rules.rules}</div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                {t("seo.allow")}
+              </div>
+              <div className="font-mono tabular text-success">{rules.allow}</div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                {t("seo.disallow")}
+              </div>
+              <div className="font-mono tabular text-warning">{rules.disallow}</div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                {t("seo.sitemaps")}
+              </div>
+              <div className="font-mono tabular text-accent">{rules.sitemap}</div>
+            </div>
           </div>
         )}
       </Card>
@@ -3012,17 +4743,33 @@ function IntlSeoModule() {
       <Table
         head={["Region", "Code", "Group", "Keywords", "Traffic share", "Growth"]}
         rows={regions.rows.map((r) => [
-          <span key="n" className="inline-flex items-center gap-2 font-semibold">{text(r, "flag", "")} {text(r, "name")}</span>,
-          <Chip key="c" tone="accent">{text(r, "code")}</Chip>,
-          <span key="g" className="text-[11px] text-muted-foreground">{text(r, "region_group")}</span>,
-          <span key="k" className="font-mono tabular">{num(r, "keywords_count").toLocaleString()}</span>,
-          <span key="t" className="font-mono tabular">{num(r, "traffic_share")}%</span>,
-          <span key="p" className={`font-mono tabular ${num(r, "growth_pct") >= 0 ? "text-success" : "text-destructive"}`}>
-            {num(r, "growth_pct") >= 0 ? "+" : ""}{num(r, "growth_pct")}%
+          <span key="n" className="inline-flex items-center gap-2 font-semibold">
+            {text(r, "flag", "")} {text(r, "name")}
+          </span>,
+          <Chip key="c" tone="accent">
+            {text(r, "code")}
+          </Chip>,
+          <span key="g" className="text-[11px] text-muted-foreground">
+            {text(r, "region_group")}
+          </span>,
+          <span key="k" className="font-mono tabular">
+            {num(r, "keywords_count").toLocaleString()}
+          </span>,
+          <span key="t" className="font-mono tabular">
+            {num(r, "traffic_share")}%
+          </span>,
+          <span
+            key="p"
+            className={`font-mono tabular ${num(r, "growth_pct") >= 0 ? "text-success" : "text-destructive"}`}
+          >
+            {num(r, "growth_pct") >= 0 ? "+" : ""}
+            {num(r, "growth_pct")}%
           </span>,
         ])}
       />
-      {regions.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_region_table")}</div>}
+      {regions.loading && (
+        <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_region_table")}</div>
+      )}
       {!regions.loading && regions.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
           {regions.failed ? t("seo.regions_could_not_be_read") : t("seo.no_region_is_recorded")}
@@ -3032,13 +4779,16 @@ function IntlSeoModule() {
       <Toolbar title="Countries keywords are researched for" count={byCountry.length} />
       <div className="flex flex-wrap gap-1.5">
         {byCountry.map((group) => (
-          <Chip key={group.key} tone="default">{group.key} · {group.rows.length}</Chip>
+          <Chip key={group.key} tone="default">
+            {group.key} · {group.rows.length}
+          </Chip>
         ))}
       </div>
       {byCountry.length > 0 && (
         <div className="text-[10px] leading-relaxed text-muted-foreground">
-          Counted over the {keywords.rows.length} highest-volume of {figure(keywords.total, keywords)} keywords.
-          The platform records no hreflang and serves one set of pages, so there is no per-locale canonical to show.
+          Counted over the {keywords.rows.length} highest-volume of{" "}
+          {figure(keywords.total, keywords)} keywords. The platform records no hreflang and serves
+          one set of pages, so there is no per-locale canonical to show.
         </div>
       )}
     </div>
@@ -3063,38 +4813,106 @@ function BlogCenterModule() {
   const [tab, setTab] = useState("All");
   const statuses = [...new Set(posts.rows.map((row) => text(row, "status")))];
   const blogTabs = ["All", ...statuses];
-  const shown = tab === "All" ? posts.rows : posts.rows.filter((row) => text(row, "status") === tab);
+  const shown =
+    tab === "All" ? posts.rows : posts.rows.filter((row) => text(row, "status") === tab);
   const score = mean(posts.rows, "seo_score");
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.content_items")} value={figure(posts.total, posts)} icon={<Rss className="h-4 w-4" />} />
-        <StatCard label={t("seo.published")} value={posts.loading ? "…" : String(countWhere(posts.rows, (r) => text(r, "status") === "published"))} tone="success" />
-        <StatCard label={t("seo.draft")} value={posts.loading ? "…" : String(countWhere(posts.rows, (r) => text(r, "status") === "draft"))} tone="warning" />
-        <StatCard label={t("seo.avg_seo_score")} value={score === null ? (posts.loading ? "…" : "—") : score.toFixed(0)} tone="premium" />
+        <StatCard
+          label={t("seo.content_items")}
+          value={figure(posts.total, posts)}
+          icon={<Rss className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.published")}
+          value={
+            posts.loading
+              ? "…"
+              : String(countWhere(posts.rows, (r) => text(r, "status") === "published"))
+          }
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.draft")}
+          value={
+            posts.loading
+              ? "…"
+              : String(countWhere(posts.rows, (r) => text(r, "status") === "draft"))
+          }
+          tone="warning"
+        />
+        <StatCard
+          label={t("seo.avg_seo_score")}
+          value={score === null ? (posts.loading ? "…" : "—") : score.toFixed(0)}
+          tone="premium"
+        />
       </div>
-      <div data-skip-drawer><SubNav items={blogTabs} active={tab} onChange={setTab} /></div>
+      <div data-skip-drawer>
+        <SubNav items={blogTabs} active={tab} onChange={setTab} />
+      </div>
       <Toolbar title={t("seo.content")} count={shown.length} />
       <Table
-        head={["Title", "Type", "Target keyword", "Words", "SEO Score", "Model", "Status", "Published"]}
+        head={[
+          "Title",
+          "Type",
+          "Target keyword",
+          "Words",
+          "SEO Score",
+          "Model",
+          "Status",
+          "Published",
+        ]}
         rows={shown.map((b) => [
-          <span key="t" className="max-w-[260px] truncate font-semibold">{text(b, "title")}</span>,
+          <span key="t" className="max-w-[260px] truncate font-semibold">
+            {text(b, "title")}
+          </span>,
           <Chip key="c">{text(b, "content_type")}</Chip>,
-          <span key="k" className="text-[11px]">{text(b, "target_keyword")}</span>,
-          <span key="w" className="font-mono tabular">{num(b, "word_count").toLocaleString()}</span>,
+          <span key="k" className="text-[11px]">
+            {text(b, "target_keyword")}
+          </span>,
+          <span key="w" className="font-mono tabular">
+            {num(b, "word_count").toLocaleString()}
+          </span>,
           <ScoreRing key="s" value={num(b, "seo_score")} size={28} />,
-          text(b, "model", "") !== ""
-            ? <Chip key="m" tone="premium"><Sparkles className="h-3 w-3" />{text(b, "model")}</Chip>
-            : <span key="m" className="text-muted-foreground">—</span>,
-          <Chip key="st" tone={text(b, "status") === "published" ? "success" : text(b, "status") === "draft" ? "default" : "warning"}>{text(b, "status")}</Chip>,
-          <span key="p" className="font-mono text-[11px] text-muted-foreground">{text(b, "published_at").slice(0, 10)}</span>,
+          text(b, "model", "") !== "" ? (
+            <Chip key="m" tone="premium">
+              <Sparkles className="h-3 w-3" />
+              {text(b, "model")}
+            </Chip>
+          ) : (
+            <span key="m" className="text-muted-foreground">
+              —
+            </span>
+          ),
+          <Chip
+            key="st"
+            tone={
+              text(b, "status") === "published"
+                ? "success"
+                : text(b, "status") === "draft"
+                  ? "default"
+                  : "warning"
+            }
+          >
+            {text(b, "status")}
+          </Chip>,
+          <span key="p" className="font-mono text-[11px] text-muted-foreground">
+            {text(b, "published_at").slice(0, 10)}
+          </span>,
         ])}
       />
-      {posts.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_content_table")}</div>}
+      {posts.loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_content_table")}
+        </div>
+      )}
       {!posts.loading && shown.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {posts.failed ? t("seo.content_could_not_be_read") : t("seo.no_content_item_matches_this_tab")}
+          {posts.failed
+            ? t("seo.content_could_not_be_read")
+            : t("seo.no_content_item_matches_this_tab")}
         </div>
       )}
     </div>
@@ -3126,20 +4944,43 @@ function AiWriterModule() {
     <div className="space-y-4">
       <Card>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-[var(--shadow-glow)]"><Wand2 className="h-5 w-5" /></div>
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-[var(--shadow-glow)]">
+            <Wand2 className="h-5 w-5" />
+          </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{t("seo.ai_content")}</div>
-            <div className="text-sm font-bold">{t("seo.what_has_been_drafted_and_what_is_being_sugges")}</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+              {t("seo.ai_content")}
+            </div>
+            <div className="text-sm font-bold">
+              {t("seo.what_has_been_drafted_and_what_is_being_sugges")}
+            </div>
             <div className="mt-1 text-[11px] text-muted-foreground">
-              {t("seo.there_is_no_generation_endpoint_on_this_platfo")}</div>
+              {t("seo.there_is_no_generation_endpoint_on_this_platfo")}
+            </div>
           </div>
         </div>
       </Card>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.suggestions")} value={figure(suggestions.total, suggestions)} icon={<Sparkles className="h-4 w-4" />} />
-        <StatCard label={t("seo.accepted")} value={suggestions.loading ? "…" : String(countWhere(suggestions.rows, (r) => text(r, "status") === "accepted"))} tone="success" />
-        <StatCard label={t("seo.ai_drafted_content")} value={content.loading ? "…" : String(drafted.length)} tone="premium" />
+        <StatCard
+          label={t("seo.suggestions")}
+          value={figure(suggestions.total, suggestions)}
+          icon={<Sparkles className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.accepted")}
+          value={
+            suggestions.loading
+              ? "…"
+              : String(countWhere(suggestions.rows, (r) => text(r, "status") === "accepted"))
+          }
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.ai_drafted_content")}
+          value={content.loading ? "…" : String(drafted.length)}
+          tone="premium"
+        />
         <StatCard label={t("seo.reels")} value={figure(reels.total, reels)} tone="default" />
       </div>
 
@@ -3149,19 +4990,44 @@ function AiWriterModule() {
         rows={suggestions.rows.map((r) => [
           <div key="s" className="max-w-[320px]">
             <div className="truncate font-semibold">{text(r, "title")}</div>
-            <div className="truncate text-[11px] text-muted-foreground">{text(r, "suggestion")}</div>
+            <div className="truncate text-[11px] text-muted-foreground">
+              {text(r, "suggestion")}
+            </div>
           </div>,
-          <span key="t" className="text-[11px]">{text(r, "target_type")} · {text(r, "target_ref")}</span>,
-          <Chip key="i" tone={text(r, "impact") === "high" ? "premium" : "default"}>{text(r, "impact")}</Chip>,
-          <span key="c" className="font-mono tabular">{num(r, "confidence")}</span>,
-          <Chip key="m" tone="accent">{text(r, "model")}</Chip>,
-          <Chip key="st" tone={text(r, "status") === "accepted" ? "success" : text(r, "status") === "rejected" ? "destructive" : "warning"}>{text(r, "status")}</Chip>,
+          <span key="t" className="text-[11px]">
+            {text(r, "target_type")} · {text(r, "target_ref")}
+          </span>,
+          <Chip key="i" tone={text(r, "impact") === "high" ? "premium" : "default"}>
+            {text(r, "impact")}
+          </Chip>,
+          <span key="c" className="font-mono tabular">
+            {num(r, "confidence")}
+          </span>,
+          <Chip key="m" tone="accent">
+            {text(r, "model")}
+          </Chip>,
+          <Chip
+            key="st"
+            tone={
+              text(r, "status") === "accepted"
+                ? "success"
+                : text(r, "status") === "rejected"
+                  ? "destructive"
+                  : "warning"
+            }
+          >
+            {text(r, "status")}
+          </Chip>,
         ])}
       />
-      {suggestions.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_suggestions")}</div>}
+      {suggestions.loading && (
+        <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_suggestions")}</div>
+      )}
       {!suggestions.loading && suggestions.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {suggestions.failed ? t("seo.suggestions_could_not_be_read") : t("seo.no_suggestion_has_been_recorded")}
+          {suggestions.failed
+            ? t("seo.suggestions_could_not_be_read")
+            : t("seo.no_suggestion_has_been_recorded")}
         </div>
       )}
 
@@ -3169,12 +5035,22 @@ function AiWriterModule() {
       <Table
         head={["Title", "Platform", "Duration", "Views", "Model", "Status"]}
         rows={reels.rows.map((r) => [
-          <span key="t" className="font-semibold">{text(r, "title")}</span>,
-          <Chip key="p" tone="accent">{text(r, "platform")}</Chip>,
-          <span key="d" className="font-mono tabular">{num(r, "duration_seconds")}s</span>,
-          <span key="v" className="font-mono tabular">{num(r, "views").toLocaleString()}</span>,
+          <span key="t" className="font-semibold">
+            {text(r, "title")}
+          </span>,
+          <Chip key="p" tone="accent">
+            {text(r, "platform")}
+          </Chip>,
+          <span key="d" className="font-mono tabular">
+            {num(r, "duration_seconds")}s
+          </span>,
+          <span key="v" className="font-mono tabular">
+            {num(r, "views").toLocaleString()}
+          </span>,
           <Chip key="m">{text(r, "model")}</Chip>,
-          <Chip key="s" tone={text(r, "status") === "published" ? "success" : "warning"}>{text(r, "status")}</Chip>,
+          <Chip key="s" tone={text(r, "status") === "published" ? "success" : "warning"}>
+            {text(r, "status")}
+          </Chip>,
         ])}
       />
       {!reels.loading && reels.rows.length === 0 && (
@@ -3195,38 +5071,67 @@ function AiKeywordModule() {
   return (
     <div className="space-y-4">
       <Card>
-        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{t("seo.ai_keyword")}</div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          {t("seo.ai_keyword")}
+        </div>
         <div className="mt-1 text-[12px] text-muted-foreground">
-          {t("seo.research_is_not_run_from_this_screen_nothing_h")}</div>
+          {t("seo.research_is_not_run_from_this_screen_nothing_h")}
+        </div>
       </Card>
       <Toolbar title={t("seo.keyword_suggestions")} count={forKeywords.length} />
       <Table
         head={["Suggestion", "Target", "Impact", "Confidence", "Status"]}
         rows={forKeywords.map((r) => [
-          <span key="s" className="max-w-[320px] truncate font-semibold">{text(r, "title")}</span>,
-          <span key="t" className="text-[11px]">{text(r, "target_ref")}</span>,
-          <Chip key="i" tone={text(r, "impact") === "high" ? "premium" : "default"}>{text(r, "impact")}</Chip>,
-          <span key="c" className="font-mono tabular">{num(r, "confidence")}</span>,
-          <Chip key="st" tone={text(r, "status") === "accepted" ? "success" : "warning"}>{text(r, "status")}</Chip>,
+          <span key="s" className="max-w-[320px] truncate font-semibold">
+            {text(r, "title")}
+          </span>,
+          <span key="t" className="text-[11px]">
+            {text(r, "target_ref")}
+          </span>,
+          <Chip key="i" tone={text(r, "impact") === "high" ? "premium" : "default"}>
+            {text(r, "impact")}
+          </Chip>,
+          <span key="c" className="font-mono tabular">
+            {num(r, "confidence")}
+          </span>,
+          <Chip key="st" tone={text(r, "status") === "accepted" ? "success" : "warning"}>
+            {text(r, "status")}
+          </Chip>,
         ])}
       />
       {!suggestions.loading && forKeywords.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {suggestions.failed ? t("seo.suggestions_could_not_be_read") : t("seo.no_keyword_suggestion_has_been_recorded")}
+          {suggestions.failed
+            ? t("seo.suggestions_could_not_be_read")
+            : t("seo.no_keyword_suggestion_has_been_recorded")}
         </div>
       )}
       <Toolbar title={t("seo.planned_not_yet_tracked")} count={planned.total} />
       <Table
         head={["Keyword", "Volume", "Difficulty", "Intent", "Country"]}
         rows={planned.rows.slice(0, 50).map((r) => [
-          <span key="k" className="font-semibold">{text(r, "keyword")}</span>,
-          <span key="v" className="font-mono tabular">{num(r, "search_volume").toLocaleString()}</span>,
-          <span key="d" className="font-mono tabular">{num(r, "difficulty")}</span>,
-          <Chip key="i" tone="accent">{text(r, "intent")}</Chip>,
-          <span key="c" className="text-[11px] text-muted-foreground">{text(r, "country")}</span>,
+          <span key="k" className="font-semibold">
+            {text(r, "keyword")}
+          </span>,
+          <span key="v" className="font-mono tabular">
+            {num(r, "search_volume").toLocaleString()}
+          </span>,
+          <span key="d" className="font-mono tabular">
+            {num(r, "difficulty")}
+          </span>,
+          <Chip key="i" tone="accent">
+            {text(r, "intent")}
+          </Chip>,
+          <span key="c" className="text-[11px] text-muted-foreground">
+            {text(r, "country")}
+          </span>,
         ])}
       />
-      {planned.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_keyword_table")}</div>}
+      {planned.loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_keyword_table")}
+        </div>
+      )}
     </div>
   );
 }
@@ -3243,13 +5148,26 @@ function AiKeywordModule() {
  * of claim that gets believed until someone needs the data, so these read the
  * table.
  */
-function ToolGrid({ items, state }: {
+function ToolGrid({
+  items,
+  state,
+}: {
   items: ResourceRow[];
   state: { loading: boolean; failed: boolean };
 }) {
   const { t } = useTranslation();
-  if (state.loading) return <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_integrations_table")}</div>;
-  if (state.failed) return <div className="text-[11px] text-muted-foreground">{t("seo.integrations_could_not_be_read")}</div>;
+  if (state.loading)
+    return (
+      <div className="text-[11px] text-muted-foreground">
+        {t("seo.reading_the_integrations_table")}
+      </div>
+    );
+  if (state.failed)
+    return (
+      <div className="text-[11px] text-muted-foreground">
+        {t("seo.integrations_could_not_be_read")}
+      </div>
+    );
   if (items.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-background/40 p-4 text-[12px] text-muted-foreground">
@@ -3264,11 +5182,25 @@ function ToolGrid({ items, state }: {
         return (
           <Card key={String(service.id)}>
             <div className="flex items-start justify-between">
-              <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent"><Globe2 className="h-4 w-4" /></div>
-              <Chip tone={status === "connected" ? "success" : status === "pending" ? "warning" : "destructive"}>{status}</Chip>
+              <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent">
+                <Globe2 className="h-4 w-4" />
+              </div>
+              <Chip
+                tone={
+                  status === "connected"
+                    ? "success"
+                    : status === "pending"
+                      ? "warning"
+                      : "destructive"
+                }
+              >
+                {status}
+              </Chip>
             </div>
             <div className="mt-3 text-sm font-bold">{text(service, "display_name")}</div>
-            <div className="text-[11px] text-muted-foreground">{text(service, "category")} · {text(service, "provider")}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {text(service, "category")} · {text(service, "provider")}
+            </div>
             <div className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground">
               {text(service, "last_sync_at", "")
                 ? t("seo.last_sync", { on: text(service, "last_sync_at").slice(0, 10) })
@@ -3286,16 +5218,19 @@ function GoogleToolsModule() {
   const google = integrations.rows.filter((row) =>
     /google|gsc|ga4|search console|analytics|tag manager|merchant|pagespeed/i.test(
       `${text(row, "provider")} ${text(row, "display_name")}`,
-    ));
+    ),
+  );
   return <ToolGrid items={google} state={integrations} />;
 }
 
 function OtherToolsModule() {
   const integrations = useResource("seo_integrations", { limit: 100 });
-  const others = integrations.rows.filter((row) =>
-    !/google|gsc|ga4|search console|analytics|tag manager|merchant|pagespeed/i.test(
-      `${text(row, "provider")} ${text(row, "display_name")}`,
-    ));
+  const others = integrations.rows.filter(
+    (row) =>
+      !/google|gsc|ga4|search console|analytics|tag manager|merchant|pagespeed/i.test(
+        `${text(row, "provider")} ${text(row, "display_name")}`,
+      ),
+  );
   return <ToolGrid items={others} state={integrations} />;
 }
 
@@ -3324,9 +5259,29 @@ function BulkOpsModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.automations")} value={figure(automations.total, automations)} icon={<Zap className="h-4 w-4" />} />
-        <StatCard label={t("seo.active")} value={automations.loading ? "…" : String(countWhere(automations.rows, (r) => text(r, "status") === "active"))} tone="success" />
-        <StatCard label={t("seo.paused")} value={automations.loading ? "…" : String(countWhere(automations.rows, (r) => text(r, "status") === "paused"))} tone="warning" />
+        <StatCard
+          label={t("seo.automations")}
+          value={figure(automations.total, automations)}
+          icon={<Zap className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.active")}
+          value={
+            automations.loading
+              ? "…"
+              : String(countWhere(automations.rows, (r) => text(r, "status") === "active"))
+          }
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.paused")}
+          value={
+            automations.loading
+              ? "…"
+              : String(countWhere(automations.rows, (r) => text(r, "status") === "paused"))
+          }
+          tone="warning"
+        />
         <StatCard label={t("seo.runs_recorded")} value={figure(runs.total, runs)} tone="premium" />
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -3336,46 +5291,103 @@ function BulkOpsModule() {
           return (
             <Card key={String(o.id)}>
               <div className="flex items-start justify-between">
-                <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent"><Zap className="h-4 w-4" /></div>
+                <div className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-background/60 text-accent">
+                  <Zap className="h-4 w-4" />
+                </div>
                 <Chip tone={status === "active" ? "success" : "warning"}>{status}</Chip>
               </div>
               <div className="mt-3 text-sm font-bold">{text(o, "name")}</div>
               <div className="text-[11px] text-muted-foreground">{text(o, "description")}</div>
               <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-[11px]">
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.schedule")}</div><div className="font-mono">{text(o, "schedule")}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.runs")}</div><div className="font-mono tabular">{num(o, "runs_count")}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.last_run")}</div><div className="font-mono">{text(o, "last_run_at").slice(0, 10)}</div></div>
-                <div><div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.next_run")}</div><div className="font-mono">{text(o, "next_run_at").slice(0, 10)}</div></div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {t("seo.schedule")}
+                  </div>
+                  <div className="font-mono">{text(o, "schedule")}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {t("seo.runs")}
+                  </div>
+                  <div className="font-mono tabular">{num(o, "runs_count")}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {t("seo.last_run")}
+                  </div>
+                  <div className="font-mono">{text(o, "last_run_at").slice(0, 10)}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {t("seo.next_run")}
+                  </div>
+                  <div className="font-mono">{text(o, "next_run_at").slice(0, 10)}</div>
+                </div>
               </div>
               <div className="mt-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-                {num(o, "success_rate")}{t("seo.succeeded")} {mine.length} {mine.length === 1 ? "run" : "runs"} in the log below
+                {num(o, "success_rate")}
+                {t("seo.succeeded")} {mine.length} {mine.length === 1 ? "run" : "runs"} in the log
+                below
               </div>
             </Card>
           );
         })}
       </div>
-      {automations.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_automation_table")}</div>}
+      {automations.loading && (
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_automation_table")}
+        </div>
+      )}
       {!automations.loading && automations.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {automations.failed ? t("seo.automations_could_not_be_read") : t("seo.no_automation_is_configured")}
+          {automations.failed
+            ? t("seo.automations_could_not_be_read")
+            : t("seo.no_automation_is_configured")}
         </div>
       )}
       <Card>
-        <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{t("seo.recent_runs")}</div>
+        <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          {t("seo.recent_runs")}
+        </div>
         <Table
           head={["Started", "Finished", "Status", "Items processed", "Message"]}
           rows={runs.rows.map((r) => [
-            <span key="s" className="font-mono text-[11px]">{text(r, "started_at").slice(0, 16).replace("T", " ")}</span>,
-            <span key="f" className="font-mono text-[11px] text-muted-foreground">{text(r, "finished_at").slice(0, 16).replace("T", " ")}</span>,
-            <Chip key="st" tone={text(r, "status") === "success" ? "success" : text(r, "status") === "failed" ? "destructive" : "warning"}>{text(r, "status")}</Chip>,
-            <span key="i" className="font-mono tabular">{num(r, "items_processed").toLocaleString()}</span>,
-            <span key="m" className="max-w-[320px] truncate text-[11px] text-muted-foreground">{text(r, "message")}</span>,
+            <span key="s" className="font-mono text-[11px]">
+              {text(r, "started_at").slice(0, 16).replace("T", " ")}
+            </span>,
+            <span key="f" className="font-mono text-[11px] text-muted-foreground">
+              {text(r, "finished_at").slice(0, 16).replace("T", " ")}
+            </span>,
+            <Chip
+              key="st"
+              tone={
+                text(r, "status") === "success"
+                  ? "success"
+                  : text(r, "status") === "failed"
+                    ? "destructive"
+                    : "warning"
+              }
+            >
+              {text(r, "status")}
+            </Chip>,
+            <span key="i" className="font-mono tabular">
+              {num(r, "items_processed").toLocaleString()}
+            </span>,
+            <span key="m" className="max-w-[320px] truncate text-[11px] text-muted-foreground">
+              {text(r, "message")}
+            </span>,
           ])}
         />
-        {runs.loading && <div className="mt-2 text-[11px] text-muted-foreground">{t("seo.reading_the_run_log")}</div>}
+        {runs.loading && (
+          <div className="mt-2 text-[11px] text-muted-foreground">
+            {t("seo.reading_the_run_log")}
+          </div>
+        )}
         {!runs.loading && runs.rows.length === 0 && (
           <div className="mt-2 text-[11px] text-muted-foreground">
-            {runs.failed ? t("seo.the_run_log_could_not_be_read") : t("seo.no_automation_has_run_yet")}
+            {runs.failed
+              ? t("seo.the_run_log_could_not_be_read")
+              : t("seo.no_automation_has_run_yet")}
           </div>
         )}
       </Card>
@@ -3406,20 +5418,46 @@ function SettingsModule() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label={t("seo.integrations")} value={figure(integrations.total, integrations)} icon={<Settings className="h-4 w-4" />} />
-        <StatCard label={t("seo.connected")} value={integrations.loading ? "…" : String(countWhere(integrations.rows, (r) => text(r, "status") === "connected"))} tone="success" />
-        <StatCard label={t("seo.open_alerts")} value={alerts.loading ? "…" : String(countWhere(alerts.rows, (r) => !r.acknowledged))} tone="warning" />
-        <StatCard label={t("seo.recorded_changes")} value={figure(activity.total, activity)} tone="premium" icon={<ClipboardList className="h-4 w-4" />} />
+        <StatCard
+          label={t("seo.integrations")}
+          value={figure(integrations.total, integrations)}
+          icon={<Settings className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("seo.connected")}
+          value={
+            integrations.loading
+              ? "…"
+              : String(countWhere(integrations.rows, (r) => text(r, "status") === "connected"))
+          }
+          tone="success"
+        />
+        <StatCard
+          label={t("seo.open_alerts")}
+          value={alerts.loading ? "…" : String(countWhere(alerts.rows, (r) => !r.acknowledged))}
+          tone="warning"
+        />
+        <StatCard
+          label={t("seo.recorded_changes")}
+          value={figure(activity.total, activity)}
+          tone="premium"
+          icon={<ClipboardList className="h-4 w-4" />}
+        />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Card>
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{t("seo.integrations")}</div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+            {t("seo.integrations")}
+          </div>
           <div className="space-y-2">
             {integrations.rows.map((it) => {
               const status = text(it, "status");
               return (
-                <div key={String(it.id)} className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2 text-[12px]">
+                <div
+                  key={String(it.id)}
+                  className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2 text-[12px]"
+                >
                   <div className="min-w-0">
                     <div className="truncate font-semibold">{text(it, "display_name")}</div>
                     <div className="text-[10px] text-muted-foreground">{text(it, "category")}</div>
@@ -3430,33 +5468,53 @@ function SettingsModule() {
             })}
             {!integrations.loading && integrations.rows.length === 0 && (
               <div className="text-[11px] text-muted-foreground">
-                {integrations.failed ? t("seo.integrations_could_not_be_read") : t("seo.no_integration_is_recorded")}
+                {integrations.failed
+                  ? t("seo.integrations_could_not_be_read")
+                  : t("seo.no_integration_is_recorded")}
               </div>
             )}
           </div>
         </Card>
 
         <Card>
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">{t("seo.alerts")}</div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+            {t("seo.alerts")}
+          </div>
           <div className="space-y-2">
             {alerts.rows.map((a) => {
               const severity = text(a, "severity");
               return (
-                <div key={String(a.id)} className="rounded-lg border border-border bg-background/40 px-3 py-2">
+                <div
+                  key={String(a.id)}
+                  className="rounded-lg border border-border bg-background/40 px-3 py-2"
+                >
                   <div className="flex items-center justify-between gap-2">
                     <div className="truncate text-[12px] font-semibold">{text(a, "title")}</div>
-                    <Chip tone={severity === "critical" || severity === "high" ? "destructive" : severity === "medium" ? "warning" : "default"}>{severity}</Chip>
+                    <Chip
+                      tone={
+                        severity === "critical" || severity === "high"
+                          ? "destructive"
+                          : severity === "medium"
+                            ? "warning"
+                            : "default"
+                      }
+                    >
+                      {severity}
+                    </Chip>
                   </div>
                   <div className="mt-1 text-[11px] text-muted-foreground">{text(a, "message")}</div>
                   <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {text(a, "category")} · {a.acknowledged ? "acknowledged" : "open"} · {text(a, "created_at").slice(0, 10)}
+                    {text(a, "category")} · {a.acknowledged ? "acknowledged" : "open"} ·{" "}
+                    {text(a, "created_at").slice(0, 10)}
                   </div>
                 </div>
               );
             })}
             {!alerts.loading && alerts.rows.length === 0 && (
               <div className="text-[11px] text-muted-foreground">
-                {alerts.failed ? t("seo.alerts_could_not_be_read") : t("seo.no_alert_has_been_raised")}
+                {alerts.failed
+                  ? t("seo.alerts_could_not_be_read")
+                  : t("seo.no_alert_has_been_raised")}
               </div>
             )}
           </div>
@@ -3467,26 +5525,49 @@ function SettingsModule() {
       <Table
         head={["When", "Table", "Action", "Actor", "Record"]}
         rows={activity.rows.map((a) => [
-          <span key="w" className="font-mono text-[11px]">{text(a, "occurred_at").slice(0, 16).replace("T", " ")}</span>,
-          <Chip key="t" tone="accent">{text(a, "table_name")}</Chip>,
-          <Chip key="a" tone={text(a, "action") === "DELETE" ? "destructive" : text(a, "action") === "INSERT" ? "success" : "warning"}>{text(a, "action")}</Chip>,
-          <span key="ac" className="text-[11px]">{text(a, "actor")}</span>,
-          <span key="r" className="font-mono text-[10px] text-muted-foreground">{text(a, "record_id").slice(0, 8)}</span>,
+          <span key="w" className="font-mono text-[11px]">
+            {text(a, "occurred_at").slice(0, 16).replace("T", " ")}
+          </span>,
+          <Chip key="t" tone="accent">
+            {text(a, "table_name")}
+          </Chip>,
+          <Chip
+            key="a"
+            tone={
+              text(a, "action") === "DELETE"
+                ? "destructive"
+                : text(a, "action") === "INSERT"
+                  ? "success"
+                  : "warning"
+            }
+          >
+            {text(a, "action")}
+          </Chip>,
+          <span key="ac" className="text-[11px]">
+            {text(a, "actor")}
+          </span>,
+          <span key="r" className="font-mono text-[10px] text-muted-foreground">
+            {text(a, "record_id").slice(0, 8)}
+          </span>,
         ])}
       />
-      {activity.loading && <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_activity_log")}</div>}
+      {activity.loading && (
+        <div className="text-[11px] text-muted-foreground">{t("seo.reading_the_activity_log")}</div>
+      )}
       {!activity.loading && activity.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          {activity.failed ? t("seo.the_activity_log_could_not_be_read") : t("seo.nothing_has_been_recorded")}
+          {activity.failed
+            ? t("seo.the_activity_log_could_not_be_read")
+            : t("seo.nothing_has_been_recorded")}
         </div>
       )}
       {activity.rows.length > 0 && (
         <div className="text-[10px] leading-relaxed text-muted-foreground">
-          The {activity.rows.length} most recent of {figure(activity.total, activity)} recorded changes. Every
-          insert, update and delete against an SEO table is written here by the database itself.
+          The {activity.rows.length} most recent of {figure(activity.total, activity)} recorded
+          changes. Every insert, update and delete against an SEO table is written here by the
+          database itself.
         </div>
       )}
     </div>
   );
 }
-
