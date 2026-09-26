@@ -102,14 +102,19 @@ import { Route as AffiliateManagerSupportRouteImport } from './routes/affiliate-
 import { Route as AffiliateManagerWalletRouteImport } from './routes/affiliate-manager.wallet'
 import { Route as AiCeoIndexRouteImport } from './routes/ai-ceo.index'
 import { Route as AiCeoApprovalsRouteImport } from './routes/ai-ceo.approvals'
+import { Route as AiCeoAutomationsRouteImport } from './routes/ai-ceo.automations'
 import { Route as AiCeoDecisionEngineRouteImport } from './routes/ai-ceo.decision-engine'
+import { Route as AiCeoInsightsRouteImport } from './routes/ai-ceo.insights'
 import { Route as AiCeoLearningRouteImport } from './routes/ai-ceo.learning'
 import { Route as AiCeoLiveMonitorRouteImport } from './routes/ai-ceo.live-monitor'
+import { Route as AiCeoNotificationsRouteImport } from './routes/ai-ceo.notifications'
 import { Route as AiCeoPerformanceRouteImport } from './routes/ai-ceo.performance'
 import { Route as AiCeoPredictionsRouteImport } from './routes/ai-ceo.predictions'
 import { Route as AiCeoReportsRouteImport } from './routes/ai-ceo.reports'
 import { Route as AiCeoRiskRouteImport } from './routes/ai-ceo.risk'
+import { Route as AiCeoSecurityRouteImport } from './routes/ai-ceo.security'
 import { Route as AiCeoSettingsRouteImport } from './routes/ai-ceo.settings'
+import { Route as AiCeoUsageRouteImport } from './routes/ai-ceo.usage'
 import { Route as AiAssistantRouteImport } from './routes/ai.assistant'
 import { Route as AiCompareRouteImport } from './routes/ai.compare'
 import { Route as AiFinderRouteImport } from './routes/ai.finder'
@@ -225,6 +230,10 @@ import { Route as ValaAiRollbackRouteImport } from './routes/vala-ai.rollback'
 import { Route as ValaAiSettingsRouteImport } from './routes/vala-ai.settings'
 import { Route as VerifyCodeRouteImport } from './routes/verify.$code'
 import { Route as AffiliateManagerAffiliatesIdRouteImport } from './routes/affiliate-manager.affiliates.$id'
+import { Route as AiCeoAgentsIndexRouteImport } from './routes/ai-ceo.agents.index'
+import { Route as AiCeoAgentsAgentIdRouteImport } from './routes/ai-ceo.agents.$agentId'
+import { Route as AiCeoTasksIndexRouteImport } from './routes/ai-ceo.tasks.index'
+import { Route as AiCeoTasksTaskIdRouteImport } from './routes/ai-ceo.tasks.$taskId'
 import { Route as AmsAwardsIndexRouteImport } from './routes/ams.awards.index'
 import { Route as AmsAwardsIdRouteImport } from './routes/ams.awards.$id'
 import { Route as AmsAwardsAuditRouteImport } from './routes/ams.awards.audit'
@@ -812,9 +821,19 @@ const AiCeoApprovalsRoute = AiCeoApprovalsRouteImport.update({
   path: '/approvals',
   getParentRoute: () => AiCeoRoute,
 } as any)
+const AiCeoAutomationsRoute = AiCeoAutomationsRouteImport.update({
+  id: '/automations',
+  path: '/automations',
+  getParentRoute: () => AiCeoRoute,
+} as any)
 const AiCeoDecisionEngineRoute = AiCeoDecisionEngineRouteImport.update({
   id: '/decision-engine',
   path: '/decision-engine',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoInsightsRoute = AiCeoInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
   getParentRoute: () => AiCeoRoute,
 } as any)
 const AiCeoLearningRoute = AiCeoLearningRouteImport.update({
@@ -825,6 +844,11 @@ const AiCeoLearningRoute = AiCeoLearningRouteImport.update({
 const AiCeoLiveMonitorRoute = AiCeoLiveMonitorRouteImport.update({
   id: '/live-monitor',
   path: '/live-monitor',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoNotificationsRoute = AiCeoNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => AiCeoRoute,
 } as any)
 const AiCeoPerformanceRoute = AiCeoPerformanceRouteImport.update({
@@ -847,9 +871,19 @@ const AiCeoRiskRoute = AiCeoRiskRouteImport.update({
   path: '/risk',
   getParentRoute: () => AiCeoRoute,
 } as any)
+const AiCeoSecurityRoute = AiCeoSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => AiCeoRoute,
+} as any)
 const AiCeoSettingsRoute = AiCeoSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoUsageRoute = AiCeoUsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
   getParentRoute: () => AiCeoRoute,
 } as any)
 const AiAssistantRoute = AiAssistantRouteImport.update({
@@ -1432,6 +1466,26 @@ const AffiliateManagerAffiliatesIdRoute =
     path: '/$id',
     getParentRoute: () => AffiliateManagerAffiliatesRoute,
   } as any)
+const AiCeoAgentsIndexRoute = AiCeoAgentsIndexRouteImport.update({
+  id: '/agents/',
+  path: '/agents/',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoAgentsAgentIdRoute = AiCeoAgentsAgentIdRouteImport.update({
+  id: '/agents/$agentId',
+  path: '/agents/$agentId',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoTasksIndexRoute = AiCeoTasksIndexRouteImport.update({
+  id: '/tasks/',
+  path: '/tasks/',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoTasksTaskIdRoute = AiCeoTasksTaskIdRouteImport.update({
+  id: '/tasks/$taskId',
+  path: '/tasks/$taskId',
+  getParentRoute: () => AiCeoRoute,
+} as any)
 const AmsAwardsIndexRoute = AmsAwardsIndexRouteImport.update({
   id: '/awards/',
   path: '/awards/',
@@ -2047,14 +2101,19 @@ export interface FileRoutesByFullPath {
   '/affiliate-manager/support': typeof AffiliateManagerSupportRoute
   '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
   '/ai-ceo/approvals': typeof AiCeoApprovalsRoute
+  '/ai-ceo/automations': typeof AiCeoAutomationsRoute
   '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
+  '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
   '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
+  '/ai-ceo/notifications': typeof AiCeoNotificationsRoute
   '/ai-ceo/performance': typeof AiCeoPerformanceRoute
   '/ai-ceo/predictions': typeof AiCeoPredictionsRoute
   '/ai-ceo/reports': typeof AiCeoReportsRoute
   '/ai-ceo/risk': typeof AiCeoRiskRoute
+  '/ai-ceo/security': typeof AiCeoSecurityRoute
   '/ai-ceo/settings': typeof AiCeoSettingsRoute
+  '/ai-ceo/usage': typeof AiCeoUsageRoute
   '/ai/assistant': typeof AiAssistantRoute
   '/ai/compare': typeof AiCompareRoute
   '/ai/finder': typeof AiFinderRoute
@@ -2173,6 +2232,8 @@ export interface FileRoutesByFullPath {
   '/vala-ai/': typeof ValaAiIndexRoute
   '/proxy/demo/': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
+  '/ai-ceo/agents/$agentId': typeof AiCeoAgentsAgentIdRoute
+  '/ai-ceo/tasks/$taskId': typeof AiCeoTasksTaskIdRoute
   '/ams/awards/$id': typeof AmsAwardsIdRouteWithChildren
   '/ams/awards/audit': typeof AmsAwardsAuditRoute
   '/ams/awards/categories': typeof AmsAwardsCategoriesRoute
@@ -2254,6 +2315,8 @@ export interface FileRoutesByFullPath {
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/ai-ceo/agents/': typeof AiCeoAgentsIndexRoute
+  '/ai-ceo/tasks/': typeof AiCeoTasksIndexRoute
   '/ams/awards/': typeof AmsAwardsIndexRoute
   '/ams/collection/': typeof AmsCollectionIndexRoute
   '/ams/museum/': typeof AmsMuseumIndexRoute
@@ -2357,14 +2420,19 @@ export interface FileRoutesByTo {
   '/affiliate-manager/support': typeof AffiliateManagerSupportRoute
   '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
   '/ai-ceo/approvals': typeof AiCeoApprovalsRoute
+  '/ai-ceo/automations': typeof AiCeoAutomationsRoute
   '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
+  '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
   '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
+  '/ai-ceo/notifications': typeof AiCeoNotificationsRoute
   '/ai-ceo/performance': typeof AiCeoPerformanceRoute
   '/ai-ceo/predictions': typeof AiCeoPredictionsRoute
   '/ai-ceo/reports': typeof AiCeoReportsRoute
   '/ai-ceo/risk': typeof AiCeoRiskRoute
+  '/ai-ceo/security': typeof AiCeoSecurityRoute
   '/ai-ceo/settings': typeof AiCeoSettingsRoute
+  '/ai-ceo/usage': typeof AiCeoUsageRoute
   '/ai/assistant': typeof AiAssistantRoute
   '/ai/compare': typeof AiCompareRoute
   '/ai/finder': typeof AiFinderRoute
@@ -2482,6 +2550,8 @@ export interface FileRoutesByTo {
   '/vala-ai': typeof ValaAiIndexRoute
   '/proxy/demo': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
+  '/ai-ceo/agents/$agentId': typeof AiCeoAgentsAgentIdRoute
+  '/ai-ceo/tasks/$taskId': typeof AiCeoTasksTaskIdRoute
   '/ams/awards/$id': typeof AmsAwardsIdRouteWithChildren
   '/ams/awards/audit': typeof AmsAwardsAuditRoute
   '/ams/awards/categories': typeof AmsAwardsCategoriesRoute
@@ -2563,6 +2633,8 @@ export interface FileRoutesByTo {
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/ai-ceo/agents': typeof AiCeoAgentsIndexRoute
+  '/ai-ceo/tasks': typeof AiCeoTasksIndexRoute
   '/ams/awards': typeof AmsAwardsIndexRoute
   '/ams/collection': typeof AmsCollectionIndexRoute
   '/ams/museum': typeof AmsMuseumIndexRoute
@@ -2676,14 +2748,19 @@ export interface FileRoutesById {
   '/affiliate-manager/support': typeof AffiliateManagerSupportRoute
   '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
   '/ai-ceo/approvals': typeof AiCeoApprovalsRoute
+  '/ai-ceo/automations': typeof AiCeoAutomationsRoute
   '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
+  '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
   '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
+  '/ai-ceo/notifications': typeof AiCeoNotificationsRoute
   '/ai-ceo/performance': typeof AiCeoPerformanceRoute
   '/ai-ceo/predictions': typeof AiCeoPredictionsRoute
   '/ai-ceo/reports': typeof AiCeoReportsRoute
   '/ai-ceo/risk': typeof AiCeoRiskRoute
+  '/ai-ceo/security': typeof AiCeoSecurityRoute
   '/ai-ceo/settings': typeof AiCeoSettingsRoute
+  '/ai-ceo/usage': typeof AiCeoUsageRoute
   '/ai/assistant': typeof AiAssistantRoute
   '/ai/compare': typeof AiCompareRoute
   '/ai/finder': typeof AiFinderRoute
@@ -2802,6 +2879,8 @@ export interface FileRoutesById {
   '/vala-ai/': typeof ValaAiIndexRoute
   '/proxy/demo/': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
+  '/ai-ceo/agents/$agentId': typeof AiCeoAgentsAgentIdRoute
+  '/ai-ceo/tasks/$taskId': typeof AiCeoTasksTaskIdRoute
   '/ams/awards/$id': typeof AmsAwardsIdRouteWithChildren
   '/ams/awards/audit': typeof AmsAwardsAuditRoute
   '/ams/awards/categories': typeof AmsAwardsCategoriesRoute
@@ -2883,6 +2962,8 @@ export interface FileRoutesById {
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/ai-ceo/agents/': typeof AiCeoAgentsIndexRoute
+  '/ai-ceo/tasks/': typeof AiCeoTasksIndexRoute
   '/ams/awards/': typeof AmsAwardsIndexRoute
   '/ams/collection/': typeof AmsCollectionIndexRoute
   '/ams/museum/': typeof AmsMuseumIndexRoute
@@ -2997,14 +3078,19 @@ export interface FileRouteTypes {
     | '/affiliate-manager/support'
     | '/affiliate-manager/wallet'
     | '/ai-ceo/approvals'
+    | '/ai-ceo/automations'
     | '/ai-ceo/decision-engine'
+    | '/ai-ceo/insights'
     | '/ai-ceo/learning'
     | '/ai-ceo/live-monitor'
+    | '/ai-ceo/notifications'
     | '/ai-ceo/performance'
     | '/ai-ceo/predictions'
     | '/ai-ceo/reports'
     | '/ai-ceo/risk'
+    | '/ai-ceo/security'
     | '/ai-ceo/settings'
+    | '/ai-ceo/usage'
     | '/ai/assistant'
     | '/ai/compare'
     | '/ai/finder'
@@ -3123,6 +3209,8 @@ export interface FileRouteTypes {
     | '/vala-ai/'
     | '/proxy/demo/'
     | '/affiliate-manager/affiliates/$id'
+    | '/ai-ceo/agents/$agentId'
+    | '/ai-ceo/tasks/$taskId'
     | '/ams/awards/$id'
     | '/ams/awards/audit'
     | '/ams/awards/categories'
@@ -3204,6 +3292,8 @@ export interface FileRouteTypes {
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
+    | '/ai-ceo/agents/'
+    | '/ai-ceo/tasks/'
     | '/ams/awards/'
     | '/ams/collection/'
     | '/ams/museum/'
@@ -3307,14 +3397,19 @@ export interface FileRouteTypes {
     | '/affiliate-manager/support'
     | '/affiliate-manager/wallet'
     | '/ai-ceo/approvals'
+    | '/ai-ceo/automations'
     | '/ai-ceo/decision-engine'
+    | '/ai-ceo/insights'
     | '/ai-ceo/learning'
     | '/ai-ceo/live-monitor'
+    | '/ai-ceo/notifications'
     | '/ai-ceo/performance'
     | '/ai-ceo/predictions'
     | '/ai-ceo/reports'
     | '/ai-ceo/risk'
+    | '/ai-ceo/security'
     | '/ai-ceo/settings'
+    | '/ai-ceo/usage'
     | '/ai/assistant'
     | '/ai/compare'
     | '/ai/finder'
@@ -3432,6 +3527,8 @@ export interface FileRouteTypes {
     | '/vala-ai'
     | '/proxy/demo'
     | '/affiliate-manager/affiliates/$id'
+    | '/ai-ceo/agents/$agentId'
+    | '/ai-ceo/tasks/$taskId'
     | '/ams/awards/$id'
     | '/ams/awards/audit'
     | '/ams/awards/categories'
@@ -3513,6 +3610,8 @@ export interface FileRouteTypes {
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
+    | '/ai-ceo/agents'
+    | '/ai-ceo/tasks'
     | '/ams/awards'
     | '/ams/collection'
     | '/ams/museum'
@@ -3625,14 +3724,19 @@ export interface FileRouteTypes {
     | '/affiliate-manager/support'
     | '/affiliate-manager/wallet'
     | '/ai-ceo/approvals'
+    | '/ai-ceo/automations'
     | '/ai-ceo/decision-engine'
+    | '/ai-ceo/insights'
     | '/ai-ceo/learning'
     | '/ai-ceo/live-monitor'
+    | '/ai-ceo/notifications'
     | '/ai-ceo/performance'
     | '/ai-ceo/predictions'
     | '/ai-ceo/reports'
     | '/ai-ceo/risk'
+    | '/ai-ceo/security'
     | '/ai-ceo/settings'
+    | '/ai-ceo/usage'
     | '/ai/assistant'
     | '/ai/compare'
     | '/ai/finder'
@@ -3751,6 +3855,8 @@ export interface FileRouteTypes {
     | '/vala-ai/'
     | '/proxy/demo/'
     | '/affiliate-manager/affiliates/$id'
+    | '/ai-ceo/agents/$agentId'
+    | '/ai-ceo/tasks/$taskId'
     | '/ams/awards/$id'
     | '/ams/awards/audit'
     | '/ams/awards/categories'
@@ -3832,6 +3938,8 @@ export interface FileRouteTypes {
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
+    | '/ai-ceo/agents/'
+    | '/ai-ceo/tasks/'
     | '/ams/awards/'
     | '/ams/collection/'
     | '/ams/museum/'
@@ -4656,11 +4764,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiCeoApprovalsRouteImport
       parentRoute: typeof AiCeoRoute
     }
+    '/ai-ceo/automations': {
+      id: '/ai-ceo/automations'
+      path: '/automations'
+      fullPath: '/ai-ceo/automations'
+      preLoaderRoute: typeof AiCeoAutomationsRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
     '/ai-ceo/decision-engine': {
       id: '/ai-ceo/decision-engine'
       path: '/decision-engine'
       fullPath: '/ai-ceo/decision-engine'
       preLoaderRoute: typeof AiCeoDecisionEngineRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/insights': {
+      id: '/ai-ceo/insights'
+      path: '/insights'
+      fullPath: '/ai-ceo/insights'
+      preLoaderRoute: typeof AiCeoInsightsRouteImport
       parentRoute: typeof AiCeoRoute
     }
     '/ai-ceo/learning': {
@@ -4675,6 +4797,13 @@ declare module '@tanstack/react-router' {
       path: '/live-monitor'
       fullPath: '/ai-ceo/live-monitor'
       preLoaderRoute: typeof AiCeoLiveMonitorRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/notifications': {
+      id: '/ai-ceo/notifications'
+      path: '/notifications'
+      fullPath: '/ai-ceo/notifications'
+      preLoaderRoute: typeof AiCeoNotificationsRouteImport
       parentRoute: typeof AiCeoRoute
     }
     '/ai-ceo/performance': {
@@ -4705,11 +4834,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiCeoRiskRouteImport
       parentRoute: typeof AiCeoRoute
     }
+    '/ai-ceo/security': {
+      id: '/ai-ceo/security'
+      path: '/security'
+      fullPath: '/ai-ceo/security'
+      preLoaderRoute: typeof AiCeoSecurityRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
     '/ai-ceo/settings': {
       id: '/ai-ceo/settings'
       path: '/settings'
       fullPath: '/ai-ceo/settings'
       preLoaderRoute: typeof AiCeoSettingsRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/usage': {
+      id: '/ai-ceo/usage'
+      path: '/usage'
+      fullPath: '/ai-ceo/usage'
+      preLoaderRoute: typeof AiCeoUsageRouteImport
       parentRoute: typeof AiCeoRoute
     }
     '/ai/assistant': {
@@ -5517,6 +5660,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AffiliateManagerAffiliatesIdRouteImport
       parentRoute: typeof AffiliateManagerAffiliatesRoute
     }
+    '/ai-ceo/agents/': {
+      id: '/ai-ceo/agents/'
+      path: '/agents'
+      fullPath: '/ai-ceo/agents/'
+      preLoaderRoute: typeof AiCeoAgentsIndexRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/agents/$agentId': {
+      id: '/ai-ceo/agents/$agentId'
+      path: '/agents/$agentId'
+      fullPath: '/ai-ceo/agents/$agentId'
+      preLoaderRoute: typeof AiCeoAgentsAgentIdRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/tasks/': {
+      id: '/ai-ceo/tasks/'
+      path: '/tasks'
+      fullPath: '/ai-ceo/tasks/'
+      preLoaderRoute: typeof AiCeoTasksIndexRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/tasks/$taskId': {
+      id: '/ai-ceo/tasks/$taskId'
+      path: '/tasks/$taskId'
+      fullPath: '/ai-ceo/tasks/$taskId'
+      preLoaderRoute: typeof AiCeoTasksTaskIdRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
     '/ams/awards/': {
       id: '/ams/awards/'
       path: '/awards'
@@ -6316,28 +6487,46 @@ const AffiliateManagerRouteWithChildren =
 
 interface AiCeoRouteChildren {
   AiCeoApprovalsRoute: typeof AiCeoApprovalsRoute
+  AiCeoAutomationsRoute: typeof AiCeoAutomationsRoute
   AiCeoDecisionEngineRoute: typeof AiCeoDecisionEngineRoute
+  AiCeoInsightsRoute: typeof AiCeoInsightsRoute
   AiCeoLearningRoute: typeof AiCeoLearningRoute
   AiCeoLiveMonitorRoute: typeof AiCeoLiveMonitorRoute
+  AiCeoNotificationsRoute: typeof AiCeoNotificationsRoute
   AiCeoPerformanceRoute: typeof AiCeoPerformanceRoute
   AiCeoPredictionsRoute: typeof AiCeoPredictionsRoute
   AiCeoReportsRoute: typeof AiCeoReportsRoute
   AiCeoRiskRoute: typeof AiCeoRiskRoute
+  AiCeoSecurityRoute: typeof AiCeoSecurityRoute
   AiCeoSettingsRoute: typeof AiCeoSettingsRoute
+  AiCeoUsageRoute: typeof AiCeoUsageRoute
   AiCeoIndexRoute: typeof AiCeoIndexRoute
+  AiCeoAgentsAgentIdRoute: typeof AiCeoAgentsAgentIdRoute
+  AiCeoTasksTaskIdRoute: typeof AiCeoTasksTaskIdRoute
+  AiCeoAgentsIndexRoute: typeof AiCeoAgentsIndexRoute
+  AiCeoTasksIndexRoute: typeof AiCeoTasksIndexRoute
 }
 
 const AiCeoRouteChildren: AiCeoRouteChildren = {
   AiCeoApprovalsRoute: AiCeoApprovalsRoute,
+  AiCeoAutomationsRoute: AiCeoAutomationsRoute,
   AiCeoDecisionEngineRoute: AiCeoDecisionEngineRoute,
+  AiCeoInsightsRoute: AiCeoInsightsRoute,
   AiCeoLearningRoute: AiCeoLearningRoute,
   AiCeoLiveMonitorRoute: AiCeoLiveMonitorRoute,
+  AiCeoNotificationsRoute: AiCeoNotificationsRoute,
   AiCeoPerformanceRoute: AiCeoPerformanceRoute,
   AiCeoPredictionsRoute: AiCeoPredictionsRoute,
   AiCeoReportsRoute: AiCeoReportsRoute,
   AiCeoRiskRoute: AiCeoRiskRoute,
+  AiCeoSecurityRoute: AiCeoSecurityRoute,
   AiCeoSettingsRoute: AiCeoSettingsRoute,
+  AiCeoUsageRoute: AiCeoUsageRoute,
   AiCeoIndexRoute: AiCeoIndexRoute,
+  AiCeoAgentsAgentIdRoute: AiCeoAgentsAgentIdRoute,
+  AiCeoTasksTaskIdRoute: AiCeoTasksTaskIdRoute,
+  AiCeoAgentsIndexRoute: AiCeoAgentsIndexRoute,
+  AiCeoTasksIndexRoute: AiCeoTasksIndexRoute,
 }
 
 const AiCeoRouteWithChildren = AiCeoRoute._addFileChildren(AiCeoRouteChildren)

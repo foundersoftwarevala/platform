@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
+import type { CEOOpsState } from "./ops.types";
 import type { CEOState, CEOSuggestion } from "./types";
 
 /**
@@ -216,3 +217,19 @@ export const createSuggestion = createServerFn({ method: "POST" })
     const ok = await store.writeSuggestions([suggestion, ...rows]);
     return ok ? { ok, id: suggestion.id } : { ok, error: "Could not save the suggestion" };
   });
+
+/**
+ * Everything the operational screens need, in one round trip.
+ *
+ * Agents, tasks, automations, notifications, usage, security and insights are
+ * each read from a table the platform already has. A list that comes back
+ * empty is reported empty; the imported module filled these screens with
+ * records written into the component, which is the one thing this must not do.
+ */
+export const loadCeoOps = createServerFn({ method: "GET" }).handler(
+  async (): Promise<CEOOpsState> => {
+    await requireExecutive();
+    const ops = await import("./ops.server");
+    return ops.loadOpsState();
+  },
+);

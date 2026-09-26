@@ -4,14 +4,21 @@ import { useState } from "react";
 import {
   Activity,
   BarChart3,
+  Bell,
+  Bot,
   Brain,
   CheckCircle2,
+  ClipboardList,
+  DollarSign,
   GraduationCap,
   Gauge,
   LayoutDashboard,
+  Lightbulb,
   Settings,
+  Shield,
   ShieldAlert,
   TrendingUp,
+  Workflow,
 } from "lucide-react";
 
 import { RequireRole } from "@/components/auth/RequireRole";
@@ -26,7 +33,7 @@ import type { NavGroup, NavItem } from "@/components/creator/navigation";
  * The AI CEO command centre.
  *
  * The module arrived with its own AppSidebar, TopBar and application shell.
- * Those were dropped: this route mounts the module's ten screens inside
+ * Those were dropped: this route mounts the module's screens inside
  * Software Vala's existing operator shell — the same CreatorSidebar and
  * CreatorTopBar the SEO, Creator and Marketplace consoles use — so the module
  * sits inside the product rather than beside it, and the sidebar, top bar,
@@ -37,32 +44,52 @@ import type { NavGroup, NavItem } from "@/components/creator/navigation";
  * data, so they must not open for an ordinary signed-in account.
  */
 
-/** Label → route. The sidebar selects by label; navigation is real routing. */
-const SECTIONS: Array<{ label: string; icon: NavItem["icon"]; to: string }> = [
-  { label: "AI CEO Dashboard", icon: LayoutDashboard, to: "/ai-ceo" },
-  { label: "Live Monitor", icon: Activity, to: "/ai-ceo/live-monitor" },
-  { label: "Decision Engine", icon: Brain, to: "/ai-ceo/decision-engine" },
-  { label: "Approvals", icon: CheckCircle2, to: "/ai-ceo/approvals" },
-  { label: "Predictions", icon: TrendingUp, to: "/ai-ceo/predictions" },
-  { label: "Risk & Compliance", icon: ShieldAlert, to: "/ai-ceo/risk" },
-  { label: "Performance", icon: Gauge, to: "/ai-ceo/performance" },
-  { label: "Learning", icon: GraduationCap, to: "/ai-ceo/learning" },
-  { label: "Reports", icon: BarChart3, to: "/ai-ceo/reports" },
-  { label: "Settings", icon: Settings, to: "/ai-ceo/settings" },
+/**
+ * Label → route. The sidebar selects by label; navigation is real routing.
+ *
+ * Labels are unique across the whole list on purpose. The sidebar resolves a
+ * click by label, so two sections sharing one would make the second
+ * unreachable while still looking present — the failure is invisible, because
+ * the wrong screen renders perfectly.
+ */
+const SECTIONS: Array<{ label: string; icon: NavItem["icon"]; to: string; group: string }> = [
+  // Command centre: what the AI CEO is watching right now.
+  { label: "AI CEO Dashboard", icon: LayoutDashboard, to: "/ai-ceo", group: "Command Centre" },
+  { label: "Live Monitor", icon: Activity, to: "/ai-ceo/live-monitor", group: "Command Centre" },
+  { label: "Decision Engine", icon: Brain, to: "/ai-ceo/decision-engine", group: "Command Centre" },
+  { label: "Approvals", icon: CheckCircle2, to: "/ai-ceo/approvals", group: "Command Centre" },
+  { label: "Predictions", icon: TrendingUp, to: "/ai-ceo/predictions", group: "Command Centre" },
+  { label: "Risk & Compliance", icon: ShieldAlert, to: "/ai-ceo/risk", group: "Command Centre" },
+
+  // Operations: the registers the platform keeps, read as they are.
+  { label: "Agents", icon: Bot, to: "/ai-ceo/agents", group: "Operations" },
+  { label: "Tasks", icon: ClipboardList, to: "/ai-ceo/tasks", group: "Operations" },
+  { label: "Automations", icon: Workflow, to: "/ai-ceo/automations", group: "Operations" },
+  { label: "Notifications", icon: Bell, to: "/ai-ceo/notifications", group: "Operations" },
+
+  // Intelligence: what has been concluded, spent, or learned.
+  { label: "AI Insights", icon: Lightbulb, to: "/ai-ceo/insights", group: "Intelligence" },
+  { label: "Performance", icon: Gauge, to: "/ai-ceo/performance", group: "Intelligence" },
+  { label: "Learning", icon: GraduationCap, to: "/ai-ceo/learning", group: "Intelligence" },
+  { label: "Reports", icon: BarChart3, to: "/ai-ceo/reports", group: "Intelligence" },
+
+  // Platform: cost and safety, from the platform's own tables.
+  { label: "API Usage & Spend", icon: DollarSign, to: "/ai-ceo/usage", group: "Platform" },
+  { label: "Security Signals", icon: Shield, to: "/ai-ceo/security", group: "Platform" },
+  { label: "Settings", icon: Settings, to: "/ai-ceo/settings", group: "Platform" },
 ];
 
 const primary: NavItem[] = SECTIONS.slice(0, 4).map(({ label, icon }) => ({ label, icon }));
 
-const groups: NavGroup[] = [
-  {
-    label: "Command Centre",
-    items: SECTIONS.slice(0, 6).map(({ label, icon }) => ({ label, icon })),
-  },
-  {
-    label: "Intelligence",
-    items: SECTIONS.slice(6).map(({ label, icon }) => ({ label, icon })),
-  },
-];
+const GROUP_ORDER = ["Command Centre", "Operations", "Intelligence", "Platform"];
+
+const groups: NavGroup[] = GROUP_ORDER.map((label) => ({
+  label,
+  items: SECTIONS.filter((s) => s.group === label).map(({ label: item, icon }) => ({
+    label: item,
+    icon,
+  })),
+}));
 
 export const Route = createFileRoute("/ai-ceo")({
   head: () => ({
