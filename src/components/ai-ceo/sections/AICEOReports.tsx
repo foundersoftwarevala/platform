@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { SourceNote } from "@/components/ai-ceo/ops/shared";
 import {
   FileText,
   Calendar,
@@ -290,6 +291,13 @@ const AICEOReports = () => {
                   ))}
                 </div>
               </ScrollArea>
+              {/*
+                Where this list came from. Every other register in this module
+                says so, and without it an empty Reports screen is indis-
+                tinguishable from a screen that never looked anywhere — which
+                is exactly how the AI CEO probe found it.
+              */}
+              <SourceNote source="founder_reports" count={totals?.total ?? reports.length} />
             </CardContent>
           </Card>
         </div>
