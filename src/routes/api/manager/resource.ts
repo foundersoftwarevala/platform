@@ -1965,6 +1965,15 @@ const RESOURCES: Record<string, Resource> = {
       "current_product_id",
       "occupied_since",
       "updated_at",
+      // The keyword blueprint itself. It has been stored on all 7,280 slots
+      // since the slots were built and no screen has ever read it, which is
+      // why the SEO Manager showed nothing about the cards it owns.
+      "keyword_set",
+      "faq_set",
+      "schema_types",
+      "search_engines",
+      "business_type",
+      "software_type",
     ],
     editable: [
       "slot_title",
@@ -1979,6 +1988,44 @@ const RESOURCES: Record<string, Resource> = {
     order: "slot_url.asc",
     label: "Card slots",
   },
+  // The indexing gate's own verdicts: one row per page the site can serve,
+  // saying whether it may be indexed, whether it may go in a sitemap, and -
+  // when it may not - the reason. Fourteen thousand eight hundred of them,
+  // and until now no screen in the SEO Manager read a single one, so the
+  // decision that governs every page on the site was invisible to the people
+  // who own it.
+  //
+  // Read-only on purpose. A verdict is produced by the gate from evidence it
+  // recorded; an operator who could edit it by hand could mark a thin page
+  // indexable and the gate would have no way of knowing, which is the one
+  // thing this table exists to prevent.
+  seo_gate: {
+    table: "seo_indexing_decisions",
+    select: [
+      "id",
+      "url",
+      "entity_type",
+      "state",
+      "indexable",
+      "sitemap_eligible",
+      "quality_status",
+      "quality_score",
+      "fingerprint_class",
+      "canonical_status",
+      "schema_status",
+      "hreflang_status",
+      "content_status",
+      "http_status",
+      "blocking_reason",
+      "duplicate_of",
+      "evaluated_at",
+    ],
+    editable: [],
+    searchable: ["url", "state", "entity_type", "blocking_reason"],
+    order: "evaluated_at.desc",
+    label: "Indexing gate",
+  },
+
   orders: {
     table: "marketplace_orders",
     select: [

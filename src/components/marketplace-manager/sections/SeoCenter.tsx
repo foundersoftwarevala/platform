@@ -253,6 +253,7 @@ export const SEO_MODULE_GROUPS: { label: string; items: { id: string; label: str
       { id: "dashboard", label: "Dashboard", icon: Gauge },
       { id: "health", label: "SEO Health", icon: Activity },
       { id: "reports", label: "SEO Reports", icon: BarChart3 },
+      { id: "gate", label: "Indexing Gate", icon: ShieldCheck },
     ],
   },
   {
@@ -268,6 +269,7 @@ export const SEO_MODULE_GROUPS: { label: string; items: { id: string; label: str
       { id: "og", label: "Open Graph", icon: Share2 },
       { id: "twitter", label: "Twitter Card", icon: MessageSquare },
       { id: "tags", label: "Tag Manager", icon: TagIcon },
+      { id: "cards", label: "Card SEO", icon: LayoutGrid },
     ],
   },
   {
@@ -716,6 +718,7 @@ export function renderSeoModule(id: string) {
     case "dashboard": return <DashboardModule />;
     case "health": return <HealthModule />;
     case "reports": return <ReportsModule />;
+    case "gate": return <GateModule />;
     case "page": return <PageEditorModule />;
     case "product": return <ProductSeoModule />;
     case "category": return <CategorySeoModule />;
@@ -726,6 +729,7 @@ export function renderSeoModule(id: string) {
     case "og": return <OgModule />;
     case "twitter": return <TwitterModule />;
     case "tags": return <TagManagerModule />;
+    case "cards": return <CardSeoModule />;
     case "keywords": return <KeywordCenterModule />;
     case "cluster": return <KeywordClusterModule />;
     case "ranking": return <RankingModule />;
@@ -1063,6 +1067,291 @@ function humaniseKey(key: string): string {
  * them the grouping was taken from, because a count from a sample is a
  * different claim from a count of everything.
  */
+/* =========================================================
+   THE INDEXING GATE — the verdict on every page the site serves
+   ========================================================= */
+
+/**
+ * What the gate decided, and why.
+ *
+ * `seo_indexing_decisions` holds one row per page this site can serve - 14,819
+ * of them - saying whether it may be indexed, whether it may appear in a
+ * sitemap, and when it may not, the reason. It is the thing that decides what
+ * Google is shown, and until now no screen in the SEO Manager read a single
+ * row of it. The people who own the site's SEO could not see the decision
+ * governing every page of it.
+ *
+ * Every figure is a count made by the database. Fourteen thousand rows are
+ * never fetched into a browser to be counted there: each tile is a request
+ * that asks for one row and reads the total, which is how the rest of this
+ * console already counts, and the only shape of this that survives the
+ * catalogue growing.
+ */
+
+/**
+ * The gate, as a screen.
+ *
+ * Everything on it is counted by the database. The one list it does fetch is
+ * the pages being held back, capped, because that is the list an operator acts
+ * on - the fourteen thousand that passed need no attention.
+ */
+
+/**
+ * Ask for keywords for one slot, through AI API Manager.
+ *
+ * The button does not reach a provider. It calls the SEO tag service, which
+ * goes through AI API Manager - the registry that knows which services are
+ * registered, which are active, which have a credential, and what every call
+ * costs. A module that reached a provider directly would answer to none of
+ * that.
+ *
+ * What comes back is a state, not a result, and each one is reported as
+ * itself:
+ *
+ *   GENERATED      the provider answered and the quality gate accepted it
+ *   REJECTED       it answered and the gate refused it, with the rule named
+ *   NOT_CONFIGURED no provider in the registry can serve this yet
+ *   PROVIDER_ERROR it was asked and something went wrong
+ *
+ * NOT_CONFIGURED is the honest answer on this platform today: 188 services are
+ * catalogued and none has a usable production credential. It is shown as it is
+ * rather than being dressed up as a failure or, worse, filled in with invented
+ * keywords - a slot that keeps the keywords it has is in a better state than
+ * one given made-up ones.
+ */
+function CardTagAction({ slotUrl }: { slotUrl: string }) {
+  const [state, setState] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    setState(null);
+    try {
+      const headers = await authHeaders();
+      const response = await fetch("/api/seo/generate-tags", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ slotUrl }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        state?: string;
+        reason?: string;
+      };
+      setState(payload.state ? `${payload.state}: ${payload.reason ?? ""}`.trim() : "No answer");
+    } catch (error) {
+      setState(`PROVIDER_ERROR: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const tone = !state
+    ? "default"
+    : state.startsWith("GENERATED")
+      ? "success"
+      : state.startsWith("NOT_CONFIGURED")
+        ? "warning"
+        : "destructive";
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={run}
+        disabled={busy}
+        className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-semibold transition hover:bg-muted disabled:opacity-50"
+      >
+        <Wand2 className="h-3 w-3" /> {busy ? "Asking…" : "Generate"}
+      </button>
+      {state ? (
+        <span className="max-w-[260px] truncate" title={state}>
+          <Chip tone={tone as "default" | "success" | "warning" | "destructive"}>
+            {state.split(":")[0]}
+          </Chip>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function GateModule() {
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          Indexing gate
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          One verdict per page this site can serve: whether it may be indexed, whether it may be
+          advertised in a sitemap, and when it may not, the reason. The sitemaps are built from
+          these decisions, so a page held back here is a page search engines are never told about.
+        </div>
+      </Card>
+      <GateSummary />
+      <GateBreakdown />
+    </div>
+  );
+}
+
+/**
+ * The SEO blueprint that belongs to a card slot.
+ *
+ * A slot is a permanent category-by-country address; the product inside it
+ * rotates. The keywords, FAQs and templates belong to the address, which is
+ * why they survive a rotation - and why they are edited here rather than on a
+ * product. All 7,280 of them have been stored since the slots were built, and
+ * no screen has ever shown them.
+ */
+function CardSeoModule() {
+  // The console has one search box, shared by every table. Driving the query
+  // from it means the search happens in the database across all 7,280 slots,
+  // rather than filtering whichever sixty rows happened to be fetched.
+  const search = useTableQuery();
+  const slots = useResource("card_slots", { limit: 60, search: search || undefined });
+  const withKeyword = useResource("card_slots", {
+    limit: 1,
+    filters: ["primary_keyword.not.is.null"],
+  });
+  const occupied = useResource("card_slots", {
+    limit: 1,
+    filters: ["current_product_id.not.is.null"],
+  });
+  const all = useResource("card_slots", { limit: 1 });
+
+  const setSize = (row: ResourceRow) => {
+    const value = row.keyword_set;
+    return Array.isArray(value) ? value.length : 0;
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Card SEO</div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          The keyword blueprint held against each permanent card slot. The slot's identity — its
+          category, country and URL — does not change when the product inside it does, so this is
+          the SEO that survives a rotation.
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard label="Card slots" value={figure(all.total, all)} tone="default" delta="marketplace_card_slots" icon={<LayoutGrid className="h-4 w-4" />} />
+        <StatCard label="With a primary keyword" value={figure(withKeyword.total, withKeyword)} tone="success" icon={<Hash className="h-4 w-4" />} />
+        <StatCard label="Occupied by a product" value={figure(occupied.total, occupied)} tone="premium" icon={<Boxes className="h-4 w-4" />} />
+        <StatCard label="Showing" value={String(slots.rows.length)} tone="default" delta="search to narrow" icon={<ListFilter className="h-4 w-4" />} />
+      </div>
+
+      <Toolbar title="Slots" count={slots.total} />
+      <Table
+        head={["Slot", "Country", "Primary keyword", "Keywords", "FAQs", "Tags"]}
+        rows={slots.rows.map((row) => [
+          <span key="u" className="max-w-[260px] truncate font-mono text-[11px]">{text(row, "slot_url")}</span>,
+          <Chip key="c" tone="default">{text(row, "country_marker")}</Chip>,
+          <span key="p" className="max-w-[240px] truncate">{text(row, "primary_keyword") || "—"}</span>,
+          <span key="k" className="font-mono tabular">{setSize(row)}</span>,
+          <span key="f" className="font-mono tabular">
+            {Array.isArray(row.faq_set) ? row.faq_set.length : 0}
+          </span>,
+          <CardTagAction key="a" slotUrl={text(row, "slot_url")} />,
+        ])}
+      />
+      {slots.loading && <div className="text-[11px] text-muted-foreground">Reading the card slots…</div>}
+      {!slots.loading && slots.failed && (
+        <div className="text-[11px] text-muted-foreground">The card slots could not be read.</div>
+      )}
+    </div>
+  );
+}
+
+function GateSummary({ scope }: { scope?: string }) {
+  const where = (clause: string) => (scope ? [scope, clause] : [clause]);
+  const all = useResource("seo_gate", { limit: 1, filters: scope ? [scope] : [] });
+  const ready = useResource("seo_gate", { limit: 1, filters: where("state.eq.READY_FOR_INDEX") });
+  const indexable = useResource("seo_gate", { limit: 1, filters: where("indexable.eq.true") });
+  const eligible = useResource("seo_gate", { limit: 1, filters: where("sitemap_eligible.eq.true") });
+  const blocked = useResource("seo_gate", { limit: 1, filters: where("state.eq.BLOCKED") });
+  const notReady = useResource("seo_gate", { limit: 1, filters: where("state.eq.CONTENT_NOT_READY") });
+  const unverified = useResource("seo_gate", { limit: 1, filters: where("state.eq.UNVERIFIED") });
+
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+      <StatCard label="Pages judged" value={figure(all.total, all)} tone="default" delta="seo_indexing_decisions" icon={<ScanLine className="h-4 w-4" />} />
+      <StatCard label="Ready for index" value={figure(ready.total, ready)} tone="success" icon={<ShieldCheck className="h-4 w-4" />} />
+      <StatCard label="Indexable" value={figure(indexable.total, indexable)} tone="success" icon={<Eye className="h-4 w-4" />} />
+      <StatCard label="Sitemap eligible" value={figure(eligible.total, eligible)} tone="success" delta="advertised to search" icon={<MapIcon className="h-4 w-4" />} />
+      <StatCard label="Blocked" value={figure(blocked.total, blocked)} tone="destructive" delta="held back by the gate" icon={<EyeOff className="h-4 w-4" />} />
+      <StatCard label="Content not ready" value={figure(notReady.total, notReady)} tone="warning" icon={<Clock className="h-4 w-4" />} />
+      <StatCard label="Unverified" value={figure(unverified.total, unverified)} tone="warning" delta="could not be checked" icon={<AlertTriangle className="h-4 w-4" />} />
+    </div>
+  );
+}
+
+/**
+ * The gate, broken down by the kind of page, and what it is holding back.
+ *
+ * The breakdown matters because the kinds behave differently: every card slot
+ * is judged and almost all pass, while every product page is judged and almost
+ * none do. One number over the two would hide both facts.
+ */
+function GateBreakdown() {
+  const kinds = ["slot", "product", "category", "country", "blog"];
+  const held = useResource("seo_gate", {
+    limit: 60,
+    filters: ["sitemap_eligible.eq.false"],
+  });
+
+  return (
+    <div className="space-y-4">
+      <Toolbar title="By page kind" count={kinds.length} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        {kinds.map((kind) => (
+          <GateKindTile key={kind} kind={kind} />
+        ))}
+      </div>
+
+      <Toolbar title="Held back, and why" count={held.total} />
+      <Table
+        head={["Page", "Kind", "State", "Reason"]}
+        rows={held.rows.slice(0, 40).map((row) => [
+          <span key="u" className="max-w-[320px] truncate font-mono text-[11px]">{text(row, "url")}</span>,
+          <Chip key="k" tone="default">{text(row, "entity_type")}</Chip>,
+          <Chip key="s" tone={text(row, "state") === "BLOCKED" ? "destructive" : "warning"}>
+            {text(row, "state")}
+          </Chip>,
+          <span key="r" className="max-w-[420px] truncate text-[11px] text-muted-foreground">
+            {text(row, "blocking_reason") || "—"}
+          </span>,
+        ])}
+      />
+      {!held.loading && held.rows.length === 0 && (
+        <div className="text-[11px] text-muted-foreground">
+          {held.failed
+            ? "The gate's decisions could not be read."
+            : "Nothing is being held back — every page the gate judged may be advertised."}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One kind of page: how many were judged, and how many may be advertised. */
+function GateKindTile({ kind }: { kind: string }) {
+  const total = useResource("seo_gate", { limit: 1, filters: [`entity_type.eq.${kind}`] });
+  const ok = useResource("seo_gate", {
+    limit: 1,
+    filters: [`entity_type.eq.${kind}`, "sitemap_eligible.eq.true"],
+  });
+  return (
+    <StatCard
+      label={`${kind.charAt(0).toUpperCase()}${kind.slice(1)} pages`}
+      value={figure(total.total, total)}
+      tone={ok.total > 0 ? "success" : "warning"}
+      delta={total.loading ? "…" : `${figure(ok.total, ok)} may be advertised`}
+      icon={<FileText className="h-4 w-4" />}
+    />
+  );
+}
+
 function HealthModule() {
   const { t } = useTranslation();
   const audits = useResource("seo_audits", { limit: 30 });

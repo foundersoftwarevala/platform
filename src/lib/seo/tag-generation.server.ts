@@ -174,159 +174,140 @@ function rest(path: string, init?: RequestInit) {
  * could not ask" and "we asked and the answer was unusable" call for different
  * responses from an operator.
  */
-export const generateSlotTags = createServerFn({ method: "POST" })
-  .validator((v) =>
-    z.object({ slotUrl: z.string().min(1), dryRun: z.boolean().optional() }).parse(v ?? {}),
-  )
-  .handler(async ({ data }): Promise<TagGenerationResult> => {
-    const empty = {
-      slot_url: data.slotUrl,
-      provider: null,
-      model: null,
-      findings: [] as GateFinding[],
-      tags: null,
-      stored: false,
-    };
+/**
+ * The work itself, as a plain function.
+ *
+ * A server function can only be called the way TanStack calls it, and the SEO
+ * Manager needs an ordinary endpoint it can POST to from a button. Both now
+ * call this, so there is one implementation and no chance of the two drifting.
+ */
+export async function generateTagsForSlot(data: {
+  slotUrl: string;
+  dryRun?: boolean;
+}): Promise<TagGenerationResult> {
+  const empty = {
+    slot_url: data.slotUrl,
+    provider: null,
+    model: null,
+    findings: [] as GateFinding[],
+    tags: null,
+    stored: false,
+  };
 
-    const slotResponse = await rest(
-      "marketplace_card_slots?select=id,slot_url,country_marker,region,business_type," +
-        "software_type,primary_keyword,category_id,current_product_id&slot_url=eq." +
-        encodeURIComponent(data.slotUrl) +
+  const slotResponse = await rest(
+    "marketplace_card_slots?select=id,slot_url,country_marker,region,business_type," +
+      "software_type,primary_keyword,category_id,current_product_id&slot_url=eq." +
+      encodeURIComponent(data.slotUrl) +
+      "&limit=1",
+  );
+  const slots = slotResponse.ok ? ((await slotResponse.json()) as Record<string, unknown>[]) : [];
+  if (!slots[0]) {
+    return {
+      ...empty,
+      state: "REJECTED",
+      reason: "No card slot is registered at " + data.slotUrl + ".",
+    };
+  }
+  const slot = slots[0];
+
+  const categoryResponse = await rest(
+    "marketplace_categories?select=name&id=eq." +
+      encodeURIComponent(String(slot.category_id)) +
+      "&limit=1",
+  );
+  const categories = categoryResponse.ok
+    ? ((await categoryResponse.json()) as { name: string }[])
+    : [];
+
+  let productName: string | null = null;
+  if (slot.current_product_id) {
+    const productResponse = await rest(
+      "marketplace_products?select=name&id=eq." +
+        encodeURIComponent(String(slot.current_product_id)) +
         "&limit=1",
     );
-    const slots = slotResponse.ok ? ((await slotResponse.json()) as Record<string, unknown>[]) : [];
-    if (!slots[0]) {
-      return {
-        ...empty,
-        state: "REJECTED",
-        reason: "No card slot is registered at " + data.slotUrl + ".",
-      };
-    }
-    const slot = slots[0];
-
-    const categoryResponse = await rest(
-      "marketplace_categories?select=name&id=eq." +
-        encodeURIComponent(String(slot.category_id)) +
-        "&limit=1",
-    );
-    const categories = categoryResponse.ok
-      ? ((await categoryResponse.json()) as { name: string }[])
+    const products = productResponse.ok
+      ? ((await productResponse.json()) as { name: string }[])
       : [];
+    productName = products[0]?.name ?? null;
+  }
 
-    let productName: string | null = null;
-    if (slot.current_product_id) {
-      const productResponse = await rest(
-        "marketplace_products?select=name&id=eq." +
-          encodeURIComponent(String(slot.current_product_id)) +
-          "&limit=1",
-      );
-      const products = productResponse.ok
-        ? ((await productResponse.json()) as { name: string }[])
-        : [];
-      productName = products[0]?.name ?? null;
-    }
+  const facts: SlotFacts = {
+    id: String(slot.id),
+    slot_url: String(slot.slot_url),
+    category: categories[0]?.name ?? "software",
+    country: String(slot.country_marker ?? ""),
+    region: (slot.region as string) ?? null,
+    business_type: (slot.business_type as string) ?? null,
+    software_type: (slot.software_type as string) ?? null,
+    primary_keyword: (slot.primary_keyword as string) ?? null,
+    product_name: productName,
+  };
 
-    const facts: SlotFacts = {
-      id: String(slot.id),
-      slot_url: String(slot.slot_url),
-      category: categories[0]?.name ?? "software",
-      country: String(slot.country_marker ?? ""),
-      region: (slot.region as string) ?? null,
-      business_type: (slot.business_type as string) ?? null,
-      software_type: (slot.software_type as string) ?? null,
-      primary_keyword: (slot.primary_keyword as string) ?? null,
-      product_name: productName,
+  const countryResponse = await rest("marketplace_card_slots?select=country_marker&limit=2000");
+  const countryRows = countryResponse.ok
+    ? ((await countryResponse.json()) as { country_marker: string | null }[])
+    : [];
+  const knownCountries = [
+    ...new Set(countryRows.map((r) => r.country_marker).filter(Boolean)),
+  ] as string[];
+
+  // ---- through AI API Manager, or not at all -----------------------------
+  let text: string;
+  let provider: string | null = null;
+  let model: string | null = null;
+  try {
+    const answer = await executeAiRequest({
+      module: "seo-manager",
+      system:
+        "You produce search keyword sets for a software marketplace. " +
+        "You never make a claim that cannot be checked.",
+      prompt: buildTagPrompt(facts, knownCountries),
+    });
+    text = answer.text;
+    provider = answer.provider ?? answer.service ?? null;
+    model = answer.model ?? null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // executeAiRequest throws these when the registry has nothing usable.
+    // That is a configuration state, not a failure of this request, and the
+    // two are reported differently so an operator knows which to act on.
+    const notConfigured = isNotConfigured(message);
+    return {
+      ...empty,
+      state: notConfigured ? "NOT_CONFIGURED" : "PROVIDER_ERROR",
+      reason: message,
     };
+  }
 
-    const countryResponse = await rest("marketplace_card_slots?select=country_marker&limit=2000");
-    const countryRows = countryResponse.ok
-      ? ((await countryResponse.json()) as { country_marker: string | null }[])
-      : [];
-    const knownCountries = [
-      ...new Set(countryRows.map((r) => r.country_marker).filter(Boolean)),
-    ] as string[];
+  const bundle = parseTagResponse(text);
+  if (!bundle) {
+    return {
+      ...empty,
+      state: "REJECTED",
+      provider,
+      model,
+      reason: "The provider's reply was not a keyword bundle this could read.",
+    };
+  }
 
-    // ---- through AI API Manager, or not at all -----------------------------
-    let text: string;
-    let provider: string | null = null;
-    let model: string | null = null;
-    try {
-      const answer = await executeAiRequest({
-        module: "seo-manager",
-        system:
-          "You produce search keyword sets for a software marketplace. " +
-          "You never make a claim that cannot be checked.",
-        prompt: buildTagPrompt(facts, knownCountries),
-      });
-      text = answer.text;
-      provider = answer.provider ?? answer.service ?? null;
-      model = answer.model ?? null;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      // executeAiRequest throws these when the registry has nothing usable.
-      // That is a configuration state, not a failure of this request, and the
-      // two are reported differently so an operator knows which to act on.
-      const notConfigured = isNotConfigured(message);
-      return {
-        ...empty,
-        state: notConfigured ? "NOT_CONFIGURED" : "PROVIDER_ERROR",
-        reason: message,
-      };
-    }
+  const gate = checkTagBundle(bundle, {
+    category: facts.category,
+    country: facts.country,
+    knownCountries,
+  });
+  if (!gate.ok || !gate.cleaned) {
+    return {
+      ...empty,
+      state: "REJECTED",
+      provider,
+      model,
+      findings: gate.findings,
+      reason: "The quality gate refused this bundle: " + (gate.findings[0]?.rule ?? "unknown"),
+    };
+  }
 
-    const bundle = parseTagResponse(text);
-    if (!bundle) {
-      return {
-        ...empty,
-        state: "REJECTED",
-        provider,
-        model,
-        reason: "The provider's reply was not a keyword bundle this could read.",
-      };
-    }
-
-    const gate = checkTagBundle(bundle, {
-      category: facts.category,
-      country: facts.country,
-      knownCountries,
-    });
-    if (!gate.ok || !gate.cleaned) {
-      return {
-        ...empty,
-        state: "REJECTED",
-        provider,
-        model,
-        findings: gate.findings,
-        reason: "The quality gate refused this bundle: " + (gate.findings[0]?.rule ?? "unknown"),
-      };
-    }
-
-    if (data.dryRun) {
-      return {
-        ...empty,
-        state: "GENERATED",
-        provider,
-        model,
-        findings: gate.findings,
-        tags: gate.cleaned,
-        reason: "Generated and passed the gate; not stored because this was a dry run.",
-      };
-    }
-
-    // Stored in the canonical model: keyword_set is the column the card slots
-    // already use. The slot's identity columns are not touched.
-    const flat = [
-      gate.cleaned.primary,
-      ...gate.cleaned.secondary,
-      ...gate.cleaned.longTail,
-      ...gate.cleaned.semantic,
-      ...gate.cleaned.geo,
-    ];
-    const patch = await rest("marketplace_card_slots?id=eq." + encodeURIComponent(facts.id), {
-      method: "PATCH",
-      body: JSON.stringify({ keyword_set: flat, primary_keyword: gate.cleaned.primary }),
-    });
-
+  if (data.dryRun) {
     return {
       ...empty,
       state: "GENERATED",
@@ -334,9 +315,41 @@ export const generateSlotTags = createServerFn({ method: "POST" })
       model,
       findings: gate.findings,
       tags: gate.cleaned,
-      stored: patch.ok,
-      reason: patch.ok
-        ? "Stored " + flat.length + " keywords on " + facts.slot_url + "."
-        : "Generated and passed the gate, but the write failed: HTTP " + patch.status + ".",
+      reason: "Generated and passed the gate; not stored because this was a dry run.",
     };
+  }
+
+  // Stored in the canonical model: keyword_set is the column the card slots
+  // already use. The slot's identity columns are not touched.
+  const flat = [
+    gate.cleaned.primary,
+    ...gate.cleaned.secondary,
+    ...gate.cleaned.longTail,
+    ...gate.cleaned.semantic,
+    ...gate.cleaned.geo,
+  ];
+  const patch = await rest("marketplace_card_slots?id=eq." + encodeURIComponent(facts.id), {
+    method: "PATCH",
+    body: JSON.stringify({ keyword_set: flat, primary_keyword: gate.cleaned.primary }),
   });
+
+  return {
+    ...empty,
+    state: "GENERATED",
+    provider,
+    model,
+    findings: gate.findings,
+    tags: gate.cleaned,
+    stored: patch.ok,
+    reason: patch.ok
+      ? "Stored " + flat.length + " keywords on " + facts.slot_url + "."
+      : "Generated and passed the gate, but the write failed: HTTP " + patch.status + ".",
+  };
+}
+
+/** The same work, for a caller that goes through TanStack. */
+export const generateSlotTags = createServerFn({ method: "POST" })
+  .validator((v) =>
+    z.object({ slotUrl: z.string().min(1), dryRun: z.boolean().optional() }).parse(v ?? {}),
+  )
+  .handler(async ({ data }): Promise<TagGenerationResult> => generateTagsForSlot(data));
