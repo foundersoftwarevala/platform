@@ -26,22 +26,44 @@ async function admin() {
   return supabaseAdmin;
 }
 
-/** Boss or admin only. Throws for anyone else, including a signed-in customer. */
+/**
+ * Boss or admin only. Throws for anyone else, including a signed-in customer.
+ *
+ * The token is checked against the auth service with the **publishable** key,
+ * not the service-role one. This module used the service-role client's
+ * `auth.getUser()`, which sends the service key as `apikey`, and the auth
+ * service answers that 401 "Invalid API key" — so every call from every AI CEO
+ * screen was refused with "Executive authentication required" and the whole
+ * console rendered empty in production while looking perfectly healthy.
+ * `requireInternalOperator` had already met this and asks the same way.
+ *
+ * The role check is unchanged and still runs with the service key, which the
+ * REST side does accept. Nothing is loosened: boss and admin, and no one else.
+ */
 async function requireExecutive() {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) throw new Error("Executive authentication required");
 
-  const db = await admin();
-  const { data: user, error } = await db.auth.getUser(token);
-  if (error || !user.user) throw new Error("Executive authentication required");
+  const url = process.env["SUPABASE_URL"]?.trim();
+  const publishable =
+    process.env["SUPABASE_PUBLISHABLE_KEY"]?.trim() ?? process.env["SUPABASE_ANON_KEY"]?.trim();
+  if (!url || !publishable) throw new Error("Executive authentication is not configured");
 
+  const response = await fetch(`${url}/auth/v1/user`, {
+    headers: { apikey: publishable, Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Executive authentication required");
+  const user = (await response.json()) as { id?: string };
+  if (!user?.id) throw new Error("Executive authentication required");
+
+  const db = await admin();
   const [{ data: isBoss }, { data: isAdmin }] = await Promise.all([
-    db.rpc("has_role", { _user_id: user.user.id, _role: "boss" }),
-    db.rpc("has_role", { _user_id: user.user.id, _role: "admin" }),
+    db.rpc("has_role", { _user_id: user.id, _role: "boss" }),
+    db.rpc("has_role", { _user_id: user.id, _role: "admin" }),
   ]);
   if (!isBoss && !isAdmin) throw new Error("Executive permission required");
-  return user.user.id;
+  return user.id;
 }
 
 /**
