@@ -458,6 +458,9 @@ export const SEO_MODULE_GROUPS: {
       { id: "gate", label: "Indexing Gate", icon: ShieldCheck },
       { id: "score", label: "Page Score", icon: Gauge },
       { id: "changes", label: "Change Control", icon: ClipboardList },
+      { id: "graph", label: "Entity Graph", icon: GitBranch },
+      { id: "links", label: "Internal Links", icon: Compass },
+      { id: "opportunities", label: "Opportunities", icon: Target },
       { id: "events", label: "Errors & Spam", icon: AlertTriangle },
       { id: "seoleads", label: "SEO Leads", icon: Users2 },
     ],
@@ -1049,6 +1052,12 @@ export function renderSeoModule(id: string) {
       return <SeoScoreModule />;
     case "changes":
       return <SeoChangesModule />;
+    case "graph":
+      return <EntityGraphModule />;
+    case "links":
+      return <InternalLinkEngineModule />;
+    case "opportunities":
+      return <OpportunitiesModule />;
     case "page":
       return <PageEditorModule />;
     case "product":
@@ -3139,6 +3148,345 @@ const CHANGE_TONE: Record<string, "default" | "success" | "warning" | "premium" 
   PUBLISHED: "success",
   REJECTED: "destructive",
   ROLLED_BACK: "warning",
+};
+
+/**
+ * The entity graph: what the SEO system knows about, and how it is connected.
+ *
+ * Every entity here was derived from a row that already existed and every edge
+ * names the column that proved it. Nothing was inferred, which is why the
+ * evidence column is worth showing: a relationship nobody can check is an
+ * invention, and an invented relationship is how a link graph becomes a
+ * doorway network.
+ */
+/**
+ * The tables these screens read, shown as the hint under each count.
+ *
+ * Named here rather than inline because a JSX comment cannot sit in an
+ * attribute list, and because an identifier that has been translated no
+ * longer names anything - which is what the message catalogue says about
+ * database names.
+ */
+// i18n-ignore: database table names, not copy.
+const SEO_GRAPH_TABLES = {
+  entities: "seo_entities",
+  links: "seo_link_recommendations",
+  opportunities: "seo_opportunities",
+};
+function EntityGraphModule() {
+  const { t } = useTranslation();
+  const [offset, setOffset] = useState(0);
+  const search = useTableQuery();
+  const entities = useResource("seo_entities", {
+    limit: PAGE_SIZE,
+    offset,
+    search: search || undefined,
+  });
+  useEffect(() => setOffset(0), [search]);
+
+  const all = useResource("seo_entities", { limit: 1 });
+  const edges = useResource("seo_edges", { limit: 1 });
+  const cards = useResource("seo_entities", { limit: 1, filters: ["kind.eq.card"] });
+  const products = useResource("seo_entities", { limit: 1, filters: ["kind.eq.product"] });
+  const sample = useResource("seo_edges", { limit: 12 });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          {t("manager.seo.entity_graph")}
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          {t("manager.seo.entity_graph_note")}
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label={t("manager.seo.entities")}
+          value={figure(all.total, all)}
+          tone="default"
+          delta={SEO_GRAPH_TABLES.entities}
+          icon={<GitBranch className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("manager.seo.relationships")}
+          value={figure(edges.total, edges)}
+          tone="premium"
+          delta={t("manager.seo.all_with_evidence")}
+          icon={<Compass className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("manager.seo.cards")}
+          value={figure(cards.total, cards)}
+          tone="success"
+          icon={<LayoutGrid className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("manager.seo.products")}
+          value={figure(products.total, products)}
+          tone="success"
+          icon={<Boxes className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title={t("manager.seo.entities")} count={entities.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={entities.total}
+        loading={entities.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={["Kind", "Label", "Key", "URL", "From"]}
+        rows={entities.rows.map((row) => [
+          <Chip key="k" tone="accent">
+            {text(row, "kind")}
+          </Chip>,
+          <span key="l" className="max-w-[240px] truncate font-semibold">
+            {text(row, "label")}
+          </span>,
+          <span key="y" className="max-w-[220px] truncate font-mono text-[11px]">
+            {text(row, "key")}
+          </span>,
+          <span key="u" className="max-w-[240px] truncate font-mono text-[11px]">
+            {text(row, "url") || t("manager.seo.entity_no_page")}
+          </span>,
+          <span key="s" className="text-[11px] text-muted-foreground">
+            {text(row, "source_table") || t("manager.seo.entity_derived")}
+          </span>,
+        ])}
+      />
+      <Toolbar title={t("manager.seo.relationships_and_proof")} count={edges.total} />
+      <Table
+        head={["Relationship", "Evidence", "Confidence"]}
+        rows={sample.rows.map((row) => [
+          <Chip key="r" tone="premium">
+            {text(row, "relationship")}
+          </Chip>,
+          <span key="e" className="max-w-[460px] truncate text-[11px]">
+            {text(row, "evidence")}
+          </span>,
+          <span key="c" className="font-mono tabular">
+            {text(row, "confidence")}
+          </span>,
+        ])}
+      />
+    </div>
+  );
+}
+
+/**
+ * Internal links the graph says are worth having.
+ *
+ * Recommendations, not links: nothing here has edited a page. Each carries the
+ * reason it was proposed, so a reviewer is judging an argument rather than a
+ * pair of URLs, and each was refused if its target is a page the indexing gate
+ * holds back — spending authority on a page we will not advertise is worse
+ * than not linking at all.
+ */
+function InternalLinkEngineModule() {
+  const { t } = useTranslation();
+  const [offset, setOffset] = useState(0);
+  const search = useTableQuery();
+  const links = useResource("seo_links", {
+    limit: PAGE_SIZE,
+    offset,
+    search: search || undefined,
+  });
+  useEffect(() => setOffset(0), [search]);
+
+  const all = useResource("seo_links", { limit: 1 });
+  const generated = useResource("seo_links", { limit: 1, filters: ["state.eq.GENERATED"] });
+  const published = useResource("seo_links", { limit: 1, filters: ["state.eq.PUBLISHED"] });
+  const top = useResource("seo_links", { limit: 1, filters: ["priority.eq.1"] });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          {t("manager.seo.internal_links")}
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          {t("manager.seo.internal_links_note")}
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label={t("manager.seo.recommendations")}
+          value={figure(all.total, all)}
+          tone="default"
+          delta={SEO_GRAPH_TABLES.links}
+          icon={<LinkIcon className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("manager.seo.awaiting_review")}
+          value={figure(generated.total, generated)}
+          tone="warning"
+          delta={t("manager.seo.nothing_published_yet")}
+          icon={<Clock className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("manager.seo.published_links")}
+          value={figure(published.total, published)}
+          tone="success"
+          icon={<CheckCircle2 className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("manager.seo.highest_priority")}
+          value={figure(top.total, top)}
+          tone="premium"
+          delta={t("manager.seo.same_ecosystem")}
+          icon={<Flame className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title={t("manager.seo.recommendations")} count={links.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={links.total}
+        loading={links.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={["From", "To", "Relationship", "Anchor", "Why", "Priority", "State"]}
+        rows={links.rows.map((row) => [
+          <span key="s" className="max-w-[200px] truncate font-mono text-[11px]">
+            {text(row, "source_url")}
+          </span>,
+          <span key="t" className="max-w-[200px] truncate font-mono text-[11px]">
+            {text(row, "target_url")}
+          </span>,
+          <Chip key="r" tone="accent">
+            {text(row, "relationship")}
+          </Chip>,
+          <span key="a" className="max-w-[160px] truncate">
+            {text(row, "anchor")}
+          </span>,
+          <span key="w" className="max-w-[320px] truncate text-[11px] text-muted-foreground">
+            {text(row, "reason")}
+          </span>,
+          <span key="p" className="font-mono tabular">
+            {num(row, "priority")}
+          </span>,
+          <Chip key="st" tone={text(row, "state") === "PUBLISHED" ? "success" : "warning"}>
+            {text(row, "state")}
+          </Chip>,
+        ])}
+      />
+    </div>
+  );
+}
+
+/**
+ * Things worth doing, each carrying the figures it was derived from.
+ *
+ * The evidence column is the point. An opportunity nobody can check is an
+ * opinion, and the table refuses to store one without figures. Where a
+ * judgement needs search-performance data this platform does not have, the row
+ * says NOT_CONFIGURED rather than guessing — a missing measurement is a fact
+ * about the platform and belongs on the list.
+ */
+function OpportunitiesModule() {
+  const { t } = useTranslation();
+  const [offset, setOffset] = useState(0);
+  const search = useTableQuery();
+  const items = useResource("seo_opportunities", {
+    limit: PAGE_SIZE,
+    offset,
+    search: search || undefined,
+  });
+  useEffect(() => setOffset(0), [search]);
+
+  const all = useResource("seo_opportunities", { limit: 1 });
+  const critical = useResource("seo_opportunities", {
+    limit: 1,
+    filters: ["severity.eq.critical"],
+  });
+  const high = useResource("seo_opportunities", { limit: 1, filters: ["severity.eq.high"] });
+  const blocked = useResource("seo_opportunities", {
+    limit: 1,
+    filters: ["confidence.eq.NOT_CONFIGURED"],
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          {t("manager.seo.opportunities")}
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          {t("manager.seo.opportunities_note")}
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label={t("manager.seo.open")}
+          value={figure(all.total, all)}
+          tone="default"
+          delta={SEO_GRAPH_TABLES.opportunities}
+          icon={<Target className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("manager.seo.critical")}
+          value={figure(critical.total, critical)}
+          tone="destructive"
+          icon={<Flame className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("manager.seo.high")}
+          value={figure(high.total, high)}
+          tone="warning"
+          icon={<AlertTriangle className="h-4 w-4" />}
+        />
+        <StatCard
+          label={t("manager.seo.cannot_judge_yet")}
+          value={figure(blocked.total, blocked)}
+          tone="premium"
+          delta={t("manager.seo.needs_search_data")}
+          icon={<EyeOff className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title={t("manager.seo.opportunities")} count={items.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={items.total}
+        loading={items.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={["Severity", "Kind", "Page or entity", "Source", "Confidence", "What to do"]}
+        rows={items.rows.map((row) => [
+          <Chip key="s" tone={SEVERITY_TONE[text(row, "severity")] ?? "default"}>
+            {text(row, "severity")}
+          </Chip>,
+          <span key="k" className="font-mono text-[11px]">
+            {text(row, "kind")}
+          </span>,
+          <span key="e" className="max-w-[260px] truncate font-mono text-[11px]">
+            {text(row, "target_url") || text(row, "entity_key")}
+          </span>,
+          <Chip key="o" tone="accent">
+            {text(row, "source")}
+          </Chip>,
+          <Chip key="c" tone={text(row, "confidence") === "NOT_CONFIGURED" ? "premium" : "default"}>
+            {text(row, "confidence")}
+          </Chip>,
+          <span key="a" className="max-w-[420px] truncate text-[11px] text-muted-foreground">
+            {text(row, "recommended_action")}
+          </span>,
+        ])}
+      />
+    </div>
+  );
+}
+
+/** How a severity reads at a glance. */
+const SEVERITY_TONE: Record<string, "default" | "warning" | "destructive"> = {
+  critical: "destructive",
+  high: "destructive",
+  medium: "warning",
+  low: "default",
 };
 
 function GateModule() {

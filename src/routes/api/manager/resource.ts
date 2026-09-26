@@ -2196,6 +2196,70 @@ const RESOURCES: Record<string, Resource> = {
     order: "created_at.desc",
     label: "IndexNow submissions",
   },
+  // The entity graph: every thing the SEO system reasons about, each traceable
+  // to the row that produced it.
+  seo_entities: {
+    table: "seo_entities",
+    select: ["id", "kind", "key", "label", "url", "source_table", "status", "updated_at"],
+    editable: [],
+    searchable: ["kind", "key", "label", "url"],
+    order: "kind.asc",
+    label: "SEO entities",
+  },
+  // The relationships between them. Every edge names the column that proved
+  // it; the table will not accept one without.
+  seo_edges: {
+    table: "seo_entity_edges",
+    select: ["id", "relationship", "evidence", "confidence", "status", "created_at"],
+    editable: [],
+    searchable: ["relationship", "evidence"],
+    order: "relationship.asc",
+    label: "Entity relationships",
+  },
+  // Proposed internal links. Nothing here has edited a page: each one is an
+  // argument with a reason attached, waiting to be accepted or refused.
+  seo_links: {
+    table: "seo_link_recommendations",
+    select: [
+      "id",
+      "source_url",
+      "target_url",
+      "relationship",
+      "anchor",
+      "reason",
+      "priority",
+      "state",
+      "qa_findings",
+      "generated_at",
+    ],
+    editable: ["state"],
+    searchable: ["source_url", "target_url", "relationship", "state"],
+    order: "priority.asc",
+    label: "Internal link recommendations",
+  },
+  // Things worth doing, each carrying the figures it was derived from.
+  seo_opportunities: {
+    table: "seo_opportunities",
+    select: [
+      "id",
+      "kind",
+      "entity_kind",
+      "entity_key",
+      "target_url",
+      "evidence",
+      "source",
+      "severity",
+      "impact",
+      "confidence",
+      "recommended_action",
+      "status",
+      "detected_at",
+    ],
+    editable: ["status"],
+    searchable: ["kind", "target_url", "entity_key", "severity", "status", "source"],
+    order: "detected_at.desc",
+    label: "SEO opportunities",
+  },
   // Every proposed change to SEO data: what it was, what it would become, who
   // asked, who approved, and how to put it back. Section 19 exists because an
   // AI suggestion that rewrites one card slot's keywords is one request away
