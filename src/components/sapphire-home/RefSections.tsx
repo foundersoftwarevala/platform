@@ -176,7 +176,7 @@ const VIDEOS = [
 
 export const ValaTV = () => (
   <section className="py-10">
-    {sectionTitle("Vala TV", "/demos", "Demos, walkthroughs, customer films")}
+    {sectionTitle("Vala TV", "/vala-tv", "Demos, walkthroughs, customer films")}
     <div className="grid grid-cols-1 gap-4 px-6 sm:grid-cols-2 lg:grid-cols-4">
       {VIDEOS.map((v) => (
         <div key={v.title} className="group relative overflow-hidden rounded-xl border border-white/[0.07] bg-gradient-to-br from-[oklch(0.2_0.06_265)] to-[oklch(0.14_0.05_265)] transition-all hover:border-fuchsia-400/40">
