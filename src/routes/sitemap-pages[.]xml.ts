@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { isPubliclyReachable } from "@/components/auth/RouteAccessGate";
 import { absoluteUrl, indexable } from "@/lib/seo/site-url";
 
 /**
@@ -32,7 +33,12 @@ export const Route = createFileRoute("/sitemap-pages.xml")({
         if (!indexable()) return new Response(`${open}\n${close}`, { headers });
 
         const today = new Date().toISOString().slice(0, 10);
-        const entries = PUBLIC_PAGES.map(
+        // Only the ones a visitor can actually reach. /support and /vala-tv
+        // are gated to staff roles by RouteAccessGate and were listed here
+        // anyway, so a crawler asking for either got the words "Checking
+        // workspace access..." and no page. The gate decides, not a second
+        // hand-written list that can drift away from it.
+        const entries = PUBLIC_PAGES.filter((p) => isPubliclyReachable(p.path)).map(
           (p) =>
             `<url><loc>${absoluteUrl(p.path)}</loc><lastmod>${today}</lastmod>` +
             `<changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`,

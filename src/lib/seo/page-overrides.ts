@@ -25,6 +25,8 @@
  * twelve thousand records by hand.
  */
 
+import { absoluteUrl } from "./site-url";
+
 export type SeoOverride = {
   title: string | null;
   description: string | null;
@@ -54,6 +56,34 @@ type MetaRuleRow = {
   priority: number | null;
   status: string | null;
 };
+
+/**
+ * A canonical the operator stored, made fit to publish.
+ *
+ * Fifteen seo_pages rows hold a path rather than a URL - "/pricing",
+ * "/products/pos", "/marketplace/product/education" - and the value was handed
+ * to the page exactly as stored. One product page therefore served
+ * `<link rel="canonical" href="/marketplace/product/education"/>` and put the
+ * same relative string in its JSON-LD. A canonical has to be absolute to mean
+ * anything: a relative one is read against whatever host served it, so it
+ * cannot do the one job it exists for, which is naming which URL of several
+ * is the real one.
+ *
+ * Resolving it here rather than in the route means every reader of an override
+ * gets an absolute URL, including the ones written later.
+ *
+ * A canonical pointing at the testing domain is a mistake, not an instruction,
+ * and is still refused rather than published.
+ */
+export function publishableCanonical(stored: string | null): string | null {
+  if (!stored) return null;
+  if (stored.includes("softwarewala.net")) return null;
+  if (/^https?:\/\//i.test(stored)) return stored;
+  // Anything else is a path the operator typed. Absolute-from-root only:
+  // a bare "pricing" is as likely to be a mistake as an instruction, but it
+  // resolves the same way a browser would resolve it against the site root.
+  return absoluteUrl(stored);
+}
 
 const clean = (v: unknown): string | null => {
   const s = typeof v === "string" ? v.trim() : "";
@@ -161,7 +191,7 @@ export async function resolveSeoOverride(
         h1: clean(record.h1),
         // A canonical pointing at the testing domain is a mistake, not an
         // instruction. Refuse it rather than publishing it.
-        canonical: canonical && !canonical.includes("softwarewala.net") ? canonical : null,
+        canonical: publishableCanonical(canonical),
         noindex: clean(record.index_status)?.toLowerCase() === "noindex",
         source: "page-record",
       };

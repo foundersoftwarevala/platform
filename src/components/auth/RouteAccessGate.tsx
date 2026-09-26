@@ -55,6 +55,13 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/marketing", roles: ["marketing"], label: "Marketing" },
   { prefix: "/vala-ai", roles: ["developer"], label: "Vala AI" },
   { prefix: "/vala-tv", roles: ["marketing", "support"], label: "Vala TV" },
+  // /support gates itself, with <RequireRole role="support"> inside the route.
+  // Naming it here as well is what this gate is for - the route-by-route
+  // wrapping is the arrangement that leaves gaps - and it is what lets the
+  // sitemap ask one question, of one list, about whether a page is public.
+  // The wrapper inside the route stays; the two agree, so nothing changes for
+  // anyone who is allowed in.
+  { prefix: "/support", roles: ["support"], label: "Support Operations" },
   { prefix: "/chat-manager", roles: ["support", "sales_support_manager"], label: "Chat Manager" },
   { prefix: "/admin", roles: [], label: "Admin" },
   // Languages, the translation engine, memory, glossary and review.
@@ -74,6 +81,19 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/keywords", roles: ["seo", "marketing"], label: "Keywords" },
   { prefix: "/pages", roles: ["seo", "marketing"], label: "Pages" },
 ];
+
+/**
+ * Whether a path is reachable by someone who is not signed in.
+ *
+ * The sitemap kept its own hand-written list of public pages, and the two
+ * lists drifted: /support and /vala-tv are gated here and were being
+ * advertised there, so a crawler asking for either was served
+ * "Checking workspace access..." and nothing else. Asking the gate directly
+ * is the only way the two cannot disagree again.
+ */
+export function isPubliclyReachable(pathname: string): boolean {
+  return matchFor(pathname) === null;
+}
 
 function matchFor(pathname: string) {
   // Longest prefix wins, so /ams-manager is not swallowed by /ams.
