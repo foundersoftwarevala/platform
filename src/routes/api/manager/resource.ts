@@ -1988,6 +1988,141 @@ const RESOURCES: Record<string, Resource> = {
     order: "slot_url.asc",
     label: "Card slots",
   },
+  // The translated strings themselves: 117,013 of them across 140 languages.
+  // Every localized title, description and heading a search engine is shown
+  // comes from here, and no screen could reach it.
+  translations: {
+    table: "marketplace_translations",
+    select: [
+      "id",
+      "target_language",
+      "namespace",
+      "translation_key",
+      "source_text",
+      "translated_text",
+      "status",
+      "quality_score",
+      "engine",
+      "version",
+      "reviewed_by",
+      "reviewed_at",
+      "updated_at",
+    ],
+    editable: [],
+    searchable: ["target_language", "namespace", "translation_key", "status", "engine"],
+    order: "updated_at.desc",
+    label: "Translations",
+  },
+  // Each time a translation changed, and what it changed to. This is the
+  // change history section 19 asks for, for the localized half of the site.
+  translation_revisions: {
+    table: "i18n_translation_revisions",
+    select: [
+      "id",
+      "translation_id",
+      "version",
+      "translated_text",
+      "status",
+      "quality_score",
+      "engine",
+      "engine_version",
+      "changed_by",
+      "changed_at",
+    ],
+    editable: [],
+    searchable: ["status", "engine", "changed_by"],
+    order: "changed_at.desc",
+    label: "Translation revisions",
+  },
+  // Terms that must always translate the same way - brand names, product
+  // names, the words a catalogue cannot afford to have rendered differently on
+  // two pages.
+  glossary: {
+    table: "i18n_glossary_terms",
+    select: [
+      "id",
+      "source_language",
+      "target_language",
+      "source_term",
+      "target_term",
+      "rule",
+      "namespace",
+      "status",
+      "approved_by",
+      "approved_at",
+      "updated_at",
+    ],
+    editable: ["target_term", "rule", "status", "notes"],
+    searchable: ["source_term", "target_term", "target_language", "status"],
+    order: "source_term.asc",
+    label: "Glossary",
+  },
+  // The marketing team's own keyword list, kept separately from seo_keywords.
+  marketing_keywords: {
+    table: "marketing_seo_keywords",
+    select: [
+      "id",
+      "keyword",
+      "page_url",
+      "position",
+      "previous_position",
+      "search_volume",
+      "difficulty",
+      "cpc",
+      "intent",
+      "country",
+      "status",
+      "is_seed",
+      "updated_at",
+    ],
+    editable: ["status", "intent"],
+    searchable: ["keyword", "page_url", "country", "intent", "status"],
+    order: "updated_at.desc",
+    label: "Marketing keywords",
+  },
+  // What actually broke, where. An SEO console that cannot see the errors the
+  // site is throwing is reporting on a site it cannot see.
+  seo_errors: {
+    table: "seo_error_events",
+    select: [
+      "id",
+      "source",
+      "name",
+      "message",
+      "route",
+      "fn_name",
+      "severity",
+      "occurrences",
+      "resolved",
+      "first_seen_at",
+      "last_seen_at",
+    ],
+    editable: ["resolved"],
+    searchable: ["source", "name", "message", "route", "severity"],
+    order: "last_seen_at.desc",
+    label: "SEO errors",
+  },
+  // How long the SEO machinery takes to answer. Section 15 asks for
+  // performance as part of a page's score; this is where the measurements are.
+  benchmarks: {
+    table: "seo_benchmark_runs",
+    select: [
+      "id",
+      "label",
+      "target",
+      "ttfb_ms",
+      "query_ms",
+      "pagination_ms",
+      "report_ms",
+      "rows_scanned",
+      "status",
+      "created_at",
+    ],
+    editable: [],
+    searchable: ["label", "target", "status"],
+    order: "created_at.desc",
+    label: "Benchmarks",
+  },
   // The language engine, which the SEO Manager could not see at all.
   //
   // 145 languages are registered and 140 are enabled; 128 of them carry

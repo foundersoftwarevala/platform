@@ -215,13 +215,41 @@ def main():
         print("seo-crawler: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set")
         return 1
 
-    # robots.txt is honoured, on our own site as much as anywhere.
+    # robots.txt is honoured, on our own site as much as anywhere - but it has
+    # to be fetched as ourselves to be honoured at all.
+    #
+    # RobotFileParser.read() calls urlopen with Python's own default
+    # user-agent, not the crawler's. The edge in front of this site answers
+    # "Python-urllib/3.12" with 403, and RobotFileParser treats a 403 on
+    # robots.txt as "this site disallows everything". So can_fetch returned
+    # False for every URL, the crawl skipped the whole site, and the nightly
+    # run recorded "0 pages, 0 issues, average score 0" - which reads as a
+    # site with nothing wrong with it rather than a crawl that never happened.
+    # It had been doing that every night.
+    #
+    # Fetching it under the crawler's own user-agent, which the edge allows and
+    # which is the agent the rules are being read on behalf of, is both the fix
+    # and the correct behaviour.
     robots = urllib.robotparser.RobotFileParser()
     robots.set_url(SITE + "/robots.txt")
     try:
-        robots.read()
-    except Exception:                                          # noqa: BLE001
-        robots = None
+        request = urllib.request.Request(
+            SITE + "/robots.txt", headers={"User-Agent": UA}
+        )
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            body = response.read().decode("utf-8", "replace")
+        robots.parse(body.splitlines())
+    except Exception as error:                                 # noqa: BLE001
+        # Not being able to read robots.txt is not the same as being told to
+        # stay out, and it is not the same as there being nothing to crawl.
+        # Say so, and stop - a run that reports zero findings because it never
+        # asked is worse than no run at all.
+        print("seo-crawler: could not read robots.txt (%r) - not crawling" % error)
+        return 1
+
+    if robots.can_fetch(UA, SITE) is False:
+        print("seo-crawler: robots.txt disallows %s for %s - nothing to do" % (SITE, UA))
+        return 1
 
     seen, queue, pages = set(), [SITE], []
 

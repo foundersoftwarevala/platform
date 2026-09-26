@@ -456,6 +456,8 @@ export const SEO_MODULE_GROUPS: {
       { id: "health", label: "SEO Health", icon: Activity },
       { id: "reports", label: "SEO Reports", icon: BarChart3 },
       { id: "gate", label: "Indexing Gate", icon: ShieldCheck },
+      { id: "events", label: "Errors & Spam", icon: AlertTriangle },
+      { id: "seoleads", label: "SEO Leads", icon: Users2 },
     ],
   },
   {
@@ -472,6 +474,7 @@ export const SEO_MODULE_GROUPS: {
       { id: "twitter", label: "Twitter Card", icon: MessageSquare },
       { id: "tags", label: "Tag Manager", icon: TagIcon },
       { id: "cards", label: "Card SEO", icon: LayoutGrid },
+      { id: "duplicates", label: "Duplicates", icon: Copy },
     ],
   },
   {
@@ -505,12 +508,15 @@ export const SEO_MODULE_GROUPS: {
       { id: "intl", label: "International", icon: Languages },
       { id: "languages", label: "Language SEO", icon: Globe2 },
       { id: "indexnow", label: "IndexNow", icon: Send },
+      { id: "translations", label: "Translations", icon: FileText },
     ],
   },
   {
     label: "Blog & AI",
     items: [
       { id: "blogcenter", label: "Blog Center", icon: Rss },
+      { id: "social", label: "Social Discovery", icon: Share2 },
+      { id: "campaigns", label: "Campaigns", icon: Target },
       { id: "aiwriter", label: "AI Writer", icon: Wand2 },
       { id: "aikeyword", label: "AI Keyword", icon: Bot },
     ],
@@ -1095,6 +1101,18 @@ export function renderSeoModule(id: string) {
       return <LanguageSeoModule />;
     case "indexnow":
       return <IndexNowModule />;
+    case "duplicates":
+      return <DuplicatesModule />;
+    case "translations":
+      return <TranslationsModule />;
+    case "social":
+      return <SocialSeoModule />;
+    case "campaigns":
+      return <CampaignsModule />;
+    case "events":
+      return <SeoHealthEventsModule />;
+    case "seoleads":
+      return <SeoLeadsModule />;
     case "blogcenter":
       return <BlogCenterModule />;
     case "aiwriter":
@@ -2178,6 +2196,714 @@ function IndexNowModule() {
   );
 }
 
+/**
+ * Duplicate detection: the evidence behind every duplicate verdict.
+ *
+ * The gate decides a page is a duplicate by masking its own country, category
+ * and product names and hashing what is left. Those hashes - 103,586 of them
+ * across several layers - are the whole reason a page is held back, and the
+ * console showed the verdict without ever showing the evidence. An operator
+ * told "this page is a duplicate" could not see of what, or how it was judged.
+ */
+function DuplicatesModule() {
+  const [offset, setOffset] = useState(0);
+  const search = useTableQuery();
+  const prints = useResource("seo_fingerprints", {
+    limit: PAGE_SIZE,
+    offset,
+    search: search || undefined,
+  });
+  useEffect(() => setOffset(0), [search]);
+
+  const all = useResource("seo_fingerprints", { limit: 1 });
+  const dupes = useResource("seo_gate", {
+    limit: 1,
+    filters: ["fingerprint_class.eq.LOW_VALUE_DUPLICATE"],
+  });
+  const exact = useResource("seo_gate", {
+    limit: 1,
+    filters: ["blocking_reason.like.*EXACT_DUPLICATE*"],
+  });
+  const records = useResource("seo_indexing", { limit: 1 });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          Duplicate detection
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          A page is judged a duplicate by masking its own country, category and product names and
+          hashing what is left. These are those hashes — the evidence behind every duplicate verdict
+          the gate reaches.
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label="Fingerprints"
+          value={figure(all.total, all)}
+          tone="default"
+          delta="seo_fingerprints"
+          icon={<FileCode2 className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Low-value duplicates"
+          value={figure(dupes.total, dupes)}
+          tone="warning"
+          delta="named by the gate"
+          icon={<Copy className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Word-for-word"
+          value={figure(exact.total, exact)}
+          tone="destructive"
+          icon={<AlertTriangle className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Crawl records"
+          value={figure(records.total, records)}
+          tone="default"
+          delta="seo_indexing_records"
+          icon={<ScanLine className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title="Fingerprints" count={prints.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={prints.total}
+        loading={prints.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={["Page", "Kind", "Layer", "Algorithm", "Tokens", "Computed"]}
+        rows={prints.rows.map((row) => [
+          <span key="u" className="max-w-[300px] truncate font-mono text-[11px]">
+            {text(row, "url")}
+          </span>,
+          <Chip key="k" tone="default">
+            {text(row, "entity_type")}
+          </Chip>,
+          <Chip key="l" tone="accent">
+            {text(row, "layer")}
+          </Chip>,
+          <span key="a" className="text-[11px]">
+            {text(row, "algorithm")}
+          </span>,
+          <span key="t" className="font-mono tabular">
+            {num(row, "token_count")}
+          </span>,
+          <span key="c" className="font-mono text-[11px]">
+            {text(row, "computed_at").slice(0, 10)}
+          </span>,
+        ])}
+      />
+      {prints.loading && (
+        <div className="text-[11px] text-muted-foreground">Reading the fingerprints…</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The translated strings themselves, and how they got that way.
+ *
+ * 117,013 translations across 140 languages. Every localized title a search
+ * engine is shown comes from one of these rows, and the revisions beside them
+ * are the change history for the localized half of the site - the thing
+ * section 19 asks for and the console had no way to show.
+ */
+function TranslationsModule() {
+  const [offset, setOffset] = useState(0);
+  const search = useTableQuery();
+  const rows = useResource("translations", {
+    limit: PAGE_SIZE,
+    offset,
+    search: search || undefined,
+  });
+  useEffect(() => setOffset(0), [search]);
+
+  const all = useResource("translations", { limit: 1 });
+  const reviewed = useResource("translations", { limit: 1, filters: ["reviewed_at.not.is.null"] });
+  const revisions = useResource("translation_revisions", { limit: 1 });
+  const glossary = useResource("glossary", { limit: 1 });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          Translations
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          Every localized title, description and heading a search engine is shown. A string that is
+          machine-translated and never reviewed is still what the page says in that language.
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label="Strings"
+          value={figure(all.total, all)}
+          tone="default"
+          delta="marketplace_translations"
+          icon={<Languages className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Reviewed by a person"
+          value={figure(reviewed.total, reviewed)}
+          tone="success"
+          icon={<CheckCircle2 className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Revisions kept"
+          value={figure(revisions.total, revisions)}
+          tone="premium"
+          delta="change history"
+          icon={<ClipboardList className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Glossary terms"
+          value={figure(glossary.total, glossary)}
+          tone="default"
+          delta="must not vary"
+          icon={<TagIcon className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title="Strings" count={rows.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={rows.total}
+        loading={rows.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={["Language", "Namespace", "Key", "Translated", "Status", "Engine", "Score"]}
+        rows={rows.rows.map((row) => [
+          <Chip key="l" tone="accent">
+            {text(row, "target_language")}
+          </Chip>,
+          <span key="n" className="text-[11px] text-muted-foreground">
+            {text(row, "namespace")}
+          </span>,
+          <span key="k" className="max-w-[180px] truncate font-mono text-[11px]">
+            {text(row, "translation_key")}
+          </span>,
+          <span key="t" className="max-w-[280px] truncate">
+            {text(row, "translated_text")}
+          </span>,
+          <Chip key="s" tone={text(row, "status") === "reviewed" ? "success" : "warning"}>
+            {text(row, "status")}
+          </Chip>,
+          <span key="e" className="text-[11px]">
+            {text(row, "engine")}
+          </span>,
+          <span key="q" className="font-mono tabular">
+            {num(row, "quality_score") || "—"}
+          </span>,
+        ])}
+      />
+      {rows.loading && (
+        <div className="text-[11px] text-muted-foreground">Reading the translations…</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Social discovery: what was published, where, and what came back.
+ *
+ * Section 13 wants legitimate discovery tracked rather than spammed. The posts
+ * and the replies to them were both recorded and neither was shown, so nobody
+ * could tell whether a channel was working or whether anyone had answered.
+ */
+function SocialSeoModule() {
+  const [offset, setOffset] = useState(0);
+  const posts = useResource("seo_social_posts", { limit: PAGE_SIZE, offset });
+  const all = useResource("seo_social_posts", { limit: 1 });
+  const published = useResource("seo_social_posts", { limit: 1, filters: ["status.eq.published"] });
+  const comments = useResource("seo_social_comments", { limit: 12 });
+  const content = useResource("seo_content", { limit: 12 });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          Social discovery
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          Where the catalogue has been published, and what came back. Reach is only worth counting
+          when the post was worth publishing.
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label="Posts"
+          value={figure(all.total, all)}
+          tone="default"
+          delta="seo_social_posts"
+          icon={<Share2 className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Published"
+          value={figure(published.total, published)}
+          tone="success"
+          icon={<Send className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Impressions"
+          value={figure(sum(posts.rows, "impressions"), posts)}
+          tone="premium"
+          delta="this page"
+          icon={<Eye className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Engagements"
+          value={figure(sum(posts.rows, "engagements"), posts)}
+          tone="success"
+          delta="this page"
+          icon={<Users2 className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title="Posts" count={posts.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={posts.total}
+        loading={posts.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={["Platform", "Post", "Status", "Impressions", "Engagements", "Published"]}
+        rows={posts.rows.map((row) => [
+          <Chip key="p" tone="accent">
+            {text(row, "platform")}
+          </Chip>,
+          <span key="c" className="max-w-[320px] truncate">
+            {text(row, "content")}
+          </span>,
+          <Chip key="s" tone={text(row, "status") === "published" ? "success" : "warning"}>
+            {text(row, "status")}
+          </Chip>,
+          <span key="i" className="font-mono tabular">
+            {num(row, "impressions")}
+          </span>,
+          <span key="e" className="font-mono tabular">
+            {num(row, "engagements")}
+          </span>,
+          <span key="d" className="font-mono text-[11px]">
+            {text(row, "published_at").slice(0, 10) || "not yet"}
+          </span>,
+        ])}
+      />
+      <Toolbar title="Replies received" count={comments.total} />
+      <Table
+        head={["Platform", "Author", "Comment", "Sentiment", "Answered"]}
+        rows={comments.rows.map((row) => [
+          <Chip key="p" tone="accent">
+            {text(row, "platform")}
+          </Chip>,
+          <span key="a">{text(row, "author")}</span>,
+          <span key="c" className="max-w-[320px] truncate">
+            {text(row, "comment")}
+          </span>,
+          <Chip key="s" tone={SENTIMENT_TONE[text(row, "sentiment")] ?? "default"}>
+            {text(row, "sentiment")}
+          </Chip>,
+          <span key="r" className="font-mono text-[11px]">
+            {text(row, "replied_at").slice(0, 10) || "not yet"}
+          </span>,
+        ])}
+      />
+      <Toolbar title="Content pieces" count={content.total} />
+      <Table
+        head={["Title", "Type", "Target keyword", "Words", "Score", "Status"]}
+        rows={content.rows.map((row) => [
+          <span key="t" className="max-w-[280px] truncate font-semibold">
+            {text(row, "title")}
+          </span>,
+          <Chip key="k" tone="default">
+            {text(row, "content_type")}
+          </Chip>,
+          <span key="w">{text(row, "target_keyword")}</span>,
+          <span key="n" className="font-mono tabular">
+            {num(row, "word_count")}
+          </span>,
+          <span key="s" className="font-mono tabular">
+            {num(row, "seo_score")}
+          </span>,
+          <Chip key="st" tone={text(row, "status") === "published" ? "success" : "warning"}>
+            {text(row, "status")}
+          </Chip>,
+        ])}
+      />
+    </div>
+  );
+}
+
+/** How a sentiment reads at a glance. */
+const SENTIMENT_TONE: Record<string, "default" | "success" | "destructive"> = {
+  positive: "success",
+  negative: "destructive",
+  neutral: "default",
+};
+
+/**
+ * Campaigns, and the replies they produced.
+ *
+ * Paid and email campaigns sit beside SEO because they compete for the same
+ * queries: a keyword being bought and ranked for at once is money spent on
+ * traffic already earned, and neither screen could see the other.
+ */
+function CampaignsModule() {
+  const ads = useResource("seo_ad_campaigns", { limit: PAGE_SIZE });
+  const emails = useResource("seo_email_campaigns", { limit: PAGE_SIZE });
+  const inbox = useResource("seo_inbox", { limit: PAGE_SIZE });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          Campaigns
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          Paid and email campaigns, beside SEO because they compete for the same queries. A keyword
+          being bought and ranked for at once is money spent on traffic already earned.
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label="Ad campaigns"
+          value={figure(ads.total, ads)}
+          tone="default"
+          icon={<Target className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Ad spend"
+          value={figure(sum(ads.rows, "spend"), ads)}
+          tone="warning"
+          delta="this page"
+          icon={<BarChart3 className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Email campaigns"
+          value={figure(emails.total, emails)}
+          tone="default"
+          icon={<Send className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Inbox messages"
+          value={figure(inbox.total, inbox)}
+          tone="premium"
+          icon={<MessageSquare className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title="Ad campaigns" count={ads.total} />
+      <Table
+        head={["Campaign", "Channel", "Status", "Budget", "Spend", "Clicks", "Conversions", "ROAS"]}
+        rows={ads.rows.map((row) => [
+          <span key="n" className="font-semibold">
+            {text(row, "name")}
+          </span>,
+          <Chip key="c" tone="accent">
+            {text(row, "channel")}
+          </Chip>,
+          <Chip key="s" tone={text(row, "status") === "active" ? "success" : "default"}>
+            {text(row, "status")}
+          </Chip>,
+          <span key="b" className="font-mono tabular">
+            {num(row, "budget")}
+          </span>,
+          <span key="p" className="font-mono tabular">
+            {num(row, "spend")}
+          </span>,
+          <span key="k" className="font-mono tabular">
+            {num(row, "clicks")}
+          </span>,
+          <span key="v" className="font-mono tabular">
+            {num(row, "conversions")}
+          </span>,
+          <span key="r" className="font-mono tabular">
+            {num(row, "roas") || "not measured"}
+          </span>,
+        ])}
+      />
+      <Toolbar title="Email campaigns" count={emails.total} />
+      <Table
+        head={["Campaign", "Segment", "Subject", "Status", "Sent", "Opened", "Clicked"]}
+        rows={emails.rows.map((row) => [
+          <span key="n" className="font-semibold">
+            {text(row, "name")}
+          </span>,
+          <span key="g">{text(row, "segment")}</span>,
+          <span key="s" className="max-w-[240px] truncate">
+            {text(row, "subject")}
+          </span>,
+          <Chip key="t" tone={text(row, "status") === "sent" ? "success" : "warning"}>
+            {text(row, "status")}
+          </Chip>,
+          <span key="c" className="font-mono tabular">
+            {num(row, "sent_count")}
+          </span>,
+          <span key="o" className="font-mono tabular">
+            {num(row, "opened_count")}
+          </span>,
+          <span key="k" className="font-mono tabular">
+            {num(row, "clicked_count")}
+          </span>,
+        ])}
+      />
+      <Toolbar title="Inbox" count={inbox.total} />
+      <Table
+        head={["Channel", "From", "Message", "Status", "Answered"]}
+        rows={inbox.rows.map((row) => [
+          <Chip key="c" tone="accent">
+            {text(row, "channel")}
+          </Chip>,
+          <span key="n">{text(row, "contact_name")}</span>,
+          <span key="m" className="max-w-[320px] truncate">
+            {text(row, "message")}
+          </span>,
+          <Chip key="s" tone={text(row, "status") === "replied" ? "success" : "warning"}>
+            {text(row, "status")}
+          </Chip>,
+          <span key="r" className="font-mono text-[11px]">
+            {text(row, "replied_at").slice(0, 10) || "not yet"}
+          </span>,
+        ])}
+      />
+    </div>
+  );
+}
+
+/**
+ * What is breaking, what is being blocked, and how fast the machinery answers.
+ *
+ * An SEO console that cannot see the errors the site is throwing is reporting
+ * on a site it cannot see. These three tables were all being written and none
+ * of them was being read.
+ */
+function SeoHealthEventsModule() {
+  const [offset, setOffset] = useState(0);
+  const errors = useResource("seo_errors", { limit: PAGE_SIZE, offset });
+  const open = useResource("seo_errors", { limit: 1, filters: ["resolved.eq.false"] });
+  const all = useResource("seo_errors", { limit: 1 });
+  const spam = useResource("seo_spam_events", { limit: 12 });
+  const spamAll = useResource("seo_spam_events", { limit: 1 });
+  const benches = useResource("benchmarks", { limit: 12 });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          Errors, spam and speed
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          What the site threw, what the spam filter stopped, and how long the SEO machinery takes to
+          answer. All three were recorded and none was shown.
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label="Errors recorded"
+          value={figure(all.total, all)}
+          tone="default"
+          delta="seo_error_events"
+          icon={<AlertTriangle className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Still open"
+          value={figure(open.total, open)}
+          tone="destructive"
+          icon={<Flame className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Spam blocked"
+          value={figure(spamAll.total, spamAll)}
+          tone="warning"
+          delta="seo_spam_events"
+          icon={<ShieldCheck className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Benchmark runs"
+          value={figure(benches.total, benches)}
+          tone="premium"
+          icon={<Gauge className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title="Errors" count={errors.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={errors.total}
+        loading={errors.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={["Severity", "Where", "What", "Seen", "Last", "Resolved"]}
+        rows={errors.rows.map((row) => [
+          <Chip
+            key="s"
+            tone={
+              text(row, "severity") === "critical"
+                ? "destructive"
+                : text(row, "severity") === "high"
+                  ? "warning"
+                  : "default"
+            }
+          >
+            {text(row, "severity")}
+          </Chip>,
+          <span key="r" className="max-w-[220px] truncate font-mono text-[11px]">
+            {text(row, "route") || text(row, "fn_name") || text(row, "source")}
+          </span>,
+          <span key="m" className="max-w-[320px] truncate">
+            {text(row, "message") || text(row, "name")}
+          </span>,
+          <span key="o" className="font-mono tabular">
+            {num(row, "occurrences")}
+          </span>,
+          <span key="l" className="font-mono text-[11px]">
+            {text(row, "last_seen_at").slice(0, 10)}
+          </span>,
+          <Chip key="v" tone={row.resolved ? "success" : "warning"}>
+            {row.resolved ? "yes" : "no"}
+          </Chip>,
+        ])}
+      />
+      {!errors.loading && errors.rows.length === 0 && (
+        <div className="text-[11px] text-muted-foreground">No SEO error has been recorded.</div>
+      )}
+      <Toolbar title="Spam blocked" count={spam.total} />
+      <Table
+        head={["When", "Detail"]}
+        rows={spam.rows.map((row) => [
+          <span key="w" className="font-mono text-[11px]">
+            {text(row, "created_at").slice(0, 19).replace("T", " ")}
+          </span>,
+          <span key="d" className="max-w-[560px] truncate">
+            {JSON.stringify(row).slice(0, 200)}
+          </span>,
+        ])}
+      />
+      <Toolbar title="Benchmarks" count={benches.total} />
+      <Table
+        head={["Run", "Target", "TTFB", "Query", "Rows", "Status"]}
+        rows={benches.rows.map((row) => [
+          <span key="l" className="font-semibold">
+            {text(row, "label")}
+          </span>,
+          <span key="t" className="max-w-[240px] truncate font-mono text-[11px]">
+            {text(row, "target")}
+          </span>,
+          <span key="f" className="font-mono tabular">
+            {num(row, "ttfb_ms")}ms
+          </span>,
+          <span key="q" className="font-mono tabular">
+            {num(row, "query_ms")}ms
+          </span>,
+          <span key="r" className="font-mono tabular">
+            {num(row, "rows_scanned")}
+          </span>,
+          <Chip key="s" tone={text(row, "status") === "ok" ? "success" : "warning"}>
+            {text(row, "status")}
+          </Chip>,
+        ])}
+      />
+    </div>
+  );
+}
+
+/**
+ * The SEO team's own lead list.
+ *
+ * A separate store from Lead Manager, eight rows, written by the SEO side and
+ * read by nothing. It is shown rather than quietly merged: two lead lists is a
+ * decision for the owner, and hiding one of them is how it stays that way.
+ */
+function SeoLeadsModule() {
+  const [offset, setOffset] = useState(0);
+  const leads = useResource("seo_leads", { limit: PAGE_SIZE, offset });
+  const all = useResource("seo_leads", { limit: 1 });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          SEO leads
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          A lead list kept by the SEO side, separate from Lead Manager. Shown here rather than
+          merged: whether this platform should have two lead stores is a decision for the owner, and
+          leaving one invisible is how it goes on being one.
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <StatCard
+          label="Leads"
+          value={figure(all.total, all)}
+          tone="default"
+          delta="seo_leads"
+          icon={<Users2 className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Value on this page"
+          value={figure(sum(leads.rows, "estimated_value"), leads)}
+          tone="premium"
+          icon={<Target className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Mean score"
+          value={figure(mean(leads.rows, "score"), leads)}
+          tone="success"
+          icon={<Gauge className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title="Leads" count={leads.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={leads.total}
+        loading={leads.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={[
+          "Name",
+          "Company",
+          "Country",
+          "Channel",
+          "Keyword",
+          "Landing page",
+          "Score",
+          "Stage",
+        ]}
+        rows={leads.rows.map((row) => [
+          <span key="n" className="font-semibold">
+            {text(row, "full_name")}
+          </span>,
+          <span key="c">{text(row, "company")}</span>,
+          <Chip key="y" tone="default">
+            {text(row, "country")}
+          </Chip>,
+          <Chip key="h" tone="accent">
+            {text(row, "source_channel")}
+          </Chip>,
+          <span key="k">{text(row, "source_keyword")}</span>,
+          <span key="l" className="max-w-[220px] truncate font-mono text-[11px]">
+            {text(row, "landing_url")}
+          </span>,
+          <span key="s" className="font-mono tabular">
+            {num(row, "score")}
+          </span>,
+          <Chip key="t" tone="default">
+            {text(row, "stage")}
+          </Chip>,
+        ])}
+      />
+    </div>
+  );
+}
+
 function GateModule() {
   return (
     <div className="space-y-4">
@@ -2229,6 +2955,8 @@ function CardSeoModule() {
     filters: ["current_product_id.not.is.null"],
   });
   const all = useResource("card_slots", { limit: 1 });
+  // The fields a card carries: which are enabled, and in what order they show.
+  const fields = useResource("card_fields", { limit: 1, filters: ["enabled.eq.true"] });
 
   const setSize = (row: ResourceRow) => {
     const value = row.keyword_set;
@@ -2267,6 +2995,13 @@ function CardSeoModule() {
           value={figure(occupied.total, occupied)}
           tone="premium"
           icon={<Boxes className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Card fields enabled"
+          value={figure(fields.total, fields)}
+          tone="default"
+          delta="marketplace_card_fields"
+          icon={<ListFilter className="h-4 w-4" />}
         />
         <StatCard
           label="Showing"
@@ -3662,10 +4397,27 @@ function KeywordCenterModule() {
     filters: ["position.gte.1", "position.lte.10"],
   });
   const planned = useResource("keywords", { limit: 1, filters: ["position.eq.0"] });
+  // The marketing team keeps its own keyword list in a second table. Counting
+  // it here is how anyone finds out the two exist, and whether they agree.
+  const marketing = useResource("marketing_keywords", { limit: 1 });
+  const seeds = useResource("marketing_keywords", { limit: 1, filters: ["is_seed.eq.true"] });
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <StatCard
+          label="Marketing keyword list"
+          value={figure(marketing.total, marketing)}
+          tone="default"
+          delta="a second table, marketing_seo_keywords"
+          icon={<Hash className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Seed keywords"
+          value={figure(seeds.total, seeds)}
+          tone="premium"
+          icon={<Sparkles className="h-4 w-4" />}
+        />
         <StatCard
           label={t("seo.keywords")}
           value={figure(keywords.total, keywords)}
@@ -5525,6 +6277,9 @@ function BulkOpsModule() {
   const { t } = useTranslation();
   const automations = useResource("seo_automations", { limit: 50 });
   const runs = useResource("seo_automation_runs", { limit: 100 });
+  // Flows are the other half of automation and were shown nowhere: an
+  // automation says what runs, a flow says what it runs in answer to.
+  const flows = useResource("seo_automation_flows", { limit: PAGE_SIZE });
 
   const runsFor = (id: string) => runs.rows.filter((row) => text(row, "automation_id") === id);
 
@@ -5556,6 +6311,34 @@ function BulkOpsModule() {
         />
         <StatCard label={t("seo.runs_recorded")} value={figure(runs.total, runs)} tone="premium" />
       </div>
+      {/*
+        Flows are the other half of automation and were shown nowhere: an
+        automation says what runs, a flow says what it runs in answer to.
+      */}
+      <Toolbar title="Automation flows" count={flows.total} />
+      <Table
+        head={["Flow", "Runs when", "Status", "Executions", "Conversion", "Updated"]}
+        rows={flows.rows.map((row) => [
+          <span key="n" className="font-semibold">
+            {text(row, "name")}
+          </span>,
+          <Chip key="t" tone="accent">
+            {text(row, "trigger_event")}
+          </Chip>,
+          <Chip key="s" tone={text(row, "status") === "active" ? "success" : "default"}>
+            {text(row, "status")}
+          </Chip>,
+          <span key="e" className="font-mono tabular">
+            {num(row, "executions")}
+          </span>,
+          <span key="c" className="font-mono tabular">
+            {num(row, "conversion_rate")}
+          </span>,
+          <span key="u" className="font-mono text-[11px]">
+            {text(row, "updated_at").slice(0, 10)}
+          </span>,
+        ])}
+      />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {automations.rows.map((o) => {
           const status = text(o, "status");

@@ -58,6 +58,13 @@ const MODULES = [
   ["reports", "SEO Reports"],
   ["languages", "Language SEO"],
   ["indexnow", "IndexNow"],
+  ["duplicates", "Duplicates"],
+  ["translations", "Translations"],
+  ["social", "Social Discovery"],
+  ["campaigns", "Campaigns"],
+  ["events", "Errors and Spam"],
+  ["seoleads", "SEO Leads"],
+  ["bulk", "Bulk Ops"],
 ];
 
 const browser = await chromium.launch();
