@@ -304,6 +304,7 @@ import { Route as ApiSecuritySettingsRouteImport } from './routes/api/security/s
 import { Route as ApiSellerMetricsRouteImport } from './routes/api/seller/metrics'
 import { Route as ApiSeoConsoleRouteImport } from './routes/api/seo/console'
 import { Route as ApiSeoGenerateTagsRouteImport } from './routes/api/seo/generate-tags'
+import { Route as ApiSeoScoreRouteImport } from './routes/api/seo/score'
 import { Route as ApiTrackRefRouteImport } from './routes/api/track/ref'
 import { Route as MarketplaceCategoryCountryRouteImport } from './routes/marketplace.$category.$country'
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
@@ -1835,6 +1836,11 @@ const ApiSeoGenerateTagsRoute = ApiSeoGenerateTagsRouteImport.update({
   path: '/api/seo/generate-tags',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSeoScoreRoute = ApiSeoScoreRouteImport.update({
+  id: '/api/seo/score',
+  path: '/api/seo/score',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTrackRefRoute = ApiTrackRefRouteImport.update({
   id: '/api/track/ref',
   path: '/api/track/ref',
@@ -2228,6 +2234,7 @@ export interface FileRoutesByFullPath {
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
   '/api/seo/console': typeof ApiSeoConsoleRoute
   '/api/seo/generate-tags': typeof ApiSeoGenerateTagsRoute
+  '/api/seo/score': typeof ApiSeoScoreRoute
   '/api/track/ref': typeof ApiTrackRefRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
@@ -2534,6 +2541,7 @@ export interface FileRoutesByTo {
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
   '/api/seo/console': typeof ApiSeoConsoleRoute
   '/api/seo/generate-tags': typeof ApiSeoGenerateTagsRoute
+  '/api/seo/score': typeof ApiSeoScoreRoute
   '/api/track/ref': typeof ApiTrackRefRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
@@ -2851,6 +2859,7 @@ export interface FileRoutesById {
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
   '/api/seo/console': typeof ApiSeoConsoleRoute
   '/api/seo/generate-tags': typeof ApiSeoGenerateTagsRoute
+  '/api/seo/score': typeof ApiSeoScoreRoute
   '/api/track/ref': typeof ApiTrackRefRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
@@ -3169,6 +3178,7 @@ export interface FileRouteTypes {
     | '/api/seller/metrics'
     | '/api/seo/console'
     | '/api/seo/generate-tags'
+    | '/api/seo/score'
     | '/api/track/ref'
     | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
@@ -3475,6 +3485,7 @@ export interface FileRouteTypes {
     | '/api/seller/metrics'
     | '/api/seo/console'
     | '/api/seo/generate-tags'
+    | '/api/seo/score'
     | '/api/track/ref'
     | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
@@ -3791,6 +3802,7 @@ export interface FileRouteTypes {
     | '/api/seller/metrics'
     | '/api/seo/console'
     | '/api/seo/generate-tags'
+    | '/api/seo/score'
     | '/api/track/ref'
     | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
@@ -3958,6 +3970,7 @@ export interface RootRouteChildren {
   ApiSellerMetricsRoute: typeof ApiSellerMetricsRoute
   ApiSeoConsoleRoute: typeof ApiSeoConsoleRoute
   ApiSeoGenerateTagsRoute: typeof ApiSeoGenerateTagsRoute
+  ApiSeoScoreRoute: typeof ApiSeoScoreRoute
   ApiTrackRefRoute: typeof ApiTrackRefRoute
   ApiAccountInvoiceIdRoute: typeof ApiAccountInvoiceIdRoute
   ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
@@ -6031,6 +6044,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSeoGenerateTagsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/seo/score': {
+      id: '/api/seo/score'
+      path: '/api/seo/score'
+      fullPath: '/api/seo/score'
+      preLoaderRoute: typeof ApiSeoScoreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/track/ref': {
       id: '/api/track/ref'
       path: '/api/track/ref'
@@ -6763,6 +6783,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSellerMetricsRoute: ApiSellerMetricsRoute,
   ApiSeoConsoleRoute: ApiSeoConsoleRoute,
   ApiSeoGenerateTagsRoute: ApiSeoGenerateTagsRoute,
+  ApiSeoScoreRoute: ApiSeoScoreRoute,
   ApiTrackRefRoute: ApiTrackRefRoute,
   ApiAccountInvoiceIdRoute: ApiAccountInvoiceIdRoute,
   ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,

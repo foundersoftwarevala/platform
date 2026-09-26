@@ -107,8 +107,14 @@ const HeroCarousel = () => {
                 <Play className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
                 {product.cta_primary}
               </a>
+              {/*
+                The secondary call to action reads “Watch Live Demo” on every
+                slide and pointed at /demos, which was never a route and
+                answered 404. /vala-tv is the page that holds the demos,
+                walkthroughs and customer films, and has all along.
+              */}
               <a
-                href="/demos"
+                href="/vala-tv"
                 className="sv-btn sv-btn-hero-glass !h-14 !rounded-2xl !px-8 !text-base"
               >
                 <ShoppingCart className="w-5 h-5" />

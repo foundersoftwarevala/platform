@@ -227,20 +227,29 @@ export const Academy = () => {
 
 // Partner Ecosystem
 const PARTNERS = [
-  { name: "Reseller", desc: "Up to 40% recurring commission", icon: Handshake, color: "text-orange-300", ring: "border-orange-400/30" },
-  { name: "Vendor", desc: "List products, reach 50k+ buyers", icon: ShoppingBag, color: "text-emerald-300", ring: "border-emerald-400/30" },
-  { name: "Franchise", desc: "Exclusive territory rights", icon: Building2, color: "text-amber-300", ring: "border-amber-400/30" },
-  { name: "Author", desc: "Publish & monetise products", icon: BookOpen, color: "text-cyan-300", ring: "border-cyan-400/30" },
-  { name: "Affiliate", desc: "Link, share, earn per sale", icon: Globe2, color: "text-fuchsia-300", ring: "border-fuchsia-400/30" },
-  { name: "Implementation", desc: "Deliver projects on the stack", icon: Wrench, color: "text-violet-300", ring: "border-violet-400/30" },
+  { name: "Reseller", href: "/apply/reseller", desc: "Up to 40% recurring commission", icon: Handshake, color: "text-orange-300", ring: "border-orange-400/30" },
+  { name: "Vendor", href: "/apply/vendor", desc: "List products, reach 50k+ buyers", icon: ShoppingBag, color: "text-emerald-300", ring: "border-emerald-400/30" },
+  { name: "Franchise", href: "/apply/franchise", desc: "Exclusive territory rights", icon: Building2, color: "text-amber-300", ring: "border-amber-400/30" },
+  { name: "Author", href: "/apply/author", desc: "Publish & monetise products", icon: BookOpen, color: "text-cyan-300", ring: "border-cyan-400/30" },
+  { name: "Affiliate", href: "/apply/affiliate", desc: "Link, share, earn per sale", icon: Globe2, color: "text-fuchsia-300", ring: "border-fuchsia-400/30" },
+  { name: "Implementation", href: "/apply", desc: "Deliver projects on the stack", icon: Wrench, color: "text-violet-300", ring: "border-violet-400/30" },
 ];
 
+/**
+ * The partner programme.
+ *
+ * Every link in this section pointed at a route that was never created and
+ * answered 404 from the home page - found by the nightly crawler the first
+ * time it was able to run. The pages these cards describe have existed all
+ * along: /apply lists the roles that are open and /apply/<role> is the form
+ * for each one. Nothing here is new; the links reach it now.
+ */
 export const PartnerEcosystem = () => (
   <section className="py-10">
-    {sectionTitle("Partner Ecosystem", "/careers", "Build a business on Software Vala")}
+    {sectionTitle("Partner Ecosystem", "/apply", "Build a business on Software Vala")}
     <div className="grid grid-cols-2 gap-4 px-6 sm:grid-cols-3 lg:grid-cols-6">
       {PARTNERS.map((p) => (
-        <a key={p.name} href="/careers" className={`group rounded-2xl border ${p.ring} bg-white/[0.03] p-4 transition-all hover:-translate-y-1`}>
+        <a key={p.name} href={p.href} className={`group rounded-2xl border ${p.ring} bg-white/[0.03] p-4 transition-all hover:-translate-y-1`}>
           <p.icon className={`h-6 w-6 ${p.color}`} />
           <div className="mt-3 text-sm font-bold text-white">{p.name}</div>
           <div className="mt-1 text-[11px] text-white/60">{p.desc}</div>

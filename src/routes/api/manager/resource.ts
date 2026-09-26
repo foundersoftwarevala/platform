@@ -2196,6 +2196,41 @@ const RESOURCES: Record<string, Resource> = {
     order: "created_at.desc",
     label: "IndexNow submissions",
   },
+  // Every proposed change to SEO data: what it was, what it would become, who
+  // asked, who approved, and how to put it back. Section 19 exists because an
+  // AI suggestion that rewrites one card slot's keywords is one request away
+  // from rewriting all 7,280, and "undo" has to be a stored value.
+  //
+  // The state is editable so an operator can approve or reject from the
+  // console. The values are not: what a change would do is decided when it is
+  // proposed, and editing it afterwards would make the approval meaningless.
+  seo_changes: {
+    table: "seo_change_requests",
+    select: [
+      "id",
+      "entity_type",
+      "target_url",
+      "field",
+      "old_value",
+      "new_value",
+      "reason",
+      "source",
+      "provider",
+      "model",
+      "state",
+      "impact",
+      "qa_findings",
+      "approved_at",
+      "published_at",
+      "rolled_back_at",
+      "rollback_of",
+      "created_at",
+    ],
+    editable: ["state"],
+    searchable: ["target_url", "field", "state", "source", "entity_type"],
+    order: "created_at.desc",
+    label: "SEO change requests",
+  },
   // The indexing gate's own verdicts: one row per page the site can serve,
   // saying whether it may be indexed, whether it may go in a sitemap, and -
   // when it may not - the reason. Fourteen thousand eight hundred of them,

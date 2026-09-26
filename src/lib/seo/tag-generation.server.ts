@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { executeAiRequest } from "@/lib/ai-api.functions";
 import { checkTagBundle, type GateFinding, type TagBundle } from "./tag-quality-gate";
+import { proposeChange } from "./change-control.server";
 
 /**
  * SEO tags for a card slot, generated through AI API Manager and nowhere else.
@@ -319,8 +320,10 @@ export async function generateTagsForSlot(data: {
     };
   }
 
-  // Stored in the canonical model: keyword_set is the column the card slots
-  // already use. The slot's identity columns are not touched.
+  // Section 19: an AI proposal is never written straight onto a live card.
+  // It is recorded as a change request carrying the keywords it would
+  // replace, and somebody accepts it before the slot changes. One request
+  // rewriting one slot is one request away from rewriting all 7,280.
   const flat = [
     gate.cleaned.primary,
     ...gate.cleaned.secondary,
@@ -328,9 +331,18 @@ export async function generateTagsForSlot(data: {
     ...gate.cleaned.semantic,
     ...gate.cleaned.geo,
   ];
-  const patch = await rest("marketplace_card_slots?id=eq." + encodeURIComponent(facts.id), {
-    method: "PATCH",
-    body: JSON.stringify({ keyword_set: flat, primary_keyword: gate.cleaned.primary }),
+
+  const change = await proposeChange({
+    entityType: "card_slot",
+    entityId: facts.id,
+    field: "keyword_set",
+    newValue: flat,
+    reason: "Generated from the slot's category, country and product; passed the quality gate.",
+    source: "ai",
+    targetUrl: facts.slot_url,
+    provider,
+    model,
+    qaFindings: gate.findings,
   });
 
   return {
@@ -340,10 +352,18 @@ export async function generateTagsForSlot(data: {
     model,
     findings: gate.findings,
     tags: gate.cleaned,
-    stored: patch.ok,
-    reason: patch.ok
-      ? "Stored " + flat.length + " keywords on " + facts.slot_url + "."
-      : "Generated and passed the gate, but the write failed: HTTP " + patch.status + ".",
+    // The slot still holds what it held. Nothing is stored until approval.
+    stored: false,
+    reason:
+      "Passed the gate and recorded as change request " +
+      change.id +
+      " (" +
+      change.state +
+      "). " +
+      flat.length +
+      " keywords proposed for " +
+      facts.slot_url +
+      "; the slot is unchanged until this is approved.",
   };
 }
 

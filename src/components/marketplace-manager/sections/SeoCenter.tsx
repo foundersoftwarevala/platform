@@ -456,6 +456,8 @@ export const SEO_MODULE_GROUPS: {
       { id: "health", label: "SEO Health", icon: Activity },
       { id: "reports", label: "SEO Reports", icon: BarChart3 },
       { id: "gate", label: "Indexing Gate", icon: ShieldCheck },
+      { id: "score", label: "Page Score", icon: Gauge },
+      { id: "changes", label: "Change Control", icon: ClipboardList },
       { id: "events", label: "Errors & Spam", icon: AlertTriangle },
       { id: "seoleads", label: "SEO Leads", icon: Users2 },
     ],
@@ -1043,6 +1045,10 @@ export function renderSeoModule(id: string) {
       return <ReportsModule />;
     case "gate":
       return <GateModule />;
+    case "score":
+      return <SeoScoreModule />;
+    case "changes":
+      return <SeoChangesModule />;
     case "page":
       return <PageEditorModule />;
     case "product":
@@ -2903,6 +2909,237 @@ function SeoLeadsModule() {
     </div>
   );
 }
+
+/**
+ * Per-page SEO score: the number, and what is behind it.
+ *
+ * seo_pages has carried a single seo_score written by the crawler with nothing
+ * to say which part of the page earned it. The scoring engine records the
+ * components and the findings beside it now, so the list below is a work queue
+ * rather than a league table.
+ *
+ * A page with no evidence is shown as unverified, not as zero. Those are
+ * different states and every decision made from this screen depends on telling
+ * them apart.
+ */
+function SeoScoreModule() {
+  const [offset, setOffset] = useState(0);
+  const search = useTableQuery();
+  const pages = useResource("seo_pages", {
+    limit: PAGE_SIZE,
+    offset,
+    search: search || undefined,
+  });
+  useEffect(() => setOffset(0), [search]);
+
+  const all = useResource("seo_pages", { limit: 1 });
+  const scored = useResource("seo_pages", { limit: 1, filters: ["scored_at.not.is.null"] });
+  const critical = useResource("seo_pages", {
+    limit: 1,
+    filters: ["scored_at.not.is.null", "seo_score.lt.50"],
+  });
+  const healthy = useResource("seo_pages", {
+    limit: 1,
+    filters: ["scored_at.not.is.null", "seo_score.gte.85"],
+  });
+
+  const band = (row: ResourceRow) => {
+    if (!text(row, "scored_at")) return { label: "unverified", tone: "default" as const };
+    const value = num(row, "seo_score");
+    if (value < 50) return { label: String(value), tone: "destructive" as const };
+    if (value < 70) return { label: String(value), tone: "warning" as const };
+    if (value < 85) return { label: String(value), tone: "accent" as const };
+    return { label: String(value), tone: "success" as const };
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          Page SEO score
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          Each page judged on the evidence there is for it — what the crawler saw and what the
+          indexing gate decided. A component with nothing to judge it on is left out of the total
+          rather than scored zero, so a page nobody has crawled reads as unexamined, not as bad.
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label="Pages known"
+          value={figure(all.total, all)}
+          tone="default"
+          delta="seo_pages"
+          icon={<FileText className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Scored"
+          value={figure(scored.total, scored)}
+          tone="premium"
+          delta="has real evidence"
+          icon={<Gauge className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Under 50"
+          value={figure(critical.total, critical)}
+          tone="destructive"
+          delta="the work queue"
+          icon={<Flame className="h-4 w-4" />}
+        />
+        <StatCard
+          label="85 and over"
+          value={figure(healthy.total, healthy)}
+          tone="success"
+          icon={<CheckCircle2 className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title="Pages" count={pages.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={pages.total}
+        loading={pages.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={["Page", "Score", "Issues", "Words", "Index state", "Evidence", "Scored"]}
+        rows={pages.rows.map((row) => {
+          const b = band(row);
+          return [
+            <span key="u" className="max-w-[320px] truncate font-mono text-[11px]">
+              {text(row, "url")}
+            </span>,
+            <Chip key="s" tone={b.tone}>
+              {b.label}
+            </Chip>,
+            <span key="i" className="font-mono tabular">
+              {num(row, "issues_count")}
+            </span>,
+            <span key="w" className="font-mono tabular">
+              {num(row, "word_count")}
+            </span>,
+            <Chip key="x" tone="default">
+              {text(row, "index_status") || "unknown"}
+            </Chip>,
+            <span key="e" className="text-[11px] text-muted-foreground">
+              {text(row, "score_source") || "not scored"}
+            </span>,
+            <span key="d" className="font-mono text-[11px]">
+              {text(row, "scored_at").slice(0, 10) || "never"}
+            </span>,
+          ];
+        })}
+      />
+      {pages.loading && <div className="text-[11px] text-muted-foreground">Reading the pages…</div>}
+    </div>
+  );
+}
+
+/**
+ * SEO change control: what has been proposed, approved, published or undone.
+ *
+ * Nothing rewrites SEO data directly any more. A proposal records what it
+ * would replace, and publishing is a separate act with a stored way back.
+ */
+function SeoChangesModule() {
+  const [offset, setOffset] = useState(0);
+  const changes = useResource("seo_changes", { limit: PAGE_SIZE, offset });
+  const all = useResource("seo_changes", { limit: 1 });
+  const waiting = useResource("seo_changes", { limit: 1, filters: ["state.eq.APPROVAL_REQUIRED"] });
+  const published = useResource("seo_changes", { limit: 1, filters: ["state.eq.PUBLISHED"] });
+  const undone = useResource("seo_changes", { limit: 1, filters: ["state.eq.ROLLED_BACK"] });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          Change control
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          Every proposed change to SEO data, with what it would replace. An AI suggestion always
+          waits for approval: one request rewriting one card slot is one request away from rewriting
+          all 7,280, and undo has to be a value that was kept.
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label="Changes recorded"
+          value={figure(all.total, all)}
+          tone="default"
+          delta="seo_change_requests"
+          icon={<ClipboardList className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Waiting for approval"
+          value={figure(waiting.total, waiting)}
+          tone="warning"
+          icon={<Clock className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Published"
+          value={figure(published.total, published)}
+          tone="success"
+          icon={<CheckCircle2 className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Rolled back"
+          value={figure(undone.total, undone)}
+          tone="premium"
+          icon={<ArrowRight className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title="Change requests" count={changes.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={changes.total}
+        loading={changes.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={["When", "Page", "Field", "Source", "State", "Impact", "Reason"]}
+        rows={changes.rows.map((row) => [
+          <span key="w" className="font-mono text-[11px]">
+            {text(row, "created_at").slice(0, 16).replace("T", " ")}
+          </span>,
+          <span key="u" className="max-w-[220px] truncate font-mono text-[11px]">
+            {text(row, "target_url") || text(row, "entity_type")}
+          </span>,
+          <span key="f" className="font-mono text-[11px]">
+            {text(row, "field")}
+          </span>,
+          <Chip key="s" tone={text(row, "source") === "ai" ? "premium" : "default"}>
+            {text(row, "source")}
+          </Chip>,
+          <Chip key="t" tone={CHANGE_TONE[text(row, "state")] ?? "default"}>
+            {text(row, "state")}
+          </Chip>,
+          <Chip key="i" tone={text(row, "impact") === "high" ? "warning" : "default"}>
+            {text(row, "impact")}
+          </Chip>,
+          <span key="r" className="max-w-[300px] truncate text-[11px] text-muted-foreground">
+            {text(row, "reason")}
+          </span>,
+        ])}
+      />
+      {!changes.loading && changes.rows.length === 0 && (
+        <div className="text-[11px] text-muted-foreground">
+          No SEO change has been proposed yet. Nothing has rewritten SEO data since this began
+          recording.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** How a change state reads at a glance. */
+const CHANGE_TONE: Record<string, "default" | "success" | "warning" | "premium" | "destructive"> = {
+  APPROVAL_REQUIRED: "warning",
+  APPROVED: "premium",
+  PUBLISHED: "success",
+  REJECTED: "destructive",
+  ROLLED_BACK: "warning",
+};
 
 function GateModule() {
   return (
