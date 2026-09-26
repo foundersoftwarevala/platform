@@ -358,7 +358,12 @@ export async function executeAiRequest(data: AiRequest) {
       const row = rows?.[0];
       if (row) target = { id: row.id, name: row.name, provider: "", route: row.endpoint_url, status: row.status, providerId: row.provider_id };
     } else {
-      const { data: rows } = await sb.from("api_services").select("id, name, provider_id, endpoint_url, status").eq("status", "active").eq("category", "llm").order("updated_at", { ascending: false }).limit(1);
+      // Categories as the registry actually spells them. This asked for
+      // category "llm" and the two LLM services in api_services - OpenAI and
+      // Anthropic, both active, both with an endpoint - are filed under "ai",
+      // so the default selection matched nothing and every caller that did
+      // not name a service by hand was told no provider was configured.
+      const { data: rows } = await sb.from("api_services").select("id, name, provider_id, endpoint_url, status").eq("status", "active").in("category", ["llm", "ai"]).order("updated_at", { ascending: false }).limit(1);
       const row = rows?.[0];
       if (row) target = { id: row.id, name: row.name, provider: "", route: row.endpoint_url, status: row.status, providerId: row.provider_id };
     }

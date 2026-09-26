@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { currentAttribution } from "@/lib/marketplace/attribution";
 
 export type LeadAction = "buy_intent" | "notify_me" | "request_demo";
 
@@ -80,6 +81,9 @@ export function ProductLeadDialog({
           productId: productId ?? "",
           sourcePage: window.location.pathname + window.location.search,
           ctaAction: action,
+          // Read once on the first page of the visit; without it the
+          // endpoint files every capture as a marketplace walk-in.
+          attribution: currentAttribution(),
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };

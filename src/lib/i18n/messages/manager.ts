@@ -10,6 +10,10 @@
  * longer names anything.
  */
 export const MANAGER_MESSAGES = {
+  // Lead Manager: where a lead came from.
+  "manager.lead.attribution": ["Attribution", "heading over where a lead came from"],
+  "manager.lead.attribution_none":
+    "Nothing was recorded for this lead - it was captured before attribution was wired, or the visitor arrived with no referrer and no campaign.",
   // Finance ledger.
   "manager.finance.ledger": ["Ledger", "the tab and heading over the finance tables"],
   "manager.finance.ledger_title": "The money that has moved",

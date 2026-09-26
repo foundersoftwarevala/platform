@@ -34,7 +34,13 @@ import {
   useLeadCommunications,
   useLeadNotes,
 } from "@/lib/lead-manager/queries";
-import { PIPELINE_STAGES, type Lead, type LeadStatus } from "@/lib/lead-manager/types";
+import { useTranslation } from "@/lib/i18n/use-translation";
+import {
+  PIPELINE_STAGES,
+  type AttributedLead,
+  type Lead,
+  type LeadStatus,
+} from "@/lib/lead-manager/types";
 import {
   maskEmail,
   maskPhone,
@@ -57,6 +63,7 @@ export function LeadDetailSheet({
   onOpenChange: (open: boolean) => void;
 }) {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   const { data: agents = [] } = useAgents();
   // Same rule as the lead table: an agent whose Unmask switch is off reads a
   // masked address here too, or the mask on the table would be worth nothing -
@@ -220,6 +227,52 @@ export function LeadDetailSheet({
                 value={[lead.city, lead.state, lead.country].filter(Boolean).join(", ")}
               />
               <Field label="Source" value={`${lead.source} • ${lead.sub_source}`} />
+              {/*
+                Section 2: the questions Lead Manager has to be able to answer
+                about a lead - which page, which card, which country, which
+                campaign, which CTA, which source. They were recorded nowhere
+                and so could be answered for no lead at all. What was actually
+                captured is shown; what was not is said plainly rather than
+                left blank, because "direct visit" and "we failed to record it"
+                are different answers and an operator needs to tell them apart.
+              */}
+              {(() => {
+                const a = lead as AttributedLead;
+                const captured = [
+                  ["Landing page", a.landing_page],
+                  ["Converted on", a.source_page],
+                  ["Search engine", a.search_engine],
+                  ["Referrer", a.referrer],
+                  ["Campaign", a.utm_campaign ?? a.campaign],
+                  ["utm_source / medium", [a.utm_source, a.utm_medium].filter(Boolean).join(" / ")],
+                  ["Keyword (utm_term)", a.utm_term],
+                  ["Creative (utm_content)", a.utm_content],
+                  ["Card slot", a.card_slot_id],
+                  ["Region", a.region],
+                ].filter(([, value]) => Boolean(value)) as [string, string][];
+
+                return (
+                  <div className="rounded-md border border-border bg-surface-2 p-3">
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {t("manager.lead.attribution")}
+                    </p>
+                    {captured.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t("manager.lead.attribution_none")}
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {captured.map(([label, value]) => (
+                          <div key={label} className="flex justify-between gap-3 text-xs">
+                            <span className="text-muted-foreground">{label}</span>
+                            <span className="truncate text-right font-mono">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <Field label="Campaign" value={lead.campaign ?? "—"} />
               <Field label="Budget" value={lead.budget_range ?? "—"} />
               <Field label="Deal value" value={inr(lead.deal_value)} />

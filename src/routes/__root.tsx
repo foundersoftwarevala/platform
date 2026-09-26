@@ -19,6 +19,7 @@ import { DEFAULT_LANGUAGE, buildLanguageBootScript } from "@/lib/i18n/language-s
 import { getLanguage } from "@/lib/i18n/registry";
 import { useRealtimeAuth } from "@/integrations/supabase/realtime-auth";
 import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
+import { AttributionCapture } from "@/components/marketplace/AttributionCapture";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { CelebrationProvider } from "../components/ams/effects/Celebration";
@@ -164,6 +165,7 @@ function RootComponent() {
           {/* Operator consoles are gated centrally by path; public pages pass straight through. */}
           {/* Notices a ?ref= arrival on any page and tells the server once. */}
           <ReferralCapture />
+          <AttributionCapture />
           {/*
             The session and roles for the consoles that call useAuth() (support,
             sales CRM, demo manager). The provider existed and was never mounted,
