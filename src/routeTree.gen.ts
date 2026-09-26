@@ -302,9 +302,11 @@ import { Route as ApiQrCodeRouteImport } from './routes/api/qr/$code'
 import { Route as ApiSecurityConsoleRouteImport } from './routes/api/security/console'
 import { Route as ApiSecuritySettingsRouteImport } from './routes/api/security/settings'
 import { Route as ApiSellerMetricsRouteImport } from './routes/api/seller/metrics'
+import { Route as ApiSeoChangeRouteImport } from './routes/api/seo/change'
 import { Route as ApiSeoConsoleRouteImport } from './routes/api/seo/console'
 import { Route as ApiSeoGenerateTagsRouteImport } from './routes/api/seo/generate-tags'
 import { Route as ApiSeoScoreRouteImport } from './routes/api/seo/score'
+import { Route as ApiSeoSearchPerformanceRouteImport } from './routes/api/seo/search-performance'
 import { Route as ApiTrackRefRouteImport } from './routes/api/track/ref'
 import { Route as MarketplaceCategoryCountryRouteImport } from './routes/marketplace.$category.$country'
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
@@ -1826,6 +1828,11 @@ const ApiSellerMetricsRoute = ApiSellerMetricsRouteImport.update({
   path: '/api/seller/metrics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSeoChangeRoute = ApiSeoChangeRouteImport.update({
+  id: '/api/seo/change',
+  path: '/api/seo/change',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSeoConsoleRoute = ApiSeoConsoleRouteImport.update({
   id: '/api/seo/console',
   path: '/api/seo/console',
@@ -1839,6 +1846,11 @@ const ApiSeoGenerateTagsRoute = ApiSeoGenerateTagsRouteImport.update({
 const ApiSeoScoreRoute = ApiSeoScoreRouteImport.update({
   id: '/api/seo/score',
   path: '/api/seo/score',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSeoSearchPerformanceRoute = ApiSeoSearchPerformanceRouteImport.update({
+  id: '/api/seo/search-performance',
+  path: '/api/seo/search-performance',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTrackRefRoute = ApiTrackRefRouteImport.update({
@@ -2232,9 +2244,11 @@ export interface FileRoutesByFullPath {
   '/api/security/console': typeof ApiSecurityConsoleRoute
   '/api/security/settings': typeof ApiSecuritySettingsRoute
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
+  '/api/seo/change': typeof ApiSeoChangeRoute
   '/api/seo/console': typeof ApiSeoConsoleRoute
   '/api/seo/generate-tags': typeof ApiSeoGenerateTagsRoute
   '/api/seo/score': typeof ApiSeoScoreRoute
+  '/api/seo/search-performance': typeof ApiSeoSearchPerformanceRoute
   '/api/track/ref': typeof ApiTrackRefRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
@@ -2539,9 +2553,11 @@ export interface FileRoutesByTo {
   '/api/security/console': typeof ApiSecurityConsoleRoute
   '/api/security/settings': typeof ApiSecuritySettingsRoute
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
+  '/api/seo/change': typeof ApiSeoChangeRoute
   '/api/seo/console': typeof ApiSeoConsoleRoute
   '/api/seo/generate-tags': typeof ApiSeoGenerateTagsRoute
   '/api/seo/score': typeof ApiSeoScoreRoute
+  '/api/seo/search-performance': typeof ApiSeoSearchPerformanceRoute
   '/api/track/ref': typeof ApiTrackRefRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
@@ -2857,9 +2873,11 @@ export interface FileRoutesById {
   '/api/security/console': typeof ApiSecurityConsoleRoute
   '/api/security/settings': typeof ApiSecuritySettingsRoute
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
+  '/api/seo/change': typeof ApiSeoChangeRoute
   '/api/seo/console': typeof ApiSeoConsoleRoute
   '/api/seo/generate-tags': typeof ApiSeoGenerateTagsRoute
   '/api/seo/score': typeof ApiSeoScoreRoute
+  '/api/seo/search-performance': typeof ApiSeoSearchPerformanceRoute
   '/api/track/ref': typeof ApiTrackRefRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
@@ -3176,9 +3194,11 @@ export interface FileRouteTypes {
     | '/api/security/console'
     | '/api/security/settings'
     | '/api/seller/metrics'
+    | '/api/seo/change'
     | '/api/seo/console'
     | '/api/seo/generate-tags'
     | '/api/seo/score'
+    | '/api/seo/search-performance'
     | '/api/track/ref'
     | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
@@ -3483,9 +3503,11 @@ export interface FileRouteTypes {
     | '/api/security/console'
     | '/api/security/settings'
     | '/api/seller/metrics'
+    | '/api/seo/change'
     | '/api/seo/console'
     | '/api/seo/generate-tags'
     | '/api/seo/score'
+    | '/api/seo/search-performance'
     | '/api/track/ref'
     | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
@@ -3800,9 +3822,11 @@ export interface FileRouteTypes {
     | '/api/security/console'
     | '/api/security/settings'
     | '/api/seller/metrics'
+    | '/api/seo/change'
     | '/api/seo/console'
     | '/api/seo/generate-tags'
     | '/api/seo/score'
+    | '/api/seo/search-performance'
     | '/api/track/ref'
     | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
@@ -3968,9 +3992,11 @@ export interface RootRouteChildren {
   ApiSecurityConsoleRoute: typeof ApiSecurityConsoleRoute
   ApiSecuritySettingsRoute: typeof ApiSecuritySettingsRoute
   ApiSellerMetricsRoute: typeof ApiSellerMetricsRoute
+  ApiSeoChangeRoute: typeof ApiSeoChangeRoute
   ApiSeoConsoleRoute: typeof ApiSeoConsoleRoute
   ApiSeoGenerateTagsRoute: typeof ApiSeoGenerateTagsRoute
   ApiSeoScoreRoute: typeof ApiSeoScoreRoute
+  ApiSeoSearchPerformanceRoute: typeof ApiSeoSearchPerformanceRoute
   ApiTrackRefRoute: typeof ApiTrackRefRoute
   ApiAccountInvoiceIdRoute: typeof ApiAccountInvoiceIdRoute
   ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
@@ -6030,6 +6056,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSellerMetricsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/seo/change': {
+      id: '/api/seo/change'
+      path: '/api/seo/change'
+      fullPath: '/api/seo/change'
+      preLoaderRoute: typeof ApiSeoChangeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/seo/console': {
       id: '/api/seo/console'
       path: '/api/seo/console'
@@ -6049,6 +6082,13 @@ declare module '@tanstack/react-router' {
       path: '/api/seo/score'
       fullPath: '/api/seo/score'
       preLoaderRoute: typeof ApiSeoScoreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/seo/search-performance': {
+      id: '/api/seo/search-performance'
+      path: '/api/seo/search-performance'
+      fullPath: '/api/seo/search-performance'
+      preLoaderRoute: typeof ApiSeoSearchPerformanceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/track/ref': {
@@ -6781,9 +6821,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSecurityConsoleRoute: ApiSecurityConsoleRoute,
   ApiSecuritySettingsRoute: ApiSecuritySettingsRoute,
   ApiSellerMetricsRoute: ApiSellerMetricsRoute,
+  ApiSeoChangeRoute: ApiSeoChangeRoute,
   ApiSeoConsoleRoute: ApiSeoConsoleRoute,
   ApiSeoGenerateTagsRoute: ApiSeoGenerateTagsRoute,
   ApiSeoScoreRoute: ApiSeoScoreRoute,
+  ApiSeoSearchPerformanceRoute: ApiSeoSearchPerformanceRoute,
   ApiTrackRefRoute: ApiTrackRefRoute,
   ApiAccountInvoiceIdRoute: ApiAccountInvoiceIdRoute,
   ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,
