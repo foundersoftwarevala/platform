@@ -1988,6 +1988,79 @@ const RESOURCES: Record<string, Resource> = {
     order: "slot_url.asc",
     label: "Card slots",
   },
+  // The language engine, which the SEO Manager could not see at all.
+  //
+  // 145 languages are registered and 140 are enabled; 128 of them carry
+  // machine translation only. Every one of them is an hreflang target and a
+  // localized URL, so the state of this table is the state of the site's
+  // international SEO - and no screen in the SEO console read a row of it.
+  //
+  // Read-only here. Which languages a site serves, and whether a translation
+  // is machine or reviewed, is decided by the translation engine and its
+  // reviewers; an operator flipping a status by hand would tell the SEO
+  // console something the rest of the platform does not believe.
+  i18n_languages: {
+    table: "i18n_languages",
+    select: [
+      "code",
+      "name",
+      "native_name",
+      "locale",
+      "script",
+      "direction",
+      "region",
+      "enabled",
+      "translation_status",
+      "fallback",
+      "sort_order",
+      "updated_at",
+    ],
+    editable: [],
+    searchable: ["code", "name", "native_name", "region", "translation_status"],
+    order: "sort_order.asc",
+    label: "Languages",
+  },
+  // The translation queue. 105,617 done and 94,613 still waiting, which is the
+  // single largest fact about this site's international SEO and was nowhere on
+  // any screen.
+  i18n_jobs: {
+    table: "i18n_translation_jobs",
+    select: [
+      "id",
+      "target_language",
+      "namespace",
+      "status",
+      "result_status",
+      "quality_score",
+      "attempts",
+      "priority",
+      "last_error",
+      "created_at",
+      "finished_at",
+    ],
+    editable: [],
+    searchable: ["target_language", "namespace", "status", "result_status"],
+    order: "created_at.desc",
+    label: "Translation jobs",
+  },
+  // IndexNow: what was actually submitted to the search engines that accept it,
+  // and what they answered.
+  indexnow: {
+    table: "indexnow_submissions",
+    select: [
+      "id",
+      "submission_id",
+      "host",
+      "url_count",
+      "status",
+      "response_status",
+      "created_at",
+    ],
+    editable: [],
+    searchable: ["host", "status", "submission_id"],
+    order: "created_at.desc",
+    label: "IndexNow submissions",
+  },
   // The indexing gate's own verdicts: one row per page the site can serve,
   // saying whether it may be indexed, whether it may go in a sitemap, and -
   // when it may not - the reason. Fourteen thousand eight hundred of them,

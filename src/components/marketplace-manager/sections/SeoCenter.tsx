@@ -503,6 +503,8 @@ export const SEO_MODULE_GROUPS: {
       { id: "robots", label: "Robots.txt", icon: ShieldCheck },
       { id: "local", label: "Local SEO", icon: MapPin },
       { id: "intl", label: "International", icon: Languages },
+      { id: "languages", label: "Language SEO", icon: Globe2 },
+      { id: "indexnow", label: "IndexNow", icon: Send },
     ],
   },
   {
@@ -1089,6 +1091,10 @@ export function renderSeoModule(id: string) {
       return <LocalSeoModule />;
     case "intl":
       return <IntlSeoModule />;
+    case "languages":
+      return <LanguageSeoModule />;
+    case "indexnow":
+      return <IndexNowModule />;
     case "blogcenter":
       return <BlogCenterModule />;
     case "aiwriter":
@@ -1902,6 +1908,272 @@ function CardTagAction({ slotUrl }: { slotUrl: string }) {
           </Chip>
         </span>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Language SEO: the 145 languages this site serves, and what state they are in.
+ *
+ * Every enabled language is an hreflang target, a localized URL and a localized
+ * title on every page of the catalogue, so the state of the language registry
+ * is the state of this site's international SEO. None of it was on any screen
+ * in this console - the largest single omission found when the owner asked why
+ * the SEO Manager did not show the SEO work.
+ *
+ * The queue figure is the one that matters most and the one nobody could see:
+ * a language marked enabled whose strings are still waiting is advertised to
+ * search engines before it is ready.
+ */
+function LanguageSeoModule() {
+  const [offset, setOffset] = useState(0);
+  const search = useTableQuery();
+  const languages = useResource("i18n_languages", {
+    limit: PAGE_SIZE,
+    offset,
+    search: search || undefined,
+  });
+  useEffect(() => setOffset(0), [search]);
+
+  const all = useResource("i18n_languages", { limit: 1 });
+  const enabled = useResource("i18n_languages", { limit: 1, filters: ["enabled.eq.true"] });
+  const machine = useResource("i18n_languages", {
+    limit: 1,
+    filters: ["translation_status.eq.machine"],
+  });
+  const partial = useResource("i18n_languages", {
+    limit: 1,
+    filters: ["translation_status.eq.partial"],
+  });
+  const retired = useResource("i18n_languages", {
+    limit: 1,
+    filters: ["translation_status.eq.retired"],
+  });
+
+  const done = useResource("i18n_jobs", { limit: 1, filters: ["status.eq.done"] });
+  const queued = useResource("i18n_jobs", { limit: 1, filters: ["status.eq.queued"] });
+  const running = useResource("i18n_jobs", { limit: 1, filters: ["status.eq.running"] });
+  const failed = useResource("i18n_jobs", { limit: 1, filters: ["status.eq.failed"] });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          Language SEO
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          Every enabled language is an hreflang target and a localized URL on every page of the
+          catalogue. A language that is enabled while its strings are still queued is advertised to
+          search engines before it is ready, which is the one thing this screen exists to show.
+        </div>
+      </Card>
+
+      <Toolbar title="Languages" count={all.total} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <StatCard
+          label="Registered"
+          value={figure(all.total, all)}
+          tone="default"
+          delta="i18n_languages"
+          icon={<Languages className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Enabled"
+          value={figure(enabled.total, enabled)}
+          tone="success"
+          delta="served to visitors"
+          icon={<Globe2 className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Machine only"
+          value={figure(machine.total, machine)}
+          tone="warning"
+          delta="not reviewed"
+          icon={<Bot className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Partial"
+          value={figure(partial.total, partial)}
+          tone="warning"
+          icon={<Clock className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Retired"
+          value={figure(retired.total, retired)}
+          tone="default"
+          delta="not served"
+          icon={<EyeOff className="h-4 w-4" />}
+        />
+      </div>
+
+      <Toolbar title="Translation queue" count={queued.total} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label="Translated"
+          value={figure(done.total, done)}
+          tone="success"
+          icon={<CheckCircle2 className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Waiting"
+          value={figure(queued.total, queued)}
+          tone="warning"
+          delta="not on the site yet"
+          icon={<Clock className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Running"
+          value={figure(running.total, running)}
+          tone="premium"
+          icon={<Activity className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Failed"
+          value={figure(failed.total, failed)}
+          tone="destructive"
+          icon={<AlertTriangle className="h-4 w-4" />}
+        />
+      </div>
+
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={languages.total}
+        loading={languages.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={[
+          "Code",
+          "Language",
+          "Native",
+          "Locale",
+          "Script",
+          "Dir",
+          "Region",
+          "Served",
+          "Translation",
+        ]}
+        rows={languages.rows.map((row) => [
+          <span key="c" className="font-mono text-[11px] font-semibold">
+            {text(row, "code")}
+          </span>,
+          <span key="n">{text(row, "name")}</span>,
+          <span key="v" className="text-muted-foreground">
+            {text(row, "native_name")}
+          </span>,
+          <span key="l" className="font-mono text-[11px]">
+            {text(row, "locale")}
+          </span>,
+          <span key="s" className="text-[11px]">
+            {text(row, "script")}
+          </span>,
+          <Chip key="d" tone="default">
+            {text(row, "direction")}
+          </Chip>,
+          <span key="r" className="text-[11px] text-muted-foreground">
+            {text(row, "region")}
+          </span>,
+          <Chip key="e" tone={row.enabled ? "success" : "default"}>
+            {row.enabled ? "yes" : "no"}
+          </Chip>,
+          <Chip key="t" tone={TRANSLATION_TONE[text(row, "translation_status")] ?? "warning"}>
+            {text(row, "translation_status")}
+          </Chip>,
+        ])}
+      />
+      {languages.loading && (
+        <div className="text-[11px] text-muted-foreground">Reading the language registry…</div>
+      )}
+    </div>
+  );
+}
+
+/** How a translation status reads at a glance. */
+const TRANSLATION_TONE: Record<string, "default" | "success" | "warning" | "premium"> = {
+  source: "premium",
+  reviewed: "success",
+  machine: "warning",
+  partial: "warning",
+  retired: "default",
+};
+
+/**
+ * IndexNow: what this site actually told the search engines that accept it.
+ *
+ * IndexNow is the one free, official way to tell Bing, Yandex, Seznam and
+ * Naver that a URL changed without waiting to be crawled. The submissions are
+ * recorded; nothing showed them, so nobody could tell whether it had ever run.
+ */
+function IndexNowModule() {
+  const [offset, setOffset] = useState(0);
+  const subs = useResource("indexnow", { limit: PAGE_SIZE, offset });
+  const all = useResource("indexnow", { limit: 1 });
+  const ok = useResource("indexnow", { limit: 1, filters: ["status.eq.success"] });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          IndexNow
+        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">
+          The free, official way to tell Bing, Yandex, Seznam and Naver that a URL changed rather
+          than waiting to be crawled. Every submission, and the answer it got.
+        </div>
+      </Card>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <StatCard
+          label="Submissions"
+          value={figure(all.total, all)}
+          tone="default"
+          delta="indexnow_submissions"
+          icon={<Send className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Accepted"
+          value={figure(ok.total, ok)}
+          tone="success"
+          icon={<CheckCircle2 className="h-4 w-4" />}
+        />
+        <StatCard
+          label="URLs in the newest"
+          value={subs.rows[0] ? String(num(subs.rows[0], "url_count")) : "—"}
+          tone="premium"
+          icon={<LinkIcon className="h-4 w-4" />}
+        />
+      </div>
+      <Toolbar title="Submissions" count={subs.total} />
+      <Pager
+        offset={offset}
+        page={PAGE_SIZE}
+        total={subs.total}
+        loading={subs.loading}
+        onChange={setOffset}
+      />
+      <Table
+        head={["When", "Host", "URLs", "Status", "HTTP"]}
+        rows={subs.rows.map((row) => [
+          <span key="w" className="font-mono text-[11px]">
+            {text(row, "created_at").slice(0, 19).replace("T", " ")}
+          </span>,
+          <span key="h">{text(row, "host")}</span>,
+          <span key="u" className="font-mono tabular">
+            {num(row, "url_count")}
+          </span>,
+          <Chip key="s" tone={text(row, "status") === "success" ? "success" : "warning"}>
+            {text(row, "status")}
+          </Chip>,
+          <span key="r" className="font-mono tabular">
+            {num(row, "response_status") || "—"}
+          </span>,
+        ])}
+      />
+      {!subs.loading && subs.rows.length === 0 && (
+        <div className="text-[11px] text-muted-foreground">
+          Nothing has been submitted to IndexNow yet.
+        </div>
+      )}
     </div>
   );
 }
