@@ -162,6 +162,23 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
   const d = room.data;
   const loading = room.isLoading;
 
+  /**
+   * The most pressing thing the marketplace is being told about.
+   *
+   * Ordered the way an operator would read it: how bad, then how many. A
+   * critical check with 3,633 products behind it outranks a medium one with
+   * 7,345, because severity is a judgement about consequence and a count is
+   * only a size.
+   */
+  const RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+  const worst = (d?.attention?.items ?? [])
+    .filter((i) => Number(i.count) > 0)
+    .sort(
+      (a, b) =>
+        (RANK[String(a.severity ?? "low")] ?? 9) - (RANK[String(b.severity ?? "low")] ?? 9) ||
+        Number(b.count) - Number(a.count),
+    )[0];
+
   // The walls, from the registry that actually feeds the front page.
   const walls = useQuery<HomepageRow[]>({
     queryKey: ["marketplace", "rows"],
@@ -374,13 +391,25 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
             value={money(d?.revenue.net, d?.revenue.currency ?? "INR", loading)}
             icon={<TrendingUp className="h-4 w-4" />}
           />
+          {/* The backend has always returned an attention list — what is
+              wrong, how badly, and where to fix it — and nothing on this
+              screen read it. The card now names the worst of them and opens
+              the records it counted, rather than reporting how many checks
+              exist. */}
           <StatCard
             label="Health checks"
             value={num(d?.health?.length, loading)}
-            tone="success"
+            tone={worst && worst.severity === "critical" ? "destructive" : "success"}
             delta={
-              d ? `${d.health.filter((h) => h.affected > 0).length} need attention` : undefined
+              loading
+                ? undefined
+                : worst
+                  ? `${worst.label} · ${new Intl.NumberFormat().format(worst.count)}`
+                  : d
+                    ? "every check is clean"
+                    : undefined
             }
+            href={worst?.destination}
             icon={<Activity className="h-4 w-4" />}
           />
           <StatCard

@@ -87,7 +87,20 @@ export type MarketplaceDashboard = {
   queues: { key: string; label: string; count: number; destination: string }[];
   activity: { at: string; kind: string; source: string; label: string; detail: string }[];
   score: { score: number | null; factors: { destination?: string }[] } | null;
-  attention: { items: { count: number; destination: string }[] } | null;
+  /**
+   * What the marketplace is being told about, worst first once ranked.
+   * The label and severity were always in the payload; the type simply did
+   * not admit them, which is part of why the screen never showed any of it.
+   */
+  attention: {
+    items: {
+      key?: string;
+      label?: string;
+      severity?: "critical" | "high" | "medium" | "low" | string;
+      count: number;
+      destination: string;
+    }[];
+  } | null;
   health: { check_key: string; affected: number; destination?: string }[];
 };
 

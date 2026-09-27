@@ -48,9 +48,7 @@ export function SubNav({
             key={it}
             onClick={() => onChange(it)}
             className={`relative whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
-              isActive
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+              isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {it}
@@ -64,16 +62,8 @@ export function SubNav({
   );
 }
 
-export function Card({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`glass rounded-2xl p-5 ${className}`}>{children}</div>
-  );
+export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`glass rounded-2xl p-5 ${className}`}>{children}</div>;
 }
 
 export function StatCard({
@@ -82,12 +72,19 @@ export function StatCard({
   delta,
   tone = "default",
   icon,
+  href,
 }: {
   label: string;
   value: string;
   delta?: string;
   tone?: "default" | "success" | "warning" | "premium" | "destructive";
   icon?: ReactNode;
+  /**
+   * Where the records behind this number live. Optional, and a card without
+   * one renders exactly as it always did — a figure a reader cannot open is
+   * still better than a link that goes nowhere.
+   */
+  href?: string;
 }) {
   const toneMap: Record<string, string> = {
     default: "text-accent",
@@ -103,18 +100,28 @@ export function StatCard({
     premium: "bg-premium",
     destructive: "bg-destructive",
   };
+  // An anchor only when there is somewhere to go, so every existing caller
+  // renders the same element it always did.
+  const Shell = (href ? "a" : "div") as "a" | "div";
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border bg-[oklch(0.22_0.04_235/0.35)] p-5 transition-all duration-500 hover:-translate-y-0.5 hover:border-[oklch(0.80_0.13_192/0.45)] hover:bg-[oklch(0.24_0.045_230/0.55)] hover:shadow-[0_18px_40px_-20px_oklch(0_0_0/0.7)]">
+    <Shell
+      {...(href ? { href } : {})}
+      className="group relative block overflow-hidden rounded-2xl border border-border bg-[oklch(0.22_0.04_235/0.35)] p-5 transition-all duration-500 hover:-translate-y-0.5 hover:border-[oklch(0.80_0.13_192/0.45)] hover:bg-[oklch(0.24_0.045_230/0.55)] hover:shadow-[0_18px_40px_-20px_oklch(0_0_0/0.7)]"
+    >
       <span
         className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-        style={{ background: "linear-gradient(135deg, oklch(0.80 0.13 192 / 0.16), transparent 45%)" }}
+        style={{
+          background: "linear-gradient(135deg, oklch(0.80 0.13 192 / 0.16), transparent 45%)",
+        }}
       />
       <div className="relative flex items-start justify-between">
         <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
           {label}
         </div>
         {icon && (
-          <div className={`flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-background/60 ${toneMap[tone]} transition-shadow group-hover:shadow-[0_0_14px_-2px_currentColor]`}>
+          <div
+            className={`flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-background/60 ${toneMap[tone]} transition-shadow group-hover:shadow-[0_0_14px_-2px_currentColor]`}
+          >
             {icon}
           </div>
         )}
@@ -123,12 +130,14 @@ export function StatCard({
         {value}
       </div>
       {delta && (
-        <div className={`relative mt-2 text-[10px] font-medium tracking-wide ${toneMap[tone]}`}>{delta}</div>
+        <div className={`relative mt-2 text-[10px] font-medium tracking-wide ${toneMap[tone]}`}>
+          {delta}
+        </div>
       )}
       <span className="relative mt-3 block h-px w-full overflow-hidden bg-border">
         <span className={`block h-full w-1/3 ${barMap[tone]} opacity-70`} />
       </span>
-    </div>
+    </Shell>
   );
 }
 
@@ -236,14 +245,17 @@ export function PillButton({
       "bg-accent text-accent-foreground hover:brightness-110 shadow-[0_8px_24px_-8px_oklch(0.80_0.13_192/0.6),inset_0_1px_0_oklch(1_0_0/0.25)]",
     ghost:
       "border border-border bg-white/[0.03] text-foreground hover:bg-white/[0.06] hover:border-[oklch(1_0_0/0.14)] ring-rim",
-    premium:
-      "text-primary-foreground hover:brightness-110",
+    premium: "text-primary-foreground hover:brightness-110",
   };
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      style={variant === "premium" ? { background: "var(--gradient-premium)", boxShadow: "var(--shadow-premium)" } : undefined}
+      style={
+        variant === "premium"
+          ? { background: "var(--gradient-premium)", boxShadow: "var(--shadow-premium)" }
+          : undefined
+      }
       className={`rounded-full px-5 py-2 text-[12px] font-bold tracking-tight transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${map[variant]}`}
     >
       {children}
