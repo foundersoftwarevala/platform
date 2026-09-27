@@ -83,6 +83,8 @@ import { SeoSection as LegacySeoEditor } from "./SeoSection";
 import { notBuilt } from "@/lib/ui/not-built";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { authHeaders } from "@/lib/auth/operator-fetch";
+import { useAiGeneration, useGenerateReport, useSiteAudit } from "@/lib/use-seo-actions";
+import { relativeFromNow } from "@/lib/timezone";
 import {
   countWhere,
   figure,
@@ -109,7 +111,24 @@ type DrawerKind =
   | "history"
   | "info";
 
-type DrawerState = { open: boolean; title: string; subtitle?: string; kind: DrawerKind };
+/**
+ * What a drawer will actually do when its confirm button is pressed.
+ *
+ * A drawer opened from an explicit button — Recrawl, Export Report, AI SEO
+ * Assistant — names a real operation, and carries it here. The generic drawer
+ * that openFromClick() raises from any button label in the module carries
+ * none: there is no record behind it to act on, so its confirm button says
+ * that rather than closing as though the work had been done.
+ */
+type DrawerAction = "site-audit" | "seo-report" | "ai-assistant";
+
+type DrawerState = {
+  open: boolean;
+  title: string;
+  subtitle?: string;
+  kind: DrawerKind;
+  action?: DrawerAction;
+};
 
 function classifyAction(label: string): DrawerKind {
   const l = label.toLowerCase();
@@ -138,7 +157,18 @@ const KIND_META: Record<DrawerKind, { icon: any; tone: string; cta: string }> = 
   info: { icon: CircleDot, tone: "default", cta: "OK" },
 };
 
-function DrawerBody({ kind, title }: { kind: DrawerKind; title: string }) {
+function DrawerBody({
+  kind,
+  title,
+  action,
+}: {
+  kind: DrawerKind;
+  title: string;
+  action?: DrawerAction;
+}) {
+  if (action === "ai-assistant") {
+    return <SeoAiAssistant />;
+  }
   if (kind === "preview") {
     return (
       <div className="space-y-3">
@@ -276,35 +306,7 @@ function DrawerBody({ kind, title }: { kind: DrawerKind; title: string }) {
     );
   }
   if (kind === "history") {
-    return (
-      <div className="space-y-2">
-        {[
-          { t: "2m ago", w: "Priya · updated meta title", tone: "accent" },
-          { t: "1h ago", w: "AI Writer · regenerated FAQ", tone: "premium" },
-          { t: "6h ago", w: "Rhea · added schema", tone: "success" },
-          { t: "1d ago", w: "System · scheduled sitemap ping", tone: "default" },
-          { t: "3d ago", w: "Vikram · fixed 12 broken links", tone: "success" },
-        ].map((e, i) => (
-          <div
-            key={i}
-            className="flex items-start gap-3 rounded-lg border border-border bg-background/40 p-3 text-[12px]"
-          >
-            <div className="mt-1 h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_currentColor]" />
-            <div className="flex-1">
-              <div className="font-semibold">{e.w}</div>
-              <div className="text-[10px] text-muted-foreground">{e.t}</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => notBuilt("Restore")}
-              className="text-[10px] font-bold uppercase tracking-wider text-accent"
-            >
-              Restore
-            </button>
-          </div>
-        ))}
-      </div>
-    );
+    return <SeoActivityHistory />;
   }
   // edit / create / info default: full form
   return (
@@ -361,7 +363,212 @@ function DrawerBody({ kind, title }: { kind: DrawerKind; title: string }) {
   );
 }
 
+type SeoActivityRow = {
+  id: string;
+  table_name: string | null;
+  record_id: string | null;
+  action: string | null;
+  actor: string | null;
+  approval_ref: string | null;
+  occurred_at: string | null;
+};
+
+/** INSERT is a gain, DELETE a loss, UPDATE neither. The dot says which. */
+const ACTIVITY_DOT: Record<string, string> = {
+  INSERT: "bg-success",
+  UPDATE: "bg-accent",
+  DELETE: "bg-destructive",
+};
+
+/**
+ * The drawer's History panel.
+ *
+ * It used to show five invented lines — "Priya · updated meta title", "AI
+ * Writer · regenerated FAQ" — each with a Restore button that called
+ * notBuilt(). Meanwhile the SEO backend has been writing every change it makes
+ * to seo_activity_log for months: which table, which record, which action,
+ * which actor, when. Twelve thousand eight hundred rows of it, already exposed
+ * through the manager resource API as `seo_activity`. The panel now reads that.
+ *
+ * There is no Restore button any more because there is nothing to restore to.
+ * The log is an append-only record of what happened, not a set of versions, and
+ * a button that cannot do what it says is worse than no button. What the log
+ * does know — the record it touched, and the approval it ran under — is shown
+ * in its place.
+ */
+function SeoActivityHistory() {
+  const [rows, setRows] = useState<SeoActivityRow[] | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const headers = await authHeaders();
+        const res = await fetch("/api/manager/resource?resource=seo_activity&limit=40", {
+          headers,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = (await res.json()) as { rows?: SeoActivityRow[] };
+        if (alive) setRows(payload.rows ?? []);
+      } catch (problem) {
+        if (alive) setFailed(problem instanceof Error ? problem.message : "unreadable");
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (failed) {
+    return (
+      <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[12px] text-destructive">
+        SEO activity log could not be read ({failed}).
+      </div>
+    );
+  }
+  if (rows === null) {
+    return (
+      <div className="rounded-lg border border-border bg-background/40 p-3 text-[12px] text-muted-foreground">
+        Reading activity log…
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-lg border border-border bg-background/40 p-3 text-[12px] text-muted-foreground">
+        No SEO activity has been recorded yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {rows.map((e) => (
+        <div
+          key={e.id}
+          className="flex items-start gap-3 rounded-lg border border-border bg-background/40 p-3 text-[12px]"
+        >
+          <div
+            className={`mt-1 h-2 w-2 shrink-0 rounded-full shadow-[0_0_8px_currentColor] ${
+              ACTIVITY_DOT[e.action ?? ""] ?? "bg-accent"
+            }`}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-semibold">
+              {e.actor || "system"} · {(e.action || "changed").toLowerCase()} ·{" "}
+              {e.table_name || "unknown table"}
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              {relativeFromNow(e.occurred_at) || "—"}
+              {e.record_id ? ` · record ${String(e.record_id).slice(0, 8)}` : ""}
+              {e.approval_ref ? ` · approval ${e.approval_ref}` : ""}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The AI SEO Assistant.
+ *
+ * The button had opened the generic "create" drawer: a form of five hardcoded
+ * fields bound to nothing, over a confirm button that closed the drawer. The
+ * generator behind it — generateWithAi, which calls the AI API Manager through
+ * generateSeo — was already written and called from nowhere. This panel is the
+ * prompt for it, and shows what it returns.
+ */
+function SeoAiAssistant() {
+  const [prompt, setPrompt] = useState("");
+  const [persist, setPersist] = useState(true);
+  const generation = useAiGeneration();
+  const result = generation.data?.suggestion;
+
+  return (
+    <div className="space-y-3">
+      <div className="text-[12px] text-muted-foreground">
+        Describe the page or the topic. The assistant returns a title, meta description, H1,
+        keywords and social copy from the live AI provider.
+      </div>
+      <textarea
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        rows={4}
+        placeholder="e.g. Restaurant POS software for franchises in the UAE"
+        className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent"
+      />
+      <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={persist}
+          onChange={(e) => setPersist(e.target.checked)}
+          className="h-3.5 w-3.5 accent-[oklch(0.80_0.13_192)]"
+        />
+        Keep the result in SEO suggestions
+      </label>
+      <button
+        type="button"
+        disabled={!prompt.trim() || generation.isPending}
+        onClick={() => generation.mutate({ task: "meta", prompt: prompt.trim(), persist })}
+        className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-primary to-accent px-5 py-2 text-[11px] font-bold uppercase tracking-wider text-primary-foreground shadow-[var(--shadow-glow)] disabled:opacity-50"
+      >
+        <Sparkles className="h-3.5 w-3.5" />
+        {generation.isPending ? "Generating…" : "Generate"}
+      </button>
+
+      {generation.isError ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[12px] text-destructive">
+          {generation.error instanceof Error ? generation.error.message : "Generation failed"}
+        </div>
+      ) : null}
+
+      {result ? (
+        <div className="space-y-2">
+          {result.source === "template" ? (
+            <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-[12px] text-warning">
+              Written by the built-in template, not the AI provider
+              {result.reason ? ` — ${result.reason}` : ""}. It is a starting point, not a
+              generation.
+            </div>
+          ) : null}
+          {[
+            ["Meta Title", result.title],
+            ["Meta Description", result.description],
+            ["H1", result.h1],
+            ["Keywords", (result.keywords ?? []).join(", ")],
+            ["OG Title", result.ogTitle],
+            ["Canonical", result.canonical],
+          ].map(([label, value]) => (
+            <div
+              key={String(label)}
+              className="rounded-lg border border-border bg-background/40 p-3"
+            >
+              <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                {label}
+              </div>
+              <div className="mt-1 break-words text-[12px]">{value || "—"}</div>
+            </div>
+          ))}
+          <div className="text-[10px] text-muted-foreground">
+            {generation.data?.persisted
+              ? "Saved to SEO suggestions."
+              : generation.data?.persistError
+                ? `Not saved — ${generation.data.persistError}`
+                : "Not saved — tick the box above to keep it."}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => void }) {
+  const siteAudit = useSiteAudit();
+  const seoReport = useGenerateReport();
+  const running = siteAudit.isPending || seoReport.isPending;
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -372,6 +579,32 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
 
   const meta = KIND_META[state.kind];
   const Icon = meta.icon;
+
+  /**
+   * The confirm button used to call onClose() for every drawer, whatever it
+   * said on it — "Save changes", "Run now", "Confirm delete" — so every action
+   * in the SEO module looked like it had succeeded. It now runs the operation
+   * the drawer was opened for, and where no operation is bound it says so.
+   */
+  const confirm = () => {
+    switch (state.action) {
+      case "site-audit":
+        siteAudit.mutate(undefined, { onSuccess: onClose });
+        return;
+      case "seo-report":
+        seoReport.mutate(undefined, { onSuccess: onClose });
+        return;
+      case "ai-assistant":
+        // The panel owns the prompt and runs the generation itself.
+        onClose();
+        return;
+      default:
+        notBuilt(
+          meta.cta,
+          "This drawer was opened from a button label, so there is no record behind it to act on.",
+        );
+    }
+  };
 
   return (
     <div
@@ -405,7 +638,7 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
           </button>
         </header>
         <div className="flex-1 overflow-y-auto p-4">
-          <DrawerBody kind={state.kind} title={state.title} />
+          <DrawerBody kind={state.kind} title={state.title} action={state.action} />
         </div>
         <footer className="flex items-center justify-between gap-2 border-t border-border bg-background/40 p-3">
           <button
@@ -425,15 +658,17 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
               </button>
             ) : null}
             <button
-              onClick={onClose}
-              className={`inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-[11px] font-bold uppercase tracking-wider text-primary-foreground shadow-[var(--shadow-glow)] ${
+              type="button"
+              onClick={confirm}
+              disabled={running}
+              className={`inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-[11px] font-bold uppercase tracking-wider text-primary-foreground shadow-[var(--shadow-glow)] disabled:opacity-60 ${
                 state.kind === "delete"
                   ? "bg-destructive"
                   : "bg-gradient-to-r from-primary to-accent"
               }`}
             >
               <Save className="h-3.5 w-3.5" />
-              {meta.cta}
+              {running ? "Working…" : meta.cta}
             </button>
           </div>
         </footer>
@@ -972,7 +1207,14 @@ export function SeoCenter() {
           actions={
             <>
               <button
-                onClick={() => setDrawer({ open: true, title: "Recrawl entire site", kind: "run" })}
+                onClick={() =>
+                  setDrawer({
+                    open: true,
+                    title: "Recrawl entire site",
+                    kind: "run",
+                    action: "site-audit",
+                  })
+                }
                 className="rounded-full border border-border bg-white/[0.03] px-5 py-2 text-[12px] font-bold tracking-tight text-foreground transition-all hover:border-accent/40 hover:bg-white/[0.06] hover:text-accent"
               >
                 <span className="inline-flex items-center gap-1.5">
@@ -981,7 +1223,12 @@ export function SeoCenter() {
               </button>
               <button
                 onClick={() =>
-                  setDrawer({ open: true, title: "Export Full SEO Report", kind: "download" })
+                  setDrawer({
+                    open: true,
+                    title: "Export Full SEO Report",
+                    kind: "download",
+                    action: "seo-report",
+                  })
                 }
                 className="rounded-full border border-border bg-white/[0.03] px-5 py-2 text-[12px] font-bold tracking-tight text-foreground transition-all hover:border-accent/40 hover:bg-white/[0.06] hover:text-accent"
               >
@@ -990,7 +1237,14 @@ export function SeoCenter() {
                 </span>
               </button>
               <button
-                onClick={() => setDrawer({ open: true, title: "AI SEO Assistant", kind: "create" })}
+                onClick={() =>
+                  setDrawer({
+                    open: true,
+                    title: "AI SEO Assistant",
+                    kind: "create",
+                    action: "ai-assistant",
+                  })
+                }
                 className="rounded-full bg-accent px-5 py-2 text-[12px] font-bold tracking-tight text-accent-foreground shadow-[0_8px_24px_-8px_oklch(0.80_0.13_192/0.6),inset_0_1px_0_oklch(1_0_0/0.25)] transition-all hover:brightness-110"
               >
                 <span className="inline-flex items-center gap-1.5">

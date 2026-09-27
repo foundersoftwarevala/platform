@@ -74,6 +74,16 @@ import {
   moderateProduct,
   type ModerationView,
 } from "@/lib/marketplace-manager/moderation.functions";
+import {
+  getPublishReadiness,
+  getSubmissions,
+  refreshPublishReadiness,
+  setApprovalRule,
+  type ApprovalRule,
+  type PublishReadiness,
+  type SubmissionQueue,
+} from "@/lib/marketplace-manager/approvals.functions";
+import { notBuilt } from "@/lib/ui/not-built";
 
 /* =====================================================================
    Shared micro-primitives (governance-scoped)
@@ -1601,19 +1611,83 @@ export function SecurityScanSectionStatic() {
    QUALITY CHECK (PRE-PUBLISH)
    ===================================================================== */
 
+/**
+ * Quality Gate — the publish checks, counted over the real catalogue.
+ *
+ * This screen used to show nine invented checks against "Vala ERP Pro", a
+ * product that is not in the catalogue, above the counts 146 ready, 24 missing,
+ * 6 blocked and an 82% auto-fix rate. None of those numbers came from anywhere,
+ * and the Re-run, Publish and Auto-fix buttons had no handler at all.
+ *
+ * The gate it now reports is the same one the Approval Workflow enforces —
+ * mm_product_checks, which is the single definition of ready, so this screen
+ * and that gate cannot drift apart. It reads a stored snapshot rather than
+ * measuring on demand: running the gate over the whole catalogue takes about a
+ * second at 7,365 products, and that cost belongs behind the Re-run button, not
+ * in every page load.
+ *
+ * The policy card shows the approval rules that actually exist in
+ * author_approval_rules, and its switches write to them. The two rules it used
+ * to show as togglable — blocking a publish on a failed mandatory check, and
+ * warning on an advisory one — are not settings: the database refuses the
+ * first outright, so they are stated as behaviour rather than offered as
+ * choices nobody can revoke.
+ */
 export function QualityCheckSection() {
-  const checks = [
-    { k: "Thumbnail exists", ok: true },
-    { k: "Demo URL configured", ok: true },
-    { k: "Description ≥ 400 chars", ok: true },
-    { k: "SEO complete (title/desc/keywords)", ok: true },
-    { k: "Screenshots ≥ 3", ok: true },
-    { k: "Latest version published", ok: false },
-    { k: "Documentation uploaded", ok: false },
-    { k: "Category assigned", ok: true },
-    { k: "Tags ≥ 3", ok: true },
-  ];
-  const passing = checks.filter((c) => c.ok).length;
+  const qc = useQueryClient();
+
+  const snapshot = useQuery<PublishReadiness>({
+    queryKey: ["mm", "publish-readiness"],
+    queryFn: async () => (await getPublishReadiness()) as PublishReadiness,
+    staleTime: 60_000,
+  });
+
+  const queue = useQuery<SubmissionQueue>({
+    queryKey: ["mm", "approval-rules"],
+    queryFn: async () => (await getSubmissions({ data: { limit: 1 } })) as SubmissionQueue,
+    staleTime: 60_000,
+  });
+
+  const rerun = useMutation({
+    mutationFn: async (): Promise<PublishReadiness> =>
+      (await refreshPublishReadiness()) as PublishReadiness,
+    onSuccess: (r) => {
+      if (!r.ok) {
+        toast.error(
+          r.reason === "not_permitted"
+            ? "Operator access is required to run the gate."
+            : (r.reason ?? "The gate could not be run."),
+        );
+        return;
+      }
+      toast.success(
+        `Gate run over ${(r.considered ?? 0).toLocaleString("en-IN")} product(s) in ${r.duration_ms} ms`,
+      );
+      qc.setQueryData(["mm", "publish-readiness"], r);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const ruleToggle = useMutation({
+    mutationFn: async (v: { key: string; enabled: boolean }) =>
+      setApprovalRule({ data: { key: v.key, enabled: v.enabled } }),
+    onSuccess: (r: { ok: boolean; reason?: string }) => {
+      if (!r.ok) {
+        toast.error(r.reason ?? "The rule could not be changed.");
+        return;
+      }
+      toast.success("Rule updated");
+      void qc.invalidateQueries({ queryKey: ["mm", "approval-rules"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const data = snapshot.data;
+  const measured = data?.ok === true;
+  const checks = data?.by_check ?? [];
+  const rules: ApprovalRule[] = queue.data?.rules ?? [];
+  const count = (v: number | undefined) => (v === undefined ? "—" : v.toLocaleString("en-IN"));
+
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
@@ -1623,59 +1697,157 @@ export function QualityCheckSection() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Ready to Publish" value="146" tone="success" />
-        <StatCard label="Missing Items" value="24" tone="warning" />
-        <StatCard label="Blocked" value="6" tone="destructive" />
-        <StatCard label="Auto Fix Rate" value="82%" tone="premium" />
+        <StatCard label="Ready to Publish" value={count(data?.ready)} tone="success" />
+        <StatCard label="Advisory Items Only" value={count(data?.advisory_only)} tone="warning" />
+        <StatCard label="Blocked" value={count(data?.blocked)} tone="destructive" />
+        <StatCard label="Live but Blocked" value={count(data?.published_blocked)} tone="premium" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-bold">Vala ERP Pro — Checklist</div>
-            <Tone tone={passing === checks.length ? "success" : "warning"}>
-              {passing}/{checks.length} passed
-            </Tone>
+            <div className="text-sm font-bold">
+              Catalogue checklist
+              {measured ? ` — ${count(data?.considered)} products` : ""}
+            </div>
+            {measured ? (
+              <Tone tone={(data?.blocked ?? 0) > 0 ? "danger" : "success"}>
+                {count(data?.blocked)} blocked
+              </Tone>
+            ) : null}
           </div>
-          <div className="space-y-1.5">
-            {checks.map((c) => (
-              <div
-                key={c.k}
-                className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2"
-              >
-                <div className="flex items-center gap-2 text-[12px] font-semibold">
-                  {c.ok ? (
-                    <CheckCircle2 className="h-4 w-4 text-success" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-destructive" />
-                  )}
-                  {c.k}
-                </div>
-                {!c.ok && <IconBtn icon={Wand2} label="Auto-fix" tone="accent" />}
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 flex items-center gap-2">
-            <PillButton variant="ghost">
+
+          {snapshot.isError ? (
+            <LoadFailure
+              error={snapshot.error}
+              what="the publish-readiness snapshot"
+              onRetry={() => void snapshot.refetch()}
+            />
+          ) : snapshot.isLoading ? (
+            <div className="px-3 py-6 text-[12px] text-muted-foreground">Reading the gate…</div>
+          ) : !measured ? (
+            <EmptyHint
+              text={
+                data?.reason === "not_permitted"
+                  ? "Operator access is required to see the gate. Sign in with an operator account."
+                  : "The gate has not been run yet. Press Re-run to check every product in the catalogue against it."
+              }
+            />
+          ) : (
+            <div className="space-y-1.5">
+              {checks.map((c) => {
+                const clean = c.failed === 0;
+                const blocking = c.blocking_failures > 0;
+                return (
+                  <div
+                    key={c.key}
+                    className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2 text-[12px] font-semibold">
+                      {clean ? (
+                        <CheckCircle2 className="h-4 w-4 text-success" />
+                      ) : (
+                        <XCircle
+                          className={`h-4 w-4 ${blocking ? "text-destructive" : "text-warning"}`}
+                        />
+                      )}
+                      {c.label}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {clean
+                        ? `all ${count(c.checked)} pass`
+                        : blocking
+                          ? `${count(c.failed)} failing · blocks publish`
+                          : `${count(c.failed)} failing · advisory`}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <PillButton variant="ghost" onClick={() => rerun.mutate()} disabled={rerun.isPending}>
               <span className="inline-flex items-center gap-1.5">
-                <RefreshCw className="h-3.5 w-3.5" /> Re-run
+                <RefreshCw className={`h-3.5 w-3.5 ${rerun.isPending ? "animate-spin" : ""}`} />
+                {rerun.isPending ? "Running…" : "Re-run"}
               </span>
             </PillButton>
-            <PillButton variant="primary">
+            <PillButton
+              variant="primary"
+              onClick={() =>
+                notBuilt(
+                  "Publish",
+                  "Publishing is decided per product in Author Approval, where a reviewer answers for it. This screen measures the gate across the catalogue; it does not publish.",
+                )
+              }
+            >
               <span className="inline-flex items-center gap-1.5">
                 <Rocket className="h-3.5 w-3.5" /> Publish
               </span>
             </PillButton>
+            {measured && data?.computed_at ? (
+              <span className="text-[11px] text-muted-foreground">
+                Measured {new Date(data.computed_at).toLocaleString()} in {data.duration_ms} ms
+              </span>
+            ) : null}
           </div>
         </Card>
+
         <Card>
           <div className="mb-3 text-sm font-bold">Gate Policy</div>
-          <div className="space-y-2">
-            <Toggle on label="Block publish when any mandatory item fails" />
-            <Toggle on label="Warn on optional item failure" />
-            <Toggle on label="Auto-fix trivial issues (slug/tags)" />
-            <Toggle label="Manager override (dual approval)" />
+
+          <div className="mb-3 space-y-1.5 rounded-lg border border-border bg-background/40 p-3 text-[11px] text-muted-foreground">
+            <div className="flex items-start gap-2">
+              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+              <span>
+                A publish is refused while any mandatory check fails. The database enforces it, so
+                it is not a setting that can be switched off here.
+              </span>
+            </div>
+            <div className="flex items-start gap-2">
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+              <span>
+                Advisory failures are always reported and never block. A reviewer with override may
+                still approve past a mandatory failure, and that override is recorded.
+              </span>
+            </div>
           </div>
+
+          {queue.isError ? (
+            <LoadFailure
+              error={queue.error}
+              what="the approval rules"
+              onRetry={() => void queue.refetch()}
+            />
+          ) : rules.length === 0 ? (
+            <EmptyHint text="No approval rules are configured. Rules live in author_approval_rules and are shared with the Author Approval workflow." />
+          ) : (
+            <div className="space-y-2">
+              {rules.map((r) => (
+                <label
+                  key={r.key}
+                  className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border bg-background/40 px-3 py-2"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-[12px] font-semibold">{r.label}</span>
+                    {r.description ? (
+                      <span className="block text-[10px] text-muted-foreground">
+                        {r.description}
+                      </span>
+                    ) : null}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={r.enabled}
+                    disabled={ruleToggle.isPending}
+                    onChange={(e) => ruleToggle.mutate({ key: r.key, enabled: e.target.checked })}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[oklch(0.80_0.13_192)]"
+                  />
+                </label>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
     </div>

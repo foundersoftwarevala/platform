@@ -18,13 +18,30 @@ import {
 
 export type SeoValue = string | number | boolean | null | string[];
 export type SeoTableName =
-  | "seo_pages" | "seo_keywords" | "seo_meta_rules" | "seo_indexing_records"
-  | "seo_automations" | "seo_issues" | "seo_reports" | "seo_audits"
-  | "seo_backlinks" | "seo_competitors" | "seo_ai_suggestions" | "seo_content_items"
-  | "seo_technical_checks" | "seo_alerts" | "seo_leads" | "seo_ad_campaigns"
-  | "seo_email_campaigns" | "seo_social_posts" | "seo_social_comments"
-  | "seo_inbox_messages" | "seo_automation_flows" | "seo_reels"
-  | "seo_integrations" | "seo_product_entries";
+  | "seo_pages"
+  | "seo_keywords"
+  | "seo_meta_rules"
+  | "seo_indexing_records"
+  | "seo_automations"
+  | "seo_issues"
+  | "seo_reports"
+  | "seo_audits"
+  | "seo_backlinks"
+  | "seo_competitors"
+  | "seo_ai_suggestions"
+  | "seo_content_items"
+  | "seo_technical_checks"
+  | "seo_alerts"
+  | "seo_leads"
+  | "seo_ad_campaigns"
+  | "seo_email_campaigns"
+  | "seo_social_posts"
+  | "seo_social_comments"
+  | "seo_inbox_messages"
+  | "seo_automation_flows"
+  | "seo_reels"
+  | "seo_integrations"
+  | "seo_product_entries";
 
 export type InsertInput = { table: SeoTableName; values: Record<string, SeoValue> };
 export type UpdateInput = InsertInput & { id: string };
@@ -91,7 +108,10 @@ export function useRunAutomation() {
   });
 }
 
-function useSeoOperation<T>(serverFn: (options?: { data?: never }) => Promise<T>, success: (result: T) => string) {
+function useSeoOperation<T>(
+  serverFn: (options?: { data?: never }) => Promise<T>,
+  success: (result: T) => string,
+) {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: () => serverFn(),
@@ -105,7 +125,9 @@ function useSeoOperation<T>(serverFn: (options?: { data?: never }) => Promise<T>
 
 export function useSiteAudit() {
   const run = useServerFn(runSiteAudit);
-  return useSeoOperation(run, (result) => `Audit complete · score ${result.score}`);
+  // The audit's own message carries the page and issue counts it found, which
+  // is the part an operator acts on; the score alone said nothing about why.
+  return useSeoOperation(run, (result) => `${result.message} · score ${result.score}`);
 }
 
 export function useTechnicalChecks() {
@@ -115,7 +137,7 @@ export function useTechnicalChecks() {
 
 export function useGenerateReport() {
   const run = useServerFn(generateSeoReport);
-  return useSeoOperation(run, () => "SEO report generated from live records");
+  return useSeoOperation(run, (result) => result.message);
 }
 
 export function useRecrawlUrl() {

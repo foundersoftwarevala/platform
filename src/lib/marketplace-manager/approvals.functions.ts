@@ -22,8 +22,7 @@ async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise
 
   const { createClient } = await import("@supabase/supabase-js");
   const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+  const key = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
   const client = createClient(base, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
@@ -34,8 +33,14 @@ async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise
 }
 
 export type SubmissionStatus =
-  | "draft" | "pending_review" | "verifying" | "changes_requested"
-  | "approved" | "rejected" | "suspended" | "archived";
+  | "draft"
+  | "pending_review"
+  | "verifying"
+  | "changes_requested"
+  | "approved"
+  | "rejected"
+  | "suspended"
+  | "archived";
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 
@@ -91,8 +96,11 @@ export type SubmissionQueue = {
   reason?: string;
   counts?: Record<SubmissionStatus, number>;
   sla?: {
-    response_hours: number; escalate_hours: number; stale_draft_days: number;
-    breached: number; due_soon: number;
+    response_hours: number;
+    escalate_hours: number;
+    stale_draft_days: number;
+    breached: number;
+    due_soon: number;
   };
   rules?: ApprovalRule[];
   trusted_authors?: TrustedAuthor[];
@@ -101,20 +109,28 @@ export type SubmissionQueue = {
 };
 
 const status = z.enum([
-  "draft", "pending_review", "verifying", "changes_requested",
-  "approved", "rejected", "suspended", "archived",
+  "draft",
+  "pending_review",
+  "verifying",
+  "changes_requested",
+  "approved",
+  "rejected",
+  "suspended",
+  "archived",
 ]);
 
 export const getSubmissions = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) =>
-    z.object({
-      status: status.optional(),
-      search: z.string().max(120).optional(),
-      risk: z.enum(["low", "medium", "high", "critical"]).optional(),
-      type: z.enum(["new", "update"]).optional(),
-      sort: z.enum(["newest", "oldest", "risk", "sla"]).optional(),
-      limit: z.number().int().min(1).max(500).optional(),
-    }).parse(i ?? {}),
+    z
+      .object({
+        status: status.optional(),
+        search: z.string().max(120).optional(),
+        risk: z.enum(["low", "medium", "high", "critical"]).optional(),
+        type: z.enum(["new", "update"]).optional(),
+        sort: z.enum(["newest", "oldest", "risk", "sla"]).optional(),
+        limit: z.number().int().min(1).max(500).optional(),
+      })
+      .parse(i ?? {}),
   )
   .handler(async ({ data }): Promise<SubmissionQueue> =>
     callAsUser("mm_submissions", { p_query: data }),
@@ -129,14 +145,18 @@ export const getSubmissionDetail = createServerFn({ method: "GET" })
 
 export const createSubmission = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      product_id: z.string().uuid(),
-      type: z.enum(["new", "update"]).optional(),
-    }).parse(i),
+    z
+      .object({
+        product_id: z.string().uuid(),
+        type: z.enum(["new", "update"]).optional(),
+      })
+      .parse(i),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; reason?: string; message?: string }> =>
     callAsUser("mm_submission_create", {
-      p_product: data.product_id, p_type: data.type ?? "new", p_version: null,
+      p_product: data.product_id,
+      p_type: data.type ?? "new",
+      p_version: null,
     }),
   );
 
@@ -148,68 +168,109 @@ export const createSubmission = createServerFn({ method: "POST" })
  */
 export const transitionSubmission = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      id: z.string().uuid(),
-      status,
-      reason: z.string().max(1000).optional(),
-      comment: z.string().max(2000).optional(),
-      lock: z.number().int().optional(),
-      override: z.boolean().optional(),
-    }).parse(i),
+    z
+      .object({
+        id: z.string().uuid(),
+        status,
+        reason: z.string().max(1000).optional(),
+        comment: z.string().max(2000).optional(),
+        lock: z.number().int().optional(),
+        override: z.boolean().optional(),
+      })
+      .parse(i),
   )
-  .handler(async ({ data }): Promise<{
-    ok: boolean; reason?: string; message?: string;
-    submission?: SubmissionRow; published?: boolean;
-    checks?: unknown[]; current_status?: string; current_lock?: number;
-  }> => callAsUser("mm_submission_transition", {
-    p_id: data.id, p_to: data.status,
-    p_reason: data.reason ?? null, p_lock: data.lock ?? null,
-    p_comment: data.comment ?? null, p_override: data.override ?? false,
-  }));
+  .handler(
+    async ({
+      data,
+    }): Promise<{
+      ok: boolean;
+      reason?: string;
+      message?: string;
+      submission?: SubmissionRow;
+      published?: boolean;
+      checks?: unknown[];
+      current_status?: string;
+      current_lock?: number;
+    }> =>
+      callAsUser("mm_submission_transition", {
+        p_id: data.id,
+        p_to: data.status,
+        p_reason: data.reason ?? null,
+        p_lock: data.lock ?? null,
+        p_comment: data.comment ?? null,
+        p_override: data.override ?? false,
+      }),
+  );
 
 /** Bulk, with each submission validated on its own. Nothing is waved through. */
 export const bulkTransition = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      ids: z.array(z.string().uuid()).min(1).max(100),
-      status,
-      reason: z.string().max(1000).optional(),
-    }).parse(i),
+    z
+      .object({
+        ids: z.array(z.string().uuid()).min(1).max(100),
+        status,
+        reason: z.string().max(1000).optional(),
+      })
+      .parse(i),
   )
-  .handler(async ({ data }): Promise<{
-    ok: boolean; reason?: string; applied?: number; skipped?: number;
-    results?: { id: string; ok: boolean; reason?: string; message?: string }[];
-  }> => callAsUser("mm_submissions_bulk", {
-    p_ids: data.ids, p_to: data.status, p_reason: data.reason ?? null,
-  }));
+  .handler(
+    async ({
+      data,
+    }): Promise<{
+      ok: boolean;
+      reason?: string;
+      applied?: number;
+      skipped?: number;
+      results?: { id: string; ok: boolean; reason?: string; message?: string }[];
+    }> =>
+      callAsUser("mm_submissions_bulk", {
+        p_ids: data.ids,
+        p_to: data.status,
+        p_reason: data.reason ?? null,
+      }),
+  );
 
 export const addEvidence = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      submission_id: z.string().uuid(),
-      kind: z.enum([
-        "screenshot", "document", "package", "url", "verification", "legal", "security", "note",
-      ]),
-      label: z.string().min(1).max(200),
-      url: z.string().max(2000).optional(),
-      detail: z.string().max(2000).optional(),
-    }).parse(i),
+    z
+      .object({
+        submission_id: z.string().uuid(),
+        kind: z.enum([
+          "screenshot",
+          "document",
+          "package",
+          "url",
+          "verification",
+          "legal",
+          "security",
+          "note",
+        ]),
+        label: z.string().min(1).max(200),
+        url: z.string().max(2000).optional(),
+        detail: z.string().max(2000).optional(),
+      })
+      .parse(i),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; reason?: string; message?: string }> =>
     callAsUser("mm_submission_evidence_add", {
-      p_submission: data.submission_id, p_kind: data.kind, p_label: data.label,
-      p_url: data.url ?? null, p_detail: data.detail ?? null,
+      p_submission: data.submission_id,
+      p_kind: data.kind,
+      p_label: data.label,
+      p_url: data.url ?? null,
+      p_detail: data.detail ?? null,
     }),
   );
 
 export const setApprovalRule = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      key: z.string().max(60),
-      enabled: z.boolean().optional(),
-      config: z.record(z.string(), z.unknown()).optional(),
-      reason: z.string().max(300).optional(),
-    }).parse(i),
+    z
+      .object({
+        key: z.string().max(60),
+        enabled: z.boolean().optional(),
+        config: z.record(z.string(), z.unknown()).optional(),
+        reason: z.string().max(300).optional(),
+      })
+      .parse(i),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; reason?: string }> => {
     const { key, ...patch } = data;
@@ -218,11 +279,13 @@ export const setApprovalRule = createServerFn({ method: "POST" })
 
 export const setApprovalSla = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      response_hours: z.number().int().min(1).max(720).optional(),
-      escalate_hours: z.number().int().min(1).max(2160).optional(),
-      stale_draft_days: z.number().int().min(1).max(365).optional(),
-    }).parse(i),
+    z
+      .object({
+        response_hours: z.number().int().min(1).max(720).optional(),
+        escalate_hours: z.number().int().min(1).max(2160).optional(),
+        stale_draft_days: z.number().int().min(1).max(365).optional(),
+      })
+      .parse(i),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; reason?: string }> =>
     callAsUser("mm_approval_sla_set", { p_patch: data }),
@@ -237,11 +300,13 @@ export const setApprovalSla = createServerFn({ method: "POST" })
  */
 export const logApprovalExport = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      rows: z.number().int().min(0).max(100000),
-      status: z.string().max(40).optional(),
-      search: z.string().max(120).optional(),
-    }).parse(i),
+    z
+      .object({
+        rows: z.number().int().min(0).max(100000),
+        status: z.string().max(40).optional(),
+        search: z.string().max(120).optional(),
+      })
+      .parse(i),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; id?: string }> => {
     const id = await callAsUser<string>("mm_audit", {
@@ -258,7 +323,57 @@ export const logApprovalExport = createServerFn({ method: "POST" })
 /** Find and escalate SLA breaches, from the submissions' own timestamps. */
 export const runSlaSweep = createServerFn({ method: "POST" }).handler(
   async (): Promise<{
-    ok: boolean; reason?: string; due_soon?: number; escalated?: number;
-    stale_drafts?: number; note?: string;
+    ok: boolean;
+    reason?: string;
+    due_soon?: number;
+    escalated?: number;
+    stale_drafts?: number;
+    note?: string;
   }> => callAsUser("mm_approval_sla_run", {}),
+);
+
+/**
+ * The publish gate, counted across the whole catalogue.
+ *
+ * The same checks the submission gate applies — mm_product_checks is the one
+ * definition — run over every product rather than over one submission. It
+ * lives in this file because the gate is this module's business: a second file
+ * would be a second place for the word "ready" to mean something.
+ *
+ * It reads a snapshot rather than measuring on demand. Running the gate over
+ * 7,365 products takes a second or so today, and the platform is built for a
+ * catalogue many times that; that cost belongs in a job, not in a page load.
+ */
+export type PublishCheckCount = {
+  key: string;
+  label: string;
+  checked: number;
+  failed: number;
+  /** Failures that actually stop a publish, as opposed to advisory ones. */
+  blocking_failures: number;
+};
+
+export type PublishReadiness = {
+  ok: boolean;
+  /** `never_measured` or `not_permitted` when ok is false. */
+  reason?: string;
+  id?: string;
+  computed_at?: string;
+  duration_ms?: number;
+  considered?: number;
+  ready?: number;
+  advisory_only?: number;
+  blocked?: number;
+  published_blocked?: number;
+  by_check?: PublishCheckCount[];
+};
+
+/** The latest snapshot. Cheap — it does not re-run the gate. */
+export const getPublishReadiness = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PublishReadiness> => callAsUser("mm_publish_readiness", {}),
+);
+
+/** Re-run the gate over every product and store a new snapshot. Seconds, not milliseconds. */
+export const refreshPublishReadiness = createServerFn({ method: "POST" }).handler(
+  async (): Promise<PublishReadiness> => callAsUser("mm_publish_readiness_refresh", {}),
 );

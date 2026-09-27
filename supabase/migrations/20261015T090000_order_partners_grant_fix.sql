@@ -1,0 +1,26 @@
+-- The Orders Center's partner-credit block could not reach its own function.
+--
+-- 20261011T090000_order_partner_chain.sql created mm_order_partners and then
+-- granted EXECUTE to service_role alone. That looked like the careful choice
+-- and was the wrong one: the screen calls it through PostgREST as the
+-- signed-in operator, not with the service key, so every request came back
+--
+--   401 {"code":"42501","message":"permission denied for function mm_order_partners"}
+--
+-- and the "Partner credit" block in the order drawer has been failing since the
+-- day it was written. Worse, a function the authenticator role cannot execute
+-- is not in PostgREST's schema cache at all, so a caller can also get a 404
+-- that reads like the function does not exist.
+--
+-- Every other mm_ function on this platform is granted to PUBLIC and guards
+-- itself with mm_is_operator(). mm_order_partners already has that guard — it
+-- returns ok:false with reason not_permitted — so the grant is simply brought
+-- in line with the rest. Nothing about who may see the data changes: the
+-- function still decides that, and it decides it the same way it always did.
+--
+-- mm_recommendation_readiness has the same narrow grant and is deliberately
+-- left alone: nothing in the application calls it directly. It is reached only
+-- from inside mm_recommendation_engines, which is SECURITY DEFINER, so the
+-- inner call is already permitted and widening it would gain nothing.
+
+GRANT EXECUTE ON FUNCTION public.mm_order_partners(uuid) TO PUBLIC;

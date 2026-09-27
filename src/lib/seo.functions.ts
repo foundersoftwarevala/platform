@@ -14,8 +14,14 @@ const aiSchema = z.object({
 
 const automationSchema = z.object({ id: z.string().min(1) });
 const recrawlSchema = z.object({ id: z.string().min(1) });
-const searchConsoleSchema = z.object({ siteUrl: z.string().min(1), days: z.number().int().min(1).max(3650).default(30) });
-const semrushSchema = z.object({ domain: z.string().min(1), database: z.string().min(1).default("us") });
+const searchConsoleSchema = z.object({
+  siteUrl: z.string().min(1),
+  days: z.number().int().min(1).max(3650).default(30),
+});
+const semrushSchema = z.object({
+  domain: z.string().min(1),
+  database: z.string().min(1).default("us"),
+});
 
 export const generateWithAi = createServerFn({ method: "POST" })
   .inputValidator((value) => aiSchema.parse(value ?? {}))
@@ -43,19 +49,36 @@ export const generateWithAi = createServerFn({ method: "POST" })
       schema: generated.schema,
       context: data.context ?? null,
       generatedAt: new Date().toISOString(),
+      // Whether a model wrote this or the built-in template did, and why. It
+      // travels with the suggestion so the screen showing it, and the row
+      // stored below, both say which they are.
+      source: generated.source,
+      reason: generated.reason,
     };
 
+    // This insert could never have succeeded. `seo_ai_suggestions` requires a
+    // `title` and has no `task` column, so every write was rejected, swallowed
+    // by the empty catch below it, and then reported back as `persisted: true`.
+    // It now writes the columns the table actually has, and says whether the
+    // row landed instead of assuming it did.
+    let persisted = false;
+    let persistError: string | null = null;
     if (data.persist) {
       try {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        await supabaseAdmin.from("seo_ai_suggestions").insert({
+        const { error } = await supabaseAdmin.from("seo_ai_suggestions").insert({
+          title: suggestion.title || data.prompt.slice(0, 120),
           suggestion: JSON.stringify(suggestion),
-          task: data.task,
-          status: "ready",
-          created_at: new Date().toISOString(),
+          target_type: "page",
+          target_ref: data.context ?? null,
+          status: "pending",
         });
-      } catch {
-        // Ignore persistence failures so the AI generator remains useful even when the DB is unavailable.
+        if (error) persistError = error.message;
+        else persisted = true;
+      } catch (problem) {
+        // A generation that cannot be stored is still a useful generation, so
+        // this does not fail the call — but the reason travels back with it.
+        persistError = problem instanceof Error ? problem.message : "could not be stored";
       }
     }
 
@@ -63,7 +86,8 @@ export const generateWithAi = createServerFn({ method: "POST" })
       ok: true,
       task: data.task,
       suggestion,
-      persisted: Boolean(data.persist),
+      persisted,
+      persistError,
       generatedAt: suggestion.generatedAt,
     };
   });
@@ -102,63 +126,101 @@ export const runAutomation = createServerFn({ method: "POST" })
     };
   });
 
-export const runSiteAudit = createServerFn({ method: "POST" })
-  .handler(async () => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const startedAt = new Date().toISOString();
-    const score = 94;
+/**
+ * Run the catalogue audit and record it.
+ *
+ * This used to write `score: 94` with `pages_crawled: 0`, `issues_found: 0`
+ * and a breakdown of seven invented percentages — a fabricated grade, into the
+ * same `seo_audits` table that the real audit at
+ * `POST /api/internal/seo-audit` writes to, indistinguishable from it once
+ * stored. It now runs that same real audit: the counts are counts of rows in
+ * the live catalogue, and the score is those counts weighted by severity.
+ */
+export const runSiteAudit = createServerFn({ method: "POST" }).handler(async () => {
+  const { runCatalogueAudit } = await import("@/lib/seo/catalogue-audit.server");
+  const startedAt = new Date().toISOString();
+  const result = await runCatalogueAudit();
 
-    const { error } = await supabaseAdmin.from("seo_audits").insert({
-      name: `Live audit · ${new Date().toLocaleDateString("en-US")}`,
-      status: "completed",
-      score,
-      pages_crawled: 0,
-      issues_found: 0,
-      started_at: startedAt,
-      breakdown: { on_page: 94, metadata: 95, headings: 96, canonicals: 92, indexability: 93, technical: 94, availability: 100 },
-      completed_at: startedAt,
-    });
+  return {
+    ok: true as const,
+    score: result.score,
+    pagesCrawled: result.pagesCrawled,
+    issuesFound: result.issuesFound,
+    message: `Audit complete — ${result.pagesCrawled} indexable page(s), ${result.issuesFound} issue(s)`,
+    startedAt,
+  };
+});
 
-    if (error) throw new Error(error.message);
+export const runTechnicalChecks = createServerFn({ method: "POST" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const counts = await supabaseAdmin
+    .from("seo_technical_checks")
+    .select("id", { count: "exact", head: false });
+  const checked = counts.data?.length ?? 0;
 
-    return { ok: true, score, message: "Audit complete", startedAt };
+  return {
+    ok: true,
+    checked,
+    message: `${checked} live technical checks completed`,
+  };
+});
+
+/**
+ * Generate the monthly SEO report.
+ *
+ * The message this returns — "generated from live records" — used to sit on
+ * top of a summary of eight hardcoded constants: clicks 0, impressions 0,
+ * conversions 0, tracked_keywords 0, open_issues 0, and so on. Nothing was
+ * read. The figures now come from `seo_report_summary`, which counts them in
+ * SQL over `seo_keyword_rankings` and `seo_issues`, because a report is an
+ * aggregate and an aggregate computed from a fetched page of rows is wrong as
+ * soon as the table outgrows the page.
+ */
+export const generateSeoReport = createServerFn({ method: "POST" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const date = new Date().toISOString();
+  const periodStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const periodEnd = date.slice(0, 10);
+
+  // `seo_report_summary` is not in src/integrations/supabase/types.ts: that
+  // file is generated, and it only knows the functions that existed the last
+  // time it was generated. Every other RPC caller in this codebase works
+  // around it by hand-rolling an untyped client — there are twenty-three
+  // copies of that helper. Rather than add a twenty-fourth, this narrows the
+  // one call site.
+  const rpc = supabaseAdmin.rpc.bind(supabaseAdmin) as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>;
+
+  const { data: summary, error: summaryError } = await rpc("seo_report_summary", {
+    p_period_start: periodStart,
+    p_period_end: periodEnd,
+  });
+  if (summaryError) throw new Error(summaryError.message);
+
+  const figures = (summary ?? {}) as Record<string, unknown>;
+  const { error } = await supabaseAdmin.from("seo_reports").insert({
+    name: `Monthly SEO report · ${new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })}`,
+    report_type: "monthly",
+    status: "ready",
+    period_start: periodStart,
+    period_end: periodEnd,
+    generated_at: date,
+    summary,
   });
 
-export const runTechnicalChecks = createServerFn({ method: "POST" })
-  .handler(async () => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const counts = await supabaseAdmin.from("seo_technical_checks").select("id", { count: "exact", head: false });
-    const checked = counts.data?.length ?? 0;
+  if (error) throw new Error(error.message);
 
-    return {
-      ok: true,
-      checked,
-      message: `${checked} live technical checks completed`,
-    };
-  });
+  // A period with no ranking rows in it is said out loud, so nobody reads a
+  // measured zero into a month that was never measured.
+  const rows = Number(figures.ranking_rows ?? 0);
+  const message = rows
+    ? `SEO report generated — ${figures.clicks} click(s), ${figures.impressions} impression(s), ${figures.open_issues} open issue(s)`
+    : `SEO report generated — no ranking data recorded between ${periodStart} and ${periodEnd}; ${figures.open_issues} open issue(s)`;
 
-export const generateSeoReport = createServerFn({ method: "POST" })
-  .handler(async () => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const date = new Date().toISOString();
-    const { error } = await supabaseAdmin.from("seo_reports").insert({
-      name: `Monthly SEO report · ${new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })}`,
-      report_type: "monthly",
-      status: "ready",
-      period_start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      period_end: new Date().toISOString().slice(0, 10),
-      generated_at: date,
-      summary: { clicks: 0, impressions: 0, conversions: 0, average_position: null, tracked_keywords: 0, improved_keywords: 0, open_issues: 0, critical_issues: 0 },
-    });
-
-    if (error) throw new Error(error.message);
-
-    return {
-      ok: true,
-      message: "SEO report generated from live records",
-      generatedAt: date,
-    };
-  });
+  return { ok: true, message, generatedAt: date, summary: figures };
+});
 
 export const recrawlUrl = createServerFn({ method: "POST" })
   .inputValidator((value) => recrawlSchema.parse(value ?? {}))
@@ -214,7 +276,10 @@ export const syncSemrush = createServerFn({ method: "POST" })
   .inputValidator((value) => semrushSchema.parse(value ?? {}))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: keywords, error } = await supabaseAdmin.from("seo_keywords").select("id").limit(1);
+    const { data: keywords, error } = await supabaseAdmin
+      .from("seo_keywords")
+      .select("id")
+      .limit(1);
 
     if (error) throw new Error(error.message);
 
