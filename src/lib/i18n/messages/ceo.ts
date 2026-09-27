@@ -257,4 +257,47 @@ export const CEO_MESSAGES = {
     "this severity opens a governed decision for approval",
   ],
   "ceo.ci_ladder_silent": ["recorded only", "this severity is watched but raises nothing"],
+
+  // Morning AI: the operational day.
+  "ceo.morning_title": ["Morning AI", "heading of the daily operational orchestrator"],
+  "ceo.morning_subtitle":
+    "What changed overnight, what needs attention, and the order the company should work in. Every position carries the reason that put it there.",
+  "ceo.morning_loading": "Reading today's cycle…",
+  "ceo.morning_failed": ["Today's cycle didn't load", "heading when the day cannot be read"],
+  "ceo.morning_failed_body":
+    "The day's record could not be read, so this screen cannot say what was planned or what is outstanding.",
+  "ceo.morning_not_run": ["not run yet today", "status shown before a cycle exists for today"],
+  "ceo.morning_run": ["Run the day", "button that produces the brief and the plan"],
+  "ceo.morning_running": ["Planning…", "button label while the cycle runs"],
+  "ceo.morning_close": ["Close the day", "button that writes the daily close report"],
+  "ceo.morning_closing": ["Closing…", "button label while the day is being closed"],
+  "ceo.morning_empty_title": ["No cycle has run today", "shown when today has no cycle yet"],
+  "ceo.morning_empty_body":
+    "Nothing has been analysed for today. Running the day reads the operating state, writes a brief, and orders the outstanding work — it does not assign or execute anything.",
+  "ceo.morning_brief": ["Morning brief", "heading over the day's briefing"],
+  "ceo.morning_brief_empty_title": [
+    "The brief found nothing outstanding",
+    "shown when the brief has no findings",
+  ],
+  "ceo.morning_brief_empty_body":
+    "No attention item, KPI breach, risk, deadline or pending decision was found for this period. That is the finding, not an absence of one.",
+  "ceo.morning_plan": ["The day's work, in order", "heading over the prioritised plan"],
+  "ceo.morning_plan_empty_title": ["Nothing was planned", "shown when the plan has no items"],
+  "ceo.morning_plan_empty_body":
+    "The cycle ran and found no outstanding work to order. Nothing here is invented to fill the list.",
+  "ceo.morning_planned": ["Planned", "how many items are in today's plan"],
+  "ceo.morning_waiting": ["Waiting on a person", "how many items need a human answer"],
+  "ceo.morning_escalations": ["Escalations", "how many items are critical"],
+  "ceo.morning_completed": ["Completed", "how many planned items were completed"],
+  "ceo.morning_verified": ["Verified", "how many completed items were actually verified"],
+  "ceo.morning_failed_count": ["Failed", "how many planned items failed"],
+  "ceo.morning_no_agent": ["no eligible agent", "shown where no agent could be suggested"],
+  "ceo.morning_closed": [
+    "The day is closed and the close report is written",
+    "confirmation shown after the daily close",
+  ],
+  "ceo.morning_nothing_to_plan": [
+    "Nothing outstanding was found to plan",
+    "confirmation shown when the cycle ran and found no work",
+  ],
 } as const;

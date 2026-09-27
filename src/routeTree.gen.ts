@@ -107,6 +107,7 @@ import { Route as AiCeoDecisionEngineRouteImport } from './routes/ai-ceo.decisio
 import { Route as AiCeoInsightsRouteImport } from './routes/ai-ceo.insights'
 import { Route as AiCeoLearningRouteImport } from './routes/ai-ceo.learning'
 import { Route as AiCeoLiveMonitorRouteImport } from './routes/ai-ceo.live-monitor'
+import { Route as AiCeoMorningRouteImport } from './routes/ai-ceo.morning'
 import { Route as AiCeoNotificationsRouteImport } from './routes/ai-ceo.notifications'
 import { Route as AiCeoPerformanceRouteImport } from './routes/ai-ceo.performance'
 import { Route as AiCeoPredictionsRouteImport } from './routes/ai-ceo.predictions'
@@ -844,6 +845,11 @@ const AiCeoLearningRoute = AiCeoLearningRouteImport.update({
 const AiCeoLiveMonitorRoute = AiCeoLiveMonitorRouteImport.update({
   id: '/live-monitor',
   path: '/live-monitor',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoMorningRoute = AiCeoMorningRouteImport.update({
+  id: '/morning',
+  path: '/morning',
   getParentRoute: () => AiCeoRoute,
 } as any)
 const AiCeoNotificationsRoute = AiCeoNotificationsRouteImport.update({
@@ -2106,6 +2112,7 @@ export interface FileRoutesByFullPath {
   '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
   '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
+  '/ai-ceo/morning': typeof AiCeoMorningRoute
   '/ai-ceo/notifications': typeof AiCeoNotificationsRoute
   '/ai-ceo/performance': typeof AiCeoPerformanceRoute
   '/ai-ceo/predictions': typeof AiCeoPredictionsRoute
@@ -2425,6 +2432,7 @@ export interface FileRoutesByTo {
   '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
   '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
+  '/ai-ceo/morning': typeof AiCeoMorningRoute
   '/ai-ceo/notifications': typeof AiCeoNotificationsRoute
   '/ai-ceo/performance': typeof AiCeoPerformanceRoute
   '/ai-ceo/predictions': typeof AiCeoPredictionsRoute
@@ -2753,6 +2761,7 @@ export interface FileRoutesById {
   '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
   '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
+  '/ai-ceo/morning': typeof AiCeoMorningRoute
   '/ai-ceo/notifications': typeof AiCeoNotificationsRoute
   '/ai-ceo/performance': typeof AiCeoPerformanceRoute
   '/ai-ceo/predictions': typeof AiCeoPredictionsRoute
@@ -3083,6 +3092,7 @@ export interface FileRouteTypes {
     | '/ai-ceo/insights'
     | '/ai-ceo/learning'
     | '/ai-ceo/live-monitor'
+    | '/ai-ceo/morning'
     | '/ai-ceo/notifications'
     | '/ai-ceo/performance'
     | '/ai-ceo/predictions'
@@ -3402,6 +3412,7 @@ export interface FileRouteTypes {
     | '/ai-ceo/insights'
     | '/ai-ceo/learning'
     | '/ai-ceo/live-monitor'
+    | '/ai-ceo/morning'
     | '/ai-ceo/notifications'
     | '/ai-ceo/performance'
     | '/ai-ceo/predictions'
@@ -3729,6 +3740,7 @@ export interface FileRouteTypes {
     | '/ai-ceo/insights'
     | '/ai-ceo/learning'
     | '/ai-ceo/live-monitor'
+    | '/ai-ceo/morning'
     | '/ai-ceo/notifications'
     | '/ai-ceo/performance'
     | '/ai-ceo/predictions'
@@ -4797,6 +4809,13 @@ declare module '@tanstack/react-router' {
       path: '/live-monitor'
       fullPath: '/ai-ceo/live-monitor'
       preLoaderRoute: typeof AiCeoLiveMonitorRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/morning': {
+      id: '/ai-ceo/morning'
+      path: '/morning'
+      fullPath: '/ai-ceo/morning'
+      preLoaderRoute: typeof AiCeoMorningRouteImport
       parentRoute: typeof AiCeoRoute
     }
     '/ai-ceo/notifications': {
@@ -6492,6 +6511,7 @@ interface AiCeoRouteChildren {
   AiCeoInsightsRoute: typeof AiCeoInsightsRoute
   AiCeoLearningRoute: typeof AiCeoLearningRoute
   AiCeoLiveMonitorRoute: typeof AiCeoLiveMonitorRoute
+  AiCeoMorningRoute: typeof AiCeoMorningRoute
   AiCeoNotificationsRoute: typeof AiCeoNotificationsRoute
   AiCeoPerformanceRoute: typeof AiCeoPerformanceRoute
   AiCeoPredictionsRoute: typeof AiCeoPredictionsRoute
@@ -6514,6 +6534,7 @@ const AiCeoRouteChildren: AiCeoRouteChildren = {
   AiCeoInsightsRoute: AiCeoInsightsRoute,
   AiCeoLearningRoute: AiCeoLearningRoute,
   AiCeoLiveMonitorRoute: AiCeoLiveMonitorRoute,
+  AiCeoMorningRoute: AiCeoMorningRoute,
   AiCeoNotificationsRoute: AiCeoNotificationsRoute,
   AiCeoPerformanceRoute: AiCeoPerformanceRoute,
   AiCeoPredictionsRoute: AiCeoPredictionsRoute,

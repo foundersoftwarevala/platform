@@ -303,6 +303,25 @@ export async function routeSignal(signal: IncomingSignal): Promise<SignalOutcome
   let attentionId = openItem;
   const correlated = openItem !== null;
 
+  /**
+   * An attention item has to carry evidence — the table refuses an empty
+   * object, and rightly: an item nobody can trace is an assertion. Where the
+   * agent supplied readings they are the evidence; where it did not, the
+   * signal's own provenance is, which is the least that can honestly be said
+   * about where this came from.
+   */
+  const evidence =
+    signal.evidence && Object.keys(signal.evidence).length > 0
+      ? signal.evidence
+      : {
+          raisedBy: signal.agentKey,
+          sourceSystem: signal.sourceSystem,
+          sourceRef: signal.sourceRef,
+          severity: signal.severity,
+          observedAt: signal.occurredAt ?? new Date().toISOString(),
+          note: "The agent supplied no readings; this records only where the signal came from.",
+        };
+
   if (!correlated) {
     try {
       const item = await insert("founder_attention", {
@@ -316,7 +335,7 @@ export async function routeSignal(signal: IncomingSignal): Promise<SignalOutcome
         source_ref: signal.sourceRef,
         entity_type: signal.entityType ?? null,
         entity_id: signal.entityId ?? null,
-        evidence: signal.evidence ?? {},
+        evidence,
         status: "NEW",
       });
       attentionId = item ? String(item.id) : null;
