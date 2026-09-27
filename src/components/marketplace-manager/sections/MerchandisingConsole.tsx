@@ -1,15 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, ChevronDown, ChevronUp, Info, Layers, Pin, PinOff, Plus,
-  Search, Sparkles, TrendingUp, Trash2, X, AlertTriangle, Wand2, Hand,
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Layers,
+  Pin,
+  PinOff,
+  Plus,
+  Search,
+  Sparkles,
+  TrendingUp,
+  Trash2,
+  X,
+  AlertTriangle,
+  Wand2,
+  Hand,
 } from "lucide-react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Card, EmptyHint, PageHeader, PillButton, StatCard } from "../ui";
 import {
-  listHomepageRows, getRowProducts, searchRowProducts,
-  assignSlot, removeSlot, moveSlot, pinSlot, configureRow,
+  listHomepageRows,
+  getRowProducts,
+  searchRowProducts,
+  assignSlot,
+  removeSlot,
+  moveSlot,
+  pinSlot,
+  configureRow,
   listRecommendationEngines,
   type RowSlot,
 } from "@/lib/marketplace-manager/rows.functions";
@@ -98,9 +118,21 @@ const PLACEMENTS: {
 /** The rules the engine actually implements. Nothing else may be offered. */
 const RULES: { value: string; label: string; needs: string }[] = [
   { value: "featured", label: "Featured flag", needs: "products flagged featured" },
-  { value: "trending", label: "Trending flag, ranked by 30-day views", needs: "products flagged trending" },
-  { value: "best_selling", label: "Top selling, ranked by paid orders", needs: "paid orders or the best-seller flag" },
-  { value: "new_release", label: "New release flag, newest first", needs: "products flagged new release" },
+  {
+    value: "trending",
+    label: "Trending flag, ranked by 30-day views",
+    needs: "products flagged trending",
+  },
+  {
+    value: "best_selling",
+    label: "Top selling, ranked by paid orders",
+    needs: "paid orders or the best-seller flag",
+  },
+  {
+    value: "new_release",
+    label: "New release flag, newest first",
+    needs: "products flagged new release",
+  },
   { value: "newest", label: "Recently added", needs: "nothing — every product has a date" },
   { value: "rating", label: "Highest rated", needs: "a rating on the product" },
   { value: "sort_order", label: "Catalogue order", needs: "nothing" },
@@ -146,28 +178,43 @@ function useSlotMutations(rowKey: string) {
     assign: useMutation({
       mutationFn: (v: { position: number; productId: string; override?: boolean }) =>
         assignSlot({ data: { key: rowKey, ...v } }),
-      onSuccess: (r: { message?: string }) => { refresh(); toast.success(r?.message ?? "Assigned"); },
+      onSuccess: (r: { message?: string }) => {
+        refresh();
+        toast.success(r?.message ?? "Assigned");
+      },
       onError,
     }),
     remove: useMutation({
       mutationFn: (v: { position: number }) => removeSlot({ data: { key: rowKey, ...v } }),
-      onSuccess: () => { refresh(); toast.success("Slot cleared"); },
+      onSuccess: () => {
+        refresh();
+        toast.success("Slot cleared");
+      },
       onError,
     }),
     move: useMutation({
       mutationFn: (v: { from: number; to: number }) => moveSlot({ data: { key: rowKey, ...v } }),
-      onSuccess: () => { refresh(); toast.success("Reordered"); },
+      onSuccess: () => {
+        refresh();
+        toast.success("Reordered");
+      },
       onError,
     }),
     pin: useMutation({
       mutationFn: (v: { position: number; pinned: boolean }) =>
         pinSlot({ data: { key: rowKey, ...v } }),
-      onSuccess: () => { refresh(); },
+      onSuccess: () => {
+        refresh();
+      },
       onError,
     }),
     configure: useMutation({
-      mutationFn: (patch: Record<string, unknown>) => configureRow({ data: { key: rowKey, patch } }),
-      onSuccess: () => { refresh(); toast.success("Placement updated"); },
+      mutationFn: (patch: Record<string, unknown>) =>
+        configureRow({ data: { key: rowKey, patch } }),
+      onSuccess: () => {
+        refresh();
+        toast.success("Placement updated");
+      },
       onError,
     }),
   };
@@ -182,7 +229,9 @@ function Pill({ tone, children }: { tone: "ok" | "warn" | "muted"; children: Rea
       : tone === "warn"
         ? "bg-amber-500/15 text-amber-500"
         : "bg-muted/40 text-muted-foreground";
-  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{children}</span>;
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{children}</span>
+  );
 }
 
 /**
@@ -208,15 +257,18 @@ function SlotCell({ slot, index }: { slot?: RowSlot; index: number }) {
       }`}
     >
       {slot.thumbnail_url ? (
-        <img src={slot.thumbnail_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+        <img
+          src={slot.thumbnail_url}
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
       ) : (
         <div className="flex h-full items-center justify-center px-1 text-center text-[9px] font-semibold leading-tight text-muted-foreground">
           {slot.name.slice(0, 28)}
         </div>
       )}
-      {slot.pinned && (
-        <Pin className="absolute right-1 top-1 h-3 w-3 text-accent" />
-      )}
+      {slot.pinned && <Pin className="absolute right-1 top-1 h-3 w-3 text-accent" />}
       {!slot.live && (
         <span className="absolute inset-x-0 bottom-0 bg-destructive/80 px-1 text-center text-[8px] font-bold text-white">
           not live
@@ -249,7 +301,11 @@ function SlotGrid({ resolved, max }: { resolved?: Resolved; max: number }) {
  * whole catalogue.
  */
 function AssignDialog({
-  rowKey, position, onClose, onAssign, busy,
+  rowKey,
+  position,
+  onClose,
+  onAssign,
+  busy,
 }: {
   rowKey: string;
   position: number;
@@ -304,9 +360,7 @@ function AssignDialog({
           {debounced.length < 2 && (
             <EmptyHint text="Type at least two characters to search the catalogue." />
           )}
-          {debounced.length >= 2 && results.isLoading && (
-            <EmptyHint text="Searching…" />
-          )}
+          {debounced.length >= 2 && results.isLoading && <EmptyHint text="Searching…" />}
           {debounced.length >= 2 && !results.isLoading && products.length === 0 && (
             <EmptyHint text={`No published product matches “${debounced}”.`} />
           )}
@@ -319,7 +373,11 @@ function AssignDialog({
               >
                 <div className="flex min-w-0 items-center gap-3">
                   {p.thumbnail_url ? (
-                    <img src={String(p.thumbnail_url)} alt="" className="h-9 w-9 flex-none rounded object-cover" />
+                    <img
+                      src={String(p.thumbnail_url)}
+                      alt=""
+                      className="h-9 w-9 flex-none rounded object-cover"
+                    />
                   ) : (
                     <div className="h-9 w-9 flex-none rounded bg-muted" />
                   )}
@@ -347,8 +405,8 @@ function AssignDialog({
         </div>
 
         <p className="mt-3 text-[11px] text-muted-foreground">
-          Assigning writes <code>marketplace_row_slots</code> and is recorded in the audit trail.
-          A product already placed elsewhere in this placement will be refused with a reason.
+          Assigning writes <code>marketplace_row_slots</code> and is recorded in the audit trail. A
+          product already placed elsewhere in this placement will be refused with a reason.
         </p>
       </div>
     </div>
@@ -386,7 +444,10 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
         <StatCard label="Slots" value={String(max)} />
         <StatCard label="Placed by hand" value={String(placed.length)} />
         <StatCard label="Filled by rule" value={String(auto.length)} />
-        <StatCard label="Eligible products" value={String(resolved?.eligible_total ?? row.eligible_products ?? 0)} />
+        <StatCard
+          label="Eligible products"
+          value={String(resolved?.eligible_total ?? row.eligible_products ?? 0)}
+        />
       </div>
 
       {!row.live_now && (
@@ -413,13 +474,17 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
                   : "border border-border text-muted-foreground hover:text-foreground"
               }`}
             >
-              {mode === "manual" ? "Manual only" : mode === "auto" ? "Rule only" : "Manual, then rule"}
+              {mode === "manual"
+                ? "Manual only"
+                : mode === "auto"
+                  ? "Rule only"
+                  : "Manual, then rule"}
             </button>
           ))}
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground">
-          In <b>Manual, then rule</b>, hand-placed products keep their slots and the rule fills what is
-          left — which is what “empty slots auto-fill from the rule engine” has always meant.
+          In <b>Manual, then rule</b>, hand-placed products keep their slots and the rule fills what
+          is left — which is what “empty slots auto-fill from the rule engine” has always meant.
         </p>
 
         <h3 className="mb-2 mt-5 text-base font-bold">Rule</h3>
@@ -430,7 +495,9 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
           className="w-full max-w-md rounded-lg border border-border bg-background px-3 py-2 text-sm"
         >
           {RULES.map((r) => (
-            <option key={r.value} value={r.value}>{r.label}</option>
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
           ))}
         </select>
         <p className="mt-2 text-[11px] text-muted-foreground">
@@ -445,7 +512,9 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-base font-bold">Slots</h3>
-          <Pill tone="muted">{resolved?.filled ?? 0} of {max} filled</Pill>
+          <Pill tone="muted">
+            {resolved?.filled ?? 0} of {max} filled
+          </Pill>
         </div>
 
         {slots.isLoading && <EmptyHint text="Loading the placement…" />}
@@ -470,7 +539,11 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
                     {slot ? (
                       <>
                         {slot.thumbnail_url ? (
-                          <img src={slot.thumbnail_url} alt="" className="h-8 w-8 flex-none rounded object-cover" />
+                          <img
+                            src={slot.thumbnail_url}
+                            alt=""
+                            className="h-8 w-8 flex-none rounded object-cover"
+                          />
                         ) : (
                           <div className="h-8 w-8 flex-none rounded bg-muted" />
                         )}
@@ -478,9 +551,13 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
                           <div className="truncate text-sm font-semibold">{slot.name}</div>
                           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                             {slot.source === "manual" ? (
-                              <><Hand className="h-3 w-3" /> placed by hand</>
+                              <>
+                                <Hand className="h-3 w-3" /> placed by hand
+                              </>
                             ) : (
-                              <><Wand2 className="h-3 w-3" /> filled by rule</>
+                              <>
+                                <Wand2 className="h-3 w-3" /> filled by rule
+                              </>
                             )}
                             {!slot.live && <Pill tone="warn">not live</Pill>}
                           </div>
@@ -515,7 +592,11 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
                           onClick={() => m.pin.mutate({ position, pinned: !slot.pinned })}
                           className="rounded p-1 hover:bg-muted"
                         >
-                          {slot.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                          {slot.pinned ? (
+                            <PinOff className="h-4 w-4" />
+                          ) : (
+                            <Pin className="h-4 w-4" />
+                          )}
                         </button>
                         <button
                           title="Remove from this slot"
@@ -569,9 +650,20 @@ function RecommendedCard() {
     staleTime: 60_000,
   });
   const list = (engines.data?.engines ?? []) as {
-    key: string; title: string; can_run: boolean; blocked_reason: string | null;
+    key: string;
+    title: string;
+    can_run: boolean;
+    blocked_reason: string | null;
+    /** Whether the data supports it, counted now rather than recorded once. */
+    data_ready?: boolean;
+    /** What the engine requires, and what actually exists. */
+    needs?: string;
+    have?: string;
+    /** The recorded reason says blocked; the measurement says otherwise. */
+    note_is_stale?: boolean;
   }[];
   const runnable = list.filter((e) => e.can_run);
+  const stale = list.filter((e) => e.note_is_stale);
 
   return (
     <Card>
@@ -592,15 +684,38 @@ function RecommendedCard() {
               <span className="text-sm font-semibold">{e.title}</span>
               <Pill tone={e.can_run ? "ok" : "muted"}>{e.can_run ? "ready" : "blocked"}</Pill>
             </div>
+            {/* What the engine needs and what exists, counted now. A blocked
+                engine should show how far off it is, not only that it is
+                blocked. */}
+            {e.have && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {e.needs ? <>Needs {e.needs}. </> : null}
+                Has {e.have}.
+              </p>
+            )}
             {!e.can_run && e.blocked_reason && (
               <p className="mt-1 text-[11px] text-muted-foreground">{e.blocked_reason}</p>
+            )}
+            {e.note_is_stale && (
+              <p className="mt-1 text-[11px] font-semibold text-warning">
+                That reason is out of date — the data this engine needs now exists. Clearing it lets
+                the engine run.
+              </p>
             )}
           </div>
         ))}
       </div>
+      {stale.length > 0 && (
+        <p className="mt-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+          {stale.length} engine(s) are held back only by a recorded reason that the data no longer
+          supports. Readiness is measured on every read, so this will clear itself the moment the
+          reason is removed.
+        </p>
+      )}
       <p className="mt-3 text-[11px] text-muted-foreground">
         Recommendations rank real products from real events. An engine that cannot run says why
-        rather than returning an invented list.
+        rather than returning an invented list, and whether it can run is counted from the data
+        rather than taken from a note written once.
       </p>
     </Card>
   );
@@ -614,8 +729,8 @@ function CollectionCard() {
         <Info className="mt-0.5 h-4 w-4 flex-none" />
         <span>
           This marketplace has no collection system. The only collections table in the database
-          belongs to the AMS badge module and holds no products. Nothing is shown here because
-          there is nothing real to show — building collections is a separate piece of work.
+          belongs to the AMS badge module and holds no products. Nothing is shown here because there
+          is nothing real to show — building collections is a separate piece of work.
         </span>
       </div>
     </Card>
@@ -654,7 +769,10 @@ function ModeCard({ mode, rows }: { mode: "manual" | "auto"; rows: Row[] }) {
       </p>
       <div className="space-y-1">
         {per.map((p) => (
-          <div key={p.key} className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-1.5">
+          <div
+            key={p.key}
+            className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-1.5"
+          >
             <span className="truncate text-sm">{p.title}</span>
             <span className="text-sm font-bold">{loading ? "…" : p.n}</span>
           </div>
@@ -727,11 +845,15 @@ function PlacementCard({ row, onOpen }: { row: Row; onOpen: () => void }) {
             <Pill tone="muted">
               {slots.data
                 ? `${slots.data.filled} of ${max} filled`
-                : slots.isLoading ? "reading…" : "unavailable"}
+                : slots.isLoading
+                  ? "reading…"
+                  : "unavailable"}
             </Pill>
           </div>
         </div>
-        <PillButton variant="ghost" onClick={onOpen}>Assign</PillButton>
+        <PillButton variant="ghost" onClick={onOpen}>
+          Assign
+        </PillButton>
       </div>
 
       <SlotGrid resolved={slots.data} max={max} />
