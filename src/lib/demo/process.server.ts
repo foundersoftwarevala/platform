@@ -39,11 +39,16 @@ function db() {
   const url = process.env.SUPABASE_URL?.trim() ?? "";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
   if (!url || !key) throw new Error("The database is not configured on this server.");
-  const headers = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+  const headers = {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    "Content-Type": "application/json",
+  };
   return {
     async get<T = Row[]>(path: string): Promise<T> {
       const r = await fetch(`${url}/rest/v1/${path}`, { headers });
-      if (!r.ok) throw new Error(`Database read failed (${r.status}): ${(await r.text()).slice(0, 200)}`);
+      if (!r.ok)
+        throw new Error(`Database read failed (${r.status}): ${(await r.text()).slice(0, 200)}`);
       return (await r.json()) as T;
     },
     async post(table: string, body: unknown): Promise<Row> {
@@ -52,7 +57,8 @@ function db() {
         headers: { ...headers, Prefer: "return=representation" },
         body: JSON.stringify(body),
       });
-      if (!r.ok) throw new Error(`Database write failed (${r.status}): ${(await r.text()).slice(0, 200)}`);
+      if (!r.ok)
+        throw new Error(`Database write failed (${r.status}): ${(await r.text()).slice(0, 200)}`);
       return ((await r.json()) as Row[])[0];
     },
     async patch(path: string, body: unknown): Promise<Row> {
@@ -61,7 +67,8 @@ function db() {
         headers: { ...headers, Prefer: "return=representation" },
         body: JSON.stringify(body),
       });
-      if (!r.ok) throw new Error(`Database write failed (${r.status}): ${(await r.text()).slice(0, 200)}`);
+      if (!r.ok)
+        throw new Error(`Database write failed (${r.status}): ${(await r.text()).slice(0, 200)}`);
       return ((await r.json()) as Row[])[0];
     },
   };
@@ -93,7 +100,9 @@ async function fetchDemo(url: string) {
     throw new Error(`The demo answered HTTP ${page.status}.`);
   }
   if (!/html/i.test(page.contentType)) {
-    throw new Error(`The demo address returned ${page.contentType || "no content type"}, not a web page.`);
+    throw new Error(
+      `The demo address returned ${page.contentType || "no content type"}, not a web page.`,
+    );
   }
   const base = new URL(page.url);
   const scripts = [...page.body.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)]
@@ -161,7 +170,11 @@ function findings(value: unknown): Finding[] {
   return value
     .map((v) => (v && typeof v === "object" ? (v as Finding) : null))
     .filter((v): v is Finding => Boolean(v && typeof v.value === "string" && v.value.trim()))
-    .map((v) => ({ value: v.value.trim(), kind: v.kind, reason: String(v.reason ?? "").slice(0, 200) }));
+    .map((v) => ({
+      value: v.value.trim(),
+      kind: v.kind,
+      reason: String(v.reason ?? "").slice(0, 200),
+    }));
 }
 
 function evidenceForPrompt(e: Evidence) {
@@ -191,7 +204,11 @@ export async function investigateDemo(input: { productId: string; url: string; a
   const existing = await store.get<Row[]>(
     `product_demo_urls?select=${DEMO_ROW_FIELDS}&product_id=eq.${product.id}&order=sort_order.asc`,
   );
-  const same = existing.find((r) => r.url === input.url);
+  // By identity, not by string. The same demo arrives as http and https, with
+  // and without a trailing slash, and with a utm_ tail on it; each of those
+  // used to become its own row, with its own investigation and its own AI spend.
+  const identity = demoIdentity(input.url);
+  const same = findByIdentity(existing as { url?: string | null }[], input.url) as Row | undefined;
   const lowest = existing.reduce((m, r) => Math.min(m, Number(r.sort_order ?? 0)), 1);
   let row: Row;
   if (same) {
@@ -215,6 +232,10 @@ export async function investigateDemo(input: { productId: string; url: string; a
 
   try {
     const { page, bundles } = await fetchDemo(input.url);
+    // Where it actually landed. A demo submitted as http that redirects to
+    // https is the same demo as one already stored under its destination, and
+    // only a fetch can say so.
+    const finalIdentity = canonicalFrom(page.url);
     const evidence = extractEvidence(page.body, page.url, bundles);
     const corpus = evidenceCorpus(page.body, bundles);
 
@@ -261,7 +282,9 @@ export async function investigateDemo(input: { productId: string; url: string; a
     const branding = findings(answer.developer_branding).filter(present);
     const devLinks = findings(answer.developer_links).filter(present);
     const logos = findings(answer.logo_images).filter(
-      (f) => evidence.logos.includes(f.value) || (dropped.push({ value: f.value, reason: "not a logo image in the demo" }), false),
+      (f) =>
+        evidence.logos.includes(f.value) ||
+        (dropped.push({ value: f.value, reason: "not a logo image in the demo" }), false),
     );
     const slug = String(answer.category_slug ?? "").trim();
     const category = categories.find((c) => c.slug === slug) ?? null;
@@ -271,12 +294,27 @@ export async function investigateDemo(input: { productId: string; url: string; a
       remove: contacts.filter((c) => c.kind !== "link").map((c) => c.value),
       rebrand: branding.map((b) => b.value),
       logos: logos.map((l) => l.value),
-      links: [...devLinks.map((l) => l.value), ...contacts.filter((c) => c.kind === "link" || c.kind === "whatsapp").map((c) => c.value)],
+      links: [
+        ...devLinks.map((l) => l.value),
+        ...contacts.filter((c) => c.kind === "link" || c.kind === "whatsapp").map((c) => c.value),
+      ],
     };
-    const softwareName = String(answer.software_name ?? "").trim().slice(0, 120);
+    const softwareName = String(answer.software_name ?? "")
+      .trim()
+      .slice(0, 120);
     const processing = {
       investigated_at: new Date().toISOString(),
-      source: { url: input.url, final_url: page.url, http_status: page.status, redirects: page.redirects, bundles: bundles.length },
+      source: {
+        url: input.url,
+        final_url: page.url,
+        canonical_url: finalIdentity,
+        submitted_canonical: identity.canonical,
+        canonical_notes: identity.notes,
+        redirected_elsewhere: finalIdentity !== identity.canonical,
+        http_status: page.status,
+        redirects: page.redirects,
+        bundles: bundles.length,
+      },
       ai: { service: ai.service, model: ai.model, module: "demo-manager" },
       identity: {
         software_name: softwareName || null,
@@ -287,7 +325,14 @@ export async function investigateDemo(input: { productId: string; url: string; a
         confidence: Number(answer.confidence) || null,
         product_category_matches: category ? category.id === product.category_id : null,
       },
-      findings: { contacts, branding, developer_links: devLinks, logos, kept: findings(answer.kept).slice(0, 30), dropped },
+      findings: {
+        contacts,
+        branding,
+        developer_links: devLinks,
+        logos,
+        kept: findings(answer.kept).slice(0, 30),
+        dropped,
+      },
       evidence: {
         title: evidence.title,
         favicons: evidence.favicons,
@@ -356,7 +401,11 @@ export async function activateDemo(input: { id: string; actor: Actor }) {
     checks.push({ check: "presentation script installed", ok: script });
     ok = checks.every((c) => c.ok);
   } catch (error) {
-    checks.push({ check: "demo answers", ok: false, detail: error instanceof Error ? error.message : String(error) });
+    checks.push({
+      check: "demo answers",
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
   }
 
   const verification = { verified_at: new Date().toISOString(), ok, checks };
@@ -374,7 +423,10 @@ export async function activateDemo(input: { id: string; actor: Actor }) {
   const siblings = await store.get<Row[]>(
     `product_demo_urls?select=id,sort_order&product_id=eq.${row.product_id}&id=neq.${row.id}`,
   );
-  const lowest = siblings.reduce((m, r) => Math.min(m, Number(r.sort_order ?? 0)), Number(row.sort_order ?? 0) + 1);
+  const lowest = siblings.reduce(
+    (m, r) => Math.min(m, Number(r.sort_order ?? 0)),
+    Number(row.sort_order ?? 0) + 1,
+  );
   const updated = await store.patch(`product_demo_urls?id=eq.${row.id}`, {
     status: "active",
     processing_status: "live",
