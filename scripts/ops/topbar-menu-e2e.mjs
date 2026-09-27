@@ -121,9 +121,7 @@ try {
   await ctx.close();
 } finally {
   // Whatever happened above, put the menu back the way it was.
-  const items = original
-    .map((k) => `'${k}'`)
-    .join(",");
+  const items = original.map((k) => `'${k}'`).join(",");
   sql(
     "select public.mm_topbar_items_set('apply-now', (" +
       "  select jsonb_agg(i order by array_position(ARRAY[" +
