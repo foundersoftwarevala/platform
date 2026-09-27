@@ -563,6 +563,160 @@ export function TopBarManagerSection() {
  * database still refuses `live` for a module nothing renders, and the refusal
  * arrives as the toast rather than as a silent no-op.
  */
+/**
+ * The items of a header dropdown.
+ *
+ * Apply Now and Dashboards are the only menus the header has. Their entries
+ * were arrays inside TopUtilityBar.tsx, so adding a role meant editing the
+ * storefront; they are rows in the registry now and this edits them.
+ *
+ * It saves through its own server function rather than the patch the rest of
+ * the drawer uses, because the database validates a menu differently — a key
+ * and a label on every item, no repeated keys, a cap on the length — and those
+ * refusals come back with their own message. Nothing here re-implements that
+ * check to guess at the answer; the button is disabled only for the two cases
+ * a reader can see for themselves.
+ */
+function MenuEditor({
+  module: m,
+  pattern,
+  initial,
+}: {
+  module: TopBarModule;
+  pattern: string;
+  initial: TopBarItem[];
+}) {
+  const qc = useQueryClient();
+  const [rows, setRows] = useState<TopBarItem[]>(initial);
+
+  const save = useMutation({
+    mutationFn: (items: TopBarItem[]) =>
+      setTopBarItems({ data: { key: m.module_key, items } as never }),
+    onSuccess: (r) => {
+      toast.success(String(r.message ?? "Menu saved"));
+      void qc.invalidateQueries({ queryKey: KEY });
+    },
+    onError: (e: Error) => toast.error("That menu was refused", { description: e.message }),
+  });
+
+  const set = (i: number, patch: Partial<TopBarItem>) =>
+    setRows((r) => r.map((row, n) => (n === i ? { ...row, ...patch } : row)));
+  const move = (i: number, dir: -1 | 1) =>
+    setRows((r) => {
+      const j = i + dir;
+      if (j < 0 || j >= r.length) return r;
+      const out = [...r];
+      [out[i], out[j]] = [out[j], out[i]];
+      return out;
+    });
+
+  const blank = rows.some((r) => !r.key.trim() || !r.label.trim());
+  const keys = rows.map((r) => r.key.trim());
+  const repeated = keys.filter((k) => k).length !== new Set(keys.filter((k) => k)).size;
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-background/40 p-3">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          Menu items
+        </div>
+        <code className="text-[10px] text-muted-foreground">{pattern}</code>
+      </div>
+      <div className="text-[10px] text-muted-foreground">
+        The header renders these, in this order. Each key is substituted into the route above, so it
+        has to be one that route accepts.
+      </div>
+
+      {rows.map((r, i) => (
+        <div key={i} className="space-y-1 rounded-lg border border-border bg-background/60 p-2">
+          <div className="flex items-center gap-1.5">
+            <input
+              value={r.key}
+              onChange={(e) => set(i, { key: e.target.value })}
+              placeholder="key"
+              className="w-28 shrink-0 rounded border border-border bg-background/60 px-2 py-1 font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+            <input
+              value={r.label}
+              onChange={(e) => set(i, { label: e.target.value })}
+              placeholder="label"
+              className="min-w-0 flex-1 rounded border border-border bg-background/60 px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+            <button
+              type="button"
+              onClick={() => move(i, -1)}
+              disabled={i === 0}
+              aria-label="Move up"
+              className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => move(i, 1)}
+              disabled={i === rows.length - 1}
+              aria-label="Move down"
+              className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setRows((rs) => rs.filter((_, n) => n !== i))}
+              aria-label="Remove item"
+              className="rounded p-0.5 text-muted-foreground hover:text-destructive"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <input
+            value={r.blurb ?? ""}
+            onChange={(e) => set(i, { blurb: e.target.value })}
+            placeholder="blurb (optional)"
+            className="w-full rounded border border-border bg-background/60 px-2 py-1 text-[11px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+        </div>
+      ))}
+
+      {rows.length === 0 && (
+        <div className="text-[11px] text-muted-foreground">
+          This menu is empty. The header falls back to the list compiled into it until an item is
+          added here.
+        </div>
+      )}
+
+      {(blank || repeated) && (
+        <div className="text-[10px] text-destructive">
+          {blank ? "Every item needs a key and a label. " : ""}
+          {repeated ? "Two items share a key." : ""}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setRows((r) => [...r, { key: "", label: "", blurb: "" }])}
+          disabled={rows.length >= 40}
+          className="rounded-full border border-border px-3 py-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-40"
+        >
+          Add item
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            save.mutate(rows.map((r) => ({ ...r, key: r.key.trim(), label: r.label.trim() })))
+          }
+          disabled={save.isPending || blank || repeated}
+          className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-accent disabled:opacity-50"
+        >
+          {save.isPending ? "Saving…" : "Save menu"}
+        </button>
+        <span className="text-[10px] text-muted-foreground">{rows.length} / 40</span>
+      </div>
+    </div>
+  );
+}
+
 function ConfigureDrawer({
   module: m,
   saving,
@@ -583,7 +737,16 @@ function ConfigureDrawer({
   const [sticky, setSticky] = useState(m.sticky_enabled);
   const [featured, setFeatured] = useState(m.featured);
 
-  const { rendered, onStorefront, knownPlacement, controlledBy, needs, source } = readPlacement(m);
+  const {
+    rendered,
+    onStorefront,
+    knownPlacement,
+    controlledBy,
+    needs,
+    source,
+    routePattern,
+    items,
+  } = readPlacement(m);
   const orderNum = Number(order);
   const orderValid = Number.isInteger(orderNum) && orderNum >= 1 && orderNum <= 99;
 

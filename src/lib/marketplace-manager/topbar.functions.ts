@@ -110,6 +110,46 @@ export const configureTopBarModule = createServerFn({ method: "POST" })
     ),
   );
 
+export type TopBarItem = { key: string; label: string; blurb?: string };
+
+/**
+ * Replace the items of a header dropdown.
+ *
+ * Apply Now and Dashboards are the only two menus the header has, and their
+ * entries used to be arrays inside TopUtilityBar.tsx. They live in the
+ * module's own config now, so the manager edits the rows the header reads.
+ *
+ * The database does the validating — a key and a label on every item, no
+ * repeated keys, at most forty entries — because a client cannot be trusted
+ * with any of it, and because the same rules then apply to every caller.
+ */
+export const setTopBarItems = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        key: z.string().min(1).max(60),
+        items: z
+          .array(
+            z.object({
+              key: z.string().min(1).max(60),
+              label: z.string().min(1).max(80),
+              blurb: z.string().max(160).optional(),
+            }),
+          )
+          .max(40),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) =>
+    settle(
+      await callAsUser<Outcome>("mm_topbar_items_set", {
+        p_key: data.key,
+        p_items: data.items,
+      }),
+      `Menu saved — ${data.items.length} item${data.items.length === 1 ? "" : "s"}`,
+    ),
+  );
+
 /** Reordering writes sort_order, which is the column the header sorts on. */
 export const reorderTopBarModules = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>

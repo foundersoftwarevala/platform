@@ -91,7 +91,7 @@ const APPLY_ROLES: { key: string; label: string; blurb: string }[] = [
   { key: "employee", label: "Become Employee", blurb: "Full-time openings" },
 ];
 
-function ApplyNow({ t }: { t: (s: string) => string }) {
+function ApplyNow({ t, roles }: { t: (s: string) => string; roles?: BarItem[] }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={TRIGGER}>
@@ -104,7 +104,7 @@ function ApplyNow({ t }: { t: (s: string) => string }) {
           {t("Role applications")}
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-white/10" />
-        {APPLY_ROLES.map((r, i) => (
+        {(roles ?? APPLY_ROLES).map((r, i) => (
           <DropdownMenuItem
             key={r.key}
             asChild
@@ -1066,7 +1066,7 @@ const DASHBOARD_ROLES: { key: string; label: string; blurb: string }[] = [
   { key: "promise-tracker", label: "Promise Tracker", blurb: "Commitments & follow-through" },
 ];
 
-function DashboardsMenu({ t }: { t: (s: string) => string }) {
+function DashboardsMenu({ t, roles }: { t: (s: string) => string; roles?: BarItem[] }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={TRIGGER}>
@@ -1082,7 +1082,7 @@ function DashboardsMenu({ t }: { t: (s: string) => string }) {
           {t("Role dashboards")}
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-white/10" />
-        {DASHBOARD_ROLES.map((r, i) => (
+        {(roles ?? DASHBOARD_ROLES).map((r, i) => (
           <DropdownMenuItem
             key={r.key}
             asChild
@@ -1138,6 +1138,8 @@ const MODULE_KEYS: Record<string, string> = {
   ai: "ai-chat",
 };
 
+type BarItem = { key: string; label: string; blurb?: string };
+
 type TopBarModule = {
   module_key: string;
   status: string;
@@ -1145,7 +1147,35 @@ type TopBarModule = {
   desktop_enabled?: boolean;
   tablet_enabled?: boolean;
   mobile_enabled?: boolean;
+  config?: { items?: unknown } | null;
 };
+
+/**
+ * The items of a dropdown, as Top Bar Manager saved them.
+ *
+ * Apply Now and Dashboards were arrays written into this file, so adding a
+ * role or renaming one meant editing the storefront. They live in the module's
+ * own config now, which arrives in the answer this component is already
+ * waiting for — no second request, no second table.
+ *
+ * Anything that is not a well-formed list of items is ignored in favour of the
+ * constant above it. The header has never been allowed to depend on this call
+ * and still does not: a bad row degrades to the list that shipped, not to an
+ * empty menu.
+ */
+function itemsFor(module: TopBarModule | undefined, fallback: BarItem[]): BarItem[] {
+  const raw = module?.config && typeof module.config === "object" ? module.config.items : null;
+  if (!Array.isArray(raw) || raw.length === 0) return fallback;
+  const clean = raw.filter(
+    (i): i is BarItem =>
+      Boolean(i) &&
+      typeof (i as BarItem).key === "string" &&
+      (i as BarItem).key.trim() !== "" &&
+      typeof (i as BarItem).label === "string" &&
+      (i as BarItem).label.trim() !== "",
+  );
+  return clean.length ? clean : fallback;
+}
 
 /**
  * What Top Bar Manager says the header should show.
@@ -1178,23 +1208,40 @@ function useTopBarConfig(): TopBarModule[] | null {
 
 export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number }) {
   const { lang, t, apply, busy } = useBarTranslation();
+  const config = useTopBarConfig();
+
+  // Looked up once so each wrapper can carry its own device rules, and so the
+  // two dropdowns can read the items the manager saved against their rows.
+  const byKey = useMemo(() => {
+    const map = new Map<string, TopBarModule>();
+    for (const m of config ?? []) map.set(m.module_key, m);
+    return map;
+  }, [config]);
+
+  const applyRoles = useMemo(
+    () => itemsFor(byKey.get("apply-now"), APPLY_ROLES),
+    [byKey],
+  );
+  const dashboardRoles = useMemo(
+    () => itemsFor(byKey.get("dashboards"), DASHBOARD_ROLES),
+    [byKey],
+  );
+
   const items = useMemo(
     () => [
-      <ApplyNow key="apply" t={t} />,
+      <ApplyNow key="apply" t={t} roles={applyRoles} />,
       <LanguagePicker key="lang" lang={lang} apply={apply} busy={busy} t={t} />,
       <CalendarTool key="cal" t={t} />,
       <CalculatorTool key="calc" t={t} />,
       <LoginPill key="login" t={t} />,
-      <DashboardsMenu key="dashboards" t={t} />,
+      <DashboardsMenu key="dashboards" t={t} roles={dashboardRoles} />,
       <CurrencyPicker key="cur" t={t} />,
       <Notifications key="notif" t={t} />,
       <Favorites key="fav" count={favoritesCount} />,
       <AiChat key="ai" t={t} />,
     ],
-    [lang, t, apply, busy, favoritesCount],
+    [lang, t, apply, busy, favoritesCount, applyRoles, dashboardRoles],
   );
-
-  const config = useTopBarConfig();
 
   // With no configuration loaded the header renders exactly as it always has.
   // With configuration, a module that is not live is dropped and the rest
@@ -1219,13 +1266,6 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
         return ao - bo;
       });
   }, [items, config]);
-
-  // Looked up once so each wrapper can carry its own device rules.
-  const byKey = useMemo(() => {
-    const map = new Map<string, TopBarModule>();
-    for (const m of config ?? []) map.set(m.module_key, m);
-    return map;
-  }, [config]);
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-2">
