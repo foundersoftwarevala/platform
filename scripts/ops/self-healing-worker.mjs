@@ -114,6 +114,10 @@ async function reduceConcurrency(incident) {
     outcome: `concurrency reduced from ${current} to ${reduced}`,
     scopeRows: 1,
     scopeDescription: `ai_agents:${incident.entity_id}`,
+    // What to put back if this turns out not to have helped. Without it, a
+    // halved ceiling stays halved forever on the strength of a guess.
+    reversible: true,
+    previousState: { table: "ai_agents", id: incident.entity_id, max_concurrent: current },
   };
 }
 
@@ -129,17 +133,47 @@ async function reassign(incident) {
     outcome: "the task was released for reassignment",
     scopeRows: 1,
     scopeDescription: `tm_tasks:${incident.entity_id}`,
+    reversible: true,
+    previousState: { table: "tm_tasks", id: incident.entity_id, assigned_to: task.assigned_to },
   };
 }
 
+/**
+ * backoff — wait longer before the next attempt, and say why.
+ *
+ * Deferring is not repairing, which is why its verification always says no.
+ * But how long to defer is worth getting right: a dependency that is down
+ * will not be up in thirty seconds, and a transient blip does not need five
+ * minutes. So the delay follows the failure class and what has already been
+ * tried, and is bounded at both ends by the policy's own recovery window
+ * rather than by a number chosen here.
+ *
+ * It can never grow without limit: max_recovery_minutes is the ceiling, and
+ * the attempt ceiling stops the incident long before the delay could matter.
+ */
 async function backoff(incident) {
-  const seconds = Math.min(300, 30 * Math.max(1, Number(incident.attempts ?? 1)));
+  const budget = (
+    await get(
+      `founder_recovery_budgets?select=max_recovery_minutes,max_attempts&failure_class=eq.${incident.failure_class}`,
+    )
+  )?.[0];
+  const windowSeconds = Math.max(60, Number(budget?.max_recovery_minutes ?? 30) * 60);
+  const tried = Math.max(1, Number(incident.attempts ?? 1));
+
+  // Doubling, but never past a fraction of the window the policy allows for
+  // the whole recovery — otherwise a backoff could outlast the budget it is
+  // supposed to be spending.
+  const base = incident.failure_class === "DEPENDENCY" ? 120 : 30;
+  const seconds = Math.min(Math.round(windowSeconds / 4), base * 2 ** (tried - 1));
+
   await patch(`founder_incidents?id=eq.${incident.id}`, {
     next_attempt_at: new Date(Date.now() + seconds * 1000).toISOString(),
   });
   return {
     result: "SUCCEEDED",
-    outcome: `next attempt deferred by ${seconds}s`,
+    outcome:
+      `next attempt deferred by ${seconds}s after ${tried} attempt(s); ` +
+      `a ${incident.failure_class} recovery may run for ${Math.round(windowSeconds / 60)} minute(s) in total`,
     scopeRows: 1,
     scopeDescription: `founder_incidents:${incident.id}`,
   };
@@ -253,6 +287,47 @@ async function resume(incident) {
     outcome: `step ${step.position} re-armed from ${step.state}; earlier steps left intact`,
     scopeRows: 1,
     scopeDescription: `ayra_order_steps:${incident.entity_id}`,
+    reversible: true,
+    previousState: { table: "ayra_order_steps", id: incident.entity_id, state: step.state },
+  };
+}
+
+/**
+ * Putting back what a recovery changed.
+ *
+ * Only reached when a reversible action succeeded and its verification then
+ * said no. The action did something; it did not help; leaving it in place
+ * means the engine has quietly changed production on a failed hypothesis.
+ *
+ * The reversal is recorded as its own attempt pointing at the one it undoes,
+ * never as an edit of it — the attempt log refuses edits, and that is the
+ * point: both the change and its reversal stay readable.
+ */
+async function rollback(previousState) {
+  if (!previousState?.table || !previousState?.id) {
+    return { ok: false, detail: "nothing was captured to roll back to" };
+  }
+  const { table, id, ...fields } = previousState;
+  if (Object.keys(fields).length === 0) {
+    return { ok: false, detail: "the captured state named no columns" };
+  }
+  const response = await patch(`${table}?id=eq.${id}`, fields);
+  if (!response.ok) {
+    return {
+      ok: false,
+      detail: `the restore was refused: ${(await response.text()).slice(0, 160)}`,
+    };
+  }
+  // Read it back rather than trusting the write.
+  const columns = Object.keys(fields).join(",");
+  const now = (await get(`${table}?select=${columns}&id=eq.${id}`))?.[0];
+  const restored =
+    now && Object.entries(fields).every(([k, v]) => String(now[k] ?? "") === String(v ?? ""));
+  return {
+    ok: restored,
+    detail: restored
+      ? `${table}:${id} put back to ${JSON.stringify(fields)}`
+      : `the restore did not read back as expected: ${JSON.stringify(now)}`,
   };
 }
 
@@ -483,6 +558,8 @@ for (let i = 0; i < BUDGET && !stopping; i += 1) {
     executed_by: WORKER,
     scope_rows: performed.scopeRows ?? 1,
     scope_description: performed.scopeDescription ?? null,
+    reversible: performed.reversible === true,
+    previous_state: performed.previousState ?? null,
     verified: checked.verified,
     verification_method: checked.verified ? claim.verification_method : null,
     verification_detail: checked.verified ? checked.detail : null,
@@ -521,6 +598,46 @@ for (let i = 0; i < BUDGET && !stopping; i += 1) {
     continue;
   }
 
+  // The action ran, changed something, and the change did not help. Leaving
+  // it there would mean production quietly carries the cost of a failed
+  // hypothesis, so anything reversible goes back.
+  let undone = "";
+  if (performed.result === "SUCCEEDED" && performed.reversible === true) {
+    const put = await rollback(performed.previousState).catch((error) => ({
+      ok: false,
+      detail: `the rollback itself failed: ${String(error?.message ?? error).slice(0, 160)}`,
+    }));
+    const record = await post("founder_recovery_attempts", {
+      incident_id: claim.incident_id,
+      // Its own number, because (incident_id, attempt_number) is unique and
+      // reusing the original's collides. The guards exempt a row carrying
+      // rollback_of from the attempt ceiling, so numbering it next cannot
+      // push the audit past a limit and lose it.
+      attempt_number: attemptNumber + 1,
+      action: candidate,
+      chosen_because: `${candidate} was not verified, and it was reversible, so what it changed was put back`,
+      result: put.ok ? "SUCCEEDED" : "FAILED",
+      outcome: put.ok ? put.detail : null,
+      error: put.ok ? null : put.detail,
+      idempotency_key: `${claim.incident_id}:${candidate}:${attemptNumber}:rollback`,
+      executed_by: WORKER,
+      scope_rows: performed.scopeRows ?? 1,
+      scope_description: performed.scopeDescription ?? null,
+      rollback_of: attempt.id,
+      // A rollback is itself not reversible: undoing an undo is just the
+      // original action, and the engine should choose that deliberately.
+      reversible: false,
+      // Rolling back is restoring a known state, not repairing the fault, so
+      // it is never verified — for the same reason backoff never is.
+      verified: false,
+      finished_at: new Date().toISOString(),
+    });
+    undone = put.ok ? `; rolled back — ${put.detail}` : `; ROLLBACK FAILED — ${put.detail}`;
+    if (!record.ok) {
+      undone += ` (and the rollback could not be recorded: ${(await record.text()).slice(0, 120)})`;
+    }
+  }
+
   const exhausted = attemptNumber >= Number(claim.max_attempts ?? 1);
   await patch(`founder_incidents?id=eq.${claim.incident_id}`, {
     state: "RETRY_PENDING",
@@ -533,7 +650,7 @@ for (let i = 0; i < BUDGET && !stopping; i += 1) {
     locked_at: null,
   });
   lines.push(
-    `  ${incident.title}: ${candidate} ${performed.result.toLowerCase()}, unverified — ${checked.detail}`,
+    `  ${incident.title}: ${candidate} ${performed.result.toLowerCase()}, unverified — ${checked.detail}${undone}`,
   );
 }
 
