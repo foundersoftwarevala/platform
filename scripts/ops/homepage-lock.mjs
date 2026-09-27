@@ -26,6 +26,13 @@ const BASELINE = "scripts/ops/homepage-lock.json";
 
 /** Every path whose contents the public homepage depends on. */
 const LOCKED = [
+  // The front page at "/" is sapphire-home, not marketplace-home. The first
+  // version of this list had only the second, so the page most visitors
+  // actually land on was the one the lock did not cover. Both are locked: "/"
+  // renders sapphire-home/HomeIndex and "/marketplace" renders
+  // marketplace-home/HomeIndex, and each has its own copy of the header and
+  // the utility strip.
+  "src/components/sapphire-home",
   "src/components/marketplace-home",
   "src/lib/site-content",
   "src/lib/marketplace/home-catalog.functions.ts",

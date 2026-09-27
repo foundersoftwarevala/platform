@@ -67,8 +67,8 @@ export function StorefrontTopBarSection() {
   });
 
   const modules = data?.modules ?? [];
-  const rendered = modules.filter((m) => (m as { rendered?: boolean }).rendered);
-  const planned = modules.filter((m) => (m as { planned?: boolean }).planned);
+  const rendered = modules.filter((m) => m.rendered);
+  const planned = modules.filter((m) => m.planned);
 
   const byCategory = (c: string[]) => modules.filter((m) => c.includes(m.category));
 
@@ -202,7 +202,6 @@ function ModuleGrid({
   return (
     <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
       {modules.map((m) => {
-        const meta = m as TopBarModule & { rendered?: boolean; blocked_reason?: string };
         return (
           <div
             key={m.module_key}
@@ -214,15 +213,15 @@ function ModuleGrid({
                 <span className="truncate text-sm font-semibold">{m.name}</span>
               </div>
               <div className="mt-1 text-[10px] text-muted-foreground">
-                {meta.rendered
+                {m.rendered
                   ? `${m.component} · ${m.status}`
-                  : `not rendered yet — ${meta.blocked_reason ?? "no component"}`}
+                  : `not rendered yet — ${m.blocked_reason ?? "no component"}`}
               </div>
             </div>
             <button
               type="button"
-              disabled={!meta.rendered}
-              title={meta.rendered ? "Toggle on the storefront" : "Nothing renders this module yet"}
+              disabled={!m.rendered}
+              title={m.rendered ? "Toggle on the storefront" : "Nothing renders this module yet"}
               onClick={() =>
                 save.mutate({
                   key: m.module_key,
@@ -230,14 +229,14 @@ function ModuleGrid({
                 })
               }
               className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                !meta.rendered
+                !m.rendered
                   ? "cursor-not-allowed border border-border text-muted-foreground opacity-60"
                   : m.status === "live"
                     ? "bg-success/15 text-success"
                     : "bg-muted/50 text-muted-foreground"
               }`}
             >
-              {meta.rendered ? (m.status === "live" ? "Live" : "Hidden") : "Planned"}
+              {m.rendered ? (m.status === "live" ? "Live" : "Hidden") : "Planned"}
             </button>
           </div>
         );

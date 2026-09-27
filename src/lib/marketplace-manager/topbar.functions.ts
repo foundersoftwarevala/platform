@@ -21,8 +21,7 @@ async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise
 
   const { createClient } = await import("@supabase/supabase-js");
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+  const key = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
   const client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
@@ -47,6 +46,16 @@ export type TopBarModule = {
   featured: boolean;
   config: Record<string, unknown>;
   live: boolean;
+  /**
+   * True when a component in the header actually reads this row. The registry
+   * returns these three and always has; they were missing from this type, so
+   * every caller that wanted them reached for a cast. `blocked_reason` is what
+   * the module says is missing before it could go live, and it is the same
+   * sentence mm_topbar_configure quotes back when it refuses.
+   */
+  rendered: boolean;
+  planned: boolean;
+  blocked_reason: string | null;
   updated_at: string;
 };
 
@@ -75,24 +84,27 @@ function settle(r: Outcome | null, whenOk: string) {
 
 export const configureTopBarModule = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      key: z.string().min(1).max(60),
-      patch: z.object({
-        name: z.string().min(1).max(80).optional(),
-        status: z.enum(["live", "draft", "hidden", "archived"]).optional(),
-        sort_order: z.number().int().min(1).max(99).optional(),
-        desktop_enabled: z.boolean().optional(),
-        tablet_enabled: z.boolean().optional(),
-        mobile_enabled: z.boolean().optional(),
-        sticky_enabled: z.boolean().optional(),
-        featured: z.boolean().optional(),
-      }),
-    }).parse(i),
+    z
+      .object({
+        key: z.string().min(1).max(60),
+        patch: z.object({
+          name: z.string().min(1).max(80).optional(),
+          status: z.enum(["live", "draft", "hidden", "archived"]).optional(),
+          sort_order: z.number().int().min(1).max(99).optional(),
+          desktop_enabled: z.boolean().optional(),
+          tablet_enabled: z.boolean().optional(),
+          mobile_enabled: z.boolean().optional(),
+          sticky_enabled: z.boolean().optional(),
+          featured: z.boolean().optional(),
+        }),
+      })
+      .parse(i),
   )
   .handler(async ({ data }) =>
     settle(
       await callAsUser<Outcome>("mm_topbar_configure", {
-        p_key: data.key, p_patch: data.patch,
+        p_key: data.key,
+        p_patch: data.patch,
       }),
       "Module updated",
     ),
