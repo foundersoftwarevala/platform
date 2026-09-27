@@ -134,6 +134,12 @@ Decide:
    When unsure whether a value is developer contact or application data, keep it and say why.
 
 Copy every value exactly as it appears in the evidence, character for character. Do not add values that are not in the evidence.
+
+Keep the answer short. A demo is full of ordinary interface text and listing every
+piece of it with a reason costs more than it is worth: at most 30 entries in
+"kept", at most 20 in each of the other lists, and every "reason" in ten words or
+fewer. List the clearest cases; a value you do not list is kept by default.
+
 Answer with one JSON object only:
 {
   "software_name": string,
@@ -219,12 +225,14 @@ export async function investigateDemo(input: { productId: string; url: string; a
       module: "demo-manager",
       json: true,
       temperature: 0,
-      // The prompt asks for contacts, branding, developer links, logo images,
-      // a kept list, a summary and a category with its reason. gpt-4o-mini used
-      // all 1,800 tokens and stopped mid-object, so the answer arrived as
-      // unparseable JSON and the investigation was recorded as failed. Measured
-      // from that run: 2,786 tokens in, 1,800 out and still cut off.
-      maxTokens: 4000,
+      // Raising this was the wrong instinct and the numbers said so: at 1,800
+      // the answer was cut off, and at 4,000 it was cut off again having used
+      // every token. The model fills whatever room it is given, because the
+      // prompt asked it to justify every piece of ordinary interface text it
+      // kept — a list the code then truncates to thirty anyway. The prompt
+      // bounds the lists now, so the budget is back to something reasonable
+      // with room to spare.
+      maxTokens: 2500,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
