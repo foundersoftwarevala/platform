@@ -258,6 +258,22 @@ export const CEO_MESSAGES = {
   ],
   "ceo.ci_ladder_silent": ["recorded only", "this severity is watched but raises nothing"],
 
+  // Founder AI's own health, counted in SQL.
+  "ceo.ci_health_panel": ["Founder AI health", "heading over Founder AI's own operational counts"],
+  "ceo.ci_h_agents": ["Agents open to work", "agents in a lifecycle state that can take work"],
+  "ceo.ci_h_runs": ["Runs in flight", "agent runs currently running or waiting"],
+  "ceo.ci_h_unverified": [
+    "Finished, unverified",
+    "runs that completed but whose outcome nobody has checked",
+  ],
+  "ceo.ci_h_tasks_overdue": ["Tasks overdue", "tasks past their deadline and not closed"],
+  "ceo.ci_h_approvals": ["Approvals open", "approval requests nobody has answered"],
+  "ceo.ci_h_ai_failed": ["AI requests failed", "AI requests that did not return OK"],
+  "ceo.ci_h_cannot_file": [
+    "agent(s) hold no permission to file anything, so they can only read.",
+    "follows a count of agents lacking the CREATE permission",
+  ],
+
   // Morning AI: the operational day.
   "ceo.morning_title": ["Morning AI", "heading of the daily operational orchestrator"],
   "ceo.morning_subtitle":

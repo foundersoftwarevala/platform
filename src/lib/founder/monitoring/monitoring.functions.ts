@@ -96,3 +96,94 @@ export const loadFounderSignalRoutes = createServerFn({ method: "GET" }).handler
   const { loadRoutes } = await import("./signals.server");
   return [...(await loadRoutes()).values()];
 });
+
+export interface OperationalHealth {
+  agentsRegistered: number;
+  agentsOpenToWork: number;
+  agentsBlocked: number;
+  agentsCannotFile: number;
+  runsInFlight: number;
+  runsBlocked: number;
+  runsFailed: number;
+  /** Finished, but nobody has checked the outcome. */
+  runsAwaitingVerification: number;
+  runsVerificationFailed: number;
+  tasksQueued: number;
+  tasksRunning: number;
+  tasksBlocked: number;
+  tasksFailed: number;
+  tasksOverdue: number;
+  decisionsWaiting: number;
+  decisionsEscalated: number;
+  approvalsOpen: number;
+  approvalsExpired: number;
+  attentionOpen: number;
+  attentionCritical: number;
+  signalsEscalated: number;
+  aiRequests: number;
+  aiRequestsFailed: number;
+}
+
+/**
+ * Founder AI's own health.
+ *
+ * Every figure is counted by founder_operational_health in SQL, so none of it
+ * is measured from a page of rows a screen happened to fetch. A read that
+ * fails returns null rather than zeros, because a health panel that shows all
+ * zeros when it could not look is worse than one that says it could not look.
+ */
+export const loadFounderOperationalHealth = createServerFn({ method: "GET" }).handler(
+  async (): Promise<OperationalHealth | null> => {
+    await requireExecutive();
+
+    const url = process.env["SUPABASE_URL"]?.trim();
+    const key = process.env["SUPABASE_SERVICE_ROLE_KEY"]?.trim();
+    if (!url || !key) return null;
+
+    try {
+      const response = await fetch(`${url}/rest/v1/founder_operational_health?select=*&limit=1`, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
+      });
+      if (!response.ok) return null;
+      const rows = (await response.json()) as Record<string, unknown>[];
+      const row = rows[0];
+      if (!row) return null;
+
+      const n = (field: string): number => {
+        const value = row[field];
+        if (typeof value === "number" && Number.isFinite(value)) return value;
+        if (typeof value === "string" && Number.isFinite(Number(value))) return Number(value);
+        return 0;
+      };
+
+      return {
+        agentsRegistered: n("agents_registered"),
+        agentsOpenToWork: n("agents_open_to_work"),
+        agentsBlocked: n("agents_blocked"),
+        agentsCannotFile: n("agents_cannot_file"),
+        runsInFlight: n("runs_in_flight"),
+        runsBlocked: n("runs_blocked"),
+        runsFailed: n("runs_failed"),
+        runsAwaitingVerification: n("runs_awaiting_verification"),
+        runsVerificationFailed: n("runs_verification_failed"),
+        tasksQueued: n("tasks_queued"),
+        tasksRunning: n("tasks_running"),
+        tasksBlocked: n("tasks_blocked"),
+        tasksFailed: n("tasks_failed"),
+        tasksOverdue: n("tasks_overdue"),
+        decisionsWaiting: n("decisions_waiting"),
+        decisionsEscalated: n("decisions_escalated"),
+        approvalsOpen: n("approvals_open"),
+        approvalsExpired: n("approvals_expired"),
+        attentionOpen: n("attention_open"),
+        attentionCritical: n("attention_critical"),
+        signalsEscalated: n("signals_escalated"),
+        aiRequests: n("ai_requests"),
+        aiRequestsFailed: n("ai_requests_failed"),
+      };
+    } catch (error) {
+      console.error("[founder/monitoring] health unavailable:", error);
+      return null;
+    }
+  },
+);

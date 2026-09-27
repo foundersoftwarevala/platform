@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFounderState } from "@/hooks/useFounderState";
 import { useFounderSignalRoutes } from "@/hooks/useFounderSignalRoutes";
+import { useFounderHealth } from "@/hooks/useFounderHealth";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import type { AttentionItem, Kpi, PendingApproval, Risk } from "@/lib/founder/state.types";
 
@@ -119,6 +120,9 @@ export function CommandCenterIntelligence() {
     refetch,
   } = useFounderState();
   const { routes } = useFounderSignalRoutes();
+  // Named apart from the domain `health` above: that is health by business
+  // domain, this is Founder AI's own operational health.
+  const { health: founderHealth } = useFounderHealth();
 
   if (isLoading) {
     return <LoadingState label={t("ceo.ci_loading")} rows={2} />;
@@ -377,6 +381,47 @@ export function CommandCenterIntelligence() {
           </CardContent>
         </Card>
       </div>
+
+      {/*
+        Founder AI's own health, counted in SQL.
+        The figure that matters most is the verification backlog: completion
+        is easy to produce and easy to mistake for success, and a growing gap
+        between finished and checked is the thing an operator needs to see.
+        Null is drawn as a dash, never as zero — a panel that could not look
+        must not read as a clean bill of health.
+      */}
+      {founderHealth && (
+        <Card className="card3d premium-halo enter-soft rounded-2xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <Gauge className="w-5 h-5 text-primary-glow" />
+              {t("ceo.ci_health_panel")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+              {[
+                { label: t("ceo.ci_h_agents"), value: founderHealth.agentsOpenToWork },
+                { label: t("ceo.ci_h_runs"), value: founderHealth.runsInFlight },
+                { label: t("ceo.ci_h_unverified"), value: founderHealth.runsAwaitingVerification },
+                { label: t("ceo.ci_h_tasks_overdue"), value: founderHealth.tasksOverdue },
+                { label: t("ceo.ci_h_approvals"), value: founderHealth.approvalsOpen },
+                { label: t("ceo.ci_h_ai_failed"), value: founderHealth.aiRequestsFailed },
+              ].map((tile) => (
+                <div key={tile.label} className="p-3 rounded-lg bg-surface border border-border">
+                  <p className="text-xl font-bold text-foreground tabular-nums">{tile.value}</p>
+                  <p className="text-[11px] text-muted-foreground">{tile.label}</p>
+                </div>
+              ))}
+            </div>
+            {founderHealth.agentsCannotFile > 0 && (
+              <p className="mt-3 text-[11px] text-muted-foreground">
+                {founderHealth.agentsCannotFile} {t("ceo.ci_h_cannot_file")}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/*
         What a Monitoring Agent's signal earns at each severity.
