@@ -293,6 +293,54 @@ async function resume(incident) {
 }
 
 /**
+ * Telling a person, when the engine has run out of things to try.
+ *
+ * An open circuit is the engine saying it cannot fix this. Until now that
+ * was recorded and nothing else happened: the incident sat in the table with
+ * its reason, and whether anybody ever saw it depended on somebody opening
+ * the right screen. founder_attention is where the platform already puts
+ * things a person has to look at, so it goes there.
+ *
+ * Raised once per incident. A second pass finding the same open circuit adds
+ * nothing, and an attention queue that repeats itself is one people stop
+ * reading.
+ */
+async function raiseAttention(incident, reason, evidence) {
+  const existing =
+    (await get(
+      `founder_attention?select=id&source_system=eq.self-healing&source_ref=eq.${incident.id}&limit=1`,
+    )) ?? [];
+  if (existing.length > 0) return { raised: false, why: "already raised for this incident" };
+
+  const response = await post("founder_attention", {
+    kind: "INCIDENT",
+    domain: incident.domain,
+    title: `Self-healing could not recover: ${incident.title}`,
+    reason,
+    // The engine's own severity, raised one step: something it cannot fix
+    // matters more than something it can.
+    severity:
+      incident.severity === "CRITICAL"
+        ? "CRITICAL"
+        : incident.severity === "HIGH"
+          ? "CRITICAL"
+          : "HIGH",
+    priority: incident.severity === "CRITICAL" || incident.severity === "HIGH" ? 1 : 2,
+    source_system: "self-healing",
+    source_ref: incident.id,
+    entity_type: incident.entity_type,
+    entity_id: incident.entity_id,
+    // Never empty: the table refuses that, and rightly — an item nobody can
+    // act on is worse than no item.
+    evidence,
+  });
+  if (!response.ok) {
+    return { raised: false, why: (await response.text()).slice(0, 160) };
+  }
+  return { raised: true, why: "raised for Founder review" };
+}
+
+/**
  * Putting back what a recovery changed.
  *
  * Only reached when a reversible action succeeded and its verification then
@@ -549,7 +597,20 @@ for (let i = 0; i < BUDGET && !stopping; i += 1) {
       locked_by: null,
       locked_at: null,
     });
-    lines.push(`  ${incident.title}: no implemented action remains; circuit opened`);
+    const told = await raiseAttention(
+      incident,
+      `Every action this failure class permits has either been tried or has no working implementation, ` +
+        `so the engine has stopped rather than repeating itself. A person has to decide what happens next.`,
+      {
+        failure_class: claim.failure_class,
+        permitted_actions: claim.allowed_actions ?? [],
+        already_tried: tried,
+        implemented: Object.keys(IMPLEMENTED),
+        entity: `${incident.entity_type ?? "?"}:${incident.entity_id ?? "?"}`,
+        detected_at: incident.detected_at,
+      },
+    ).catch((error) => ({ raised: false, why: String(error?.message ?? error).slice(0, 120) }));
+    lines.push(`  ${incident.title}: no implemented action remains; circuit opened — ${told.why}`);
     refused += 1;
     continue;
   }
@@ -714,8 +775,37 @@ for (let i = 0; i < BUDGET && !stopping; i += 1) {
     locked_by: null,
     locked_at: null,
   });
+  let escalated = "";
+  if (exhausted) {
+    // How often this has happened before, so the item a person opens says
+    // whether this is a one-off or a pattern worth preventing rather than
+    // repairing again.
+    const recurrence = incident.correlation_key
+      ? ((await get(
+          `founder_incidents?select=id&correlation_key=eq.${encodeURIComponent(incident.correlation_key)}&limit=50`,
+        )) ?? [])
+      : [];
+    const told = await raiseAttention(
+      incident,
+      `${attemptNumber} recovery attempt(s) were made and none verified. The engine has stopped ` +
+        `rather than keep changing production on a hypothesis that is not working.`,
+      {
+        failure_class: claim.failure_class,
+        attempts_made: attemptNumber,
+        attempts_allowed: claim.max_attempts,
+        last_action: candidate,
+        last_result: performed.result,
+        why_not_verified: checked.detail,
+        rolled_back: performed.reversible === true,
+        times_seen_under_this_correlation: recurrence.length,
+        entity: `${incident.entity_type ?? "?"}:${incident.entity_id ?? "?"}`,
+      },
+    ).catch((error) => ({ raised: false, why: String(error?.message ?? error).slice(0, 120) }));
+    escalated = `; circuit opened — ${told.why}`;
+  }
+
   lines.push(
-    `  ${incident.title}: ${candidate} ${performed.result.toLowerCase()}, unverified — ${checked.detail}${undone}`,
+    `  ${incident.title}: ${candidate} ${performed.result.toLowerCase()}, unverified — ${checked.detail}${undone}${escalated}`,
   );
 }
 
