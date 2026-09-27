@@ -10,6 +10,7 @@ import {
   type PresentationRules,
 } from "./presentation";
 import { safeFetch, UnsafeUrlError } from "./safe-fetch.server";
+import { canonicalFrom, demoIdentity, findByIdentity } from "./identity";
 import { DEMO_BRAND } from "./brand";
 
 /**
