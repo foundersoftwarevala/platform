@@ -13,7 +13,9 @@ import {
   requestRefund,
   openDispute,
   exportOrders,
+  getOrderPartners,
   type OrderRow,
+  type OrderPartner,
 } from "@/lib/marketplace-manager/orders.functions";
 
 /**
@@ -217,6 +219,16 @@ export function OrdersSection() {
     queryKey: ["marketplace", "order-detail", openOrder],
     queryFn: async (): Promise<OrderDetailPayload> =>
       (await getOrderDetail({ data: { orderId: openOrder as string } })) as OrderDetailPayload,
+    enabled: Boolean(openOrder),
+  });
+
+  // Who was credited with the order. Read only for the order in the drawer, so
+  // the list is unaffected.
+  type Partners = { ok: boolean; count: number; attributions: OrderPartner[] };
+  const partners = useQuery<Partners>({
+    queryKey: ["marketplace", "order-partners", openOrder],
+    queryFn: async (): Promise<Partners> =>
+      (await getOrderPartners({ data: { orderId: openOrder as string } })) as Partners,
     enabled: Boolean(openOrder),
   });
 
@@ -608,6 +620,8 @@ export function OrdersSection() {
 
       {openOrder && (
         <OrderDetail
+          partners={partners.data?.attributions ?? []}
+          partnersLoading={partners.isLoading}
           data={detail.data as OrderDetailPayload | undefined}
           loading={detail.isLoading}
           error={detail.error}
@@ -636,12 +650,17 @@ type OrderDetailPayload = {
  * table it came from, so a reader can check any line of it.
  */
 function OrderDetail({
+  partners,
+  partnersLoading,
   data,
   loading,
   error,
   onRetry,
   onClose,
 }: {
+  /** Who was credited with this order, resolved to names. */
+  partners: OrderPartner[];
+  partnersLoading: boolean;
   data?: OrderDetailPayload;
   loading: boolean;
   error: unknown;
@@ -693,6 +712,49 @@ function OrderDetail({
                   </span>
                 </div>
               ))}
+            </Block>
+
+            {/* Who brought this order in. The attribution table has always
+                carried it and no screen showed it. An order with no partner
+                says so rather than rendering nothing, so the reader knows it
+                was looked at. */}
+            <Block title="Partner credit">
+              {partnersLoading ? (
+                <div className="text-[12px] text-muted-foreground">Reading the attribution…</div>
+              ) : partners.length === 0 ? (
+                <div className="text-[12px] text-muted-foreground">
+                  Direct order — no reseller, affiliate or influencer was credited.
+                </div>
+              ) : (
+                partners.map((a) => {
+                  const who = a.reseller ?? a.affiliate ?? a.influencer;
+                  const kind = a.reseller
+                    ? "Reseller"
+                    : a.affiliate
+                      ? "Affiliate"
+                      : a.influencer
+                        ? "Influencer"
+                        : "Unattributed";
+                  return (
+                    <div key={a.id} className="flex items-center justify-between py-1 text-[12px]">
+                      <span>
+                        <span className="text-muted-foreground">{kind}:</span>{" "}
+                        <span className="font-medium">{who?.name ?? "—"}</span>
+                        {a.reseller?.code ? (
+                          <span className="ml-1 font-mono text-[11px] text-muted-foreground">
+                            {a.reseller.code}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {a.method ? a.method.replace(/_/g, " ") : "unknown method"} ·{" "}
+                        {when(a.attributed_at)}
+                        {who?.status ? ` · ${who.status}` : ""}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
             </Block>
 
             <Block title="Timeline">
