@@ -607,7 +607,11 @@ async function loadPendingApprovals(degraded: Degraded): Promise<PendingApproval
   const specs = [
     { table: "tm_approvals", title: "title", at: "created_at" },
     { table: "finance_approvals", title: "title", at: "created_at" },
-    { table: "assist_approvals", title: "title", at: "created_at" },
+    // This one does not follow the other two: it has no `title` and stamps
+    // `submitted_at` rather than `created_at`. Asking for the columns the
+    // others use made every read of it fail, so pending assist approvals were
+    // invisible and the operating state carried a permanently degraded source.
+    { table: "assist_approvals", title: "approval_code", at: "submitted_at" },
   ];
   const lists = await Promise.all(
     specs.map((spec) =>
