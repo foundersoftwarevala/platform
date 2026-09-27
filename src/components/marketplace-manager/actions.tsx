@@ -1,11 +1,41 @@
 import { useState, useEffect, type ComponentType, type ReactNode } from "react";
 import { notBuilt } from "@/lib/ui/not-built";
 import {
-  Plus, Pencil, Eye, Check, X, Trash2, Upload, Download, FileDown, Copy,
-  Archive, RotateCcw, Lock, Unlock, Star, Pin, Tag, DollarSign, KeyRound,
-  Rocket, PauseCircle, Search, SlidersHorizontal, ArrowUpDown, Columns3,
-  RefreshCw, Settings, MoreHorizontal, History, FileText, ImageIcon,
-  PlayCircle, MessageSquare, ClipboardList, Receipt,
+  Plus,
+  Pencil,
+  Eye,
+  Check,
+  X,
+  Trash2,
+  Upload,
+  Download,
+  FileDown,
+  Copy,
+  Archive,
+  RotateCcw,
+  Lock,
+  Unlock,
+  Star,
+  Pin,
+  Tag,
+  DollarSign,
+  KeyRound,
+  Rocket,
+  PauseCircle,
+  Search,
+  SlidersHorizontal,
+  ArrowUpDown,
+  Columns3,
+  RefreshCw,
+  Settings,
+  MoreHorizontal,
+  History,
+  FileText,
+  ImageIcon,
+  PlayCircle,
+  MessageSquare,
+  ClipboardList,
+  Receipt,
 } from "lucide-react";
 
 /* ============================================================
@@ -19,15 +49,39 @@ import {
    ============================================================ */
 
 export type ActionId =
-  | "add" | "edit" | "view" | "approve" | "reject" | "delete"
-  | "upload" | "import" | "export" | "duplicate" | "archive" | "restore"
-  | "enable" | "disable" | "feature" | "pin" | "category" | "pricing"
-  | "license" | "publish" | "unpublish";
+  | "add"
+  | "edit"
+  | "view"
+  | "approve"
+  | "reject"
+  | "delete"
+  | "upload"
+  | "import"
+  | "export"
+  | "duplicate"
+  | "archive"
+  | "restore"
+  | "enable"
+  | "disable"
+  | "feature"
+  | "pin"
+  | "category"
+  | "pricing"
+  | "license"
+  | "publish"
+  | "unpublish";
 
 export type BulkActionId =
-  | "bulk-approve" | "bulk-reject" | "bulk-delete" | "bulk-export"
-  | "bulk-import" | "bulk-publish" | "bulk-archive"
-  | "bulk-category" | "bulk-price" | "bulk-license";
+  | "bulk-approve"
+  | "bulk-reject"
+  | "bulk-delete"
+  | "bulk-export"
+  | "bulk-import"
+  | "bulk-publish"
+  | "bulk-archive"
+  | "bulk-category"
+  | "bulk-price"
+  | "bulk-license";
 
 type Tone = "neutral" | "primary" | "success" | "warning" | "danger" | "premium";
 
@@ -36,14 +90,10 @@ const TONE: Record<Tone, string> = {
     "border border-border bg-white/[0.04] text-foreground hover:bg-white/[0.08] hover:border-[oklch(1_0_0/0.14)]",
   primary:
     "border border-[oklch(0.62_0.20_255/0.45)] bg-[oklch(0.62_0.20_255/0.14)] text-foreground hover:bg-[oklch(0.62_0.20_255/0.22)] shadow-[0_0_18px_-8px_oklch(0.62_0.20_255/0.7)]",
-  success:
-    "border border-success/40 bg-success/10 text-success hover:bg-success/15",
-  warning:
-    "border border-warning/40 bg-warning/10 text-warning hover:bg-warning/15",
-  danger:
-    "border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/15",
-  premium:
-    "border border-premium/40 bg-premium/10 text-premium hover:bg-premium/15",
+  success: "border border-success/40 bg-success/10 text-success hover:bg-success/15",
+  warning: "border border-warning/40 bg-warning/10 text-warning hover:bg-warning/15",
+  danger: "border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/15",
+  premium: "border border-premium/40 bg-premium/10 text-premium hover:bg-premium/15",
 };
 
 type ActionDef = {
@@ -54,40 +104,45 @@ type ActionDef = {
 };
 
 export const ACTIONS: Record<ActionId, ActionDef> = {
-  add:        { id: "add",        label: "Add",        icon: Plus,         tone: "primary" },
-  edit:       { id: "edit",       label: "Edit",       icon: Pencil,       tone: "neutral" },
-  view:       { id: "view",       label: "View",       icon: Eye,          tone: "neutral" },
-  approve:    { id: "approve",    label: "Approve",    icon: Check,        tone: "success" },
-  reject:     { id: "reject",     label: "Reject",     icon: X,            tone: "danger" },
-  delete:     { id: "delete",     label: "Delete",     icon: Trash2,       tone: "danger" },
-  upload:     { id: "upload",     label: "Upload",     icon: Upload,       tone: "neutral" },
-  import:     { id: "import",     label: "Import",     icon: Download,     tone: "neutral" },
-  export:     { id: "export",     label: "Export",     icon: FileDown,     tone: "neutral" },
-  duplicate:  { id: "duplicate",  label: "Duplicate",  icon: Copy,         tone: "neutral" },
-  archive:    { id: "archive",    label: "Archive",    icon: Archive,      tone: "warning" },
-  restore:    { id: "restore",    label: "Restore",    icon: RotateCcw,    tone: "neutral" },
-  enable:     { id: "enable",     label: "Enable",     icon: Unlock,       tone: "success" },
-  disable:    { id: "disable",    label: "Disable",    icon: Lock,         tone: "warning" },
-  feature:    { id: "feature",    label: "Feature",    icon: Star,         tone: "premium" },
-  pin:        { id: "pin",        label: "Pin",        icon: Pin,          tone: "neutral" },
-  category:   { id: "category",   label: "Category",   icon: Tag,          tone: "neutral" },
-  pricing:    { id: "pricing",    label: "Pricing",    icon: DollarSign,   tone: "neutral" },
-  license:    { id: "license",    label: "License",    icon: KeyRound,     tone: "neutral" },
-  publish:    { id: "publish",    label: "Publish",    icon: Rocket,       tone: "primary" },
-  unpublish:  { id: "unpublish",  label: "Unpublish",  icon: PauseCircle,  tone: "warning" },
+  add: { id: "add", label: "Add", icon: Plus, tone: "primary" },
+  edit: { id: "edit", label: "Edit", icon: Pencil, tone: "neutral" },
+  view: { id: "view", label: "View", icon: Eye, tone: "neutral" },
+  approve: { id: "approve", label: "Approve", icon: Check, tone: "success" },
+  reject: { id: "reject", label: "Reject", icon: X, tone: "danger" },
+  delete: { id: "delete", label: "Delete", icon: Trash2, tone: "danger" },
+  upload: { id: "upload", label: "Upload", icon: Upload, tone: "neutral" },
+  import: { id: "import", label: "Import", icon: Download, tone: "neutral" },
+  export: { id: "export", label: "Export", icon: FileDown, tone: "neutral" },
+  duplicate: { id: "duplicate", label: "Duplicate", icon: Copy, tone: "neutral" },
+  archive: { id: "archive", label: "Archive", icon: Archive, tone: "warning" },
+  restore: { id: "restore", label: "Restore", icon: RotateCcw, tone: "neutral" },
+  enable: { id: "enable", label: "Enable", icon: Unlock, tone: "success" },
+  disable: { id: "disable", label: "Disable", icon: Lock, tone: "warning" },
+  feature: { id: "feature", label: "Feature", icon: Star, tone: "premium" },
+  pin: { id: "pin", label: "Pin", icon: Pin, tone: "neutral" },
+  category: { id: "category", label: "Category", icon: Tag, tone: "neutral" },
+  pricing: { id: "pricing", label: "Pricing", icon: DollarSign, tone: "neutral" },
+  license: { id: "license", label: "License", icon: KeyRound, tone: "neutral" },
+  publish: { id: "publish", label: "Publish", icon: Rocket, tone: "primary" },
+  unpublish: { id: "unpublish", label: "Unpublish", icon: PauseCircle, tone: "warning" },
 };
 
-export const BULK_ACTIONS: { id: BulkActionId; label: string; icon: ComponentType<{ className?: string }>; tone: Tone }[] = [
-  { id: "bulk-approve",  label: "Approve",         icon: Check,      tone: "success" },
-  { id: "bulk-reject",   label: "Reject",          icon: X,          tone: "danger"  },
-  { id: "bulk-publish",  label: "Publish",         icon: Rocket,     tone: "primary" },
-  { id: "bulk-archive",  label: "Archive",         icon: Archive,    tone: "warning" },
-  { id: "bulk-delete",   label: "Delete",          icon: Trash2,     tone: "danger"  },
-  { id: "bulk-export",   label: "Export",          icon: FileDown,   tone: "neutral" },
-  { id: "bulk-import",   label: "Import",          icon: Download,   tone: "neutral" },
-  { id: "bulk-category", label: "Change Category", icon: Tag,        tone: "neutral" },
-  { id: "bulk-price",    label: "Update Price",    icon: DollarSign, tone: "neutral" },
-  { id: "bulk-license",  label: "Update License",  icon: KeyRound,   tone: "neutral" },
+export const BULK_ACTIONS: {
+  id: BulkActionId;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  tone: Tone;
+}[] = [
+  { id: "bulk-approve", label: "Approve", icon: Check, tone: "success" },
+  { id: "bulk-reject", label: "Reject", icon: X, tone: "danger" },
+  { id: "bulk-publish", label: "Publish", icon: Rocket, tone: "primary" },
+  { id: "bulk-archive", label: "Archive", icon: Archive, tone: "warning" },
+  { id: "bulk-delete", label: "Delete", icon: Trash2, tone: "danger" },
+  { id: "bulk-export", label: "Export", icon: FileDown, tone: "neutral" },
+  { id: "bulk-import", label: "Import", icon: Download, tone: "neutral" },
+  { id: "bulk-category", label: "Change Category", icon: Tag, tone: "neutral" },
+  { id: "bulk-price", label: "Update Price", icon: DollarSign, tone: "neutral" },
+  { id: "bulk-license", label: "Update License", icon: KeyRound, tone: "neutral" },
 ];
 
 // ---------- single button ----------
@@ -103,8 +158,7 @@ function useActionNotice() {
     const timer = setTimeout(() => setNotice(null), 4000);
     return () => clearTimeout(timer);
   }, [notice]);
-  const report = (label: string) =>
-    setNotice(`"${label}" is not connected to an action yet.`);
+  const report = (label: string) => setNotice(`"${label}" is not connected to an action yet.`);
   return { notice, report };
 }
 
@@ -212,7 +266,9 @@ export function TableToolbar({
       <ToolBtn icon={RefreshCw} />
       <ToolBtn icon={Download} label="Import" />
       <ToolBtn icon={FileDown} label="Export" />
-      {extraActions?.map((id) => <ActionButton key={id} action={id} size="sm" />)}
+      {extraActions?.map((id) => (
+        <ActionButton key={id} action={id} size="sm" />
+      ))}
       <ActionButton action="add" size="sm" {...(onAdd ? { onClick: onAdd } : {})} />
       <ToolBtn icon={Settings} />
     </div>
@@ -293,23 +349,42 @@ export function BulkActionBar({
 export function DetailActionRail({
   can,
   onAction,
+  onExtra,
 }: {
   can?: (id: ActionId) => boolean;
   onAction?: (id: ActionId) => void;
+  /**
+   * The secondary actions — Preview, Gallery, Version History and the rest.
+   *
+   * These called notBuilt(), which showed every caller a toast saying the
+   * feature did not exist, including callers that had a handler ready. The
+   * rail is presentational: it knows the buttons, not what they should do, so
+   * it hands the label back and the screen that owns the record decides.
+   */
+  onExtra?: (label: string) => void;
 }) {
-  const primary: ActionId[] = ["edit", "approve", "reject", "publish", "unpublish", "duplicate", "archive", "delete"];
+  const primary: ActionId[] = [
+    "edit",
+    "approve",
+    "reject",
+    "publish",
+    "unpublish",
+    "duplicate",
+    "archive",
+    "delete",
+  ];
   const extras: { label: string; icon: ComponentType<{ className?: string }> }[] = [
-    { label: "Preview",         icon: Eye },
-    { label: "Live Demo",       icon: PlayCircle },
-    { label: "Video",           icon: PlayCircle },
-    { label: "Gallery",         icon: ImageIcon },
-    { label: "Documentation",   icon: FileText },
+    { label: "Preview", icon: Eye },
+    { label: "Live Demo", icon: PlayCircle },
+    { label: "Video", icon: PlayCircle },
+    { label: "Gallery", icon: ImageIcon },
+    { label: "Documentation", icon: FileText },
     { label: "Version History", icon: History },
-    { label: "Reviews",         icon: MessageSquare },
-    { label: "Ratings",         icon: Star },
-    { label: "License",         icon: KeyRound },
-    { label: "Purchase History",icon: Receipt },
-    { label: "Audit Logs",      icon: ClipboardList },
+    { label: "Reviews", icon: MessageSquare },
+    { label: "Ratings", icon: Star },
+    { label: "License", icon: KeyRound },
+    { label: "Purchase History", icon: Receipt },
+    { label: "Audit Logs", icon: ClipboardList },
   ];
   const allowed = primary.filter((id) => (can ? can(id) : true));
   return (
@@ -320,8 +395,8 @@ export function DetailActionRail({
       <span className="mx-1 h-5 w-px bg-border" />
       {extras.map((e) => (
         <button
-        type="button"
-        onClick={() => notBuilt(e.label)}
+          type="button"
+          onClick={() => onExtra?.(e.label)}
           key={e.label}
           className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-white/[0.04] px-2.5 text-[11px] font-semibold text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
         >
@@ -331,7 +406,9 @@ export function DetailActionRail({
       ))}
       <button
         type="button"
-        onClick={() => notBuilt("More actions")} className="ml-auto inline-flex h-7 items-center justify-center rounded-lg border border-border bg-white/[0.04] px-2 text-muted-foreground hover:text-foreground">
+        onClick={() => onExtra?.("More actions")}
+        className="ml-auto inline-flex h-7 items-center justify-center rounded-lg border border-border bg-white/[0.04] px-2 text-muted-foreground hover:text-foreground"
+      >
         <MoreHorizontal className="h-4 w-4" />
       </button>
     </div>
@@ -340,32 +417,56 @@ export function DetailActionRail({
 
 // ---------- color picker ----------
 const PRESETS = [
-  "#0F172A","#1E293B","#0EA5E9","#06B6D4","#22C55E","#F59E0B","#F5C518","#EF4444",
-  "#0C6478","#15919B","#09D1C7","#46DFB1","#80EE98","#213A58","#FFFFFF","#000000",
+  "#0F172A",
+  "#1E293B",
+  "#0EA5E9",
+  "#06B6D4",
+  "#22C55E",
+  "#F59E0B",
+  "#F5C518",
+  "#EF4444",
+  "#0C6478",
+  "#15919B",
+  "#09D1C7",
+  "#46DFB1",
+  "#80EE98",
+  "#213A58",
+  "#FFFFFF",
+  "#000000",
 ];
 
 export function ColorPicker({
   label,
   defaultValue = "#0EA5E9",
-}: { label: string; defaultValue?: string }) {
+}: {
+  label: string;
+  defaultValue?: string;
+}) {
   const [v, setV] = useState(defaultValue);
   const [mode, setMode] = useState<"HEX" | "RGB" | "HSL">("HEX");
   return (
     <div className="rounded-xl border border-border bg-background/40 p-3">
       <div className="mb-2 flex items-center justify-between">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </div>
         <div className="flex overflow-hidden rounded-md border border-border text-[10px] font-bold">
-          {(["HEX","RGB","HSL"] as const).map((m) => (
+          {(["HEX", "RGB", "HSL"] as const).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
               className={`px-2 py-0.5 ${mode === m ? "bg-primary/20 text-foreground" : "text-muted-foreground hover:bg-white/[0.05]"}`}
-            >{m}</button>
+            >
+              {m}
+            </button>
           ))}
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <label className="relative h-9 w-9 cursor-pointer overflow-hidden rounded-lg ring-1 ring-border" style={{ background: v }}>
+        <label
+          className="relative h-9 w-9 cursor-pointer overflow-hidden rounded-lg ring-1 ring-border"
+          style={{ background: v }}
+        >
           <input
             type="color"
             value={v}
