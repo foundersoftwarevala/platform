@@ -249,16 +249,26 @@ export function AuthorApprovalSection() {
   const [tab, setTab] = useState("All Submissions");
   const qc = useQueryClient();
 
+  // Asserted at the boundary: the generated Supabase types are behind the
+  // real schema, so these server functions infer as unknown and the loss
+  // spreads to every field read below. One assertion here is better than
+  // eight unresolved reads.
   const view = useQuery<ModerationView>({
     queryKey: MODERATION_KEY,
-    queryFn: () => getModeration({ data: { tab: "queue", limit: 50 } }),
+    queryFn: async (): Promise<ModerationView> =>
+      (await getModeration({ data: { tab: "queue", limit: 50 } })) as ModerationView,
     staleTime: 30_000,
   });
 
+  type Decision = { ok?: boolean; reason?: string; message?: string };
   const decide = useMutation({
-    mutationFn: (v: { id: string; status: string; lock: number; reason?: string }) =>
-      moderateProduct({ data: v as never }),
-    onSuccess: (r) => {
+    mutationFn: async (v: {
+      id: string;
+      status: string;
+      lock: number;
+      reason?: string;
+    }): Promise<Decision> => (await moderateProduct({ data: v as never })) as Decision,
+    onSuccess: (r: Decision) => {
       if (!r?.ok) {
         toast.error("That decision was refused", { description: String(r?.reason ?? "") });
         return;
