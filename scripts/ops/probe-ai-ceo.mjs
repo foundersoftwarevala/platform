@@ -64,6 +64,7 @@ const SCREENS = [
   ["/ai-ceo", "Dashboard"],
   ["/ai-ceo/morning", "Morning AI"],
   ["/ai-ceo/ayra", "AYRA"],
+  ["/ai-ceo/healing", "Self-Healing"],
   ["/ai-ceo/live-monitor", "Live Monitor"],
   ["/ai-ceo/decision-engine", "Decision Engine"],
   ["/ai-ceo/approvals", "Approvals"],
