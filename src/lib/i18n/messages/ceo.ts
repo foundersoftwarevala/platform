@@ -274,6 +274,80 @@ export const CEO_MESSAGES = {
     "follows a count of agents lacking the CREATE permission",
   ],
 
+  // The self-healing engine.
+  "ceo.heal_title": ["Self-Healing", "heading of the self-healing dashboard"],
+  "ceo.heal_subtitle":
+    "What the engine has detected, attempted, verified and escalated — and what it is not yet allowed to do. An attempt that succeeded but was never confirmed is shown apart from one that was.",
+  "ceo.heal_loading": "Reading the healing engine…",
+  "ceo.heal_failed": ["The healing engine could not be read", "heading when the board cannot load"],
+  "ceo.heal_failed_body":
+    "The counts could not be taken, so this screen shows nothing rather than an all-clear it has not established.",
+  "ceo.heal_enabled": ["Self-healing is on", "the engine is enabled"],
+  "ceo.heal_disabled": ["Self-healing is off", "the engine is switched off"],
+  "ceo.heal_state_unknown": [
+    "engine state unknown",
+    "shown when the control row could not be read",
+  ],
+  "ceo.heal_degraded": ["Degraded", "the engine reports a problem with itself"],
+  "ceo.heal_awaiting": ["awaiting recovery", "incidents waiting for a worker"],
+  "ceo.heal_blocked_by_you": ["blocked by you", "incidents a person has taken off the engine"],
+  "ceo.heal_stale_locks": ["stale lock(s)", "incidents held by a worker that stopped"],
+  "ceo.heal_succeeded_unverified": [
+    "succeeded but unverified",
+    "attempts that worked yet were never confirmed",
+  ],
+  "ceo.heal_incidents": ["Incidents", "how many incidents exist in total"],
+  "ceo.heal_recovered": ["Auto-recovered", "incidents resolved by a verified recovery"],
+  "ceo.heal_in_progress": ["In progress", "incidents currently being worked"],
+  "ceo.heal_escalated": ["Escalated", "incidents handed to a person"],
+  "ceo.heal_circuits": ["Circuits open", "incidents where further attempts are refused"],
+  "ceo.heal_verified_attempts": [
+    "Verified attempts",
+    "recovery attempts that were actually confirmed",
+  ],
+  "ceo.heal_engine": ["Engine", "heading over the per-component status list"],
+  "ceo.heal_part_detection": ["Detection", "turning a signal into an incident"],
+  "ceo.heal_part_worker": ["Worker logic", "choosing and carrying out a recovery"],
+  "ceo.heal_part_claim": ["Atomic claim", "two workers never take the same incident"],
+  "ceo.heal_part_verification": ["Verification", "confirming a recovery actually worked"],
+  "ceo.heal_part_circuit": ["Circuit breaker", "stopping a failure from being retried forever"],
+  "ceo.heal_part_budget": ["Recovery budget", "limits on attempts, time and breadth"],
+  "ceo.heal_part_killswitch": ["Kill switch", "the global stop"],
+  "ceo.heal_part_override": ["Human override", "taking one incident off the engine"],
+  "ceo.heal_part_audit": ["Audit", "the append-only record of what was tried"],
+  "ceo.heal_part_actions": ["Recovery actions", "the operations the engine can perform"],
+  "ceo.heal_part_scheduler": ["Scheduler", "what would run the worker on a timer"],
+  "ceo.heal_scheduler_note":
+    "Nothing runs the worker on a schedule yet: it needs authorization to reach the database gateway that holds these tables. The engine can decide and verify a recovery; it is not running one by itself.",
+  "ceo.heal_actions": ["Recovery actions", "heading over what the engine can and cannot do"],
+  "ceo.heal_actions_real": ["These act on something real:", "label over the working actions"],
+  "ceo.heal_actions_unavailable": [
+    "These have no implementation and are never attempted:",
+    "label over the actions that do not exist yet",
+  ],
+  "ceo.heal_backoff_note":
+    "Backoff defers the next attempt; it is not a repair and can never resolve an incident on its own.",
+  "ceo.heal_budgets": ["What each failure class may spend", "heading over the recovery budgets"],
+  "ceo.heal_no_budgets": ["No budget is configured", "shown when no policy could be read"],
+  "ceo.heal_no_budgets_body":
+    "Without a policy nothing can be recovered autonomously, which is the safe state rather than a broken one.",
+  "ceo.heal_autonomous": ["heals itself", "this class may be recovered without a person"],
+  "ceo.heal_human_only": ["needs a person", "this class is never recovered autonomously"],
+  "ceo.heal_attempts_word": ["attempt(s)", "how many tries a class is allowed"],
+  "ceo.heal_minutes_short": ["m", "minutes, abbreviated after a number"],
+  "ceo.heal_scope_word": ["scope", "precedes how many rows an action may touch"],
+  "ceo.heal_running_word": ["running", "how many recoveries of this class are in flight"],
+  "ceo.heal_timeline": ["Every recovery, attempt by attempt", "heading over the healing timeline"],
+  "ceo.heal_no_incidents": ["No healing incident has been recorded", "shown when there are none"],
+  "ceo.heal_no_incidents_body":
+    "Nothing has failed in a way the engine was asked to act on. This list fills from real detection; nothing is added to make it look active.",
+  "ceo.heal_verified_word": ["verified", "this attempt was actually confirmed"],
+  "ceo.heal_unverified_word": [
+    "not verified, so this resolved nothing",
+    "this attempt was never confirmed",
+  ],
+  "ceo.heal_detected_word": ["detected", "precedes the time an incident was noticed"],
+
   // AYRA: the Founder's executive secretary.
   "ceo.ayra_title": ["AYRA", "name of the Founder's executive secretary"],
   "ceo.ayra_subtitle":

@@ -105,6 +105,7 @@ import { Route as AiCeoApprovalsRouteImport } from './routes/ai-ceo.approvals'
 import { Route as AiCeoAutomationsRouteImport } from './routes/ai-ceo.automations'
 import { Route as AiCeoAyraRouteImport } from './routes/ai-ceo.ayra'
 import { Route as AiCeoDecisionEngineRouteImport } from './routes/ai-ceo.decision-engine'
+import { Route as AiCeoHealingRouteImport } from './routes/ai-ceo.healing'
 import { Route as AiCeoInsightsRouteImport } from './routes/ai-ceo.insights'
 import { Route as AiCeoLearningRouteImport } from './routes/ai-ceo.learning'
 import { Route as AiCeoLiveMonitorRouteImport } from './routes/ai-ceo.live-monitor'
@@ -836,6 +837,11 @@ const AiCeoAyraRoute = AiCeoAyraRouteImport.update({
 const AiCeoDecisionEngineRoute = AiCeoDecisionEngineRouteImport.update({
   id: '/decision-engine',
   path: '/decision-engine',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoHealingRoute = AiCeoHealingRouteImport.update({
+  id: '/healing',
+  path: '/healing',
   getParentRoute: () => AiCeoRoute,
 } as any)
 const AiCeoInsightsRoute = AiCeoInsightsRouteImport.update({
@@ -2116,6 +2122,7 @@ export interface FileRoutesByFullPath {
   '/ai-ceo/automations': typeof AiCeoAutomationsRoute
   '/ai-ceo/ayra': typeof AiCeoAyraRoute
   '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
+  '/ai-ceo/healing': typeof AiCeoHealingRoute
   '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
   '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
@@ -2437,6 +2444,7 @@ export interface FileRoutesByTo {
   '/ai-ceo/automations': typeof AiCeoAutomationsRoute
   '/ai-ceo/ayra': typeof AiCeoAyraRoute
   '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
+  '/ai-ceo/healing': typeof AiCeoHealingRoute
   '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
   '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
@@ -2767,6 +2775,7 @@ export interface FileRoutesById {
   '/ai-ceo/automations': typeof AiCeoAutomationsRoute
   '/ai-ceo/ayra': typeof AiCeoAyraRoute
   '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
+  '/ai-ceo/healing': typeof AiCeoHealingRoute
   '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
   '/ai-ceo/live-monitor': typeof AiCeoLiveMonitorRoute
@@ -3099,6 +3108,7 @@ export interface FileRouteTypes {
     | '/ai-ceo/automations'
     | '/ai-ceo/ayra'
     | '/ai-ceo/decision-engine'
+    | '/ai-ceo/healing'
     | '/ai-ceo/insights'
     | '/ai-ceo/learning'
     | '/ai-ceo/live-monitor'
@@ -3420,6 +3430,7 @@ export interface FileRouteTypes {
     | '/ai-ceo/automations'
     | '/ai-ceo/ayra'
     | '/ai-ceo/decision-engine'
+    | '/ai-ceo/healing'
     | '/ai-ceo/insights'
     | '/ai-ceo/learning'
     | '/ai-ceo/live-monitor'
@@ -3749,6 +3760,7 @@ export interface FileRouteTypes {
     | '/ai-ceo/automations'
     | '/ai-ceo/ayra'
     | '/ai-ceo/decision-engine'
+    | '/ai-ceo/healing'
     | '/ai-ceo/insights'
     | '/ai-ceo/learning'
     | '/ai-ceo/live-monitor'
@@ -4807,6 +4819,13 @@ declare module '@tanstack/react-router' {
       path: '/decision-engine'
       fullPath: '/ai-ceo/decision-engine'
       preLoaderRoute: typeof AiCeoDecisionEngineRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/healing': {
+      id: '/ai-ceo/healing'
+      path: '/healing'
+      fullPath: '/ai-ceo/healing'
+      preLoaderRoute: typeof AiCeoHealingRouteImport
       parentRoute: typeof AiCeoRoute
     }
     '/ai-ceo/insights': {
@@ -6528,6 +6547,7 @@ interface AiCeoRouteChildren {
   AiCeoAutomationsRoute: typeof AiCeoAutomationsRoute
   AiCeoAyraRoute: typeof AiCeoAyraRoute
   AiCeoDecisionEngineRoute: typeof AiCeoDecisionEngineRoute
+  AiCeoHealingRoute: typeof AiCeoHealingRoute
   AiCeoInsightsRoute: typeof AiCeoInsightsRoute
   AiCeoLearningRoute: typeof AiCeoLearningRoute
   AiCeoLiveMonitorRoute: typeof AiCeoLiveMonitorRoute
@@ -6552,6 +6572,7 @@ const AiCeoRouteChildren: AiCeoRouteChildren = {
   AiCeoAutomationsRoute: AiCeoAutomationsRoute,
   AiCeoAyraRoute: AiCeoAyraRoute,
   AiCeoDecisionEngineRoute: AiCeoDecisionEngineRoute,
+  AiCeoHealingRoute: AiCeoHealingRoute,
   AiCeoInsightsRoute: AiCeoInsightsRoute,
   AiCeoLearningRoute: AiCeoLearningRoute,
   AiCeoLiveMonitorRoute: AiCeoLiveMonitorRoute,
