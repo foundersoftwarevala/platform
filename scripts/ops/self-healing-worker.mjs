@@ -316,7 +316,18 @@ async function verifyAction(action, incident) {
   // worker picking the job up and finishing it, so this waits for that rather
   // than reporting success on the strength of having asked.
   if (action === "retry" && incident.entity_id) {
-    const deadline = Date.now() + 45_000;
+    // How long to wait is the policy's decision, not a number picked here:
+    // each failure class already declares the longest an attempt may take.
+    // It is capped so a slow check cannot eat the whole cron slot, and the
+    // first real run proved why this matters — a 45s guess gave up 40s before
+    // the queue finished, and reported an honest but useless "not yet".
+    const policy = (
+      await get(
+        `founder_recovery_policies?select=attempt_timeout_seconds&failure_class=eq.${incident.failure_class}`,
+      )
+    )?.[0];
+    const window = Math.min(150, Math.max(30, Number(policy?.attempt_timeout_seconds ?? 120)));
+    const deadline = Date.now() + window * 1000;
     let last = null;
     while (Date.now() < deadline && !stopping) {
       const job = (
@@ -337,7 +348,9 @@ async function verifyAction(action, incident) {
     }
     return {
       verified: false,
-      detail: `still '${last?.status ?? "unknown"}' when the check gave up; requeued but not yet recovered`,
+      detail:
+        `still '${last?.status ?? "unknown"}' after ${window}s; requeued but not yet recovered, ` +
+        `so the incident stays open rather than being called healed`,
     };
   }
 
