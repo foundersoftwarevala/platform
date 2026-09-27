@@ -63,6 +63,7 @@ console.log(`role: ${role}`);
 const SCREENS = [
   ["/ai-ceo", "Dashboard"],
   ["/ai-ceo/morning", "Morning AI"],
+  ["/ai-ceo/ayra", "AYRA"],
   ["/ai-ceo/live-monitor", "Live Monitor"],
   ["/ai-ceo/decision-engine", "Decision Engine"],
   ["/ai-ceo/approvals", "Approvals"],
