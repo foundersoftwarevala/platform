@@ -11,9 +11,18 @@ import { OrdersSection as OrdersLive } from "./sections/OrdersLive";
 // The module screens that were designed as shells and are now reading their
 // tables. The originals stay exported from ./sections/CatalogSections.
 import {
-  ProductMediaLive, DemoSystemLive, BlogLive, LicenseLive, DownloadsLive,
-  AuthorsLive, VendorsLive, ResellersLive, AffiliateLive, InfluencerLive,
-  QrLive, ReportsLive,
+  ProductMediaLive,
+  DemoSystemLive,
+  BlogLive,
+  LicenseLive,
+  DownloadsLive,
+  AuthorsLive,
+  VendorsLive,
+  ResellersLive,
+  AffiliateLive,
+  InfluencerLive,
+  QrLive,
+  ReportsLive,
 } from "./sections/LiveModules";
 import { RoleMatrix } from "./sections/RoleMatrix";
 import { AutomationConsole } from "./sections/AutomationConsole";
@@ -190,6 +199,15 @@ export const navIdToLabel: Record<string, string> = {
   downloads: "Downloads",
   reviews: "Reviews",
   notifications: "Notifications",
+
+  // The ids mm_dashboard's approval queues link to. They were written from
+  // the shape of the data ("catalog", "commerce") rather than from the shape
+  // of this UI, so every "Review" resolved to nothing and landed the reader
+  // back on the Dashboard. Mapped here rather than renamed in the database,
+  // because the destinations are also read by callers outside this workspace.
+  catalog: "Products",
+  commerce: "Orders",
+  "demo-urls": "Demo System",
 };
 
 /**

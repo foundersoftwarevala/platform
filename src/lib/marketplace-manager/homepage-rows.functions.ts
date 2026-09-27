@@ -40,8 +40,7 @@ async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise
 
   const { createClient } = await import("@supabase/supabase-js");
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+  const key = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
   const client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
@@ -56,19 +55,34 @@ export type MarketplaceDashboard = {
   reason?: string;
   generated_at: string;
   products: {
-    total: number; published: number; draft: number; archived: number;
-    hidden: number; with_demo: number; with_image: number;
-    sellers: number; categories: number;
+    total: number;
+    published: number;
+    draft: number;
+    archived: number;
+    hidden: number;
+    with_demo: number;
+    with_image: number;
+    sellers: number;
+    categories: number;
   };
   commerce: {
-    orders: number; paid: number; pending: number; refunds: number;
+    orders: number;
+    paid: number;
+    pending: number;
+    refunds: number;
     /** Null when the platform has no downloads table — not tracked, not zero. */
     downloads: number | null;
   };
   revenue: {
-    today: number; this_week: number; this_month: number; this_year: number;
-    all_time: number; refunded: number; net: number;
-    currency: string; has_transactions: boolean;
+    today: number;
+    this_week: number;
+    this_month: number;
+    this_year: number;
+    all_time: number;
+    refunded: number;
+    net: number;
+    currency: string;
+    has_transactions: boolean;
   };
   queues: { key: string; label: string; count: number; destination: string }[];
   activity: { at: string; kind: string; source: string; label: string; detail: string }[];
@@ -99,3 +113,49 @@ export const marketplaceControlSummary = createServerFn({ method: "GET" }).handl
     return data;
   },
 );
+
+/**
+ * Revenue over time, for the graph the control room used to promise.
+ *
+ * The panel above the graph and the bars inside it are the same arithmetic:
+ * mm_revenue_series counts the paid order lines and the refunds that
+ * mm_dashboard totals, so a bar can never disagree with the number beside it.
+ * That was worth checking rather than assuming — the first version of the
+ * series read 5,976.00 against the panel's 2,490.00 because it counted
+ * unpaid baskets too.
+ */
+export type RevenuePoint = {
+  at: string;
+  gross: number;
+  refunds: number;
+  net: number;
+  orders: number;
+};
+
+export type RevenueSeries = {
+  ok: boolean;
+  reason?: string;
+  range: "today" | "week" | "month" | "year";
+  unit: "hour" | "day" | "month";
+  from: string;
+  currency: string;
+  /** False means nothing has ever sold — different from a quiet window. */
+  has_transactions: boolean;
+  points: RevenuePoint[];
+};
+
+export const marketplaceRevenueSeries = createServerFn({ method: "GET" })
+  .validator((range: unknown): "today" | "week" | "month" | "year" =>
+    range === "today" || range === "week" || range === "year" ? range : "month",
+  )
+  .handler(async ({ data: range }): Promise<RevenueSeries> => {
+    const series = await callAsUser<RevenueSeries>("mm_revenue_series", { p_range: range });
+    if (!series?.ok) {
+      throw new Error(
+        series?.reason === "not_permitted"
+          ? "Revenue needs operator rights."
+          : "The revenue series could not be read.",
+      );
+    }
+    return series;
+  });

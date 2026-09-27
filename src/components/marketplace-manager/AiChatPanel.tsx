@@ -81,7 +81,11 @@ function quarantine(key: string, raw: string | null) {
   } catch {}
 }
 
-function safeRead<T>(key: string, validate: (v: unknown) => v is T, fallback: T): {
+function safeRead<T>(
+  key: string,
+  validate: (v: unknown) => v is T,
+  fallback: T,
+): {
   value: T;
   recovered: boolean;
 } {
@@ -137,13 +141,34 @@ function logAudit(action: AuditAction, detail?: string) {
 const FB_ROW_EST = 220;
 const FB_OVERSCAN = 6;
 
-export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function AiChatPanel({
+  open,
+  onClose,
+  seed,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /**
+   * A question the screen that opened the panel wants asked, already carrying
+   * that screen's figures. It is placed in the composer rather than sent, so
+   * the assistant is never asked something the reader did not choose to ask —
+   * and so they can edit it first.
+   */
+  seed?: string | null;
+}) {
   const callChat = useServerFn(chatWithAi);
   const [messages, setMessages] = useState<StoredMessage[]>([]);
   const [prefs, setPrefs] = useState<Prefs>({ learnFromFeedback: false });
   const [auditLog, setAuditLog] = useState<AuditEvent[]>([]);
   const [recoveryNotice, setRecoveryNotice] = useState<string[]>([]);
   const [input, setInput] = useState("");
+
+  // A seeded question arrives in the composer when the panel opens, and only
+  // when the composer is empty — a half-typed message is never overwritten.
+  useEffect(() => {
+    if (!open || !seed) return;
+    setInput((current) => (current.trim().length > 0 ? current : seed));
+  }, [open, seed]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -325,8 +350,7 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
   const orderedSuggestions = useMemo(() => {
     if (!prefs.learnFromFeedback) return DEFAULT_SUGGESTIONS;
     return [...DEFAULT_SUGGESTIONS].sort(
-      (a, b) =>
-        (promptScores.get(b.toLowerCase()) ?? 0) - (promptScores.get(a.toLowerCase()) ?? 0),
+      (a, b) => (promptScores.get(b.toLowerCase()) ?? 0) - (promptScores.get(a.toLowerCase()) ?? 0),
     );
   }, [prefs.learnFromFeedback, promptScores]);
 
@@ -339,9 +363,13 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
     }
     if (preset === "7d") return [now.getTime() - 7 * 86_400_000, Infinity];
     if (preset === "30d") return [now.getTime() - 30 * 86_400_000, Infinity];
-    if (preset === "month") return [new Date(now.getFullYear(), now.getMonth(), 1).getTime(), Infinity];
+    if (preset === "month")
+      return [new Date(now.getFullYear(), now.getMonth(), 1).getTime(), Infinity];
     if (preset === "custom") {
-      return [from ? new Date(from).getTime() : 0, to ? new Date(to).getTime() + 86_400_000 : Infinity];
+      return [
+        from ? new Date(from).getTime() : 0,
+        to ? new Date(to).getTime() + 86_400_000 : Infinity,
+      ];
     }
     return [0, Infinity];
   }
@@ -439,28 +467,66 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
         return;
       }
       if (isTyping(e.target)) return;
-      if (e.key === "?" && e.shiftKey) { e.preventDefault(); setShowShortcuts((s) => !s); return; }
+      if (e.key === "?" && e.shiftKey) {
+        e.preventDefault();
+        setShowShortcuts((s) => !s);
+        return;
+      }
       if (showFeedback) {
-        if (e.key === "/") { e.preventDefault(); fbSearchRef.current?.focus(); return; }
-        if (e.key === "1") { setFbRating("all"); return; }
-        if (e.key === "2") { setFbRating("up"); return; }
-        if (e.key === "3") { setFbRating("down"); return; }
-        if (e.key.toLowerCase() === "e") { setShowExport(true); return; }
+        if (e.key === "/") {
+          e.preventDefault();
+          fbSearchRef.current?.focus();
+          return;
+        }
+        if (e.key === "1") {
+          setFbRating("all");
+          return;
+        }
+        if (e.key === "2") {
+          setFbRating("up");
+          return;
+        }
+        if (e.key === "3") {
+          setFbRating("down");
+          return;
+        }
+        if (e.key.toLowerCase() === "e") {
+          setShowExport(true);
+          return;
+        }
       }
       if (showAudit) {
-        if (e.key === "/") { e.preventDefault(); auSearchRef.current?.focus(); return; }
-        if (e.key === "1") { setAuAction("all"); return; }
-        if (e.key === "2") { setAuAction("feedback_set"); return; }
-        if (e.key === "3") { setAuAction("feedback_cleared"); return; }
-        if (e.key.toLowerCase() === "j") { doExportAuditJSON(); return; }
-        if (e.key.toLowerCase() === "c") { doExportAuditCSV(); return; }
+        if (e.key === "/") {
+          e.preventDefault();
+          auSearchRef.current?.focus();
+          return;
+        }
+        if (e.key === "1") {
+          setAuAction("all");
+          return;
+        }
+        if (e.key === "2") {
+          setAuAction("feedback_set");
+          return;
+        }
+        if (e.key === "3") {
+          setAuAction("feedback_cleared");
+          return;
+        }
+        if (e.key.toLowerCase() === "j") {
+          doExportAuditJSON();
+          return;
+        }
+        if (e.key.toLowerCase() === "c") {
+          doExportAuditCSV();
+          return;
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, preview, showFeedback, showAudit, auditView, messages, feedbackView]);
-
 
   async function send(text: string) {
     const content = text.trim();
@@ -482,7 +548,13 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
       } else {
         setMessages([
           ...next,
-          { id: generateId(), role: "assistant", content: out.reply, ts: Date.now(), reaction: null },
+          {
+            id: generateId(),
+            role: "assistant",
+            content: out.reply,
+            ts: Date.now(),
+            reaction: null,
+          },
         ]);
       }
     } catch (e) {
@@ -795,8 +867,9 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
           <div className="flex items-start gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
             <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div className="flex-1">
-              Recovered from corrupted <span className="font-semibold">{recoveryNotice.join(", ")}</span>.
-              A backup was kept under <code className="font-mono">*.corrupt.*</code> keys.
+              Recovered from corrupted{" "}
+              <span className="font-semibold">{recoveryNotice.join(", ")}</span>. A backup was kept
+              under <code className="font-mono">*.corrupt.*</code> keys.
             </div>
             <button
               onClick={() => setRecoveryNotice([])}
@@ -818,7 +891,11 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
                 </div>
                 <div className="mt-0.5 text-[10px] text-muted-foreground">
                   Reorders suggestion prompts using your 👍 / 👎 history.{" "}
-                  <span className={prefs.learnFromFeedback ? "text-emerald-400" : "text-muted-foreground"}>
+                  <span
+                    className={
+                      prefs.learnFromFeedback ? "text-emerald-400" : "text-muted-foreground"
+                    }
+                  >
                     {prefs.learnFromFeedback ? "ON" : "OFF"}
                   </span>
                 </div>
@@ -840,7 +917,9 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
             </div>
             <div className="flex items-center justify-between rounded-lg border border-rose-500/30 bg-rose-500/[0.06] px-3 py-2">
               <div className="min-w-0">
-                <div className="text-[12px] font-semibold text-foreground">Clear all AI feedback</div>
+                <div className="text-[12px] font-semibold text-foreground">
+                  Clear all AI feedback
+                </div>
                 <div className="text-[10px] text-muted-foreground">
                   Removes {ratedMessages.length} thumbs reaction
                   {ratedMessages.length === 1 ? "" : "s"}. Chats & prompts are kept.
@@ -869,21 +948,43 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
                 className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
               />
               {query && (
-                <button onClick={() => setQuery("")} className="text-[10px] text-muted-foreground hover:text-foreground">
+                <button
+                  onClick={() => setQuery("")}
+                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                >
                   clear
                 </button>
               )}
             </div>
             <div className="flex items-center gap-2">
               <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none"
+              />
               <span className="text-[10px] text-muted-foreground">to</span>
-              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none" />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none"
+              />
             </div>
             <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>{filtered.length} of {messages.length} match</span>
+              <span>
+                {filtered.length} of {messages.length} match
+              </span>
               {(query || dateFrom || dateTo) && (
-                <button onClick={() => { setQuery(""); setDateFrom(""); setDateTo(""); }} className="text-accent hover:underline">
+                <button
+                  onClick={() => {
+                    setQuery("");
+                    setDateFrom("");
+                    setDateTo("");
+                  }}
+                  className="text-accent hover:underline"
+                >
                   Reset filters
                 </button>
               )}
@@ -935,7 +1036,6 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
               </button>
             </div>
 
-
             <div className="space-y-2 border-b border-border px-3 py-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <Filter className="h-3 w-3 text-muted-foreground" />
@@ -964,23 +1064,52 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
               </div>
               {fbDatePreset === "custom" && (
                 <div className="flex items-center gap-2">
-                  <input type="date" value={fbFrom} onChange={(e) => setFbFrom(e.target.value)} className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none" />
+                  <input
+                    type="date"
+                    value={fbFrom}
+                    onChange={(e) => setFbFrom(e.target.value)}
+                    className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none"
+                  />
                   <span className="text-[10px] text-muted-foreground">to</span>
-                  <input type="date" value={fbTo} onChange={(e) => setFbTo(e.target.value)} className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none" />
+                  <input
+                    type="date"
+                    value={fbTo}
+                    onChange={(e) => setFbTo(e.target.value)}
+                    className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none"
+                  />
                 </div>
               )}
               <div className="flex items-center gap-2">
                 <div className="flex flex-1 items-center gap-2 rounded-lg border border-border bg-white/[0.04] px-2 py-1">
                   <Search className="h-3 w-3 text-muted-foreground" />
-                  <input ref={fbSearchRef} value={fbQuery} onChange={(e) => setFbQuery(e.target.value)} placeholder="Search prompt, response, id…" aria-label="Search feedback (press / to focus)" className="flex-1 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-accent" />
+                  <input
+                    ref={fbSearchRef}
+                    value={fbQuery}
+                    onChange={(e) => setFbQuery(e.target.value)}
+                    placeholder="Search prompt, response, id…"
+                    aria-label="Search feedback (press / to focus)"
+                    className="flex-1 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                  />
                 </div>
                 <div className="flex items-center gap-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1">
                   <ArrowDownAZ className="h-3 w-3 text-muted-foreground" />
-                  <select value={fbSort} onChange={(e) => setFbSort(e.target.value as SortMode)} className="bg-transparent text-[10px] text-foreground focus:outline-none">
-                    <option value="newest" className="bg-background">Newest</option>
-                    <option value="oldest" className="bg-background">Oldest</option>
-                    <option value="up_first" className="bg-background">Highest</option>
-                    <option value="down_first" className="bg-background">Lowest</option>
+                  <select
+                    value={fbSort}
+                    onChange={(e) => setFbSort(e.target.value as SortMode)}
+                    className="bg-transparent text-[10px] text-foreground focus:outline-none"
+                  >
+                    <option value="newest" className="bg-background">
+                      Newest
+                    </option>
+                    <option value="oldest" className="bg-background">
+                      Oldest
+                    </option>
+                    <option value="up_first" className="bg-background">
+                      Highest
+                    </option>
+                    <option value="down_first" className="bg-background">
+                      Lowest
+                    </option>
                   </select>
                 </div>
               </div>
@@ -1011,11 +1140,22 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
                   aria-rowcount={feedbackView.length}
                   aria-label={`Virtualized feedback list, showing ${fbWindow.items.length} of ${feedbackView.length}`}
                 >
-
                   {fbWindow.items.map(({ msg: m, prompt: userPrompt }, i) => {
                     const top = (fbWindow.start + i) * FB_ROW_EST;
                     return (
-                      <div key={m.id} role="listitem" aria-posinset={fbWindow.start + i + 1} aria-setsize={feedbackView.length} style={{ position: "absolute", top, left: 0, right: 0, padding: "6px 12px" }}>
+                      <div
+                        key={m.id}
+                        role="listitem"
+                        aria-posinset={fbWindow.start + i + 1}
+                        aria-setsize={feedbackView.length}
+                        style={{
+                          position: "absolute",
+                          top,
+                          left: 0,
+                          right: 0,
+                          padding: "6px 12px",
+                        }}
+                      >
                         <div className="rounded-xl border border-border bg-white/[0.03] p-3">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
@@ -1027,14 +1167,24 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
                               <span className="text-foreground">
                                 {m.reaction === "up" ? "Helpful" : "Not helpful"}
                               </span>
-                              <span className="text-muted-foreground">· {new Date(m.ts).toLocaleString()}</span>
+                              <span className="text-muted-foreground">
+                                · {new Date(m.ts).toLocaleString()}
+                              </span>
                               <span className="rounded bg-white/[0.05] px-1 py-[1px] font-mono text-[9px] text-muted-foreground">
                                 {m.id.slice(0, 8)}
                               </span>
                             </div>
                             <div className="flex items-center gap-1">
-                              <button onClick={() => copyText(m.content, m.id)} title="Copy response" className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:bg-white/[0.08] hover:text-foreground">
-                                {copiedId === m.id ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                              <button
+                                onClick={() => copyText(m.content, m.id)}
+                                title="Copy response"
+                                className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+                              >
+                                {copiedId === m.id ? (
+                                  <Check className="h-3 w-3 text-emerald-400" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
                               </button>
                               <button
                                 onClick={() => {
@@ -1047,17 +1197,25 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
                               >
                                 <MessageSquare className="h-3 w-3" />
                               </button>
-                              <button onClick={() => setReaction(m.id, null)} title="Clear reaction" className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:bg-white/[0.08] hover:text-foreground">
+                              <button
+                                onClick={() => setReaction(m.id, null)}
+                                title="Clear reaction"
+                                className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+                              >
                                 <X className="h-3 w-3" />
                               </button>
                             </div>
                           </div>
                           <div className="mt-2 space-y-1.5">
-                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Prompt</div>
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              Prompt
+                            </div>
                             <div className="line-clamp-2 rounded-lg bg-white/[0.04] px-2.5 py-1.5 text-[11px] text-foreground">
                               {userPrompt || <span className="text-muted-foreground">—</span>}
                             </div>
-                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Response</div>
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              Response
+                            </div>
                             <div className="line-clamp-3 whitespace-pre-wrap rounded-lg bg-white/[0.04] px-2.5 py-1.5 text-[11px] text-foreground">
                               {m.content}
                             </div>
@@ -1169,27 +1327,56 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
               </div>
               {auPreset === "custom" && (
                 <div className="flex items-center gap-2">
-                  <input type="date" value={auFrom} onChange={(e) => setAuFrom(e.target.value)} className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none" />
+                  <input
+                    type="date"
+                    value={auFrom}
+                    onChange={(e) => setAuFrom(e.target.value)}
+                    className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none"
+                  />
                   <span className="text-[10px] text-muted-foreground">to</span>
-                  <input type="date" value={auTo} onChange={(e) => setAuTo(e.target.value)} className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none" />
+                  <input
+                    type="date"
+                    value={auTo}
+                    onChange={(e) => setAuTo(e.target.value)}
+                    className="flex-1 rounded-lg border border-border bg-white/[0.04] px-2 py-1 text-[11px] text-foreground focus:outline-none"
+                  />
                 </div>
               )}
               <div className="flex items-center gap-2 rounded-lg border border-border bg-white/[0.04] px-2 py-1">
                 <Search className="h-3 w-3 text-muted-foreground" />
-                <input ref={auSearchRef} value={auQuery} onChange={(e) => setAuQuery(e.target.value)} placeholder="Search action, detail, id…" aria-label="Search audit events (press / to focus)" className="flex-1 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-accent" />
+                <input
+                  ref={auSearchRef}
+                  value={auQuery}
+                  onChange={(e) => setAuQuery(e.target.value)}
+                  placeholder="Search action, detail, id…"
+                  aria-label="Search audit events (press / to focus)"
+                  className="flex-1 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                />
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto px-3 py-2" role="region" aria-label={`Audit events list, ${auditView.length} event${auditView.length === 1 ? "" : "s"}`}>
+            <div
+              className="flex-1 overflow-y-auto px-3 py-2"
+              role="region"
+              aria-label={`Audit events list, ${auditView.length} event${auditView.length === 1 ? "" : "s"}`}
+            >
               {auditView.length === 0 ? (
-                <div role="status" aria-live="polite" className="rounded-xl border border-border bg-white/[0.03] px-3 py-8 text-center text-xs text-muted-foreground">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="rounded-xl border border-border bg-white/[0.03] px-3 py-8 text-center text-xs text-muted-foreground"
+                >
                   No audit events match these filters.
                 </div>
               ) : (
-                <ul className="divide-y divide-border/60 rounded-xl border border-border bg-white/[0.03]" aria-label="Audit event list">
-
+                <ul
+                  className="divide-y divide-border/60 rounded-xl border border-border bg-white/[0.03]"
+                  aria-label="Audit event list"
+                >
                   {auditView.map((a) => (
                     <li key={a.id} className="flex items-start gap-2 px-3 py-2">
-                      <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${dotFor(a.action)}`} />
+                      <span
+                        className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${dotFor(a.action)}`}
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-foreground">
                           {labelFor(a.action)}
@@ -1220,7 +1407,8 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
                   <Sparkles className="h-4 w-4 text-accent" /> Ask Vala AI anything
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  I help you run the marketplace homepage — banners, walls, offers, SEO, analytics, integrity and more.
+                  I help you run the marketplace homepage — banners, walls, offers, SEO, analytics,
+                  integrity and more.
                 </p>
                 {prefs.learnFromFeedback && (
                   <div className="mt-2 flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/[0.08] px-2 py-1 text-[10px] text-emerald-200">
@@ -1246,7 +1434,12 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
               </div>
             )}
             {filtered.map((m) => (
-              <MessageBubble key={m.id} msg={m} highlight={query.trim()} onReact={(r) => setReaction(m.id, r)} />
+              <MessageBubble
+                key={m.id}
+                msg={m}
+                highlight={query.trim()}
+                onReact={(r) => setReaction(m.id, r)}
+              />
             ))}
             {loading && (
               <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
@@ -1265,14 +1458,24 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
         {messages.length > 0 && !showSearch && !showFeedback && !showSettings && !showAudit && (
           <div className="flex gap-1.5 overflow-x-auto border-t border-border px-4 py-2">
             {orderedSuggestions.slice(0, 4).map((s) => (
-              <button key={s} onClick={() => send(s)} className="shrink-0 rounded-full border border-border bg-white/[0.04] px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-white/[0.08] hover:text-foreground">
+              <button
+                key={s}
+                onClick={() => send(s)}
+                className="shrink-0 rounded-full border border-border bg-white/[0.04] px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+              >
                 {s}
               </button>
             ))}
           </div>
         )}
 
-        <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="border-t border-border p-3">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            send(input);
+          }}
+          className="border-t border-border p-3"
+        >
           <div className="flex items-end gap-2 rounded-2xl border border-border bg-white/[0.04] p-2 focus-within:border-[oklch(0.80_0.13_192/0.45)]">
             <textarea
               ref={inputRef}
@@ -1288,13 +1491,23 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
               placeholder="Ask about banners, SEO, vendors, analytics…"
               className="max-h-32 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
-            <button type="submit" disabled={loading || !input.trim()} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-[0_0_18px_-6px_oklch(0.80_0.13_192/0.6)] transition-opacity disabled:opacity-40">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <button
+              type="submit"
+              disabled={loading || !input.trim()}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-[0_0_18px_-6px_oklch(0.80_0.13_192/0.6)] transition-opacity disabled:opacity-40"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </button>
           </div>
           <div className="mt-1.5 flex items-center justify-between px-1 text-[10px] text-muted-foreground">
             <span>Enter to send • Shift+Enter for newline</span>
-            {prefs.learnFromFeedback && <span className="text-emerald-400">Feedback learning: ON</span>}
+            {prefs.learnFromFeedback && (
+              <span className="text-emerald-400">Feedback learning: ON</span>
+            )}
           </div>
         </form>
 
@@ -1323,15 +1536,20 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
           >
             <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
               <div className="flex items-center gap-2">
-                <div className="grid h-8 w-8 place-items-center rounded-lg bg-accent/15 text-accent" aria-hidden="true">
+                <div
+                  className="grid h-8 w-8 place-items-center rounded-lg bg-accent/15 text-accent"
+                  aria-hidden="true"
+                >
                   <Eye className="h-4 w-4" />
                 </div>
                 <div>
                   <div id="export-preview-title" className="text-sm font-bold text-foreground">
-                    Preview: {preview.scope === "chat" ? "Chat" : "Feedback"} · {preview.format.toUpperCase()}
+                    Preview: {preview.scope === "chat" ? "Chat" : "Feedback"} ·{" "}
+                    {preview.format.toUpperCase()}
                   </div>
                   <div id="export-preview-desc" className="text-[11px] text-muted-foreground">
-                    {previewData.length} record{previewData.length === 1 ? "" : "s"} will be included. Press Ctrl/Cmd+Enter to confirm, Esc to cancel.
+                    {previewData.length} record{previewData.length === 1 ? "" : "s"} will be
+                    included. Press Ctrl/Cmd+Enter to confirm, Esc to cancel.
                   </div>
                 </div>
               </div>
@@ -1343,12 +1561,19 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
-            <div className="flex-1 overflow-auto px-4 py-3" role="region" aria-label="Export preview data">
+            <div
+              className="flex-1 overflow-auto px-4 py-3"
+              role="region"
+              aria-label="Export preview data"
+            >
               {previewData.length === 0 ? (
-                <div role="status" aria-live="polite" className="rounded-xl border border-border bg-white/[0.03] px-3 py-10 text-center text-xs text-muted-foreground">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="rounded-xl border border-border bg-white/[0.03] px-3 py-10 text-center text-xs text-muted-foreground"
+                >
                   No records available. Adjust filters and try again.
                 </div>
-
               ) : preview.scope === "feedback" ? (
                 <table className="w-full table-fixed border-collapse text-left text-[11px]">
                   <colgroup>
@@ -1375,11 +1600,19 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
                       return (
                         <tr key={rec.messageId} className="border-b border-border/50 align-top">
                           <td className="px-2 py-1.5 text-muted-foreground">{i + 1}</td>
-                          <td className="truncate px-2 py-1.5 font-mono text-[10px] text-muted-foreground">{rec.messageId.slice(0, 12)}…</td>
+                          <td className="truncate px-2 py-1.5 font-mono text-[10px] text-muted-foreground">
+                            {rec.messageId.slice(0, 12)}…
+                          </td>
                           <td className="px-2 py-1.5">{rec.rating === "up" ? "👍" : "👎"}</td>
-                          <td className="px-2 py-1.5 text-muted-foreground">{new Date(rec.timestamp).toLocaleString()}</td>
-                          <td className="px-2 py-1.5"><div className="line-clamp-2">{rec.prompt || "—"}</div></td>
-                          <td className="px-2 py-1.5"><div className="line-clamp-2">{rec.response}</div></td>
+                          <td className="px-2 py-1.5 text-muted-foreground">
+                            {new Date(rec.timestamp).toLocaleString()}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <div className="line-clamp-2">{rec.prompt || "—"}</div>
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <div className="line-clamp-2">{rec.response}</div>
+                          </td>
                         </tr>
                       );
                     })}
@@ -1410,9 +1643,15 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
                         <tr key={rec.id} className="border-b border-border/50 align-top">
                           <td className="px-2 py-1.5 text-muted-foreground">{i + 1}</td>
                           <td className="px-2 py-1.5">{rec.role}</td>
-                          <td className="px-2 py-1.5 text-muted-foreground">{new Date(rec.timestamp).toLocaleString()}</td>
-                          <td className="px-2 py-1.5">{rec.reaction === "up" ? "👍" : rec.reaction === "down" ? "👎" : "—"}</td>
-                          <td className="px-2 py-1.5"><div className="line-clamp-2">{rec.content}</div></td>
+                          <td className="px-2 py-1.5 text-muted-foreground">
+                            {new Date(rec.timestamp).toLocaleString()}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            {rec.reaction === "up" ? "👍" : rec.reaction === "down" ? "👎" : "—"}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <div className="line-clamp-2">{rec.content}</div>
+                          </td>
                         </tr>
                       );
                     })}
@@ -1421,18 +1660,27 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
               )}
               {previewData.length > 200 && (
                 <div className="pt-2 text-center text-[10px] text-muted-foreground">
-                  Preview shows first 200 rows. All {previewData.length} records will be included in the export.
+                  Preview shows first 200 rows. All {previewData.length} records will be included in
+                  the export.
                 </div>
               )}
             </div>
             <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
               <div className="text-[10px] text-muted-foreground">
-                Format: <span className="font-semibold text-foreground">{preview.format.toUpperCase()}</span>
+                Format:{" "}
+                <span className="font-semibold text-foreground">
+                  {preview.format.toUpperCase()}
+                </span>
                 {" · "}
-                {preview.scope === "feedback" ? "current feedback filters applied" : "entire chat history"}
+                {preview.scope === "feedback"
+                  ? "current feedback filters applied"
+                  : "entire chat history"}
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setPreview(null)} className="rounded-lg border border-border bg-white/[0.04] px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:bg-white/[0.08] hover:text-foreground">
+                <button
+                  onClick={() => setPreview(null)}
+                  className="rounded-lg border border-border bg-white/[0.04] px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+                >
                   Cancel
                 </button>
                 <button
@@ -1458,7 +1706,9 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
               </div>
               <div>
                 <div className="text-sm font-bold text-foreground">Clear all AI feedback?</div>
-                <div className="text-[11px] text-muted-foreground">This action cannot be undone.</div>
+                <div className="text-[11px] text-muted-foreground">
+                  This action cannot be undone.
+                </div>
               </div>
             </div>
             <div className="my-3 rounded-lg border border-border bg-white/[0.04] px-3 py-2 text-[11px] text-muted-foreground">
@@ -1469,10 +1719,16 @@ export function AiChatPanel({ open, onClose }: { open: boolean; onClose: () => v
               (thumbs up / down). Chats, prompts, settings and history stay intact.
             </div>
             <div className="flex items-center justify-end gap-2">
-              <button onClick={() => setConfirmReset(false)} className="rounded-lg border border-border bg-white/[0.04] px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:bg-white/[0.08] hover:text-foreground">
+              <button
+                onClick={() => setConfirmReset(false)}
+                className="rounded-lg border border-border bg-white/[0.04] px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+              >
                 Cancel
               </button>
-              <button onClick={bulkResetFeedback} className="rounded-lg border border-rose-500/50 bg-rose-500/20 px-3 py-1.5 text-[12px] font-bold text-rose-100 hover:bg-rose-500/30">
+              <button
+                onClick={bulkResetFeedback}
+                className="rounded-lg border border-rose-500/50 bg-rose-500/20 px-3 py-1.5 text-[12px] font-bold text-rose-100 hover:bg-rose-500/30"
+              >
                 Clear {ratedMessages.length} record{ratedMessages.length === 1 ? "" : "s"}
               </button>
             </div>
@@ -1541,7 +1797,9 @@ function MessageBubble({
     <div className={`flex items-start gap-2 ${isUser ? "flex-row-reverse" : ""}`}>
       <div
         className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ring-1 ring-white/10 ${
-          isUser ? "bg-white/[0.08] text-foreground" : "bg-gradient-to-br from-primary to-accent text-white"
+          isUser
+            ? "bg-white/[0.08] text-foreground"
+            : "bg-gradient-to-br from-primary to-accent text-white"
         }`}
       >
         {isUser ? <User2 className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
@@ -1549,20 +1807,26 @@ function MessageBubble({
       <div className={`max-w-[85%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1`}>
         <div
           className={`whitespace-pre-wrap rounded-2xl px-3 py-2 text-[13px] leading-relaxed ${
-            isUser ? "bg-[oklch(0.80_0.13_192/0.14)] text-foreground" : "border border-border bg-white/[0.03] text-foreground"
+            isUser
+              ? "bg-[oklch(0.80_0.13_192/0.14)] text-foreground"
+              : "border border-border bg-white/[0.03] text-foreground"
           }`}
         >
           {highlight ? highlightText(msg.content, highlight) : msg.content}
         </div>
         <div className="flex items-center gap-2 px-1 text-[10px] text-muted-foreground">
-          <span>{new Date(msg.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+          <span>
+            {new Date(msg.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </span>
           {!isUser && (
             <div className="flex items-center gap-1">
               <button
                 onClick={() => onReact("up")}
                 title="Helpful"
                 className={`grid h-5 w-5 place-items-center rounded transition-colors ${
-                  msg.reaction === "up" ? "bg-emerald-500/20 text-emerald-300" : "hover:bg-white/[0.08] hover:text-foreground"
+                  msg.reaction === "up"
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : "hover:bg-white/[0.08] hover:text-foreground"
                 }`}
               >
                 <ThumbsUp className="h-3 w-3" />
@@ -1571,7 +1835,9 @@ function MessageBubble({
                 onClick={() => onReact("down")}
                 title="Not helpful"
                 className={`grid h-5 w-5 place-items-center rounded transition-colors ${
-                  msg.reaction === "down" ? "bg-rose-500/20 text-rose-300" : "hover:bg-white/[0.08] hover:text-foreground"
+                  msg.reaction === "down"
+                    ? "bg-rose-500/20 text-rose-300"
+                    : "hover:bg-white/[0.08] hover:text-foreground"
                 }`}
               >
                 <ThumbsDown className="h-3 w-3" />
