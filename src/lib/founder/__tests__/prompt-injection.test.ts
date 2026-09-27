@@ -18,10 +18,12 @@ import { scanForInjection, type ContextBlock } from "../intelligence/prompt";
  */
 
 function block(over: Partial<ContextBlock> & { content: string }): ContextBlock {
+  // `content` is required on the argument, so the spread always supplies it;
+  // naming it again above the spread only meant it was written twice and
+  // overwritten once.
   return {
     label: "knowledge",
     trust: "UNTRUSTED_EXTERNAL",
-    content: over.content,
     ...over,
   } as ContextBlock;
 }
