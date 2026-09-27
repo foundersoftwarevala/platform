@@ -45,10 +45,42 @@ function serverClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-/** Anything registered in AI API Manager that can answer a chat completion. */
+/**
+ * The one service a caller asked for, or the best of what is active.
+ *
+ * Unchanged for every caller: it is the first of the candidates below, and it
+ * still throws when there is nothing usable. The list is what aiComplete needs
+ * so it can try a second provider when the first cannot answer.
+ */
 export async function resolveAiTarget(
   selector?: string | { serviceId?: string; serviceName?: string },
 ): Promise<AiTarget> {
+  const targets = await resolveAiTargets(selector);
+  return targets[0];
+}
+
+/**
+ * Every service that could answer, best first.
+ *
+ * The gateway used to resolve exactly one target and throw if it failed, which
+ * meant a single provider's billing state took down every AI feature on the
+ * platform. That is not hypothetical: the Demo Manager's investigation failed
+ * with "Your credit balance is too low to access the Anthropic API" while
+ * OpenAI sat beside it in AI API Manager, active, approved and holding a
+ * production credential.
+ *
+ * So resolution returns the candidates in order. A service that cannot be used
+ * at all — not approved, no credential, no chat endpoint — is left out here
+ * rather than failed over to later, and the reason is kept so the final error
+ * can say what was skipped and why.
+ *
+ * Order is deliberate: an explicitly named service first and alone, because a
+ * caller that asked for a particular model meant it. Only the unselected case
+ * fans out.
+ */
+export async function resolveAiTargets(
+  selector?: string | { serviceId?: string; serviceName?: string },
+): Promise<AiTarget[]> {
   const db = serverClient() as ReturnType<typeof createClient>;
   const serviceName = typeof selector === "string" ? selector : selector?.serviceName;
   const serviceId = typeof selector === "string" ? undefined : selector?.serviceId;
@@ -72,7 +104,10 @@ export async function resolveAiTarget(
       .limit(1);
     row = (data?.[0] as Record<string, unknown>) ?? null;
   }
-  if (!row) {
+  const rows: Record<string, unknown>[] = [];
+  if (row) {
+    rows.push(row);
+  } else {
     // Any active AI service will do; the operator decides which by activating it.
     const { data } = await db
       .from("api_services")
@@ -81,20 +116,54 @@ export async function resolveAiTarget(
       .in("category", ["ai", "llm"])
       .order("name")
       .limit(20);
-    // Prefer a chat/completions endpoint over an embeddings or audio one.
-    row =
-      ((data ?? []).find((s) =>
-        String((s as { endpoint_url?: string }).endpoint_url ?? "").match(
-          /chat\/completions|\/v1\/messages/,
-        ),
-      ) as Record<string, unknown>) ?? null;
+    // Only a chat endpoint can answer a completion; an embeddings or audio
+    // service is not a worse choice, it is the wrong one.
+    for (const candidate of (data ?? []) as Record<string, unknown>[]) {
+      if (
+        String(candidate["endpoint_url"] ?? "").match(/chat\/completions|\/v1\/messages/)
+      ) {
+        rows.push(candidate);
+      }
+    }
   }
 
-  if (!row) {
+  if (rows.length === 0) {
     throw new Error(
       "No active AI service is configured in AI API Manager. Add one to enable AI features.",
     );
   }
+
+  const targets: AiTarget[] = [];
+  const skipped: string[] = [];
+  for (const candidate of rows) {
+    try {
+      targets.push(await buildTarget(db, candidate));
+    } catch (problem) {
+      skipped.push(problem instanceof Error ? problem.message : String(problem));
+    }
+  }
+  if (targets.length === 0) {
+    throw new Error(
+      skipped.length === 1
+        ? skipped[0]
+        : `No AI service could be used. ${skipped.join(" ")}`,
+    );
+  }
+  return targets;
+}
+
+/**
+ * One api_services row, turned into something the gateway can call.
+ *
+ * Everything that makes a service unusable is refused here by name — not
+ * active, not approved, an endpoint outside the managed list, no production
+ * credential — so the caller above can skip it and say why rather than
+ * discovering it halfway through a request.
+ */
+async function buildTarget(
+  db: ReturnType<typeof createClient>,
+  row: Record<string, unknown>,
+): Promise<AiTarget> {
   if (row["status"] !== "active") {
     throw new Error(`AI service ${row["name"]} is not active in AI API Manager.`);
   }
@@ -207,6 +276,37 @@ async function meter(
 export type AiMessage = { role: "system" | "user" | "assistant"; content: string };
 
 /** A single completion. Returns the text, or throws with the provider's reason. */
+/**
+ * Is this a failure another provider could answer?
+ *
+ * The distinction matters, because failing over on the wrong thing is worse
+ * than not failing over at all: a malformed request fails identically
+ * everywhere, so retrying it only spends a second provider's credit and
+ * doubles the latency before reporting the same error.
+ *
+ * What another provider can answer: this account is out of credit, over its
+ * quota, rate limited, or the provider is overloaded or down. What it cannot:
+ * a prompt this gateway built wrongly, or a model name that does not exist.
+ *
+ * Anthropic reports an exhausted balance as HTTP 400, not 402, so the status
+ * alone cannot decide it and the message has to be read.
+ */
+function providerCouldBeSwapped(status: number, message: string): boolean {
+  if (status === 402 || status === 408 || status === 429) return true;
+  if (status >= 500) return true;
+  const m = message.toLowerCase();
+  return (
+    m.includes("credit balance") ||
+    m.includes("insufficient_quota") ||
+    m.includes("insufficient quota") ||
+    m.includes("quota") ||
+    m.includes("billing") ||
+    m.includes("rate limit") ||
+    m.includes("overloaded") ||
+    m.includes("capacity")
+  );
+}
+
 export async function aiComplete(options: {
   module: string;
   messages: AiMessage[];
@@ -219,11 +319,58 @@ export async function aiComplete(options: {
   // `serviceId` is an exact match against api_services.id; `serviceName` is a
   // fuzzy ilike("name", ...) fallback. Passing an id as `serviceName` would
   // silently miss the row and fall through to "any active AI service".
-  const target = await resolveAiTarget(
+  const targets = await resolveAiTargets(
     options.serviceId
       ? { serviceId: options.serviceId, serviceName: options.serviceName }
       : options.serviceName,
   );
+
+  // Every attempt is metered, including the ones that fail, because a request
+  // that was sent and refused still happened and the usage screen should say
+  // so. The failures are collected so the final error names each provider
+  // rather than reporting only the last one.
+  const attempts: string[] = [];
+  for (let i = 0; i < targets.length; i += 1) {
+    const target = targets[i];
+    const isLast = i === targets.length - 1;
+    try {
+      return await callTarget(target, options);
+    } catch (problem) {
+      const status = problem instanceof AiProviderError ? problem.status : 0;
+      const message = problem instanceof Error ? problem.message : String(problem);
+      attempts.push(`${target.serviceName}: ${message}`);
+      if (isLast || !providerCouldBeSwapped(status, message)) {
+        throw new Error(
+          attempts.length === 1 ? attempts[0] : `Every AI service refused. ${attempts.join(" | ")}`,
+        );
+      }
+    }
+  }
+  // resolveAiTargets never returns an empty list; it throws instead.
+  throw new Error("No AI service was available.");
+}
+
+/** Carries the provider's HTTP status so the caller can tell why it failed. */
+class AiProviderError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "AiProviderError";
+    this.status = status;
+  }
+}
+
+/** One request to one provider. Unchanged from what the gateway always sent. */
+async function callTarget(
+  target: AiTarget,
+  options: {
+    module: string;
+    messages: AiMessage[];
+    temperature?: number;
+    maxTokens?: number;
+    json?: boolean;
+  },
+): Promise<{ text: string; model: string | null; service: string }> {
   const started = Date.now();
 
   const system = options.messages.find((m) => m.role === "system")?.content;
@@ -276,10 +423,11 @@ export async function aiComplete(options: {
   );
 
   if (!response.ok || !text) {
-    throw new Error(
+    throw new AiProviderError(
       result.error?.message ??
         result.error?.[0]?.message ??
         `The AI provider returned HTTP ${response.status}.`,
+      response.status,
     );
   }
   return { text: String(text), model: target.modelId, service: target.serviceName };
