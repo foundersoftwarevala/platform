@@ -90,10 +90,12 @@ const rpc = async (name, body) => {
 
 // ----------------------------------------------------------- the actions
 //
-// Only the three that genuinely do something. The other five stay
-// unimplemented rather than pretending: an action that reports success
-// without acting closes an incident while the fault remains, which is the
-// worst outcome this engine can produce.
+// Only the ones that genuinely do something, each wired to the system that
+// already owns that kind of repair. The rest stay unimplemented rather than
+// pretending: an action that reports success without acting closes an
+// incident while the fault remains, which is the worst outcome this engine
+// can produce. The reasoning for each omission is recorded below, beside the
+// map, so nobody has to guess whether it was decided or forgotten.
 
 async function reduceConcurrency(incident) {
   if (incident.entity_type !== "ai_agents" || !incident.entity_id) {
@@ -143,10 +145,143 @@ async function backoff(incident) {
   };
 }
 
+/**
+ * retry — re-run the operation that failed.
+ *
+ * The owner is the queue that holds it. i18n_translation_jobs is the one on
+ * this box with a live consumer and its own attempt ceiling, and it is the
+ * one place where a failure is genuinely orphaned: i18n_claim_translation_jobs
+ * picks up 'queued' rows and reclaims expired leases by itself, but nothing
+ * ever looks at a row left in 'failed'. So this requeues it and lets the
+ * existing worker run it again. The queue's own ceiling still applies — a job
+ * at max_attempts is left alone rather than retried forever.
+ */
+async function retry(incident) {
+  if (incident.entity_type !== "i18n_translation_jobs" || !incident.entity_id) {
+    return { result: "INCONCLUSIVE", error: "this action applies to a queued job; none is named" };
+  }
+  const job = (
+    await get(
+      `i18n_translation_jobs?select=id,status,attempts,max_attempts&id=eq.${incident.entity_id}`,
+    )
+  )?.[0];
+  if (!job) return { result: "INCONCLUSIVE", error: "the job no longer exists" };
+  if (job.status !== "failed") {
+    return { result: "INCONCLUSIVE", error: `the job is '${job.status}', so nothing failed to retry` };
+  }
+  if (Number(job.attempts) >= Number(job.max_attempts)) {
+    return {
+      result: "INCONCLUSIVE",
+      error: `the queue's own ceiling is reached (${job.attempts} of ${job.max_attempts})`,
+    };
+  }
+  await patch(`i18n_translation_jobs?id=eq.${incident.entity_id}`, {
+    status: "queued",
+    locked_by: null,
+    locked_at: null,
+    run_after: new Date().toISOString(),
+    last_error: null,
+  });
+  return {
+    result: "SUCCEEDED",
+    outcome: `requeued for the existing worker after attempt ${job.attempts} of ${job.max_attempts}`,
+    scopeRows: 1,
+    scopeDescription: `i18n_translation_jobs:${incident.entity_id}`,
+  };
+}
+
+/**
+ * resume — continue an interrupted workflow from where it stopped.
+ *
+ * AYRA is the workflow engine that owns ordered, multi-step work. A step left
+ * RUNNING by a worker that died, or BLOCKED by a condition that has cleared,
+ * returns to PLANNED so the orchestrator dispatches it again. Position and
+ * evidence are preserved, so the order carries on from its valid state rather
+ * than starting over — and the capability guard on the table independently
+ * refuses to arm a step whose capability is not connected.
+ */
+async function resume(incident) {
+  if (incident.entity_type !== "ayra_order_steps" || !incident.entity_id) {
+    return { result: "INCONCLUSIVE", error: "this action applies to a workflow step; none is named" };
+  }
+  const step = (
+    await get(
+      `ayra_order_steps?select=id,order_id,position,state,capability&id=eq.${incident.entity_id}`,
+    )
+  )?.[0];
+  if (!step) return { result: "INCONCLUSIVE", error: "the step no longer exists" };
+  if (!["RUNNING", "BLOCKED"].includes(step.state)) {
+    return {
+      result: "INCONCLUSIVE",
+      error: `the step is '${step.state}', which is not an interrupted state`,
+    };
+  }
+
+  // Resuming means continuing, so everything before it must already be done.
+  const earlier =
+    (await get(
+      `ayra_order_steps?select=position,state&order_id=eq.${step.order_id}` +
+        `&position=lt.${step.position}&state=not.in.(DONE,VERIFIED,SKIPPED)`,
+    )) ?? [];
+  if (earlier.length > 0) {
+    return {
+      result: "INCONCLUSIVE",
+      error: `${earlier.length} earlier step(s) are unfinished, so this is not the resume point`,
+    };
+  }
+
+  const response = await patch(`ayra_order_steps?id=eq.${incident.entity_id}`, {
+    state: "PLANNED",
+    agent_run_id: null,
+    blocked_reason: null,
+    error: null,
+  });
+  if (!response.ok) {
+    return {
+      result: "FAILED",
+      error: `the workflow guard refused it: ${(await response.text()).slice(0, 200)}`,
+    };
+  }
+  return {
+    result: "SUCCEEDED",
+    outcome: `step ${step.position} re-armed from ${step.state}; earlier steps left intact`,
+    scopeRows: 1,
+    scopeDescription: `ayra_order_steps:${incident.entity_id}`,
+  };
+}
+
+// reroute, rebalance and fallback_route are deliberately absent.
+//
+// Not because they are hard, but because each already has an owner that does
+// the same thing, and a second implementation would either duplicate it or
+// fight it:
+//
+//   reroute        i18n_claim_translation_jobs already returns a job whose
+//                  lease expired to the pool, and the AI router already walks
+//                  its ordered route list when one fails. There is no third
+//                  worker pool with an eligible alternate to move work to.
+//   rebalance      there is no workload to redistribute: tm_members is empty,
+//                  so tm_assignment_candidates returns nobody, and
+//                  ai_agent_runs holds no runs. The only real queue of
+//                  assignable work is leads, and moving a customer between
+//                  agents is a business decision, not a low-risk repair.
+//   fallback_route the route table's fallback is exercised per request by
+//                  AI API Manager's router, which owns provider access.
+//                  Demoting a route is a provider decision, and confirming
+//                  "the fallback answers and passes the same validation"
+//                  means paying for a live call.
+//
+// Leaving them out is not a gap being hidden: the engine's own path for an
+// incident with no implemented action opens the circuit and says so, which is
+// the honest outcome. An action that reported success without acting would
+// close an incident while the fault remained.
+
 const IMPLEMENTED = {
   reduce_concurrency: reduceConcurrency,
   reassign,
   backoff,
+  retry,
+  resume,
 };
 
 // ------------------------------------------------------ the verifications
@@ -174,6 +309,58 @@ async function verifyAction(action, incident) {
     return {
       verified: task.assigned_to === null,
       detail: task.assigned_to === null ? "the task is unassigned" : "the task still has an owner",
+    };
+  }
+
+  // Requeuing is not recovery. What proves a retry worked is the existing
+  // worker picking the job up and finishing it, so this waits for that rather
+  // than reporting success on the strength of having asked.
+  if (action === "retry" && incident.entity_id) {
+    const deadline = Date.now() + 45_000;
+    let last = null;
+    while (Date.now() < deadline && !stopping) {
+      const job = (
+        await get(`i18n_translation_jobs?select=status,attempts,locked_by&id=eq.${incident.entity_id}`)
+      )?.[0];
+      if (!job) return { verified: false, detail: "the job could not be read back" };
+      last = job;
+      if (job.status === "done") {
+        return {
+          verified: true,
+          detail: `the worker re-ran it and it completed after ${job.attempts} attempt(s)`,
+        };
+      }
+      if (job.status === "failed") {
+        return { verified: false, detail: `it was re-run and failed again after ${job.attempts} attempt(s)` };
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    return {
+      verified: false,
+      detail: `still '${last?.status ?? "unknown"}' when the check gave up; requeued but not yet recovered`,
+    };
+  }
+
+  if (action === "resume" && incident.entity_id) {
+    const step = (
+      await get(`ayra_order_steps?select=order_id,position,state&id=eq.${incident.entity_id}`)
+    )?.[0];
+    if (!step) return { verified: false, detail: "the step could not be read back" };
+    if (step.state !== "PLANNED") {
+      return { verified: false, detail: `the step is '${step.state}', not re-armed` };
+    }
+    // Resumed, not restarted: the work already finished must still be finished.
+    const earlier =
+      (await get(
+        `ayra_order_steps?select=position&order_id=eq.${step.order_id}` +
+          `&position=lt.${step.position}&state=not.in.(DONE,VERIFIED,SKIPPED)`,
+      )) ?? [];
+    return {
+      verified: earlier.length === 0,
+      detail:
+        earlier.length === 0
+          ? `step ${step.position} is runnable again and every earlier step is still complete`
+          : `${earlier.length} earlier step(s) were undone, so this restarted rather than resumed`,
     };
   }
 
