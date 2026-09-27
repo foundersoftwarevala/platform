@@ -180,14 +180,16 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
     )[0];
 
   // The walls, from the registry that actually feeds the front page.
-  // The return type is asserted at the boundary rather than inferred. The
-  // generated Supabase types this repo compiles against are behind the real
-  // schema, so several server functions infer as unknown and the inference
-  // cascades into every caller. Naming the shape here stops that at one line
-  // instead of leaving four unresolved types further down the file.
+  // listHomepageRows answers { ok, rows } — the same envelope Homepage Rows
+  // unwraps. Asserting the call as the array instead was wrong twice over:
+  // the walls strip would have read .length and .slice off an object and
+  // rendered nothing. Typecheck caught it; the build had not.
   const walls = useQuery<HomepageRow[]>({
     queryKey: ["marketplace", "rows"],
-    queryFn: async (): Promise<HomepageRow[]> => (await listHomepageRows()) as HomepageRow[],
+    queryFn: async (): Promise<HomepageRow[]> => {
+      const answer = (await listHomepageRows()) as { ok?: boolean; rows?: HomepageRow[] };
+      return answer?.rows ?? [];
+    },
     staleTime: 30_000,
   });
 
