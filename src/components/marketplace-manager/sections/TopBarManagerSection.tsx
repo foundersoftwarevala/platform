@@ -38,6 +38,8 @@ import {
   listTopBarModules,
   configureTopBarModule,
   reorderTopBarModules,
+  setTopBarItems,
+  type TopBarItem,
   type TopBarModule,
 } from "@/lib/marketplace-manager/topbar.functions";
 
@@ -128,6 +130,11 @@ function readPlacement(m: TopBarModule) {
     controlledBy: typeof c.controlled_by === "string" ? c.controlled_by : "",
     needs: m.blocked_reason ?? "",
     source: typeof c.source === "string" ? c.source : "",
+    // Only two modules carry a menu: Apply Now and Dashboards. A route pattern
+    // is what marks one, because an item key is only meaningful against the
+    // route it is substituted into.
+    routePattern: typeof c.route_pattern === "string" ? c.route_pattern : "",
+    items: Array.isArray(c.items) ? (c.items as TopBarItem[]) : [],
   };
 }
 
@@ -895,6 +902,8 @@ function ConfigureDrawer({
             />
             <Row label="Featured" on={featured} set={setFeatured} hint="Pinned for operators" />
           </div>
+
+          {routePattern ? <MenuEditor module={m} pattern={routePattern} initial={items} /> : null}
         </div>
 
         <footer className="flex items-center justify-between gap-2 border-t border-border bg-background/40 p-3">
