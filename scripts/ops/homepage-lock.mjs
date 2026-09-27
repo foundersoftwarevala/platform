@@ -55,7 +55,13 @@ function fingerprint() {
   files.sort();
   const map = {};
   for (const file of files) {
-    map[file] = createHash("sha256").update(readFileSync(join(ROOT, file))).digest("hex").slice(0, 16);
+    // Line endings are normalised before hashing. The first version of this
+    // hashed the bytes, recorded the baseline on Windows where git checks out
+    // CRLF, and then reported all twenty-nine files changed on the Linux
+    // server where they are LF. A lock that cries wolf on every deploy is one
+    // people switch off, which is worse than no lock at all.
+    const text = readFileSync(join(ROOT, file), "utf8").replace(/\r\n/g, "\n");
+    map[file] = createHash("sha256").update(text).digest("hex").slice(0, 16);
   }
   return map;
 }
