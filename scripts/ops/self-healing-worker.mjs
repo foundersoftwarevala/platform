@@ -508,7 +508,38 @@ for (let i = 0; i < BUDGET && !stopping; i += 1) {
   const attemptNumber = prior.length + 1;
 
   // Only actions this class permits, and only ones that genuinely act.
-  const candidate = (claim.allowed_actions ?? []).find((a) => !tried.includes(a) && IMPLEMENTED[a]);
+  // Which of the permitted actions to reach for first.
+  //
+  // The policy's order is the default and the floor: nothing outside
+  // allowed_actions is ever considered, and an action is never skipped for
+  // being unproven. What changes the order is evidence — an action of this
+  // class that has actually verified before is tried ahead of one that never
+  // has. That is the only sense in which this engine learns, and it is
+  // counted from the attempt log rather than remembered separately, so it
+  // cannot drift away from what really happened.
+  const permitted = (claim.allowed_actions ?? []).filter(
+    (a) => !tried.includes(a) && IMPLEMENTED[a],
+  );
+  const history =
+    (await get(
+      `founder_recovery_strategy_performance?select=strategy,verified,verified_rate,proven` +
+        `&failure_class=eq.${claim.failure_class}`,
+    )) ?? [];
+  const provenScore = (action) => {
+    const row = history.find((h) => h.strategy === action);
+    return row?.proven ? Number(row.verified ?? 0) : -1;
+  };
+  const ordered = [...permitted].sort((a, b) => {
+    const byProof = provenScore(b) - provenScore(a);
+    if (byProof !== 0) return byProof;
+    // Same evidence, so fall back to the order the policy wrote them in.
+    return (claim.allowed_actions ?? []).indexOf(a) - (claim.allowed_actions ?? []).indexOf(b);
+  });
+  const candidate = ordered[0];
+  const chosenBecause =
+    provenScore(candidate) > 0
+      ? `${claim.failure_class} policy permits ${candidate}, and ${provenScore(candidate)} recovery/recoveries of this class have verified with it; ${tried.length} earlier action(s) did not resolve it`
+      : `${claim.failure_class} policy permits ${candidate}; no recovery of this class has verified with it yet; ${tried.length} earlier action(s) did not resolve it`;
 
   if (!candidate) {
     await patch(`founder_incidents?id=eq.${claim.incident_id}`, {
@@ -550,7 +581,7 @@ for (let i = 0; i < BUDGET && !stopping; i += 1) {
     incident_id: claim.incident_id,
     attempt_number: attemptNumber,
     action: candidate,
-    chosen_because: `${claim.failure_class} policy permits ${candidate}; ${tried.length} earlier action(s) did not resolve it`,
+    chosen_because: chosenBecause,
     result: performed.result,
     outcome: performed.outcome ?? null,
     error: performed.error ?? null,
@@ -594,6 +625,40 @@ for (let i = 0; i < BUDGET && !stopping; i += 1) {
       locked_at: null,
     });
     resolved += 1;
+
+    // What was learned, written where the platform already keeps what it
+    // knows rather than in a store of this engine's own. founder_memory
+    // handles the parts that are easy to get wrong: it refuses to overwrite
+    // an existing memory about the same subject without a reason, keeps the
+    // one it replaced, and carries the confidence and the evidence with the
+    // statement. Only a verified recovery is written, so nothing here can
+    // recommend a strategy that has never been seen to work.
+    const subject = `recovery:${claim.failure_class}:${incident.entity_type ?? "unscoped"}`;
+    await rpc("founder_memory_record", {
+      p_scope: "OPERATIONAL",
+      p_subject: subject,
+      p_statement:
+        `A ${claim.failure_class} failure on ${incident.entity_type ?? "an unnamed entity"} ` +
+        `was recovered by ${candidate}, confirmed by: ${checked.detail}`,
+      p_source_system: "self-healing",
+      p_detail:
+        `Incident: ${incident.title}\nWhat was done: ${performed.outcome}\n` +
+        `How it was checked: ${claim.verification_method}\nAttempt ${attemptNumber} of ${claim.max_attempts}.`,
+      p_source_ref: attempt.id,
+      p_actor_kind: "SYSTEM",
+      // MEASURED, because it is a recorded outcome that was checked against
+      // the thing itself — not an estimate and not a model's opinion.
+      p_confidence: "MEASURED",
+      p_verified_at: new Date().toISOString(),
+      p_supersede_reason: `a later ${candidate} recovery of this class verified on ${new Date().toISOString().slice(0, 10)}`,
+    }).catch((error) => {
+      // A memory that cannot be written must never undo a recovery that
+      // worked. It is reported and the incident stays resolved.
+      lines.push(
+        `  ${incident.title}: recovery stands, but the memory was not written — ${error.message}`,
+      );
+    });
+
     lines.push(`  ${incident.title}: ${candidate} verified — ${checked.detail}`);
     continue;
   }
