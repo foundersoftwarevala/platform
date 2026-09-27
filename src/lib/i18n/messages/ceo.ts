@@ -274,6 +274,35 @@ export const CEO_MESSAGES = {
     "follows a count of agents lacking the CREATE permission",
   ],
 
+  // AYRA: the Founder's executive secretary.
+  "ceo.ayra_title": ["AYRA", "name of the Founder's executive secretary"],
+  "ceo.ayra_subtitle":
+    "What AYRA is connected to, what she is not and why, and what she has been asked to do. A capability that is absent is listed with its reason, because accepting work that cannot be done is worse than refusing it.",
+  "ceo.ayra_loading": "Reading the capability register…",
+  "ceo.ayra_failed": [
+    "The capability register didn't load",
+    "heading when AYRA's register cannot be read",
+  ],
+  "ceo.ayra_failed_body":
+    "Without it this screen cannot say what AYRA is able to do, so it says nothing rather than implying she can do everything.",
+  "ceo.ayra_connected": ["connected", "how many capabilities are backed by a real system"],
+  "ceo.ayra_not_connected": ["not connected", "how many capabilities have no backing system"],
+  "ceo.ayra_can": ["What AYRA can do", "heading over the connected capabilities"],
+  "ceo.ayra_cannot": ["What AYRA cannot do", "heading over the capabilities with no backing"],
+  "ceo.ayra_needs_ok": ["needs your word", "this capability requires authorization before use"],
+  "ceo.ayra_confirms": [
+    "confirms delivery",
+    "the backing system reports whether it actually worked",
+  ],
+  "ceo.ayra_absent": ["absent", "label on a capability with no backing system"],
+  "ceo.ayra_all_connected": ["Everything is connected", "shown when no capability is missing"],
+  "ceo.ayra_all_connected_body":
+    "Every capability on the register is backed by a system that exists. Nothing is being claimed that cannot be done.",
+  "ceo.ayra_orders": ["What AYRA has been asked to do", "heading over the order history"],
+  "ceo.ayra_no_orders_title": ["No order has been given yet", "shown when AYRA has no orders"],
+  "ceo.ayra_no_orders_body":
+    "Orders are kept with the Founder's own words, because a paraphrase is not an instruction. Natural-language intake is not built yet, so nothing here is simulated to fill the list.",
+
   // Morning AI: the operational day.
   "ceo.morning_title": ["Morning AI", "heading of the daily operational orchestrator"],
   "ceo.morning_subtitle":

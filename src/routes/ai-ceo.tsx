@@ -16,6 +16,7 @@ import {
   Lightbulb,
   Settings,
   Shield,
+  Sparkles,
   Sunrise,
   ShieldAlert,
   TrendingUp,
@@ -57,6 +58,7 @@ const SECTIONS: Array<{ label: string; icon: NavItem["icon"]; to: string; group:
   // Command centre: what the AI CEO is watching right now.
   { label: "AI CEO Dashboard", icon: LayoutDashboard, to: "/ai-ceo", group: "Command Centre" },
   { label: "Morning AI", icon: Sunrise, to: "/ai-ceo/morning", group: "Command Centre" },
+  { label: "AYRA", icon: Sparkles, to: "/ai-ceo/ayra", group: "Command Centre" },
   { label: "Live Monitor", icon: Activity, to: "/ai-ceo/live-monitor", group: "Command Centre" },
   { label: "Decision Engine", icon: Brain, to: "/ai-ceo/decision-engine", group: "Command Centre" },
   { label: "Approvals", icon: CheckCircle2, to: "/ai-ceo/approvals", group: "Command Centre" },

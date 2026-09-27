@@ -103,6 +103,7 @@ import { Route as AffiliateManagerWalletRouteImport } from './routes/affiliate-m
 import { Route as AiCeoIndexRouteImport } from './routes/ai-ceo.index'
 import { Route as AiCeoApprovalsRouteImport } from './routes/ai-ceo.approvals'
 import { Route as AiCeoAutomationsRouteImport } from './routes/ai-ceo.automations'
+import { Route as AiCeoAyraRouteImport } from './routes/ai-ceo.ayra'
 import { Route as AiCeoDecisionEngineRouteImport } from './routes/ai-ceo.decision-engine'
 import { Route as AiCeoInsightsRouteImport } from './routes/ai-ceo.insights'
 import { Route as AiCeoLearningRouteImport } from './routes/ai-ceo.learning'
@@ -825,6 +826,11 @@ const AiCeoApprovalsRoute = AiCeoApprovalsRouteImport.update({
 const AiCeoAutomationsRoute = AiCeoAutomationsRouteImport.update({
   id: '/automations',
   path: '/automations',
+  getParentRoute: () => AiCeoRoute,
+} as any)
+const AiCeoAyraRoute = AiCeoAyraRouteImport.update({
+  id: '/ayra',
+  path: '/ayra',
   getParentRoute: () => AiCeoRoute,
 } as any)
 const AiCeoDecisionEngineRoute = AiCeoDecisionEngineRouteImport.update({
@@ -2108,6 +2114,7 @@ export interface FileRoutesByFullPath {
   '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
   '/ai-ceo/approvals': typeof AiCeoApprovalsRoute
   '/ai-ceo/automations': typeof AiCeoAutomationsRoute
+  '/ai-ceo/ayra': typeof AiCeoAyraRoute
   '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
   '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
@@ -2428,6 +2435,7 @@ export interface FileRoutesByTo {
   '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
   '/ai-ceo/approvals': typeof AiCeoApprovalsRoute
   '/ai-ceo/automations': typeof AiCeoAutomationsRoute
+  '/ai-ceo/ayra': typeof AiCeoAyraRoute
   '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
   '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
@@ -2757,6 +2765,7 @@ export interface FileRoutesById {
   '/affiliate-manager/wallet': typeof AffiliateManagerWalletRoute
   '/ai-ceo/approvals': typeof AiCeoApprovalsRoute
   '/ai-ceo/automations': typeof AiCeoAutomationsRoute
+  '/ai-ceo/ayra': typeof AiCeoAyraRoute
   '/ai-ceo/decision-engine': typeof AiCeoDecisionEngineRoute
   '/ai-ceo/insights': typeof AiCeoInsightsRoute
   '/ai-ceo/learning': typeof AiCeoLearningRoute
@@ -3088,6 +3097,7 @@ export interface FileRouteTypes {
     | '/affiliate-manager/wallet'
     | '/ai-ceo/approvals'
     | '/ai-ceo/automations'
+    | '/ai-ceo/ayra'
     | '/ai-ceo/decision-engine'
     | '/ai-ceo/insights'
     | '/ai-ceo/learning'
@@ -3408,6 +3418,7 @@ export interface FileRouteTypes {
     | '/affiliate-manager/wallet'
     | '/ai-ceo/approvals'
     | '/ai-ceo/automations'
+    | '/ai-ceo/ayra'
     | '/ai-ceo/decision-engine'
     | '/ai-ceo/insights'
     | '/ai-ceo/learning'
@@ -3736,6 +3747,7 @@ export interface FileRouteTypes {
     | '/affiliate-manager/wallet'
     | '/ai-ceo/approvals'
     | '/ai-ceo/automations'
+    | '/ai-ceo/ayra'
     | '/ai-ceo/decision-engine'
     | '/ai-ceo/insights'
     | '/ai-ceo/learning'
@@ -4781,6 +4793,13 @@ declare module '@tanstack/react-router' {
       path: '/automations'
       fullPath: '/ai-ceo/automations'
       preLoaderRoute: typeof AiCeoAutomationsRouteImport
+      parentRoute: typeof AiCeoRoute
+    }
+    '/ai-ceo/ayra': {
+      id: '/ai-ceo/ayra'
+      path: '/ayra'
+      fullPath: '/ai-ceo/ayra'
+      preLoaderRoute: typeof AiCeoAyraRouteImport
       parentRoute: typeof AiCeoRoute
     }
     '/ai-ceo/decision-engine': {
@@ -6507,6 +6526,7 @@ const AffiliateManagerRouteWithChildren =
 interface AiCeoRouteChildren {
   AiCeoApprovalsRoute: typeof AiCeoApprovalsRoute
   AiCeoAutomationsRoute: typeof AiCeoAutomationsRoute
+  AiCeoAyraRoute: typeof AiCeoAyraRoute
   AiCeoDecisionEngineRoute: typeof AiCeoDecisionEngineRoute
   AiCeoInsightsRoute: typeof AiCeoInsightsRoute
   AiCeoLearningRoute: typeof AiCeoLearningRoute
@@ -6530,6 +6550,7 @@ interface AiCeoRouteChildren {
 const AiCeoRouteChildren: AiCeoRouteChildren = {
   AiCeoApprovalsRoute: AiCeoApprovalsRoute,
   AiCeoAutomationsRoute: AiCeoAutomationsRoute,
+  AiCeoAyraRoute: AiCeoAyraRoute,
   AiCeoDecisionEngineRoute: AiCeoDecisionEngineRoute,
   AiCeoInsightsRoute: AiCeoInsightsRoute,
   AiCeoLearningRoute: AiCeoLearningRoute,
