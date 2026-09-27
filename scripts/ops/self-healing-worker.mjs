@@ -167,7 +167,10 @@ async function retry(incident) {
   )?.[0];
   if (!job) return { result: "INCONCLUSIVE", error: "the job no longer exists" };
   if (job.status !== "failed") {
-    return { result: "INCONCLUSIVE", error: `the job is '${job.status}', so nothing failed to retry` };
+    return {
+      result: "INCONCLUSIVE",
+      error: `the job is '${job.status}', so nothing failed to retry`,
+    };
   }
   if (Number(job.attempts) >= Number(job.max_attempts)) {
     return {
@@ -202,7 +205,10 @@ async function retry(incident) {
  */
 async function resume(incident) {
   if (incident.entity_type !== "ayra_order_steps" || !incident.entity_id) {
-    return { result: "INCONCLUSIVE", error: "this action applies to a workflow step; none is named" };
+    return {
+      result: "INCONCLUSIVE",
+      error: "this action applies to a workflow step; none is named",
+    };
   }
   const step = (
     await get(
@@ -331,7 +337,9 @@ async function verifyAction(action, incident) {
     let last = null;
     while (Date.now() < deadline && !stopping) {
       const job = (
-        await get(`i18n_translation_jobs?select=status,attempts,locked_by&id=eq.${incident.entity_id}`)
+        await get(
+          `i18n_translation_jobs?select=status,attempts,locked_by&id=eq.${incident.entity_id}`,
+        )
       )?.[0];
       if (!job) return { verified: false, detail: "the job could not be read back" };
       last = job;
@@ -342,7 +350,10 @@ async function verifyAction(action, incident) {
         };
       }
       if (job.status === "failed") {
-        return { verified: false, detail: `it was re-run and failed again after ${job.attempts} attempt(s)` };
+        return {
+          verified: false,
+          detail: `it was re-run and failed again after ${job.attempts} attempt(s)`,
+        };
       }
       await new Promise((r) => setTimeout(r, 3000));
     }
