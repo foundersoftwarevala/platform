@@ -219,7 +219,12 @@ export async function investigateDemo(input: { productId: string; url: string; a
       module: "demo-manager",
       json: true,
       temperature: 0,
-      maxTokens: 1800,
+      // The prompt asks for contacts, branding, developer links, logo images,
+      // a kept list, a summary and a category with its reason. gpt-4o-mini used
+      // all 1,800 tokens and stopped mid-object, so the answer arrived as
+      // unparseable JSON and the investigation was recorded as failed. Measured
+      // from that run: 2,786 tokens in, 1,800 out and still cut off.
+      maxTokens: 4000,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {

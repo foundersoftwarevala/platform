@@ -412,6 +412,13 @@ async function callTarget(
     ? result.content?.find((c: any) => c.type === "text")?.text
     : result.choices?.[0]?.message?.content;
 
+  // A model that runs out of room stops mid-sentence, and the caller then
+  // reports whatever it could not parse — "the answer was not valid JSON" for
+  // a JSON request. That hides the real cause, which is a token limit, so the
+  // gateway names it. Anthropic calls it stop_reason, OpenAI finish_reason.
+  const cutOff =
+    result.stop_reason === "max_tokens" || result.choices?.[0]?.finish_reason === "length";
+
   await meter(
     target,
     options.module,
@@ -421,6 +428,14 @@ async function callTarget(
     result.usage,
     resolvedModel,
   );
+
+  if (response.ok && text && cutOff) {
+    throw new AiProviderError(
+      "The AI provider ran out of room and stopped mid-answer. Ask for fewer " +
+        "fields or raise maxTokens for this call.",
+      response.status,
+    );
+  }
 
   if (!response.ok || !text) {
     throw new AiProviderError(
