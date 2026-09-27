@@ -232,7 +232,14 @@ export async function investigateDemo(input: { productId: string; url: string; a
   await audit(String(row.id), "demo_url.investigate.start", input.actor, { url: input.url });
 
   try {
-    const { page, bundles } = await fetchDemo(input.url);
+    // Fetch the address this demo is already known by, not the one just
+    // typed. Identity has decided they are the same demo, and the stored one
+    // is the form that has been reached before: a www. prefix that the
+    // certificate does not cover, or a http form that only redirects, would
+    // otherwise fail a check the demo itself would pass. The submitted form is
+    // kept in the record either way.
+    const target = String(row.url ?? input.url);
+    const { page, bundles } = await fetchDemo(target);
     // Where it actually landed. A demo submitted as http that redirects to
     // https is the same demo as one already stored under its destination, and
     // only a fetch can say so.
@@ -307,6 +314,7 @@ export async function investigateDemo(input: { productId: string; url: string; a
       investigated_at: new Date().toISOString(),
       source: {
         url: input.url,
+        fetched: target,
         final_url: page.url,
         canonical_url: finalIdentity,
         submitted_canonical: identity.canonical,
