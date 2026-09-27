@@ -139,11 +139,19 @@ const AICEOMorning = () => {
       {(day?.degraded.length ?? 0) > 0 && <DegradedNotice sources={day!.degraded} />}
 
       {!hasCycle ? (
-        <EmptyState
-          icon={Sunrise}
-          title={t("ceo.morning_empty_title")}
-          description={t("ceo.morning_empty_body")}
-        />
+        <>
+          <EmptyState
+            icon={Sunrise}
+            title={t("ceo.morning_empty_title")}
+            description={t("ceo.morning_empty_body")}
+          />
+          {/*
+            Where this screen looked. Without it, a day with no cycle is
+            indistinguishable from a screen that never looked anywhere —
+            which is exactly how the AI CEO probe found it.
+          */}
+          <SourceNote source="founder_daily_cycles" count={0} />
+        </>
       ) : (
         <>
           {/* The day, counted in SQL. Completed and verified stay apart. */}

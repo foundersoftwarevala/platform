@@ -62,6 +62,7 @@ console.log(`role: ${role}`);
 /** Every AI CEO screen, by the path that addresses it. */
 const SCREENS = [
   ["/ai-ceo", "Dashboard"],
+  ["/ai-ceo/morning", "Morning AI"],
   ["/ai-ceo/live-monitor", "Live Monitor"],
   ["/ai-ceo/decision-engine", "Decision Engine"],
   ["/ai-ceo/approvals", "Approvals"],
