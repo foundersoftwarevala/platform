@@ -42,7 +42,22 @@ export async function fetchDashboardAnalytics(
   const apiKey = process.env["SOFTWARE_VALA_API_KEY"];
 
   if (!baseUrl || !apiKey) {
-    return emptyDashboardAnalytics(params.range);
+    /**
+     * The external analytics API has never been configured.
+     *
+     * There are no SOFTWARE_VALA_* variables on the server at all, so this
+     * returned an empty snapshot every single time - which is why the
+     * Influencer, Creator, Reseller and Franchise consoles all showed zeros for
+     * everything. The zero-state was honest about not being connected, but it
+     * was reporting "not connected to an API that does not exist" while the
+     * numbers sat in the platform's own database.
+     *
+     * Where the platform can answer the question itself, it now does. Anything
+     * without a local answer still returns the empty snapshot, which is still
+     * the right behaviour: a true zero-state, never invented data.
+     */
+    const local = await fetchFromPlatform(params);
+    return local ?? emptyDashboardAnalytics(params.range);
   }
 
   const path =
@@ -88,4 +103,72 @@ function normalizeAnalytics(raw: unknown, range: TimeRange): DashboardAnalytics 
     source: r.source ?? "software-vala",
     metrics,
   };
+}
+
+/**
+ * The modules the platform can answer for itself, from its own database.
+ *
+ * Only influencer is wired so far, through influencer_programme_summary(),
+ * which counts the whole programme in SQL. The others return null and fall back
+ * to the empty snapshot, which is the honest answer until each has a summary of
+ * its own - the same mistake would be to make a number up for them here.
+ *
+ * This reads with the service-role key against the VPS gateway, because it runs
+ * on the server for an operator console that row level security has already let
+ * through at the route.
+ */
+async function fetchFromPlatform(
+  params: FetchAnalyticsParams,
+): Promise<DashboardAnalytics | null> {
+  if (params.module !== "influencer") return null;
+
+  const url = process.env["SUPABASE_URL"]?.trim();
+  const key = process.env["SUPABASE_SERVICE_ROLE_KEY"]?.trim();
+  if (!url || !key) return null;
+
+  try {
+    const response = await fetch(`${url.replace(/\/+$/, "")}/rest/v1/rpc/influencer_programme_summary`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    });
+    if (!response.ok) return null;
+    const s = (await response.json()) as Record<string, unknown>;
+    const n = (field: string) => Number(s[field] ?? 0) || 0;
+
+    const base = emptyDashboardAnalytics(params.range);
+    const metrics = { ...base.metrics };
+    const set = (k: MetricKey, value: number) => {
+      metrics[k] = { ...metrics[k], key: k, value, previousValue: 0, deltaPct: null };
+    };
+
+    set("influencers", n("influencers"));
+    set("followers", n("followers_total"));
+    // Reach is only claimable for accounts whose ownership has been verified.
+    set("reach", n("followers_verified"));
+    set("campaigns", n("assignments_active"));
+    set("applications", n("applications_pending"));
+    set("commissions", n("earnings_net"));
+    set("payouts", n("payouts_total"));
+    // Left at zero deliberately: the referral chain that would attribute a sale
+    // or a lead to an influencer is not written to yet. The summary says so in
+    // its own `unattributable` field; borrowing another count would look like
+    // attribution working.
+    set("sales", 0);
+    set("leads", 0);
+
+    return {
+      ...base,
+      connected: true,
+      source: "platform:influencer_programme_summary",
+      generatedAt: new Date().toISOString(),
+      metrics,
+    };
+  } catch {
+    return null;
+  }
 }
