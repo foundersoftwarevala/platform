@@ -28,6 +28,18 @@ type Resource = {
   searchable: string[];
   order: string;
   label: string;
+  /**
+   * A filter always applied, in PostgREST's own syntax, so a resource can be a
+   * scoped view of a table several managers share.
+   *
+   * partner_commissions holds every partner's commission - affiliate, author,
+   * vendor, influencer - in one ledger on purpose. Influencer Manager must show
+   * the influencer rows and must not be able to read or change another
+   * partner's, so the scope is applied on the server rather than trusted to the
+   * screen: it is appended to the read, and to the row a PATCH is allowed to
+   * find, which means a crafted id outside the scope matches nothing.
+   */
+  scope?: string;
   /** Columns held as a list in the database and edited as one line of text. */
   arrays?: string[];
   /** Columns that may be set when a row is created. Absent means no creating. */
@@ -2551,6 +2563,69 @@ const RESOURCES: Record<string, Resource> = {
     label: "Partner payouts",
   },
 
+  /**
+   * The same ledger, scoped to influencers, for Influencer Manager.
+   *
+   * An influencer's commission on a marketplace sale belongs in
+   * partner_commissions - the ledger the platform already keeps for every
+   * partner kind, with the idempotency key, the attribution and the rule
+   * snapshot on each row - not in a fourth table beside it. influencer_earnings
+   * stays what it has always been: what a campaign's activity paid, per click or
+   * view under a compensation rule. They are two different ways the same person
+   * earns and both are shown.
+   */
+  influencer_order_commissions: {
+    table: "partner_commissions",
+    scope: "partner_kind=eq.influencer",
+    select: [
+      "id",
+      "partner_id",
+      "order_id",
+      "order_item_id",
+      "gross_amount",
+      "commission_amount",
+      "currency",
+      "status",
+      "reversal_reason",
+      "payout_id",
+      "earned_at",
+      "approved_at",
+    ],
+    // An operator decides whether a commission stands. The amounts are what the
+    // sale produced and are not editable by hand.
+    editable: ["status"],
+    searchable: ["status", "currency"],
+    order: "earned_at.desc",
+    retirable: false,
+    label: "Influencer order commission",
+  },
+
+  influencer_order_payouts: {
+    table: "partner_payouts",
+    scope: "partner_kind=eq.influencer",
+    select: [
+      "id",
+      "partner_id",
+      "amount",
+      "currency",
+      "status",
+      "payment_method",
+      "provider",
+      "provider_reference",
+      "failure_reason",
+      "period_start",
+      "period_end",
+      "requested_at",
+      "approved_at",
+      "completed_at",
+    ],
+    editable: ["status", "payment_method", "provider", "provider_reference", "failure_reason"],
+    searchable: ["status", "provider_reference"],
+    order: "requested_at.desc",
+    retirable: false,
+    label: "Influencer payout",
+  },
+
   affiliate_clicks: {
     table: "affiliate_clicks",
     select: [
@@ -3920,6 +3995,8 @@ export const Route = createFileRoute("/api/manager/resource")({
         let query =
           `${resource.table}?select=${resource.select.join(",")}` +
           `&order=${order}&limit=${limit}&offset=${offset}`;
+        // A scoped resource can never be widened by anything the caller sends.
+        if (resource.scope) query += `&${resource.scope}`;
         for (const clause of filters) query += `&${clause}`;
         if (search && resource.searchable.length) {
           const term = search.replace(/[(),*]/g, " ").trim();
@@ -4105,7 +4182,7 @@ export const Route = createFileRoute("/api/manager/resource")({
 
         try {
           const response = await fetch(
-            `${url()}/rest/v1/${resource.table}?id=eq.${encodeURIComponent(id)}` +
+            `${url()}/rest/v1/${resource.table}?id=eq.${encodeURIComponent(id)}${resource.scope ? `&${resource.scope}` : ""}` +
               `&select=${resource.select.join(",")}`,
             {
               method: "PATCH",
@@ -4193,7 +4270,7 @@ export const Route = createFileRoute("/api/manager/resource")({
           let before: Record<string, unknown> | null = null;
           try {
             const prior = await fetch(
-              `${url()}/rest/v1/${resource.table}?id=eq.${encodeURIComponent(id)}` +
+              `${url()}/rest/v1/${resource.table}?id=eq.${encodeURIComponent(id)}${resource.scope ? `&${resource.scope}` : ""}` +
                 `&select=${resource.select.join(",")}&limit=1`,
               { headers: admin() },
             );
@@ -4203,7 +4280,7 @@ export const Route = createFileRoute("/api/manager/resource")({
           }
 
           const response = await fetch(
-            `${url()}/rest/v1/${resource.table}?id=eq.${encodeURIComponent(id)}` +
+            `${url()}/rest/v1/${resource.table}?id=eq.${encodeURIComponent(id)}${resource.scope ? `&${resource.scope}` : ""}` +
               `&select=${resource.select.join(",")}`,
             {
               method: "PATCH",

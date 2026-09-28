@@ -275,6 +275,10 @@ export const ROLES: Record<RoleKey, RoleConfig> = {
       { key:"campaigns", label:"Campaigns", icon:Megaphone },
       { key:"brands", label:"Brands", icon:Heart },
       { key:"content", label:"Content", icon:ImgIcon },
+      // An influencer had no way to get a referral code, so the referral chain -
+      // which carries influencer_profile_id on every table of it - had never
+      // recorded a single influencer click or sale. This is that screen.
+      { key:"referrals", label:"Referral Links", icon:Link2 },
       { key:"revenue", label:"Revenue", icon:DollarSign },
       { key:"engagement", label:"Engagement", icon:Activity },
       ACHV, AMS, AMSC,

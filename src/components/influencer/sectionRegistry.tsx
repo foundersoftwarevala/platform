@@ -176,6 +176,9 @@ const INFLUENCER_RESOURCES = new Set([
   "influencer_payouts",
   "influencer_invoices",
   "influencer_compensation_rules",
+  // The shared partner ledger, scoped to influencers by the endpoint itself.
+  "influencer_order_commissions",
+  "influencer_order_payouts",
 ]);
 
 /** The resource name for a table, or undefined when it has none. */
@@ -225,6 +228,10 @@ export const influencerRegistry: Record<string, SectionEntry> = {
   Invoices: workflowWall("influencer-invoices", "Invoices", "influencer_invoices", "invoice_number", "Invoice", "created_at"),
   Agreements: workflowWall("influencer-agreements", "Agreements", "influencer_agreements", "version", "Version", "created_at"),
   Documents: workflowWall("influencer-documents", "Documents", "influencer_agreements", "version", "Agreement", "created_at"),
+  // What a referred sale paid. partner_commissions is the canonical ledger for
+  // every partner kind; the endpoint scopes this view to influencers.
+  "Order Commissions": workflowWall("influencer-order-commissions", "Order Commissions", "influencer_order_commissions", "order_id", "Order", "earned_at"),
+  "Order Payouts": workflowWall("influencer-order-payouts", "Order Payouts", "influencer_order_payouts", "provider_reference", "Reference", "requested_at"),
   "Audit Trail": workflowWall("influencer-audit", "Audit Trail", "influencer_audit_logs", "action", "Action", "created_at"),
 };
 

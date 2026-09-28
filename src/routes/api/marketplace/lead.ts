@@ -222,6 +222,39 @@ export const Route = createFileRoute("/api/marketplace/lead")({
         // chosen, so an operator can see why a lead is filed where it is.
         row.attribution = { ...attribution, source_reason: derived.why };
 
+        /**
+         * Which partner's link brought this person in.
+         *
+         * A lead that arrived through an influencer's referral link could not be
+         * told from any other lead: the utm fields say which campaign, never who
+         * sent it. This resolves it on the server from the visitor's own
+         * referral cookie and the session stored against it - never from
+         * anything the browser claims, because whoever gets credited is
+         * eventually paid.
+         */
+        try {
+          const { REFERRAL_COOKIE, attributionForSession, readCookie } = await import(
+            "@/lib/affiliate/core"
+          );
+          const sessionKey = readCookie(request, REFERRAL_COOKIE);
+          if (sessionKey) {
+            const partner = await attributionForSession(sessionKey);
+            if (partner?.influencerProfileId) {
+              row.influencer_profile_id = partner.influencerProfileId;
+              row.referral_code_id = partner.referralCodeId;
+              row.attribution = {
+                ...(row.attribution as Record<string, unknown>),
+                partner: "influencer",
+                attributed_from_session: partner.sessionId,
+              };
+            }
+          }
+        } catch (error) {
+          // A lead is worth more than its attribution: if the referral lookup
+          // fails the lead is still saved, unattributed and visibly so.
+          console.error("[lead] referral attribution skipped", error);
+        }
+
         // Which card slot earned the visit. A slot is a fixed
         // category-by-country position that outlives the product occupying it,
         // so this attribution survives a rotation in a way product_id does not.

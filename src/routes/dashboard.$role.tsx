@@ -30,6 +30,7 @@ const ResellerAISuitePage = lazy(() => import("@/components/dashboard/ResellerAI
 const ResellerPricingWorkspace = lazy(() => import("@/components/dashboard/ResellerPricingWorkspace").then((m) => ({ default: m.ResellerPricingWorkspace })));
 const ResellerMembershipPlans = lazy(() => import("@/components/reseller/ResellerMembershipPlans").then((m) => ({ default: m.ResellerMembershipPlans })));
 const ResellerCenterPage = lazy(() => import("@/components/dashboard/ResellerCenterPage").then((m) => ({ default: m.ResellerCenterPage })));
+const InfluencerReferralLinks = lazy(() => import("@/components/influencer/InfluencerReferralLinks").then((m) => ({ default: m.InfluencerReferralLinks })));
 const ModulePage = lazy(() => import("@/components/dashboard/ModulePage").then((m) => ({ default: m.ModulePage })));
 const ResellerModulePage = lazy(() => import("@/components/dashboard/ResellerModulePage").then((m) => ({ default: m.ResellerModulePage })));
 const FranchiseHome = lazy(() => import("@/components/dashboard/franchise/FranchiseHome").then((m) => ({ default: m.FranchiseHome })));
@@ -212,6 +213,8 @@ function DashboardPage() {
             />
           ) : isAIChat ? (
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><AIChatWorkspace onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
+          ) : activeModule === "referrals" && role === "influencer" ? (
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><InfluencerReferralLinks onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
           ) : activeModule === "membership" && role === "reseller" ? (
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerMembershipPlans /></Suspense></ModuleBoundary></ModuleFocusScope>
           ) : isPricing ? (

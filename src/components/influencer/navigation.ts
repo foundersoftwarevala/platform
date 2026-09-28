@@ -73,6 +73,8 @@ export const influencerGroups: NavGroup[] = [
     items: [
       { label: "Commissions", icon: Coins },
       { label: "Commission Rules", icon: Percent },
+      { label: "Order Commissions", icon: Coins },
+      { label: "Order Payouts", icon: Banknote },
       { label: "Wallet", icon: Wallet },
       { label: "Payouts", icon: Banknote },
       { label: "Withdrawals", icon: CreditCard },
