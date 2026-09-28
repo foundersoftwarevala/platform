@@ -54,7 +54,18 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/internal-support-ai", roles: ["support", "developer"], label: "Internal Support AI" },
   { prefix: "/marketing", roles: ["marketing"], label: "Marketing" },
   { prefix: "/vala-ai", roles: ["developer"], label: "Vala AI" },
-  { prefix: "/vala-tv", roles: ["marketing", "support"], label: "Vala TV" },
+  // /vala-tv is deliberately NOT here. It is a storefront page - the public
+  // film listing the homepage and the marketplace both link to, and whose
+  // "Learn" footer column carries it. It was gated to marketing and support,
+  // so every visitor who followed one of those links was shown "Access
+  // restricted" on a page meant to sell to them. The gate was protecting
+  // nothing: the route's loader calls sf_vala_tv, which returns published
+  // videos only, and the homepage's own Vala TV section already renders that
+  // same list to anonymous visitors.
+  //
+  // Managing the films is a different surface and stays protected: Marketplace
+  // Manager -> Growth -> Vala TV (ValaTvSection), behind the
+  // /marketplace-manager prefix above.
   // /support gates itself, with <RequireRole role="support"> inside the route.
   // Naming it here as well is what this gate is for - the route-by-route
   // wrapping is the arrangement that leaves gaps - and it is what lets the
@@ -86,10 +97,14 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
  * Whether a path is reachable by someone who is not signed in.
  *
  * The sitemap kept its own hand-written list of public pages, and the two
- * lists drifted: /support and /vala-tv are gated here and were being
- * advertised there, so a crawler asking for either was served
- * "Checking workspace access..." and nothing else. Asking the gate directly
- * is the only way the two cannot disagree again.
+ * lists drifted: /support and /vala-tv were gated here and advertised there,
+ * so a crawler asking for either was served "Checking workspace access..."
+ * and nothing else. Asking the gate directly is the only way the two cannot
+ * disagree again.
+ *
+ * /vala-tv has since been recognised as the storefront page it is and is no
+ * longer gated, so the sitemap may advertise it again; that follows from this
+ * function without anyone having to remember to change a second list.
  */
 export function isPubliclyReachable(pathname: string): boolean {
   return matchFor(pathname) === null;
