@@ -72,16 +72,20 @@ async function requireManager(accessToken?: string) {
   const token = accessToken ?? (header?.startsWith("Bearer ") ? header.slice(7) : null);
   if (!token) throw new Error("Manager authentication required");
   const db = await admin();
-  const { data: user, error: userError } = await db.auth.getUser(token);
-  if (userError || !user.user) throw new Error("Manager authentication required");
+  // Resolved through the shared bearer check: auth.getUser() on a
+  // service-role client sends the service key as apikey, which the auth
+  // service refuses with "Invalid API key", so this guard used to turn
+  // every valid operator away. See lib/auth/bearer-user.server.ts.
+  const caller = await userFromBearerToken(token);
+  if (!caller) throw new Error("Manager authentication required");
   // The Control Panel gates the Finance Manager on the `finance` role, so a
   // finance operator has to be able to use the data layer behind it. Without
   // this they passed the door and were refused here, and the console loaded
   // empty with nothing to explain why. Admin and boss keep what they had.
   const [{ data: isAdmin }, { data: isBoss }, { data: isFinance }] = await Promise.all([
-    db.rpc("has_role", { _user_id: user.user.id, _role: "admin" }),
-    db.rpc("has_role", { _user_id: user.user.id, _role: "boss" }),
-    db.rpc("has_role", { _user_id: user.user.id, _role: "finance" }),
+    db.rpc("has_role", { _user_id: caller.id, _role: "admin" }),
+    db.rpc("has_role", { _user_id: caller.id, _role: "boss" }),
+    db.rpc("has_role", { _user_id: caller.id, _role: "finance" }),
   ]);
   if (!isAdmin && !isBoss && !isFinance) throw new Error("Manager permission required");
   const role = isBoss ? "boss" : isAdmin ? "admin" : "finance";

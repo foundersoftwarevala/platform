@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { aiComplete } from "@/lib/ai-gateway.server";
 import { buildLegalPrompts, type LegalAIType } from "@/lib/legal-ai.server";
+import { userFromBearerToken } from "@/lib/auth/bearer-user.server";
 
 /**
  * Legal AI, routed and recorded.
@@ -46,10 +47,14 @@ async function requireLegalUser(): Promise<{ userId: string }> {
   if (!token) throw new Error("Unauthorized: sign in required");
 
   const db = await admin();
-  const { data, error } = await db.auth.getUser(token);
-  if (error || !data.user) throw new Error("Unauthorized: sign in required");
+  // Resolved through the shared bearer check: auth.getUser() on a
+  // service-role client sends the service key as apikey, which the auth
+  // service refuses with "Invalid API key", so this guard used to turn
+  // every valid operator away. See lib/auth/bearer-user.server.ts.
+  const caller = await userFromBearerToken(token);
+  if (!caller) throw new Error("Unauthorized: sign in required");
 
-  const { data: roles } = await db.from("user_roles").select("role").eq("user_id", data.user.id);
+  const { data: roles } = await db.from("user_roles").select("role").eq("user_id", caller.id);
   const allowed = new Set([
     "admin", "boss", "founder", "super_admin", "boss_owner",
     "legal", "finance", "employee", "sales_support_manager",

@@ -29,13 +29,18 @@ async function requireDevManager(): Promise<string> {
   if (!token) throw new Error("Unauthorized: sign in required");
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: user, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !user.user) throw new Error("Unauthorized: sign in required");
+  // Resolved through the shared bearer check: auth.getUser() on a
+  // service-role client sends the service key as apikey, which the auth
+  // service refuses with "Invalid API key", so this guard used to turn
+  // every valid operator away. See lib/auth/bearer-user.server.ts.
+  const { userFromBearerToken } = await import("@/lib/auth/bearer-user.server");
+  const caller = await userFromBearerToken(token);
+  if (!caller) throw new Error("Unauthorized: sign in required");
 
   const { data: roles } = await supabaseAdmin
     .from("user_roles")
     .select("role")
-    .eq("user_id", user.user.id);
+    .eq("user_id", caller.id);
 
   const allowed = new Set(["admin", "boss", "founder", "super_admin", "boss_owner"]);
   if (!(roles ?? []).some((r) => allowed.has(String(r.role)))) {

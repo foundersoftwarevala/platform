@@ -234,11 +234,15 @@ async function authenticatedManager() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
   if (!url || !key) throw new Error("Supabase service configuration is missing.");
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: user, error } = await db.auth.getUser(token);
-  if (error || !user.user) throw new Error("Manager authentication required.");
+  // Resolved through the shared bearer check: auth.getUser() on a
+  // service-role client sends the service key as apikey, which the auth
+  // service refuses with "Invalid API key", so this guard used to turn
+  // every valid operator away. See lib/auth/bearer-user.server.ts.
+  const caller = await userFromBearerToken(token);
+  if (!caller) throw new Error("Manager authentication required.");
   const roles = await Promise.all(
     ["admin", "boss"].map(async (role) => {
-      const result = await db.rpc("has_role", { _user_id: user.user.id, _role: role });
+      const result = await db.rpc("has_role", { _user_id: caller.id, _role: role });
       return result.data === true;
     }),
   );
