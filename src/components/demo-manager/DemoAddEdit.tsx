@@ -81,11 +81,46 @@ const DemoAddEdit = () => {
     description: "",
   });
 
-  const categories = ["Business", "Retail", "HR", "Logistics", "Finance", "Healthcare", "Education", "Real Estate"];
+  /**
+   * The categories a demo may be filed under, read from demo_categories.
+   *
+   * This list used to be eight names written into this file - Business, Retail,
+   * HR, Logistics, Finance, Healthcare, Education, Real Estate - while the
+   * marketplace carries ninety. Eighty-two of them could not be chosen at all,
+   * so a demo could not be filed under the category of the card it belongs to.
+   * demo_categories is seeded from marketplace_categories, so the two lists are
+   * the same list.
+   */
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const demoTypes = ["web", "mobile", "desktop", "api"];
 
   useEffect(() => {
     fetchDemos();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from("demo_categories")
+        .select("name, display_order")
+        .eq("is_active", true)
+        .order("display_order");
+      if (cancelled) return;
+      if (error) {
+        // Said out loud rather than silently falling back to a short list: an
+        // empty dropdown that looks deliberate is how this went unnoticed.
+        setCategoriesError(error.message);
+        setCategories([]);
+        return;
+      }
+      setCategoriesError(null);
+      setCategories((data ?? []).map((row) => String(row.name)).filter(Boolean));
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const fetchDemos = async () => {
@@ -260,14 +295,27 @@ const DemoAddEdit = () => {
                   <Label htmlFor="category">Category *</Label>
                   <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
                     <SelectTrigger className="bg-background border-border">
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue
+                        placeholder={
+                          categoriesError
+                            ? "Categories could not be loaded"
+                            : categories.length === 0
+                              ? "Loading categories…"
+                              : `Select category (${categories.length})`
+                        }
+                      />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-72">
                       {categories.map(cat => (
                         <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {categoriesError && (
+                    <p role="alert" className="text-xs text-destructive">
+                      Categories could not be loaded: {categoriesError}
+                    </p>
+                  )}
                 </div>
               </div>
 

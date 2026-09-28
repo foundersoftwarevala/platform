@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -77,11 +78,51 @@ interface DemoEntry {
   name: string;
   login_url: string;
   demo_type: string;
+  /**
+   * Which marketplace category this demo is filed under.
+   *
+   * It used to not exist, and the insert wrote `category: demo.demo_type` - so
+   * every bulk-created demo was filed under its *type* (School, Hospital, ERP)
+   * out of a list of fourteen written into this file, while the marketplace
+   * carries ninety categories. A demo could not be put in the category of the
+   * card it belongs to. The type still drives the login-role template, which is
+   * what it is actually for.
+   */
+  category: string;
   login_roles: LoginRole[];
 }
 
 function BulkDemoCreatorContent() {
   const [demos, setDemos] = useState<DemoEntry[]>([]);
+  /** The real categories, from demo_categories, seeded from the marketplace. */
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  /** Applied to every row a paste or a quick-add creates, and by "apply to all". */
+  const [defaultCategory, setDefaultCategory] = useState<string>('');
+  const [pasteText, setPasteText] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from('demo_categories')
+        .select('name, display_order')
+        .eq('is_active', true)
+        .order('display_order');
+      if (cancelled) return;
+      if (error) {
+        setCategoriesError(error.message);
+        return;
+      }
+      const names = (data ?? []).map((row) => String(row.name)).filter(Boolean);
+      setCategoriesError(null);
+      setCategories(names);
+      setDefaultCategory((current) => current || names[0] || '');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [isCreating, setIsCreating] = useState(false);
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [currentDemo, setCurrentDemo] = useState<DemoEntry | null>(null);
@@ -95,10 +136,100 @@ function BulkDemoCreatorContent() {
       name: '',
       login_url: '',
       demo_type: 'School',
+      category: defaultCategory,
       login_roles: []
     };
     setDemos(prev => [...prev, newDemo]);
-  }, []);
+  }, [defaultCategory]);
+
+  /**
+   * Turns a pasted list of URLs into rows.
+   *
+   * There are twelve thousand demo URLs to put in. Adding them a row at a time
+   * and typing each one is not a way anybody would finish, so a paste of the
+   * list is the way in. One demo per line, and the separator may be a pipe, a
+   * tab or a comma:
+   *
+   *     https://demo.example.com/login
+   *     https://demo.example.com/login | School ERP Demo
+   *     https://demo.example.com/login | School ERP Demo | School Management
+   *
+   * A missing title is taken from the URL's host, and a missing or unknown
+   * category falls back to the one chosen above - unknown rather than silently
+   * accepted, because a category that is not in the list would file the demo
+   * somewhere the marketplace cannot see.
+   */
+  const importPastedUrls = useCallback(() => {
+    const lines = pasteText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    if (lines.length === 0) {
+      toast.error('Nothing to import — paste one demo per line first');
+      return;
+    }
+
+    const known = new Map(categories.map((c) => [c.toLowerCase(), c]));
+    const rows: DemoEntry[] = [];
+    const rejected: string[] = [];
+    let unknownCategories = 0;
+
+    for (const line of lines) {
+      const parts = line.split(/\s*[|\t]\s*|\s*,\s(?=[^,]*$)/).map((p) => p.trim());
+      const url = parts[0] ?? '';
+      if (!/^https?:\/\//i.test(url)) {
+        rejected.push(line.slice(0, 60));
+        continue;
+      }
+      let name = parts[1] ?? '';
+      if (!name) {
+        try {
+          name = new URL(url).hostname.replace(/^www\./i, '');
+        } catch {
+          name = url;
+        }
+      }
+      const askedFor = parts[2] ?? '';
+      const matched = askedFor ? known.get(askedFor.toLowerCase()) : undefined;
+      if (askedFor && !matched) unknownCategories += 1;
+
+      rows.push({
+        id: crypto.randomUUID(),
+        name,
+        login_url: url,
+        demo_type: 'School',
+        category: matched ?? defaultCategory,
+        login_roles: ROLE_TEMPLATES.School.slice(0, 4).map((roleName) => ({
+          id: crypto.randomUUID(),
+          role_name: roleName,
+          username: `${roleName.toLowerCase().replace(/\s+/g, '_')}_demo`,
+          password: `Demo@${roleName.replace(/\s+/g, '')}123`
+        }))
+      });
+    }
+
+    if (rows.length === 0) {
+      toast.error('No line started with http:// or https://');
+      return;
+    }
+    setDemos((prev) => [...prev, ...rows]);
+    setPasteText('');
+    toast.success(
+      `Imported ${rows.length} demo${rows.length === 1 ? '' : 's'}` +
+        (rejected.length ? ` — ${rejected.length} line(s) had no URL and were skipped` : '') +
+        (unknownCategories ? ` — ${unknownCategories} unknown categor${unknownCategories === 1 ? 'y' : 'ies'} fell back to ${defaultCategory}` : '')
+    );
+  }, [pasteText, categories, defaultCategory]);
+
+  /** Files every row under the chosen category, for a batch that all belongs together. */
+  const applyCategoryToAll = useCallback(() => {
+    if (!defaultCategory) {
+      toast.error('Choose a category first');
+      return;
+    }
+    setDemos((prev) => prev.map((d) => ({ ...d, category: defaultCategory })));
+    toast.success(`All ${demos.length} demo(s) filed under ${defaultCategory}`);
+  }, [defaultCategory, demos.length]);
 
   // Remove demo
   const removeDemo = useCallback((demoId: string) => {
@@ -187,6 +318,10 @@ function BulkDemoCreatorContent() {
         toast.error(`Login URL is required for "${demo.name}"`);
         return false;
       }
+      if (!demo.category.trim()) {
+        toast.error(`Category is required for "${demo.name}" — a demo with no category cannot be found in the marketplace`);
+        return false;
+      }
       if (demo.login_roles.length < 4) {
         toast.error(`"${demo.name}" needs at least 4 login roles`);
         return false;
@@ -235,7 +370,10 @@ function BulkDemoCreatorContent() {
                 url: demo.login_url,
                 login_url: demo.login_url,
                 demo_type: demo.demo_type,
-                category: demo.demo_type,
+                // The category the operator chose, not the demo type. These are
+                // different things: the type picks the login-role template, the
+                // category is where the marketplace looks for it.
+                category: demo.category,
                 lifecycle_status: 'pending',
                 is_bulk_created: true,
                 status: 'maintenance'
@@ -302,6 +440,7 @@ function BulkDemoCreatorContent() {
       name: '',
       login_url: '',
       demo_type: 'School',
+      category: defaultCategory,
       login_roles: ROLE_TEMPLATES.School.slice(0, 4).map(roleName => ({
         id: crypto.randomUUID(),
         role_name: roleName,
@@ -311,7 +450,7 @@ function BulkDemoCreatorContent() {
     }));
     setDemos(prev => [...prev, ...newDemos]);
     toast.success(`Added ${count} demo templates`);
-  }, []);
+  }, [defaultCategory]);
 
   return (
     <div className="space-y-6">
@@ -332,6 +471,70 @@ function BulkDemoCreatorContent() {
           </Badge>
         </div>
       </div>
+
+      {/* Paste the list in. Typing twelve thousand URLs is not a way to finish. */}
+      <Card className="bg-card/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Upload className="w-4 h-4 text-primary" />
+            Import a list of demo URLs
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1 min-w-[260px]">
+              <Label className="text-xs">Category for imported demos *</Label>
+              <Select value={defaultCategory} onValueChange={setDefaultCategory}>
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      categoriesError
+                        ? 'Categories could not be loaded'
+                        : categories.length === 0
+                          ? 'Loading categories…'
+                          : `Select one of ${categories.length}`
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {categories.map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={importPastedUrls} disabled={!pasteText.trim() || !defaultCategory}>
+              <Upload className="w-4 h-4 mr-2" />
+              Import pasted URLs
+            </Button>
+            <Button onClick={applyCategoryToAll} variant="outline" disabled={demos.length === 0 || !defaultCategory}>
+              Apply this category to all {demos.length || ''}
+            </Button>
+          </div>
+
+          <Textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            rows={6}
+            spellCheck={false}
+            placeholder={
+              'One demo per line. The URL is required; a title and a category are optional.\n' +
+              'https://demo.example.com/login\n' +
+              'https://demo.example.com/login | School ERP Demo\n' +
+              'https://demo.example.com/login | School ERP Demo | School Management'
+            }
+            className="font-mono text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            Separate the fields with <code>|</code>, a tab, or a comma. A missing title is taken from
+            the URL. A missing or unrecognised category falls back to the one chosen above, and the
+            import says how many did.
+            {categoriesError && (
+              <span className="text-destructive"> Categories could not be loaded: {categoriesError}</span>
+            )}
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Quick Actions */}
       <Card className="bg-card/50">
@@ -398,7 +601,7 @@ function BulkDemoCreatorContent() {
                       #{idx + 1}
                     </div>
                     
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                       {/* Demo Name */}
                       <div className="space-y-1">
                         <Label className="text-xs">Demo Name *</Label>
@@ -419,7 +622,7 @@ function BulkDemoCreatorContent() {
                         />
                       </div>
                       
-                      {/* Demo Type */}
+                      {/* Demo Type — this is what picks the login-role template */}
                       <div className="space-y-1">
                         <Label className="text-xs">Demo Type *</Label>
                         <Select
@@ -432,6 +635,28 @@ function BulkDemoCreatorContent() {
                           <SelectContent>
                             {DEMO_TYPES.map(type => (
                               <SelectItem key={type} value={type}>{type}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Category — where the marketplace looks for this demo */}
+                      <div className="space-y-1">
+                        <Label className="text-xs">Category *</Label>
+                        <Select
+                          value={demo.category}
+                          onValueChange={(value) => updateDemo(demo.id, 'category', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                categories.length === 0 ? 'Loading…' : `Select one of ${categories.length}`
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72">
+                            {categories.map(cat => (
+                              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
