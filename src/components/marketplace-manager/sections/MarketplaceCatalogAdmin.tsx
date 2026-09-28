@@ -6,7 +6,7 @@ import { useServerFn } from "@/lib/serverFn";
 import { toast } from "sonner";
 import { Plus, Save, Trash2, X, Loader2, Edit3, Eye, EyeOff } from "lucide-react";
 import {
-  listProductsAdmin, upsertProduct, deleteProduct,
+  listProductsAdmin, listProductsAdminPage, upsertProduct, deleteProduct,
   listCategoriesAdmin, upsertCategory, deleteCategory,
   listSectionsAdmin, setSectionEnabled, reorderSections,
 } from "@/lib/marketplace.functions";
@@ -37,13 +37,32 @@ const EMPTY_PRODUCT: Partial<Product> = {
 
 export function ProductsAdmin() {
   const qc = useQueryClient();
-  const listFn = useServerFn(listProductsAdmin);
+  const listFn = useServerFn(listProductsAdminPage);
   const upsertFn = useServerFn(upsertProduct);
   const deleteFn = useServerFn(deleteProduct);
 
-  const { data = [], isLoading, isError, error, refetch } = useQuery<Product[]>({
-    queryKey: ["mp_products_admin"], queryFn: async () => (await listFn()) as unknown as Product[],
+  // One page at a time, counted by the database.
+  //
+  // This asked for every column of every row and drew all of them: measured on
+  // the live console, 7,390 rows arriving as 476,660 characters and 15,297
+  // controls in one DOM. It is slow now and it breaks later, because PostgREST
+  // caps a result at 10,000 rows and would simply stop returning the newest
+  // products without saying so.
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState("");
+  const [term, setTerm] = useState("");
+  const pageSize = 50;
+
+  const { data: paged, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["mp_products_admin", page, term],
+    queryFn: async () =>
+      (await listFn({ data: { page, pageSize, search: term } })) as unknown as {
+        rows: Product[]; total: number; ok: boolean; error?: string;
+      },
   });
+  const data: Product[] = paged?.rows ?? [];
+  const total = paged?.total ?? 0;
+  const lastPage = Math.max(0, Math.ceil(total / pageSize) - 1);
 
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
 
@@ -125,6 +144,32 @@ export function ProductsAdmin() {
           </table>
         </div>
       )}
+
+      {/* Added, not replaced: the table above is unchanged, and this says how
+          much of the catalogue it is showing and how to reach the rest. */}
+      {!isError && !isLoading && total > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+          <span>
+            {page * pageSize + 1}-{Math.min((page + 1) * pageSize, total)} of {total.toLocaleString()} products
+          </span>
+          <div className="flex items-center gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { setTerm(search.trim()); setPage(0); }
+              }}
+              placeholder="Search name or slug, then Enter"
+              aria-label="Search products"
+              className="h-8 w-56 rounded-md border border-border bg-transparent px-2 text-sm"
+            />
+            <PillButton onClick={() => { setTerm(search.trim()); setPage(0); }}>Search</PillButton>
+            <PillButton onClick={() => setPage((v) => Math.max(0, v - 1))} disabled={page <= 0}>Previous</PillButton>
+            <span>Page {page + 1} of {lastPage + 1}</span>
+            <PillButton onClick={() => setPage((v) => Math.min(lastPage, v + 1))} disabled={page >= lastPage}>Next</PillButton>
+          </div>
+        </div>
+      ) : null}
 
       {editing && (
         <ProductEditor

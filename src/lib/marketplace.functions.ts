@@ -672,6 +672,70 @@ export const listProductsAdmin = createServerFn({ method: "GET" })
     }
   });
 
+/**
+ * One page of the catalogue for the admin table, counted in the database.
+ *
+ * listProductsAdmin selects every column of every row with no limit. Measured
+ * against the live console, the Products section arrived as 476,660 characters
+ * and 15,297 controls for 7,390 rows, all in one DOM. That is slow now and it
+ * stops working later: PostgREST on this server caps a result at 10,000 rows,
+ * so past that the table would quietly stop showing newer products with no
+ * error anywhere.
+ *
+ * The total is asked for with count exact, so the figure beside the table is
+ * the database's answer and not the length of whatever happened to arrive.
+ *
+ * listProductsAdmin is left exactly as it is. The demo URL manager builds its
+ * product picker from it, and changing its shape would break that.
+ */
+export const listProductsAdminPage = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => {
+    const raw = (input ?? {}) as { page?: unknown; pageSize?: unknown; search?: unknown };
+    const page = Math.max(0, Math.trunc(Number(raw.page ?? 0)) || 0);
+    // Bounded at both ends: a page of zero returns nothing useful, and an
+    // unbounded one is the defect being fixed.
+    const requested = Math.trunc(Number(raw.pageSize ?? 50)) || 50;
+    const pageSize = Math.min(200, Math.max(10, requested));
+    const search = String(raw.search ?? "").trim().slice(0, 120);
+    return { page, pageSize, search };
+  })
+  .handler(async ({ context, data }) => {
+    if (!context?.supabase) {
+      throw new Error("Unauthorized: Supabase context is unavailable.");
+    }
+    const { page, pageSize, search } = data;
+    const from = page * pageSize;
+
+    try {
+      let query = context.supabase
+        .from("marketplace_products")
+        .select("*", { count: "exact" })
+        .order("sort_order")
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (search) {
+        // Escaped: a comma or a parenthesis in the box would otherwise be read
+        // as PostgREST filter syntax rather than as text to look for.
+        const term = search.replace(/[%,()]/g, " ").trim();
+        if (term) query = query.or(`name.ilike.%${term}%,slug.ilike.%${term}%`);
+      }
+
+      const { data: rows, error, count } = await query;
+      if (error) {
+        console.error("[marketplace] listProductsAdminPage error:", error);
+        return { rows: [], total: 0, page, pageSize, ok: false, error: error.message };
+      }
+      return { rows: rows ?? [], total: count ?? 0, page, pageSize, ok: true };
+    } catch (error) {
+      console.error("[marketplace] listProductsAdminPage error:", error);
+      return {
+        rows: [], total: 0, page, pageSize, ok: false,
+        error: error instanceof Error ? error.message : "Could not read the catalogue.",
+      };
+    }
+  });
 export const listProductDemoBindings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ product_id: z.string().uuid().optional() }).parse(v ?? {}))
