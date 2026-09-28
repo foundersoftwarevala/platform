@@ -9,6 +9,16 @@ export type HeroSlide = {
   cta_primary: string;
   cta_secondary: string;
   cta_link: string;
+  /**
+   * Where the secondary button goes, per slide.
+   *
+   * Optional because every slide in the table has it unset today: the column
+   * did not exist until Hero Banner Manager was given somewhere to save it, and
+   * both carousels fall back to the route they used before — /vala-tv on the
+   * home page, /marketplace on the marketplace. So nothing a visitor sees
+   * changes until an operator sets one.
+   */
+  cta_secondary_link?: string | null;
   gradient: string;
   icon_name: string;
   accent: string;

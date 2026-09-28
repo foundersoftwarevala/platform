@@ -112,9 +112,16 @@ const HeroCarousel = () => {
                 slide and pointed at /demos, which was never a route and
                 answered 404. /vala-tv is the page that holds the demos,
                 walkthroughs and customer films, and has all along.
+
+                It is the fallback now rather than the only answer. The slide
+                has its own cta_secondary_link, which Hero Banner Manager can
+                set per slide; until one is set every slide still goes to
+                /vala-tv, so nothing a visitor sees changes today. Before the
+                column existed there was nowhere for the manager to put this,
+                which is why it was written here.
               */}
               <a
-                href="/vala-tv"
+                href={product.cta_secondary_link || "/vala-tv"}
                 className="sv-btn sv-btn-hero-glass !h-14 !rounded-2xl !px-8 !text-base"
               >
                 <ShoppingCart className="w-5 h-5" />

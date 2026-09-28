@@ -71,8 +71,18 @@ type DbRow = {
   visible: boolean;
   published_at: string | null;
   unpublish_at: string | null;
+  // The secondary CTA's own address. Before this column existed the manager
+  // read the primary link back into it, so both buttons pointed at the same
+  // place.
+  cta_secondary_link?: string | null;
+  // Set when a slide is archived. Without it an archived slide is
+  // indistinguishable from a draft, because both have visible = false.
+  archived_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  // Written by the database from the verified session, not sent by the browser.
+  created_by?: string | null;
+  updated_by?: string | null;
 };
 
 /** Derive ring/badge classes from a tailwind text-* accent class. */
@@ -85,9 +95,18 @@ function badgeFromAccent(accent: string) {
 }
 
 function statusOf(r: DbRow): HeroStatus {
+  // Archived first, and from its own column.
+  //
+  // Archiving sets visible = false, and so does saving a draft. This checked
+  // !visible first and returned "draft" for both, so an archived slide read
+  // back as a draft, the Archived tab could never hold anything and Restore
+  // was unreachable. archived_at is the only thing that tells them apart.
+  if (r.archived_at) return "archived";
   if (!r.visible) return "draft";
   if (r.published_at && new Date(r.published_at) > new Date()) return "scheduled";
-  if (r.unpublish_at && new Date(r.unpublish_at) <= new Date()) return "archived";
+  // An expired window means the slide has stopped showing, not that somebody
+  // archived it; it goes back to draft until its dates are changed.
+  if (r.unpublish_at && new Date(r.unpublish_at) <= new Date()) return "draft";
   return "published";
 }
 
@@ -103,7 +122,10 @@ function toRow(r: DbRow): HeroSlideRow {
     cta_label: r.cta_primary ?? "Learn more",
     cta_href: r.cta_link ?? "/marketplace",
     secondary_label: r.cta_secondary || null,
-    secondary_href: r.cta_link ?? null,
+    // Its own column. This used to read r.cta_link - the PRIMARY button's
+    // address - so both buttons went to the same place and whatever an
+    // operator typed for the secondary was thrown away on save.
+    secondary_href: r.cta_secondary_link ?? null,
     icon: r.icon_name || "Sparkles",
     bg_gradient: r.gradient ?? "",
     accent_class: accent,
@@ -119,8 +141,8 @@ function toRow(r: DbRow): HeroSlideRow {
     visible_languages: [],
     created_at: r.created_at ?? null,
     updated_at: r.updated_at ?? null,
-    created_by: null,
-    updated_by: null,
+    created_by: r.created_by ?? null,
+    updated_by: r.updated_by ?? null,
   };
 }
 
@@ -145,6 +167,7 @@ function toDb(patch: Partial<HeroSlideRow>): Record<string, unknown> {
   if (patch.cta_label !== undefined) out.cta_primary = patch.cta_label;
   if (patch.secondary_label !== undefined) out.cta_secondary = patch.secondary_label ?? "";
   if (patch.cta_href !== undefined) out.cta_link = patch.cta_href;
+  if (patch.secondary_href !== undefined) out.cta_secondary_link = patch.secondary_href;
   if (patch.icon !== undefined) out.icon_name = patch.icon;
   if (patch.bg_gradient !== undefined) out.gradient = patch.bg_gradient;
   if (patch.accent_class !== undefined) out.accent = patch.accent_class;
@@ -156,7 +179,11 @@ function toDb(patch: Partial<HeroSlideRow>): Record<string, unknown> {
     // status drives visibility on the public homepage
     if (patch.status === "published" || patch.status === "scheduled") out.visible = true;
     if (patch.status === "draft" || patch.status === "archived") out.visible = false;
-    if (patch.status === "archived") out.unpublish_at = new Date().toISOString();
+    // archived_at is what statusOf reads, so archiving has to set it and
+    // restoring has to clear it. unpublish_at is left for scheduling, which is
+    // a different question from whether a slide is archived.
+    if (patch.status === "archived") out.archived_at = new Date().toISOString();
+    if (patch.status !== "archived") out.archived_at = null;
     if (patch.status === "published") out.unpublish_at = null;
   }
   if (patch.enabled !== undefined) out.visible = patch.enabled; // explicit toggle wins
@@ -224,16 +251,31 @@ export async function deleteHeroSlide(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * One statement, not one per slide.
+ *
+ * This fired an update for every slide at once and awaited them together, so
+ * an interrupted reorder left some renumbered and some not, and two slides
+ * could end up sharing a position. mm_hero_reorder renumbers the whole set in
+ * a single statement: either every position moves or none does. It also
+ * refuses a list containing an id that no longer exists, which is what a
+ * stale browser tab would send.
+ */
 export async function reorderHeroSlides(orderedIds: string[]): Promise<void> {
-  await Promise.all(
-    orderedIds.map(async (id, i) => {
-      const { error } = await supabase
-        .from(TABLE as never)
-        .update({ position: (i + 1) * 10 } as never)
-        .eq("id", id);
-      if (error) throw error;
-    }),
-  );
+  const { data, error } = await supabase.rpc("mm_hero_reorder" as never, {
+    p_ids: orderedIds,
+  } as never);
+  if (error) throw error;
+  const answer = (data ?? {}) as { ok?: boolean; reason?: string };
+  if (answer.ok === false) {
+    throw new Error(
+      answer.reason === "unknown_slide_in_list"
+        ? "One of these slides no longer exists. Refresh and try again."
+        : answer.reason === "not_permitted"
+          ? "You do not have permission to reorder hero slides."
+          : `Could not reorder the slides (${answer.reason ?? "unknown"}).`,
+    );
+  }
 }
 
 export function isSlideLive(s: HeroSlideRow, now = new Date()): boolean {
