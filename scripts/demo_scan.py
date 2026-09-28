@@ -38,7 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # One REST client, one set of credentials, one place the base URL is decided.
 from demo_monitor import (  # noqa: E402
-    SUPABASE_URL, SERVICE_KEY, rest, agent_run_open, agent_run_close,
+    SUPABASE_URL, SERVICE_KEY, rest, rest_all, agent_run_open, agent_run_close,
 )
 
 APP = os.environ.get("SV_APP_ORIGIN") or "http://127.0.0.1:3000"
@@ -75,15 +75,22 @@ def unscanned():
     A demo already at review or live is left alone: it has been scanned and the
     next move is a decision, not another scan.
     """
-    rows = rest(
+    # Selected by the database rather than fetched and filtered here. Reading
+    # every demo row to keep the few that need scanning meant the whole table
+    # crossed the wire, and PostgREST stops at 10,000 rows without saying so -
+    # so past that point the demos needing a scan could be in the part that was
+    # never sent. The filter belongs in the query for the same reason the
+    # counts do.
+    # A row whose processing_status was never set is unscanned too, which is
+    # why null is asked for explicitly rather than left to fall through.
+    rows = rest_all(
         "product_demo_urls?select=id,product_id,url,demo_name,processing_status"
-        "&order=created_at"
-    ) or []
-    return [
-        row for row in rows
-        if (row.get("processing_status") or "unprocessed") in ("unprocessed", "failed")
-        and row.get("product_id") and (row.get("url") or "").strip()
-    ]
+        "&or=(processing_status.is.null,processing_status.in.(unprocessed,failed))"
+        "&product_id=not.is.null"
+    )
+    # An address of spaces is not one the database can reject with a filter,
+    # and it is the only check left that the query cannot make.
+    return [row for row in rows if (row.get("url") or "").strip()]
 
 
 def enqueue_all():

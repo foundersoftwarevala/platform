@@ -45,7 +45,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # The helpers the health worker already uses: one REST client, one set of
 # credentials, one place where the base URL is decided.
 from demo_monitor import (  # noqa: E402
-    SUPABASE_URL, SERVICE_KEY, rest, agent_run_open, agent_run_close,
+    SUPABASE_URL, SERVICE_KEY, rest, rest_all, agent_run_open, agent_run_close,
 )
 
 SITE = os.environ.get("SV_SITE") or "https://softwarevala.net"
@@ -108,10 +108,10 @@ def check_one(demo_id):
 
 def verified_demos():
     """Demos that have passed the second verification and so are worth syncing."""
-    return rest(
+    return rest_all(
         "product_demo_urls?select=id,product_id,demo_name"
-        "&status=eq.active&processing_status=eq.live&order=created_at"
-    ) or []
+        "&status=eq.active&processing_status=eq.live"
+    )
 
 
 def enqueue_all():

@@ -70,6 +70,40 @@ def rest(path, method="GET", body=None, extra_headers=None):
         return json.loads(raw) if raw.strip() else []
 
 
+def rest_all(path, page=1000):
+    """Every matching row, not the first page of them.
+
+    PostgREST on this server runs with PGRST_DB_MAX_ROWS=10000, so a select
+    with no limit is not "all rows" - it is the first ten thousand, returned
+    with no error and no sign that anything was left out. These workers decide
+    which demos get checked, scanned and verified, so a silent cap does not
+    show up as a failure: it shows up as demos that are simply never looked at,
+    and the logs would keep saying everything was fine.
+
+    There is one demo today and 7,365 products waiting for one, so the ceiling
+    is ahead rather than behind. Paging now costs one extra request while the
+    table is small and is the difference between a complete sweep and a partial
+    one once it is not.
+
+    Keyset paging on id rather than offset: a row inserted while the sweep runs
+    shifts every later offset, which quietly skips rows. The caller's path must
+    therefore select id and must not carry its own order - this orders by id.
+    """
+    rows = []
+    last = None
+    joiner = "&" if "?" in path else "?"
+    while True:
+        query = path + joiner
+        if last is not None:
+            query += "id=gt.%s&" % last
+        query += "order=id.asc&limit=%d" % page
+        batch = rest(query) or []
+        rows.extend(batch)
+        if len(batch) < page:
+            return rows
+        last = batch[-1]["id"]
+
+
 def agent_run_open(agent_key, scope, permission, input_source, action, job_id=None):
     """Record that an agent is about to do something. Returns a run id or None.
 
@@ -189,7 +223,7 @@ def check_once(url):
 
 def open_alerts():
     """Alert types already open, so a failing demo is not re-reported hourly."""
-    rows = rest("demo_alerts?select=demo_url_id,alert_type&is_resolved=eq.false")
+    rows = rest_all("demo_alerts?select=id,demo_url_id,alert_type&is_resolved=eq.false")
     return {(r.get("demo_url_id"), r.get("alert_type")) for r in rows}
 
 
@@ -320,10 +354,10 @@ def check_demo(demo, existing):
 
 
 def active_demos():
-    return rest(
+    return rest_all(
         "product_demo_urls?select=id,demo_name,url,status,product_id"
-        "&status=eq.active&order=created_at"
-    ) or []
+        "&status=eq.active"
+    )
 
 
 def enqueue_all():
