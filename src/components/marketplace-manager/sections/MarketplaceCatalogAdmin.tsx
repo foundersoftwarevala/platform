@@ -371,7 +371,40 @@ function CategoryEditor({ value, onCancel, onSave, saving }: {
 
 type Section = { id: string; key: string; title: string; enabled: boolean; sort_order: number };
 
-export function LayoutOrderAdmin() {
+/**
+ * Which manager owns a section's content.
+ *
+ * Layout Order owns where a section sits and whether it shows. What is IN it
+ * belongs to another screen, and an operator who wants to change the hero's
+ * slides should not have to go looking for Hero Banner Manager in the sidebar.
+ *
+ * Only sections whose owning screen actually exists in the registry are listed.
+ * feature-strip, ai-zone, live-activity, vala-academy and enterprise-cta have
+ * no screen of their own, so they get no button — an operator finding nothing
+ * is better than one finding a control that goes nowhere.
+ */
+const CONFIGURED_BY: Record<string, string> = {
+  "hero-carousel": "Hero Banner",
+  "category-slider": "Categories",
+  "shop-by-industry": "Categories",
+  "shop-by-category": "Categories",
+  "catalog-rows": "Homepage Rows",
+  "featured-software": "Homepage Rows",
+  "trending-now": "Homepage Rows",
+  "top-selling": "Homepage Rows",
+  "new-releases": "Homepage Rows",
+  "utility-bar": "Top Bar",
+  "offer-banner": "Offers",
+  "search-bar": "Search",
+  "success-stories": "Stories & Awards",
+  "awards-champions": "Stories & Awards",
+  "partner-ecosystem": "Partners",
+  "floating-elements": "Sticky",
+  "vala-tv": "Vala TV",
+  faq: "FAQ",
+  footer: "Footer",
+};
+export function LayoutOrderAdmin({ onNavigate }: { onNavigate?: (id: string) => void } = {}) {
   const qc = useQueryClient();
   const listFn = useServerFn(listSectionsAdmin);
   const toggleFn = useServerFn(setSectionEnabled);
@@ -433,6 +466,15 @@ export function LayoutOrderAdmin() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {CONFIGURED_BY[s.key] && onNavigate ? (
+                  <button
+                    onClick={() => onNavigate(CONFIGURED_BY[s.key]!)}
+                    title={`Edit this section's content in ${CONFIGURED_BY[s.key]}`}
+                    className="rounded border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                  >
+                    Configure
+                  </button>
+                ) : null}
                 <button onClick={() => move(i, -1)} className="rounded border border-border px-2 py-1 text-xs">↑</button>
                 <button onClick={() => move(i, 1)} className="rounded border border-border px-2 py-1 text-xs">↓</button>
                 <button
