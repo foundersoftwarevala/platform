@@ -464,6 +464,98 @@ const RESOURCES: Record<string, Resource> = {
     order: "created_at.desc",
     label: "Influencer",
   },
+  /**
+   * The rest of the influencer programme.
+   *
+   * Influencer Manager's list sections rendered nothing at all - not an error,
+   * an empty table - because a ManagerWall only reads a real table when its
+   * config names a `resource`, and none of the influencer walls named one. They
+   * fell back to `seed: []`. Only influencer_profiles had a resource here at
+   * all, so the other seven tables had no way to reach a screen.
+   *
+   * Each is read-only except where an operator genuinely decides something: a
+   * payout's status, an application's status, an account's verification. The
+   * amounts, the handles and the follower counts are the record of what
+   * happened and are not editable from a console.
+   */
+  influencer_applications: {
+    table: "influencer_applications",
+    select: [
+      "id", "application_number", "full_name", "email", "phone", "country",
+      "region", "niche", "followers", "engagement_rate", "status",
+      "rejection_reason", "reviewed_at", "created_at",
+    ],
+    editable: ["status", "rejection_reason"],
+    searchable: ["full_name", "email", "status", "application_number"],
+    order: "created_at.desc",
+    label: "Influencer application",
+  },
+  influencer_social_accounts: {
+    table: "influencer_social_accounts",
+    select: [
+      "id", "profile_id", "platform", "handle", "profile_url", "followers",
+      "engagement_rate", "verification_status", "verified_at",
+    ],
+    // Verifying an account is the operator's decision; the follower count is
+    // the platform's own number and is not typed in here.
+    editable: ["verification_status"],
+    searchable: ["handle", "platform", "verification_status"],
+    order: "verified_at.desc",
+    label: "Influencer social account",
+  },
+  influencer_campaign_assignments: {
+    table: "influencer_campaign_assignments",
+    select: ["id", "profile_id", "campaign_id", "status", "assigned_at"],
+    editable: ["status"],
+    searchable: ["status"],
+    order: "assigned_at.desc",
+    label: "Campaign assignment",
+  },
+  influencer_earnings: {
+    table: "influencer_earnings",
+    select: [
+      "id", "profile_id", "campaign_id", "gross_amount", "deductions",
+      "net_amount", "currency", "status", "approved_at", "created_at",
+    ],
+    // Approving an earning is a decision; the amounts are not re-typed.
+    editable: ["status"],
+    searchable: ["status", "currency"],
+    order: "created_at.desc",
+    label: "Influencer earning",
+  },
+  influencer_payouts: {
+    table: "influencer_payouts",
+    select: [
+      "id", "profile_id", "amount", "currency", "status",
+      "provider_reference", "processed_at", "created_at",
+    ],
+    editable: ["status", "provider_reference"],
+    searchable: ["status", "currency", "provider_reference"],
+    order: "created_at.desc",
+    label: "Influencer payout",
+  },
+  influencer_invoices: {
+    table: "influencer_invoices",
+    select: [
+      "id", "invoice_number", "profile_id", "amount", "currency", "status",
+      "issued_at", "due_at", "paid_at", "created_at",
+    ],
+    editable: ["status"],
+    searchable: ["invoice_number", "status"],
+    order: "created_at.desc",
+    label: "Influencer invoice",
+  },
+  influencer_compensation_rules: {
+    table: "influencer_compensation_rules",
+    select: [
+      "id", "campaign_id", "platform", "metric", "rate", "currency",
+      "eligibility", "active", "created_at",
+    ],
+    editable: ["rate", "currency", "eligibility", "active"],
+    searchable: ["platform", "metric"],
+    order: "created_at.desc",
+    label: "Compensation rule",
+  },
   offers: {
     table: "marketplace_coupons",
     select: [

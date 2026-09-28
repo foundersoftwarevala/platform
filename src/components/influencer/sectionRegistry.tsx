@@ -10,6 +10,8 @@ import { influencerGroups } from "@/components/influencer/navigation";
 const statuses = ["active", "pending", "paused", "completed", "draft"] as const;
 
 const influencerWall: WallConfig = {
+  // The profiles table, through /api/manager/resource.
+  resource: "influencer",
   scope: "influencer-influencers", entity: "influencer", eyebrow: "Influencer Manager",
   title: "Master Influencer Directory", subtitle: "Search, segment and operate on the connected influencer network.", icon: Users,
   primaryLabel: "Add Influencer",
@@ -89,6 +91,8 @@ const leadWall: WallConfig = {
 };
 
 const applicationWall: WallConfig = {
+  // The applications table, through /api/manager/resource.
+  resource: "influencer_applications",
   scope: "influencer-approvals", entity: "application", eyebrow: "Creator Lifecycle", title: "Influencer Applications",
   subtitle: "Review real applications, verify fit and approve onboarding into the creator network.", icon: Target, primaryLabel: "New Application",
   filters: [{ key: "status", label: "Status", options: ["pending", "in_review", "approved", "rejected"] }],
@@ -130,7 +134,40 @@ const simpleColumns = (key: string, label: string, dateKey?: string): WallConfig
   ...(dateKey ? [{ key: dateKey, header: "Updated" }] : []),
 ];
 
+/**
+ * The influencer tables that /api/manager/resource can actually serve.
+ *
+ * A ManagerWall reads a real table only when its config names a `resource`;
+ * without one it falls back to `seed`, which for these walls is an empty array.
+ * That is why every list section in Influencer Manager rendered nothing at all
+ * - not an error, just an empty table - while the programme held ten profiles,
+ * seven applications, two assignments and six payouts.
+ *
+ * Only tables with a resource are named here. A wall whose table has none keeps
+ * its old behaviour and shows its empty state, which is honest; pointing it at
+ * a resource that does not exist would turn a quiet blank into a 404.
+ */
+const INFLUENCER_RESOURCES = new Set([
+  "influencer_profiles",
+  "influencer_applications",
+  "influencer_social_accounts",
+  "influencer_campaign_assignments",
+  "influencer_earnings",
+  "influencer_payouts",
+  "influencer_invoices",
+  "influencer_compensation_rules",
+]);
+
+/** The resource name for a table, or undefined when it has none. */
+const resourceFor = (table: string): string | undefined =>
+  table === "influencer_profiles"
+    ? "influencer"
+    : INFLUENCER_RESOURCES.has(table)
+      ? table
+      : undefined;
+
 const workflowWall = (scope: string, title: string, table: string, key: string, label: string, dateKey?: string): WallConfig => ({
+  resource: resourceFor(table),
   scope, entity: title.toLowerCase(), eyebrow: "Influencer Operations", title,
   subtitle: `Live ${title.toLowerCase()} records from the influencer workflow.`, icon: Target,
   primaryLabel: `New ${title.replace(/s$/, "")}`, canCreate: false, seed: [], columns: simpleColumns(key, label, dateKey), filters: [],
@@ -142,7 +179,7 @@ function Dashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
 }
 
 export const influencerRegistry: Record<string, SectionEntry> = {
-  Dashboard, "Manager Console": Dashboard, Influencers: influencerWall, "Creator Profiles": influencerWall, "Social Accounts": influencerWall, Performance: influencerWall,
+  Dashboard, "Manager Console": Dashboard, Influencers: influencerWall, "Creator Profiles": influencerWall, "Social Accounts": workflowWall("influencer-social-accounts", "Social Accounts", "influencer_social_accounts", "handle", "Handle", "verified_at"), Performance: influencerWall,
   Campaigns: campaignWall, Collaborations: campaignWall, Leads: leadWall,
   Applications: applicationWall,
   Verification: workflowWall("influencer-verification", "Verification", "influencer_social_accounts", "handle", "Handle", "verified_at"),
@@ -159,7 +196,9 @@ export const influencerRegistry: Record<string, SectionEntry> = {
   "AI Studio": workflowWall("influencer-ai-risk", "AI Studio", "influencer_risk_reviews", "entity_id", "Entity", "created_at"),
   Activity: workflowWall("influencer-activity", "Activity", "influencer_activity", "external_event_id", "Event", "occurred_at"),
   Commissions: workflowWall("influencer-earnings", "Commissions", "influencer_earnings", "campaign_id", "Campaign", "created_at"),
-  "Commission Rules": workflowWall("influencer-commission-rules", "Commission Rules", "influencer_compensation_rule_versions", "campaign_id", "Campaign", "created_at"),
+  // influencer_compensation_rule_versions does not exist in this database; the
+  // rules themselves are in influencer_compensation_rules, which does.
+  "Commission Rules": workflowWall("influencer-commission-rules", "Commission Rules", "influencer_compensation_rules", "metric", "Metric", "created_at"),
   Wallet: workflowWall("influencer-earnings-wallet", "Wallet", "influencer_earnings", "profile_id", "Profile", "created_at"),
   Payouts: workflowWall("influencer-payouts", "Payouts", "influencer_payouts", "idempotency_key", "Payout", "created_at"),
   Withdrawals: workflowWall("influencer-payouts-withdrawals", "Withdrawals", "influencer_payouts", "idempotency_key", "Request", "created_at"),
