@@ -71,6 +71,36 @@ for name in $REQUIRED; do
   fi
 done
 
+# ---------------------------------------------------------------------------
+# The other thing that reboot broke, and that nothing shouted about.
+# ---------------------------------------------------------------------------
+# pm2 resurrected the application from a dump saved on 25 September, and that
+# dump carried SUPABASE_URL pointed at the hosted Supabase project together
+# with the hosted secret. The site kept answering 200 and looked entirely
+# healthy; it was reading a different database, and the marketplace rendered a
+# hundred kilobytes short with a whole product row absent.
+#
+# It is only reported here, never corrected: the URL and the key have to match
+# each other, and guessing at half a pair is how an outage gets made worse.
+# sv-app-env.sh already refuses to run a scheduled job against the wrong
+# backend, so the data jobs fail closed - but nothing said so out loud.
+check_app_backend() {
+  local pid url
+  pid=$(pm2 pid "${SV_PM2_NAME:-softwarevala-staging}" 2>/dev/null | tr -cd '0-9')
+  [ -n "${pid:-}" ] && [ -r "/proc/$pid/environ" ] || {
+    log "WRONG-BACKEND cannot read the application's environment to check it"
+    return
+  }
+  url=$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^SUPABASE_URL=//p' | head -1)
+  case "$url" in
+    *127.0.0.1:3010*|*localhost:3010*) ;;
+    "") log "WRONG-BACKEND the application has no SUPABASE_URL at all" ;;
+    *)  log "WRONG-BACKEND the application is pointed at $url, not the VPS gateway - it is reading the wrong database; restart it with the matched pair from /var/www/softwarevala/.env and run pm2 save" ;;
+  esac
+}
+
+check_app_backend
+
 # A quiet line every run, so the log shows the guard is alive rather than only
 # showing the days something broke.
 log "checked ${REQUIRED// /, }: $running running, $started restarted, $missing missing"

@@ -454,12 +454,53 @@ async function callTarget(
  * The body is handed back untouched so the caller can pipe it straight to the
  * browser as server-sent events, exactly as the Lovable path did.
  */
+/**
+ * A streamed answer, from the first AI service that can actually give one.
+ *
+ * This used to take resolveAiTarget() - the single best service - and return
+ * whatever it said, including its refusal. aiComplete has tried every active
+ * service since it was written, and the difference showed the day it mattered:
+ * Anthropic answered "Your credit balance is too low", and because Anthropic
+ * sorts first by name, VALA and every other streamed assistant was dead while
+ * an active, approved, credentialled OpenAI service sat next to it unused.
+ *
+ * The rule for when to move on is providerCouldBeSwapped, unchanged and shared
+ * with aiComplete: billing, quota, rate limit, overload and server faults are
+ * worth trying elsewhere; a malformed prompt is not, and is returned as it is.
+ * Every attempt is metered, including the refusals, because a request that was
+ * sent and refused still happened.
+ */
 export async function aiStream(options: {
   module: string;
   messages: AiMessage[];
   serviceName?: string;
 }): Promise<Response> {
-  const target = await resolveAiTarget(options.serviceName);
+  const targets = await resolveAiTargets(options.serviceName);
+  const attempts: string[] = [];
+
+  for (let i = 0; i < targets.length; i += 1) {
+    const target = targets[i];
+    const isLast = i === targets.length - 1;
+    const response = await streamFromTarget(target, options);
+    if (response.ok) return response.stream;
+
+    attempts.push(`${target.serviceName}: ${response.detail}`);
+    if (isLast || !providerCouldBeSwapped(response.status, response.detail)) {
+      return new Response(
+        attempts.length === 1 ? response.detail : `Every AI service refused. ${attempts.join(" | ")}`,
+        { status: response.status || 502 },
+      );
+    }
+  }
+  // resolveAiTargets never returns an empty list; it throws instead.
+  return new Response("No AI service was available.", { status: 503 });
+}
+
+/** One provider's attempt at a streamed answer. */
+async function streamFromTarget(
+  target: AiTarget,
+  options: { module: string; messages: AiMessage[] },
+): Promise<{ ok: true; stream: Response } | { ok: false; status: number; detail: string }> {
   const started = Date.now();
 
   const headers: Record<string, string> = { "content-type": "application/json" };
@@ -495,16 +536,17 @@ export async function aiStream(options: {
 
   if (!upstream.ok || !upstream.body) {
     const detail = await upstream.text().catch(() => "");
-    return new Response(detail || "The AI request failed.", {
-      status: upstream.status || 502,
-    });
+    return { ok: false, status: upstream.status || 502, detail: detail || "The AI request failed." };
   }
 
-  return new Response(upstream.body, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
-  });
+  return {
+    ok: true,
+    stream: new Response(upstream.body, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    }),
+  };
 }
