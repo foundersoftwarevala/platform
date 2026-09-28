@@ -106,6 +106,17 @@ export type StorefrontVideo = {
   product_slug: string | null;
   /** Counted from recorded views. Null when nothing has been recorded. */
   views: number | null;
+  /**
+   * The one country this film is placed in, from the owner's published
+   * geographic batch, so two films never compete for the same geography in
+   * search. Null on a film created by hand that has not been placed.
+   */
+  country: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  /** 'youtube' when it arrived from the channel feed, 'manual' when an operator made it. */
+  source: string | null;
+  published_at: string | null;
 };
 
 /* ------------------------------------------------------------- public read */

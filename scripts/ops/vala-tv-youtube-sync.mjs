@@ -39,6 +39,8 @@
  * Without --apply it reports what it would change and writes nothing.
  */
 
+import { readFileSync } from "node:fs";
+
 const BASE = (process.env.SUPABASE_URL ?? "").trim();
 const KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
 const APPLY = process.argv.includes("--apply");
@@ -170,6 +172,142 @@ async function readFeed(channelId) {
     .filter(Boolean);
 }
 
+// ------------------------------------------------- one country per film, for SEO
+
+/**
+ * The owner's published geographic batch, read from the file that defines it.
+ *
+ * RAIL_COUNTRIES is where the marketplace already keeps this order, and its own
+ * comment says it is checked in so the order is stable. It holds exactly eighty
+ * countries, which is the number of films the channel is being built out to -
+ * one film per country, so two films never compete for the same geography in
+ * search. Parsing that file keeps one source; copying the list in here would
+ * create a second one to drift.
+ */
+function railCountries() {
+  const candidates = [
+    process.env.SV_RAIL_COUNTRIES_FILE,
+    "/var/www/softwarevala/src/lib/marketplace/rail-countries.ts",
+    "src/lib/marketplace/rail-countries.ts",
+  ].filter(Boolean);
+
+  const pattern = /\{\s*marker:\s*"([^"]+)",\s*label:\s*"([^"]+)",\s*code:\s*(null|"[A-Z]{2}")/g;
+  for (const file of candidates) {
+    try {
+      const rows = [...readFileSync(file, "utf8").matchAll(pattern)].map((m) => ({
+        marker: m[1],
+        label: m[2],
+        code: m[3] === "null" ? null : m[3].slice(1, -1),
+      }));
+      if (rows.length > 0) return rows;
+    } catch {
+      /* try the next candidate */
+    }
+  }
+  return [];
+}
+
+/**
+ * A film's own words, without the decoration a YouTube title carries.
+ *
+ * Three things have to go, and each was a real result from the first run:
+ * hashtags and emoji ("#trending", the rockets); a brand suffix, or
+ * "Affordable Software for Your Business | Software Vala" became "... |
+ * Software Vala in Ghana | Software Vala"; and a word left dangling once the
+ * hashtags it pointed at are gone, or "Make your school management smarter
+ * with #softwarevala" became "... smarter with in Kenya".
+ */
+function cleanTitle(title) {
+  const DANGLING = /\s+(with|for|and|in|to|on|at|by|of|from|using|the|a|an|your|my|&)$/i;
+  let text = String(title)
+    .replace(/#\S+/g, " ")
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    // The brand is added back with the country, so it must not be here twice.
+    .replace(/\s*[|\-–—]\s*software\s*vala\s*$/i, "")
+    .replace(/\s*\bsoftware\s*vala\b\s*$/i, "")
+    .replace(/[\s,.|\-–—?!]+$/g, "")
+    .trim();
+
+  // A title may end in several of these once the hashtags are stripped.
+  while (DANGLING.test(text)) text = text.replace(DANGLING, "").trim();
+  return text.replace(/[\s,.|\-–—?!]+$/g, "").trim();
+}
+
+/**
+ * Gives every film that has none a country and the SEO text that goes with it.
+ *
+ * Deterministic and stable: films are taken oldest first and handed the next
+ * country not already in use, so a film keeps the country it was given and a
+ * new upload takes the next free one. Nothing already assigned is changed, and
+ * a film an operator has already written a seo_title for is left alone.
+ *
+ * The text is built from the film's own title and description plus the country
+ * name. No claim is added that the film did not already make.
+ */
+async function assignCountriesAndSeo(apply) {
+  const countries = railCountries();
+  if (countries.length === 0) {
+    console.log("\ncountry SEO: skipped - rail-countries.ts could not be read");
+    return { assigned: 0 };
+  }
+
+  const rows = await rest(
+    "vala_tv_videos?select=id,title,description,country,seo_title,external_id,published_at&source=eq.youtube&order=published_at.asc",
+  );
+  const films = rows.json ?? [];
+  const taken = new Set(films.map((f) => f.country).filter(Boolean));
+  const free = countries.filter((c) => !taken.has(c.label));
+  const needing = films.filter((f) => !f.country || !f.seo_title);
+
+  console.log(
+    `\ncountry SEO: ${films.length} film(s), ${taken.size} already placed, ` +
+      `${needing.length} needing one, ${free.length} of ${countries.length} country slots free`,
+  );
+  if (needing.length === 0) return { assigned: 0 };
+
+  let assigned = 0;
+  let next = 0;
+  for (const film of needing) {
+    const country = film.country
+      ? countries.find((c) => c.label === film.country)
+      : free[next];
+    if (!country) {
+      console.log(`  no country slot left for [${film.external_id}] - left unplaced rather than doubled up`);
+      continue;
+    }
+    if (!film.country) next += 1;
+
+    const clean = cleanTitle(film.title) || "Business software";
+    const seoTitle = `${clean} in ${country.label} | Software Vala`.slice(0, 160);
+    const firstLine =
+      String(film.description ?? "").split("\n").find((l) => l.trim().length > 0) ?? "";
+    const seoDescription = (
+      firstLine.trim()
+        ? `${cleanTitle(firstLine)} - shown for ${country.label}. Watch the demo, then decide: Software Vala takes no advance payment.`
+        : `${clean} for businesses in ${country.label}. Watch the demo first - Software Vala takes no advance payment.`
+    ).slice(0, 320);
+
+    if (!apply) {
+      console.log(`  would place [${film.external_id}] -> ${country.label}: ${seoTitle.slice(0, 78)}`);
+      continue;
+    }
+
+    const patch = { seo_title: seoTitle, seo_description: seoDescription };
+    if (!film.country) patch.country = country.label;
+    const update = await rest(`vala_tv_videos?id=eq.${film.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+    if (update.ok) assigned += 1;
+    else console.log(`  could not place [${film.external_id}]: ${update.status} ${update.text.slice(0, 120)}`);
+  }
+
+  if (apply) console.log(`  placed ${assigned} film(s)`);
+  return { assigned };
+}
+
 // ---------------------------------------------------------------- the sync
 
 async function main() {
@@ -223,7 +361,8 @@ async function main() {
     for (const f of toAdd.slice(0, 20)) console.log(`   would add  [${f.external_id}] ${f.title.slice(0, 70)}`);
     for (const f of toRefresh.slice(0, 20)) console.log(`   would fresh[${f.external_id}] ${f.title.slice(0, 70)}`);
     console.log("\ndry run - nothing written. Re-run with --apply.");
-    return { added: 0, refreshed: 0, gone: missing.length, total: films.length };
+    await assignCountriesAndSeo(false);
+    return { added: 0, refreshed: 0, gone: missing.length, total: films.length, placed: 0 };
   }
 
   let added = 0;
@@ -278,8 +417,10 @@ async function main() {
     body: JSON.stringify({ synced_at: new Date().toISOString() }),
   }).catch(() => {});
 
-  console.log(`\nadded ${added}, refreshed ${refreshed}`);
-  return { added, refreshed, gone: missing.length, total: films.length };
+  const placed = await assignCountriesAndSeo(true);
+
+  console.log(`\nadded ${added}, refreshed ${refreshed}, placed ${placed.assigned}`);
+  return { added, refreshed, gone: missing.length, total: films.length, placed: placed.assigned };
 }
 
 const run = await openRun(APPLY ? "sync" : "check");
@@ -288,7 +429,7 @@ try {
   await closeRun(
     run,
     "COMPLETED",
-    `feed ${summary.total}, added ${summary.added}, refreshed ${summary.refreshed}, not-in-feed ${summary.gone}`,
+    `feed ${summary.total}, added ${summary.added}, refreshed ${summary.refreshed}, placed ${summary.placed ?? 0}, not-in-feed ${summary.gone}`,
   );
   process.exit(0);
 } catch (problem) {
