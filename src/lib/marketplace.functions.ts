@@ -736,6 +736,68 @@ export const listProductsAdminPage = createServerFn({ method: "GET" })
       };
     }
   });
+/**
+ * Just enough of the catalogue to fill a product picker.
+ *
+ * The demo URL manager filled its <select> from listProductsAdmin — every
+ * column of all 7,365 products, to render a list of names. That is a lot of
+ * wire for a dropdown, and a dropdown of 7,365 options is not usable anyway;
+ * past 10,000 products PostgREST would cap the read and the missing ones would
+ * simply be unselectable, with nothing to say so.
+ *
+ * p_selected is the important part. A bounded list would otherwise drop the
+ * product an existing row already points at, the <select> would fall back to
+ * its first option, and saving would quietly reassign the demo to a different
+ * product. The current selection is always included, whatever the search says.
+ */
+export const listProductOptions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => {
+    const raw = (input ?? {}) as { search?: unknown; selected?: unknown };
+    return {
+      search: String(raw.search ?? "").trim().slice(0, 120),
+      selected: String(raw.selected ?? "").trim().slice(0, 64),
+    };
+  })
+  .handler(async ({ context, data }) => {
+    if (!context?.supabase) {
+      throw new Error("Unauthorized: Supabase context is unavailable.");
+    }
+    const { search, selected } = data;
+    try {
+      let query = context.supabase
+        .from("marketplace_products")
+        .select("id, name, slug")
+        .order("name")
+        .limit(200);
+
+      if (search) {
+        const term = search.replace(/[%,()]/g, " ").trim();
+        if (term) query = query.or(`name.ilike.%${term}%,slug.ilike.%${term}%`);
+      }
+
+      const { data: rows, error } = await query;
+      if (error) {
+        console.error("[marketplace] listProductOptions error:", error);
+        return [];
+      }
+
+      const options = (rows ?? []) as { id: string; name: string; slug: string }[];
+      if (selected && !options.some((o) => o.id === selected)) {
+        const { data: current } = await context.supabase
+          .from("marketplace_products")
+          .select("id, name, slug")
+          .eq("id", selected)
+          .maybeSingle();
+        if (current) options.unshift(current as { id: string; name: string; slug: string });
+      }
+      return options;
+    } catch (error) {
+      console.error("[marketplace] listProductOptions error:", error);
+      return [];
+    }
+  });
+
 export const listProductDemoBindings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ product_id: z.string().uuid().optional() }).parse(v ?? {}))

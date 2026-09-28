@@ -179,7 +179,15 @@ for (const label of wanted) {
     });
     await page.waitForTimeout(1200);
 
-    const nav = page.locator("nav button, aside button", { hasText: label }).first();
+    // Exact text, not "contains". hasText matches substrings, so "Automation"
+    // also matched "SEO Automation" and .first() took whichever came earlier
+    // in the sidebar — the scan then reported the Automation Engine as though
+    // it rendered the SEO generator. Three different false findings in this
+    // scan came from substring matching.
+    const nav = page
+      .locator("nav button, aside button")
+      .filter({ hasText: new RegExp(`^\\s*${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`) })
+      .first();
     if (await nav.count()) {
       await nav.click({ timeout: 5000 }).catch(() => {});
       await page.waitForTimeout(3000);

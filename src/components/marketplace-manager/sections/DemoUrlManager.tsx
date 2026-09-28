@@ -13,7 +13,7 @@ import {
   toggleDemoUrl, testDemoUrl, testAllDemoUrls, listDemoAuditLog,
   type DemoUrl, type DemoAuditEntry,
 } from "@/lib/marketplace-manager/demo";
-import { listProductsAdmin } from "@/lib/marketplace.functions";
+import { listProductOptions } from "@/lib/marketplace.functions";
 
 import { Card, LoadFailure, PageHeader, PillButton } from "../ui";
 
@@ -37,7 +37,7 @@ export function DemoUrlManagerSection() {
   const toggleFn = useServerFn(toggleDemoUrl);
   const testFn = useServerFn(testDemoUrl);
   const testAllFn = useServerFn(testAllDemoUrls);
-  const productsFn = useServerFn(listProductsAdmin);
+  const productsFn = useServerFn(listProductOptions);
   const auditFn = useServerFn(listDemoAuditLog);
 
 
@@ -45,9 +45,19 @@ export function DemoUrlManagerSection() {
     queryKey: ["demo_urls"],
     queryFn: async () => (await listFn()) as unknown as DemoUrl[],
   });
+  // The picker used to be filled from listProductsAdmin: every column of all
+  // 7,365 products, to render a list of names. Past 10,000 the read would be
+  // capped and the missing products would simply be unselectable, with
+  // nothing to say why. This asks for id and name only, bounded, and
+  // narrowed by what the operator types.
+  const [productSearch, setProductSearch] = useState("");
+  const selectedProductId = editing?.product_id ?? "";
   const { data: products = [] } = useQuery<{ id: string; name: string }[]>({
-    queryKey: ["mp_products_admin_slim"],
-    queryFn: async () => (await productsFn()) as unknown as { id: string; name: string }[],
+    queryKey: ["mp_product_options", productSearch, selectedProductId],
+    queryFn: async () =>
+      (await productsFn({
+        data: { search: productSearch, selected: selectedProductId },
+      })) as unknown as { id: string; name: string }[],
   });
   const { data: audit = [], isLoading: auditLoading } = useQuery<DemoAuditEntry[]>({
     queryKey: ["demo_audit_log"],
@@ -331,6 +341,16 @@ function DemoEditor({
             </datalist>
           </Field>
           <Field label="Product">
+            {/* Added above the picker, not in place of it: the list is bounded
+                now, so this is how an operator reaches a product that is not
+                in the first two hundred. */}
+            <input
+              className={inp}
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              placeholder="Search products by name or slug"
+              aria-label="Search products"
+            />
             <select className={inp} value={v.product_id ?? ""} onChange={(e) => set("product_id", (e.target.value || null) as any)}>
               <option value="">— Unassigned —</option>
               {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
