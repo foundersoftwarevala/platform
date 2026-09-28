@@ -814,5 +814,7 @@
  "src/routes/vala-tv.tsx": 7,
  "src/routes/vendor-manager.tsx": 23,
  "src/routes/verify.$code.tsx": 15,
- "src/routes/__root.tsx": 7
+ "src/routes/__root.tsx": 7,
+ "src/routes/contact.tsx": 26,
+ "src/routes/api/marketplace/contact.ts": 7
 }
