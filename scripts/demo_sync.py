@@ -44,7 +44,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # The helpers the health worker already uses: one REST client, one set of
 # credentials, one place where the base URL is decided.
-from demo_monitor import SUPABASE_URL, SERVICE_KEY, rest  # noqa: E402
+from demo_monitor import (  # noqa: E402
+    SUPABASE_URL, SERVICE_KEY, rest, agent_run_open, agent_run_close,
+)
 
 SITE = os.environ.get("SV_SITE") or "https://softwarevala.net"
 TIMEOUT = 25
@@ -144,25 +146,37 @@ def work_queue(worker, limit, lease):
     verified = 0
     for job in jobs:
         demo_id = (job.get("payload") or {}).get("demo_url_id")
+        # EXECUTE_LOW_RISK rather than READ, because the check writes an audit
+        # entry. It is the only permission beyond READ that demo-sync holds,
+        # and the roster is not widened to suit the worker.
+        run = agent_run_open(
+            "demo-sync", "demo:%s" % (demo_id or "unknown"), "EXECUTE_LOW_RISK",
+            "fa_jobs:%s" % job["id"],
+            "verify the demo is reachable from the marketplace", job["id"])
         if not demo_id:
+            reason = "the job carries no demo id"
+            agent_run_close(run, "FAILED", error=reason)
             rest("rpc/fa_fail", method="POST", body={
                 "p_id": job["id"], "p_worker": worker,
-                "p_error": "the job carries no demo id",
+                "p_error": reason,
                 "p_error_class": "validation"})
             continue
 
         try:
             result = check_one(demo_id)
         except Exception as problem:                     # noqa: BLE001
+            agent_run_close(run, "FAILED", error=str(problem)[:500])
             rest("rpc/fa_fail", method="POST", body={
                 "p_id": job["id"], "p_worker": worker,
                 "p_error": str(problem)[:500], "p_error_class": "transient"})
             continue
 
         if not result.get("ok"):
+            reason = "the check could not run: %s" % result.get("reason")
+            agent_run_close(run, "FAILED", error=reason)
             rest("rpc/fa_fail", method="POST", body={
                 "p_id": job["id"], "p_worker": worker,
-                "p_error": "the check could not run: %s" % result.get("reason"),
+                "p_error": reason,
                 "p_error_class": "validation"})
             continue
 
@@ -172,6 +186,15 @@ def work_queue(worker, limit, lease):
         # failed so an operator can act on the actual thing.
         if result["verified"]:
             verified += 1
+        # The run completed either way. What it verified is the demo; whether
+        # the run itself was right is a separate judgement this worker is not
+        # allowed to make, so its verification stays UNVERIFIED.
+        agent_run_close(run, "COMPLETED", result=(
+            "reachable from the marketplace" if result["verified"]
+            else "not reachable: %s" % ", ".join(
+                [c["label"] for c in result.get("checks", []) if not c.get("passed")]
+                + [c["check"] for c in result.get("http", []) if not c.get("ok")]
+            )))
         audit(demo_id, "demo_url.sync", {
             "verified": result["verified"],
             "failed": result.get("failed"),

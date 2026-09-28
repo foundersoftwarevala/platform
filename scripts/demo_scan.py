@@ -37,7 +37,9 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # One REST client, one set of credentials, one place the base URL is decided.
-from demo_monitor import SUPABASE_URL, SERVICE_KEY, rest  # noqa: E402
+from demo_monitor import (  # noqa: E402
+    SUPABASE_URL, SERVICE_KEY, rest, agent_run_open, agent_run_close,
+)
 
 APP = os.environ.get("SV_APP_ORIGIN") or "http://127.0.0.1:3000"
 TOKEN = os.environ.get("INTERNAL_API_TOKEN") or ""
@@ -130,15 +132,24 @@ def work_queue(worker, limit, lease):
         payload = job.get("payload") or {}
         product_id = payload.get("product_id")
         url = payload.get("url")
+        # Opened before the work, so a worker that dies mid-scan still leaves a
+        # run saying it started; the reaper closes those.
+        run = agent_run_open(
+            "demo-scanner", "demo:%s" % (payload.get("demo_url_id") or "unknown"),
+            "CREATE", "fa_jobs:%s" % job["id"],
+            "scan the demo and identify the software", job["id"])
         if not product_id or not url:
+            reason = "the job carries no product or address"
+            agent_run_close(run, "FAILED", error=reason)
             rest("rpc/fa_fail", method="POST", body={
                 "p_id": job["id"], "p_worker": worker,
-                "p_error": "the job carries no product or address",
+                "p_error": reason,
                 "p_error_class": "validation"})
             continue
 
         ok, demo, error = investigate(product_id, url)
         if not ok:
+            agent_run_close(run, "FAILED", error=error)
             # The application answering badly is worth trying again; the
             # classification decides whether it actually will be.
             rest("rpc/fa_fail", method="POST", body={
@@ -156,6 +167,7 @@ def work_queue(worker, limit, lease):
             # the reason it failed is already recorded on the demo row, so the
             # class decides whether another attempt could help.
             reason = str(processing.get("error") or "the scan failed")
+            agent_run_close(run, "FAILED", error=reason[:500])
             transient = any(word in reason.lower() for word in
                             ("timeout", "timed out", "econnreset", "eai_again",
                              "rate limit", "overloaded", "credit balance"))
@@ -167,6 +179,10 @@ def work_queue(worker, limit, lease):
             continue
 
         reviewed += 1
+        agent_run_close(run, "COMPLETED", result="%s identified as %s (%.2f), awaiting review" % (
+            demo.get("demo_name") or url,
+            identity.get("category_slug") or "no category",
+            identity.get("confidence") or 0.0))
         rest("rpc/fa_complete", method="POST", body={
             "p_id": job["id"], "p_worker": worker,
             "p_result": {

@@ -70,6 +70,53 @@ def rest(path, method="GET", body=None, extra_headers=None):
         return json.loads(raw) if raw.strip() else []
 
 
+def agent_run_open(agent_key, scope, permission, input_source, action, job_id=None):
+    """Record that an agent is about to do something. Returns a run id or None.
+
+    ai_agent_runs is where Founder AI's governance says every agent action is
+    written, and it is what self-healing counts when it checks an agent against
+    its concurrency ceiling. A worker that does the work without opening a run
+    leaves that check counting nothing and passing for free.
+
+    Failing to open a run does not stop the work. The bookkeeping is important
+    but it is not the job, and refusing to check a demo because a run could not
+    be recorded would turn a reporting problem into an outage. It is printed
+    rather than swallowed, so a worker running without records says so on every
+    pass instead of looking normal.
+    """
+    try:
+        answer = rest("rpc/fa_agent_run_open", method="POST", body={
+            "p_agent_key": agent_key,
+            "p_scope": scope,
+            "p_permission": permission,
+            "p_input_source": input_source,
+            "p_action": action,
+            "p_job": job_id,
+        })
+    except Exception as problem:                          # noqa: BLE001
+        print("  ! no agent run recorded: %s" % str(problem)[:200])
+        return None
+
+    if not isinstance(answer, dict) or not answer.get("ok"):
+        print("  ! no agent run recorded: %s"
+              % (answer or {}).get("reason", "unreadable"))
+        return None
+    return answer.get("run_id")
+
+
+def agent_run_close(run_id, state, result=None, error=None):
+    """Close a run the worker opened. Never writes VERIFIED — see the migration."""
+    if not run_id:
+        return
+    try:
+        rest("rpc/fa_agent_run_close", method="POST", body={
+            "p_run": run_id, "p_state": state,
+            "p_result": result, "p_error": error,
+        })
+    except Exception as problem:                          # noqa: BLE001
+        print("  ! agent run left open: %s" % str(problem)[:200])
+
+
 def check_certificate(host, port=443):
     """Real certificate validity and days remaining.
 
@@ -335,6 +382,13 @@ def work_queue(worker, limit, lease):
     for job in jobs:
         payload = job.get("payload") or {}
         demo_id = payload.get("demo_url_id")
+        # Opened before the work, so a worker that dies mid-check leaves a run
+        # that says it started. The reaper closes those; nothing else would
+        # ever know the attempt happened.
+        run = agent_run_open(
+            "demo-health", "demo:%s" % (demo_id or "unknown"), "CREATE",
+            "fa_jobs:%s" % job["id"], "check that the demo is reachable",
+            job["id"])
         rows = rest(
             "product_demo_urls?select=id,demo_name,url,status,product_id"
             "&id=eq.%s" % demo_id
@@ -342,28 +396,37 @@ def work_queue(worker, limit, lease):
         demo = rows[0] if rows else None
 
         if not demo:
+            reason = "the demo row this job refers to is gone"
+            agent_run_close(run, "FAILED", error=reason)
             rest("rpc/fa_fail", method="POST", body={
                 "p_id": job["id"], "p_worker": worker,
-                "p_error": "the demo row this job refers to is gone",
+                "p_error": reason,
                 "p_error_class": "validation"})
             continue
 
         try:
             outcome = check_demo(demo, existing)
         except Exception as problem:
+            agent_run_close(run, "FAILED", error=str(problem)[:500])
             rest("rpc/fa_fail", method="POST", body={
                 "p_id": job["id"], "p_worker": worker,
                 "p_error": str(problem)[:500], "p_error_class": "transient"})
             continue
 
         if outcome is None:
+            reason = "the demo has no address to check"
+            agent_run_close(run, "FAILED", error=reason)
             rest("rpc/fa_fail", method="POST", body={
                 "p_id": job["id"], "p_worker": worker,
-                "p_error": "the demo has no address to check",
+                "p_error": reason,
                 "p_error_class": "validation"})
             continue
 
         summary[outcome["result"]] = summary.get(outcome["result"], 0) + 1
+        # The run completed whatever the demo's state: the agent did check it.
+        # "Down" is the answer, not a failure of the agent to answer.
+        agent_run_close(run, "COMPLETED", result="%s: %s (%s ms)" % (
+            demo.get("demo_name") or demo_id, outcome["result"], outcome["ms"]))
         # An unreachable demo is a real result, not a failed job: it was checked
         # and the answer was "down". Retrying would only ask again sooner than
         # the schedule intends, and the alert has already been raised.
