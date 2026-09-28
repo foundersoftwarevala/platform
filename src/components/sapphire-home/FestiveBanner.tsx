@@ -14,15 +14,19 @@ const COLORS = [
   "bg-[oklch(0.55_0.16_230)]",
 ];
 
+// The two "147 products" lines were written when the catalogue held 147. It
+// holds 7,357 visible products now, so they understated the storefront by fifty
+// times on the homepage itself. They say the catalogue rather than a number,
+// because a number written into a component is a number that goes stale again.
 const announcements = [
-  { icon: Handshake, title: "🤝 Join as Reseller —", badge: "Upto 40% Margin", text: "Sell 147 products under your own brand." },
+  { icon: Handshake, title: "🤝 Join as Reseller —", badge: "Upto 40% Margin", text: "Sell our entire catalogue under your own brand." },
   { icon: Store, title: "🏪 Franchise Partner —", badge: "City Exclusive", text: "Own your territory with full support." },
   { icon: Share2, title: "🔗 Affiliate Program —", badge: "20% Commission", text: "Earn on every referral, lifetime." },
   { icon: Building2, title: "🏢 Become a Vendor —", badge: "0% Listing Fee", text: "List your software on our marketplace." },
   { icon: Search, title: "📈 SEO Partner —", badge: "Growth Plans", text: "Rank higher with our SEO experts." },
   { icon: Megaphone, title: "🎤 Influencer Program —", badge: "Paid Collabs", text: "Promote and earn with every campaign." },
   { icon: Headphones, title: "🌍 Global Support —", badge: "24×7 Live Help", text: "Human + AI assistance in 12 languages." },
-  { icon: PartyPopper, title: "🎉 Mega Software Sale —", badge: "Flat 40% OFF", text: "Lifetime access on all 147 products!" },
+  { icon: PartyPopper, title: "🎉 Mega Software Sale —", badge: "Flat 40% OFF", text: "Lifetime access on every product!" },
 ];
 
 const FestiveBanner = () => {

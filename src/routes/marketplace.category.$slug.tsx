@@ -53,13 +53,42 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
     }
     return {
       seo: seo.status === "fulfilled" ? seo.value : null,
+      /**
+       * A lookup that failed and a category that does not exist arrive here
+       * looking identical, and they need opposite answers.
+       *
+       * A failure should keep the page's identity, which is what the fallback
+       * below is for. A slug with no category behind it should not be indexed
+       * at all: /marketplace/category/not-a-row answered 200 with the title
+       * "Not A Row Software" and no robots tag, so every wrong slug anyone ever
+       * linked was a page Google could index, without limit.
+       *
+       * Fulfilled-but-empty is the difference: the lookup worked and found
+       * nothing.
+       */
+      missing: seo.status === "fulfilled" && !seo.value,
       products: products.status === "fulfilled" ? products.value : null,
     };
   },
 
   head: ({ loaderData, params }) => {
-    const data = (loaderData as { seo?: CategorySeo | null } | null)?.seo ?? null;
+    const loaded = loaderData as { seo?: CategorySeo | null; missing?: boolean } | null;
+    const data = loaded?.seo ?? null;
     if (!data) {
+      if (loaded?.missing) {
+        // There is no such category. The page still renders, so a visitor who
+        // followed a stale link sees the storefront rather than a dead end, but
+        // it is kept out of the index and points at the marketplace instead of
+        // claiming to be a category of its own.
+        return {
+          meta: [
+            { title: "Category not found | Software Vala" },
+            { name: "robots", content: "noindex, follow" },
+            { name: "description", content: GENERIC.description },
+          ],
+          links: [{ rel: "canonical", href: `${siteUrl()}/marketplace` }],
+        };
+      }
       // The SEO lookup can fail on a loaded server, and when it did this page
       // used to lose its canonical, its OpenGraph and its structured data all
       // at once - and take the same generic title as every other page in the

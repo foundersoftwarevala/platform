@@ -6,25 +6,58 @@ import HomeIndex from "@/components/sapphire-home/HomeIndex";
 import { absoluteUrl } from "@/lib/seo/site-url";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
+  /**
+   * The catalogue's real size, for the title and description below.
+   *
+   * It read "147 Software Solutions ... across 20 master categories" while the
+   * catalogue held 7,357 visible products across 91 categories - written by hand
+   * when it was true and wrong ever since, in the first line a search engine
+   * reads. It is counted in SQL now so it cannot drift again.
+   *
+   * The loader cannot fail the page: getCatalogueHeadline returns null on any
+   * problem and gives up after a second and a half, and the copy below then
+   * carries no number rather than a wrong one. This page has real visitors on
+   * it, and no piece of metadata is worth a blank screen.
+   */
+  loader: async () => {
+    const { getCatalogueHeadline } = await import("@/lib/seo/catalogue-headline.server");
+    try {
+      return { headline: await getCatalogueHeadline() };
+    } catch {
+      return { headline: null };
+    }
+  },
+  head: ({ loaderData }) => {
+    const headline = loaderData?.headline ?? null;
+    const count = headline ? headline.products.toLocaleString("en-IN") : null;
+    const categories = headline ? headline.visibleCategories : null;
+    const title = count
+      ? `Software Vala — ${count} Software Solutions Marketplace`
+      : "Software Vala — Software Solutions Marketplace";
+    const description = count
+      ? `Browse ${count} ready-to-deploy software solutions across ${categories} categories with live demos, full source code and lifetime access.`
+      : "Browse ready-to-deploy software solutions with live demos, full source code and lifetime access.";
+
+    return {
     links: [{ rel: "canonical", href: absoluteUrl("/") }],
     meta: [
-      { title: "Software Vala — 147 Software Solutions Marketplace" },
+      { title },
       {
         name: "description",
-        content:
-          "Browse 147 ready-to-deploy software solutions across 20 master categories with live demos, full source code and lifetime access.",
+        content: description,
       },
-      { property: "og:title", content: "Software Vala — 147 Software Solutions Marketplace" },
+      { property: "og:title", content: title },
       {
         property: "og:description",
-        content:
-          "Live demos, full source code, 1 year free support and lifetime access across 20 master categories.",
+        content: categories
+          ? `Live demos, full source code, 1 year free support and lifetime access across ${categories} categories.`
+          : "Live demos, full source code, 1 year free support and lifetime access.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
-  }),
+    };
+  },
   component: () => (
     <>
       <Index />

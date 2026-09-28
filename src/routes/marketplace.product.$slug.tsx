@@ -23,6 +23,8 @@ type Loaded = {
   keywords?: string[];
   country?: string;
   slug?: string;
+  /** Both lookups succeeded and found nothing: there is no such product. */
+  missing?: boolean;
   deployment?: string | null;
   /** What the SEO Manager says about this page, when it has been given a record. */
   override?: import("@/lib/seo/page-overrides").SeoOverride | null;
@@ -65,9 +67,22 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
     ]);
     const product =
       productResult.status === "fulfilled" ? productResult.value : null;
+    /**
+     * Both lookups worked and neither found anything: there is no such product.
+     *
+     * /marketplace/product/<anything> answered 200 with a title and no robots
+     * tag, so every wrong or stale slug was an indexable page. This is not the
+     * same as a lookup that failed, which must keep the page's identity - the
+     * difference is fulfilled-but-empty.
+     */
+    const missing =
+      productResult.status === "fulfilled" &&
+      !productResult.value &&
+      seoResult.status === "fulfilled" &&
+      !seoResult.value;
     try {
       const seo = seoResult.status === "fulfilled" ? seoResult.value : null;
-      if (!seo) return { product };
+      if (!seo) return { product, missing };
       // What the SEO Manager says about this page, if anything. A record it has
       // never been given simply resolves to null and the product speaks for
       // itself, exactly as before.
@@ -96,14 +111,23 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
       };
     } catch (error) {
       console.error("[product head] could not load", params.slug, error);
-      return { product };
+      return { product, missing };
     }
   },
 
   head: ({ loaderData }) => {
     const data = (loaderData ?? {}) as Loaded;
     if (!data.name) {
-      return { meta: [{ title: GENERIC.title }, { name: "description", content: GENERIC.description }] };
+      const meta: Record<string, string>[] = [
+        { title: data.missing ? "Product not found | Software Vala" : GENERIC.title },
+        { name: "description", content: GENERIC.description },
+      ];
+      if (!data.missing) return { meta };
+      // No such product. The page still renders, so a stale link is not a dead
+      // end, but it is kept out of the index and points at the marketplace
+      // rather than claiming to be a product of its own.
+      meta.push({ name: "robots", content: "noindex, follow" });
+      return { meta, links: [{ rel: "canonical", href: `${siteUrl()}/marketplace` }] };
     }
 
     const override = data.override ?? null;

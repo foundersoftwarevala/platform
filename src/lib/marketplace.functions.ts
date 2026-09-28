@@ -1195,12 +1195,33 @@ export const sortByDownloads = createServerFn({ method: "POST" })
     }
   });
 
+/**
+ * Every demo the catalogue has, for Demo Manager.
+ *
+ * This was open to anyone. It is a GET server function with no middleware, it
+ * reads with the service-role key, and it selected `*` from product_demo_urls -
+ * a table that carries `username` and `password` for demos behind a login. So an
+ * unauthenticated caller received every demo's real address and its credentials,
+ * while the whole point of the demo proxy and its ticket system is that the real
+ * address is never handed out.
+ *
+ * Now: operator only, and the credential columns are not selected at all. Demo
+ * Manager, which is the only caller, is an operator console and is unaffected.
+ * The columns it does not get are the two it never displayed.
+ */
 export const listProductDemos = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Reading the demo list");
+
     const supabase = context?.supabase ?? publicClient();
     const { data: results, error } = await supabase
       .from("product_demo_urls")
-      .select("*")
+      .select(
+        "id,product_id,demo_name,role_name,url,description,environment,status,sort_order," +
+          "last_checked_at,last_response_ms,last_http_status,last_result,ssl_valid," +
+          "processing_status,processing,processed_at,detected_category_id,created_at,updated_at",
+      )
       .order("created_at", { ascending: false });
     if (error) {
       console.error("[marketplace] listProductDemos error:", error);
@@ -1209,8 +1230,20 @@ export const listProductDemos = createServerFn({ method: "GET" })
     return results ?? [];
   });
 
+/**
+ * Writes sample products into the live catalogue. Operator only.
+ *
+ * This was a POST server function with no middleware that writes with the
+ * service-role key, so anyone who found its id in the browser bundle could
+ * insert products into the live storefront and make them visible. The screen
+ * that triggers it is behind a route gate, but a route gate hides a screen - it
+ * does not guard the function, which is callable directly.
+ */
 export const recoverMarketplaceData = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Marketplace data recovery");
+
     const supabase = context?.supabase ?? publicClient();
     console.log("[marketplace] Starting marketplace data recovery...");
     

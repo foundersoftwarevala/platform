@@ -214,9 +214,19 @@ const CATEGORIES_NEEDED = [
   { slug: "event-services", name: "Event Services", icon: "Sparkles", tone: "from-fuchsia-600 to-purple-600" },
 ];
 
-// Use Supabase client from auth context OR service role (for dev/localhost)
+/**
+ * Imports the sixteen supplied demos. Operator only.
+ *
+ * This ran with the service-role key and no caller check, so anyone who found
+ * its id in the /admin/import chunk could set sixteen products' prices, make
+ * them visible and upsert their demo URLs on the live storefront. The route gate
+ * on /admin/import hides the screen; it never guarded the function.
+ */
 export const importSupplied16Demos = createServerFn({ method: "POST" })
   .handler(async (ctx) => {
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Importing the supplied demos");
+
     console.log("[import-16] Starting import of 16 supplied demos...");
 
     try {
