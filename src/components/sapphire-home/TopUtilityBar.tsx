@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLanguage } from "@/lib/language-catalog";
+import { useLanguage, LANGUAGES } from "@/lib/language-catalog";
 import { Link } from "@tanstack/react-router";
 import { listNotifications, markAllRead, subscribe as subscribeApps } from "@/lib/applications/store";
 import {
@@ -250,7 +250,35 @@ function LanguagePicker({
   busy: boolean;
   t: (s: string) => string;
 }) {
-  const current = LANGS.find((l) => l.code === lang) ?? LANGS[0];
+  // The canonical registry, not a list kept here.
+  //
+  // LANGS below is seventeen languages. The platform supports 140, and this
+  // button was offering a twelfth of them: a visitor whose language the
+  // platform can actually serve had no way to pick it, and one already set to
+  // such a language saw the flag fall back to English. LANGUAGES is the same
+  // list the rest of the platform resolves against, so there is one registry
+  // and one answer to "which languages exist".
+  //
+  // Matched without case, because the provider hands back a lowercased code
+  // while canonical tags carry script and region subtags — zh-Hans, pt-BR.
+  // Comparing them directly would never match those.
+  const options = useMemo(
+    () => LANGUAGES.map((l) => ({ code: l.code, flag: l.flag, label: l.native, name: l.name })),
+    [],
+  );
+  const [query, setQuery] = useState("");
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter(
+      (l) =>
+        l.name.toLowerCase().includes(q) ||
+        l.label.toLowerCase().includes(q) ||
+        l.code.toLowerCase().includes(q),
+    );
+  }, [options, query]);
+  const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  const current = options.find((l) => same(l.code, lang)) ?? options[0];
   return (
     <Popover>
       <PopoverTrigger className={TRIGGER}>
@@ -264,9 +292,20 @@ function LanguagePicker({
       </PopoverTrigger>
       <PopoverContent align="end" className={PANEL}>
         <PanelHead icon={Globe2} title={t("Language")} note="Auto-detected from your browser" />
+        {/* Added because the list is 140 long now. Nothing is hidden by it:
+            an empty box shows every language, exactly as before. */}
+        <div className="px-2 pb-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("Search")}
+            aria-label={t("Language")}
+            className="h-8 w-full rounded-lg border border-white/10 bg-white/5 px-2 text-[12.5px] outline-none placeholder:text-white/40 focus:border-cyan-400/40"
+          />
+        </div>
         <ScrollArea className="h-64">
           <div className="p-2">
-            {LANGS.map((l, i) => (
+            {shown.map((l, i) => (
               <button
                 key={l.code}
                 onClick={() => apply(l.code)}
@@ -276,7 +315,7 @@ function LanguagePicker({
                 <span className="text-base leading-none">{l.flag}</span>
                 <span className="flex-1 font-medium">{l.label}</span>
                 <span className="text-[10px] uppercase text-white/40">{l.code}</span>
-                {l.code === lang && <Check className="h-3.5 w-3.5 text-emerald-400" />}
+                {same(l.code, lang) && <Check className="h-3.5 w-3.5 text-emerald-400" />}
               </button>
             ))}
           </div>
