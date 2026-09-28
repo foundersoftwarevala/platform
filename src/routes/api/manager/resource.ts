@@ -2564,6 +2564,54 @@ const RESOURCES: Record<string, Resource> = {
   },
 
   /**
+   * What each influencer tier pays and what it takes to reach it.
+   *
+   * "Tiers & Levels" has been in the Influencer Manager navigation since it was
+   * built with nothing behind it. Every figure is editable here, which is the
+   * point: a commission rate is the owner's decision, so it lives in a row he
+   * can change rather than in code. A fourth tier can be added from this screen
+   * without a deployment.
+   */
+  influencer_tiers: {
+    table: "influencer_tiers",
+    select: [
+      "id",
+      "code",
+      "name",
+      "commission_percent",
+      "min_verified_followers",
+      "min_sales_90d",
+      "min_revenue_180d",
+      "hold_days",
+      "payout_floor",
+      "currency",
+      "recommended",
+      "enabled",
+      "sort_order",
+      "created_at",
+    ],
+    editable: [
+      "name",
+      "commission_percent",
+      "min_verified_followers",
+      "min_sales_90d",
+      "min_revenue_180d",
+      "hold_days",
+      "payout_floor",
+      "currency",
+      "recommended",
+      "enabled",
+      "sort_order",
+    ],
+    creatable: ["code", "name", "commission_percent", "min_verified_followers", "min_sales_90d", "min_revenue_180d", "hold_days", "payout_floor", "currency", "sort_order"],
+    required: ["code", "name", "commission_percent"],
+    searchable: ["code", "name"],
+    order: "sort_order.asc",
+    retirable: false,
+    label: "Influencer tier",
+  },
+
+  /**
    * The same ledger, scoped to influencers, for Influencer Manager.
    *
    * An influencer's commission on a marketplace sale belongs in

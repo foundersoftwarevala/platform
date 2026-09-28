@@ -31,8 +31,29 @@ type Link = {
   conversionRate: number;
 };
 
+type Tier = {
+  tier: {
+    code: string;
+    name: string;
+    commission_percent: number;
+    hold_days: number;
+    payout_floor: number;
+    currency: string;
+    benefits: string[];
+  } | null;
+  standing: { verified_followers: number; sales_90d: number; revenue_180d: number };
+  next: {
+    name: string;
+    commission_percent: number;
+    needs_followers: number;
+    needs_sales: number;
+    needs_revenue: number;
+  } | null;
+};
+
 type Account = {
   profile: { id: string; full_name: string | null; status: string };
+  tier: Tier | null;
   attributionWindowDays: number;
   links: Link[];
   commissions: { pending: number; approved: number; paid: number; reversed: number; lines: number };
@@ -110,6 +131,54 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
           {data.attributionWindowDays}-day window from the visitor's last click.
         </p>
       </header>
+
+      {data.tier?.tier && (
+        <div className="rounded-xl border border-border bg-card p-5" data-influencer-tier={data.tier.tier.code}>
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Your tier</p>
+              <p className="mt-1 text-xl font-black">{data.tier.tier.name}</p>
+            </div>
+            <p className="text-2xl font-black text-primary">
+              {data.tier.tier.commission_percent}%
+              <span className="ml-1 text-xs font-medium text-muted-foreground">per referred sale</span>
+            </p>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Held {data.tier.tier.hold_days} days before payout · paid from{" "}
+            {money(Number(data.tier.tier.payout_floor))}
+          </p>
+          {Array.isArray(data.tier.tier.benefits) && data.tier.tier.benefits.length > 0 && (
+            <ul className="mt-3 grid gap-1 text-sm sm:grid-cols-2">
+              {data.tier.tier.benefits.map((b) => (
+                <li key={b} className="flex gap-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                  {b}
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* The exact number that moves them up, not "keep going". */}
+          {data.tier.next && (
+            <p className="mt-4 border-t border-border pt-3 text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">
+                {data.tier.next.name} pays {data.tier.next.commission_percent}%.
+              </span>{" "}
+              {[
+                data.tier.next.needs_followers > 0
+                  ? `${data.tier.next.needs_followers.toLocaleString("en-IN")} more verified followers`
+                  : null,
+                data.tier.next.needs_sales > 0 ? `${data.tier.next.needs_sales} more sales in 90 days` : null,
+                data.tier.next.needs_revenue > 0
+                  ? `${money(Number(data.tier.next.needs_revenue))} more attributed revenue in 180 days`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(", or ") || "You already qualify — the next run will move you up."}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-4">
         {[

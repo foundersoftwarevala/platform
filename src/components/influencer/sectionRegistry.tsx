@@ -179,6 +179,7 @@ const INFLUENCER_RESOURCES = new Set([
   // The shared partner ledger, scoped to influencers by the endpoint itself.
   "influencer_order_commissions",
   "influencer_order_payouts",
+  "influencer_tiers",
 ]);
 
 /** The resource name for a table, or undefined when it has none. */
@@ -230,6 +231,9 @@ export const influencerRegistry: Record<string, SectionEntry> = {
   Documents: workflowWall("influencer-documents", "Documents", "influencer_agreements", "version", "Agreement", "created_at"),
   // What a referred sale paid. partner_commissions is the canonical ledger for
   // every partner kind; the endpoint scopes this view to influencers.
+  // Tiers & Levels has been in the navigation since the console was built with
+  // nothing behind it. Each row is what a tier pays and what it takes to reach it.
+  "Tiers & Levels": workflowWall("influencer-tiers", "Tiers & Levels", "influencer_tiers", "name", "Tier", "created_at"),
   "Order Commissions": workflowWall("influencer-order-commissions", "Order Commissions", "influencer_order_commissions", "order_id", "Order", "earned_at"),
   "Order Payouts": workflowWall("influencer-order-payouts", "Order Payouts", "influencer_order_payouts", "provider_reference", "Reference", "requested_at"),
   "Audit Trail": workflowWall("influencer-audit", "Audit Trail", "influencer_audit_logs", "action", "Action", "created_at"),

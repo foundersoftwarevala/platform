@@ -124,12 +124,43 @@ export const Route = createFileRoute("/api/influencer/referral")({
         const sum = (rows: typeof ledger) =>
           Math.round(rows.reduce((s, r) => s + (Number(r.commission_amount) || 0), 0) * 100) / 100;
 
+        /**
+         * Where this influencer stands, and the number that moves them up.
+         *
+         * Read with the caller's own token so influencer_self_tier() resolves
+         * from auth.uid() - the endpoint never asks for a tier by profile id,
+         * which is what would let one influencer read another's standing.
+         */
+        let tier: unknown = null;
+        try {
+          const tierResponse = await fetch(
+            `${process.env.SUPABASE_URL?.replace(/\/+$/, "") ?? ""}/rest/v1/rpc/influencer_self_tier`,
+            {
+              method: "POST",
+              headers: {
+                apikey:
+                  process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ??
+                  process.env.SUPABASE_ANON_KEY?.trim() ??
+                  "",
+                Authorization: request.headers.get("authorization") ?? "",
+                "Content-Type": "application/json",
+              },
+              body: "{}",
+            },
+          );
+          if (tierResponse.ok) tier = await tierResponse.json();
+        } catch {
+          // The links are the screen's job; a tier that cannot be read leaves
+          // that panel out rather than failing the whole screen.
+        }
+
         return Response.json({
           profile: {
             id: gate.profile.id,
             full_name: gate.profile.full_name,
             status: gate.profile.status,
           },
+          tier,
           attributionWindowDays: ATTRIBUTION_WINDOW_DAYS,
           links,
           commissions: {
