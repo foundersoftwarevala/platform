@@ -45,10 +45,12 @@ const COLUMNS: Array<{ heading: string; links: Array<{ label: string; href: stri
     links: [
       { label: "Vala TV", href: "/vala-tv" },
       { label: "Vala Academy", href: "/academy" },
-      // The FAQ section renders as id="faq". "/#faq-faq-1" looks like the
-      // section anchor joined to a question id from site-content/faq.ts, and
-      // no element with that id is ever rendered, so this link went nowhere.
-      { label: "Frequently asked questions", href: "/#faq" },
+      // The FAQ section renders as id="faq", and it renders on /marketplace -
+      // not on /. "/#faq" therefore landed on a homepage with no such anchor
+      // and did nothing at all; checked against the served HTML, id="faq"
+      // appears once on /marketplace and zero times on /. The earlier fix took
+      // this from "/#faq-faq-1" to "/#faq" and stopped one step short.
+      { label: "Frequently asked questions", href: "/marketplace#faq" },
     ],
   },
   {
@@ -82,6 +84,14 @@ const COLUMNS: Array<{ heading: string; links: Array<{ label: string; href: stri
       // decision: the row it mirrors has created_by null and a created_at
       // identical to the rest of 20260907040000_storefront_chrome_seed.sql.
       // A generator put a placeholder domain on every public page.
+    ],
+  },
+  {
+    heading: "Legal",
+    links: [
+      { label: "Privacy policy", href: "/legal/privacy-policy" },
+      { label: "Terms of service", href: "/legal/terms-of-service" },
+      { label: "Refund policy", href: "/legal/refund-policy" },
     ],
   },
 ];

@@ -816,5 +816,7 @@
  "src/routes/verify.$code.tsx": 15,
  "src/routes/__root.tsx": 7,
  "src/routes/contact.tsx": 26,
- "src/routes/api/marketplace/contact.ts": 7
+ "src/routes/api/marketplace/contact.ts": 7,
+  "src/routes/legal.$slug.tsx": 10,
+  "src/routes/legal.index.tsx": 11
 }
