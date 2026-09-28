@@ -101,24 +101,50 @@ export async function runSiteAuditOperation() {
   if (createError || !audit) throw new Error(createError?.message ?? "Could not start audit");
 
   try {
-    const [{ data: pages }, { data: issues }, live] = await Promise.all([
-      supabaseAdmin.from("seo_pages").select("id,meta_title,meta_description,h1,canonical_url,index_status,seo_score"),
-      supabaseAdmin.from("seo_issues").select("id,severity,status").neq("status", "resolved"),
+    // Counted by the database, not worked out from a fetched list. Every
+    // figure below used to be a percentage or an average of whatever rows
+    // happened to arrive, and a REST read here stops at 10,000 without
+    // saying so — so past that the audit would measure the first ten thousand
+    // pages and present the result as the coverage of the site.
+    const [{ data: snapshot, error: snapError }, live] = await Promise.all([
+      supabaseAdmin.rpc("mm_seo_audit_snapshot"),
       fetchSite(resolveSiteUrl("https://softwarevala.com/")),
     ]);
-    const pageRows = pages ?? [];
-    const issueRows = issues ?? [];
-    const coverage = (field: "meta_title" | "meta_description" | "h1" | "canonical_url") =>
-      pageRows.length ? Math.round((pageRows.filter((page) => Boolean(page[field])).length / pageRows.length) * 100) : 0;
-    const onPage = pageRows.length ? Math.round(pageRows.reduce((sum, page) => sum + page.seo_score, 0) / pageRows.length) : 0;
-    const indexability = pageRows.length ? Math.round((pageRows.filter((page) => page.index_status === "indexed").length / pageRows.length) * 100) : 0;
-    const technical = Math.max(0, 100 - issueRows.reduce((sum, issue) => sum + (issue.severity === "critical" ? 12 : issue.severity === "high" ? 7 : 3), 0));
+    if (snapError) throw new Error(snapError.message);
+
+    const s = (snapshot ?? {}) as Record<string, number>;
+    const num = (key: string) => Number(s[key] ?? 0);
+
     const liveAvailability = live.response.ok ? 100 : 0;
-    const breakdown = { on_page: onPage, metadata: Math.round((coverage("meta_title") + coverage("meta_description")) / 2), headings: coverage("h1"), canonicals: coverage("canonical_url"), indexability, technical, availability: liveAvailability };
-    const score = Math.round(Object.values(breakdown).reduce((sum, value) => sum + value, 0) / Object.keys(breakdown).length);
-    const { error } = await supabaseAdmin.from("seo_audits").update({ status: "completed", score, pages_crawled: pageRows.length, issues_found: issueRows.length, breakdown, completed_at: new Date().toISOString() }).eq("id", audit.id);
+    const breakdown = {
+      on_page: num("on_page"),
+      metadata: Math.round((num("meta_title") + num("meta_description")) / 2),
+      headings: num("h1"),
+      canonicals: num("canonical_url"),
+      indexability: num("indexability"),
+      technical: num("technical"),
+      availability: liveAvailability,
+    };
+    const score = Math.round(
+      Object.values(breakdown).reduce((sum, value) => sum + value, 0) /
+        Object.keys(breakdown).length,
+    );
+    const pagesCrawled = num("pages");
+    const issuesFound = num("issues");
+
+    const { error } = await supabaseAdmin
+      .from("seo_audits")
+      .update({
+        status: "completed",
+        score,
+        pages_crawled: pagesCrawled,
+        issues_found: issuesFound,
+        breakdown,
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", audit.id);
     if (error) throw error;
-    return { auditId: audit.id, score, pages: pageRows.length, issues: issueRows.length };
+    return { auditId: audit.id, score, pages: pagesCrawled, issues: issuesFound };
   } catch (cause) {
     await supabaseAdmin.from("seo_audits").update({ status: "failed", completed_at: new Date().toISOString() }).eq("id", audit.id);
     throw cause;
@@ -130,23 +156,15 @@ export async function generateSeoReportOperation() {
   const start = new Date(end.getTime() - 30 * 86_400_000);
   const startDate = start.toISOString().slice(0, 10);
   const endDate = end.toISOString().slice(0, 10);
-  const [{ data: metrics, error }, { data: keywords }, { data: issues }] = await Promise.all([
-    supabaseAdmin.from("seo_performance_metrics").select("clicks,impressions,conversions,avg_position").gte("recorded_on", startDate).lte("recorded_on", endDate),
-    supabaseAdmin.from("seo_keywords").select("position,previous_position,status"),
-    supabaseAdmin.from("seo_issues").select("severity,status"),
-  ]);
+  // Summed in SQL. These were totals and averages of a fetched page of rows,
+  // which a REST read caps at 10,000 without reporting it — so a busy month
+  // would have been reported as the sum of the first ten thousand days.
+  const { data: summaryRow, error } = await supabaseAdmin.rpc("mm_seo_report_summary", {
+    p_start: startDate,
+    p_end: endDate,
+  });
   if (error) throw new Error(error.message);
-  const rows = metrics ?? [];
-  const summary = {
-    clicks: rows.reduce((sum, row) => sum + row.clicks, 0),
-    impressions: rows.reduce((sum, row) => sum + row.impressions, 0),
-    conversions: rows.reduce((sum, row) => sum + row.conversions, 0),
-    average_position: rows.length ? Number((rows.reduce((sum, row) => sum + Number(row.avg_position), 0) / rows.length).toFixed(2)) : null,
-    tracked_keywords: (keywords ?? []).filter((row) => row.status === "tracking").length,
-    improved_keywords: (keywords ?? []).filter((row) => row.position != null && row.previous_position != null && row.position < row.previous_position).length,
-    open_issues: (issues ?? []).filter((row) => row.status !== "resolved").length,
-    critical_issues: (issues ?? []).filter((row) => row.status !== "resolved" && ["critical", "high"].includes(row.severity)).length,
-  };
+  const summary = (summaryRow ?? {}) as Record<string, number | null>;
   const { data: report, error: insertError } = await supabaseAdmin.from("seo_reports").insert({ name: `Monthly SEO report · ${end.toLocaleDateString("en-US", { month: "short", year: "numeric" })}`, report_type: "monthly", period_start: startDate, period_end: endDate, status: "ready", summary, generated_at: new Date().toISOString() }).select("*").single();
   if (insertError || !report) throw new Error(insertError?.message ?? "Could not save report");
   return report;

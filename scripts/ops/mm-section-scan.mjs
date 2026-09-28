@@ -40,7 +40,15 @@ if (!EMAIL || !PASSWORD) {
   process.exit(1);
 }
 
-/** Phrases that mean the section gave up rather than drew. */
+/** Phrases that mean the section gave up rather than drew.
+ *
+ * "not connected" is deliberately NOT here. It is a legitimate status this
+ * platform uses on purpose - a payment gateway chip reading "live" or "not
+ * connected", a provider row, and Customer Manager's "Not connected yet"
+ * panel, which lists the features that have nothing to read and says why for
+ * each rather than showing a zero that would look like an answer. Matching on
+ * it reported four healthy sections as broken.
+ */
 const BROKEN = [
   "something went wrong",
   "access restricted",
@@ -50,7 +58,6 @@ const BROKEN = [
   "unable to load",
   "error boundary",
   "unexpected error",
-  "not connected",
 ];
 
 const browser = await chromium.launch();
