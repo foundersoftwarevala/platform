@@ -312,3 +312,85 @@ decision.
 | server | 2 cores, 7 GB | 4 cores, 15 GB, 193 GB |
 | AI requests reaching a provider | none, ever | HTTP 200, metered |
 | stuck AI generations | 1, twenty days | 0 |
+
+---
+
+# Second run — the owner's later briefs
+
+## 6.1 The legal pages  `DONE`
+
+/terms, /privacy, /legal and /refund-policy answered 404 from the day the site
+went up. The mechanism was complete and unused: sf_legal_href(),
+legal_policies, and storefront_footer_links.link_type='legal' which sf_publish
+already resolves. legal_policies was empty, and sf_publish drops a legal link
+whose policy is not published.
+
+Three policies are published as ordinary Legal Manager records - Privacy,
+Terms of Service and Rules of Regulation, and Refund - carrying the owner's own
+commercial position: no advance payment, demo first, pay after verifying;
+responsibility ends at source-code handover; genuine faults of ours are ours;
+the customer's domain, hosting, SSL and payment gateway are theirs.
+
+Live: /legal, all three pages, and /privacy /terms /refund-policy as permanent
+redirects. The footer has a Legal column resolved from what is published.
+
+## 6.2 Vala TV, connected to the channel  `DONE`
+
+vala_tv_videos was empty while fifteen real films sat on
+youtube.com/@softwarevala. They are imported, and a new upload now appears by
+itself within about fifteen minutes, from YouTube's public per-channel feed -
+no API key, no OAuth, nothing to expire. Idempotent by a unique index on
+(source, external_id); proven by a second run adding nothing.
+
+Each film carries one country from RAIL_COUNTRIES, which holds exactly eighty -
+the number the channel is being built out to - with the SEO title and
+description written for that country. Fifteen films, fifteen countries, fifteen
+distinct titles.
+
+The page is horizontal rows now, through the same CategoryRow the marketplace
+uses, grouped by region. Eight rows, all scrolling, on desktop and at 390px,
+with the published footer it never had. Nothing was removed: the category
+filter, the in-place player, the duration badge, the view count and the "not
+published yet" notice are all still there.
+
+## 6.3 The footer's dead ends  `DONE`
+
+"Contact support" pointed at the operator console; it points at /contact.
+"Frequently asked questions" pointed at /#faq, and id="faq" appears once on
+/marketplace and zero times on / - it points at /marketplace#faq now. Both
+WhatsApp numbers the owner gave are carried. The social profiles are icons in
+their own colours under a "Follow us" heading, with the name kept beside the
+glyph.
+
+The FAQ itself was checked and does translate: 74% Devanagari in Hindi, with
+the questions and the category chips translated too.
+
+## 6.4 Reputation and social proof  `ARCHITECTURE DONE - NEEDS-OWNER`
+
+external_reviews and external_review_summary exist and are deliberately empty.
+There is nothing real to put in them:
+
+  * No Google Business Profile reference exists in this project. The share link
+    resolves to a Google Search knowledge panel, not a Maps place, and carries
+    no Place ID. "Google Business Profile APIs" is inactive in api_services.
+  * marketplace_reviews holds zero rows.
+  * The five marketplace_stories rows are verification leftovers and all five
+    are unpublished, so nothing invented is on the public site.
+
+What the schema enforces rather than remembers: source is NOT NULL and
+constrained; there is no way to edit a review, only to hide it; an aggregate
+cannot be stored without a fetch having happened; and sf_reputation() drops a
+review the source has not confirmed within a fortnight.
+
+Both summary rows record exactly which credential is missing.
+
+## 6.5 Demo Manager  `DONE - verified working`
+
+Ten checks against the live site, all passing: an operator signs in, Demo
+Manager opens, demos read, a demo is created (HTTP 201), reads back, is
+removed, and the screen makes no failed requests. It is empty because nothing
+has been added, not because it is broken.
+
+Worth writing down: the column is `url` not `demo_url`; `demos` has no
+product_id - the link to a product is product_demo_mappings; and only `title`
+and `url` are required.
