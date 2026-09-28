@@ -77,7 +77,10 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
      */
     const missing =
       productResult.status === "fulfilled" &&
-      !productResult.value &&
+      // getPublicProduct always resolves to an object and puts the absence in
+      // `product: null`, so testing the result itself is always truthy - which
+      // is why the first version of this never fired.
+      !productResult.value?.product &&
       seoResult.status === "fulfilled" &&
       !seoResult.value;
     try {
