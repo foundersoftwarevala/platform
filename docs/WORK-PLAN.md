@@ -54,7 +54,58 @@ The named goal: point to point, button to button, ultra micro level. Surface as
 it stands: **59 manager sections**, and a homepage of ~3,900 lines rendering
 roughly 20 sections through `SectionBoundary`.
 
-### 2.1 Build the control map  `TODO`
+### 2.0 An anonymous visitor cannot read the database  `NEEDS-OWNER`
+
+Found while tracing why the homepage hero shows the wrong headline, and it is
+the root cause under most of P2.
+
+The browser sends the Supabase publishable key as both `apikey` and
+`Authorization: Bearer ...`. That key is the new opaque format
+(`sb_publishable_...`, 46 characters), which is not a JWT, and the VPS
+PostgREST validates JWTs — so it refuses every anonymous request:
+
+    401 PGRST301  JWSError (CompactDecodeError Invalid number of parts:
+                  Expected 3 parts; got 1)
+
+The identical query with no Authorization header at all returns 200, because
+PostgREST already runs with `PGRST_DB_ANON_ROLE=anon`. So the credential is not
+merely useless here — it is the thing causing the refusal.
+
+The visible symptom is the hero. `listHeroSlidesPublic` falls back to
+`FALLBACK_HERO_SLIDES` on error, and that file says in its own comment that
+seeing those on the site means the query is what to look at. Visitors have been
+reading the hardcoded safety-net slide, "12,000+ Software Solutions", instead of
+the slides Hero Slides Manager publishes. Every other public client-side read is
+refused the same way.
+
+The fix is four lines of nginx on `/rest/v1/` only: pass a credential through
+untouched when it is a JWT, and drop it when it is not, so the request arrives
+as what it actually is — anonymous. Nothing is weakened. The anon role's grants
+and RLS policies still decide what an anonymous visitor may read, and the opaque
+key never carried any authority of its own. `/auth/v1/` and `/storage/v1/` are
+untouched, so signing in keeps using the publishable key against hosted
+Supabase.
+
+**Blocked:** the sandbox refuses changes to auth headers on the live site.
+This one needs the owner to allow it or to apply it.
+
+### 2.1 Build the control map  `DOING`
+
+First finding, and a trap worth writing down: the live `/` route renders
+`src/components/sapphire-home/HomeIndex.tsx`, **not**
+`marketplace-home/HomeIndex.tsx`. The marketplace-home tree is a retired stand
+kept beside the live one. Check `src/routes/index.tsx` before editing any
+homepage component — I edited the wrong one first.
+
+Sections whose content is hardcoded rather than manager-controlled:
+utility-bar, feature-strip, ai-zone, vala-academy, partner-ecosystem,
+enterprise-cta, and the search-bar stats badge. The rest read real sources.
+
+Still hardcoded and not yet fixed: the live footer line in sapphire-home
+("55 Master Categories ... 20 Live Demos Ready", with the product count taken
+from an array length in the browser), and the `/` route title and description
+("147 Software Solutions", "20 master categories") — the latter is SEO
+metadata, which SEO Manager owns.
 
 One row per homepage section: what renders it, which manager control claims to
 own it, which table that control writes, and whether changing the control

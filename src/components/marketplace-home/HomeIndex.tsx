@@ -125,6 +125,7 @@ import { useProductActions } from "@/lib/marketplace/useActionLayer";
 import { useDebouncedValue, useFavorites } from "@/lib/marketplace-home/persistentState";
 import { useMatch } from "@tanstack/react-router";
 import { useHomeRouteData, useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
+import { phrase as statPhrase, type HomeStats } from "@/lib/marketplace/home-stats";
 import CategoryRow from "@/components/marketplace-home/CategoryRow";
 import {
   LIFETIME_DISCOUNT,
@@ -3666,6 +3667,13 @@ const Index = () => {
   const { favorites, toggle: toggleFavorite } = useFavorites();
   const layout = useHomeLayout();
   const composition = useHomeComposition();
+  // The catalogue counts, taken from the database in the route loader. The
+  // badge quoted SITE_STATS, a constant reading "12,000+" against 7,347 real
+  // published products; SITE_STATS stays as the fallback so a failed count
+  // renders what the page rendered before rather than a blank or a zero.
+  const stats = (useHomeRouteData() as { stats?: HomeStats | null } | undefined)?.stats;
+  const liveSolutions = stats ? statPhrase(stats.products) : SITE_STATS.solutions;
+  const liveCategories = stats ? String(stats.categories) : SITE_STATS.categories;
 
   const filteredDemos = allDemos.filter((demo) => {
     const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
@@ -3760,7 +3768,7 @@ const Index = () => {
                     />
                   </div>
                   <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                    {SITE_STATS.solutions} Software · {SITE_STATS.categories} Categories
+                    {liveSolutions} Software · {liveCategories} Categories
                   </Badge>
                 </div>
               </div>

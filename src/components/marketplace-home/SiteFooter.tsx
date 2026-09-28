@@ -1,5 +1,6 @@
 import { useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
 import { SITE_STATS } from "@/lib/site-content/constants";
+import { phrase, type HomeStats } from "@/lib/marketplace/home-stats";
 import type { FooterSnapshot } from "@/lib/storefront/chrome.functions";
 
 /**
@@ -97,8 +98,25 @@ function usePublishedFooter(): FooterSnapshot | null {
   return footer?.published ? footer : null;
 }
 
+/**
+ * The catalogue counts for the footer line, counted by the database.
+ *
+ * SITE_STATS stays as the fallback, so a footer drawn on a route without the
+ * home loader - or one whose count failed - renders exactly what it rendered
+ * before rather than a blank or a zero.
+ */
+function useFooterStats() {
+  const home = useHomeRouteMatch();
+  const stats = (home?.loaderData as { stats?: HomeStats | null } | undefined)?.stats;
+  return {
+    solutions: stats ? phrase(stats.products) : SITE_STATS.solutions,
+    categories: stats ? String(stats.categories) : SITE_STATS.categories,
+  };
+}
+
 export const SiteFooter = () => {
   const published = usePublishedFooter();
+  const { solutions: liveSolutions, categories: liveCategories } = useFooterStats();
 
   // A published footer with no column at all would empty the page, so the
   // built-in columns still stand behind it.
@@ -246,7 +264,7 @@ export const SiteFooter = () => {
             © {new Date().getFullYear()} Software Vala™ - The Name of Trust. All rights reserved.
           </p>
           <p className="mt-2 text-cyan-400">
-            {SITE_STATS.categories} Master Categories • {SITE_STATS.solutions} Software Solutions • Live Demos Ready
+            {liveCategories} Master Categories • {liveSolutions} Software Solutions • Live Demos Ready
           </p>
         </div>
       </div>
