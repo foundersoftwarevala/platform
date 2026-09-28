@@ -146,6 +146,36 @@ says what is running, what is stuck and what is retrying.
 
 ---
 
+## Storefront chrome — two blockers that need the owner
+
+Both found while verifying Floating Elements and the Storefront Footer. Neither
+is a code fault and neither is mine to decide.
+
+### The public site has no legal pages at all  `NEEDS-OWNER`
+
+`/terms`, `/privacy`, `/legal` and `/refund-policy` all answer **404**, and the
+rendered marketplace page contains the words "privacy" and "terms" zero times.
+There is a `legal-manager` route and an `sf_legal_href(p_policy_type)` resolver
+built for exactly this, and the resolver returns nothing because there is
+nothing published for it to resolve to. The legal tables that do exist —
+`legal_jurisdictions`, `legal_regulations`, `safety_policies`,
+`ai_content_legal_rules` — are internal governance, not customer-facing policy.
+
+So the footer has no Legal column because there is no legal content to link to.
+Writing Terms, a Privacy Policy and a Refund Policy is the owner's to author;
+the plumbing to publish and link them is already there and will need only the
+documents and a public route.
+
+### A footer link points at a domain that does not resolve  `NEEDS-OWNER`
+
+`storefront_footer_links` carries "Offline software — ErpVala" →
+`https://erpvala.com`, enabled, on every public page. `curl` answers
+`(6) Could not resolve host: erpvala.com` — no DNS, over both http and https.
+
+Left enabled rather than quietly switched off: the domain may simply not be
+live yet, and disabling an owner's link is a content decision. Every other
+footer destination answers 200 — 17 internal routes and the WhatsApp link.
+
 ## Unbounded selects — the classification
 
 `node scripts/ops/unbounded-selects.mjs` reports 145 selects with no limit
