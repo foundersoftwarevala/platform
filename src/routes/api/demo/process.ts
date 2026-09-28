@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import {
   activateDemo,
+  intakeDemo,
   investigateDemo,
   listProcessedDemos,
   searchProducts,
@@ -15,6 +16,7 @@ import { assertPublicUrl, UnsafeUrlError } from "@/lib/demo/safe-fetch.server";
  *
  *   GET  ?products=<name>            products to attach a demo to
  *   GET                              demos processed so far
+ *   POST {action:"intake", productId, url}      take the address in, do not scan
  *   POST {action:"investigate", productId, url}
  *   POST {action:"activate", id}
  *
@@ -75,6 +77,18 @@ export const Route = createFileRoute("/api/demo/process")({
             if (raw.length > 2048) return refuse("That address is too long.");
             const url = assertPublicUrl(raw).toString();
             return Response.json({ demo: await investigateDemo({ productId, url, actor }) });
+          }
+          // The same address checks as "investigate", and deliberately the
+          // same ones: intake does not fetch the address, but it stores it,
+          // and an address that would be refused at the fetch is not one to
+          // keep a row for either.
+          if (body.action === "intake") {
+            const productId = String(body.productId ?? "");
+            if (!UUID.test(productId)) return refuse("Choose the product this demo belongs to.");
+            const raw = String(body.url ?? "").trim();
+            if (raw.length > 2048) return refuse("That address is too long.");
+            const url = assertPublicUrl(raw).toString();
+            return Response.json(await intakeDemo({ productId, url, actor }));
           }
           if (body.action === "activate") {
             const id = String(body.id ?? "");

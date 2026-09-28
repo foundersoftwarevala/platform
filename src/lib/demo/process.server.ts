@@ -193,6 +193,70 @@ function evidenceForPrompt(e: Evidence) {
   };
 }
 
+/**
+ * Take in a demo address without scanning it.
+ *
+ * investigateDemo does four things in order: work out whether this address is
+ * a demo already known, put a row there to hold the outcome, fetch the page,
+ * and ask the AI Manager about it. Only the last two are expensive, and only
+ * the last two need the site to be up. Submitting a thousand demos should not
+ * mean a thousand fetches and a thousand model calls held open on one request.
+ *
+ * So this is the first half on its own: normalise, decide whether it is
+ * already known, and leave the row at 'unprocessed'. The Demo Scanner Worker
+ * already queues exactly those, so nothing here enqueues anything - the two
+ * would then be deciding the same thing and could disagree about it.
+ *
+ * The identity rules are not reimplemented. They are the same demoIdentity and
+ * findByIdentity the interactive path uses, for the reason they exist: the
+ * same demo arrives as http and https, with and without a trailing slash and
+ * with a utm_ tail, and each of those used to become its own row with its own
+ * investigation and its own AI spend.
+ */
+export async function intakeDemo(input: { productId: string; url: string; actor: Actor }) {
+  const store = db();
+  const [product] = await store.get<Row[]>(
+    `marketplace_products?select=id,name,slug&id=eq.${encodeURIComponent(input.productId)}&limit=1`,
+  );
+  if (!product) throw new UnsafeUrlError("That product does not exist.");
+
+  const existing = await store.get<Row[]>(
+    `product_demo_urls?select=${DEMO_ROW_FIELDS}&product_id=eq.${product.id}&order=sort_order.asc`,
+  );
+  const same = findByIdentity(existing as { url?: string | null }[], input.url) as Row | undefined;
+
+  // A demo already known is reported as known, and left exactly as it is. Its
+  // state is the record of what has already happened to it: re-queueing a live
+  // demo for another scan would spend on an answer that is already stored, and
+  // moving one back to 'unprocessed' would unpublish it.
+  if (same) {
+    await audit(String(same.id), "demo_url.intake", input.actor, {
+      url: input.url,
+      outcome: "already known",
+      identity: demoIdentity(input.url),
+    });
+    return { duplicate: true, demo: same };
+  }
+
+  const lowest = existing.reduce((m, r) => Math.min(m, Number(r.sort_order ?? 0)), 1);
+  const row = await store.post("product_demo_urls", {
+    product_id: product.id,
+    demo_name: String(product.name ?? "Demo"),
+    role_name: "Demo",
+    url: input.url,
+    environment: "production",
+    status: "inactive",
+    sort_order: lowest - 1,
+    processing_status: "unprocessed",
+  });
+  await audit(String(row.id), "demo_url.intake", input.actor, {
+    url: input.url,
+    outcome: "queued for scanning",
+    identity: demoIdentity(input.url),
+  });
+  return { duplicate: false, demo: row };
+}
+
 export async function investigateDemo(input: { productId: string; url: string; actor: Actor }) {
   const store = db();
   const [product] = await store.get<Row[]>(

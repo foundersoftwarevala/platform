@@ -47,7 +47,7 @@ PASSES="${SV_DEMO_PASSES:-3}"
 
 say() { printf '%s %s\n' "$(date -Is)" "$*" >> "$LOG"; }
 
-for script in scripts/demo_monitor.py scripts/demo_scan.py scripts/demo_sync.py; do
+for script in scripts/demo_monitor.py scripts/demo_intake.py scripts/demo_scan.py scripts/demo_sync.py; do
   if [[ ! -r "$DIR/$script" ]]; then
     say "FATAL $script not found under $DIR"
     exit 1
@@ -124,6 +124,14 @@ run() {
 run "health enqueue" scripts/demo_monitor.py --enqueue
 for ((i = 1; i <= PASSES; i++)); do
   run "health work $i" scripts/demo_monitor.py --work || break
+done
+
+# Intake before scanning, so an address submitted since the last run has a row
+# by the time the scanner looks for one. It has no enqueue stage of its own
+# here: a demo.intake job is created when an address is submitted, not by the
+# clock, because there is nothing periodic to notice.
+for ((i = 1; i <= PASSES; i++)); do
+  run "intake work $i" scripts/demo_intake.py --work || break
 done
 
 # Scanning is the slow one — a fetch of somebody else's site and then a wait on
