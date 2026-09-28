@@ -60,7 +60,43 @@ export const Route = createFileRoute("/api/account/invoice/$id")({
         if (!invoice) return new Response("Invoice not found", { status: 404 });
 
         const meta = readMeta(invoice.line_items);
-        if (meta.user_id && meta.user_id !== user.id) {
+
+        /**
+         * Ownership, decided before anything is rendered.
+         *
+         * This used to refuse an invoice only when it carried a user id and
+         * that id did not match. Three of the 131 invoices carry one, so the
+         * other 128 - reseller membership invoices among them - opened for any
+         * signed-in account that guessed an id.
+         *
+         * finance_invoice_belongs_to() answers from what the platform actually
+         * knows: the invoice naming the user, the order it was raised for, or
+         * the membership order pointing at it. Anything it cannot place is
+         * refused rather than shown, and an operator is let through separately
+         * because they are meant to see every invoice.
+         */
+        let mayRead = meta.user_id === user.id;
+        if (!mayRead) {
+          const owned = await fetch(`${url()}/rest/v1/rpc/finance_invoice_belongs_to`, {
+            method: "POST",
+            headers: admin(),
+            body: JSON.stringify({ p_invoice: params.id, p_user: user.id }),
+          });
+          mayRead = owned.ok && (await owned.json()) === true;
+        }
+        if (!mayRead) {
+          const roles = await fetch(
+            `${url()}/rest/v1/user_roles?select=role&user_id=eq.${encodeURIComponent(user.id)}`,
+            { headers: admin() },
+          );
+          const operator = new Set([
+            "admin", "boss", "founder", "super_admin", "boss_owner",
+            "employee", "sales", "support", "finance", "sales_support_manager",
+          ]);
+          const held = roles.ok ? ((await roles.json()) as { role: string }[]) : [];
+          mayRead = held.some((r) => operator.has(String(r.role)));
+        }
+        if (!mayRead) {
           return new Response("That invoice is not yours", { status: 403 });
         }
 

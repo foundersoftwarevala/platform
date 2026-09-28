@@ -342,11 +342,32 @@ function mapProductRecord(row: any): PublicProduct {
   };
 }
 
+/**
+ * The product behind a public URL - and only if it is actually public.
+ *
+ * This read the row by slug alone, with the service-role key, so row level
+ * security never applied and a product that had been hidden or left in draft
+ * still rendered its full page to anyone with the address. Two retired QA
+ * products were live proof: both answered 200 with their details, and because
+ * the SEO lookup *does* filter on `visible` they also carried no title and no
+ * noindex, so they were indexable as well.
+ *
+ * The filters here are the same ones getProductSeo already applies, plus the
+ * publish window that add-to-cart and checkout apply. A product that is not on
+ * sale now resolves to nothing, which makes the page say "Product not found"
+ * and tells search engines not to index it.
+ */
 async function loadPublicProductBySlugFromSupabase(sb: any, slug: string) {
+  const nowIso = new Date().toISOString();
   const marketplaceResult = await sb
     .from("marketplace_products")
     .select("id, slug, name, industry_label, icon, price_label, price_period, rating, downloads, downloads_label, badge, visible, category_id, marketplace_categories(name)")
     .eq("slug", slug)
+    .eq("visible", true)
+    .eq("moderation_status", "approved")
+    .or("content_status.is.null,content_status.eq.published")
+    .or(`publish_at.is.null,publish_at.lte.${nowIso}`)
+    .or(`unpublish_at.is.null,unpublish_at.gt.${nowIso}`)
     .maybeSingle();
 
   if (!marketplaceResult.error && marketplaceResult.data) {

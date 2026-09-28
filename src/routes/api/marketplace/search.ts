@@ -103,9 +103,35 @@ function score(product: ProductRow, words: string[]) {
 function stripDemoUrls(rows: ProductRow[]): ProductRow[] {
   return rows.map((row) => {
     const { demo_url, ...rest } = row;
+    const embedded = rest.product_demo_urls;
     // The embedded demo rows carry addresses too.
     delete rest.product_demo_urls;
-    return { ...rest, has_demo: Boolean(demo_url) };
+
+    /**
+     * Whether this product has a demo, from the table that actually holds them.
+     *
+     * This read the legacy `demo_url` column, which two products still set,
+     * while seventeen have live rows in product_demo_urls - so search told a
+     * visitor that fifteen products with a working demo had none, and the
+     * homepage showed a LIVE DEMO badge on products search called demo-less.
+     * The rows are already embedded in the query for the address check above,
+     * so this costs nothing extra.
+     */
+    const liveDemos = Array.isArray(embedded)
+      ? (embedded as { url?: string; status?: string }[]).filter(
+          (d) => d?.url && String(d.status ?? "active") === "active",
+        )
+      : [];
+
+    /**
+     * Keywords are for ranking, on the server. They were being sent to the
+     * browser as well - about forty per product, which is most of why a
+     * forty-result response was 100 KB - and nothing in the application reads
+     * them there.
+     */
+    delete rest.search_keywords;
+
+    return { ...rest, has_demo: liveDemos.length > 0 || Boolean(demo_url) };
   });
 }
 
