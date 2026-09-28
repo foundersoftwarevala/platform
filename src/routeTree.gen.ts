@@ -21,6 +21,7 @@ import { Route as BossRouteImport } from './routes/boss'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as ChatManagerRouteImport } from './routes/chat-manager'
 import { Route as CheckoutRouteImport } from './routes/checkout'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as ControlPanelRouteImport } from './routes/control-panel'
 import { Route as CreatorManagerRouteImport } from './routes/creator-manager'
 import { Route as DemoManagerRouteImport } from './routes/demo-manager'
@@ -43,9 +44,11 @@ import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as MarketplaceManagerRouteImport } from './routes/marketplace-manager'
 import { Route as MarketplaceRecoveryRouteImport } from './routes/marketplace-recovery'
 import { Route as PagesRouteImport } from './routes/pages'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProductDemoManagerRouteImport } from './routes/product-demo-manager'
 import { Route as PromiseTrackerRouteImport } from './routes/promise-tracker'
 import { Route as ReadyRouteImport } from './routes/ready'
+import { Route as RefundPolicyRouteImport } from './routes/refund-policy'
 import { Route as ResellerManagerRouteImport } from './routes/reseller-manager'
 import { Route as SalesCrmRouteImport } from './routes/sales-crm'
 import { Route as SalesSupportManagerRouteImport } from './routes/sales-support-manager'
@@ -61,6 +64,7 @@ import { Route as SupportAgentRouteImport } from './routes/support-agent'
 import { Route as SupportChatbotRouteImport } from './routes/support-chatbot'
 import { Route as SupportChatbotBlueprintRouteImport } from './routes/support-chatbot-blueprint'
 import { Route as TaskManagerRouteImport } from './routes/task-manager'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ValaAiRouteImport } from './routes/vala-ai'
 import { Route as ValaTvRouteImport } from './routes/vala-tv'
 import { Route as VendorManagerRouteImport } from './routes/vendor-manager'
@@ -183,6 +187,8 @@ import { Route as DashboardRoleRouteImport } from './routes/dashboard.$role'
 import { Route as DemoRouteImport } from './routes/demo.'
 import { Route as DemoSlugRouteImport } from './routes/demo.$slug'
 import { Route as LeadManagerIndexRouteImport } from './routes/lead-manager.index'
+import { Route as LegalIndexRouteImport } from './routes/legal.index'
+import { Route as LegalSlugRouteImport } from './routes/legal.$slug'
 import { Route as ManagerIndexRouteImport } from './routes/manager/index'
 import { Route as ManagerSectionRouteImport } from './routes/manager/$section'
 import { Route as MarketingIndexRouteImport } from './routes/marketing.index'
@@ -276,6 +282,9 @@ import { Route as ApiInternalCredentialSetupRouteImport } from './routes/api/int
 import { Route as ApiInternalDbHealthRouteImport } from './routes/api/internal/db-health'
 import { Route as ApiInternalEmailFlushRouteImport } from './routes/api/internal/email-flush'
 import { Route as ApiInternalMarketplaceMigrationRouteImport } from './routes/api/internal/marketplace-migration'
+import { Route as ApiInternalPaymentHealthRouteImport } from './routes/api/internal/payment-health'
+import { Route as ApiInternalPaymentJobsRouteImport } from './routes/api/internal/payment-jobs'
+import { Route as ApiInternalPaymentReconcileRouteImport } from './routes/api/internal/payment-reconcile'
 import { Route as ApiInternalSellerAdminRouteImport } from './routes/api/internal/seller-admin'
 import { Route as ApiInternalSeoAuditRouteImport } from './routes/api/internal/seo-audit'
 import { Route as ApiInternalSeoGateRouteImport } from './routes/api/internal/seo-gate'
@@ -289,6 +298,7 @@ import { Route as ApiMarketplaceActivityRouteImport } from './routes/api/marketp
 import { Route as ApiMarketplaceAutomationRouteImport } from './routes/api/marketplace/automation'
 import { Route as ApiMarketplaceCatalogRouteImport } from './routes/api/marketplace/catalog'
 import { Route as ApiMarketplaceColourRouteImport } from './routes/api/marketplace/colour'
+import { Route as ApiMarketplaceContactRouteImport } from './routes/api/marketplace/contact'
 import { Route as ApiMarketplaceCountryRouteImport } from './routes/api/marketplace/country'
 import { Route as ApiMarketplaceDeploymentRouteImport } from './routes/api/marketplace/deployment'
 import { Route as ApiMarketplaceDeveloperRouteImport } from './routes/api/marketplace/developer'
@@ -397,6 +407,11 @@ const ChatManagerRoute = ChatManagerRouteImport.update({
 const CheckoutRoute = CheckoutRouteImport.update({
   id: '/checkout',
   path: '/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ControlPanelRoute = ControlPanelRouteImport.update({
@@ -509,6 +524,11 @@ const PagesRoute = PagesRouteImport.update({
   path: '/pages',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductDemoManagerRoute = ProductDemoManagerRouteImport.update({
   id: '/product-demo-manager',
   path: '/product-demo-manager',
@@ -522,6 +542,11 @@ const PromiseTrackerRoute = PromiseTrackerRouteImport.update({
 const ReadyRoute = ReadyRouteImport.update({
   id: '/ready',
   path: '/ready',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RefundPolicyRoute = RefundPolicyRouteImport.update({
+  id: '/refund-policy',
+  path: '/refund-policy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResellerManagerRoute = ResellerManagerRouteImport.update({
@@ -597,6 +622,11 @@ const SupportChatbotBlueprintRoute = SupportChatbotBlueprintRouteImport.update({
 const TaskManagerRoute = TaskManagerRouteImport.update({
   id: '/task-manager',
   path: '/task-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ValaAiRoute = ValaAiRouteImport.update({
@@ -1229,6 +1259,16 @@ const LeadManagerIndexRoute = LeadManagerIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LeadManagerRoute,
 } as any)
+const LegalIndexRoute = LegalIndexRouteImport.update({
+  id: '/legal/',
+  path: '/legal/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalSlugRoute = LegalSlugRouteImport.update({
+  id: '/legal/$slug',
+  path: '/legal/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ManagerIndexRoute = ManagerIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -1704,6 +1744,23 @@ const ApiInternalMarketplaceMigrationRoute =
     path: '/api/internal/marketplace-migration',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiInternalPaymentHealthRoute =
+  ApiInternalPaymentHealthRouteImport.update({
+    id: '/api/internal/payment-health',
+    path: '/api/internal/payment-health',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalPaymentJobsRoute = ApiInternalPaymentJobsRouteImport.update({
+  id: '/api/internal/payment-jobs',
+  path: '/api/internal/payment-jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInternalPaymentReconcileRoute =
+  ApiInternalPaymentReconcileRouteImport.update({
+    id: '/api/internal/payment-reconcile',
+    path: '/api/internal/payment-reconcile',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiInternalSellerAdminRoute = ApiInternalSellerAdminRouteImport.update({
   id: '/api/internal/seller-admin',
   path: '/api/internal/seller-admin',
@@ -1769,6 +1826,11 @@ const ApiMarketplaceCatalogRoute = ApiMarketplaceCatalogRouteImport.update({
 const ApiMarketplaceColourRoute = ApiMarketplaceColourRouteImport.update({
   id: '/api/marketplace/colour',
   path: '/api/marketplace/colour',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMarketplaceContactRoute = ApiMarketplaceContactRouteImport.update({
+  id: '/api/marketplace/contact',
+  path: '/api/marketplace/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMarketplaceCountryRoute = ApiMarketplaceCountryRouteImport.update({
@@ -2040,6 +2102,7 @@ export interface FileRoutesByFullPath {
   '/chat': typeof ChatRoute
   '/chat-manager': typeof ChatManagerRoute
   '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
   '/demo-manager': typeof DemoManagerRoute
@@ -2062,9 +2125,11 @@ export interface FileRoutesByFullPath {
   '/marketplace-manager': typeof MarketplaceManagerRoute
   '/marketplace-recovery': typeof MarketplaceRecoveryRoute
   '/pages': typeof PagesRoute
+  '/privacy': typeof PrivacyRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
   '/promise-tracker': typeof PromiseTrackerRouteWithChildren
   '/ready': typeof ReadyRoute
+  '/refund-policy': typeof RefundPolicyRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2080,6 +2145,7 @@ export interface FileRoutesByFullPath {
   '/support-chatbot': typeof SupportChatbotRoute
   '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
   '/task-manager': typeof TaskManagerRoute
+  '/terms': typeof TermsRoute
   '/vala-ai': typeof ValaAiRouteWithChildren
   '/vala-tv': typeof ValaTvRoute
   '/vendor-manager': typeof VendorManagerRoute
@@ -2195,6 +2261,7 @@ export interface FileRoutesByFullPath {
   '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/$role': typeof DashboardRoleRoute
   '/demo/$slug': typeof DemoSlugRoute
+  '/legal/$slug': typeof LegalSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
   '/marketing/ai-automation': typeof MarketingAiAutomationRoute
   '/marketing/analytics': typeof MarketingAnalyticsRoute
@@ -2246,6 +2313,7 @@ export interface FileRoutesByFullPath {
   '/apply/': typeof ApplyIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/lead-manager/': typeof LeadManagerIndexRoute
+  '/legal/': typeof LegalIndexRoute
   '/manager/': typeof ManagerIndexRoute
   '/marketing/': typeof MarketingIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
@@ -2288,6 +2356,9 @@ export interface FileRoutesByFullPath {
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/internal/payment-health': typeof ApiInternalPaymentHealthRoute
+  '/api/internal/payment-jobs': typeof ApiInternalPaymentJobsRoute
+  '/api/internal/payment-reconcile': typeof ApiInternalPaymentReconcileRoute
   '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
   '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
   '/api/internal/seo-gate': typeof ApiInternalSeoGateRoute
@@ -2301,6 +2372,7 @@ export interface FileRoutesByFullPath {
   '/api/marketplace/automation': typeof ApiMarketplaceAutomationRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
   '/api/marketplace/colour': typeof ApiMarketplaceColourRoute
+  '/api/marketplace/contact': typeof ApiMarketplaceContactRoute
   '/api/marketplace/country': typeof ApiMarketplaceCountryRoute
   '/api/marketplace/deployment': typeof ApiMarketplaceDeploymentRoute
   '/api/marketplace/developer': typeof ApiMarketplaceDeveloperRoute
@@ -2368,6 +2440,7 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/chat-manager': typeof ChatManagerRoute
   '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
   '/demo-manager': typeof DemoManagerRoute
@@ -2386,8 +2459,10 @@ export interface FileRoutesByTo {
   '/marketplace-manager': typeof MarketplaceManagerRoute
   '/marketplace-recovery': typeof MarketplaceRecoveryRoute
   '/pages': typeof PagesRoute
+  '/privacy': typeof PrivacyRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
   '/ready': typeof ReadyRoute
+  '/refund-policy': typeof RefundPolicyRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2403,6 +2478,7 @@ export interface FileRoutesByTo {
   '/support-chatbot': typeof SupportChatbotRoute
   '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
   '/task-manager': typeof TaskManagerRoute
+  '/terms': typeof TermsRoute
   '/vala-tv': typeof ValaTvRoute
   '/vendor-manager': typeof VendorManagerRoute
   '/demo': typeof DemoRoute
@@ -2516,6 +2592,7 @@ export interface FileRoutesByTo {
   '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/$role': typeof DashboardRoleRoute
   '/demo/$slug': typeof DemoSlugRoute
+  '/legal/$slug': typeof LegalSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
   '/marketing/ai-automation': typeof MarketingAiAutomationRoute
   '/marketing/analytics': typeof MarketingAnalyticsRoute
@@ -2567,6 +2644,7 @@ export interface FileRoutesByTo {
   '/apply': typeof ApplyIndexRoute
   '/blog': typeof BlogIndexRoute
   '/lead-manager': typeof LeadManagerIndexRoute
+  '/legal': typeof LegalIndexRoute
   '/manager': typeof ManagerIndexRoute
   '/marketing': typeof MarketingIndexRoute
   '/marketplace': typeof MarketplaceIndexRoute
@@ -2609,6 +2687,9 @@ export interface FileRoutesByTo {
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/internal/payment-health': typeof ApiInternalPaymentHealthRoute
+  '/api/internal/payment-jobs': typeof ApiInternalPaymentJobsRoute
+  '/api/internal/payment-reconcile': typeof ApiInternalPaymentReconcileRoute
   '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
   '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
   '/api/internal/seo-gate': typeof ApiInternalSeoGateRoute
@@ -2622,6 +2703,7 @@ export interface FileRoutesByTo {
   '/api/marketplace/automation': typeof ApiMarketplaceAutomationRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
   '/api/marketplace/colour': typeof ApiMarketplaceColourRoute
+  '/api/marketplace/contact': typeof ApiMarketplaceContactRoute
   '/api/marketplace/country': typeof ApiMarketplaceCountryRoute
   '/api/marketplace/deployment': typeof ApiMarketplaceDeploymentRoute
   '/api/marketplace/developer': typeof ApiMarketplaceDeveloperRoute
@@ -2693,6 +2775,7 @@ export interface FileRoutesById {
   '/chat': typeof ChatRoute
   '/chat-manager': typeof ChatManagerRoute
   '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
   '/control-panel': typeof ControlPanelRoute
   '/creator-manager': typeof CreatorManagerRoute
   '/demo-manager': typeof DemoManagerRoute
@@ -2715,9 +2798,11 @@ export interface FileRoutesById {
   '/marketplace-manager': typeof MarketplaceManagerRoute
   '/marketplace-recovery': typeof MarketplaceRecoveryRoute
   '/pages': typeof PagesRoute
+  '/privacy': typeof PrivacyRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
   '/promise-tracker': typeof PromiseTrackerRouteWithChildren
   '/ready': typeof ReadyRoute
+  '/refund-policy': typeof RefundPolicyRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2733,6 +2818,7 @@ export interface FileRoutesById {
   '/support-chatbot': typeof SupportChatbotRoute
   '/support-chatbot-blueprint': typeof SupportChatbotBlueprintRoute
   '/task-manager': typeof TaskManagerRoute
+  '/terms': typeof TermsRoute
   '/vala-ai': typeof ValaAiRouteWithChildren
   '/vala-tv': typeof ValaTvRoute
   '/vendor-manager': typeof VendorManagerRoute
@@ -2848,6 +2934,7 @@ export interface FileRoutesById {
   '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/$role': typeof DashboardRoleRoute
   '/demo/$slug': typeof DemoSlugRoute
+  '/legal/$slug': typeof LegalSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
   '/marketing/ai-automation': typeof MarketingAiAutomationRoute
   '/marketing/analytics': typeof MarketingAnalyticsRoute
@@ -2899,6 +2986,7 @@ export interface FileRoutesById {
   '/apply/': typeof ApplyIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/lead-manager/': typeof LeadManagerIndexRoute
+  '/legal/': typeof LegalIndexRoute
   '/manager/': typeof ManagerIndexRoute
   '/marketing/': typeof MarketingIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
@@ -2941,6 +3029,9 @@ export interface FileRoutesById {
   '/api/internal/db-health': typeof ApiInternalDbHealthRoute
   '/api/internal/email-flush': typeof ApiInternalEmailFlushRoute
   '/api/internal/marketplace-migration': typeof ApiInternalMarketplaceMigrationRoute
+  '/api/internal/payment-health': typeof ApiInternalPaymentHealthRoute
+  '/api/internal/payment-jobs': typeof ApiInternalPaymentJobsRoute
+  '/api/internal/payment-reconcile': typeof ApiInternalPaymentReconcileRoute
   '/api/internal/seller-admin': typeof ApiInternalSellerAdminRoute
   '/api/internal/seo-audit': typeof ApiInternalSeoAuditRoute
   '/api/internal/seo-gate': typeof ApiInternalSeoGateRoute
@@ -2954,6 +3045,7 @@ export interface FileRoutesById {
   '/api/marketplace/automation': typeof ApiMarketplaceAutomationRoute
   '/api/marketplace/catalog': typeof ApiMarketplaceCatalogRoute
   '/api/marketplace/colour': typeof ApiMarketplaceColourRoute
+  '/api/marketplace/contact': typeof ApiMarketplaceContactRoute
   '/api/marketplace/country': typeof ApiMarketplaceCountryRoute
   '/api/marketplace/deployment': typeof ApiMarketplaceDeploymentRoute
   '/api/marketplace/developer': typeof ApiMarketplaceDeveloperRoute
@@ -3026,6 +3118,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/chat-manager'
     | '/checkout'
+    | '/contact'
     | '/control-panel'
     | '/creator-manager'
     | '/demo-manager'
@@ -3048,9 +3141,11 @@ export interface FileRouteTypes {
     | '/marketplace-manager'
     | '/marketplace-recovery'
     | '/pages'
+    | '/privacy'
     | '/product-demo-manager'
     | '/promise-tracker'
     | '/ready'
+    | '/refund-policy'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -3066,6 +3161,7 @@ export interface FileRouteTypes {
     | '/support-chatbot'
     | '/support-chatbot-blueprint'
     | '/task-manager'
+    | '/terms'
     | '/vala-ai'
     | '/vala-tv'
     | '/vendor-manager'
@@ -3181,6 +3277,7 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/dashboard/$role'
     | '/demo/$slug'
+    | '/legal/$slug'
     | '/manager/$section'
     | '/marketing/ai-automation'
     | '/marketing/analytics'
@@ -3232,6 +3329,7 @@ export interface FileRouteTypes {
     | '/apply/'
     | '/blog/'
     | '/lead-manager/'
+    | '/legal/'
     | '/manager/'
     | '/marketing/'
     | '/marketplace/'
@@ -3274,6 +3372,9 @@ export interface FileRouteTypes {
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/internal/payment-health'
+    | '/api/internal/payment-jobs'
+    | '/api/internal/payment-reconcile'
     | '/api/internal/seller-admin'
     | '/api/internal/seo-audit'
     | '/api/internal/seo-gate'
@@ -3287,6 +3388,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/automation'
     | '/api/marketplace/catalog'
     | '/api/marketplace/colour'
+    | '/api/marketplace/contact'
     | '/api/marketplace/country'
     | '/api/marketplace/deployment'
     | '/api/marketplace/developer'
@@ -3354,6 +3456,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/chat-manager'
     | '/checkout'
+    | '/contact'
     | '/control-panel'
     | '/creator-manager'
     | '/demo-manager'
@@ -3372,8 +3475,10 @@ export interface FileRouteTypes {
     | '/marketplace-manager'
     | '/marketplace-recovery'
     | '/pages'
+    | '/privacy'
     | '/product-demo-manager'
     | '/ready'
+    | '/refund-policy'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -3389,6 +3494,7 @@ export interface FileRouteTypes {
     | '/support-chatbot'
     | '/support-chatbot-blueprint'
     | '/task-manager'
+    | '/terms'
     | '/vala-tv'
     | '/vendor-manager'
     | '/demo'
@@ -3502,6 +3608,7 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/dashboard/$role'
     | '/demo/$slug'
+    | '/legal/$slug'
     | '/manager/$section'
     | '/marketing/ai-automation'
     | '/marketing/analytics'
@@ -3553,6 +3660,7 @@ export interface FileRouteTypes {
     | '/apply'
     | '/blog'
     | '/lead-manager'
+    | '/legal'
     | '/manager'
     | '/marketing'
     | '/marketplace'
@@ -3595,6 +3703,9 @@ export interface FileRouteTypes {
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/internal/payment-health'
+    | '/api/internal/payment-jobs'
+    | '/api/internal/payment-reconcile'
     | '/api/internal/seller-admin'
     | '/api/internal/seo-audit'
     | '/api/internal/seo-gate'
@@ -3608,6 +3719,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/automation'
     | '/api/marketplace/catalog'
     | '/api/marketplace/colour'
+    | '/api/marketplace/contact'
     | '/api/marketplace/country'
     | '/api/marketplace/deployment'
     | '/api/marketplace/developer'
@@ -3678,6 +3790,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/chat-manager'
     | '/checkout'
+    | '/contact'
     | '/control-panel'
     | '/creator-manager'
     | '/demo-manager'
@@ -3700,9 +3813,11 @@ export interface FileRouteTypes {
     | '/marketplace-manager'
     | '/marketplace-recovery'
     | '/pages'
+    | '/privacy'
     | '/product-demo-manager'
     | '/promise-tracker'
     | '/ready'
+    | '/refund-policy'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -3718,6 +3833,7 @@ export interface FileRouteTypes {
     | '/support-chatbot'
     | '/support-chatbot-blueprint'
     | '/task-manager'
+    | '/terms'
     | '/vala-ai'
     | '/vala-tv'
     | '/vendor-manager'
@@ -3833,6 +3949,7 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/dashboard/$role'
     | '/demo/$slug'
+    | '/legal/$slug'
     | '/manager/$section'
     | '/marketing/ai-automation'
     | '/marketing/analytics'
@@ -3884,6 +4001,7 @@ export interface FileRouteTypes {
     | '/apply/'
     | '/blog/'
     | '/lead-manager/'
+    | '/legal/'
     | '/manager/'
     | '/marketing/'
     | '/marketplace/'
@@ -3926,6 +4044,9 @@ export interface FileRouteTypes {
     | '/api/internal/db-health'
     | '/api/internal/email-flush'
     | '/api/internal/marketplace-migration'
+    | '/api/internal/payment-health'
+    | '/api/internal/payment-jobs'
+    | '/api/internal/payment-reconcile'
     | '/api/internal/seller-admin'
     | '/api/internal/seo-audit'
     | '/api/internal/seo-gate'
@@ -3939,6 +4060,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/automation'
     | '/api/marketplace/catalog'
     | '/api/marketplace/colour'
+    | '/api/marketplace/contact'
     | '/api/marketplace/country'
     | '/api/marketplace/deployment'
     | '/api/marketplace/developer'
@@ -4010,6 +4132,7 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRoute
   ChatManagerRoute: typeof ChatManagerRoute
   CheckoutRoute: typeof CheckoutRoute
+  ContactRoute: typeof ContactRoute
   ControlPanelRoute: typeof ControlPanelRoute
   CreatorManagerRoute: typeof CreatorManagerRoute
   DemoManagerRoute: typeof DemoManagerRoute
@@ -4032,9 +4155,11 @@ export interface RootRouteChildren {
   MarketplaceManagerRoute: typeof MarketplaceManagerRoute
   MarketplaceRecoveryRoute: typeof MarketplaceRecoveryRoute
   PagesRoute: typeof PagesRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProductDemoManagerRoute: typeof ProductDemoManagerRoute
   PromiseTrackerRoute: typeof PromiseTrackerRouteWithChildren
   ReadyRoute: typeof ReadyRoute
+  RefundPolicyRoute: typeof RefundPolicyRoute
   ResellerManagerRoute: typeof ResellerManagerRoute
   SalesCrmRoute: typeof SalesCrmRoute
   SalesSupportManagerRoute: typeof SalesSupportManagerRoute
@@ -4050,6 +4175,7 @@ export interface RootRouteChildren {
   SupportChatbotRoute: typeof SupportChatbotRoute
   SupportChatbotBlueprintRoute: typeof SupportChatbotBlueprintRoute
   TaskManagerRoute: typeof TaskManagerRoute
+  TermsRoute: typeof TermsRoute
   ValaAiRoute: typeof ValaAiRouteWithChildren
   ValaTvRoute: typeof ValaTvRoute
   VendorManagerRoute: typeof VendorManagerRoute
@@ -4066,6 +4192,7 @@ export interface RootRouteChildren {
   BlogSlugRoute: typeof BlogSlugRoute
   DashboardRoleRoute: typeof DashboardRoleRoute
   DemoSlugRoute: typeof DemoSlugRoute
+  LegalSlugRoute: typeof LegalSlugRoute
   PaymentFailRoute: typeof PaymentFailRoute
   PaymentSuccessRoute: typeof PaymentSuccessRoute
   SCodeRoute: typeof SCodeRoute
@@ -4075,6 +4202,7 @@ export interface RootRouteChildren {
   AcademyIndexRoute: typeof AcademyIndexRoute
   ApplyIndexRoute: typeof ApplyIndexRoute
   BlogIndexRoute: typeof BlogIndexRoute
+  LegalIndexRoute: typeof LegalIndexRoute
   ProxyDemoRoute: typeof ProxyDemoRoute
   ApiAccountPurchasesRoute: typeof ApiAccountPurchasesRoute
   ApiActionsConfigRoute: typeof ApiActionsConfigRoute
@@ -4098,6 +4226,9 @@ export interface RootRouteChildren {
   ApiInternalDbHealthRoute: typeof ApiInternalDbHealthRoute
   ApiInternalEmailFlushRoute: typeof ApiInternalEmailFlushRoute
   ApiInternalMarketplaceMigrationRoute: typeof ApiInternalMarketplaceMigrationRoute
+  ApiInternalPaymentHealthRoute: typeof ApiInternalPaymentHealthRoute
+  ApiInternalPaymentJobsRoute: typeof ApiInternalPaymentJobsRoute
+  ApiInternalPaymentReconcileRoute: typeof ApiInternalPaymentReconcileRoute
   ApiInternalSellerAdminRoute: typeof ApiInternalSellerAdminRoute
   ApiInternalSeoAuditRoute: typeof ApiInternalSeoAuditRoute
   ApiInternalSeoGateRoute: typeof ApiInternalSeoGateRoute
@@ -4111,6 +4242,7 @@ export interface RootRouteChildren {
   ApiMarketplaceAutomationRoute: typeof ApiMarketplaceAutomationRoute
   ApiMarketplaceCatalogRoute: typeof ApiMarketplaceCatalogRoute
   ApiMarketplaceColourRoute: typeof ApiMarketplaceColourRoute
+  ApiMarketplaceContactRoute: typeof ApiMarketplaceContactRoute
   ApiMarketplaceCountryRoute: typeof ApiMarketplaceCountryRoute
   ApiMarketplaceDeploymentRoute: typeof ApiMarketplaceDeploymentRoute
   ApiMarketplaceDeveloperRoute: typeof ApiMarketplaceDeveloperRoute
@@ -4231,6 +4363,13 @@ declare module '@tanstack/react-router' {
       path: '/checkout'
       fullPath: '/checkout'
       preLoaderRoute: typeof CheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/control-panel': {
@@ -4387,6 +4526,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PagesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product-demo-manager': {
       id: '/product-demo-manager'
       path: '/product-demo-manager'
@@ -4406,6 +4552,13 @@ declare module '@tanstack/react-router' {
       path: '/ready'
       fullPath: '/ready'
       preLoaderRoute: typeof ReadyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/refund-policy': {
+      id: '/refund-policy'
+      path: '/refund-policy'
+      fullPath: '/refund-policy'
+      preLoaderRoute: typeof RefundPolicyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reseller-manager': {
@@ -4511,6 +4664,13 @@ declare module '@tanstack/react-router' {
       path: '/task-manager'
       fullPath: '/task-manager'
       preLoaderRoute: typeof TaskManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vala-ai': {
@@ -5367,6 +5527,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LeadManagerIndexRouteImport
       parentRoute: typeof LeadManagerRoute
     }
+    '/legal/': {
+      id: '/legal/'
+      path: '/legal'
+      fullPath: '/legal/'
+      preLoaderRoute: typeof LegalIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/$slug': {
+      id: '/legal/$slug'
+      path: '/legal/$slug'
+      fullPath: '/legal/$slug'
+      preLoaderRoute: typeof LegalSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/manager/': {
       id: '/manager/'
       path: '/'
@@ -6018,6 +6192,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalMarketplaceMigrationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/payment-health': {
+      id: '/api/internal/payment-health'
+      path: '/api/internal/payment-health'
+      fullPath: '/api/internal/payment-health'
+      preLoaderRoute: typeof ApiInternalPaymentHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/payment-jobs': {
+      id: '/api/internal/payment-jobs'
+      path: '/api/internal/payment-jobs'
+      fullPath: '/api/internal/payment-jobs'
+      preLoaderRoute: typeof ApiInternalPaymentJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/payment-reconcile': {
+      id: '/api/internal/payment-reconcile'
+      path: '/api/internal/payment-reconcile'
+      fullPath: '/api/internal/payment-reconcile'
+      preLoaderRoute: typeof ApiInternalPaymentReconcileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/internal/seller-admin': {
       id: '/api/internal/seller-admin'
       path: '/api/internal/seller-admin'
@@ -6107,6 +6302,13 @@ declare module '@tanstack/react-router' {
       path: '/api/marketplace/colour'
       fullPath: '/api/marketplace/colour'
       preLoaderRoute: typeof ApiMarketplaceColourRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/marketplace/contact': {
+      id: '/api/marketplace/contact'
+      path: '/api/marketplace/contact'
+      fullPath: '/api/marketplace/contact'
+      preLoaderRoute: typeof ApiMarketplaceContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/marketplace/country': {
@@ -6947,6 +7149,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRoute,
   ChatManagerRoute: ChatManagerRoute,
   CheckoutRoute: CheckoutRoute,
+  ContactRoute: ContactRoute,
   ControlPanelRoute: ControlPanelRoute,
   CreatorManagerRoute: CreatorManagerRoute,
   DemoManagerRoute: DemoManagerRoute,
@@ -6969,9 +7172,11 @@ const rootRouteChildren: RootRouteChildren = {
   MarketplaceManagerRoute: MarketplaceManagerRoute,
   MarketplaceRecoveryRoute: MarketplaceRecoveryRoute,
   PagesRoute: PagesRoute,
+  PrivacyRoute: PrivacyRoute,
   ProductDemoManagerRoute: ProductDemoManagerRoute,
   PromiseTrackerRoute: PromiseTrackerRouteWithChildren,
   ReadyRoute: ReadyRoute,
+  RefundPolicyRoute: RefundPolicyRoute,
   ResellerManagerRoute: ResellerManagerRoute,
   SalesCrmRoute: SalesCrmRoute,
   SalesSupportManagerRoute: SalesSupportManagerRoute,
@@ -6987,6 +7192,7 @@ const rootRouteChildren: RootRouteChildren = {
   SupportChatbotRoute: SupportChatbotRoute,
   SupportChatbotBlueprintRoute: SupportChatbotBlueprintRoute,
   TaskManagerRoute: TaskManagerRoute,
+  TermsRoute: TermsRoute,
   ValaAiRoute: ValaAiRouteWithChildren,
   ValaTvRoute: ValaTvRoute,
   VendorManagerRoute: VendorManagerRoute,
@@ -7003,6 +7209,7 @@ const rootRouteChildren: RootRouteChildren = {
   BlogSlugRoute: BlogSlugRoute,
   DashboardRoleRoute: DashboardRoleRoute,
   DemoSlugRoute: DemoSlugRoute,
+  LegalSlugRoute: LegalSlugRoute,
   PaymentFailRoute: PaymentFailRoute,
   PaymentSuccessRoute: PaymentSuccessRoute,
   SCodeRoute: SCodeRoute,
@@ -7012,6 +7219,7 @@ const rootRouteChildren: RootRouteChildren = {
   AcademyIndexRoute: AcademyIndexRoute,
   ApplyIndexRoute: ApplyIndexRoute,
   BlogIndexRoute: BlogIndexRoute,
+  LegalIndexRoute: LegalIndexRoute,
   ProxyDemoRoute: ProxyDemoRoute,
   ApiAccountPurchasesRoute: ApiAccountPurchasesRoute,
   ApiActionsConfigRoute: ApiActionsConfigRoute,
@@ -7035,6 +7243,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInternalDbHealthRoute: ApiInternalDbHealthRoute,
   ApiInternalEmailFlushRoute: ApiInternalEmailFlushRoute,
   ApiInternalMarketplaceMigrationRoute: ApiInternalMarketplaceMigrationRoute,
+  ApiInternalPaymentHealthRoute: ApiInternalPaymentHealthRoute,
+  ApiInternalPaymentJobsRoute: ApiInternalPaymentJobsRoute,
+  ApiInternalPaymentReconcileRoute: ApiInternalPaymentReconcileRoute,
   ApiInternalSellerAdminRoute: ApiInternalSellerAdminRoute,
   ApiInternalSeoAuditRoute: ApiInternalSeoAuditRoute,
   ApiInternalSeoGateRoute: ApiInternalSeoGateRoute,
@@ -7048,6 +7259,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketplaceAutomationRoute: ApiMarketplaceAutomationRoute,
   ApiMarketplaceCatalogRoute: ApiMarketplaceCatalogRoute,
   ApiMarketplaceColourRoute: ApiMarketplaceColourRoute,
+  ApiMarketplaceContactRoute: ApiMarketplaceContactRoute,
   ApiMarketplaceCountryRoute: ApiMarketplaceCountryRoute,
   ApiMarketplaceDeploymentRoute: ApiMarketplaceDeploymentRoute,
   ApiMarketplaceDeveloperRoute: ApiMarketplaceDeveloperRoute,

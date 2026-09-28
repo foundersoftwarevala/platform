@@ -17,7 +17,7 @@ import "@/styles/marketplace-home.css";
  * Both now read the same published rows.
  */
 function ValaTvPage() {
-  const published = Route.useLoaderData();
+  const { videos: published, channel } = Route.useLoaderData();
   const videos = useMemo(
     () =>
       published.map((video: StorefrontVideo) => ({
@@ -49,12 +49,42 @@ function ValaTvPage() {
         >
           &larr; Back to marketplace
         </a>
-        <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">Vala TV</h1>
-        <p className="mt-1.5 text-sm text-white/60">Demos, walkthroughs and customer films.</p>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Vala TV</h1>
+            <p className="mt-1.5 text-sm text-white/60">Demos, walkthroughs and customer films.</p>
+          </div>
+          {channel && (
+            <a
+              href={channel}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-red-400/40 bg-red-500/15 px-4 py-2 text-[13px] font-semibold text-red-200 transition-colors hover:bg-red-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400"
+            >
+              <Play className="h-4 w-4" aria-hidden="true" />
+              Watch the whole channel on YouTube
+            </a>
+          )}
+        </div>
 
         {videos.length === 0 ? (
           <p className="mt-10 rounded-2xl border border-dashed border-white/15 px-5 py-8 text-center text-sm text-white/60">
-            No videos are published yet.
+            No films are published here yet.
+            {channel && (
+              <>
+                {" "}
+                The channel itself is at{" "}
+                <a
+                  href={channel}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-300 underline underline-offset-2 hover:text-cyan-200"
+                >
+                  YouTube
+                </a>
+                .
+              </>
+            )}
           </p>
         ) : (
           <>
@@ -168,7 +198,13 @@ export const Route = createFileRoute("/vala-tv")({
   }),
   loader: async () => {
     const chrome = await getStorefrontChrome();
-    return chrome.videos;
+    // The channel comes from storefront_social_links, where the business
+    // already records it and where the footer already reads it, so there is
+    // one answer to "which channel is ours" rather than a second copy here.
+    const youtube = (chrome.footer?.socials ?? []).find(
+      (s) => String(s.label).toLowerCase() === "youtube",
+    );
+    return { videos: chrome.videos, channel: youtube?.href ?? null };
   },
   component: ValaTvPage,
 });
