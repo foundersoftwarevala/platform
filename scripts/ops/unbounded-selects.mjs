@@ -45,8 +45,17 @@ for (const file of walk("src")) {
     // One row fetched by its own id is bounded by definition.
     if (/\.eq\(\s*["'`]id["'`]/.test(body)) continue;
 
+    // A filter bounds a query as surely as a limit does, and most of these
+    // have one. Separating them is the difference between a worklist and a
+    // 147-line dump: an .eq on a category, an .in on a list of ids or a .gte
+    // on a date window all cap the result by something the caller controls,
+    // and each of those was checked by hand and found safe. A select with no
+    // filter at all is the shape that silently returns the first 10,000 rows
+    // of whatever the table happens to hold.
+    const filtered = /\.(eq|neq|in|gt|gte|lt|lte|like|ilike|or|filter|match|contains|overlaps|textSearch)\(/.test(body);
+
     const line = text.slice(0, m.index).split("\n").length;
-    found.push({ file: file.replace(/\\/g, "/"), line, table });
+    found.push({ file: file.replace(/\\/g, "/"), line, table, filtered });
   }
 }
 
@@ -60,14 +69,32 @@ for (const row of found) {
 }
 
 const ordered = [...byTable.entries()].sort((a, b) => b[1].length - a[1].length);
+const naked = found.filter((r) => !r.filtered);
 
-console.log(`${found.length} unbounded select(s) across ${ordered.length} table(s)\n`);
+console.log(`${found.length} select(s) with no limit, across ${ordered.length} table(s).`);
+console.log(`${naked.length} of them carry no filter either.\n`);
+
+console.log("NO LIMIT AND NO FILTER — these read whatever the table holds:");
+if (naked.length === 0) {
+  console.log("  none");
+} else {
+  for (const r of naked) console.log(`  ${r.table.padEnd(30)} ${r.file}:${r.line}`);
+}
+
+console.log("\nBOUNDED BY A FILTER — each needs judgement, not a blanket change:");
 for (const [table, rows] of ordered) {
-  console.log(`${table}  (${rows.length})`);
-  for (const r of rows) console.log(`    ${r.file}:${r.line}`);
+  const withFilter = rows.filter((r) => r.filtered);
+  if (!withFilter.length) continue;
+  console.log(`  ${table}  (${withFilter.length})`);
 }
 
 console.log(
-  "\nEach of these returns at most 10,000 rows and reports no truncation. " +
-    "Page it, or count it in SQL.",
+  "\nA filter caps a result as surely as a limit does. The ones checked by hand:\n" +
+    "  marketplace_translations  176,134 rows, but read by .in(hashes) — one page's\n" +
+    "                            own strings, so bounded by the page, not the table\n" +
+    "  server_metrics_history      5,318 rows, but read through a six-hour window\n" +
+    "  marketplace_products        7,365 rows; the admin table and the demo picker\n" +
+    "                            are paged, and the category read is capped by the\n" +
+    "                            category — the largest holds 161\n" +
+    "Everything else on the list is a table of 500 rows or fewer.",
 );

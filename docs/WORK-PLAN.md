@@ -146,6 +146,33 @@ says what is running, what is stuck and what is retrying.
 
 ---
 
+## Unbounded selects — the classification
+
+`node scripts/ops/unbounded-selects.mjs` reports 145 selects with no limit
+across 91 tables, 74 of which carry no filter either. Cross-referenced against
+live row counts, only three of those tables hold more than 500 rows, and all
+three are bounded by a filter rather than a limit:
+
+| table | rows | why it is safe |
+|---|---|---|
+| `marketplace_translations` | 176,134 | read by `.in(hashes)` — one page's own strings |
+| `marketplace_products` | 7,365 | admin table and demo picker are paged; the category read is capped by the category, and the largest holds 161 |
+| `server_metrics_history` | 5,318 | read through a six-hour window |
+
+`seo_pages` was on this list and is no longer: its coverage and averages are
+computed in SQL now.
+
+The other 88 tables hold 500 rows or fewer. The 74 filterless reads among them
+are the shape that will fail silently once a table passes 10,000 — a count or
+a list that is quietly the first ten thousand — so they stay on this list as a
+standing worklist, ordered by which tables actually grow with use:
+`chat_conversations`, `assist_sessions`, `promises`, `server_incidents`,
+`user_trophies`. The registry and settings tables beside them do not grow and
+need nothing.
+
+They are deliberately not being rewritten as a batch. Changing 74 working
+queries at once, on tables of a few hundred rows, risks more than it fixes.
+
 ## Done in this run
 
 - Demo Operations fully on the queue: intake, scanner, health, sync, all
