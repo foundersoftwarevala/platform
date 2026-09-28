@@ -17,6 +17,22 @@ COPY routing.json ./
 COPY sv_translate ./sv_translate
 COPY tests ./tests
 
+# OMP_WAIT_POLICY: CTranslate2 decodes on OpenMP threads, and OpenMP defaults
+# to ACTIVE - its worker threads busy-wait between parallel regions rather
+# than sleeping. With intra_threads=2 that is two threads spinning at full
+# speed for as long as the process lives, whether or not anything is being
+# translated. On this two-core server it held the container at its own
+# 1.5-CPU ceiling around the clock, starved the application that serves the
+# site, and was the cause of the repeated 502s the public guard kept
+# recovering from.
+#
+# Measured on the same image, the same model and the same mounted weights,
+# with nothing queued: ACTIVE 150.63% CPU, PASSIVE 0.20%. PASSIVE changes
+# only what an idle worker thread does while it waits - it sleeps instead of
+# spinning - so decoding itself is untouched, and a same-backend batch
+# measured within noise of the old setting.
+ENV OMP_WAIT_POLICY=PASSIVE
+
 USER svt
 EXPOSE 5100
 
