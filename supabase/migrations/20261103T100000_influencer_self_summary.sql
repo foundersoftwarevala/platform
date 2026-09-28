@@ -27,9 +27,11 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
+  -- v_ prefixed: a local named `followers` collides with the column of that name
+  -- in the subqueries below, and Postgres refuses the ambiguity (42702).
   p public.influencer_profiles%rowtype;
-  followers bigint;
-  engagement numeric;
+  v_followers bigint;
+  v_engagement numeric;
 begin
   if auth.uid() is null then
     raise exception 'sign in required' using errcode = '28000';
@@ -54,7 +56,7 @@ begin
          case when coalesce(sum(s.followers), 0) > 0
               then round(sum(s.engagement_rate * s.followers) / sum(s.followers), 2)
               else null end
-    into followers, engagement
+    into v_followers, v_engagement
     from public.influencer_social_accounts s
    where s.profile_id = p.id
      and s.followers is not null;
@@ -69,7 +71,7 @@ begin
       'since', p.created_at
     ),
     'metrics', jsonb_build_object(
-      'followers', coalesce(followers, 0),
+      'followers', coalesce(v_followers, 0),
       'followers-verified', (
         select coalesce(sum(followers), 0)::bigint
           from public.influencer_social_accounts
@@ -94,7 +96,7 @@ begin
           from public.influencer_payouts where profile_id = p.id),
       'invoices', (
         select count(*) from public.influencer_invoices where profile_id = p.id),
-      'engagement', engagement,
+      'engagement', v_engagement,
       -- No source exists for these. A dash is the honest answer.
       'brands', null,
       'content', null
