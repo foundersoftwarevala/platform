@@ -129,7 +129,27 @@ export type PublicProductPageData = {
 function resolveSupabaseEnv() {
   const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
   const env = typeof process !== "undefined" ? process.env : undefined;
-  const url = viteEnv?.VITE_SUPABASE_URL ?? env?.SUPABASE_URL ?? "";
+  /**
+   * On the server, the server's own SUPABASE_URL wins.
+   *
+   * VITE_SUPABASE_URL is the address compiled into the browser bundle, and it
+   * points at the hosted Supabase project. This resolver preferred it even when
+   * running on the server, so publicClient() paired the hosted URL with the
+   * VPS service-role key - and hosted Supabase answers that pairing with
+   *
+   *     401 {"message":"Invalid API key",
+   *          "hint":"Double check your Supabase `anon` or `service_role` API key."}
+   *
+   * getPublicProductsByCategory swallowed the 401 and returned
+   * { category: null, products: [] }, so **every category page showed zero
+   * products** while eighty or more sat in each category. Measured against the
+   * live server before this change: 401 for the categories lookup and 401 for
+   * the products lookup, on the URL the running app actually carries.
+   *
+   * In the browser there is no process.env, so VITE_* is still what is used
+   * there and nothing about the client changes.
+   */
+  const url = env?.SUPABASE_URL ?? viteEnv?.VITE_SUPABASE_URL ?? "";
   const key =
     viteEnv?.VITE_SUPABASE_PUBLISHABLE_KEY ??
     viteEnv?.VITE_SUPABASE_ANON_KEY ??
