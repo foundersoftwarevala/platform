@@ -609,6 +609,11 @@
   }
 }
 
+/* The storefront top bar's own touch rules live in src/styles.css rather than
+   here. This file is imported per route and so is absent on /marketplace,
+   which renders the same bar; a rule written here would fix one page and not
+   the other. */
+
 /* --- density --------------------------------------------------------- */
 
 /* Tighter on a phone so more of the catalogue is visible at once,

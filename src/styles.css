@@ -716,6 +716,94 @@
   :root { zoom: 1.6; }
 }
 
+
+/* ------------------------------------------------------------------------
+   Using a wide screen, instead of leaving it empty.
+
+   Every storefront container is `max-w-7xl`, which is 1280px and stops there
+   whatever the screen is. Measured on the live site, that leaves:
+
+       1280  content 1248px   98% of the window
+       1440  content 1280px   89%
+       1536  content 1280px   83%   <- 128px of empty margin each side
+       1728  content 1408px   81%
+
+   The zoom ladder above was the compensation for this, but it does not start
+   until 1600px, so 1366-1599 - which is where most large laptops sit - gets
+   the widest empty margins and no compensation at all. That is the "does not
+   fit the screen" complaint: nothing overflows, the page simply refuses to use
+   the width it has.
+
+   So the cap grows on wide screens rather than stopping dead. Nothing else
+   changes: same containers, same grid columns, same breakpoints, same design -
+   the column is allowed to be wider, and the cards inside it fill it.
+
+   94vw rather than a fixed pixel ladder, because vw is measured in the layout
+   viewport and therefore already accounts for the zoom above; a fixed pixel
+   cap would overflow once zoom multiplied it. min() keeps it from growing
+   without limit on a very large monitor, where the zoom ladder is the right
+   tool instead.
+
+   Scoped to .sv-wide, which is on the two storefront roots only, so no manager
+   console or dashboard layout is touched.
+   ------------------------------------------------------------------------ */
+
+@media (min-width: 1360px) {
+  .sv-wide .max-w-7xl {
+    max-width: min(1560px, 94vw);
+  }
+}
+
+/* ------------------------------------------------------------------------
+   The storefront top bar on a touch screen.
+
+   These live here, in the global sheet, rather than in marketplace-home.css.
+   That file is imported per route and is not loaded on /marketplace, which
+   renders the same top bar — a rule written there fixes one page and silently
+   leaves the other alone, which is what happened the first time.
+
+   Two separate things, both measured on the live site at 360px:
+
+   The wrapper has to grow with the button it holds. Each pill sits inside a
+   .kr-stagger div. The 44px minimum was on the button only, so the wrapper
+   stayed at its natural 17px; in the wrapping row the flex lines were then
+   laid out 17px apart while the buttons rendered 44px tall. Row one occupied
+   y 84-128 and row two began at y 105 — a 23px overlap. That is the "buttons
+   mixing": nothing overflowed the page and nothing was off-screen, the rows
+   simply sat on top of one another.
+
+   And /marketplace never had the minimum at all, so every control in its bar
+   was 17px on a phone.
+
+   :has keeps this to the top-bar pills, so no other staggered list is touched.
+   ------------------------------------------------------------------------ */
+
+@media (pointer: coarse) {
+  .sv-wide button,
+  .sv-wide a[role="button"],
+  .sv-wide [role="tab"],
+  /* Some pills in this bar are anchors rather than buttons and carry no
+     role, so a selector written around `button` missed them — the Login
+     control on /marketplace stayed a 14x17px tap target while every pill
+     beside it grew. .tb-pill is what the bar actually marks its controls
+     with, whichever element they are. */
+  .sv-wide .tb-pill {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .sv-wide input,
+  .sv-wide select,
+  .sv-wide textarea {
+    min-height: 44px;
+    font-size: 16px; /* stops iOS zooming the page on focus */
+  }
+
+  .kr-stagger:has(> .tb-pill) {
+    min-height: 44px;
+  }
+}
+
 /* A person who has asked their browser to zoom, or who is on a screen this
    does not know about, is left exactly as they are. */
 @media (min-width: 1600px) and (max-height: 700px) {

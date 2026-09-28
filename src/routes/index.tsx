@@ -42,7 +42,7 @@ const HomeLoading = () => (
 
 function Index() {
   return (
-    <div className="mpc-home">
+    <div className="mpc-home sv-wide">
       <Suspense fallback={<HomeLoading />}>
         <HomeIndex />
       </Suspense>

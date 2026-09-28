@@ -3696,7 +3696,7 @@ const Index = () => {
 
   return (
     <CardCompositionProvider value={composition}>
-      <div className="min-h-screen bg-gradient-to-br from-[#0a1628] via-[#0d1e36] to-[#0a1628]">
+      <div className="sv-wide min-h-screen bg-gradient-to-br from-[#0a1628] via-[#0d1e36] to-[#0a1628]">
         {/* Premium Header */}
         <header className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-500 py-4 px-4 shadow-2xl">
           <div className="max-w-7xl mx-auto">
