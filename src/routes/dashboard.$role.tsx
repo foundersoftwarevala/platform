@@ -13,6 +13,7 @@ import { AuthorHero } from "@/components/dashboard/AuthorHero";
 import { ResellerProfileHero } from "@/components/dashboard/ResellerProfileHero";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { useSellerMetrics } from "@/hooks/useSellerMetrics";
+import { useInfluencerMetrics } from "@/hooks/useInfluencerMetrics";
 import { ContentRows } from "@/components/dashboard/ContentRows";
 import { Breadcrumbs } from "@/components/dashboard/Breadcrumbs";
 import { KpiToolbar, type KpiSort, type KpiTone } from "@/components/dashboard/KpiToolbar";
@@ -116,6 +117,11 @@ function DashboardPage() {
   // Vendors and authors both sell on the marketplace, so both dashboards
   // read their figures from the database instead of the sample engine.
   const sellerMetrics = useSellerMetrics(role);
+  // An influencer's own followers, campaigns and earnings, from the same tables
+  // Influencer Manager operates. Each hook answers only for its own roles and
+  // returns undefined otherwise, so at most one of these is ever a value.
+  const influencerMetrics = useInfluencerMetrics(role);
+  const metricValues = sellerMetrics.values ?? influencerMetrics.values;
   const openModule = useCallback(
     (key: string | null) => setActiveModule(key && perms.canOpen(key) ? key : null),
     [perms],
@@ -252,7 +258,7 @@ function DashboardPage() {
                 items={filteredKpis}
                 roleKey={role}
                 onOpen={openModule}
-                {...(sellerMetrics.values ? { values: sellerMetrics.values } : {})}
+                {...(metricValues ? { values: metricValues } : {})}
               />
               {role === "franchise" ? (
                 <Suspense fallback={<ModuleFallback />}><FranchiseHome onOpen={openModule} /></Suspense>
