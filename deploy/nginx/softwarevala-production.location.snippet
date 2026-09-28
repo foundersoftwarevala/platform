@@ -1,0 +1,36 @@
+    location / {
+        proxy_pass http://softwarevala_app;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # The visitor address as nginx verified it (conf.d/cloudflare-realip.conf):
+        # Cloudflare's header only when the peer is Cloudflare, otherwise the peer.
+        proxy_set_header CF-Connecting-IP $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 60s;
+
+        # Anonymous public HTML is micro-cached for a minute; see
+        # conf.d/sv-html-cache.conf for what is cached and why it is safe.
+        # A request carrying an Authorization header or a cookie skips it
+        # entirely, in both directions.
+        proxy_cache sv_html;
+        proxy_cache_key "$scheme$host$request_uri";
+        proxy_cache_valid 200 60s;
+        proxy_cache_bypass $sv_skip_cache;
+        proxy_no_cache $sv_skip_cache;
+        proxy_cache_lock on;
+        proxy_cache_lock_timeout 15s;
+        # A stale minute-old page beats the 502 the public guard keeps
+        # recovering from.
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        proxy_cache_background_update on;
+        add_header X-SV-Cache $upstream_cache_status always;
+        # Security headers (marketplace audit 2026-09-11). No X-Frame-Options /
+        # frame-ancestors: the owner reviews the site inside VS Code Simple Browser,
+        # which is an iframe. No Permissions-Policy: the top bar asks for location.
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
