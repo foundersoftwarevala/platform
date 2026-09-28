@@ -102,21 +102,21 @@ const DemoAddEdit = () => {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { data, error } = await supabase
-        .from("demo_categories")
-        .select("name, display_order")
-        .eq("is_active", true)
-        .order("display_order");
-      if (cancelled) return;
-      if (error) {
+      // Read through the server: the browser client talks to hosted Supabase,
+      // where demo_categories is empty, while the ninety categories are on the
+      // VPS with the rest of the platform's data.
+      try {
+        const rows = await listDemoCategories();
+        if (cancelled) return;
+        setCategoriesError(null);
+        setCategories(rows.map((row) => String(row.name)).filter(Boolean));
+      } catch (problem) {
+        if (cancelled) return;
         // Said out loud rather than silently falling back to a short list: an
         // empty dropdown that looks deliberate is how this went unnoticed.
-        setCategoriesError(error.message);
+        setCategoriesError(problem instanceof Error ? problem.message : "unknown error");
         setCategories([]);
-        return;
       }
-      setCategoriesError(null);
-      setCategories((data ?? []).map((row) => String(row.name)).filter(Boolean));
     })();
     return () => {
       cancelled = true;

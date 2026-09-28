@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { createDemosBulk, listDemoCategories } from "@/lib/demo-manager/demos.functions";
 
 /**
  * Bulk Add — for the twelve thousand demo URLs that are waiting to go in.
@@ -192,17 +192,23 @@ const BulkAdd = () => {
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
+  // Read through the server, not the browser client. The browser client talks
+  // to the hosted Supabase project, where demo_categories is empty; the ninety
+  // categories are on the VPS, which is where the rest of the platform reads
+  // and writes. Fetching from the browser returned "200 []" and every row of an
+  // upload was then refused for having a category "not one of the 0".
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { data, error } = await supabase
-        .from("demo_categories")
-        .select("name")
-        .eq("is_active", true)
-        .order("display_order");
-      if (cancelled) return;
-      if (error) setCategoriesError(error.message);
-      else setCategories((data ?? []).map((r) => String(r.name)).filter(Boolean));
+      try {
+        const rows = await listDemoCategories();
+        if (cancelled) return;
+        setCategories(rows.map((r) => String(r.name)).filter(Boolean));
+        setCategoriesError(null);
+      } catch (problem) {
+        if (cancelled) return;
+        setCategoriesError(problem instanceof Error ? problem.message : "unknown error");
+      }
     })();
     return () => {
       cancelled = true;
@@ -257,35 +263,34 @@ const BulkAdd = () => {
     let detail = "";
 
     try {
-      const BATCH = 200;
+      // The server does the filing: it re-checks every category against
+      // demo_categories, makes the batch distinct, and inserts with
+      // ignore-duplicates so a URL already in the catalogue is skipped rather
+      // than failing the batch. The counts come back from what the database
+      // returned, not from what was sent.
+      const BATCH = 500;
+      let already = 0;
+      const refusals: string[] = [];
       for (let i = 0; i < parsed.rows.length; i += BATCH) {
         const batch = parsed.rows.slice(i, i + BATCH);
-        const payload = batch.map((row) => ({
-          title: row.title,
-          url: row.url,
-          category: row.category,
-          demo_type: row.demo_type,
-          description: row.description || null,
-          status: "inactive",
-          lifecycle_status: "pending",
-          is_bulk_created: true,
-        }));
-
-        // ignore-duplicates is what makes the banner's promise true: a URL
-        // already in the table is skipped rather than failing the batch, so a
-        // load that is run again after a partial failure resumes cleanly.
-        const { data, error } = await supabase
-          .from("demos")
-          .upsert(payload, { onConflict: "normalized_url", ignoreDuplicates: true })
-          .select("id");
-
-        if (error) {
-          failed += batch.length;
-          detail = error.message;
-          break;
-        }
-        inserted += (data ?? []).length;
+        const outcome = await createDemosBulk({
+          data: {
+            rows: batch.map((row) => ({
+              title: row.title,
+              url: row.url,
+              category: row.category,
+              demo_type: row.demo_type as "web" | "mobile" | "desktop" | "api",
+              description: row.description || null,
+            })),
+          },
+        });
+        inserted += outcome.inserted;
+        already += outcome.alreadyThere;
+        for (const r of outcome.refused) refusals.push(`${r.count} × ${r.reason}`);
       }
+      failed = 0;
+      detail = refusals.join("; ");
+      setOutcome({ inserted, alreadyThere: already, failed: 0, detail });
     } catch (problem) {
       detail = problem instanceof Error ? problem.message : "unknown error";
       failed = parsed.rows.length - inserted;
@@ -294,7 +299,7 @@ const BulkAdd = () => {
     }
 
     const alreadyThere = Math.max(0, parsed.rows.length - inserted - failed);
-    setOutcome({ inserted, alreadyThere, failed, detail });
+    if (failed > 0) setOutcome({ inserted, alreadyThere, failed, detail });
 
     if (failed > 0) {
       toast.error(`${inserted} added, ${failed} could not be`, { description: detail.slice(0, 160) });

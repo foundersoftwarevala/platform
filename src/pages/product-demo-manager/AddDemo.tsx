@@ -54,7 +54,11 @@ const AddDemo = ({ onSuccess }: AddDemoProps) => {
   const { data: categories } = useQuery({
     queryKey: ["demo-categories"],
     queryFn: async () => {
-      const { data } = await supabase.from("demo_categories").select("id, name");
+      // Read through the server: the browser client talks to hosted Supabase,
+      // where demo_categories is empty, while the ninety categories are on the
+      // VPS with the rest of the platform's data.
+      const serverRows = await listDemoCategories().catch(() => []);
+      const data = serverRows.map((row) => ({ id: row.name, name: row.name }));
       return data || [];
     }
   });
