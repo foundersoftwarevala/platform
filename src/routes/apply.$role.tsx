@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import "@/styles/marketplace-home.css";
 import { getRole, type Field } from "@/lib/applications/config";
+import { partnerHashtags, partnerSeo, partnerStructuredData } from "@/lib/seo/partner-opportunity";
+import { absoluteUrl } from "@/lib/seo/site-url";
 import { supabase } from "@/integrations/supabase/client";
 import { authHeaders } from "@/lib/auth/operator-fetch";
 import { useTranslation } from "@/lib/i18n/use-translation";
@@ -118,15 +120,60 @@ export const Route = createFileRoute("/apply/$role")({
     const description = role
       ? `${role.tagline}. Complete the ${role.label.replace("Become ", "")} application form, accept the agreement and submit for approval.`
       : "Choose a role and apply to join the Software Vala marketplace.";
+
+    /**
+     * These pages exist to be found by someone looking for a business
+     * opportunity, and they carried only a title, a description and og:type.
+     * The partner set adds the phrases such a person actually searches, the
+     * hashtags a post about the programme should carry, a sentence written for
+     * a social card rather than for a form, and structured data describing the
+     * offer.
+     *
+     * Nothing here claims an earnings figure, a partner count or a rating,
+     * because none is verified. The structured data is an Organization with an
+     * Offer and not a JobPosting: a partner programme is not employment, and
+     * markup that pretends otherwise is treated as spam.
+     */
+    const seo = role ? partnerSeo(role.key) : null;
+    const url = absoluteUrl(role ? `/apply/${role.key}` : "/apply");
+    const social = seo?.share ?? description;
+    const hashtags = role ? partnerHashtags(role.key) : [];
+
     return {
+      links: [{ rel: "canonical", href: url }],
       meta: [
         { title },
         { name: "description", content: description },
+        ...(seo?.keywords.length ? [{ name: "keywords", content: seo.keywords.join(", ") }] : []),
         { property: "og:title", content: title },
-        { property: "og:description", content: description },
+        { property: "og:description", content: social },
         { property: "og:type", content: "website" },
+        { property: "og:url", content: url },
+        { property: "og:site_name", content: "Software Vala" },
         { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: social },
+        // The hashtags travel with the page so anything that shares it - a
+        // person, or the publisher that posts on the business's behalf - uses
+        // the same set rather than inventing its own.
+        ...(hashtags.length ? [{ name: "article:tag", content: hashtags.join(" ") }] : []),
+        { name: "robots", content: "index, follow, max-image-preview:large" },
       ],
+      scripts: role
+        ? [
+            {
+              type: "application/ld+json",
+              children: JSON.stringify(
+                partnerStructuredData({
+                  roleKey: role.key,
+                  roleLabel: role.label.replace(/^Become\s+/i, ""),
+                  url,
+                  description,
+                }),
+              ),
+            },
+          ]
+        : [],
     };
   },
   component: ApplyRolePage,
