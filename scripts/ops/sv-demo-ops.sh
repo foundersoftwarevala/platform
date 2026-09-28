@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# The scheduled side of Demo Operations: health, then sync.
+# The scheduled side of Demo Operations: health, then scan, then sync.
 #
 # RUN THIS ON THE SERVER. Installed at /usr/local/bin/sv-demo-ops.sh and
 # invoked by the root crontab, like the jobs already there.
@@ -47,7 +47,7 @@ PASSES="${SV_DEMO_PASSES:-3}"
 
 say() { printf '%s %s\n' "$(date -Is)" "$*" >> "$LOG"; }
 
-for script in scripts/demo_monitor.py scripts/demo_sync.py; do
+for script in scripts/demo_monitor.py scripts/demo_scan.py scripts/demo_sync.py; do
   if [[ ! -r "$DIR/$script" ]]; then
     say "FATAL $script not found under $DIR"
     exit 1
@@ -70,7 +70,10 @@ import sys, shlex
 pid = sys.argv[1]
 # Only what these workers need. Taking the whole environment would copy
 # credentials for unrelated services into a file for no reason.
-wanted = {"SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"}
+# INTERNAL_API_TOKEN is here because the scanner does not scan: it asks the
+# application to, through the same door the Demo Manager screen uses, and that
+# door is guarded.
+wanted = {"SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "INTERNAL_API_TOKEN"}
 
 with open("/proc/%s/environ" % pid, "rb") as fh:
     for item in fh.read().split(b"\x00"):
@@ -121,6 +124,14 @@ run() {
 run "health enqueue" scripts/demo_monitor.py --enqueue
 for ((i = 1; i <= PASSES; i++)); do
   run "health work $i" scripts/demo_monitor.py --work || break
+done
+
+# Scanning is the slow one — a fetch of somebody else's site and then a wait on
+# a language model, measured at 20.8 and 33.5 seconds — so it sits between the
+# cheap check and the cheap verification rather than holding either up.
+run "scan enqueue" scripts/demo_scan.py --enqueue
+for ((i = 1; i <= PASSES; i++)); do
+  run "scan work $i" scripts/demo_scan.py --work || break
 done
 
 run "sync enqueue" scripts/demo_sync.py --enqueue
