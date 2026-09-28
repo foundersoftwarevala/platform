@@ -931,6 +931,44 @@ export const reorderSections = createServerFn({ method: "POST" })
     return { ok: true, moved: typeof moved === "number" ? moved : 0 };
   });
 
+/**
+ * The homepage layout's recent changes, and putting one back.
+ *
+ * There is no "reset to default": nothing records a canonical homepage order,
+ * and inventing one would mean choosing the owner's layout for them. Every
+ * reorder already writes its complete before and after state into the audit
+ * log, so what an operator can do instead is look at the changes actually made
+ * and restore any of them.
+ *
+ * Both go through RPCs that check the role themselves, so a caller who is
+ * signed in but not an operator is refused by the database rather than by a
+ * hidden button.
+ */
+export const layoutHistory = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    if (!context?.supabase) {
+      throw new Error("Unauthorized: Supabase context is unavailable.");
+    }
+    const { data, error } = await context.supabase.rpc("mm_layout_history", { p_limit: 20 });
+    if (error) throw new Error(error.message);
+    return (data ?? { entries: [] }) as { entries: unknown[] };
+  });
+
+export const layoutRestore = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((v) => z.object({ auditId: z.string().uuid() }).parse(v))
+  .handler(async ({ data, context }) => {
+    if (!context?.supabase) {
+      throw new Error("Unauthorized: Supabase context is unavailable.");
+    }
+    const { data: result, error } = await context.supabase.rpc("mm_layout_restore", {
+      p_audit_id: data.auditId,
+    });
+    if (error) throw new Error(error.message);
+    return (result ?? { ok: false }) as { ok: boolean };
+  });
+
 export const listSectionsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

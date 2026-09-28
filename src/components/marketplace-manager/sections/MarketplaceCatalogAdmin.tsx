@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Plus, Save, Trash2, X, Loader2, Edit3, Eye, EyeOff } from "lucide-react";
 import {
   listProductsAdmin, listProductsAdminPage, upsertProduct, deleteProduct,
+  layoutHistory, layoutRestore,
   listCategoriesAdmin, upsertCategory, deleteCategory,
   listSectionsAdmin, setSectionEnabled, reorderSections,
 } from "@/lib/marketplace.functions";
@@ -404,6 +405,109 @@ const CONFIGURED_BY: Record<string, string> = {
   faq: "FAQ",
   footer: "Footer",
 };
+/**
+ * What the layout used to be, and putting it back.
+ *
+ * There is no "reset to default" here because there is no default: nothing in
+ * the database, the migrations or the code records a canonical homepage order,
+ * and inventing one would mean deciding for the owner what the right order is.
+ *
+ * What exists is better. Every reorder already writes its complete before and
+ * after state into the audit log, so an operator can see the changes that were
+ * actually made and restore any of them. The restore goes through the same
+ * reorder function as any other change, and is itself audited.
+ */
+function LayoutHistoryPanel({ onRestored }: { onRestored: () => void }) {
+  const historyFn = useServerFn(layoutHistory);
+  const restoreFn = useServerFn(layoutRestore);
+
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["mp_layout_history"],
+    queryFn: async () => (await historyFn()) as unknown as { entries: HistoryEntry[] },
+  });
+
+  const restoreMut = useMutation({
+    mutationFn: (id: string) => restoreFn({ data: { auditId: id } }),
+    onSuccess: () => {
+      toast.success("Layout restored");
+      onRestored();
+      void refetch();
+    },
+    // The message the server gave, not a cheerful one of our own.
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (isError) {
+    return <LoadFailure error={error} what="the layout history" onRetry={() => void refetch()} />;
+  }
+  if (isLoading) {
+    return (
+      <Card>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading history…
+        </div>
+      </Card>
+    );
+  }
+
+  const entries = data?.entries ?? [];
+  if (entries.length === 0) {
+    return (
+      <Card>
+        <div className="text-sm text-muted-foreground">
+          No layout changes recorded yet. Enabling, disabling or reordering a
+          section will appear here.
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="mb-4">
+      <h3 className="mb-2 text-sm font-bold">Layout history</h3>
+      <div className="grid gap-1.5">
+        {entries.map((e) => (
+          <div
+            key={e.id}
+            className="flex items-center justify-between gap-3 rounded-lg border border-border/60 px-3 py-1.5"
+          >
+            <div className="min-w-0">
+              <div className="text-xs font-semibold">
+                {e.action.replace("section.", "").replace("layout.", "")}
+                {e.section_key ? <span className="text-muted-foreground"> · {e.section_key}</span> : null}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                {e.actor_email ?? "unknown"} · {new Date(e.created_at).toLocaleString()}
+              </div>
+            </div>
+            {e.restorable ? (
+              <PillButton
+                onClick={() => restoreMut.mutate(e.id)}
+                disabled={restoreMut.isPending}
+              >
+                Restore this order
+              </PillButton>
+            ) : (
+              // An enable or a disable is one section, not a layout; putting it
+              // back is simply toggling that section, so no button is offered
+              // rather than one that would do something unexpected.
+              <span className="text-[11px] text-muted-foreground">single section</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+type HistoryEntry = {
+  id: string;
+  action: string;
+  created_at: string;
+  actor_email: string | null;
+  section_key: string | null;
+  restorable: boolean;
+};
 export function LayoutOrderAdmin({ onNavigate }: { onNavigate?: (id: string) => void } = {}) {
   const qc = useQueryClient();
   const listFn = useServerFn(listSectionsAdmin);
@@ -411,7 +515,32 @@ export function LayoutOrderAdmin({ onNavigate }: { onNavigate?: (id: string) => 
   const reorderFn = useServerFn(reorderSections);
 
   const { data = [], isLoading, isError, error, refetch } = useQuery<Section[]>({
-    queryKey: ["mp_sections_admin"], queryFn: async () => (await listFn()) as unknown as Section[],
+    queryKey: ["mp_sections_admin"],
+    queryFn: async () => (await listFn()) as unknown as Section[],
+    // A second console open elsewhere converges on its own.
+    //
+    // Push would be better and is not available: no Realtime server runs
+    // against this database - the VPS runs PostgREST alone - and the browser's
+    // /realtime/v1/ goes to the hosted project, which no longer receives these
+    // writes. Adding the table to the publication would change nothing, because
+    // nothing consumes it. React Query already refetches on focus; this makes a
+    // second session that is simply left open catch up too, through the query
+    // layer that is already here rather than a second realtime architecture.
+    refetchInterval: 30_000,
+  });
+
+  const [query, setQuery] = useState("");
+  const [only, setOnly] = useState<"all" | "on" | "off">("all");
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Filtering twenty-four rows in the browser is not an aggregate and not a
+  // capped list: it is the whole registry, already loaded, being narrowed.
+  const shown = data.filter((s) => {
+    if (only === "on" && !s.enabled) return false;
+    if (only === "off" && s.enabled) return false;
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return s.title.toLowerCase().includes(q) || s.key.toLowerCase().includes(q);
   });
 
   const invalidate = () => {
@@ -449,14 +578,51 @@ export function LayoutOrderAdmin({ onNavigate }: { onNavigate?: (id: string) => 
         eyebrow="Homepage Composition"
         title="Layout Order"
         description="Enable, disable and reorder every marketplace homepage section. Live and instant."
+        actions={
+          <PillButton onClick={() => setShowHistory((v) => !v)}>
+            {showHistory ? "Hide history" : "History"}
+          </PillButton>
+        }
       />
+
+      {/* Added beside the list, nothing removed. Twenty-four sections fit on a
+          screen today; they will not always. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name or key"
+          aria-label="Search homepage sections"
+          className="h-8 w-60 rounded-md border border-border bg-transparent px-2 text-sm"
+        />
+        {(["all", "on", "off"] as const).map((v) => (
+          <PillButton
+            key={v}
+            variant={only === v ? "primary" : "ghost"}
+            onClick={() => setOnly(v)}
+          >
+            {v === "all" ? "All" : v === "on" ? "On" : "Off"}
+          </PillButton>
+        ))}
+        <span className="text-xs text-muted-foreground">
+          {shown.length} of {data.length} sections
+        </span>
+      </div>
+
+      {showHistory ? <LayoutHistoryPanel onRestored={() => invalidate()} /> : null}
       {isError ? (
         <LoadFailure error={error} what="the homepage sections" onRetry={() => void refetch()} />
       ) : isLoading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin"/> Loading…</div>
       ) : (
         <div className="grid gap-2">
-          {data.map((s, i) => (
+          {shown.map((s) => {
+            // The position and the arrows are about where this section sits in
+            // the whole layout, not where it sits in a filtered view. Using the
+            // filtered index would number a search result #1 and move the wrong
+            // row when the list is narrowed.
+            const i = data.findIndex((d) => d.id === s.id);
+            return (
             <div key={s.id} className="glass flex items-center justify-between rounded-xl p-3">
               <div className="flex items-center gap-3">
                 <div className="font-mono text-xs text-muted-foreground w-8">#{i + 1}</div>
@@ -485,7 +651,8 @@ export function LayoutOrderAdmin({ onNavigate }: { onNavigate?: (id: string) => 
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

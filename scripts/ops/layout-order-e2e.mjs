@@ -162,6 +162,64 @@ try {
   });
   step("an unknown key is refused", bogus.status >= 400 || bogus.json?.ok === false, `HTTP ${bogus.status}`);
 
+  // ---- history and restore -------------------------------------------------
+  const history = await api("POST", "rpc/mm_layout_history", { p_limit: 20 });
+  const entries = history.json?.entries ?? [];
+  step(
+    "the layout history is readable",
+    history.status === 200 && entries.length > 0,
+    `${entries.length} entries`,
+  );
+
+  // A real round trip. The order is already swapped by the reorder step above,
+  // so this moves a DIFFERENT pair — otherwise the "swap" would be a no-op and
+  // restoring it would prove nothing, which is exactly what the first version
+  // of this test did.
+  const third = sections[2];
+  const fourth = sections[3];
+  const swapAgain = sections.map((s) => ({ key: s.key, sort_order: s.sort_order }));
+  swapAgain[0] = { key: sections[1].key, sort_order: sections[0].sort_order };
+  swapAgain[1] = { key: sections[0].key, sort_order: sections[1].sort_order };
+  swapAgain[2] = { key: fourth.key, sort_order: third.sort_order };
+  swapAgain[3] = { key: third.key, sort_order: fourth.sort_order };
+  await api("POST", "rpc/mm_sections_reorder", { p_order: swapAgain });
+
+  const afterSwap = await api(
+    "GET",
+    "marketplace_homepage_sections?select=key&order=sort_order&limit=4",
+  );
+  step(
+    "the second swap took effect",
+    afterSwap.json?.[2]?.key === fourth.key,
+    `${afterSwap.json?.[2]?.key} now third`,
+  );
+
+  const fresh = await api("POST", "rpc/mm_layout_history", { p_limit: 5 });
+  const latest = (fresh.json?.entries ?? []).find((e) => e.restorable);
+  step("the newest reorder is restorable", Boolean(latest), latest?.action ?? "none");
+
+  const restored = await api("POST", "rpc/mm_layout_restore", { p_audit_id: latest.id });
+  const orderNow = await api(
+    "GET",
+    "marketplace_homepage_sections?select=key,sort_order&order=sort_order&limit=4",
+  );
+  step(
+    "restore puts the previous order back",
+    restored.status === 200 && orderNow.json?.[2]?.key === third.key,
+    `HTTP ${restored.status}, ${orderNow.json?.[2]?.key} third again`,
+  );
+
+  const restoreAudit = await api(
+    "GET",
+    "marketplace_audit_logs?select=action&action=eq.layout.restore&order=created_at.desc&limit=1",
+  );
+  step("the restore is itself audited", (restoreAudit.json ?? []).length > 0);
+
+  const badRestore = await api("POST", "rpc/mm_layout_restore", {
+    p_audit_id: "00000000-0000-0000-0000-000000000000",
+  });
+  step("restoring an unknown change is refused", badRestore.status >= 400, `HTTP ${badRestore.status}`);
+
   // ---- audit ---------------------------------------------------------------
   const audit = await api(
     "GET",
