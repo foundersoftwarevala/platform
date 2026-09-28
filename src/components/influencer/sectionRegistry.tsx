@@ -10,6 +10,11 @@ import { influencerGroups } from "@/components/influencer/navigation";
 const statuses = ["active", "pending", "paused", "completed", "draft"] as const;
 
 const influencerWall: WallConfig = {
+  // A wall builds its local store from `seed`, and createTable iterates it, so a
+  // config without one throws "n is not iterable" the moment the section opens.
+  // These four were written without it and were never rendered, so it never
+  // showed. Empty is correct: the rows come from the resource above.
+  seed: [],
   // The profiles table, through /api/manager/resource.
   resource: "influencer",
   scope: "influencer-influencers", entity: "influencer", eyebrow: "Influencer Manager",
@@ -45,6 +50,11 @@ const influencerWall: WallConfig = {
 };
 
 const campaignWall: WallConfig = {
+  // A wall builds its local store from `seed`, and createTable iterates it, so a
+  // config without one throws "n is not iterable" the moment the section opens.
+  // These four were written without it and were never rendered, so it never
+  // showed. Empty is correct: the rows come from the resource above.
+  seed: [],
   scope: "influencer-campaigns", entity: "campaign", eyebrow: "Campaigns", title: "Campaign Management",
   subtitle: "Plan and govern real campaigns with budgets, dates and performance fields.", icon: Megaphone, primaryLabel: "Create Campaign",
   filters: [{ key: "status", label: "Status", options: statuses }],
@@ -71,6 +81,11 @@ const campaignWall: WallConfig = {
 };
 
 const leadWall: WallConfig = {
+  // A wall builds its local store from `seed`, and createTable iterates it, so a
+  // config without one throws "n is not iterable" the moment the section opens.
+  // These four were written without it and were never rendered, so it never
+  // showed. Empty is correct: the rows come from the resource above.
+  seed: [],
   scope: "influencer-leads", entity: "lead", eyebrow: "Growth", title: "Creator-Generated Leads",
   subtitle: "Track real leads attributed to creator campaigns.", icon: Target, primaryLabel: "New Lead",
   filters: [{ key: "status", label: "Status", options: ["open", "won", "lost"] }, { key: "stage", label: "Stage", options: ["new", "qualified", "contacted"] }],
@@ -91,6 +106,11 @@ const leadWall: WallConfig = {
 };
 
 const applicationWall: WallConfig = {
+  // A wall builds its local store from `seed`, and createTable iterates it, so a
+  // config without one throws "n is not iterable" the moment the section opens.
+  // These four were written without it and were never rendered, so it never
+  // showed. Empty is correct: the rows come from the resource above.
+  seed: [],
   // The applications table, through /api/manager/resource.
   resource: "influencer_applications",
   scope: "influencer-approvals", entity: "application", eyebrow: "Creator Lifecycle", title: "Influencer Applications",
