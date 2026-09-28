@@ -54,5 +54,18 @@ const cards = await p.evaluate(() =>
     .map((lines) => `${lines[1]}=${lines[0]} (${lines[2] ?? ""})`),
 );
 cards.forEach((c) => console.log("  card ", c));
+
+// The tier panel on Referral Links, and what it says moves them up.
+await p.locator("button, a").filter({ hasText: /^\s*Referral Links\s*$/i }).first().click({ timeout: 8000 }).catch(() => {});
+await p.waitForTimeout(9000);
+const tier = await p.evaluate(() => {
+  const el = document.querySelector("[data-influencer-tier]");
+  if (!el) return null;
+  return {
+    code: el.getAttribute("data-influencer-tier"),
+    text: (el.innerText || "").split("\n").filter(Boolean).join(" | ").slice(0, 400),
+  };
+});
+console.log("  tier  ", tier ? tier.code + " -> " + tier.text : "no tier panel");
 bad.slice(0, 4).forEach((x) => console.log("  failed:", x));
 await b.close();

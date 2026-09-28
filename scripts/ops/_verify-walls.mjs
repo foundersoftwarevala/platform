@@ -32,6 +32,7 @@ const expect = [
   ["Verification", "Influencer Manager", 2],
   ["Assignments", "Influencer Manager", 2],
   ["Social Accounts", "Content", 2],
+  ["Tiers & Levels", "Influencer Manager", 3],
   ["Commissions", "Finance", 2],
   ["Commission Rules", "Finance", 1],
   ["Payouts", "Finance", 6],
