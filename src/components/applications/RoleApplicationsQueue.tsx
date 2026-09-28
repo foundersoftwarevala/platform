@@ -4,6 +4,7 @@ import { CheckCircle2, ClipboardCheck, Loader2, Search, XCircle } from "lucide-r
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { authHeaders } from "@/lib/auth/operator-fetch";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
 /**
@@ -95,6 +96,24 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind }) {
   const q = useQuery({
     queryKey: ["role-applications", kind, filter],
     queryFn: async (): Promise<Row[]> => {
+      /**
+       * Influencer applications live on the VPS, which is the single runtime
+       * source for that module, and the browser Supabase client is built
+       * against the hosted project - so this queue would otherwise be deciding
+       * applications in one database while the profile, tier, referral code and
+       * commission that follow an approval are created in another.
+       *
+       * Franchise is untouched and still reads the way it always has.
+       */
+      if (kind === "influencer") {
+        const response = await fetch(`/api/influencer/applications?filter=${filter}`, {
+          headers: await authHeaders(),
+        });
+        const payload = (await response.json()) as { rows?: unknown[]; error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "The queue could not be read");
+        return ((payload.rows ?? []) as Record<string, string | number | null>[]).map(source.map);
+      }
+
       // These tables are not in the generated Supabase types (src/integrations/supabase/types.ts).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let query = (supabase as any)
@@ -119,6 +138,18 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind }) {
       status: string;
       note: string | null;
     }) => {
+      // The decision goes to the same database the queue was read from.
+      if (kind === "influencer") {
+        const response = await fetch("/api/influencer/applications", {
+          method: "POST",
+          headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+          body: JSON.stringify({ id, status, note }),
+        });
+        const payload = (await response.json()) as { error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "That decision did not go through");
+        return;
+      }
+
       const { fn, args } = source.review(id, status, note);
       const { error } = await supabase.rpc(fn as never, args as never);
       if (error) throw new Error(error.message);

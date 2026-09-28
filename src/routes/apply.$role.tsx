@@ -64,32 +64,51 @@ async function submitToServer(role: string, values: Record<string, string>): Pro
     case "franchise":
       result = await rpc("submit_franchise_application", { p_application: application });
       break;
-    case "influencer":
-      result = await rpc("submit_influencer_application", {
-        p_full_name: values.fullName ?? "",
-        p_email: values.email ?? "",
-        p_phone: values.phone || null,
-        p_country: values.country || null,
-        p_region: [values.city, values.state].filter(Boolean).join(", ") || null,
-        p_social_profiles: {
-          instagram: values.instagram || null,
-          youtube: values.youtube || null,
-          linkedin: values.linkedin || null,
-          x: values.xTwitter || null,
-          rate_card: values.rateCard || null,
-          past_brands: values.pastBrands || null,
-        },
-        p_followers: num(values.followers) ?? 0,
-        p_niche: values.niche ?? "",
-        p_content_types: null,
-        p_engagement_rate: num(values.engagementRate),
-        p_payment_details: {},
-        p_tax_details: { id_type: values.idType || null, id_number: values.idNumber || null },
-        p_agreement_accepted: true,
-        p_consent_accepted: true,
-        p_terms_accepted: true,
+    case "influencer": {
+      /**
+       * Through the server, to the VPS.
+       *
+       * The same submit_influencer_application with the same arguments, but
+       * called server-side. The browser Supabase client is built against the
+       * hosted project, and the influencer module's profiles, tiers, referral
+       * codes and commissions are all on the VPS - so an application sent the
+       * old way landed where an approval could never lead to a referral link or
+       * a payment. Nothing about the form, its fields or its validation
+       * changes; only where the row is written.
+       */
+      const response = await fetch("/api/influencer/apply", {
+        method: "POST",
+        headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: values.fullName ?? "",
+          email: values.email ?? "",
+          phone: values.phone || null,
+          country: values.country || null,
+          region: [values.city, values.state].filter(Boolean).join(", ") || null,
+          socialProfiles: {
+            instagram: values.instagram || null,
+            youtube: values.youtube || null,
+            linkedin: values.linkedin || null,
+            x: values.xTwitter || null,
+            rate_card: values.rateCard || null,
+            past_brands: values.pastBrands || null,
+          },
+          followers: num(values.followers) ?? 0,
+          niche: values.niche ?? "",
+          contentTypes: null,
+          engagementRate: num(values.engagementRate),
+          paymentDetails: {},
+          taxDetails: { id_type: values.idType || null, id_number: values.idNumber || null },
+          agreementAccepted: true,
+          consentAccepted: true,
+          termsAccepted: true,
+        }),
       });
+      const payload = (await response.json()) as RpcResult & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "The application could not be submitted.");
+      result = payload;
       break;
+    }
     case "affiliate": {
       const response = await fetch("/api/affiliate/account", {
         method: "POST",
