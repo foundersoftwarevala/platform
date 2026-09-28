@@ -1,7 +1,7 @@
 import { ArrowUpRight, BarChart3, CheckCircle2, Megaphone, ShieldCheck, Sparkles, UserPlus, Users, Wallet } from "lucide-react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 
-import { influencerDashboardQueryOptions } from "@/lib/influencer/analytics";
+import { influencerProgrammeQueryOptions } from "@/lib/influencer/analytics";
 import type { ModuleConfig } from "@/components/creator/ModuleDashboard";
 import { useLanguage } from "@/lib/language-catalog";
 
@@ -21,7 +21,10 @@ export function InfluencerReferenceDashboard({
   config: ModuleConfig;
   onNavigate?: (label: string) => void;
 }) {
-  const { data } = useSuspenseQuery(influencerDashboardQueryOptions());
+  // The operator console shows the whole programme. The creator's own view is
+  // influencerDashboardQueryOptions, and using it here is what made this screen
+  // read zeros: the owner has no influencer_profiles row of his own.
+  const { data } = useSuspenseQuery(influencerProgrammeQueryOptions());
   const { translate: t } = useLanguage();
   const { metrics, connected } = data;
   const number = (key: keyof typeof metrics) => metrics[key]?.value ?? 0;
