@@ -71,7 +71,12 @@ const COLUMNS: Array<{ heading: string; links: Array<{ label: string; href: stri
       { label: "Your purchases", href: "/account/purchases" },
       { label: "WhatsApp +91 83488 38383", href: "https://wa.me/918348838383" },
       { label: "hellosoftwarevala@gmail.com", href: "mailto:hellosoftwarevala@gmail.com" },
-      { label: "Offline software — ErpVala", href: "https://erpvala.com" },
+      // "Offline software — ErpVala" → https://erpvala.com was here and is
+      // gone. The domain does not resolve — curl answers "(6) Could not
+      // resolve host" over both http and https — and it was never anybody's
+      // decision: the row it mirrors has created_by null and a created_at
+      // identical to the rest of 20260907040000_storefront_chrome_seed.sql.
+      // A generator put a placeholder domain on every public page.
     ],
   },
 ];
