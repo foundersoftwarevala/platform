@@ -65,7 +65,12 @@ const COLUMNS: Array<{ heading: string; links: Array<{ label: string; href: stri
   {
     heading: "Support",
     links: [
-      { label: "Contact support", href: "/support" },
+      // /support is the Support Operations Center, an operator console behind a
+      // role gate, so this link showed a customer "Access restricted" on the
+      // one page in the footer they were most likely to need. /contact is the
+      // customer's way in; it writes to the same support_tickets table that
+      // console reads, so nothing is duplicated and /support is unchanged.
+      { label: "Contact support", href: "/contact" },
       { label: "Sales assistant", href: "/ai/assistant" },
       { label: "Sign in", href: "/login" },
       { label: "Your purchases", href: "/account/purchases" },
