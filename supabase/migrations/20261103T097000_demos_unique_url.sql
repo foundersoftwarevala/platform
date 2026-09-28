@@ -83,11 +83,24 @@ create trigger demos_normalize_url
   before insert or update of url on public.demos
   for each row execute function public.demos_set_normalized_url();
 
--- The refusal itself. Partial, because a row with no URL has nothing to
--- collide on - and `url` is NOT NULL, so in practice this covers every row.
+-- The refusal itself.
+--
+-- Not partial. ON CONFLICT (normalized_url) cannot use a partial index -
+-- Postgres answers 42P10 "there is no unique or exclusion constraint matching
+-- the ON CONFLICT specification" unless the statement repeats the index's WHERE
+-- clause, which PostgREST has no way to express, and ON CONFLICT is exactly how
+-- a twelve-thousand-row load is made resumable. demos.url is NOT NULL and the
+-- trigger always derives normalized_url from it, so a null cannot arise and the
+-- column is marked NOT NULL to say so.
+update public.demos
+   set normalized_url = public.demo_normalize_url(url)
+ where normalized_url is null;
+
+alter table public.demos
+  alter column normalized_url set not null;
+
 create unique index if not exists demos_normalized_url_key
-  on public.demos (normalized_url)
-  where normalized_url is not null;
+  on public.demos (normalized_url);
 
 comment on column public.demos.normalized_url is
   'The URL in a form that is identical for two links pointing at the same demo. Maintained by a trigger and uniquely indexed, which is what makes the Bulk Add screen''s "duplicates blocked" true.';
