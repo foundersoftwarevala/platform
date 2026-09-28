@@ -3834,6 +3834,7 @@ const Index = () => {
           // page is whatever Layout Order says.
           "featured-software": (
             <CuratedRow
+              rowKey="featured-software"
               title="Featured Software"
               flag="featured"
               limit={8}
@@ -3843,6 +3844,7 @@ const Index = () => {
           ),
           "trending-now": (
             <CuratedRow
+              rowKey="trending-now"
               title="Trending Now"
               flag="trending"
               limit={12}
@@ -3852,6 +3854,7 @@ const Index = () => {
           ),
           "top-selling": (
             <CuratedRow
+              rowKey="top-selling"
               title="Top Selling"
               flag="bestSeller"
               limit={12}
@@ -3861,6 +3864,7 @@ const Index = () => {
           ),
           "new-releases": (
             <CuratedRow
+              rowKey="new-releases"
               title="New Releases"
               flag="newRelease"
               limit={12}
@@ -4163,36 +4167,48 @@ function CatalogRowStrip({
  * appear only when it has something in it.
  */
 function CuratedRow({
+  rowKey,
   title,
-  flag,
   limit,
   favorites,
   onToggleFavorite,
 }: {
+  /** The merchandising row this is, as Merchandising Console knows it. */
+  rowKey: string;
   title: string;
-  flag: "featured" | "trending" | "bestSeller" | "newRelease";
+  /**
+   * Kept so each call site still says which row it is at a glance. It no
+   * longer selects anything: the products come from the merchandising row,
+   * not from a flag on a card.
+   */
+  flag?: "featured" | "trending" | "bestSeller" | "newRelease";
   limit: number;
   favorites: string[];
   onToggleFavorite: (id: string) => void;
 }) {
-  // The same rows the server already seeded for the catalogue, flattened. No
-  // extra request: whatever the page has, these rows pick from.
+  // The row Merchandising Console actually produced.
+  //
+  // readCatalogRows already resolves these: it reads mm_rows_list, keeps the
+  // curated rows that are live_now - published, not hidden, inside their
+  // schedule - and fills each from mm_row_products, which is the manual pins
+  // and the rule engine together, in the order the manager set. All of that
+  // arrives in the page's seed under the row's own key.
+  //
+  // And it was being thrown away. This component ignored those rows and
+  // rebuilt its own list by scanning the CATEGORY rows for cards carrying a
+  // boolean flag, which meant every pin, every ordering, every schedule and
+  // every draft in the console reached the page and was discarded. Featured
+  // Software is draft and was rendering on the live homepage because of it.
+  //
+  // So the curated row is used when it is there. A row that is not there is a
+  // row the database says is not live, and the honest thing to draw is
+  // nothing.
   const seeded = (useHomeRouteData()?.seed as CatalogSeed | undefined) ?? null;
   const picked = useMemo(() => {
     const rows = (seeded?.rows as CatalogRow[] | undefined) ?? [];
-    const out: Demo[] = [];
-    const seen = new Set<string>();
-    for (const row of rows) {
-      for (const card of (row.cards ?? []) as Demo[]) {
-        if (seen.has(card.id)) continue;
-        if (!(card as unknown as Record<string, boolean>)[flag]) continue;
-        seen.add(card.id);
-        out.push(card);
-        if (out.length >= limit) return out;
-      }
-    }
-    return out;
-  }, [seeded, flag, limit]);
+    const merchandised = rows.find((r) => r.id === rowKey || r.slug === rowKey);
+    return merchandised ? ((merchandised.cards ?? []) as Demo[]).slice(0, limit) : ([] as Demo[]);
+  }, [seeded, rowKey, limit]);
   if (picked.length === 0) return null;
   return (
     <div className="max-w-7xl mx-auto px-4">
