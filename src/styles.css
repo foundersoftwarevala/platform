@@ -778,6 +778,36 @@
    :has keeps this to the top-bar pills, so no other staggered list is touched.
    ------------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------------
+   Rendering only the catalogue rows a visitor can see.
+
+   /marketplace arrives as 1.2MB of HTML and 12,500 nodes, and one section —
+   the catalogue rows — accounts for 8,610 of those nodes and 1.06MB of the
+   markup on its own. Each row is about 760 nodes and 540px tall. Expanding
+   the page with "Show more" reaches 42,954 nodes, and by the ninth click each
+   press took 5.8 seconds to settle, up from 3.4 on the first.
+
+   The rows are not the problem; rendering all of them at once is. Nothing is
+   removed, nothing is virtualised away, and the HTML the server sends is
+   unchanged — so a crawler still reads every card. content-visibility lets the
+   browser skip the layout and paint of a row that is off-screen and do it when
+   it scrolls in, which is what makes the difference between a page that has a
+   large DOM and a page that is slow.
+
+   contain-intrinsic-size: auto 560px is the measured row height, so the
+   scrollbar is right before a row has been rendered and stays right after,
+   because `auto` remembers the real size once it has been measured. Without
+   it the page would jump as rows resolved.
+
+   find-in-page and anchor links still work: content-visibility: auto renders a
+   skipped subtree when the browser needs to reach into it.
+   ------------------------------------------------------------------------ */
+
+.sv-wide .group\/row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 560px;
+}
+
 @media (pointer: coarse) {
   .sv-wide button,
   .sv-wide a[role="button"],
