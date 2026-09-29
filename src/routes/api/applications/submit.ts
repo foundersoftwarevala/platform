@@ -21,12 +21,14 @@ export const Route = createFileRoute("/api/applications/submit")({
         const token = bearer(request);
         const user = token ? await currentUser(request) : null;
         if (!token || !user)
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Please sign in to apply" }, { status: 401 });
 
         let body: Record<string, unknown>;
         try {
           body = (await request.json()) as Record<string, unknown>;
         } catch {
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Expected a JSON body" }, { status: 400 });
         }
         const values =

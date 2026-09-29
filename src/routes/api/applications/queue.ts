@@ -30,11 +30,13 @@ async function gate(
 ): Promise<{ ok: true; token: string } | { ok: false; response: Response }> {
   const token = bearer(request);
   if (!token)
+    // i18n-ignore: an API error message; this API answers in English.
     return { ok: false, response: Response.json({ error: "Please sign in" }, { status: 401 }) };
   if (!(await isApplicationStaff(token))) {
     return {
       ok: false,
       response: Response.json(
+        // i18n-ignore: an API error message; this API answers in English.
         { error: "Application review is limited to application staff." },
         { status: 403 },
       ),
@@ -56,8 +58,10 @@ export const Route = createFileRoute("/api/applications/queue")({
 
         if (id) {
           if (!isApplicationKind(kindParam))
+            // i18n-ignore: an API error message; this API answers in English.
             return Response.json({ error: "Name the kind of application" }, { status: 400 });
           const detail = await getApplication(kindParam, id);
+          // i18n-ignore: an API error message; this API answers in English.
           if (!detail) return Response.json({ error: "Application not found" }, { status: 404 });
           return Response.json({ application: detail });
         }
@@ -69,6 +73,7 @@ export const Route = createFileRoute("/api/applications/queue")({
               ? [kindParam]
               : [];
         if (!kinds.length)
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Unknown kind of application" }, { status: 400 });
         try {
           const rows = await listApplications(kinds, url.searchParams.get("filter") !== "all");
@@ -89,22 +94,27 @@ export const Route = createFileRoute("/api/applications/queue")({
         try {
           body = (await request.json()) as Record<string, unknown>;
         } catch {
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Expected a JSON body" }, { status: 400 });
         }
         const kind = body.kind;
         const id = String(body.id ?? "").trim();
         if (!isApplicationKind(kind))
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Unknown kind of application" }, { status: 400 });
         if (!/^[0-9a-f-]{36}$/i.test(id))
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "An application id is required" }, { status: 400 });
         const definition = definitionOf(kind);
 
         if (body.action !== "decide")
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Unknown action" }, { status: 400 });
         const status = String(body.status ?? "").trim();
         const reason =
           typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
         const current = await getApplication(kind, id);
+        // i18n-ignore: an API error message; this API answers in English.
         if (!current) return Response.json({ error: "Application not found" }, { status: 404 });
         if (!current.actions.includes(status)) {
           return Response.json(

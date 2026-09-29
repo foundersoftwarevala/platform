@@ -157,7 +157,9 @@ function ApplicationDetails({ kind, id }: { kind: Kind; id: string }) {
                   <FileText className="h-4 w-4" /> {doc.label}
                 </button>{" "}
                 <span className="text-muted-foreground">
-                  {doc.name} · {Math.max(1, Math.round(doc.size / 1024))} KB
+                  {doc.name} · {Math.max(1, Math.round(doc.size / 1024))}{" "}
+                  {/* i18n-ignore: a unit symbol, not a word. */}
+                  <span data-no-translate>KB</span>
                 </span>
               </li>
             ))}
