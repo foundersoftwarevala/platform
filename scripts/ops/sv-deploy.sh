@@ -83,9 +83,51 @@ mv "$LIVE/.output.new-$STAMP" "$LIVE/.output"        || fail "could not move the
 pm2 restart "$APP" --update-env >/dev/null 2>&1
 sleep 8
 
+# ---------------------------------------------------------------------------
+# The deploy that did not deploy.
+#
+# On 2026-09-29 five copies of the app were found running at once, started by
+# five separate deploys. The oldest held port 3000, so every later build was
+# built, swapped in, restarted and verified - and never served a single
+# request. Each deploy reported LIVE OK, because the homepage it fetched was
+# being answered by a process seventeen days old.
+#
+# pm2 says "online" about a process that failed to take the port, so the only
+# honest check is to ask the port who is holding it. Anything running this
+# entry point that is not the process pm2 just started is a leftover and is
+# stopped; then the holder of the port must be pm2's own process, or this is
+# not a deployment and is rolled back.
+# ---------------------------------------------------------------------------
+PM2_PID="$(pm2 pid "$APP" 2>/dev/null | tr -d '[:space:]')"
+for stray in $(pgrep -f "node $LIVE/.output/server/index.mjs" 2>/dev/null); do
+  [ "$stray" = "$PM2_PID" ] && continue
+  echo "  stopping a leftover app process: $stray"
+  kill "$stray" 2>/dev/null
+done
+sleep 3
+for stray in $(pgrep -f "node $LIVE/.output/server/index.mjs" 2>/dev/null); do
+  [ "$stray" = "$PM2_PID" ] && continue
+  kill -9 "$stray" 2>/dev/null
+done
+
+# If the leftovers were holding the port, pm2's process never bound it.
+if [ -z "$PM2_PID" ] || ! ss -ltnp 2>/dev/null | grep -q ":3000 .*pid=$PM2_PID,"; then
+  echo "  the port was not held by pm2's process; restarting it alone"
+  pm2 restart "$APP" --update-env >/dev/null 2>&1
+  sleep 10
+  PM2_PID="$(pm2 pid "$APP" 2>/dev/null | tr -d '[:space:]')"
+fi
+holder="$(ss -ltnp 2>/dev/null | grep ':3000 ' | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2)"
+echo "  port 3000 is held by $holder, pm2 runs $PM2_PID, copies running: $(pgrep -fc "node $LIVE/.output/server/index.mjs" 2>/dev/null)"
+
 step "6/6 Verifying the live site"
 code=$(curl -s -o /tmp/sv-live.html -w '%{http_code}' -m 25 "http://127.0.0.1:3000/")
 size=$(wc -c < /tmp/sv-live.html)
+# A homepage answered by yesterday's process is not this build being live.
+if [ -n "$holder" ] && [ -n "$PM2_PID" ] && [ "$holder" != "$PM2_PID" ]; then
+  echo "  port 3000 is held by $holder, which is not the process pm2 started ($PM2_PID)"
+  code="stale"
+fi
 if [ "$code" = "200" ] && [ "$size" -ge "$MIN_BYTES" ] && grep -q "$MARKER" /tmp/sv-live.html; then
   echo "  LIVE OK: http=$code bytes=$size"
   echo "  previous build kept at $LIVE/.output.prev-$STAMP"

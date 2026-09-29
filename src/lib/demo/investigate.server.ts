@@ -526,7 +526,6 @@ export async function investigateBatch(input: {
     );
   }
 
-  console.log("[investigate] window", due.length, "dueTotal", dueTotal, "batch", input.batchId, "retry", input.retryFailed);
   const work = due.slice(0, limit);
   const rows: Investigation[] = [];
   const totals: Record<string, number> = {};

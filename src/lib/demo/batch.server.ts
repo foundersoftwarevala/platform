@@ -156,15 +156,39 @@ const CLAIMABLE = ["PREVIEW_READY", "UPLOADED", "AWAITING_REVIEW", "FAILED"] as 
  */
 export async function claimBatch(id: string): Promise<BatchRecord | null> {
   const store = demoStore();
-  const stale = new Date(Date.now() - STALE_CLAIM_MS).toISOString();
-  const condition =
-    `or=(status.in.(${CLAIMABLE.join(",")}),` +
-    `and(status.eq.PROCESSING,claimed_at.lt.${encodeURIComponent(stale)}))`;
-  const claimed = await store.patchReturning<BatchRecord>(
-    `demo_intake_batches?id=eq.${encodeURIComponent(id)}&${condition}`,
-    { status: "PROCESSING", claimed_at: new Date().toISOString() },
+  const target = { status: "PROCESSING", claimed_at: new Date().toISOString() };
+  const key = encodeURIComponent(id);
+
+  // A batch nobody has started. Each caller sends the same conditional update;
+  // the database serialises them, so the second one matches nothing.
+  const ready = await store.patchReturning<BatchRecord>(
+    `demo_intake_batches?id=eq.${key}&status=in.(${CLAIMABLE.join(",")})`,
+    target,
   );
-  return claimed[0] ?? null;
+  if (ready[0]) return ready[0];
+
+  /**
+   * A batch left PROCESSING by a run that died.
+   *
+   * Asked as a second, separate update rather than as one condition with `or`:
+   * this PostgREST matches nothing at all for `or=(status.in.(...),and(...))`,
+   * which made every commit report that the batch was already being committed.
+   * Two plain updates are as atomic as one and are understood by the server.
+   */
+  const stale = new Date(Date.now() - STALE_CLAIM_MS).toISOString();
+  const abandoned = await store.patchReturning<BatchRecord>(
+    `demo_intake_batches?id=eq.${key}&status=eq.PROCESSING&claimed_at=lt.${encodeURIComponent(stale)}`,
+    target,
+  );
+  if (abandoned[0]) return abandoned[0];
+
+  // A batch marked PROCESSING before claims were stamped at all. There is no
+  // run to collide with, so it is taken rather than left stranded for ever.
+  const unstamped = await store.patchReturning<BatchRecord>(
+    `demo_intake_batches?id=eq.${key}&status=eq.PROCESSING&claimed_at=is.null`,
+    target,
+  );
+  return unstamped[0] ?? null;
 }
 
 export async function setBatchStatus(
