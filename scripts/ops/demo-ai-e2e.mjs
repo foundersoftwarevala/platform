@@ -50,6 +50,24 @@ const services = sql(
 );
 console.log(`  active approved AI services: ${services}`);
 
+/**
+ * Anything a previous run left behind is cleared first.
+ *
+ * One run of this reported two failures because a row from an earlier run,
+ * interrupted by an SSH timeout, was still there - so the address under test came
+ * back ALREADY_ASSIGNED and the run judged the product at fault. A check that
+ * depends on the order it was run in is not a check.
+ */
+execFileSync(
+  process.execPath,
+  [
+    "scripts/ops/db.mjs",
+    "--sql",
+    "delete from product_demo_urls where (url like '%sv-ai%' or url like '%sv-e2e%' or url like '%sv-file%') and processing_status = 'unprocessed' and status = 'inactive'",
+  ],
+  { encoding: "utf8", timeout: 120000 },
+);
+
 const browser = await chromium.launch();
 const page = await (await browser.newContext()).newPage();
 await page.goto(`${SITE}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
