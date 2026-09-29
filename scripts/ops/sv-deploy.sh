@@ -119,6 +119,13 @@ echo "  port 3000 is free, copies left: $(pgrep -fc "$ENTRY" 2>/dev/null || echo
 pm2 start "$APP" --update-env >/dev/null 2>&1
 sleep 10
 PM2_PID="$(pm2 pid "$APP" 2>/dev/null | tr -d '[:space:]')"
+# A copy that released the port but did not exit is still a copy: it holds
+# seventy megabytes and it is what the next deploy will trip over. Swept once
+# the new process is up and holding the port, so nothing being swept is serving.
+for pid in $(pgrep -f "$ENTRY" 2>/dev/null); do
+  [ "$pid" = "$PM2_PID" ] && continue
+  kill -9 "$pid" 2>/dev/null && echo "  removed a copy that would not exit: $pid"
+done
 holder="$(ss -ltnp 2>/dev/null | grep ':3000 ' | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2)"
 echo "  port 3000 is held by ${holder:-nobody}, pm2 runs ${PM2_PID:-nothing}, copies running: $(pgrep -fc "$ENTRY" 2>/dev/null || echo 0)"
 
