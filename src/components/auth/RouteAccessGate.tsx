@@ -1,4 +1,5 @@
 import { useRouterState } from "@tanstack/react-router";
+import { DEMO_ROUTE_ROLES } from "@/lib/auth/demo-roles";
 import { type ReactNode } from "react";
 
 import { RequireRole } from "@/components/auth/RequireRole";
@@ -43,10 +44,15 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/ai-api-manager", roles: ["developer"], label: "AI API Manager" },
   { prefix: "/ams-manager", roles: ["developer", "support"], label: "AMS Manager" },
   { prefix: "/ams", roles: ["developer", "support"], label: "AMS" },
-  { prefix: "/demo-manager", roles: ["developer", "support"], label: "Demo Manager" },
-  { prefix: "/demo-ops", roles: ["developer", "support"], label: "Demo Ops" },
-  { prefix: "/demo-workspace", roles: ["developer", "support"], label: "Demo Workspace" },
-  { prefix: "/product-demo-manager", roles: ["developer", "support"], label: "Product Demo Manager" },
+  // Publishing a demo puts third-party software on the storefront under Software
+  // Vala branding, so the pipeline behind these screens accepts only boss, admin,
+  // super_admin, owner and developer. The door used to admit support as well, so a
+  // support user could open the console and be refused the moment they acted.
+  // Aligned with the pipeline rather than widening it.
+  { prefix: "/demo-manager", roles: [...DEMO_ROUTE_ROLES], label: "Demo Manager" },
+  { prefix: "/demo-ops", roles: [...DEMO_ROUTE_ROLES], label: "Demo Ops" },
+  { prefix: "/demo-workspace", roles: [...DEMO_ROUTE_ROLES], label: "Demo Workspace" },
+  { prefix: "/product-demo-manager", roles: [...DEMO_ROUTE_ROLES], label: "Product Demo Manager" },
   { prefix: "/sales-crm", roles: ["sales", "sales_support_manager"], label: "Sales CRM" },
   { prefix: "/sales-support-manager", roles: ["sales", "support", "sales_support_manager"], label: "Sales Support Manager" },
   { prefix: "/support-agent", roles: ["support"], label: "Support Agent" },

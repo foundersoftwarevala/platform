@@ -1,3 +1,4 @@
+import { DEMO_OPERATOR_ROLES } from "./demo-roles";
 /**
  * Gate for the /api/internal/* endpoints.
  *
@@ -18,7 +19,13 @@
  * refused rather than left open: a misconfigured server must fail closed.
  */
 
-const OPERATOR_ROLES = new Set(["boss", "admin", "super_admin", "owner", "developer"]);
+/**
+ * Who may publish a demo. The list itself lives in demo-roles.ts, which holds no
+ * logic, so the route gate in the browser can read it without pulling this
+ * guard - and its env access and service key - into the client bundle.
+ */
+export const OPERATOR_ROLES = new Set<string>(DEMO_OPERATOR_ROLES);
+export { DEMO_ROUTE_ROLES } from "./demo-roles";
 
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;

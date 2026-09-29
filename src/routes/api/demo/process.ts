@@ -93,7 +93,16 @@ export const Route = createFileRoute("/api/demo/process")({
           if (body.action === "activate") {
             const id = String(body.id ?? "");
             if (!UUID.test(id)) return refuse("Unknown demo.");
-            return Response.json({ demo: await activateDemo({ id, actor }) });
+            // An operator may publish a demo whose detected category is not the
+            // product's, and saying so is explicit. The refusal it overrides,
+            // and this confirmation, are both written to the audit trail.
+            return Response.json({
+              demo: await activateDemo({
+                id,
+                actor,
+                confirmCategoryMismatch: body.confirmCategoryMismatch === true,
+              }),
+            });
           }
           return refuse("Unknown action.");
         } catch (error) {

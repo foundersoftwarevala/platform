@@ -445,7 +445,16 @@ export async function investigateDemo(input: { productId: string; url: string; a
 }
 
 /** Verify the presented demo and, only if it is clean, make it the product's live demo. */
-export async function activateDemo(input: { id: string; actor: Actor }) {
+export async function activateDemo(input: {
+  id: string;
+  actor: Actor;
+  /**
+   * An operator's explicit decision to publish a demo whose detected category
+   * is not the category of the product it hangs on. Nothing else can set it,
+   * and the reason is written into the audit trail.
+   */
+  confirmCategoryMismatch?: boolean;
+}) {
   const store = db();
   const [row] = await store.get<Row[]>(
     `product_demo_urls?select=${DEMO_ROW_FIELDS}&id=eq.${encodeURIComponent(input.id)}&limit=1`,
@@ -454,6 +463,63 @@ export async function activateDemo(input: { id: string; actor: Actor }) {
   const processing = (row.processing ?? {}) as { rules?: PresentationRules } & Row;
   if (!["review", "live"].includes(String(row.processing_status)) || !processing.rules) {
     throw new UnsafeUrlError("Investigate this demo before activating it.");
+  }
+
+  /**
+   * The canonical relationship, checked here rather than on a screen.
+   *
+   * A live demo is served to visitors by product: the proxy looks up
+   * product_demo_urls by product_id, and the storefront badge comes from the
+   * same row. So a demo with no product, or hanging on a product that no longer
+   * exists, cannot be published at all - and a demo whose own detected category
+   * is not the product's category is how admissionschool-desk came to show an
+   * AnnadanamKitchen demo.
+   *
+   * Eight of the seventeen demos live today are in that state. They are left
+   * exactly as they are - deactivating a working demo is not this function's
+   * decision - but no further one can be published into it without an operator
+   * saying so explicitly, and that decision is recorded.
+   */
+  if (!row.product_id) {
+    throw new UnsafeUrlError(
+      "This demo is not attached to a product, so it cannot be published. Assign a product first.",
+    );
+  }
+  const [product] = await store.get<Row[]>(
+    `marketplace_products?select=id,name,slug,category_id,visible,moderation_status` +
+      `&id=eq.${encodeURIComponent(String(row.product_id))}&limit=1`,
+  );
+  if (!product) {
+    throw new UnsafeUrlError(
+      "The product this demo is attached to no longer exists. Re-assign it before publishing.",
+    );
+  }
+  if (product.visible !== true || String(product.moderation_status) !== "approved") {
+    throw new UnsafeUrlError(
+      `"${String(product.name)}" is not published, so a demo on it would be reachable by address only. ` +
+        "Publish the product first.",
+    );
+  }
+  const detected = row.detected_category_id ? String(row.detected_category_id) : null;
+  const productCategory = product.category_id ? String(product.category_id) : null;
+  const categoryMismatch = Boolean(detected && productCategory && detected !== productCategory);
+  if (categoryMismatch && !input.confirmCategoryMismatch) {
+    const [detectedCategory] = await store.get<Row[]>(
+      `marketplace_categories?select=name&id=eq.${encodeURIComponent(detected as string)}&limit=1`,
+    );
+    const [productCategoryRow] = await store.get<Row[]>(
+      `marketplace_categories?select=name&id=eq.${encodeURIComponent(productCategory as string)}&limit=1`,
+    );
+    await audit(String(row.id), "demo_url.activate.category_blocked", input.actor, {
+      detected_category_id: detected,
+      product_category_id: productCategory,
+      product_id: row.product_id,
+    });
+    throw new UnsafeUrlError(
+      `This demo looks like ${String(detectedCategory?.name ?? "another category")} software, but ` +
+        `"${String(product.name)}" is filed under ${String(productCategoryRow?.name ?? "a different category")}. ` +
+        "Re-assign it to the right product, or confirm the mismatch to publish it anyway.",
+    );
   }
 
   const checks: { check: string; ok: boolean; detail?: string }[] = [];
@@ -481,7 +547,14 @@ export async function activateDemo(input: { id: string; actor: Actor }) {
     });
   }
 
-  const verification = { verified_at: new Date().toISOString(), ok, checks };
+  // The category decision is part of the record, so a demo published across a
+  // mismatch can be found later and explained.
+  const verification = {
+    verified_at: new Date().toISOString(),
+    ok,
+    checks,
+    ...(categoryMismatch ? { category_mismatch_confirmed_by: input.actor } : {}),
+  };
   if (!ok) {
     const updated = await store.patch(`product_demo_urls?id=eq.${row.id}`, {
       processing_status: "failed",
