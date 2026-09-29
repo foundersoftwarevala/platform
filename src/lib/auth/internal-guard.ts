@@ -116,7 +116,13 @@ export async function requireInternalOperator(input: RequestLike): Promise<Guard
 
     const role = held.find((value) => OPERATOR_ROLES.has(value));
     if (!role) {
-      return deny("This endpoint is restricted to operators.", 403);
+      // Names who can, because the screens in front of this are opened by
+      // support as well as developers - RouteAccessGate admits both - and a
+      // refusal that does not say who to ask reads as a fault in the product.
+      return deny(
+        "Publishing a demo is restricted to operators (" + [...OPERATOR_ROLES].join(", ") + "). Ask one of them to run it.",
+        403,
+      );
     }
     return { ok: true, via: `operator:${role}` };
   } catch (error) {
