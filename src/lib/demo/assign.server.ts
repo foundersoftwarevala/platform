@@ -354,13 +354,28 @@ export async function resolveDemoAssignment(input: {
  * found, rather than imported as zero rows.
  */
 const HEADER_ALIASES: Record<"url" | "productId" | "productSlug" | "productName", string[]> = {
-  url: ["url", "demo_url", "demourl", "link", "address", "website", "demo", "demo link"],
-  productId: ["product_id", "productid", "product id", "id", "uuid"],
-  productSlug: ["product_slug", "productslug", "product slug", "slug"],
-  productName: ["product_name", "productname", "product name", "product", "name", "title", "software"],
+  url: ["url", "demo_url", "demourl", "link", "demo_link", "address", "demo_address", "website", "demo", "live_demo", "demo_site"],
+  productId: ["product_id", "productid", "id", "uuid", "product_uuid"],
+  productSlug: ["product_slug", "productslug", "slug"],
+  productName: ["product_name", "productname", "product", "name", "title", "software", "software_name"],
 };
 
-const headerKey = (value: string) => value.trim().toLowerCase().replace(/^\ufeff/, "");
+/**
+ * A header, reduced to letters, digits and single underscores.
+ *
+ * "Demo URL", "demo_url" and "demourl" are the same column written three ways,
+ * and an export will use whichever the person who made it preferred. Matching on
+ * the reduced form means the alias list need not carry every spelling - it was
+ * missing "demo url" with a space, which is the commonest of all, and a real
+ * export was refused for it.
+ */
+const headerKey = (value: string) =>
+  value
+    .replace(/^\ufeff/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 
 /** Splits a line on comma, tab or semicolon, honouring quoted fields. */
 function splitLine(line: string): string[] {
