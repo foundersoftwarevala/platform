@@ -90,12 +90,20 @@ export const Route = createFileRoute("/api/demo/investigate")({
             );
           }
 
+          const batchId = String(body.batchId ?? "").trim();
+          if (batchId && !/^[0-9a-f-]{36}$/i.test(batchId)) {
+            return Response.json({ error: "That is not a batch id." }, { status: 400 });
+          }
+
           const report = await investigateBatch({
             limit: Number(body.limit ?? 25),
             commit: action === "commit",
             retryFailed: body.retryFailed === true,
             actor,
             withAi,
+            // One batch at a time when the operator is working through an
+            // upload; everything unresolved when they are not.
+            batchId: batchId || null,
           });
           return Response.json(report);
         } catch (error) {

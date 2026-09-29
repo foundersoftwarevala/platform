@@ -2,10 +2,19 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import {
   assignDemoUrls,
+  commitBatch,
   previewIntakeFile,
   resolveDemoAssignment,
   type AssignReport,
 } from "@/lib/demo/assign.server";
+import {
+  batchProgress,
+  BatchRefused,
+  BatchSizeExceeded,
+  listBatches,
+  MAX_BATCH_ROWS,
+  setBatchStatus,
+} from "@/lib/demo/batch.server";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import type { Actor } from "@/lib/demo/process.server";
 
@@ -42,10 +51,32 @@ async function actorOf(request: Request): Promise<Actor> {
   }
 }
 
-const MAX_ROWS = 2000;
-
 function refuse(message: string, status = 400) {
   return Response.json({ error: message }, { status });
+}
+
+/**
+ * A batch that is too large, answered as its own thing.
+ *
+ * Not a generic 400 with prose in it: the operator's screen has to be able to
+ * say "you sent 812, the maximum is 500" and the test has to be able to check
+ * that without reading English, so the code and both numbers are fields.
+ */
+function refuseSize(error: BatchSizeExceeded) {
+  return Response.json(
+    {
+      error: "BATCH_SIZE_EXCEEDED",
+      message: error.message,
+      received: error.received,
+      maximum: error.maximum,
+    },
+    { status: 413 },
+  );
+}
+
+/** A refusal the operator has to act on: not a fault, so not a 5xx. */
+function refuseBatch(error: BatchRefused) {
+  return Response.json({ error: error.code, message: error.message }, { status: 409 });
 }
 
 export const Route = createFileRoute("/api/demo/assign")({
@@ -83,10 +114,57 @@ export const Route = createFileRoute("/api/demo/assign")({
             return refuse("That file is larger than 4 MB; split it into parts.");
           }
           try {
-            return Response.json(await previewIntakeFile(text));
+            return Response.json(
+              await previewIntakeFile(text, {
+                filename: typeof body.filename === "string" ? body.filename : null,
+                actor: await actorOf(request),
+                // A preview an operator is only looking at need not be kept.
+                register: body.register !== false,
+              }),
+            );
           } catch (error) {
+            if (error instanceof BatchSizeExceeded) return refuseSize(error);
             const message = error instanceof Error ? error.message : String(error);
             return Response.json({ error: message }, { status: message.startsWith("SCHEMA_ERROR") ? 422 : 502 });
+          }
+        }
+
+        /** The batches, newest first, with each one's progress counted now. */
+        if (action === "batches") {
+          const limit = Number(body.limit ?? 25);
+          return Response.json(await listBatches(Number.isFinite(limit) ? limit : 25));
+        }
+
+        /** One batch: where it has got to, and every row of it. */
+        if (action === "batch") {
+          const batchId = String(body.batchId ?? "").trim();
+          if (!/^[0-9a-f-]{36}$/i.test(batchId)) return refuse("A batch id is required.");
+          try {
+            return Response.json(await batchProgress(batchId));
+          } catch (error) {
+            if (error instanceof BatchRefused) return refuseBatch(error);
+            throw error;
+          }
+        }
+
+        /**
+         * A batch the operator has decided not to commit.
+         *
+         * Cancelling is about the upload, not about anything on the storefront:
+         * it closes a preview that will never be committed so it stops sitting
+         * in the history as if it were still coming. No demo row is touched.
+         */
+        if (action === "cancel") {
+          const batchId = String(body.batchId ?? "").trim();
+          if (!/^[0-9a-f-]{36}$/i.test(batchId)) return refuse("A batch id is required.");
+          try {
+            await setBatchStatus(batchId, "CANCELLED", {
+              notes: `cancelled by ${(await actorOf(request)).email ?? "an operator"}`,
+            });
+            return Response.json({ ok: true, batchId, status: "CANCELLED" });
+          } catch (error) {
+            if (error instanceof BatchRefused) return refuseBatch(error);
+            throw error;
           }
         }
 
@@ -106,17 +184,16 @@ export const Route = createFileRoute("/api/demo/assign")({
         }
 
         if (action !== "preview" && action !== "commit") {
-          return refuse('action must be "preview", "commit" or "resolve".');
+          return refuse('action must be "preview", "commit", "resolve", "batch", "batches" or "cancel".');
         }
 
         const raw = Array.isArray(body.rows) ? body.rows : null;
         if (!raw || raw.length === 0) return refuse("Send at least one address.");
-        if (raw.length > MAX_ROWS) {
-          // Not a limit on how many can be imported - a limit on one request, so
-          // a batch of twelve thousand arrives in pages that each finish.
-          return refuse(
-            `Send at most ${MAX_ROWS} addresses per request; this batch has ${raw.length}. Split it into pages.`,
-          );
+        if (raw.length > MAX_BATCH_ROWS) {
+          // Not a limit on how much can be imported - a limit on one batch, so
+          // that twelve thousand addresses arrive as batches that each finish,
+          // and so that no part of a larger file is silently dropped.
+          return refuseSize(new BatchSizeExceeded(raw.length, MAX_BATCH_ROWS));
         }
 
         const rows = raw.map((r) => {
@@ -132,7 +209,20 @@ export const Route = createFileRoute("/api/demo/assign")({
         // it, so the assignment record names a person rather than a role.
         const actor = await actorOf(request);
 
+        const batchId = String(body.batchId ?? "").trim();
+
         try {
+          /**
+           * A commit that names the batch it previewed goes through the batch
+           * rules - it exists, it has not been committed, and these are the
+           * addresses that were shown. A commit without one is still allowed,
+           * for a single address typed into Add Demo, and gets its own batch id.
+           */
+          if (action === "commit" && batchId) {
+            if (!/^[0-9a-f-]{36}$/i.test(batchId)) return refuse("That is not a batch id.");
+            return Response.json(await commitBatch({ batchId, rows, actor }));
+          }
+
           const report: AssignReport = await assignDemoUrls({
             rows,
             commit: action === "commit",
@@ -140,6 +230,8 @@ export const Route = createFileRoute("/api/demo/assign")({
           });
           return Response.json(report);
         } catch (error) {
+          if (error instanceof BatchSizeExceeded) return refuseSize(error);
+          if (error instanceof BatchRefused) return refuseBatch(error);
           console.error("[demo-assign] failed", error);
           return refuse(
             error instanceof Error ? error.message : "The batch could not be processed.",

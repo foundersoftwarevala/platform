@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { normaliseDemoUrl, parseIntakeFile } from "./assign.server";
 import { identityEvidence } from "./investigate.server";
+import {
+  assertBatchSize,
+  batchFingerprint,
+  batchOutcome,
+  BatchSizeExceeded,
+  isRetryable,
+  MAX_BATCH_ROWS,
+} from "./batch.server";
 
 /**
  * The file twelve thousand addresses will arrive as, and the evidence read from
@@ -132,5 +140,64 @@ describe("identityEvidence", () => {
     const long = `<title>${"x".repeat(5000)}</title>`;
     const evidence = identityEvidence(long, "https://x.example.com/", 200);
     expect((evidence.title ?? "").length).toBeLessThanOrEqual(300);
+  });
+});
+
+/**
+ * The batch rules themselves, without a database.
+ *
+ * These are the decisions that keep one upload from spoiling another: how many
+ * addresses may arrive at once, whether the file being committed is the file
+ * that was previewed, what a half-finished batch is called, and which failures
+ * are worth trying again. They are pure, so they are tested directly.
+ */
+describe("the batch rules", () => {
+  it("allows one, two hundred and five hundred, and refuses five hundred and one", () => {
+    expect(() => assertBatchSize(1)).not.toThrow();
+    expect(() => assertBatchSize(200)).not.toThrow();
+    expect(() => assertBatchSize(MAX_BATCH_ROWS)).not.toThrow();
+    expect(() => assertBatchSize(MAX_BATCH_ROWS + 1)).toThrowError(/BATCH_SIZE_EXCEEDED/);
+  });
+
+  it("says how many arrived and how many are allowed", () => {
+    try {
+      assertBatchSize(812);
+      throw new Error("it should have refused");
+    } catch (error) {
+      expect(error).toBeInstanceOf(BatchSizeExceeded);
+      const refusal = error as BatchSizeExceeded;
+      expect(refusal.received).toBe(812);
+      expect(refusal.maximum).toBe(500);
+      expect(refusal.code).toBe("BATCH_SIZE_EXCEEDED");
+    }
+  });
+
+  it("recognises the file that was previewed, and one that was not", () => {
+    const file = ["https://a.example.com", "https://b.example.com"];
+    expect(batchFingerprint(file)).toBe(batchFingerprint([...file]));
+    // Case and spacing are how the same file comes back after a round trip.
+    expect(batchFingerprint(file)).toBe(batchFingerprint([" HTTPS://A.example.com ", "https://B.example.com"]));
+    // Order is part of the file: a reordered file is a different file.
+    expect(batchFingerprint(file)).not.toBe(batchFingerprint([...file].reverse()));
+    expect(batchFingerprint(file)).not.toBe(batchFingerprint([...file, "https://c.example.com"]));
+  });
+
+  it("calls a batch what it was, not what was hoped for", () => {
+    expect(batchOutcome({ ASSIGNED: 5, UNMATCHED: 3 })).toBe("COMMITTED");
+    expect(batchOutcome({ ASSIGNED: 5, INVALID: 1 })).toBe("PARTIALLY_COMPLETED");
+    expect(batchOutcome({ ASSIGNED: 5, ERROR: 2 })).toBe("PARTIALLY_COMPLETED");
+    expect(batchOutcome({ INVALID: 4, ERROR: 1 })).toBe("FAILED");
+    // Addresses an earlier batch already holds still count as taken in.
+    expect(batchOutcome({ DUPLICATE: 3 })).toBe("COMMITTED");
+  });
+
+  it("retries what may answer next time, and nothing else", () => {
+    expect(isRetryable("FETCH_FAILED")).toBe(true);
+    expect(isRetryable("ERROR")).toBe(true);
+    // These are settled answers; asking again would give the same one.
+    expect(isRetryable("UNMATCHED")).toBe(false);
+    expect(isRetryable("AMBIGUOUS")).toBe(false);
+    expect(isRetryable("MATCHED")).toBe(false);
+    expect(isRetryable(null)).toBe(false);
   });
 });

@@ -1,4 +1,15 @@
 import { assertPublicUrl } from "./safe-fetch.server";
+import { demoStore, type Row } from "./rest.server";
+import {
+  assertBatchSize,
+  batchFingerprint,
+  batchOutcome,
+  BatchRefused,
+  createBatch,
+  getBatch,
+  MAX_BATCH_ROWS,
+  setBatchStatus,
+} from "./batch.server";
 import type { Actor } from "./process.server";
 
 /**
@@ -21,12 +32,12 @@ import type { Actor } from "./process.server";
  * Twelve thousand addresses can go through this. None of them is guessed.
  */
 
-type Row = Record<string, unknown>;
-
 /** What happened to one address. */
 export type RowState =
   | "ASSIGNED"
   | "ALREADY_ASSIGNED"
+  /** Taken in by an earlier batch and still waiting; its evidence is kept. */
+  | "DUPLICATE"
   | "AMBIGUOUS"
   | "UNMATCHED"
   | "INVALID"
@@ -48,6 +59,12 @@ export type AssignInput = {
   /** False previews without writing anything. */
   commit: boolean;
   actor: Actor;
+  /**
+   * The batch these rows belong to. Supplied when an operator commits a batch
+   * they previewed, so the rows carry the same identifier the preview did and
+   * the batch's progress counts them. Generated when it is absent.
+   */
+  batchId?: string;
 };
 
 export type AssignReport = {
@@ -57,51 +74,6 @@ export type AssignReport = {
   /** The batch as a whole, for the audit trail and for an operator to undo by. */
   batchId: string;
 };
-
-function db() {
-  const url = process.env.SUPABASE_URL?.trim() ?? "";
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
-  if (!url || !key) throw new Error("The database is not configured on this server.");
-  const headers = {
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-    "Content-Type": "application/json",
-  };
-  return {
-    async rpc<T>(fn: string, args: Row): Promise<T> {
-      const r = await fetch(`${url}/rest/v1/rpc/${fn}`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(args),
-      });
-      if (!r.ok) throw new Error(`${fn} failed (${r.status}): ${(await r.text()).slice(0, 180)}`);
-      return (await r.json()) as T;
-    },
-    async get<T = Row[]>(path: string): Promise<T> {
-      const r = await fetch(`${url}/rest/v1/${path}`, { headers });
-      if (!r.ok) throw new Error(`read failed (${r.status})`);
-      return (await r.json()) as T;
-    },
-    async patch(path: string, body: Row): Promise<void> {
-      const r = await fetch(`${url}/rest/v1/${path}`, {
-        method: "PATCH",
-        headers: { ...headers, Prefer: "return=minimal" },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) throw new Error(`update failed (${r.status}): ${(await r.text()).slice(0, 160)}`);
-    },
-    async post<T>(path: string, body: Row): Promise<T> {
-      const r = await fetch(`${url}/rest/v1/${path}`, {
-        method: "POST",
-        headers: { ...headers, Prefer: "return=representation" },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) throw new Error(`insert failed (${r.status}): ${(await r.text()).slice(0, 180)}`);
-      const rows = (await r.json()) as T[];
-      return rows[0] as T;
-    },
-  };
-}
 
 /** The address as it will be stored and compared: trimmed, no trailing slash. */
 export function normaliseDemoUrl(raw: string): string {
@@ -113,11 +85,51 @@ export function normaliseDemoUrl(raw: string): string {
 const EMPTY_TOTALS = (): Record<RowState, number> => ({
   ASSIGNED: 0,
   ALREADY_ASSIGNED: 0,
+  DUPLICATE: 0,
   AMBIGUOUS: 0,
   UNMATCHED: 0,
   INVALID: 0,
   ERROR: 0,
 });
+
+/**
+ * The addresses of this batch that the catalogue already holds unassigned.
+ *
+ * A duplicate inside one file is caught as the file is read. A duplicate across
+ * batches is not: the same address can perfectly well appear in batch three and
+ * again in batch seven, and the second time it must not be taken in again. The
+ * unique index would refuse the insert, but that arrives as a database error and
+ * reads like a fault, so the rows are looked up first and reported as what they
+ * are - already here, with the investigation that was already done on them.
+ *
+ * Asked in pages of fifty, because five hundred addresses in one query string
+ * is longer than a proxy will carry.
+ */
+async function existingUnassigned(
+  store: ReturnType<typeof demoStore>,
+  urls: string[],
+): Promise<Map<string, { id: string; batchId: string | null; investigated: string | null }>> {
+  const found = new Map<string, { id: string; batchId: string | null; investigated: string | null }>();
+  const unique = [...new Set(urls.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += 50) {
+    const page = unique.slice(i, i + 50);
+    const list = page.map((u) => `"${u.replace(/"/g, '\\"')}"`).join(",");
+    const rows = await store.get<Row[]>(
+      `product_demo_urls?select=id,url,processing&product_id=is.null&url=in.(${encodeURIComponent(list)})`,
+    );
+    for (const row of rows) {
+      const processing = (row.processing ?? {}) as Record<string, unknown>;
+      const assignment = (processing.assignment ?? {}) as { batch_id?: string };
+      const investigation = (processing.investigation ?? null) as { state?: string } | null;
+      found.set(String(row.url), {
+        id: String(row.id),
+        batchId: assignment.batch_id ? String(assignment.batch_id) : null,
+        investigated: investigation?.state ? String(investigation.state) : null,
+      });
+    }
+  }
+  return found;
+}
 
 /**
  * Preview or commit a batch of demo addresses.
@@ -132,11 +144,22 @@ const EMPTY_TOTALS = (): Record<RowState, number> => ({
  * message rather than aborting the rest.
  */
 export async function assignDemoUrls(input: AssignInput): Promise<AssignReport> {
-  const store = db();
-  const batchId = crypto.randomUUID();
+  // Nothing is read, matched or written above the maximum. A file of twelve
+  // thousand is refused whole rather than quietly becoming its first five
+  // hundred.
+  assertBatchSize(input.rows.length);
+
+  const store = demoStore();
+  const batchId = input.batchId ?? crypto.randomUUID();
   const totals = EMPTY_TOTALS();
   const rows: RowResult[] = [];
   const seen = new Set<string>();
+
+  // What an earlier batch already took in, asked once for the whole batch.
+  const alreadyHere = await existingUnassigned(
+    store,
+    input.rows.map((r) => normaliseDemoUrl(r.url)),
+  );
 
   for (const raw of input.rows) {
     const url = normaliseDemoUrl(raw.url);
@@ -166,6 +189,26 @@ export async function assignDemoUrls(input: AssignInput): Promise<AssignReport> 
         continue;
       }
       seen.add(url);
+
+      /**
+       * Taken in by an earlier batch and still unresolved.
+       *
+       * It is not an error and not a new row: the address is already in the
+       * queue an operator reviews, with whatever the page-reading step already
+       * learned about it. Saying so, and naming the batch it came from, is more
+       * use than either taking it in twice or reporting a constraint violation.
+       */
+      const earlier = alreadyHere.get(url);
+      if (earlier && earlier.batchId !== batchId) {
+        result.state = "DUPLICATE";
+        result.demoUrlId = earlier.id;
+        result.reason = earlier.investigated
+          ? `already taken in by batch ${earlier.batchId?.slice(0, 8) ?? "an earlier run"} and investigated (${earlier.investigated}); its evidence is kept`
+          : `already taken in by batch ${earlier.batchId?.slice(0, 8) ?? "an earlier run"} and still awaiting review`;
+        rows.push(result);
+        totals.DUPLICATE += 1;
+        continue;
+      }
 
       const match = await store.rpc<{
         state: "ALREADY_ASSIGNED" | "MATCHED" | "AMBIGUOUS" | "UNMATCHED";
@@ -269,7 +312,7 @@ export async function resolveDemoAssignment(input: {
   product: string;
   actor: Actor;
 }): Promise<{ ok: true; productId: string; productSlug: string } | { ok: false; reason: string }> {
-  const store = db();
+  const store = demoStore();
 
   const [row] = await store.get<Row[]>(
     `product_demo_urls?select=id,url,product_id,processing&id=eq.${encodeURIComponent(input.demoUrlId)}&limit=1`,
@@ -469,24 +512,37 @@ export function parseIntakeFile(text: string): ParsedFile {
  * outcome and not an estimate - which matters most for the rows that would NOT
  * be assigned, since those are the ones a careless import guesses at.
  */
-export async function previewIntakeFile(text: string): Promise<{
+export async function previewIntakeFile(
+  text: string,
+  options: { filename?: string | null; actor?: Actor; register?: boolean } = {},
+): Promise<{
   detected: string[];
   counts: Record<string, number>;
   invalid: ParsedFile["invalid"];
   sample: RowResult[];
+  rows: { url: string; product?: string | null; name?: string | null }[];
+  batchId: string | null;
+  fingerprint: string;
+  maximum: number;
 }> {
   const parsed = parseIntakeFile(text);
-  const report = await assignDemoUrls({
-    rows: parsed.rows.map(({ url, product, name }) => ({ url, product, name })),
-    commit: false,
-    actor: { id: null, email: null },
-  });
+  // The size of the batch is what the file holds, valid or not: an operator
+  // splitting a file has to split all of it, not the part that parsed.
+  assertBatchSize(parsed.rows.length + parsed.invalid.length + parsed.duplicatesInFile);
+
+  const actor = options.actor ?? { id: null, email: null };
+  const intake = parsed.rows.map(({ url, product, name }) => ({ url, product, name }));
+  const report = await assignDemoUrls({ rows: intake, commit: false, actor });
 
   const counts: Record<string, number> = {
     TOTAL: parsed.rows.length + parsed.invalid.length + parsed.duplicatesInFile,
     VALID: parsed.rows.length,
     INVALID: parsed.invalid.length,
-    DUPLICATE: parsed.duplicatesInFile,
+    // Both kinds of repetition, counted together the way an operator sees them:
+    // the same address twice in this file, and one an earlier batch already has.
+    DUPLICATE: parsed.duplicatesInFile + report.totals.DUPLICATE,
+    DUPLICATE_IN_FILE: parsed.duplicatesInFile,
+    DUPLICATE_ACROSS_BATCHES: report.totals.DUPLICATE,
     ALREADY_ASSIGNED: report.totals.ALREADY_ASSIGNED,
     EXPLICIT_PRODUCT_MATCH: 0,
     EXACT_NAME_MATCH: 0,
@@ -506,5 +562,110 @@ export async function previewIntakeFile(text: string): Promise<{
   // Anything unplaced is what the page-reading step exists for.
   counts.INVESTIGATION_REQUIRED = counts.AMBIGUOUS + counts.UNMATCHED;
 
-  return { detected: parsed.detected, counts, invalid: parsed.invalid.slice(0, 20), sample: report.rows.slice(0, 20) };
+  /**
+   * The preview is remembered, so the commit can be checked against it.
+   *
+   * Registering the batch here is what makes the two halves one act: the
+   * operator sees decisions for a known set of addresses, and a commit that
+   * names this batch has to carry the same addresses or it is refused. Nothing
+   * about product_demo_urls is written - the preview still writes nothing.
+   */
+  const fingerprint = batchFingerprint(intake.map((r) => r.url));
+  let batchId: string | null = null;
+  if (options.register !== false) {
+    const batch = await createBatch({
+      filename: options.filename ?? null,
+      totals: {
+        total: counts.TOTAL,
+        valid: counts.VALID,
+        invalid: counts.INVALID,
+        duplicate: counts.DUPLICATE,
+      },
+      fingerprint,
+      counts,
+      detected: parsed.detected,
+      actor,
+      status: "PREVIEW_READY",
+    });
+    batchId = String(batch.id);
+  }
+
+  return {
+    detected: parsed.detected,
+    counts,
+    invalid: parsed.invalid.slice(0, 20),
+    sample: report.rows.slice(0, 20),
+    rows: intake,
+    batchId,
+    fingerprint,
+    maximum: MAX_BATCH_ROWS,
+  };
+}
+
+/**
+ * Committing one batch: the addresses that were previewed, and no others.
+ *
+ * Everything that makes a batch safe happens here rather than in the matcher,
+ * because the matcher decides one address and this decides one upload:
+ *
+ *   - the batch has to exist, and to be one that has not been committed;
+ *   - the addresses have to be the ones the preview showed, or the operator is
+ *     committing decisions they never saw;
+ *   - the outcome is recorded from what happened to the rows, so a batch that
+ *     half-worked says PARTIALLY_COMPLETED rather than claiming success;
+ *   - a failure anywhere in it leaves every other batch untouched, because the
+ *     only rows written carry this batch's id.
+ */
+export async function commitBatch(input: {
+  batchId: string;
+  rows: { url: string; product?: string | null; name?: string | null }[];
+  actor: Actor;
+}): Promise<AssignReport & { status: string }> {
+  assertBatchSize(input.rows.length);
+
+  const batch = await getBatch(input.batchId);
+  if (!batch) throw new BatchRefused("BATCH_NOT_FOUND", `no batch has the id ${input.batchId}`);
+  if (batch.status === "COMMITTED" || batch.status === "PARTIALLY_COMPLETED") {
+    throw new BatchRefused(
+      "BATCH_ALREADY_COMMITTED",
+      `batch ${input.batchId} was committed on ${batch.committed_at ?? "an earlier run"}; take the remaining addresses in as a new batch`,
+    );
+  }
+  if (batch.status === "CANCELLED") {
+    throw new BatchRefused("BATCH_CANCELLED", `batch ${input.batchId} was cancelled`);
+  }
+
+  const expected = (batch.preview as { fingerprint?: string } | null)?.fingerprint ?? null;
+  const actual = batchFingerprint(input.rows.map((r) => normaliseDemoUrl(r.url)));
+  if (expected && expected !== actual) {
+    throw new BatchRefused(
+      "STALE_PREVIEW",
+      "these addresses are not the ones that were previewed for this batch. Preview the file again before committing it",
+    );
+  }
+
+  await setBatchStatus(input.batchId, "PROCESSING");
+  try {
+    const report = await assignDemoUrls({
+      rows: input.rows,
+      commit: true,
+      actor: input.actor,
+      batchId: input.batchId,
+    });
+    const status = batchOutcome(report.totals);
+    await setBatchStatus(input.batchId, status, {
+      committed_at: new Date().toISOString(),
+      notes: Object.entries(report.totals)
+        .filter(([, n]) => n > 0)
+        .map(([state, n]) => `${state}=${n}`)
+        .join(" "),
+    });
+    return { ...report, status };
+  } catch (error) {
+    // The batch failed as a batch. Said so, and left alone.
+    await setBatchStatus(input.batchId, "FAILED", {
+      notes: error instanceof Error ? error.message.slice(0, 400) : String(error).slice(0, 400),
+    });
+    throw error;
+  }
 }

@@ -13,6 +13,7 @@ import {
   Bell,
   Bot,
   CalendarClock,
+  Boxes,
   Inbox,
   RefreshCcw,
   Camera,
@@ -27,6 +28,7 @@ import {
   LineChart,
   DatabaseBackup,
 } from "lucide-react";
+import { OpsBatchPanel } from "./OpsBatchPanel";
 import { OpsReviewQueue } from "./OpsReviewQueue";
 import { OpsReprocessPanel } from "./OpsReprocessPanel";
 import { OpsDetectionPanel, OpsHealthMonitor, OpsKpiGrid } from "./OpsHealthPanels";
@@ -51,6 +53,9 @@ const SECTIONS = [
   { id: "overview", label: "Overview & KPIs", icon: Gauge },
   // Addresses taken in that the matcher would not place. Until this existed
   // nothing could give them a product, so they would have waited for ever.
+  // Uploads of two to five hundred addresses: read, committed and followed
+  // through one batch at a time.
+  { id: "batches", label: "Batch Intake", icon: Boxes },
   { id: "review", label: "Review Queue", icon: Inbox },
   { id: "reprocess", label: "Re-process", icon: RefreshCcw },
   { id: "health", label: "Health Monitor", icon: Heart },
@@ -85,6 +90,8 @@ const DemoOpsCenter = () => {
             <OpsHealthMonitor />
           </div>
         );
+      case "batches":
+        return <OpsBatchPanel />;
       case "review":
         return <OpsReviewQueue />;
       case "reprocess":

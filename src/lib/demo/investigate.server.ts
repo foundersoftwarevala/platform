@@ -345,8 +345,16 @@ export async function investigateOne(input: {
 
   const candidates: Candidate[] = (match.candidates ?? []).map((c) => ({ ...c, source: "matcher" as const }));
 
+  /**
+   * The AI is asked only about the addresses the matcher could not place.
+   *
+   * When the page names a product the catalogue has exactly one of, the answer
+   * is already certain and a model could only agree with it or be wrong. Over
+   * twelve thousand addresses that is thousands of completions bought to confirm
+   * something deterministic, so MATCHED skips the agent entirely.
+   */
   let ai: Awaited<ReturnType<typeof askAgent>> = { suggestion: null, error: null, agent: null };
-  if (input.withAi !== false) {
+  if (input.withAi !== false && match.state !== "MATCHED") {
     ai = await askAgent(evidence);
     if (ai.suggestion?.name) {
       const validated = await validateCandidate(ai.suggestion.name);
@@ -461,17 +469,27 @@ export async function investigateBatch(input: {
   actor: Actor;
   retryFailed?: boolean;
   withAi?: boolean;
+  /** One batch only, so an upload can be worked through without touching others. */
+  batchId?: string | null;
 }): Promise<{
   committed: boolean;
   totals: Record<string, number>;
   rows: Investigation[];
   remainingPending: number;
+  batchId: string | null;
 }> {
   const store = db();
   const limit = Math.min(Math.max(input.limit || 25, 1), 500);
 
+  // Scoped to one batch when the caller names one. This is what keeps a batch
+  // isolated: work on it reads and writes only rows carrying its id, so a batch
+  // that fails cannot disturb one that succeeded.
+  const scope = input.batchId
+    ? `&processing->assignment->>batch_id=eq.${encodeURIComponent(input.batchId)}`
+    : "";
+
   const unresolved = await store.get<Row[]>(
-    `product_demo_urls?select=id,url,processing&product_id=is.null&order=created_at.asc&limit=${limit * 4}`,
+    `product_demo_urls?select=id,url,processing&product_id=is.null${scope}&order=created_at.asc&limit=${limit * 4}`,
   );
 
   const due = unresolved.filter((row) => {
@@ -526,5 +544,6 @@ export async function investigateBatch(input: {
     totals,
     rows,
     remainingPending: Math.max(due.length - work.length, 0),
+    batchId: input.batchId ?? null,
   };
 }
