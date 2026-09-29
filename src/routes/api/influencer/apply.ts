@@ -26,7 +26,8 @@ export const Route = createFileRoute("/api/influencer/apply")({
       POST: async ({ request }) => {
         const token = bearer(request);
         const user = token ? await currentUser(request) : null;
-        if (!token || !user) return Response.json({ error: "Please sign in to apply" }, { status: 401 });
+        if (!token || !user)
+          return Response.json({ error: "Please sign in to apply" }, { status: 401 });
 
         let body: Record<string, unknown>;
         try {
@@ -56,11 +57,14 @@ export const Route = createFileRoute("/api/influencer/apply")({
             niche: str(body.niche),
             idType: str(tax.id_type),
           },
-          body.agreementAccepted === true && body.consentAccepted === true && body.termsAccepted === true,
+          body.agreementAccepted === true &&
+            body.consentAccepted === true &&
+            body.termsAccepted === true,
           token,
           user.id,
         );
-        if ("error" in result) return Response.json({ error: result.error }, { status: result.status });
+        if ("error" in result)
+          return Response.json({ error: result.error }, { status: result.status });
         return Response.json({
           id: result.id,
           application_number: result.number,

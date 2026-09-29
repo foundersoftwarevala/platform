@@ -112,8 +112,16 @@ export const Route = createFileRoute("/api/affiliate/account")({
             body.values && typeof body.values === "object" && !Array.isArray(body.values)
               ? (body.values as Record<string, unknown>)
               : { fullName: body.displayName };
-          const result = await submitApplication("affiliate", values, body.termsAccepted === true, token, user.id);
-          if ("error" in result) return Response.json({ error: result.error }, { status: result.status });
+          const result = await submitApplication(
+            "affiliate",
+            values,
+            body.termsAccepted === true,
+            token,
+            user.id,
+          );
+          if ("error" in result) {
+            return Response.json({ error: result.error }, { status: result.status });
+          }
           return Response.json(
             { ok: true, applied: true, status: result.status, partnerId: result.id },
             { status: 201 },

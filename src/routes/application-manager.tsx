@@ -27,7 +27,8 @@ export const Route = createFileRoute("/application-manager")({
       { title: "Application Manager — Software Vala Control Panel" },
       {
         name: "description",
-        content: "Review, approve, refuse and suspend every partner application from the Control Panel.",
+        content:
+          "Review, approve, refuse and suspend every partner application from the Control Panel.",
       },
       { name: "robots", content: "noindex" },
     ],

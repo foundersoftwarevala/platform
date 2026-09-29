@@ -21,14 +21,26 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const panel = readFileSync("src/routes/control-panel.tsx", "utf8");
-const sidebar = readFileSync("src/components/super-admin-wireframe/ControlPanelSidebar.tsx", "utf8");
-const labels = new Map([...sidebar.matchAll(/\{\s*id:\s*'([a-z_]+)',\s*label:\s*'([^']+)'/g)].map((m) => [m[1], m[2]]));
+const sidebar = readFileSync(
+  "src/components/super-admin-wireframe/ControlPanelSidebar.tsx",
+  "utf8",
+);
+const labels = new Map(
+  [...sidebar.matchAll(/\{\s*id:\s*'([a-z_]+)',\s*label:\s*'([^']+)'/g)].map((m) => [m[1], m[2]]),
+);
 const routes = new Map([["control_panel", "/control-panel"]]);
 for (const m of panel.matchAll(/^\s*([a-z_]+):\s*"(\/[^"]*)",/gm)) routes.set(m[1], m[2]);
-for (const m of panel.matchAll(/if \(roleId === "([a-z_]+)"\) \{\s*void navigate\(\{ to: "([^"]+)" \}\)/g)) routes.set(m[1], m[2]);
+for (const m of panel.matchAll(
+  /if \(roleId === "([a-z_]+)"\) \{\s*void navigate\(\{ to: "([^"]+)" \}\)/g,
+))
+  routes.set(m[1], m[2]);
 // Only the ROLE_DASHBOARD_ROUTES block maps an entry to /dashboard/<role>.
-const dashboards = panel.slice(panel.indexOf("ROLE_DASHBOARD_ROUTES"), panel.indexOf("const dashRole"));
-for (const m of dashboards.matchAll(/^\s*([a-z_]+):\s*"([a-z]+)",\s*$/gm)) if (!routes.has(m[1])) routes.set(m[1], `/dashboard/${m[2]}`);
+const dashboards = panel.slice(
+  panel.indexOf("ROLE_DASHBOARD_ROUTES"),
+  panel.indexOf("const dashRole"),
+);
+for (const m of dashboards.matchAll(/^\s*([a-z_]+):\s*"([a-z]+)",\s*$/gm))
+  if (!routes.has(m[1])) routes.set(m[1], `/dashboard/${m[2]}`);
 
 /** The route file for a path, the way TanStack names them. */
 function routeFile(path) {
@@ -36,7 +48,12 @@ function routeFile(path) {
   // /manager/security and /manager/settings are sections of the /manager route.
   if (path.startsWith("/manager/")) return "src/routes/manager.tsx";
   const base = path.replace(/^\//, "").replace(/\//g, ".");
-  for (const candidate of [`src/routes/${base}.tsx`, `src/routes/${base}.index.tsx`, `src/routes/${base}/index.tsx`, `src/routes/${base}.ts`]) {
+  for (const candidate of [
+    `src/routes/${base}.tsx`,
+    `src/routes/${base}.index.tsx`,
+    `src/routes/${base}/index.tsx`,
+    `src/routes/${base}.ts`,
+  ]) {
     if (existsSync(candidate)) return candidate;
   }
   return null;
@@ -82,10 +99,22 @@ function reach(entry) {
 
 const PATTERNS = [
   { kind: "RANDOM", re: /Math\.random\(\)/ },
-  { kind: "SAMPLE-WORD", re: /\b(mock(ed)?|dummy|fake|lorem|sampleData|demoData|placeholderData|FAKE_|MOCK_|SAMPLE_)\b/i },
-  { kind: "FAKE-SAVE", re: /setTimeout\([^)]*\)\s*;?\s*$|setTimeout\(\s*\(\)\s*=>\s*\{?\s*(toast|set[A-Z]\w*\(\s*(true|false)\s*\))/ },
-  { kind: "HARDCODED-PEOPLE", re: /\{\s*(id:\s*['"\d][^}]*)?name:\s*['"][A-Z][a-z]+ [A-Z][a-z]+['"][^}]*(email|phone|role|revenue|amount|status):/ },
-  { kind: "HARDCODED-EMAIL", re: /['"][a-z0-9._-]+@(example|test|demo|acme|company|mail)\.(com|io|org)['"]/i },
+  {
+    kind: "SAMPLE-WORD",
+    re: /\b(mock(ed)?|dummy|fake|lorem|sampleData|demoData|placeholderData|FAKE_|MOCK_|SAMPLE_)\b/i,
+  },
+  {
+    kind: "FAKE-SAVE",
+    re: /setTimeout\([^)]*\)\s*;?\s*$|setTimeout\(\s*\(\)\s*=>\s*\{?\s*(toast|set[A-Z]\w*\(\s*(true|false)\s*\))/,
+  },
+  {
+    kind: "HARDCODED-PEOPLE",
+    re: /\{\s*(id:\s*['"\d][^}]*)?name:\s*['"][A-Z][a-z]+ [A-Z][a-z]+['"][^}]*(email|phone|role|revenue|amount|status):/,
+  },
+  {
+    kind: "HARDCODED-EMAIL",
+    re: /['"][a-z0-9._-]+@(example|test|demo|acme|company|mail)\.(com|io|org)['"]/i,
+  },
 ];
 
 function scanFile(file) {
@@ -95,13 +124,23 @@ function scanFile(file) {
     const trimmed = line.trim();
     if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) return;
     for (const p of PATTERNS) {
-      if (p.re.test(line)) hits.push({ kind: p.kind, line: index + 1, text: trimmed.slice(0, 140) });
+      if (p.re.test(line))
+        hits.push({ kind: p.kind, line: index + 1, text: trimmed.slice(0, 140) });
     }
   });
   // A success message in a file that never asks a server for anything.
   const text = lines.join("\n");
-  if (/toast\.success\(/.test(text) && !/fetch\(|supabase|\.rpc\(|useMutation|useResource|useQuery|createServerFn|serverFn|api\(|axios/.test(text)) {
-    hits.push({ kind: "SUCCESS-WITHOUT-REQUEST", line: 0, text: "toast.success in a file with no request of any kind" });
+  if (
+    /toast\.success\(/.test(text) &&
+    !/fetch\(|supabase|\.rpc\(|useMutation|useResource|useQuery|createServerFn|serverFn|api\(|axios/.test(
+      text,
+    )
+  ) {
+    hits.push({
+      kind: "SUCCESS-WITHOUT-REQUEST",
+      line: 0,
+      text: "toast.success in a file with no request of any kind",
+    });
   }
   return hits;
 }
@@ -118,8 +157,23 @@ for (const [id, route] of routes) {
   const hits = [];
   for (const file of files) for (const h of scanFile(file)) hits.push({ file, ...h });
   const byKind = hits.reduce((acc, h) => ((acc[h.kind] = (acc[h.kind] ?? 0) + 1), acc), {});
-  report.push({ id, label: labels.get(id) ?? id, route, entry, files: files.length, byKind, hits: hits.slice(0, 80) });
-  console.log(`  ${(labels.get(id) ?? id).padEnd(28)} ${route.padEnd(24)} files=${String(files.length).padStart(3)} ${JSON.stringify(byKind)}`);
+  report.push({
+    id,
+    label: labels.get(id) ?? id,
+    route,
+    entry,
+    files: files.length,
+    byKind,
+    hits: hits.slice(0, 80),
+  });
+  console.log(
+    `  ${(labels.get(id) ?? id).padEnd(28)} ${route.padEnd(24)} files=${String(files.length).padStart(3)} ${JSON.stringify(byKind)}`,
+  );
 }
-writeFileSync(`${process.env.TEMP ?? "."}/control-panel-code-scan.json`, JSON.stringify(report, null, 1));
-console.log(`\n  ${report.length} modules -> ${process.env.TEMP ?? "."}/control-panel-code-scan.json`);
+writeFileSync(
+  `${process.env.TEMP ?? "."}/control-panel-code-scan.json`,
+  JSON.stringify(report, null, 1),
+);
+console.log(
+  `\n  ${report.length} modules -> ${process.env.TEMP ?? "."}/control-panel-code-scan.json`,
+);

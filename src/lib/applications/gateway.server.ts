@@ -15,7 +15,9 @@ function base(): string {
 }
 
 function publishableKey(): string {
-  return (process.env.SUPABASE_PUBLISHABLE_KEY?.trim() || process.env.SUPABASE_ANON_KEY?.trim()) ?? "";
+  return (
+    (process.env.SUPABASE_PUBLISHABLE_KEY?.trim() || process.env.SUPABASE_ANON_KEY?.trim()) ?? ""
+  );
 }
 
 export function bearer(request: Request): string | null {
@@ -31,7 +33,8 @@ export async function rpcAs<T = Record<string, unknown>>(
   fn: string,
   args: Record<string, unknown>,
 ): Promise<RpcOutcome<T>> {
-  if (!base()) return { ok: false, status: 503, message: "The application service is not configured." };
+  if (!base())
+    return { ok: false, status: 503, message: "The application service is not configured." };
   const response = await fetch(`${base()}/rest/v1/rpc/${fn}`, {
     method: "POST",
     headers: {
@@ -52,7 +55,14 @@ export async function rpcAs<T = Record<string, unknown>>(
     } catch {
       /* the raw text is the message */
     }
-    const status = response.status >= 500 ? 400 : response.status === 401 ? 401 : response.status === 403 ? 403 : 400;
+    const status =
+      response.status >= 500
+        ? 400
+        : response.status === 401
+          ? 401
+          : response.status === 403
+            ? 403
+            : 400;
     return { ok: false, status, message };
   }
   try {

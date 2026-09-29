@@ -17,7 +17,9 @@ import type { ApplicationKind } from "./registry.server";
 export const DOCUMENT_BUCKET = "application-documents";
 
 function storageBase(): string {
-  return (process.env.SUPABASE_STORAGE_URL ?? process.env.SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
+  return (process.env.SUPABASE_STORAGE_URL ?? process.env.SUPABASE_URL ?? "")
+    .trim()
+    .replace(/\/+$/, "");
 }
 
 function storageKey(): string {
@@ -64,7 +66,8 @@ export async function storeDocument(input: {
     return { error: "That is not a document this application asks for.", status: 400 };
   }
   if (input.file.size <= 0) return { error: "The file is empty.", status: 400 };
-  if (input.file.size > MAX_DOCUMENT_BYTES) return { error: "The file is larger than 5 MB.", status: 413 };
+  if (input.file.size > MAX_DOCUMENT_BYTES)
+    return { error: "The file is larger than 5 MB.", status: 413 };
 
   const bytes = new Uint8Array(await input.file.arrayBuffer());
   // What the file is, from its content - not from its name or the type the
@@ -111,7 +114,13 @@ export async function storeDocument(input: {
     return { error: "The document could not be recorded. Please try again.", status: 502 };
   }
   const [row] = (await recorded.json()) as { id: string }[];
-  return { id: row.id, field: input.field, name: cleanName(input.file.name), mime, size: bytes.byteLength };
+  return {
+    id: row.id,
+    field: input.field,
+    name: cleanName(input.file.name),
+    mime,
+    size: bytes.byteLength,
+  };
 }
 
 export type DocumentRow = {
@@ -141,7 +150,10 @@ export async function openDocument(row: DocumentRow): Promise<Response> {
     headers: storageHeaders(),
   });
   if (!file.ok || !file.body) {
-    return Response.json({ error: "The document could not be read from storage." }, { status: 502 });
+    return Response.json(
+      { error: "The document could not be read from storage." },
+      { status: 502 },
+    );
   }
   const name = row.original_name.replace(/"/g, "");
   return new Response(file.body, {

@@ -34,20 +34,33 @@ export const Route = createFileRoute("/api/applications/documents")({
         const applicationId = String(form.get("applicationId") ?? "");
         const field = String(form.get("field") ?? "");
         const file = form.get("file");
-        if (!isApplicationKind(kind)) return Response.json({ error: "Unknown kind of application" }, { status: 400 });
-        if (!/^[0-9a-f-]{36}$/i.test(applicationId)) return Response.json({ error: "An application id is required" }, { status: 400 });
-        if (!(file instanceof File)) return Response.json({ error: "No file was sent" }, { status: 400 });
+        if (!isApplicationKind(kind))
+          return Response.json({ error: "Unknown kind of application" }, { status: 400 });
+        if (!/^[0-9a-f-]{36}$/i.test(applicationId))
+          return Response.json({ error: "An application id is required" }, { status: 400 });
+        if (!(file instanceof File))
+          return Response.json({ error: "No file was sent" }, { status: 400 });
 
         const application = await ownerOf(kind, applicationId);
         if (!application || application.owner !== user.id) {
           return Response.json({ error: "That application is not yours" }, { status: 403 });
         }
         if (!OPEN_STATUSES.includes(application.status)) {
-          return Response.json({ error: "Documents can only be added while the application is waiting for review." }, { status: 409 });
+          return Response.json(
+            { error: "Documents can only be added while the application is waiting for review." },
+            { status: 409 },
+          );
         }
 
-        const stored = await storeDocument({ kind, applicationId, ownerUserId: user.id, field, file });
-        if ("error" in stored) return Response.json({ error: stored.error }, { status: stored.status });
+        const stored = await storeDocument({
+          kind,
+          applicationId,
+          ownerUserId: user.id,
+          field,
+          file,
+        });
+        if ("error" in stored)
+          return Response.json({ error: stored.error }, { status: stored.status });
         return Response.json({ document: stored }, { status: 201 });
       },
 
@@ -57,7 +70,8 @@ export const Route = createFileRoute("/api/applications/documents")({
         if (!token || !user) return Response.json({ error: "Please sign in" }, { status: 401 });
 
         const id = new URL(request.url).searchParams.get("id") ?? "";
-        if (!/^[0-9a-f-]{36}$/i.test(id)) return Response.json({ error: "A document id is required" }, { status: 400 });
+        if (!/^[0-9a-f-]{36}$/i.test(id))
+          return Response.json({ error: "A document id is required" }, { status: 400 });
         const row = await documentRow(id);
         if (!row) return Response.json({ error: "Document not found" }, { status: 404 });
 

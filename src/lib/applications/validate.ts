@@ -17,8 +17,7 @@ const MAX_TEXT = 2000;
 const MAX_LONG_TEXT = 5000;
 
 export type Checked =
-  | { ok: true; values: Record<string, string> }
-  | { ok: false; error: string; fields: string[] };
+  { ok: true; values: Record<string, string> } | { ok: false; error: string; fields: string[] };
 
 function problem(field: Field, value: string): string | null {
   switch (field.type) {
@@ -27,7 +26,9 @@ function problem(field: Field, value: string): string | null {
     case "url": {
       try {
         const url = new URL(value);
-        return url.protocol === "http:" || url.protocol === "https:" ? null : "must be a web address (https://…)";
+        return url.protocol === "http:" || url.protocol === "https:"
+          ? null
+          : "must be a web address (https://…)";
       } catch {
         return "must be a web address (https://…)";
       }

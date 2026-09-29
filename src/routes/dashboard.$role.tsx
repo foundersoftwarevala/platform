@@ -99,6 +99,15 @@ const DASHBOARD_ROLE_REQUIREMENT: Record<string, string[]> = {
   "promise-tracker": [],
 };
 
+/** Reseller hero buttons that open one of the reseller's own modules. */
+const RESELLER_HERO_MODULES: Record<string, string> = {
+  "View commissions": "commissions",
+  "Open AI collection": "ai",
+  "ai-chat": "ai-chat",
+};
+/** Reseller hero buttons whose destination is the marketplace itself. */
+const RESELLER_HERO_MARKETPLACE = new Set(["Browse catalog", "Open marketplace", "See top 50"]);
+
 function GuardedDashboardPage() {
   const { role } = Route.useParams();
   return (
@@ -242,7 +251,16 @@ function DashboardPage() {
                 bannerGradient={ROLE_BANNER_GRADIENTS[role as RoleKey]}
               />
               {role === "reseller" ? (
-                <ResellerHero />
+                <ResellerHero
+                  onAction={(cta) => {
+                    // The hero's buttons were rendered with no handler, so none of
+                    // them did anything. Each goes where a real screen exists; the
+                    // ones with no screen behind them yet still do nothing.
+                    const module = RESELLER_HERO_MODULES[cta];
+                    if (module) return openModule(module);
+                    if (RESELLER_HERO_MARKETPLACE.has(cta)) void navigate({ to: "/" });
+                  }}
+                />
               ) : role === "vendor" ? (
                 <VendorSliderHero role={cfg} onCta={() => openModule(cfg.modules[0]?.key ?? null)} />
               ) : role === "author" ? (

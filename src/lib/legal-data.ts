@@ -107,6 +107,15 @@ export function useTrademarkAssets() {
   });
 }
 
+/**
+ * Misuse alerts, newest first.
+ *
+ * Like the audit trail below, this ordered by a column the table does not
+ * have: legal_misuse_alerts has no detected_at - an alert is detected when it
+ * is created - so every request came back 400 and the Trademark Monitor never
+ * loaded. It orders by created_at, and carries that out as detected_at, which
+ * is the name the screens read.
+ */
 export function useMisuseAlerts() {
   return useQuery({
     queryKey: ["legal_misuse_alerts"],
@@ -114,9 +123,9 @@ export function useMisuseAlerts() {
       const { data, error } = await supabase
         .from("legal_misuse_alerts")
         .select("*")
-        .order("detected_at", { ascending: false });
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []).map((row) => ({ ...row, detected_at: row.created_at }));
     },
   });
 }
