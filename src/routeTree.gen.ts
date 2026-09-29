@@ -269,6 +269,7 @@ import { Route as ApiAnalyticsProductsRouteImport } from './routes/api/analytics
 import { Route as ApiAuthorEarningsRouteImport } from './routes/api/author/earnings'
 import { Route as ApiAuthorProductsRouteImport } from './routes/api/author/products'
 import { Route as ApiDemoAssignRouteImport } from './routes/api/demo/assign'
+import { Route as ApiDemoOpsRouteImport } from './routes/api/demo/ops'
 import { Route as ApiDemoProcessRouteImport } from './routes/api/demo/process'
 import { Route as ApiDemoTicketRouteImport } from './routes/api/demo/ticket'
 import { Route as ApiFinanceResellerMembershipRouteImport } from './routes/api/finance/reseller-membership'
@@ -1680,6 +1681,11 @@ const ApiDemoAssignRoute = ApiDemoAssignRouteImport.update({
   path: '/api/demo/assign',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDemoOpsRoute = ApiDemoOpsRouteImport.update({
+  id: '/api/demo/ops',
+  path: '/api/demo/ops',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDemoProcessRoute = ApiDemoProcessRouteImport.update({
   id: '/api/demo/process',
   path: '/api/demo/process',
@@ -2379,6 +2385,7 @@ export interface FileRoutesByFullPath {
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
+  '/api/demo/ops': typeof ApiDemoOpsRoute
   '/api/demo/process': typeof ApiDemoProcessRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
@@ -2716,6 +2723,7 @@ export interface FileRoutesByTo {
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
+  '/api/demo/ops': typeof ApiDemoOpsRoute
   '/api/demo/process': typeof ApiDemoProcessRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
@@ -3064,6 +3072,7 @@ export interface FileRoutesById {
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
+  '/api/demo/ops': typeof ApiDemoOpsRoute
   '/api/demo/process': typeof ApiDemoProcessRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
@@ -3413,6 +3422,7 @@ export interface FileRouteTypes {
     | '/api/author/earnings'
     | '/api/author/products'
     | '/api/demo/assign'
+    | '/api/demo/ops'
     | '/api/demo/process'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
@@ -3750,6 +3760,7 @@ export interface FileRouteTypes {
     | '/api/author/earnings'
     | '/api/author/products'
     | '/api/demo/assign'
+    | '/api/demo/ops'
     | '/api/demo/process'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
@@ -4097,6 +4108,7 @@ export interface FileRouteTypes {
     | '/api/author/earnings'
     | '/api/author/products'
     | '/api/demo/assign'
+    | '/api/demo/ops'
     | '/api/demo/process'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
@@ -4285,6 +4297,7 @@ export interface RootRouteChildren {
   ApiAuthorEarningsRoute: typeof ApiAuthorEarningsRoute
   ApiAuthorProductsRoute: typeof ApiAuthorProductsRoute
   ApiDemoAssignRoute: typeof ApiDemoAssignRoute
+  ApiDemoOpsRoute: typeof ApiDemoOpsRoute
   ApiDemoProcessRoute: typeof ApiDemoProcessRoute
   ApiDemoTicketRoute: typeof ApiDemoTicketRoute
   ApiFinanceResellerMembershipRoute: typeof ApiFinanceResellerMembershipRoute
@@ -6180,6 +6193,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDemoAssignRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/demo/ops': {
+      id: '/api/demo/ops'
+      path: '/api/demo/ops'
+      fullPath: '/api/demo/ops'
+      preLoaderRoute: typeof ApiDemoOpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/demo/process': {
       id: '/api/demo/process'
       path: '/api/demo/process'
@@ -7350,6 +7370,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthorEarningsRoute: ApiAuthorEarningsRoute,
   ApiAuthorProductsRoute: ApiAuthorProductsRoute,
   ApiDemoAssignRoute: ApiDemoAssignRoute,
+  ApiDemoOpsRoute: ApiDemoOpsRoute,
   ApiDemoProcessRoute: ApiDemoProcessRoute,
   ApiDemoTicketRoute: ApiDemoTicketRoute,
   ApiFinanceResellerMembershipRoute: ApiFinanceResellerMembershipRoute,
