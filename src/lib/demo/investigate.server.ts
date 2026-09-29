@@ -306,12 +306,42 @@ export async function investigateOne(input: {
   const hint =
     evidence.jsonLdName ?? evidence.ogTitle ?? evidence.title ?? evidence.heading ?? null;
 
+  /**
+   * Another row already carrying this address on a product - not this one.
+   *
+   * The matcher answers ALREADY_ASSIGNED for any row holding the address,
+   * including the row being investigated, which made every investigation report
+   * that the address was already taken. So the "is it somebody else's" question
+   * is asked here, excluding self, and the matcher below is asked only the
+   * question it is needed for: does this name identify exactly one product.
+   */
+  const elsewhere = await store.get<Row[]>(
+    `product_demo_urls?select=id,product_id&url=eq.${encodeURIComponent(input.url)}` +
+      `&product_id=not.is.null&id=neq.${encodeURIComponent(input.demoUrlId)}&limit=1`,
+  );
+  if (elsewhere.length > 0) {
+    const result: Investigation = {
+      ...base,
+      state: "ALREADY_ASSIGNED",
+      reason: "another demo already carries this address on a product",
+      evidence,
+      productId: String(elsewhere[0].product_id),
+    };
+    if (input.commit) await record(input.demoUrlId, current, result, input.actor);
+    return result;
+  }
+
   const match = await store.rpc<{
     state: string;
     product_id?: string;
     reason?: string;
     candidates?: { id: string; name: string; slug: string }[];
-  }>("demo_match_product", { p_url: input.url, p_hint: hint });
+  }>("demo_match_product", {
+    // A sentinel address, so the matcher answers on the name alone and cannot
+    // find the very row being investigated.
+    p_url: "https://investigate.invalid/",
+    p_hint: hint,
+  });
 
   const candidates: Candidate[] = (match.candidates ?? []).map((c) => ({ ...c, source: "matcher" as const }));
 
