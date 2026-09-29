@@ -337,3 +337,159 @@ export async function resolveDemoAssignment(input: {
 
   return { ok: true, productId: String(product.id), productSlug: String(product.slug) };
 }
+
+/* ------------------------------------------------------------------ the file */
+
+/**
+ * Reading the owner's file.
+ *
+ * Twelve thousand addresses arrive as a spreadsheet export, and the column
+ * names will not be the ones this code would have chosen. So the header is
+ * matched against the names such a file actually uses - and where a column
+ * cannot be identified it is left alone rather than guessed at, because
+ * guessing which column holds the product is how a demo ends up on the wrong
+ * one.
+ *
+ * A file with no address column is refused with a schema error naming what was
+ * found, rather than imported as zero rows.
+ */
+const HEADER_ALIASES: Record<"url" | "productId" | "productSlug" | "productName", string[]> = {
+  url: ["url", "demo_url", "demourl", "link", "address", "website", "demo", "demo link"],
+  productId: ["product_id", "productid", "product id", "id", "uuid"],
+  productSlug: ["product_slug", "productslug", "product slug", "slug"],
+  productName: ["product_name", "productname", "product name", "product", "name", "title", "software"],
+};
+
+const headerKey = (value: string) => value.trim().toLowerCase().replace(/^\ufeff/, "");
+
+/** Splits a line on comma, tab or semicolon, honouring quoted fields. */
+function splitLine(line: string): string[] {
+  const out: string[] = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"' && line[i + 1] === '"') { field += '"'; i += 1; }
+      else if (ch === '"') quoted = false;
+      else field += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === "," || ch === "\t" || ch === ";") { out.push(field); field = ""; }
+    else field += ch;
+  }
+  out.push(field);
+  return out.map((f) => f.trim());
+}
+
+export type ParsedFile = {
+  columns: { url: number; productId: number; productSlug: number; productName: number };
+  detected: string[];
+  rows: { url: string; product?: string | null; name?: string | null; line: number }[];
+  invalid: { line: number; reason: string; sample: string }[];
+  duplicatesInFile: number;
+};
+
+export function parseIntakeFile(text: string): ParsedFile {
+  const lines = text.replace(/^\ufeff/, "").split(/\r?\n/).filter((l) => l.trim() !== "");
+  if (lines.length === 0) throw new Error("SCHEMA_ERROR: the file is empty.");
+
+  const header = splitLine(lines[0]).map(headerKey);
+  const find = (names: string[]) => header.findIndex((h) => names.includes(h));
+
+  const columns = {
+    url: find(HEADER_ALIASES.url),
+    productId: find(HEADER_ALIASES.productId),
+    productSlug: find(HEADER_ALIASES.productSlug),
+    productName: find(HEADER_ALIASES.productName),
+  };
+
+  // A file with no header at all, but one column of addresses, is still usable.
+  const headerless = columns.url === -1 && /^https?:\/\//i.test(lines[0].trim());
+  if (columns.url === -1 && !headerless) {
+    throw new Error(
+      `SCHEMA_ERROR: no address column. Found: ${header.join(", ") || "(no header)"}. ` +
+        `Name one of them ${HEADER_ALIASES.url.slice(0, 4).join(", ")}.`,
+    );
+  }
+
+  const body = headerless ? lines : lines.slice(1);
+  const offset = headerless ? 1 : 2;
+  const rows: ParsedFile["rows"] = [];
+  const invalid: ParsedFile["invalid"] = [];
+  const seen = new Set<string>();
+  let duplicatesInFile = 0;
+
+  body.forEach((line, index) => {
+    const cells = headerless ? [line.trim()] : splitLine(line);
+    const at = (i: number) => (i >= 0 && i < cells.length ? cells[i].trim() : "");
+    const url = normaliseDemoUrl(headerless ? cells[0] : at(columns.url));
+    if (!url) {
+      invalid.push({ line: index + offset, reason: "no address on this line", sample: line.slice(0, 80) });
+      return;
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      invalid.push({ line: index + offset, reason: "not an http address", sample: url.slice(0, 80) });
+      return;
+    }
+    if (seen.has(url)) { duplicatesInFile += 1; return; }
+    seen.add(url);
+
+    // The product column that is filled wins, in the order the brief sets.
+    const product = at(columns.productId) || at(columns.productSlug) || null;
+    const name = at(columns.productName) || null;
+    rows.push({ url, product, name, line: index + offset });
+  });
+
+  const detected = (Object.keys(columns) as (keyof typeof columns)[])
+    .filter((k) => columns[k] >= 0)
+    .map((k) => `${k}=${header[columns[k]]}`);
+
+  return { columns, detected: headerless ? ["url=(no header, one address per line)"] : detected, rows, invalid, duplicatesInFile };
+}
+
+/**
+ * What the file would do, without doing it.
+ *
+ * Every row is decided by the same matcher a commit uses, so the counts are the
+ * outcome and not an estimate - which matters most for the rows that would NOT
+ * be assigned, since those are the ones a careless import guesses at.
+ */
+export async function previewIntakeFile(text: string): Promise<{
+  detected: string[];
+  counts: Record<string, number>;
+  invalid: ParsedFile["invalid"];
+  sample: RowResult[];
+}> {
+  const parsed = parseIntakeFile(text);
+  const report = await assignDemoUrls({
+    rows: parsed.rows.map(({ url, product, name }) => ({ url, product, name })),
+    commit: false,
+    actor: { id: null, email: null },
+  });
+
+  const counts: Record<string, number> = {
+    TOTAL: parsed.rows.length + parsed.invalid.length + parsed.duplicatesInFile,
+    VALID: parsed.rows.length,
+    INVALID: parsed.invalid.length,
+    DUPLICATE: parsed.duplicatesInFile,
+    ALREADY_ASSIGNED: report.totals.ALREADY_ASSIGNED,
+    EXPLICIT_PRODUCT_MATCH: 0,
+    EXACT_NAME_MATCH: 0,
+    INVESTIGATION_REQUIRED: 0,
+    AMBIGUOUS: report.totals.AMBIGUOUS,
+    UNMATCHED: report.totals.UNMATCHED,
+    ERROR: report.totals.ERROR,
+  };
+
+  // An assignment is explicit when the file named the product, and a name match
+  // otherwise. Counted from each row's own reason, not assumed from the totals.
+  for (const row of report.rows) {
+    if (row.state !== "ASSIGNED") continue;
+    if (/named in the request/i.test(row.reason)) counts.EXPLICIT_PRODUCT_MATCH += 1;
+    else counts.EXACT_NAME_MATCH += 1;
+  }
+  // Anything unplaced is what the page-reading step exists for.
+  counts.INVESTIGATION_REQUIRED = counts.AMBIGUOUS + counts.UNMATCHED;
+
+  return { detected: parsed.detected, counts, invalid: parsed.invalid.slice(0, 20), sample: report.rows.slice(0, 20) };
+}

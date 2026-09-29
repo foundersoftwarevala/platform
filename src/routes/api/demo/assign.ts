@@ -1,6 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { assignDemoUrls, resolveDemoAssignment, type AssignReport } from "@/lib/demo/assign.server";
+import {
+  assignDemoUrls,
+  previewIntakeFile,
+  resolveDemoAssignment,
+  type AssignReport,
+} from "@/lib/demo/assign.server";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import type { Actor } from "@/lib/demo/process.server";
 
@@ -64,6 +69,27 @@ export const Route = createFileRoute("/api/demo/assign")({
          * The only path that assigns an AMBIGUOUS or UNMATCHED row, and it
          * records whose decision it was.
          */
+        /**
+         * The owner's file, read and decided without being written.
+         *
+         * Header names are detected from what such an export actually uses, and
+         * a file with no address column is refused with a schema error naming
+         * what was found - never imported as zero rows.
+         */
+        if (action === "parse" || action === "file-preview") {
+          const text = typeof body.text === "string" ? body.text : "";
+          if (!text.trim()) return refuse("Send the file contents as `text`.");
+          if (text.length > 4_000_000) {
+            return refuse("That file is larger than 4 MB; split it into parts.");
+          }
+          try {
+            return Response.json(await previewIntakeFile(text));
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return Response.json({ error: message }, { status: message.startsWith("SCHEMA_ERROR") ? 422 : 502 });
+          }
+        }
+
         if (action === "resolve") {
           const demoUrlId = String(body.demoUrlId ?? "").trim();
           const product = String(body.product ?? "").trim();
