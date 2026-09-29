@@ -78,47 +78,49 @@ step "5/6 Swapping the build in and restarting"
 cp -a "$BUILD/.output" "$LIVE/.output.new-$STAMP" || fail "could not copy the new build"
 mv "$LIVE/.output" "$LIVE/.output.prev-$STAMP"       || fail "could not set the old build aside"
 mv "$LIVE/.output.new-$STAMP" "$LIVE/.output"        || fail "could not move the new build in"
-# The restart is mandatory: a running process keeps the previous build's module
-# graph and will fail on files that no longer exist.
-pm2 restart "$APP" --update-env >/dev/null 2>&1
-sleep 8
+# ---------------------------------------------------------------------------
+# Stop it, wait for the port, then start it. Not "restart".
+#
+# On 2026-09-29 five copies of the app were found running at once, one from each
+# of five deploys. The oldest held port 3000, so every later build was staged,
+# verified on a spare port, swapped in, restarted - and never answered a single
+# request. Each deploy reported LIVE OK, because the homepage it fetched came
+# from a process hours old.
+#
+# The cause is that this app closes its HTTP server on the signal and says
+# "Server closed successfully" but does not exit, so pm2 starts the replacement
+# while the old process is still holding the socket. The replacement cannot
+# bind, pm2 reports it "online" all the same, and nothing notices.
+#
+# So the old process is stopped and the port is waited for - escalating to
+# SIGKILL if it will not go - before the new one is started. A few seconds of
+# downtime per deploy is the price of the deploy actually happening.
+# ---------------------------------------------------------------------------
+ENTRY="node $LIVE/.output/server/index.mjs"
 
-# ---------------------------------------------------------------------------
-# The deploy that did not deploy.
-#
-# On 2026-09-29 five copies of the app were found running at once, started by
-# five separate deploys. The oldest held port 3000, so every later build was
-# built, swapped in, restarted and verified - and never served a single
-# request. Each deploy reported LIVE OK, because the homepage it fetched was
-# being answered by a process seventeen days old.
-#
-# pm2 says "online" about a process that failed to take the port, so the only
-# honest check is to ask the port who is holding it. Anything running this
-# entry point that is not the process pm2 just started is a leftover and is
-# stopped; then the holder of the port must be pm2's own process, or this is
-# not a deployment and is rolled back.
-# ---------------------------------------------------------------------------
+pm2 stop "$APP" >/dev/null 2>&1
+for pid in $(pgrep -f "$ENTRY" 2>/dev/null); do kill "$pid" 2>/dev/null; done
+
+freed=0
+for i in $(seq 1 20); do
+  sleep 1
+  if ! ss -ltn 2>/dev/null | grep -q ':3000 '; then freed=1; break; fi
+  # Halfway through, stop asking and insist.
+  if [ "$i" = "10" ]; then
+    for pid in $(pgrep -f "$ENTRY" 2>/dev/null); do
+      echo "  a copy would not stop; forcing $pid"
+      kill -9 "$pid" 2>/dev/null
+    done
+  fi
+done
+[ "$freed" = "1" ] || fail "port 3000 is still held after twenty seconds; the new build was NOT started"
+echo "  port 3000 is free, copies left: $(pgrep -fc "$ENTRY" 2>/dev/null || echo 0)"
+
+pm2 start "$APP" --update-env >/dev/null 2>&1
+sleep 10
 PM2_PID="$(pm2 pid "$APP" 2>/dev/null | tr -d '[:space:]')"
-for stray in $(pgrep -f "node $LIVE/.output/server/index.mjs" 2>/dev/null); do
-  [ "$stray" = "$PM2_PID" ] && continue
-  echo "  stopping a leftover app process: $stray"
-  kill "$stray" 2>/dev/null
-done
-sleep 3
-for stray in $(pgrep -f "node $LIVE/.output/server/index.mjs" 2>/dev/null); do
-  [ "$stray" = "$PM2_PID" ] && continue
-  kill -9 "$stray" 2>/dev/null
-done
-
-# If the leftovers were holding the port, pm2's process never bound it.
-if [ -z "$PM2_PID" ] || ! ss -ltnp 2>/dev/null | grep -q ":3000 .*pid=$PM2_PID,"; then
-  echo "  the port was not held by pm2's process; restarting it alone"
-  pm2 restart "$APP" --update-env >/dev/null 2>&1
-  sleep 10
-  PM2_PID="$(pm2 pid "$APP" 2>/dev/null | tr -d '[:space:]')"
-fi
 holder="$(ss -ltnp 2>/dev/null | grep ':3000 ' | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2)"
-echo "  port 3000 is held by $holder, pm2 runs $PM2_PID, copies running: $(pgrep -fc "node $LIVE/.output/server/index.mjs" 2>/dev/null)"
+echo "  port 3000 is held by ${holder:-nobody}, pm2 runs ${PM2_PID:-nothing}, copies running: $(pgrep -fc "$ENTRY" 2>/dev/null || echo 0)"
 
 step "6/6 Verifying the live site"
 code=$(curl -s -o /tmp/sv-live.html -w '%{http_code}' -m 25 "http://127.0.0.1:3000/")
