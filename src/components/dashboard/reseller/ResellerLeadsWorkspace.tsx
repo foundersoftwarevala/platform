@@ -91,7 +91,7 @@ export function ResellerLeadsWorkspace({ onBack }: { onBack: () => void }) {
         <>
           <div className="relative max-w-sm">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search leads…"
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search leads…" aria-label="Search leads"
               className="w-full rounded-lg bg-surface border border-border pl-8 pr-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring" />
           </div>
 
@@ -211,7 +211,7 @@ function LeadDetail({
           className="rounded-lg bg-surface border border-border px-2 py-2 text-xs">
           {STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
         </select>
-        <button onClick={onDelete} title="Delete lead" className="grid h-9 w-9 place-items-center rounded-lg bg-surface hover:bg-danger/15 hover:text-danger border border-border">
+        <button onClick={onDelete} title="Delete lead" aria-label="Delete lead" className="grid h-9 w-9 place-items-center rounded-lg bg-surface hover:bg-danger/15 hover:text-danger border border-border">
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
@@ -342,8 +342,8 @@ function QuoteTab({ rec, onPatch }: { rec: CrudRecord; onPatch: (p: Partial<Crud
         <button onClick={add} className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">Add quote</button>
       </div>
       {quotes.length === 0 ? <Empty icon={ClipboardList} text="No quotes yet." /> : (
-        <div className="rounded-xl border border-border overflow-hidden">
-          <table className="w-full text-xs">
+        <div className="rounded-xl border border-border overflow-x-auto scrollbar-thin">
+          <table className="w-full min-w-[420px] text-xs">
             <thead className="bg-surface text-muted-foreground"><tr><th className="text-left p-2">Product</th><th className="text-left p-2">Date</th><th className="text-right p-2">Amount</th><th className="text-left p-2">Status</th></tr></thead>
             <tbody>
               {quotes.map((q) => (

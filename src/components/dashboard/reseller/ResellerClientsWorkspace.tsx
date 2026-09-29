@@ -59,6 +59,7 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search clients…"
+                aria-label="Search clients"
                 className="w-full rounded-lg bg-surface border border-border pl-8 pr-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
@@ -212,7 +213,7 @@ function ClientDetail({
             {record.extra.location && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{String(record.extra.location)}</span>}
           </div>
         </div>
-        <button onClick={onDelete} title="Delete client" className="grid h-9 w-9 place-items-center rounded-lg bg-surface hover:bg-danger/15 hover:text-danger border border-border transition">
+        <button onClick={onDelete} title="Delete client" aria-label="Delete client" className="grid h-9 w-9 place-items-center rounded-lg bg-surface hover:bg-danger/15 hover:text-danger border border-border transition">
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
@@ -331,8 +332,8 @@ function PurchasesTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Pa
       {purchases.length === 0 ? (
         <Empty icon={ShoppingCart} text="No purchases yet" />
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden">
-          <table className="w-full text-xs">
+        <div className="rounded-xl border border-border overflow-x-auto scrollbar-thin">
+          <table className="w-full min-w-[420px] text-xs">
             <thead className="bg-surface text-muted-foreground">
               <tr><th className="text-left p-2">Product</th><th className="text-left p-2">Date</th><th className="text-right p-2">Amount</th><th className="text-left p-2">Status</th></tr>
             </thead>
@@ -356,8 +357,8 @@ function PurchasesTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Pa
 function LicensesTab({ licenses }: { licenses: CrudRecord[] }) {
   if (licenses.length === 0) return <Empty icon={FileBadge} text="No licenses linked to this client. Go to Licenses to issue one." />;
   return (
-    <div className="rounded-xl border border-border overflow-hidden">
-      <table className="w-full text-xs">
+    <div className="rounded-xl border border-border overflow-x-auto scrollbar-thin">
+      <table className="w-full min-w-[420px] text-xs">
         <thead className="bg-surface text-muted-foreground">
           <tr><th className="text-left p-2">Product</th><th className="text-left p-2">Key</th><th className="text-left p-2">Status</th><th className="text-left p-2">Expires</th></tr>
         </thead>
