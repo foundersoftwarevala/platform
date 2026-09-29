@@ -1,23 +1,26 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart3, Lock, TrendingUp, Eye } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useResource } from "@/lib/manager/use-resource";
 
+/**
+ * Demo activity, counted on the VPS.
+ *
+ * This read demo_url_audit_log through the browser Supabase client, which is
+ * built against the hosted project - a different log, 5,947 rows there against
+ * 6,536 on the VPS, so the figures described neither system accurately.
+ *
+ * It also counted by pulling 500 rows over and filtering them in the browser,
+ * which stops being a count the moment the log passes 500 - it had already
+ * passed it more than twelve times over. Both totals come from the endpoint's
+ * own count now, so they stay right however large the log grows.
+ */
 const ProductAnalytics = () => {
-  const { data: audit = [], isLoading } = useQuery({
-    queryKey: ["demo-analytics-audit"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("demo_url_audit_log")
-        .select("action, created_at")
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-  const checks = audit.filter((entry) => entry.action === "demo_url.test").length;
+  const all = useResource("demo_audit", { limit: 1 });
+  const tests = useResource("demo_audit", { limit: 1, filters: ["action.eq.demo_url.test"] });
+  const isLoading = all.loading || tests.loading;
+  const audit = { length: all.total };
+  const checks = tests.total;
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">

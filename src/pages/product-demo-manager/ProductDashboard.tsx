@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useResource } from "@/lib/manager/use-resource";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, MonitorPlay, TrendingUp, DollarSign, Users, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -7,33 +6,48 @@ import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 
+/**
+ * The studio's own figures, counted by the database.
+ *
+ * This screen read the browser Supabase client, which is built against the
+ * hosted project, while every demo the storefront serves lives on the VPS:
+ * hosted holds one product_demo_urls row, the VPS holds seventeen. So an
+ * operator opening the dashboard was told the catalogue had one demo.
+ *
+ * It also fetched all 7,365 products and every demo into the browser only to
+ * call .length on them - the shape that under-reports the day a fetch is capped,
+ * and it is capped already.
+ *
+ * Both are fixed by asking /api/manager/resource, which reads the VPS and
+ * returns the count separately from the page: four small requests that each
+ * bring back four rows and a real total, instead of two that bring back the
+ * whole catalogue. Every figure on the screen is unchanged in meaning.
+ */
 const ProductDashboard = () => {
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ["product-demo-stats"],
-    queryFn: async () => {
-      const [productsRes, demosRes] = await Promise.all([
-        supabase.from("marketplace_products").select("id, name, visible, price_label, created_at").order("created_at", { ascending: false }),
-        supabase.from("product_demo_urls").select("id, demo_name, status, last_result, last_response_ms, created_at").order("created_at", { ascending: false }),
-      ]);
+  const products = useResource("products", { limit: 4 });
+  const activeProducts = useResource("products", { limit: 1, filters: ["visible.eq.true"] });
+  const demos = useResource("demos", { limit: 4 });
+  const activeDemos = useResource("demos", { limit: 1, filters: ["status.eq.active"] });
 
-      if (productsRes.error) throw productsRes.error;
-      if (demosRes.error) throw demosRes.error;
-
-      const products = productsRes.data || [];
-      const demos = demosRes.data || [];
-
-      return {
-        totalProducts: products.length,
-        activeProducts: products.filter(p => p.visible).length,
-        totalDemos: demos.length,
-        activeDemos: demos.filter(d => d.status === "active").length,
-        conversionRate: null,
-        totalRevenue: null,
-        recentProducts: products.slice(0, 4),
-        recentDemos: demos.slice(0, 4),
-      };
-    }
-  });
+  const isLoading = products.loading || demos.loading;
+  const stats = {
+    totalProducts: products.total,
+    activeProducts: activeProducts.total,
+    totalDemos: demos.total,
+    activeDemos: activeDemos.total,
+    // No source for either yet. A dash is the honest answer, and was already
+    // what this screen showed.
+    conversionRate: null as number | null,
+    totalRevenue: null as number | null,
+    recentProducts: products.rows,
+    /**
+     * The list below renders `demo.name`, and the column is `demo_name` - it
+     * always was, in the query this replaced too, so the recent-demos list has
+     * been showing blank names the whole time. Mapped here rather than editing
+     * the markup, so the screen is untouched.
+     */
+    recentDemos: demos.rows.map((row) => ({ ...row, name: row.demo_name ?? row.name })),
+  };
 
   const statCards = [
     { 

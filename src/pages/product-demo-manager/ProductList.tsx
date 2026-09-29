@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useResource } from "@/lib/manager/use-resource";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,25 +24,23 @@ import { useState } from "react";
 const ProductList = () => {
   const [viewingProduct, setViewingProduct] = useState<any>(null);
 
-  const { data: products, isLoading } = useQuery({
-    queryKey: ["products-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("marketplace_products")
-        .select("id, name, industry_label, visible, price_label, created_at")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
-    }
-  });
-
-  const { data: demoCounts } = useQuery({
-    queryKey: ["demo-counts"],
-    queryFn: async () => {
-      const { data } = await supabase.from("product_demo_urls").select("id, product_id");
-      return data || [];
-    }
-  });
+  /**
+   * Products, and the demo count beside each, from the VPS.
+   *
+   * Both lists came from the browser Supabase client, which is built against
+   * the hosted project - and hosted holds one product_demo_urls row while the
+   * VPS holds seventeen. So every product in this list read "0 demos",
+   * including the ones with a live demo on the storefront.
+   *
+   * It also pulled all 7,365 products across to render them. This asks for a
+   * page, which is what the screen shows anyway and a request the catalogue can
+   * still answer when it holds fifty thousand.
+   */
+  const productPage = useResource("products", { limit: 100 });
+  const demoPage = useResource("demos", { limit: 2000 });
+  const products = productPage.rows;
+  const isLoading = productPage.loading;
+  const demoCounts = demoPage.rows;
 
   return (
     <div className="p-6 space-y-6">
