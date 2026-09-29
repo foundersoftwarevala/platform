@@ -13,6 +13,7 @@ import {
   Bell,
   Bot,
   CalendarClock,
+  Inbox,
   Camera,
   FileStack,
   Gauge,
@@ -25,6 +26,7 @@ import {
   LineChart,
   DatabaseBackup,
 } from "lucide-react";
+import { OpsReviewQueue } from "./OpsReviewQueue";
 import { OpsDetectionPanel, OpsHealthMonitor, OpsKpiGrid } from "./OpsHealthPanels";
 import { OpsBrandingPanel, OpsDomainPanel } from "./OpsBrandingDomainPanels";
 import { OpsBackupPanel, OpsLifecyclePanel } from "./OpsLifecyclePanels";
@@ -45,6 +47,9 @@ import {
 
 const SECTIONS = [
   { id: "overview", label: "Overview & KPIs", icon: Gauge },
+  // Addresses taken in that the matcher would not place. Until this existed
+  // nothing could give them a product, so they would have waited for ever.
+  { id: "review", label: "Review Queue", icon: Inbox },
   { id: "health", label: "Health Monitor", icon: Heart },
   { id: "detection", label: "Failure Detection", icon: ShieldAlert },
   { id: "branding", label: "Branding Engine", icon: Palette },
@@ -77,6 +82,8 @@ const DemoOpsCenter = () => {
             <OpsHealthMonitor />
           </div>
         );
+      case "review":
+        return <OpsReviewQueue />;
       case "health":
         return <OpsHealthMonitor />;
       case "detection":

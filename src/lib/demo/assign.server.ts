@@ -77,6 +77,19 @@ function db() {
       if (!r.ok) throw new Error(`${fn} failed (${r.status}): ${(await r.text()).slice(0, 180)}`);
       return (await r.json()) as T;
     },
+    async get<T = Row[]>(path: string): Promise<T> {
+      const r = await fetch(`${url}/rest/v1/${path}`, { headers });
+      if (!r.ok) throw new Error(`read failed (${r.status})`);
+      return (await r.json()) as T;
+    },
+    async patch(path: string, body: Row): Promise<void> {
+      const r = await fetch(`${url}/rest/v1/${path}`, {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(`update failed (${r.status}): ${(await r.text()).slice(0, 160)}`);
+    },
     async post<T>(path: string, body: Row): Promise<T> {
       const r = await fetch(`${url}/rest/v1/${path}`, {
         method: "POST",
@@ -236,4 +249,91 @@ export async function assignDemoUrls(input: AssignInput): Promise<AssignReport> 
   }
 
   return { committed: input.commit, totals, rows, batchId };
+}
+
+/**
+ * An operator choosing the product for a row the matcher would not place.
+ *
+ * This is the other half of the intake: AMBIGUOUS and UNMATCHED rows sit in
+ * product_demo_urls with product_id null, and nothing could ever give them one.
+ * Now an operator can, and the decision is recorded as theirs - the row keeps the
+ * machine's original reason and candidates alongside who overruled it and when,
+ * so a mapping can always be explained.
+ *
+ * It refuses rather than guesses: a product that is not on sale, a product that
+ * already carries this address, or a row that has been assigned since the
+ * operator last looked.
+ */
+export async function resolveDemoAssignment(input: {
+  demoUrlId: string;
+  product: string;
+  actor: Actor;
+}): Promise<{ ok: true; productId: string; productSlug: string } | { ok: false; reason: string }> {
+  const store = db();
+
+  const [row] = await store.get<Row[]>(
+    `product_demo_urls?select=id,url,product_id,processing&id=eq.${encodeURIComponent(input.demoUrlId)}&limit=1`,
+  );
+  if (!row) return { ok: false, reason: "That demo is no longer there." };
+  if (row.product_id) {
+    return {
+      ok: false,
+      reason: "This demo already has a product. Existing mappings are not overwritten here.",
+    };
+  }
+
+  const wanted = String(input.product).trim();
+  const [product] = await store.get<Row[]>(
+    `marketplace_products?select=id,name,slug,visible,moderation_status&` +
+      (/^[0-9a-f-]{36}$/i.test(wanted)
+        ? `id=eq.${encodeURIComponent(wanted)}`
+        : `slug=eq.${encodeURIComponent(wanted)}`) +
+      `&limit=1`,
+  );
+  if (!product) return { ok: false, reason: `No product matches "${wanted}".` };
+  if (product.visible !== true || String(product.moderation_status) !== "approved") {
+    return { ok: false, reason: `"${String(product.name)}" is not on sale, so a demo cannot hang on it.` };
+  }
+
+  // The same address must not end up on the same product twice.
+  const clash = await store.get<Row[]>(
+    `product_demo_urls?select=id&product_id=eq.${encodeURIComponent(String(product.id))}` +
+      `&url=eq.${encodeURIComponent(String(row.url))}&limit=1`,
+  );
+  if (clash.length > 0) {
+    return { ok: false, reason: `"${String(product.name)}" already carries this address.` };
+  }
+
+  const previous = (row.processing ?? {}) as Record<string, unknown>;
+  const assignment = (previous.assignment ?? {}) as Record<string, unknown>;
+
+  await store.patch(`product_demo_urls?id=eq.${encodeURIComponent(input.demoUrlId)}`, {
+    product_id: product.id,
+    processing: {
+      ...previous,
+      assignment: {
+        ...assignment,
+        // The machine's reasoning is kept, not replaced.
+        state: "ASSIGNED",
+        resolved_by_operator: input.actor.email ?? input.actor.id ?? "unknown",
+        resolved_at: new Date().toISOString(),
+        resolved_to: { id: product.id, slug: product.slug },
+        previous_state: assignment.state ?? null,
+      },
+    },
+  });
+
+  await store.post("demo_url_audit_log", {
+    demo_url_id: input.demoUrlId,
+    action: "demo_url.assignment.resolved",
+    actor_id: input.actor.id,
+    actor_email: input.actor.email,
+    metadata: {
+      product_id: product.id,
+      product_slug: product.slug,
+      from_state: assignment.state ?? null,
+    },
+  });
+
+  return { ok: true, productId: String(product.id), productSlug: String(product.slug) };
 }

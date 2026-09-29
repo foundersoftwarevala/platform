@@ -32,14 +32,74 @@ const rows = async <T,>(promise: PromiseLike<{ data: T[] | null; error: unknown 
   return data ?? [];
 };
 
-export const useOpsDemos = () =>
-  useQuery({
-    queryKey: [OPS, "demos"],
-    queryFn: () =>
-      rows<DemoRow>(
-        supabase.from("demos").select("*").order("updated_at", { ascending: false }).limit(500) as never,
-      ),
+/**
+ * The operations centre's overview, from the tables that hold the demos.
+ *
+ * Every panel here read `demos`, which has 0 rows, while seventeen demos run in
+ * product_demo_urls with two thousand monitor checks behind them - so the whole
+ * Demo Operations Center showed nothing and looked like a quiet estate.
+ *
+ * mm_demo_ops counts it in SQL and returns the rows, the buckets an operator
+ * works through, the ones still waiting for a product, and the live demos whose
+ * category does not match their product.
+ */
+export type OpsReviewRow = {
+  id: string;
+  title: string;
+  url: string;
+  state: string;
+  reason: string | null;
+  candidates: { id: string; name: string; slug: string }[] | null;
+  batch_id: string | null;
+  created_at: string;
+};
+
+export type OpsMismatch = {
+  id: string;
+  title: string;
+  url: string;
+  product_name: string | null;
+  product_slug: string | null;
+  detected_category: string | null;
+  product_category: string | null;
+  status: string;
+};
+
+export type OpsOverview = {
+  demos: DemoRow[];
+  buckets: Record<string, number>;
+  review: OpsReviewRow[];
+  category_mismatches: OpsMismatch[];
+  window_days: number;
+  generated_at: string;
+};
+
+const EMPTY_OVERVIEW: OpsOverview = {
+  demos: [],
+  buckets: {},
+  review: [],
+  category_mismatches: [],
+  window_days: 30,
+  generated_at: "",
+};
+
+export const useOpsOverview = () =>
+  useQuery<OpsOverview>({
+    queryKey: [OPS, "overview"],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as never as {
+        rpc: (fn: string, args: unknown) => Promise<{ data: unknown; error: { message: string } | null }>;
+      }).rpc("mm_demo_ops", { p_days: 30 });
+      if (error) throw new Error(error.message);
+      return { ...EMPTY_OVERVIEW, ...((data ?? {}) as Partial<OpsOverview>) };
+    },
   });
+
+export const useOpsDemos = () => {
+  const overview = useOpsOverview();
+  return { ...overview, data: overview.data?.demos ?? [] };
+};
 
 export const useOpsValidationLogs = () =>
   useQuery({

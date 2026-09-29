@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { assignDemoUrls, type AssignReport } from "@/lib/demo/assign.server";
+import { assignDemoUrls, resolveDemoAssignment, type AssignReport } from "@/lib/demo/assign.server";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import type { Actor } from "@/lib/demo/process.server";
 
@@ -58,8 +58,29 @@ export const Route = createFileRoute("/api/demo/assign")({
         }
 
         const action = String(body.action ?? "preview");
+
+        /**
+         * An operator giving a product to a row the matcher would not place.
+         * The only path that assigns an AMBIGUOUS or UNMATCHED row, and it
+         * records whose decision it was.
+         */
+        if (action === "resolve") {
+          const demoUrlId = String(body.demoUrlId ?? "").trim();
+          const product = String(body.product ?? "").trim();
+          if (!/^[0-9a-f-]{36}$/i.test(demoUrlId)) return refuse("A demo id is required.");
+          if (!product) return refuse("Choose the product this demo belongs to.");
+          const outcome = await resolveDemoAssignment({
+            demoUrlId,
+            product,
+            actor: await actorOf(request),
+          });
+          return outcome.ok
+            ? Response.json(outcome)
+            : Response.json({ error: outcome.reason }, { status: 409 });
+        }
+
         if (action !== "preview" && action !== "commit") {
-          return refuse('action must be "preview" or "commit".');
+          return refuse('action must be "preview", "commit" or "resolve".');
         }
 
         const raw = Array.isArray(body.rows) ? body.rows : null;
