@@ -1,4 +1,5 @@
 import { safeFetch, UnsafeUrlError } from "./safe-fetch.server";
+import { demoStore } from "./rest.server";
 import type { Actor } from "./process.server";
 
 /**
@@ -501,6 +502,30 @@ export async function investigateBatch(input: {
     return false;
   });
 
+  /**
+   * How many are really left, asked of the database rather than of the window.
+   *
+   * The rows above are read in a window of four times the limit, so counting
+   * what is left from that window would say "nine remaining" when nine thousand
+   * remain - and an operator deciding whether to run it again would be deciding
+   * on a number that is only an artefact of the page size. The database is asked
+   * instead, with the same conditions, and the rows about to be done are
+   * subtracted.
+   */
+  const counter = demoStore();
+  const scopeParams = input.batchId
+    ? `&processing->assignment->>batch_id=eq.${encodeURIComponent(input.batchId)}`
+    : "";
+  let dueTotal = await counter.count(
+    `product_demo_urls?product_id=is.null${scopeParams}&processing->investigation=is.null`,
+  );
+  if (input.retryFailed) {
+    dueTotal += await counter.count(
+      `product_demo_urls?product_id=is.null${scopeParams}` +
+        `&processing->investigation->>state=in.(FETCH_FAILED,ERROR)`,
+    );
+  }
+
   const work = due.slice(0, limit);
   const rows: Investigation[] = [];
   const totals: Record<string, number> = {};
@@ -543,7 +568,7 @@ export async function investigateBatch(input: {
     committed: input.commit,
     totals,
     rows,
-    remainingPending: Math.max(due.length - work.length, 0),
+    remainingPending: Math.max(dueTotal - work.length, 0),
     batchId: input.batchId ?? null,
   };
 }

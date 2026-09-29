@@ -251,6 +251,57 @@ let bigBatchId = null;
   step("the address already on a product keeps it", stillOn === takenProduct, stillOn.slice(0, 8));
 }
 
+/* -------------------------------------------- two commits of the same batch */
+{
+  const urls = Array.from({ length: 6 }, (_, i) => host(`race-${i}`));
+  const preview = await assign({ action: "file-preview", text: fileOf(urls), filename: "race.csv" });
+
+  // Both sent before either can answer, which is what a double-click does.
+  const [a, b] = await Promise.all([
+    assign({ action: "commit", batchId: preview.body.batchId, rows: preview.body.rows }),
+    assign({ action: "commit", batchId: preview.body.batchId, rows: preview.body.rows }),
+  ]);
+  const winners = [a, b].filter((r) => r.status === 200);
+  const refused = [a, b].filter((r) => r.status === 409);
+  step(
+    "only one of two simultaneous commits proceeds",
+    winners.length === 1 && refused.length === 1,
+    `${a.status}/${a.body?.error ?? a.body?.status} and ${b.status}/${b.body?.error ?? b.body?.status}`,
+  );
+  step(
+    "the other is told the batch is already being committed",
+    refused[0]?.body?.error === "BATCH_IN_PROGRESS" || refused[0]?.body?.error === "BATCH_ALREADY_COMMITTED",
+    String(refused[0]?.body?.error),
+  );
+  const raceRows = sql(
+    `select count(*) from product_demo_urls where processing->'assignment'->>'batch_id' = '${preview.body.batchId}'`,
+  );
+  step("six addresses were taken in once each", raceRows === "6", `rows=${raceRows}`);
+
+  /* ------------------------------------ a commit that died, run again, finishes */
+  // The state a crash leaves: the batch claimed, some of its rows written.
+  run(
+    `delete from product_demo_urls where url in ('${host("race-0").replace(/\/$/, "")}','${host("race-1").replace(/\/$/, "")}')`,
+  );
+  run(
+    `update demo_intake_batches set status='PROCESSING', claimed_at = now() - interval '30 minutes', committed_at = null where id = '${preview.body.batchId}'`,
+  );
+  const resumed = await assign({ action: "commit", batchId: preview.body.batchId, rows: preview.body.rows });
+  const afterResume = sql(
+    `select count(*) from product_demo_urls where processing->'assignment'->>'batch_id' = '${preview.body.batchId}'`,
+  );
+  step(
+    "an interrupted commit can be run again and finishes",
+    resumed.status === 200 && afterResume === "6",
+    `status=${resumed.body?.status} rows=${afterResume}`,
+  );
+  step(
+    "the addresses it had already taken in are not taken in twice",
+    resumed.body?.totals?.DUPLICATE === 4 && resumed.body?.totals?.ERROR === 0,
+    `duplicate=${resumed.body?.totals?.DUPLICATE} error=${resumed.body?.totals?.ERROR}`,
+  );
+}
+
 /* ----------------------------------------- investigating one batch, resumably */
 {
   const first = await call("/api/demo/investigate", {
@@ -263,6 +314,16 @@ let bigBatchId = null;
     "an investigation can be scoped to one batch",
     first.status === 200 && first.body.rows.length === 3,
     `rows=${first.body?.rows?.length} remaining=${first.body?.remainingPending}`,
+  );
+  /**
+   * The figure an operator decides on. It has to be how many of the batch are
+   * really left, not how many were left in the page of rows that was read - a
+   * window of four times the limit would have said nine.
+   */
+  step(
+    "what is left is counted from the batch, not from the page read",
+    first.body?.remainingPending === 497,
+    `remaining=${first.body?.remainingPending} of 500`,
   );
   step(
     "it only touched this batch's addresses",
@@ -324,7 +385,7 @@ let bigBatchId = null;
 {
   const history = await assign({ action: "batches", limit: 50 });
   const mine = (history.body?.batches ?? []).filter((b) =>
-    ["one.csv", "200.csv", "500.csv", "dup.csv", "dup2.csv", "mixed.csv", "stale.csv"].includes(b.source_filename),
+    ["one.csv", "200.csv", "500.csv", "dup.csv", "dup2.csv", "mixed.csv", "stale.csv", "race.csv"].includes(b.source_filename),
   );
   step("every batch is in the history", mine.length >= 6, `batches=${mine.length}`);
 
@@ -354,7 +415,7 @@ run(
 );
 run(`delete from product_demo_urls where url like '%sv-batch-${STAMP}-%'`);
 run(
-  `delete from demo_intake_batches where source_filename in ('one.csv','200.csv','500.csv','501.csv','dup.csv','dup2.csv','mixed.csv','stale.csv')`,
+  `delete from demo_intake_batches where source_filename in ('one.csv','200.csv','500.csv','501.csv','dup.csv','dup2.csv','mixed.csv','stale.csv','race.csv')`,
 );
 console.log("\n  cleaned up every address and batch this check created");
 console.log(`  ${passed} passed, ${failed} failed`);

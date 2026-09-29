@@ -41,6 +41,34 @@ export function demoStore() {
       });
       if (!r.ok) throw new Error(`update failed (${r.status}): ${(await r.text()).slice(0, 160)}`);
     },
+    /**
+     * An update that says which rows it changed.
+     *
+     * This is how one caller can win a claim: the filter carries the condition,
+     * and an empty result means somebody else got there first rather than
+     * meaning the update failed.
+     */
+    async patchReturning<T = Row>(path: string, body: Row): Promise<T[]> {
+      const r = await fetch(`${url}/rest/v1/${path}`, {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=representation" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(`update failed (${r.status}): ${(await r.text()).slice(0, 160)}`);
+      return (await r.json()) as T[];
+    },
+    /** How many rows a filter matches, without fetching them. */
+    async count(path: string): Promise<number> {
+      const separator = path.includes("?") ? "&" : "?";
+      const r = await fetch(`${url}/rest/v1/${path}${separator}select=id`, {
+        headers: { ...headers, Prefer: "count=exact", Range: "0-0" },
+      });
+      if (!r.ok) throw new Error(`count failed (${r.status})`);
+      // PostgREST answers "0-0/37"; the total is what is wanted.
+      const total = (r.headers.get("content-range") ?? "").split("/")[1];
+      await r.text();
+      return Number.parseInt(total ?? "0", 10) || 0;
+    },
     async post<T>(path: string, body: Row): Promise<T> {
       const r = await fetch(`${url}/rest/v1/${path}`, {
         method: "POST",

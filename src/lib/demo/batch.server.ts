@@ -136,6 +136,37 @@ export async function getBatch(id: string): Promise<BatchRecord | null> {
   return row ?? null;
 }
 
+/**
+ * Ten minutes. A batch of five hundred has taken sixteen seconds, so a claim
+ * older than this belonged to a run that died rather than one still working.
+ */
+export const STALE_CLAIM_MS = 10 * 60 * 1000;
+
+/** The statuses a commit may start from. */
+const CLAIMABLE = ["PREVIEW_READY", "UPLOADED", "AWAITING_REVIEW", "FAILED"] as const;
+
+/**
+ * Taking the batch, so that only one commit of it runs.
+ *
+ * The condition is in the filter, so the database decides the winner: the first
+ * caller moves the batch to PROCESSING and gets the row back, and a second
+ * caller arriving in the same moment matches nothing and is told the batch is
+ * already being committed. A batch left PROCESSING by a run that died can be
+ * claimed again once its claim is stale, so a crash never strands an upload.
+ */
+export async function claimBatch(id: string): Promise<BatchRecord | null> {
+  const store = demoStore();
+  const stale = new Date(Date.now() - STALE_CLAIM_MS).toISOString();
+  const condition =
+    `or=(status.in.(${CLAIMABLE.join(",")}),` +
+    `and(status.eq.PROCESSING,claimed_at.lt.${encodeURIComponent(stale)}))`;
+  const claimed = await store.patchReturning<BatchRecord>(
+    `demo_intake_batches?id=eq.${encodeURIComponent(id)}&${condition}`,
+    { status: "PROCESSING", claimed_at: new Date().toISOString() },
+  );
+  return claimed[0] ?? null;
+}
+
 export async function setBatchStatus(
   id: string,
   status: BatchStatus,

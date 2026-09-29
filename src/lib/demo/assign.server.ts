@@ -5,6 +5,7 @@ import {
   batchFingerprint,
   batchOutcome,
   BatchRefused,
+  claimBatch,
   createBatch,
   getBatch,
   MAX_BATCH_ROWS,
@@ -110,10 +111,16 @@ async function existingUnassigned(
   urls: string[],
 ): Promise<Map<string, { id: string; batchId: string | null; investigated: string | null }>> {
   const found = new Map<string, { id: string; batchId: string | null; investigated: string | null }>();
-  const unique = [...new Set(urls.filter(Boolean))];
+  // Only addresses that could be in the table are asked about. Anything that is
+  // not http is refused a moment later anyway, and keeping rubbish out of the
+  // query means a line of nonsense in a spreadsheet cannot shape it.
+  const unique = [...new Set(urls.filter((u) => /^https?:\/\//i.test(u)))];
   for (let i = 0; i < unique.length; i += 50) {
     const page = unique.slice(i, i + 50);
-    const list = page.map((u) => `"${u.replace(/"/g, '\\"')}"`).join(",");
+    // A value inside in.(...) is double quoted, and a backslash or a quote
+    // within it is escaped - so an address containing a comma, a bracket or a
+    // quotation mark is matched as itself rather than splitting the list.
+    const list = page.map((u) => `"${u.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",");
     const rows = await store.get<Row[]>(
       `product_demo_urls?select=id,url,processing&product_id=is.null&url=in.(${encodeURIComponent(list)})`,
     );
@@ -199,12 +206,25 @@ export async function assignDemoUrls(input: AssignInput): Promise<AssignReport> 
        * use than either taking it in twice or reporting a constraint violation.
        */
       const earlier = alreadyHere.get(url);
-      if (earlier && earlier.batchId !== batchId) {
+      if (earlier) {
+        /**
+         * The same batch, run again.
+         *
+         * A commit interrupted halfway - a dropped connection, a restarted
+         * process - leaves some of its addresses taken in and the rest not.
+         * Running it again has to finish it rather than fail on what it already
+         * did, so an address this batch already holds is reported as held and
+         * the rest carry on. That is what makes a commit safe to repeat.
+         */
+        const sameBatch = earlier.batchId === batchId;
         result.state = "DUPLICATE";
         result.demoUrlId = earlier.id;
+        const whose = sameBatch
+          ? "this batch"
+          : `batch ${earlier.batchId?.slice(0, 8) ?? "an earlier run"}`;
         result.reason = earlier.investigated
-          ? `already taken in by batch ${earlier.batchId?.slice(0, 8) ?? "an earlier run"} and investigated (${earlier.investigated}); its evidence is kept`
-          : `already taken in by batch ${earlier.batchId?.slice(0, 8) ?? "an earlier run"} and still awaiting review`;
+          ? `already taken in by ${whose} and investigated (${earlier.investigated}); its evidence is kept`
+          : `already taken in by ${whose} and still awaiting review`;
         rows.push(result);
         totals.DUPLICATE += 1;
         continue;
@@ -644,7 +664,15 @@ export async function commitBatch(input: {
     );
   }
 
-  await setBatchStatus(input.batchId, "PROCESSING");
+  // Only one commit of a batch runs. The database decides which.
+  const claimed = await claimBatch(input.batchId);
+  if (!claimed) {
+    throw new BatchRefused(
+      "BATCH_IN_PROGRESS",
+      `batch ${input.batchId} is being committed already. Wait for it to finish, and look at the batch before committing it again`,
+    );
+  }
+
   try {
     const report = await assignDemoUrls({
       rows: input.rows,
