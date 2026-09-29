@@ -114,6 +114,59 @@ export function collectTargets(
   return targets;
 }
 
+/**
+ * The translatable pieces inside the parts of the page that changed.
+ *
+ * collectTargets walks the whole page, and each text node it meets climbs to
+ * the top of the document to check it is not inside something marked
+ * untranslatable. On the home page - two hundred thousand elements - that took
+ * half a second, and it ran again after every change anywhere: each shelf of
+ * cards arriving froze the page mid-scroll. This reads only what was added or
+ * altered, applying exactly the same rules to it.
+ *
+ * `roots` are the nodes a MutationObserver reported: added elements and text,
+ * a text node whose content changed, an element whose attribute changed. A
+ * root already inside another root is read once, as part of the larger one,
+ * and a root no longer on the page is ignored.
+ */
+export function collectTargetsIn(
+  roots: Iterable<Node>,
+  originals: WeakMap<object, Map<string, string>>,
+): Target[] {
+  const live = [...new Set(roots)].filter((node) => node.isConnected);
+  const elements = live.filter((node): node is Element => node.nodeType === Node.ELEMENT_NODE);
+  const withinAnother = (node: Node) =>
+    elements.some((element) => element !== node && element.contains(node));
+
+  const targets: Target[] = [];
+  for (const node of live) {
+    if (withinAnother(node)) continue;
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node as Text;
+      const remembered = originals.get(text)?.get("text");
+      const original = remembered ?? text.nodeValue ?? "";
+      if (!isTranslatableText(original) || skipped(text)) continue;
+      targets.push({ kind: "text", node: text, original });
+      continue;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    const element = node as Element;
+    // The element's own attributes: collectTargets looks only beneath it.
+    if (!skipped(element)) {
+      for (const attribute of ATTRIBUTES) {
+        const value = element.getAttribute(attribute);
+        if (!value || !isTranslatableText(value)) continue;
+        const remembered = originals.get(element)?.get(attribute);
+        targets.push({ kind: "attribute", element, attribute, original: remembered ?? value });
+      }
+    }
+    targets.push(...collectTargets(element, originals));
+  }
+  return targets;
+}
+
 function remember(
   originals: WeakMap<object, Map<string, string>>,
   key: object,

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { catalogueSlug } from "@/data/catalogue";
 import { useSavedProducts } from "@/lib/useSavedProducts";
@@ -108,7 +108,7 @@ import FestiveBanner from "@/components/sapphire-home/FestiveBanner";
 import FeatureStrip from "@/components/sapphire-home/FeatureStrip";
 import CategorySlider from "@/components/sapphire-home/CategorySlider";
 import UtilityStrip from "@/components/sapphire-home/UtilityStrip";
-import ProductCarouselRow from "@/components/sapphire-home/ProductCarouselRow";
+import ProductCarouselRow, { useProgressiveCount } from "@/components/sapphire-home/ProductCarouselRow";
 import {
   IndustryGrid,
   AIZone,
@@ -3504,7 +3504,7 @@ const CountryRailCards = memo(function CountryRailCards({
   colour,
   already,
   favorites,
-  onToggleFavorite,
+  favoriteHandler,
   onLoaded,
 }: {
   shelf: string;
@@ -3512,13 +3512,16 @@ const CountryRailCards = memo(function CountryRailCards({
   /** The slugs the shelf already shows, joined, so the memo around this holds. */
   already: string;
   favorites: string[];
-  onToggleFavorite: (slug: string) => void;
+  /** A stable handler per product slug, so each card's memo holds. */
+  favoriteHandler: (slug: string) => () => void;
   onLoaded: (shelf: string, count: number) => void;
 }) {
   const [cards, setCards] = useState<Demo[]>([]);
   const anchor = useRef<HTMLSpanElement>(null);
   const slug = catalogueSlugForShelf(shelf);
   const skip = useMemo(() => new Set(already.split(",").filter(Boolean)), [already]);
+  // The shelf's country cards join it a few at a time, as its own cards do.
+  const shownCountry = useProgressiveCount(cards.length, cards.length > 0);
 
   useEffect(() => {
     if (!slug) return;
@@ -3535,8 +3538,12 @@ const CountryRailCards = memo(function CountryRailCards({
           const mapped = page.cards
             .filter((card) => !skip.has(catalogueSlug(card.name)))
             .map((card) => railCardToDemo(card, shelf, colour));
-          setCards(mapped);
-          onLoaded(shelf, mapped.length);
+          // A shelf's country cards and the page's bookkeeping for them arrive
+          // as a transition, so a visitor scrolling past is not held up by them.
+          startTransition(() => {
+            setCards(mapped);
+            onLoaded(shelf, mapped.length);
+          });
         })();
       },
       { rootMargin: "700px 0px" },
@@ -3551,13 +3558,13 @@ const CountryRailCards = memo(function CountryRailCards({
   return (
     <>
       <span ref={anchor} aria-hidden className="block w-0 shrink-0" />
-      {cards.map((demo, index) => (
+      {cards.slice(0, shownCountry).map((demo, index) => (
         <DemoCard
           key={`${shelf}-country-${demo.id}`}
           demo={demo}
           index={index}
           isFavorite={favorites.includes(catalogueSlug(demo.name))}
-          onToggleFavorite={() => onToggleFavorite(catalogueSlug(demo.name))}
+          onToggleFavorite={favoriteHandler(catalogueSlug(demo.name))}
         />
       ))}
     </>
@@ -3578,6 +3585,28 @@ const Index = () => {
   // Saved products belong to the person, not to one browser. Signed out,
   // they are kept in this browser as before and carried up on the next sign-in.
   const { favorites, toggle: toggleFavorite } = useSavedProducts();
+
+  /**
+   * One favourite handler per product, kept for the life of the page.
+   *
+   * Every card was handed a fresh `() => toggleFavorite(slug)` on every render,
+   * so the memo around the card never held: each shelf that finished loading
+   * its country cards re-rendered the whole page, and with it all 4,700 cards,
+   * fifty-seven times over - the long freezes while scrolling. The handler now
+   * has one identity per slug and calls whatever the latest toggle is, so a
+   * card renders again only when something about that card changes.
+   */
+  const latestToggle = useRef(toggleFavorite);
+  latestToggle.current = toggleFavorite;
+  const favoriteHandlers = useRef(new Map<string, () => void>());
+  const favoriteHandler = useCallback((slug: string) => {
+    let handler = favoriteHandlers.current.get(slug);
+    if (!handler) {
+      handler = () => latestToggle.current(slug);
+      favoriteHandlers.current.set(slug, handler);
+    }
+    return handler;
+  }, []);
 
   const filteredDemos = allDemos.filter((demo) => {
     const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
@@ -3677,7 +3706,7 @@ const Index = () => {
                       demo={demo}
                       index={index}
                       isFavorite={favorites.includes(catalogueSlug(demo.name))}
-                      onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
+                      onToggleFavorite={favoriteHandler(catalogueSlug(demo.name))}
                     />
                   ))}
                   {!searchQuery.trim() && (
@@ -3686,7 +3715,7 @@ const Index = () => {
                       colour={shelfColour(categoryDemos)}
                       already={categoryDemos.map((d) => catalogueSlug(d.name)).join(",")}
                       favorites={favorites}
-                      onToggleFavorite={toggleFavorite}
+                      favoriteHandler={favoriteHandler}
                       onLoaded={noteAdded}
                     />
                   )}
@@ -3705,7 +3734,7 @@ const Index = () => {
                     demo={demo}
                     index={index}
                     isFavorite={favorites.includes(catalogueSlug(demo.name))}
-                    onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
+                    onToggleFavorite={favoriteHandler(catalogueSlug(demo.name))}
                   />
                 ),
               )}

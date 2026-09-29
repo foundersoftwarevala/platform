@@ -55,14 +55,27 @@ const CategorySlider = () => {
     return () => window.clearInterval(timer);
   }, []);
 
-  // Horizontal mouse-wheel / trackpad support (non-passive so the page never scrolls with it)
+  /**
+   * Sideways wheel and trackpad gestures move the slider; the page's own
+   * scrolling is left alone.
+   *
+   * This used to take every wheel event and turn it sideways, so a visitor
+   * scrolling down the page stopped dead the moment the pointer crossed the
+   * slider, and the page only moved again once the pointer left it - the
+   * "hard" scrolling on the home page. A gesture that is mostly sideways (a
+   * trackpad swipe, or Shift with a mouse wheel, which browsers deliver as
+   * sideways) still drives the slider exactly as before; a gesture that is
+   * mostly downwards now scrolls the page. Drag, touch and the auto-slide are
+   * unchanged.
+   */
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const sideways = e.shiftKey ? e.deltaY || e.deltaX : e.deltaX;
+      if (Math.abs(sideways) <= Math.abs(e.shiftKey ? 0 : e.deltaY)) return;
       e.preventDefault();
-      const norm = dx * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1);
+      const norm = sideways * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1);
       el.scrollLeft += norm;
     };
     el.addEventListener("wheel", onWheel, { passive: false });

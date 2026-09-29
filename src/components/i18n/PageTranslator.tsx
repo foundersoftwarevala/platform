@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import {
   applyTranslations,
   collectTargets,
+  collectTargetsIn,
   isTranslatableText,
   restoreOriginals,
   uniqueStrings,
@@ -30,6 +31,12 @@ export function PageTranslator() {
   const { lang, translate, isRendered, version } = useLanguage();
   const originals = useRef(new WeakMap<object, Map<string, string>>());
   const pass = useRef<number>(0);
+  /**
+   * Whether this page has ever been shown in another language. Until it has,
+   * English has nothing to put back, and the whole-page read it would take to
+   * find nothing is skipped - on the home page that read is half a second.
+   */
+  const everTranslated = useRef(false);
   const title = useRef<{ original: string; applied: string } | null>(null);
 
   useEffect(() => {
@@ -37,6 +44,14 @@ export function PageTranslator() {
     let cancelled = false;
     let scheduled: ReturnType<typeof setTimeout> | null = null;
     const english = lang === "en";
+    /**
+     * The first pass after the language, the dictionary or the page's own
+     * translations change reads the whole page, exactly as before. Every pass
+     * after that reads only what changed since - the nodes gathered here.
+     */
+    let whole = true;
+    const changed = new Set<Node>();
+    let observer: MutationObserver | null = null;
 
     const translateTitle = () => {
       const current = document.title;
@@ -54,15 +69,33 @@ export function PageTranslator() {
 
     const run = () => {
       if (cancelled) return;
+      const readWholePage = whole;
+      const roots = [...changed];
+      whole = false;
+      changed.clear();
+
+      translateTitle();
+      // In English, content added to the page is already English: the one
+      // thing to do is put back text translated before the switch, and the
+      // whole-page pass does that.
+      if (english && (!readWholePage || !everTranslated.current)) return;
+      if (!english) everTranslated.current = true;
+
       let targets: Target[] = [];
       try {
-        targets = collectTargets(document.body, originals.current);
+        targets = readWholePage
+          ? collectTargets(document.body, originals.current)
+          : collectTargetsIn(roots, originals.current);
       } catch {
-        return; // a detached tree mid-render; the next pass picks it up
+        // A detached tree mid-render; read the whole page next time instead.
+        whole = readWholePage || whole;
+        for (const root of roots) changed.add(root);
+        return;
       }
-      translateTitle();
       if (english) {
         restoreOriginals(targets, originals.current);
+        // What was just written back is not a change to the page.
+        observer?.takeRecords();
         return;
       }
       // Text rendered through t() is already in this language (see isRendered).
@@ -83,6 +116,12 @@ export function PageTranslator() {
         if (translated && translated !== source) answers.set(source, translated);
       }
       applyTranslations(targets, (source) => answers.get(source), originals.current);
+      // The translations just written are this component's own changes. Left in
+      // the queue they came straight back as "the page changed" and started
+      // another pass, which wrote again - dropping them here ends that loop.
+      // Nothing else can be in the queue: records made before this task began
+      // were delivered to the observer before it ran.
+      observer?.takeRecords();
       pass.current += 1;
     };
 
@@ -93,19 +132,33 @@ export function PageTranslator() {
 
     schedule(0);
 
-    const observer = new MutationObserver((records) => {
-      // Ignore the writes this component just made.
-      const relevant = records.some(
-        (record) =>
-          record.type === "childList" ||
-          (record.type === "attributes" && record.attributeName !== "dir"),
-      );
-      if (relevant) schedule();
+    observer = new MutationObserver((records) => {
+      let relevant = false;
+      for (const record of records) {
+        if (record.type === "childList") {
+          for (const node of Array.from(record.addedNodes)) {
+            if (!english) changed.add(node);
+            relevant = true;
+          }
+        } else if (record.type === "characterData") {
+          // The page rewrote this text itself - React updating a label, say.
+          // Our own writes never reach here (see takeRecords), so what it holds
+          // now is the new English, and the English remembered for it is stale.
+          originals.current.get(record.target)?.delete("text");
+          if (!english) changed.add(record.target);
+          relevant = true;
+        } else if (record.type === "attributes" && record.attributeName && record.attributeName !== "dir") {
+          originals.current.get(record.target)?.delete(record.attributeName);
+          if (!english) changed.add(record.target);
+          relevant = true;
+        }
+      }
+      if (relevant && !english) schedule();
     });
     observer.observe(document.body, {
       childList: true,
       subtree: true,
-      characterData: false,
+      characterData: true,
       attributes: true,
       attributeFilter: ["placeholder", "title", "aria-label", "alt"],
     });
@@ -119,7 +172,7 @@ export function PageTranslator() {
     return () => {
       cancelled = true;
       if (scheduled) clearTimeout(scheduled);
-      observer.disconnect();
+      observer?.disconnect();
       titleObserver.disconnect();
     };
     // `version` changes when a batch of translations arrives, which re-runs the pass.

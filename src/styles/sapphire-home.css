@@ -293,9 +293,42 @@
   }
 }
 
+/*
+ * marketplace-home.css is loaded on this page too and gives every card and
+ * every button the same resting translate3d and will-change, at the same
+ * specificity, so which file won depended on load order. These selectors are
+ * one element stronger than those resting rules and still one class weaker
+ * than every :hover and :active rule, so the lift and the press animate
+ * exactly as before and only the permanent layers go.
+ */
+.mpc-home div.sv-card,
+.mpc-home button.sv-btn,
+.mpc-home a > button.sv-btn {
+  transform: none;
+  will-change: auto;
+}
+
 /* Netflix-style product rails: fixed cards, touch snapping and hidden chrome. */
 .mpc-home .sv-product-row {
   margin-bottom: 1.75rem;
+  /*
+   * A row is a <section>, so it was also picking up the page-section padding
+   * from marketplace-home.css - 2.75rem above and below from 1280px up and
+   * 1.75rem on a phone - meant for the large blocks further down the page.
+   * Between two shelves that came to 127px on a desktop against 39px on a
+   * tablet, where the rule does not reach. The rows own their spacing here.
+   */
+  padding-block: 0;
+}
+
+/*
+ * A shelf off screen keeps its animations still. Every live card carries a
+ * pulsing dot, and with every shelf mounted that was some four thousand
+ * animations running for ever out of sight. They resume the moment the shelf
+ * is in view (ProductCarouselRow marks it data-onscreen).
+ */
+.mpc-home .sv-product-row:not([data-onscreen]) * {
+  animation-play-state: paused;
 }
 
 .mpc-home .sv-product-rail {
@@ -500,8 +533,14 @@
     transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1),
     filter 260ms ease;
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
+  /*
+   * No resting transform and no will-change. Both promote the button to its own
+   * compositor layer, and there are four on every card - some nineteen thousand
+   * layers across the home page, which is a large part of why scrolling it
+   * stuttered. The hover and press transforms still animate; the browser
+   * promotes a button for the moment it moves. isolation above keeps the
+   * sheen's z-index: -1 inside the button exactly as the transform did.
+   */
   -webkit-tap-highlight-color: transparent;
 }
 /* glass highlight sheen */
@@ -726,8 +765,13 @@
   border: 1px solid var(--product-border);
   border-radius: 8px;
   background: linear-gradient(155deg, var(--product-surface-top), var(--product-surface-bottom));
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
+  /*
+   * isolation in place of a resting translate3d and will-change: it keeps the
+   * card its own stacking context, which its z-indexed header and quick-action
+   * bar rely on, without making each of the 4,700 cards a compositor layer.
+   * The hover lift animates as before.
+   */
+  isolation: isolate;
   transition:
     transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1),
