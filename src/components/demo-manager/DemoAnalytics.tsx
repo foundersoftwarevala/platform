@@ -55,7 +55,20 @@ const DemoAnalytics = () => {
     ...r,
     color: SLICE_COLOURS[i % SLICE_COLOURS.length],
   }));
-  const deviceData = analytics.data?.devices ?? [];
+  /**
+   * The device breakdown. The bar beside each one is drawn as a percentage and
+   * the row renders device.icon as a component, so both have to be supplied -
+   * leaving the icon off crashed this screen, because an undefined component
+   * cannot be rendered.
+   */
+  const deviceRows = analytics.data?.devices ?? [];
+  const deviceTotal = deviceRows.reduce((sum, d) => sum + d.value, 0);
+  const deviceData = deviceRows.map((d) => ({
+    name: d.name,
+    value: deviceTotal > 0 ? Math.round((d.value * 100) / deviceTotal) : 0,
+    opens: d.value,
+    icon: /mobile|phone|android|ios/i.test(d.name) ? Smartphone : Monitor,
+  }));
   const topDemos = analytics.data?.top_demos ?? [];
   const totals = analytics.data?.totals;
 
@@ -290,7 +303,7 @@ const DemoAnalytics = () => {
                   <div className="text-[10px] text-muted-foreground">Conversion</div>
                 </div>
                 <div className="text-center px-3">
-                  <div className="font-mono text-neon-orange">{demo.bounce}%</div>
+                  <div className="font-mono text-neon-orange">{demo.bounce == null ? "—" : `${demo.bounce}%`}</div>
                   <div className="text-[10px] text-muted-foreground">Bounce</div>
                 </div>
               </motion.div>
