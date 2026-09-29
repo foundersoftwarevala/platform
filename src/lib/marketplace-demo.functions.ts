@@ -578,3 +578,60 @@ export const listDemoAuditLog = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return (rows ?? []) as DemoAuditEntry[];
   });
+
+/**
+ * Uptime and response time over a window, for the monitor screen.
+ *
+ * DemoUptimeMonitor plotted a hardcoded array - 99.99, 99.98, 99.99 at
+ * four-hour intervals - on an operator screen, so somebody could have judged
+ * the estate healthy from numbers typed into a source file. The monitor has
+ * been writing real checks into demo_health all along; this reads them.
+ *
+ * Bucketed in SQL by mm_demo_uptime_series, because the browser cannot bucket
+ * rows it was never sent, and there are already more than fifteen hundred.
+ */
+export const getDemoUptimeSeries = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((v) => z.object({ hours: z.number().int().min(1).max(720).optional() }).parse(v ?? {}))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await (context.supabase as any).rpc("mm_demo_uptime_series", {
+      p_hours: data.hours ?? 24,
+    });
+    if (error) throw new Error(error.message);
+    return row as {
+      uptime: { time: string; uptime: number | null; checks: number }[];
+      response: { time: string; avg: number | null; p95: number | null }[];
+      totals: { checks: number; uptime_percent: number | null; avg_response_ms: number | null };
+      window_hours: number;
+    };
+  });
+
+/**
+ * Who opened the demos, for the analytics screen.
+ *
+ * DemoAnalytics drew "E-Commerce Pro" with 5,678 visitors and a 24.5%
+ * conversion - not a product this platform sells, and not a figure anything
+ * recorded. demo_clicks holds the real opens, with device, country and whether
+ * the visit converted.
+ *
+ * Bounce rate comes back named under `unavailable` rather than computed:
+ * nothing records a demo visit ending, so there is no honest number for it.
+ */
+export const getDemoClickAnalytics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((v) => z.object({ days: z.number().int().min(1).max(365).optional() }).parse(v ?? {}))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await (context.supabase as any).rpc("mm_demo_click_analytics", {
+      p_days: data.days ?? 7,
+    });
+    if (error) throw new Error(error.message);
+    return row as {
+      visitors: { date: string; visitors: number; conversions: number }[];
+      regions: { name: string; value: number }[];
+      devices: { name: string; value: number }[];
+      top_demos: { name: string; visitors: number; conversion: number | null; bounce: null }[];
+      totals: { opens: number; converted: number; avg_session_seconds: number | null };
+      unavailable: Record<string, string>;
+      window_days: number;
+    };
+  });

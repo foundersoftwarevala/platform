@@ -11,41 +11,89 @@ import {
   MousePointer,
   Eye
 } from "lucide-react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getDemoClickAnalytics } from "@/lib/marketplace-demo.functions";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 
-const visitorData = [
-  { date: "Mon", visitors: 1234, conversions: 89 },
-  { date: "Tue", visitors: 1456, conversions: 102 },
-  { date: "Wed", visitors: 1678, conversions: 123 },
-  { date: "Thu", visitors: 1890, conversions: 145 },
-  { date: "Fri", visitors: 2123, conversions: 167 },
-  { date: "Sat", visitors: 1567, conversions: 98 },
-  { date: "Sun", visitors: 1345, conversions: 78 },
-];
-
-const regionData = [
-  { name: "India", value: 35, color: "hsl(187, 100%, 50%)" },
-  { name: "USA", value: 25, color: "hsl(174, 100%, 45%)" },
-  { name: "Europe", value: 20, color: "hsl(142, 76%, 50%)" },
-  { name: "UAE", value: 12, color: "hsl(280, 100%, 65%)" },
-  { name: "Others", value: 8, color: "hsl(25, 95%, 53%)" },
-];
-
-const deviceData = [
-  { name: "Desktop", value: 45, icon: Monitor },
-  { name: "Mobile", value: 42, icon: Smartphone },
-  { name: "Tablet", value: 13, icon: Monitor },
-];
-
-const topDemos = [
-  { name: "E-Commerce Pro", visitors: 5678, conversion: 24.5, bounce: 32 },
-  { name: "Food Delivery", visitors: 4567, conversion: 28.3, bounce: 28 },
-  { name: "Banking Portal", visitors: 3456, conversion: 31.2, bounce: 25 },
-  { name: "Travel Booking", visitors: 2345, conversion: 22.8, bounce: 35 },
-  { name: "School ERP", visitors: 1890, conversion: 19.5, bounce: 38 },
+/**
+ * Every figure on this screen was typed into this file.
+ *
+ * "E-Commerce Pro" with 5,678 visitors and a 24.5% conversion, "Banking Portal",
+ * "Travel Booking" - none of them products this platform sells - alongside
+ * 24.5K visitors, a 4m 32s average session and a 32% bounce rate. On an
+ * operator screen that is not decoration; it is a number somebody could act on.
+ *
+ * demo_clicks records the real opens, with the device, the country and whether
+ * the visit converted, and mm_demo_click_analytics aggregates them in SQL.
+ *
+ * Two things are deliberately not drawn any more. Bounce rate has no source -
+ * nothing records a visit ending - and neither does demo completion, so both
+ * read as unavailable rather than showing a figure. The palette below is kept
+ * so the charts look exactly as they did.
+ */
+const SLICE_COLOURS = [
+  "hsl(187, 100%, 50%)",
+  "hsl(174, 100%, 45%)",
+  "hsl(142, 76%, 50%)",
+  "hsl(280, 100%, 65%)",
+  "hsl(25, 95%, 53%)",
+  "hsl(210, 90%, 60%)",
 ];
 
 const DemoAnalytics = () => {
+  const [days, setDays] = useState(7);
+
+  const analytics = useQuery({
+    queryKey: ["demo-click-analytics", days],
+    queryFn: () => getDemoClickAnalytics({ data: { days } }),
+    staleTime: 60_000,
+  });
+
+  const visitorData = analytics.data?.visitors ?? [];
+  const regionData = (analytics.data?.regions ?? []).map((r, i) => ({
+    ...r,
+    color: SLICE_COLOURS[i % SLICE_COLOURS.length],
+  }));
+  const deviceData = analytics.data?.devices ?? [];
+  const topDemos = analytics.data?.top_demos ?? [];
+  const totals = analytics.data?.totals;
+
+  const session = totals?.avg_session_seconds;
+  const stats = [
+    {
+      label: "Demo Opens",
+      value: String(totals?.opens ?? 0),
+      icon: Users,
+      color: "text-primary",
+      change: `last ${days} days`,
+    },
+    {
+      label: "Avg Session",
+      value:
+        session == null
+          ? "—"
+          : `${Math.floor(session / 60)}m ${String(Math.round(session % 60)).padStart(2, "0")}s`,
+      icon: Clock,
+      color: "text-neon-cyan",
+      change: session == null ? "not recorded" : "measured",
+    },
+    {
+      label: "Converted",
+      value:
+        totals && totals.opens > 0
+          ? `${Math.round((totals.converted * 100) / totals.opens)}%`
+          : "—",
+      icon: Target,
+      color: "text-neon-green",
+      change: `${totals?.converted ?? 0} of ${totals?.opens ?? 0}`,
+    },
+    // No source exists for either of these, so neither invents one.
+    { label: "Bounce Rate", value: "—", icon: TrendingUp, color: "text-neon-orange", change: "not tracked" },
+    { label: "Demo Completion", value: "—", icon: Eye, color: "text-neon-teal", change: "not tracked" },
+  ];
+
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -58,13 +106,7 @@ const DemoAnalytics = () => {
 
       {/* Stats Row */}
       <div className="grid grid-cols-5 gap-4">
-        {[
-          { label: "Total Visitors", value: "24.5K", icon: Users, color: "text-primary", change: "+12%" },
-          { label: "Avg Session", value: "4m 32s", icon: Clock, color: "text-neon-cyan", change: "+8%" },
-          { label: "Conversion Rate", value: "24.8%", icon: Target, color: "text-neon-green", change: "+3.2%" },
-          { label: "Bounce Rate", value: "32%", icon: TrendingUp, color: "text-neon-orange", change: "-5%" },
-          { label: "Demo Completion", value: "68%", icon: Eye, color: "text-neon-teal", change: "+4%" },
-        ].map((stat, index) => {
+        {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <motion.div

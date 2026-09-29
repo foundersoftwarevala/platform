@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { listDemoHealth } from "@/lib/marketplace-demo.functions";
+import DataStateNotice from "./DataStateNotice";
 import { motion } from "framer-motion";
 import { 
   Package, 
@@ -35,9 +38,10 @@ interface Product {
   description: string;
   stack: string;
   platforms: string[];
-  rating: number;
+  /** Null where the platform holds no figure. The card shows a dash. */
+  rating: number | null;
   demos: number;
-  downloads: number;
+  downloads: number | null;
   hasAPK: boolean;
   hasWeb: boolean;
   hasIOS: boolean;
@@ -45,19 +49,66 @@ interface Product {
   featured: boolean;
 }
 
-const products: Product[] = [
-  { id: "1", name: "E-Commerce Pro", category: "Retail", description: "Complete online store solution with inventory, payments, and analytics", stack: "React + Node.js + MongoDB", platforms: ["web", "mobile"], rating: 4.8, demos: 3, downloads: 1234, hasAPK: true, hasWeb: true, hasIOS: true, thumbnail: "🛒", featured: true },
-  { id: "2", name: "Hospital Management", category: "Healthcare", description: "End-to-end hospital operations with patient records and billing", stack: "Java + Angular + MySQL", platforms: ["web"], rating: 4.7, demos: 2, downloads: 856, hasAPK: false, hasWeb: true, hasIOS: false, thumbnail: "🏥", featured: true },
-  { id: "3", name: "School ERP", category: "Education", description: "Complete school management with attendance, grades, and communication", stack: "PHP + Vue.js + PostgreSQL", platforms: ["web", "mobile"], rating: 4.6, demos: 4, downloads: 2341, hasAPK: true, hasWeb: true, hasIOS: true, thumbnail: "🎓", featured: false },
-  { id: "4", name: "Restaurant POS", category: "Food & Beverage", description: "Point of sale with table management and kitchen display", stack: "Flutter + Firebase", platforms: ["mobile", "tablet"], rating: 4.9, demos: 2, downloads: 567, hasAPK: true, hasWeb: false, hasIOS: true, thumbnail: "🍽️", featured: true },
-  { id: "5", name: "Real Estate Portal", category: "Property", description: "Property listings with virtual tours and agent management", stack: "Next.js + MongoDB", platforms: ["web"], rating: 4.5, demos: 2, downloads: 432, hasAPK: false, hasWeb: true, hasIOS: false, thumbnail: "🏠", featured: false },
-  { id: "6", name: "Banking Portal", category: "Finance", description: "Secure banking operations with transactions and account management", stack: ".NET + Angular + SQL Server", platforms: ["web", "mobile"], rating: 4.9, demos: 3, downloads: 789, hasAPK: true, hasWeb: true, hasIOS: true, thumbnail: "🏦", featured: true },
-  { id: "7", name: "Travel Booking", category: "Tourism", description: "Complete travel booking with flights, hotels, and packages", stack: "Python + React + PostgreSQL", platforms: ["web", "mobile"], rating: 4.7, demos: 2, downloads: 1567, hasAPK: true, hasWeb: true, hasIOS: true, thumbnail: "✈️", featured: false },
-  { id: "8", name: "Food Delivery", category: "Food & Beverage", description: "Food delivery platform with real-time tracking and payments", stack: "Flutter + Node.js", platforms: ["mobile"], rating: 4.8, demos: 2, downloads: 3456, hasAPK: true, hasWeb: false, hasIOS: true, thumbnail: "🍔", featured: true },
-];
+/**
+ * Eight invented products used to live here - "E-Commerce Pro", "Banking
+ * Portal", "Food Delivery" - each with a rating, a download count and a tech
+ * stack, none of which this platform sells or records. An operator browsing
+ * this tab was browsing fiction.
+ *
+ * It shows the seventeen real demos now, from mm_demo_health, which is the same
+ * source the status grid beside it uses. Where the card was designed for a
+ * figure the platform does not hold - a star rating per demo, a download count,
+ * whether there is an APK or an iOS build - it shows a dash instead of a number.
+ * A missing capability should look missing.
+ */
+type CatalogDemo = {
+  id: string;
+  demo_name: string | null;
+  product_name: string | null;
+  url: string | null;
+  status: string | null;
+  environment: string | null;
+  uptime_percent: number | null;
+  clicks: number;
+  latest_result: string | null;
+};
 
 const DemoCatalog = () => {
+
   const [searchQuery, setSearchQuery] = useState("");
+
+  const { data, isLoading, isError, error, refetch } = useQuery<CatalogDemo[]>({
+    queryKey: ["demo-health", "catalog"],
+    queryFn: () => listDemoHealth({ data: { days: 30 } }) as Promise<CatalogDemo[]>,
+    staleTime: 60_000,
+  });
+
+  /**
+   * Mapped onto the shape this card already renders, so the design is
+   * untouched. Every field that has no source is null, and the card shows a
+   * dash for it rather than a number nobody measured.
+   */
+  const products: Product[] = (data ?? []).map((d) => ({
+    id: d.id,
+    name: d.product_name ?? d.demo_name ?? "Demo",
+    category: d.environment ?? "demo",
+    description: [
+      d.demo_name,
+      `${d.clicks} open${d.clicks === 1 ? "" : "s"}`,
+      d.uptime_percent == null ? null : `${d.uptime_percent}% uptime`,
+      d.latest_result ? `last check: ${d.latest_result}` : null,
+    ].filter(Boolean).join(" · "),
+    stack: "",
+    platforms: ["web"],
+    rating: null,
+    demos: 1,
+    downloads: null,
+    hasAPK: false,
+    hasWeb: true,
+    hasIOS: false,
+    thumbnail: d.status === "active" ? "🟢" : "⚪",
+    featured: d.status === "active",
+  }));
   const [categoryFilter, setCategoryFilter] = useState("all");
 
   const filteredProducts = products.filter(product => {
@@ -141,7 +192,7 @@ const DemoCatalog = () => {
                   </div>
                   <div className="flex items-center gap-1 text-neon-orange">
                     <Star className="w-4 h-4 fill-current" />
-                    <span className="font-mono text-sm">{product.rating}</span>
+                    <span className="font-mono text-sm">{product.rating ?? "—"}</span>
                   </div>
                 </div>
 
@@ -183,7 +234,7 @@ const DemoCatalog = () => {
                   </span>
                   <span className="flex items-center gap-1">
                     <Download className="w-3 h-3" />
-                    {product.downloads.toLocaleString()} downloads
+                    {product.downloads == null ? "—" : product.downloads.toLocaleString()} downloads
                   </span>
                 </div>
               </div>
