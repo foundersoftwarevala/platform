@@ -27,6 +27,7 @@
  */
 import { ACCOUNT_MESSAGES } from "./account";
 import { APPLY_MESSAGES } from "./apply";
+import { INFLUENCER_MESSAGES } from "./influencer";
 import { AUTH_MESSAGES } from "./auth";
 import { BLOG_MESSAGES } from "./blog";
 import { CEO_MESSAGES } from "./ceo";
@@ -46,6 +47,7 @@ export type MessageSource = string | readonly [text: string, description: string
 export const MODULES = {
   account: ACCOUNT_MESSAGES,
   apply: APPLY_MESSAGES,
+  influencer: INFLUENCER_MESSAGES,
   auth: AUTH_MESSAGES,
   blog: BLOG_MESSAGES,
   ceo: CEO_MESSAGES,

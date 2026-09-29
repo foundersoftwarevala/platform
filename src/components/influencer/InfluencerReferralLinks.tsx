@@ -4,6 +4,7 @@ import { Check, Copy, Link2, Loader2, Power } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 /**
  * Influencer dashboard → Referral Links.
@@ -71,13 +72,14 @@ async function call(method: "GET" | "POST", body?: unknown): Promise<Account | {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const payload = (await response.json()) as Record<string, unknown>;
-  if (!response.ok) throw new Error(String(payload.error ?? "That did not work"));
+  if (!response.ok) throw new Error(String(payload.error ?? t("influencer.referral.failed")));
   return payload as Account | { ok: true };
 }
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
 export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -98,17 +100,17 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
     try {
       await navigator.clipboard.writeText(absolute);
       setCopied(link.id);
-      toast.success("Link copied");
+      toast.success(t("influencer.referral.copied"));
       window.setTimeout(() => setCopied(null), 2000);
     } catch {
-      toast.error("Could not copy — the link is shown in full below");
+      toast.error(t("influencer.referral.copy_failed"));
     }
   };
 
   if (account.isLoading) {
     return (
       <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading your links
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("influencer.referral.loading")}
       </div>
     );
   }
@@ -122,13 +124,12 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
   return (
     <section className="space-y-6" data-referral-screen>
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Referral</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{t("influencer.referral.eyebrow")}</p>
         <h1 className="mt-2 flex items-center gap-2 text-2xl font-black tracking-tight">
-          <Link2 className="h-5 w-5 text-primary" /> Your referral links
+          <Link2 className="h-5 w-5 text-primary" /> {t("influencer.referral.title")}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Share a link. A sale through it is credited to you when the payment clears, inside a{" "}
-          {data.attributionWindowDays}-day window from the visitor's last click.
+          {t("influencer.referral.intro", { days: data.attributionWindowDays })}
         </p>
       </header>
 
@@ -136,17 +137,16 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
         <div className="rounded-xl border border-border bg-card p-5" data-influencer-tier={data.tier.tier.code}>
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Your tier</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">{t("influencer.tier.label")}</p>
               <p className="mt-1 text-xl font-black">{data.tier.tier.name}</p>
             </div>
             <p className="text-2xl font-black text-primary">
               {data.tier.tier.commission_percent}%
-              <span className="ml-1 text-xs font-medium text-muted-foreground">per referred sale</span>
+              <span className="ml-1 text-xs font-medium text-muted-foreground">{t("influencer.tier.per_sale")}</span>
             </p>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Held {data.tier.tier.hold_days} days before payout · paid from{" "}
-            {money(Number(data.tier.tier.payout_floor))}
+            {t("influencer.tier.hold", { days: data.tier.tier.hold_days, floor: money(Number(data.tier.tier.payout_floor)) })}
           </p>
           {Array.isArray(data.tier.tier.benefits) && data.tier.tier.benefits.length > 0 && (
             <ul className="mt-3 grid gap-1 text-sm sm:grid-cols-2">
@@ -162,19 +162,19 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
           {data.tier.next && (
             <p className="mt-4 border-t border-border pt-3 text-sm text-muted-foreground">
               <span className="font-semibold text-foreground">
-                {data.tier.next.name} pays {data.tier.next.commission_percent}%.
+                {t("influencer.tier.next", { name: data.tier.next.name, percent: data.tier.next.commission_percent })}
               </span>{" "}
               {[
                 data.tier.next.needs_followers > 0
-                  ? `${data.tier.next.needs_followers.toLocaleString("en-IN")} more verified followers`
+                  ? t("influencer.tier.needs_followers", { count: data.tier.next.needs_followers.toLocaleString("en-IN") })
                   : null,
-                data.tier.next.needs_sales > 0 ? `${data.tier.next.needs_sales} more sales in 90 days` : null,
+                data.tier.next.needs_sales > 0 ? t("influencer.tier.needs_sales", { count: data.tier.next.needs_sales }) : null,
                 data.tier.next.needs_revenue > 0
-                  ? `${money(Number(data.tier.next.needs_revenue))} more attributed revenue in 180 days`
+                  ? t("influencer.tier.needs_revenue", { amount: money(Number(data.tier.next.needs_revenue)) })
                   : null,
               ]
                 .filter(Boolean)
-                .join(", or ") || "You already qualify — the next run will move you up."}
+                .join(t("influencer.tier.or")) || t("influencer.tier.qualified")}
             </p>
           )}
         </div>
@@ -182,10 +182,10 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
 
       <div className="grid gap-3 sm:grid-cols-4">
         {[
-          ["Pending", c.pending],
-          ["Approved", c.approved],
-          ["Paid", c.paid],
-          ["Reversed", c.reversed],
+          [t("influencer.referral.pending"), c.pending],
+          [t("influencer.referral.approved"), c.approved],
+          [t("influencer.referral.paid"), c.paid],
+          [t("influencer.referral.reversed"), c.reversed],
         ].map(([label, value]) => (
           <div key={String(label)} className="rounded-xl border border-border bg-card p-4">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
@@ -197,8 +197,8 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           {data.links.length === 0
-            ? "You have no links yet."
-            : `${data.links.length} link${data.links.length === 1 ? "" : "s"}, ${c.lines} commission line${c.lines === 1 ? "" : "s"}.`}
+            ? t("influencer.referral.none")
+            : t("influencer.referral.summary", { links: data.links.length, lines: c.lines })}
         </p>
         <button
           type="button"
@@ -207,7 +207,7 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
         >
           {act.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-          Create a link
+          {t("influencer.referral.create")}
         </button>
       </div>
 
@@ -216,12 +216,12 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
           <table className="w-full text-sm">
             <thead className="bg-surface/60 text-left text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Link</th>
-                <th className="px-4 py-3 text-right">Clicks</th>
-                <th className="px-4 py-3 text-right">Visitors</th>
-                <th className="px-4 py-3 text-right">Sales</th>
-                <th className="px-4 py-3 text-right">Rate</th>
+                <th className="px-4 py-3">{t("influencer.referral.col_code")}</th>
+                <th className="px-4 py-3">{t("influencer.referral.col_link")}</th>
+                <th className="px-4 py-3 text-right">{t("influencer.referral.col_clicks")}</th>
+                <th className="px-4 py-3 text-right">{t("influencer.referral.col_visitors")}</th>
+                <th className="px-4 py-3 text-right">{t("influencer.referral.col_sales")}</th>
+                <th className="px-4 py-3 text-right">{t("influencer.referral.col_rate")}</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -242,7 +242,7 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
                         className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs"
                       >
                         {copied === link.id ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                        Copy
+                        {t("influencer.referral.copy")}
                       </button>
                       <button
                         type="button"
@@ -251,7 +251,7 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
                         className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs"
                       >
                         <Power className={`h-3.5 w-3.5 ${link.active ? "text-emerald-500" : "text-muted-foreground"}`} />
-                        {link.active ? "Active" : "Off"}
+                        {link.active ? t("influencer.referral.active") : t("influencer.referral.off")}
                       </button>
                     </div>
                   </td>
@@ -266,7 +266,7 @@ export function InfluencerReferralLinks({ onBack }: { onBack?: () => void }) {
 
       {onBack && (
         <button type="button" onClick={onBack} className="text-sm text-muted-foreground underline">
-          Back
+          {t("influencer.common.back")}
         </button>
       )}
     </section>
@@ -298,6 +298,7 @@ type QrRow = {
  * a printed poster keep working and a scan resolve to exactly one influencer.
  */
 function ProductPromotion() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [term, setTerm] = useState("");
   const [query, setQuery] = useState("");
@@ -310,7 +311,7 @@ function ProductPromotion() {
       const response = await fetch(
         `/api/marketplace/search?q=${encodeURIComponent(query.trim())}&limit=8`,
       );
-      if (!response.ok) throw new Error("Search is unavailable just now");
+      if (!response.ok) throw new Error(t("influencer.promote.no_match"));
       const body = (await response.json()) as { products?: Found[] };
       return body.products ?? [];
     },
@@ -324,7 +325,7 @@ function ProductPromotion() {
       const response = await fetch("/api/influencer/qr", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!response.ok) throw new Error("Your QR codes could not be read");
+      if (!response.ok) throw new Error(t("influencer.promote.qr_failed"));
       const body = (await response.json()) as { qr_codes?: QrRow[] };
       return body.qr_codes ?? [];
     },
@@ -344,11 +345,11 @@ function ProductPromotion() {
         body: JSON.stringify({ productId }),
       });
       const body = (await response.json()) as { error?: string; referral?: { url: string } };
-      if (!response.ok) throw new Error(body.error ?? "That did not work");
+      if (!response.ok) throw new Error(body.error ?? t("influencer.referral.failed"));
       return body;
     },
     onSuccess: (body) => {
-      toast.success(`Ready — ${body.referral?.url ?? "link created"}`);
+      toast.success(t("influencer.promote.ready", { url: body.referral?.url ?? "" }));
       void qc.invalidateQueries({ queryKey: ["influencer-qr"] });
       void qc.invalidateQueries({ queryKey: ["influencer-referral"] });
     },
@@ -360,20 +361,19 @@ function ProductPromotion() {
     try {
       await navigator.clipboard.writeText(absolute);
       setCopied(row.qr_code);
-      toast.success("Link copied");
+      toast.success(t("influencer.referral.copied"));
       window.setTimeout(() => setCopied(null), 2000);
     } catch {
-      toast.error("Could not copy — the address is shown below");
+      toast.error(t("influencer.referral.copy_failed"));
     }
   };
 
   return (
     <div className="space-y-4 border-t border-border pt-6" data-product-promotion>
       <div>
-        <h2 className="text-lg font-semibold">Promote a product</h2>
+        <h2 className="text-lg font-semibold">{t("influencer.promote.title")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Pick a product and get a link and a QR code for it. A scan is counted, then the person
-          lands on that product with your code attached.
+          {t("influencer.promote.intro")}
         </p>
       </div>
 
@@ -387,14 +387,14 @@ function ProductPromotion() {
         <input
           value={term}
           onChange={(e) => setTerm(e.target.value)}
-          placeholder="Search the catalogue — at least two letters"
+          placeholder={t("influencer.promote.search_placeholder")}
           className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm"
         />
         <button
           type="submit"
           className="rounded-lg border border-border px-3 py-2 text-sm font-semibold"
         >
-          Search
+          {t("influencer.promote.search")}
         </button>
       </form>
 
@@ -404,7 +404,7 @@ function ProductPromotion() {
         </p>
       )}
       {found.data && found.data.length === 0 && (
-        <p className="text-sm text-muted-foreground">Nothing matched that.</p>
+        <p className="text-sm text-muted-foreground">{t("influencer.promote.no_match")}</p>
       )}
       {found.data && found.data.length > 0 && (
         <ul className="divide-y divide-border rounded-xl border border-border">
@@ -417,7 +417,7 @@ function ProductPromotion() {
                 onClick={() => promote.mutate(product.id)}
                 className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
               >
-                Get link &amp; QR
+                {t("influencer.promote.get")}
               </button>
             </li>
           ))}
@@ -432,16 +432,16 @@ function ProductPromotion() {
                 {/* Rendered by the server from what this QR encodes. */}
                 <img
                   src={row.image_png}
-                  alt={`QR for ${row.product_name ?? "this product"}`}
+                  alt={t("influencer.promote.qr_alt", { name: row.product_name ?? "" })}
                   className="h-20 w-20 shrink-0 rounded-lg bg-white p-1"
                   width={80}
                   height={80}
                 />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{row.product_name ?? "Product"}</p>
+                  <p className="truncate text-sm font-semibold">{row.product_name ?? t("influencer.promote.product")}</p>
                   <p className="mt-0.5 font-mono text-xs text-muted-foreground">{row.qr_code}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {row.scans} scan{row.scans === 1 ? "" : "s"}
+                    {t("influencer.promote.scans", { count: row.scans })}
                   </p>
                 </div>
               </div>
@@ -452,21 +452,21 @@ function ProductPromotion() {
                   className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs"
                 >
                   {copied === row.qr_code ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                  Copy link
+                  {t("influencer.promote.copy_link")}
                 </button>
                 <a
                   href={row.image_png}
                   download={`${row.qr_code}.png`}
                   className="rounded-lg border border-border px-2.5 py-1.5 text-xs"
                 >
-                  PNG
+                  {t("influencer.promote.png")}
                 </a>
                 <a
                   href={row.image_svg}
                   download={`${row.qr_code}.svg`}
                   className="rounded-lg border border-border px-2.5 py-1.5 text-xs"
                 >
-                  SVG for print
+                  {t("influencer.promote.svg")}
                 </a>
               </div>
             </div>
