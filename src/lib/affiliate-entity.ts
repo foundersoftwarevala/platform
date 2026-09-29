@@ -32,7 +32,69 @@ export type EntityListResult<T = Record<string, unknown>> = {
   page: number;
   pageSize: number;
   totalPages: number;
+  /**
+   * True when the wall's table has no relation in the current platform yet, so
+   * this is an empty result rather than a failed query. The wall shows its own
+   * empty state instead of an error, and no request is sent.
+   */
+  unbacked?: boolean;
 };
+
+/**
+ * Bind each affiliate-manager wall to the relation that actually holds its data
+ * in the current Software Vala platform.
+ *
+ * The walls were written against short names (`affiliates`, `referral_codes`,
+ * …). The integrated platform stores this data under the marketplace_* names,
+ * so this maps console name → real relation, and lists the columns that
+ * relation really has. `useEntityList`/`useEntityCount` use this map to query
+ * the correct table and to drop any search/filter/order the real relation does
+ * not have — a query against a missing column is what made these screens error.
+ *
+ * Ground truth: the relations below exist in the schema. A console name absent
+ * from this map has no relation yet (the platform holds nothing for it — e.g.
+ * affiliate wallet / payout ledger / campaigns), so its wall reads as empty
+ * rather than broken. No view or duplicate table is created; the UI is unchanged.
+ */
+type Binding = { relation: string; columns: string[]; order?: string };
+
+const WALL_BINDINGS: Record<string, Binding> = {
+  affiliates: {
+    relation: "marketplace_affiliate_partners",
+    columns: ["id", "user_id", "display_name", "status", "created_at", "updated_at"],
+  },
+  referral_codes: {
+    relation: "marketplace_referral_codes",
+    columns: ["id", "code", "active", "affiliate_partner_id", "influencer_profile_id", "reseller_id", "created_at", "updated_at"],
+  },
+  affiliate_links: {
+    relation: "marketplace_referral_codes",
+    columns: ["id", "code", "active", "affiliate_partner_id", "influencer_profile_id", "reseller_id", "created_at", "updated_at"],
+  },
+  referral_network: {
+    relation: "marketplace_referral_sessions",
+    columns: ["id", "session_key", "referral_code_id", "affiliate_partner_id", "product_id", "converted_order_id", "landing_url", "first_seen_at", "last_seen_at", "created_at"],
+    order: "first_seen_at",
+  },
+  commissions: {
+    relation: "marketplace_order_attributions",
+    columns: ["id", "order_id", "affiliate_partner_id", "referral_code_id", "attribution_method", "click_id", "attributed_at", "created_at", "session_id"],
+    order: "attributed_at",
+  },
+  sales: {
+    relation: "marketplace_order_attributions",
+    columns: ["id", "order_id", "affiliate_partner_id", "referral_code_id", "attribution_method", "click_id", "attributed_at", "created_at", "session_id"],
+    order: "attributed_at",
+  },
+};
+
+export function resolveWall(table: string): Binding | null {
+  return WALL_BINDINGS[table] ?? null;
+}
+
+function emptyResult<T>(page: number, pageSize: number): EntityListResult<T> {
+  return { rows: [], count: 0, countIsEstimate: false, page, pageSize, totalPages: 1, unbacked: true };
+}
 
 /**
  * Generic paginated list fetcher for every affiliate-manager wall. Uses
@@ -61,26 +123,37 @@ export function useEntityList<T = Record<string, unknown>>(opts: EntityListOptio
     placeholderData: keepPreviousData,
     retry: 1,
     queryFn: async ({ signal }) => {
+      // Bind the wall to the real relation. A wall with no relation yet reads
+      // as empty rather than firing a query against a table that isn't there.
+      const bound = resolveWall(table);
+      if (!bound) return emptyResult<T>(page, pageSize);
+      const has = (col: string) => bound.columns.includes(col);
+      const orderCol = has(order.column) ? order.column : (bound.order ?? "created_at");
+
       const client = supabase as unknown as {
         from: (t: string) => {
           select: (s: string, o?: { count?: "exact" | "estimated"; head?: boolean }) => any;
         };
       };
       let q = client
-        .from(table)
+        .from(bound.relation)
         .select(select, { count: countMode })
-        .order(order.column, { ascending: !!order.ascending })
+        .order(orderCol, { ascending: !!order.ascending })
         .range((page - 1) * pageSize, page * pageSize - 1);
 
       for (const f of filters) {
         if (f.value == null || f.value === "" || f.value === "all") continue;
+        if (!has(f.column)) continue; // skip filters the real relation lacks
         const op = f.op ?? "eq";
         // dynamic filter dispatch (types loosened via client cast)
         q = q[op](f.column, f.value);
       }
-      if (search?.q && search.columns.length) {
-        const or = search.columns.map((c) => `${c}.ilike.%${search.q}%`).join(",");
-        q = q.or(or);
+      if (search?.q) {
+        const cols = search.columns.filter(has);
+        if (cols.length) {
+          const or = cols.map((c) => `${c}.ilike.%${search.q}%`).join(",");
+          q = q.or(or);
+        }
       }
 
       const { data, error, count } = await q.abortSignal(signal);
@@ -110,14 +183,18 @@ export function useEntityCount(
     gcTime: 5 * 60_000,
     retry: 1,
     queryFn: async () => {
+      const bound = resolveWall(table);
+      if (!bound) return 0;
+      const has = (col: string) => bound.columns.includes(col);
       const client = supabase as unknown as {
         from: (t: string) => {
           select: (s: string, o: { count: "exact" | "estimated"; head: true }) => any;
         };
       };
-      let q = client.from(table).select("*", { count: countMode, head: true });
+      let q = client.from(bound.relation).select("*", { count: countMode, head: true });
       for (const f of filters) {
         if (f.value == null || f.value === "" || f.value === "all") continue;
+        if (!has(f.column)) continue;
         const op = f.op ?? "eq";
         q = q[op](f.column, f.value);
       }

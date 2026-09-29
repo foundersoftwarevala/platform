@@ -79,14 +79,67 @@ export async function currentUser(request: Request): Promise<{ id: string; email
   }
 }
 
-export async function partnerForUser(userId: string): Promise<AffiliatePartner | null> {
-  const response = await rest(
+export async function partnerForUser(
+  userId: string,
+  authHeader?: string | null,
+): Promise<AffiliatePartner | null> {
+  const path =
     `marketplace_affiliate_partners?select=id,user_id,display_name,status,created_at` +
-      `&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
-  );
+    `&user_id=eq.${encodeURIComponent(userId)}&limit=1`;
+  // Prefer the caller's own token: the affiliate reads their own record through
+  // the own-read RLS policy, so this does not depend on the service key
+  // bypassing RLS. Fall back to the service-role read for server-internal
+  // callers (e.g. attribution) that have no user token.
+  const response = authHeader
+    ? await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
+        headers: { apikey: publishableKey(), Authorization: authHeader },
+      })
+    : await rest(path);
   if (!response.ok) return null;
   const rows = (await response.json()) as AffiliatePartner[];
   return rows[0] ?? null;
+}
+
+/** Does this user hold the `affiliate` role? Operator granting the role is the
+ *  decision to enrol them; the partner record is just the record of it. */
+async function holdsAffiliateRole(userId: string): Promise<boolean> {
+  const response = await rest(
+    `user_roles?select=role&user_id=eq.${encodeURIComponent(userId)}&role=eq.affiliate&limit=1`,
+  );
+  if (!response.ok) return false;
+  return ((await response.json()) as unknown[]).length > 0;
+}
+
+/**
+ * Ensure a user who already holds the affiliate role has a partner record.
+ *
+ * A person is made an affiliate by being given the role; the
+ * marketplace_affiliate_partners row is the record behind that. When the role
+ * is present but the row is missing, the dashboard would answer "not enrolled"
+ * forever. This creates the missing row (approved, because the role is the
+ * approval) so the affiliate's own dashboard works. It never enrols a user who
+ * does not hold the role.
+ */
+export async function ensureAffiliatePartner(
+  user: { id: string; email: string },
+): Promise<AffiliatePartner | null> {
+  if (!(await holdsAffiliateRole(user.id))) return null;
+  const created = await rest("marketplace_affiliate_partners", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      user_id: user.id,
+      display_name: (user.email || "Affiliate").split("@")[0],
+      status: "approved",
+    }),
+  });
+  if (created.ok) {
+    const rows = (await created.json()) as AffiliatePartner[];
+    if (rows[0]) return rows[0];
+  }
+  // A race (row created between the check and the insert) resolves to the
+  // existing record.
+  return partnerForUser(user.id);
 }
 
 export type AffiliateContext =
@@ -107,7 +160,14 @@ export async function requireAffiliate(
   const user = await currentUser(request);
   if (!user) return deny("Please sign in", 401);
 
-  const partner = await partnerForUser(user.id);
+  // Read the partner with the caller's own token (own-read RLS), so a valid
+  // affiliate is recognised even if the server key does not bypass RLS. The
+  // affiliate role is the enrolment decision; create the backing partner record
+  // on first access if it is missing, so a role-holder is never stuck at
+  // "not enrolled".
+  const authHeader = request.headers.get("authorization");
+  const partner =
+    (await partnerForUser(user.id, authHeader)) ?? (await ensureAffiliatePartner(user));
   if (!partner) return deny("This account is not enrolled in the affiliate programme", 403);
   if (partner.status === "suspended" || partner.status === "terminated") {
     return deny("This affiliate account is not active", 403);
