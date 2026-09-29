@@ -13,6 +13,7 @@ import { AuthorHero } from "@/components/dashboard/AuthorHero";
 import { ResellerProfileHero } from "@/components/dashboard/ResellerProfileHero";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { useSellerMetrics } from "@/hooks/useSellerMetrics";
+import { useResellerMetrics } from "@/hooks/useResellerMetrics";
 import { ContentRows } from "@/components/dashboard/ContentRows";
 import { Breadcrumbs } from "@/components/dashboard/Breadcrumbs";
 import { KpiToolbar, type KpiSort, type KpiTone } from "@/components/dashboard/KpiToolbar";
@@ -51,6 +52,19 @@ const ROLE_BANNER_GRADIENTS: Record<RoleKey, string> = {
   "promise-tracker":"linear-gradient(120deg, oklch(0.26 0.06 325), oklch(0.34 0.16 335), oklch(0.44 0.20 350))",
 };
 import { RESELLER_CENTER_ORDER, type CenterKey } from "@/lib/reseller-extras";
+
+// The reseller hero's per-banner call-to-action label -> the module (or
+// reseller center) it opens. Labels with no in-dashboard destination fall
+// back to the first module, so every hero button does something. "ai-chat"
+// is the shared "Learn more" action carried by every banner.
+const RESELLER_HERO_CTA: Record<string, string> = {
+  "ai-chat": "ai-chat",
+  "View commissions": "commissions",
+  "Open AI collection": "ai",
+  "Open generator": "center:referral",
+  "Show plan": "revenue",
+  "View ranks": "ams",
+};
 
 const dashboardSearchSchema = z.object({
   kpiTone: fallback(z.string(), "all").default("all"),
@@ -116,6 +130,9 @@ function DashboardPage() {
   // Vendors and authors both sell on the marketplace, so both dashboards
   // read their figures from the database instead of the sample engine.
   const sellerMetrics = useSellerMetrics(role);
+  // The reseller dashboard reads its own real figures the same way.
+  const resellerMetrics = useResellerMetrics(role);
+  const liveMetrics = sellerMetrics.values ?? resellerMetrics.values;
   const openModule = useCallback(
     (key: string | null) => setActiveModule(key && perms.canOpen(key) ? key : null),
     [perms],
@@ -233,7 +250,7 @@ function DashboardPage() {
                 bannerGradient={ROLE_BANNER_GRADIENTS[role as RoleKey]}
               />
               {role === "reseller" ? (
-                <ResellerHero />
+                <ResellerHero onAction={(key) => openModule(RESELLER_HERO_CTA[key] ?? cfg.modules[0]?.key ?? null)} />
               ) : role === "vendor" ? (
                 <VendorSliderHero role={cfg} onCta={() => openModule(cfg.modules[0]?.key ?? null)} />
               ) : role === "author" ? (
@@ -252,7 +269,7 @@ function DashboardPage() {
                 items={filteredKpis}
                 roleKey={role}
                 onOpen={openModule}
-                {...(sellerMetrics.values ? { values: sellerMetrics.values } : {})}
+                {...(liveMetrics ? { values: liveMetrics } : {})}
               />
               {role === "franchise" ? (
                 <Suspense fallback={<ModuleFallback />}><FranchiseHome onOpen={openModule} /></Suspense>

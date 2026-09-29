@@ -240,3 +240,190 @@ export const deleteResellerLead = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { removed: data.id };
   });
+
+// ---------------------------------------------------------------- metrics
+//
+// The reseller dashboard's KPI tiles were showing the sample-number engine.
+// This reads the reseller's own real figures instead, from the same rows the
+// Clients/Leads/Licenses workspaces and the Reseller Manager already use.
+//
+// These finders READ an owner/agent/reseller record but never create one — a
+// dashboard load must not file a reseller into team_members or lead_agents just
+// by counting. A reseller with no records yet reads as zero, and one not linked
+// to a resellers row reads commission figures as null (a dash), which is the
+// honest answer rather than an invented number.
+
+const NUM = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const MONEY = (n: number): number => Math.round(n * 100) / 100;
+
+async function findOwnerId(sb: ReturnType<typeof writer>, caller: Caller): Promise<string | null> {
+  if (!caller.email) return null;
+  const { data } = await sb.from("team_members").select("id").eq("email", caller.email).maybeSingle();
+  return (data?.id as string | undefined) ?? null;
+}
+
+async function findAgentId(sb: ReturnType<typeof writer>, caller: Caller): Promise<string | null> {
+  if (!caller.email) return null;
+  const { data } = await sb.from("lead_agents").select("id").eq("email", caller.email).maybeSingle();
+  return (data?.id as string | undefined) ?? null;
+}
+
+async function findResellerId(sb: ReturnType<typeof writer>, userId: string): Promise<string | null> {
+  const { data } = await sb.from("resellers").select("id").eq("user_id", userId).maybeSingle();
+  return (data?.id as string | undefined) ?? null;
+}
+
+/**
+ * Real figures for the reseller dashboard, keyed by the `kpis[].key` values in
+ * lib/roles.ts so KpiGrid can look each one up by the key it already has. A
+ * `null` means the platform has no source for that metric and the tile shows a
+ * dash rather than a made-up number.
+ */
+export const getResellerMetrics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ metrics: Record<string, number | null> }> => {
+    const sb = writer();
+    const caller = callerFrom(context.claims, context.userId);
+    const startOfMonth = new Date(
+      Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1),
+    ).toISOString();
+    const nowIso = new Date().toISOString();
+
+    const [ownerId, agentId, resellerId] = await Promise.all([
+      findOwnerId(sb, caller),
+      findAgentId(sb, caller),
+      findResellerId(sb, context.userId),
+    ]);
+
+    // Clients — the reseller's own crm_customers.
+    let clients: { status: string | null }[] = [];
+    if (ownerId) {
+      const { data } = await sb
+        .from("crm_customers").select("status").eq("owner_id", ownerId).limit(5000);
+      clients = (data as { status: string | null }[] | null) ?? [];
+    }
+
+    // Leads — assigned to this reseller's lead_agents row.
+    let leads: { status: string | null }[] = [];
+    if (agentId) {
+      const { data } = await sb
+        .from("leads").select("status").eq("assigned_agent_id", agentId).limit(5000);
+      leads = (data as { status: string | null }[] | null) ?? [];
+    }
+
+    // Licences the reseller holds — same rows the Licenses workspace lists.
+    const { data: licData } = await (sb as unknown as {
+      from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => { limit: (n: number) => Promise<{ data: unknown }> } } };
+    })
+      .from("marketplace_licenses")
+      .select("status,expires_at")
+      .eq("buyer_id", context.userId)
+      .limit(5000);
+    const licences = (licData as { status: string | null; expires_at: string | null }[] | null) ?? [];
+
+    // Commission and payouts — only when this account is linked to a reseller.
+    let commissions: { gross_amount: unknown; commission_amount: unknown; status: string; created_at: string }[] = [];
+    let payouts: { amount: unknown; status: string }[] = [];
+    if (resellerId) {
+      const [c, p] = await Promise.all([
+        sb.from("reseller_commissions")
+          .select("gross_amount,commission_amount,status,created_at")
+          .eq("reseller_id", resellerId).limit(5000),
+        sb.from("reseller_payouts").select("amount,status").eq("reseller_id", resellerId).limit(5000),
+      ]);
+      commissions = (c.data as typeof commissions | null) ?? [];
+      payouts = (p.data as typeof payouts | null) ?? [];
+    }
+
+    const liveCommissions = commissions.filter((c) => c.status !== "reversed");
+    const isExpired = (l: { status: string | null; expires_at: string | null }) =>
+      l.status === "expired" || (l.expires_at != null && l.expires_at < nowIso);
+    const ACTIVE_LEADS = ["new", "contacted", "interested", "follow_up", "negotiation"];
+
+    const metrics: Record<string, number | null> = {
+      clients: clients.filter((c) => c.status === "active").length,
+      // crm_customers has no trial state, so this has no honest source.
+      "trial-clients": null,
+      licenses: licences.filter((l) => (l.status === "issued" || l.status === "active") && !isExpired(l)).length,
+      "expired-licenses": licences.filter(isExpired).length,
+      leads: leads.filter((l) => ACTIVE_LEADS.includes(String(l.status))).length,
+      "leads-won": leads.filter((l) => l.status === "won").length,
+      "leads-lost": leads.filter((l) => l.status === "lost").length,
+      "leads-pending": leads.filter((l) => l.status === "new" || l.status === "contacted").length,
+      commissions: resellerId
+        ? MONEY(liveCommissions.filter((c) => c.created_at >= startOfMonth)
+            .reduce((s, c) => s + NUM(c.commission_amount), 0))
+        : null,
+      "payout-pending": resellerId
+        ? MONEY(payouts.filter((p) => ["pending", "approved", "processing"].includes(p.status))
+            .reduce((s, p) => s + NUM(p.amount), 0))
+        : null,
+      revenue: resellerId
+        ? MONEY(liveCommissions.reduce((s, c) => s + NUM(c.gross_amount), 0))
+        : null,
+      // Renewal rate needs a subscription/renewal history the reseller side does
+      // not model yet. A dash is the honest answer.
+      renewals: null,
+    };
+
+    return { metrics };
+  });
+
+// ---------------------------------------------------------- ledger (read-only)
+//
+// The reseller's own commission ledger, payouts and memberships — the same rows
+// the Reseller Manager reads, scoped to the reseller this account is linked to.
+// Read-only: commission is earned by the attribution engine and paid through
+// the manager, never typed in here. An account not linked to a resellers row
+// gets `linked: false` and the workspace explains that plainly instead of
+// erroring. This replaced the browser-local CrudWorkspace the Commissions,
+// Revenue and Renewals modules used to open.
+
+export type ResellerLedgerCommission = {
+  id: string; order_id: string; gross_amount: number; commission_amount: number;
+  currency: string; status: string; created_at: string;
+};
+export type ResellerLedgerPayout = {
+  id: string; amount: number; currency: string; status: string;
+  requested_at: string | null; completed_at: string | null; provider_reference: string | null;
+};
+export type ResellerLedgerMembership = {
+  id: string; plan_code: string | null; membership_state: string;
+  activated_at: string | null; expires_at: string | null; renewal_at: string | null;
+};
+export type ResellerLedger = {
+  linked: boolean;
+  commissions: ResellerLedgerCommission[];
+  payouts: ResellerLedgerPayout[];
+  memberships: ResellerLedgerMembership[];
+};
+
+export const getResellerLedger = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<ResellerLedger> => {
+    const sb = writer();
+    const resellerId = await findResellerId(sb, context.userId);
+    if (!resellerId) {
+      return { linked: false, commissions: [], payouts: [], memberships: [] };
+    }
+    const [c, p, m] = await Promise.all([
+      sb.from("reseller_commissions")
+        .select("id,order_id,gross_amount,commission_amount,currency,status,created_at")
+        .eq("reseller_id", resellerId).order("created_at", { ascending: false }).limit(1000),
+      sb.from("reseller_payouts")
+        .select("id,amount,currency,status,requested_at,completed_at,provider_reference")
+        .eq("reseller_id", resellerId).order("requested_at", { ascending: false }).limit(1000),
+      sb.from("reseller_memberships")
+        .select("id,plan_code,membership_state,activated_at,expires_at,renewal_at")
+        .eq("reseller_id", resellerId).order("created_at", { ascending: false }).limit(1000),
+    ]);
+    return {
+      linked: true,
+      commissions: (c.data as ResellerLedgerCommission[] | null) ?? [],
+      payouts: (p.data as ResellerLedgerPayout[] | null) ?? [],
+      memberships: (m.data as ResellerLedgerMembership[] | null) ?? [],
+    };
+  });
