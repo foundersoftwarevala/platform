@@ -88,11 +88,18 @@ export const useOpsOverview = () =>
     queryKey: [OPS, "overview"],
     staleTime: 30_000,
     queryFn: async () => {
-      const { data, error } = await (supabase as never as {
-        rpc: (fn: string, args: unknown) => Promise<{ data: unknown; error: { message: string } | null }>;
-      }).rpc("mm_demo_ops", { p_days: 30 });
-      if (error) throw new Error(error.message);
-      return { ...EMPTY_OVERVIEW, ...((data ?? {}) as Partial<OpsOverview>) };
+      /**
+       * Read through the server, not the browser client.
+       *
+       * Calling mm_demo_ops from here went to the hosted project, where that
+       * function does not exist, so the call failed and every panel fell to its
+       * empty state - which on screen is indistinguishable from a quiet estate.
+       */
+      const { authHeaders } = await import("@/lib/auth/operator-fetch");
+      const response = await fetch("/api/demo/ops?days=30", { headers: await authHeaders() });
+      const body = (await response.json()) as Partial<OpsOverview> & { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "The overview could not be read");
+      return { ...EMPTY_OVERVIEW, ...body };
     },
   });
 
