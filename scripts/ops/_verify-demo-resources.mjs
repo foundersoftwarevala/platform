@@ -31,7 +31,7 @@ const asked = [
   ["products", ""],
   ["products", "&filter=visible.eq.true"],
   ["demo_audit", ""],
-  ["demo_audit", "&filter=action.eq.demo_url.test"],
+  ["demo_clicks", ""],
 ];
 
 for (const [resource, extra] of asked) {
