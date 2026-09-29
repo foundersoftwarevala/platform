@@ -130,7 +130,7 @@ step(
   ) === "0");
 
   // Addresses are stored without a trailing slash, so keys are compared that way.
-  const key = (u) => String(u).replace(//+$/, "");
+  const key = (u) => String(u).replace(/\/+$/, "");
   const states = Object.fromEntries((preview.body?.rows ?? []).map((r) => [key(r.url), r.state]));
   step("the product page is matched from its title", states[key(urls[0].url)] === "MATCHED", `${states[key(urls[0].url)]} (${knownName})`);
   step("a page naming nothing we sell stays unmatched", states[key(urls[1].url)] === "UNMATCHED", states[key(urls[1].url)]);
