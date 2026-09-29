@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { createDemosBulk, listDemoCategories } from "@/lib/demo-manager/demos.functions";
+import { listDemoCategories } from "@/lib/demo-manager/demos.functions";
+import { authHeaders } from "@/lib/auth/operator-fetch";
 
 /**
  * Bulk Add — for the twelve thousand demo URLs that are waiting to go in.
@@ -31,6 +32,8 @@ type DemoRow = {
   line: number;
   title: string;
   url: string;
+  /** A product slug or id from the file, when it carries one. Never inferred. */
+  product: string;
   normalized: string;
   category: string;
   demo_type: string;
@@ -175,6 +178,10 @@ function parseDemosCsv(text: string, categories: string[]): Parsed {
       category,
       demo_type: DEMO_TYPES.includes(askedType) ? askedType : "web",
       description: at("description"),
+      // A product column is honoured when the file carries one, and never
+      // invented when it does not: an unnamed row is matched by title, or left
+      // unassigned for review.
+      product: at("product") || at("product_slug") || at("product_id"),
     });
   }
 
@@ -186,6 +193,8 @@ const BulkAdd = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [parsed, setParsed] = useState<Parsed | null>(null);
+  // Rows taken in but deliberately not assigned, which an operator reviews.
+  const [review, setReview] = useState<{ ambiguous: number; unmatched: number } | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [outcome, setOutcome] = useState<{ inserted: number; alreadyThere: number; failed: number; detail: string } | null>(null);
 
@@ -271,25 +280,56 @@ const BulkAdd = () => {
       const BATCH = 500;
       let already = 0;
       const refusals: string[] = [];
+      let ambiguous = 0;
+      let unmatched = 0;
       for (let i = 0; i < parsed.rows.length; i += BATCH) {
         const batch = parsed.rows.slice(i, i + BATCH);
-        const outcome = await createDemosBulk({
-          data: {
+        /**
+         * Sent to the canonical path.
+         *
+         * This used to call createDemosBulk, which writes into `demos` - a
+         * table with no product relationship that the storefront has never
+         * read. So every row this screen "added" was invisible everywhere, and
+         * the screen said it had worked.
+         *
+         * /api/demo/assign writes product_demo_urls, decides the product
+         * without guessing, and reports each row on its own: ASSIGNED,
+         * ALREADY_ASSIGNED, AMBIGUOUS, UNMATCHED, INVALID or ERROR. A row it
+         * cannot place is still taken in, unassigned, so an operator can review
+         * it - it is simply never guessed at.
+         */
+        const response = await fetch("/api/demo/assign", {
+          method: "POST",
+          headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "commit",
             rows: batch.map((row) => ({
-              title: row.title,
               url: row.url,
-              category: row.category,
-              demo_type: row.demo_type as "web" | "mobile" | "desktop" | "api",
-              description: row.description || null,
+              name: row.title || null,
+              product: row.product || null,
             })),
-          },
+          }),
         });
-        inserted += outcome.inserted;
-        already += outcome.alreadyThere;
-        for (const r of outcome.refused) refusals.push(`${r.count} × ${r.reason}`);
+        const report = (await response.json()) as {
+          error?: string;
+          totals?: Record<string, number>;
+          rows?: { state: string; reason: string }[];
+        };
+        if (!response.ok) throw new Error(report.error ?? "The batch was refused");
+
+        inserted += report.totals?.ASSIGNED ?? 0;
+        already += report.totals?.ALREADY_ASSIGNED ?? 0;
+        ambiguous += report.totals?.AMBIGUOUS ?? 0;
+        unmatched += report.totals?.UNMATCHED ?? 0;
+        failed += (report.totals?.INVALID ?? 0) + (report.totals?.ERROR ?? 0);
+        for (const r of report.rows ?? []) {
+          if (["INVALID", "ERROR", "AMBIGUOUS", "UNMATCHED"].includes(r.state)) {
+            refusals.push(`${r.state}: ${r.reason}`);
+          }
+        }
       }
-      failed = 0;
-      detail = refusals.join("; ");
+      setReview({ ambiguous, unmatched });
+      detail = [...new Set(refusals)].slice(0, 6).join("; ");
       setOutcome({ inserted, alreadyThere: already, failed: 0, detail });
     } catch (problem) {
       detail = problem instanceof Error ? problem.message : "unknown error";
