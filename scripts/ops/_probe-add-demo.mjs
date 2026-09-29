@@ -10,6 +10,7 @@ const b = await chromium.launch();
 const p = await (await b.newContext({ viewport: { width: 1500, height: 1100 } })).newPage();
 p.on("pageerror", (e) => console.log("  pageerror:", String(e).slice(0, 300)));
 p.on("console", (m) => { if (m.type() === "error") console.log("  console:", m.text().slice(0, 300)); });
+p.on("pageerror", (e) => console.log("  stack:", String(e.stack || e).slice(0, 400)));
 p.on("response", (r) => { if (r.status() >= 400) console.log("  ", r.status(), r.url().replace(SITE, "").slice(0, 70)); });
 await p.goto(`${SITE}/login`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await p.waitForTimeout(4000);
