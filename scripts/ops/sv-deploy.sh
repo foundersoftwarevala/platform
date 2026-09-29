@@ -119,6 +119,18 @@ echo "  port 3000 is free, copies left: $(pgrep -fc "$ENTRY" 2>/dev/null || echo
 pm2 start "$APP" --update-env >/dev/null 2>&1
 sleep 10
 PM2_PID="$(pm2 pid "$APP" 2>/dev/null | tr -d '[:space:]')"
+
+# The app is defined by /root/sv-app.config.cjs: watch off, a kill timeout so a
+# process that will not exit is ended, and the environment it really runs
+# with. If pm2 has lost the app - deleted, or a fresh daemon - it is started
+# from that file rather than from whatever the shell happens to hold.
+APP_CONFIG="/root/sv-app.config.cjs"
+if { [ -z "$PM2_PID" ] || [ "$PM2_PID" = "0" ]; } && [ -f "$APP_CONFIG" ]; then
+  echo "  pm2 did not start $APP by name; starting it from $APP_CONFIG"
+  pm2 start "$APP_CONFIG" >/dev/null 2>&1
+  sleep 10
+  PM2_PID="$(pm2 pid "$APP" 2>/dev/null | tr -d '[:space:]')"
+fi
 # A copy that released the port but did not exit is still a copy: it holds
 # seventy megabytes and it is what the next deploy will trip over. Swept once
 # the new process is up and holding the port, so nothing being swept is serving.
