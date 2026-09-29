@@ -114,7 +114,7 @@ for i in $(seq 1 20); do
   fi
 done
 [ "$freed" = "1" ] || fail "port 3000 is still held after twenty seconds; the new build was NOT started"
-echo "  port 3000 is free, copies left: $(pgrep -fc "$ENTRY" 2>/dev/null || echo 0)"
+echo "  port 3000 is free, copies left: $(pgrep -fc "$ENTRY" 2>/dev/null; true)"
 
 pm2 start "$APP" --update-env >/dev/null 2>&1
 sleep 10
@@ -139,7 +139,7 @@ for pid in $(pgrep -f "$ENTRY" 2>/dev/null); do
   kill -9 "$pid" 2>/dev/null && echo "  removed a copy that would not exit: $pid"
 done
 holder="$(ss -ltnp 2>/dev/null | grep ':3000 ' | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2)"
-echo "  port 3000 is held by ${holder:-nobody}, pm2 runs ${PM2_PID:-nothing}, copies running: $(pgrep -fc "$ENTRY" 2>/dev/null || echo 0)"
+echo "  port 3000 is held by ${holder:-nobody}, pm2 runs ${PM2_PID:-nothing}, copies running: $(pgrep -fc "$ENTRY" 2>/dev/null; true)"
 
 step "6/6 Verifying the live site"
 code=$(curl -s -o /tmp/sv-live.html -w '%{http_code}' -m 25 "http://127.0.0.1:3000/")
