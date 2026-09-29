@@ -51,6 +51,16 @@ export function DemoUrlManagerSection() {
   // nothing to say why. This asks for id and name only, bounded, and
   // narrowed by what the operator types.
   const [productSearch, setProductSearch] = useState("");
+  /**
+   * Declared before it is read, which it was not.
+   *
+   * selectedProductId read `editing` fifteen lines above the `const editing`
+   * that defines it. A const in its temporal dead zone throws on access, so this
+   * component threw on every render and the screen behind Add Demo showed "This
+   * page didn't load" - along with the broken-demo alerts and the health panel,
+   * which sit in the same chunk. It had not worked since the line was written.
+   */
+  const [editing, setEditing] = useState<Partial<DemoUrl> | null>(null);
   const selectedProductId = editing?.product_id ?? "";
   const { data: products = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["mp_product_options", productSearch, selectedProductId],
@@ -66,7 +76,6 @@ export function DemoUrlManagerSection() {
 
 
 
-  const [editing, setEditing] = useState<Partial<DemoUrl> | null>(null);
   const [filter, setFilter] = useState<"all" | "working" | "slow" | "offline" | "inactive">("all");
 
   const invalidate = () => {
