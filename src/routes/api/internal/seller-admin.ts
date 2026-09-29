@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { rest } from "@/lib/marketplace/author-guard";
-import { AGREED_PLATFORM_RATE, rateForAgreement } from "@/lib/commerce/commission-rates";
+import { AGREED_PLATFORM_RATE } from "@/lib/commerce/commission-rates";
+import { applySellerCommissionRule } from "@/lib/commerce/seller-commission.server";
 
 /**
  * Operator administration for the people who sell on the marketplace.
@@ -132,29 +133,7 @@ export const Route = createFileRoute("/api/internal/seller-admin")({
         // of the two contracts is broken on every sale.
         let ruleApplied: number | null = null;
         if (decision === "approved") {
-          const rate = rateForAgreement(body.agreement);
-          const existing = await rest(
-            `marketplace_commission_rules?select=id&seller_id=eq.${encodeURIComponent(sellerId)}` +
-              `&product_id=is.null&category_id=is.null&limit=1`,
-          );
-          const rows = existing.ok ? ((await existing.json()) as { id: string }[]) : [];
-          if (rows.length) {
-            await rest(`marketplace_commission_rules?id=eq.${encodeURIComponent(rows[0].id)}`, {
-              method: "PATCH",
-              headers: { Prefer: "return=minimal" },
-              body: JSON.stringify({ rate_percent: rate, active: true }),
-            });
-          } else {
-            await rest("marketplace_commission_rules", {
-              method: "POST",
-              headers: { Prefer: "return=minimal" },
-              body: JSON.stringify({
-                seller_id: sellerId, rate_percent: rate, priority: 50,
-                active: true, currency: "USD",
-              }),
-            });
-          }
-          ruleApplied = rate;
+          ruleApplied = await applySellerCommissionRule(sellerId, body.agreement);
         }
 
         const rows = (await patched.json()) as unknown[];

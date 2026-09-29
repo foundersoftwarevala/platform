@@ -270,6 +270,8 @@ function Index() {
                   marketplace_manager: "/marketplace-manager",
                   reseller_manager: "/reseller-manager",
                   vendor_manager: "/vendor-manager",
+                  application_manager: "/application-manager",
+                  affiliate_manager: "/affiliate-manager",
                   sales_support_manager: "/sales-support-manager",
                   seo_manager: "/seo-manager",
                   // Each of these was falling through to a success toast while
