@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { authHeaders } from "@/lib/auth/operator-fetch";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,16 @@ const demoSchema = z.object({
   demo_type: z.string().min(1, "Demo type is required"),
   url: z.string().url("Must be a valid URL"),
   description: z.string().optional(),
+  /**
+   * The product this demo hangs on.
+   *
+   * Required, because a demo without one is unreachable: the proxy looks a demo
+   * up by product and so does the storefront badge. This form had no product
+   * field at all and wrote into `demos`, a table with no product relationship
+   * that the storefront has never read - so every demo added here was invisible
+   * and the screen said "Demo created successfully".
+   */
+  product: z.string().min(1, "Choose the product this demo belongs to"),
 });
 
 type DemoFormData = z.infer<typeof demoSchema>;
@@ -74,27 +84,78 @@ const AddDemo = ({ onSuccess }: AddDemoProps) => {
   });
 
   const selectedType = watch("demo_type");
+  const chosenProduct = watch("product");
+
+  /**
+   * Products to attach the demo to, searched from the real catalogue.
+   *
+   * /api/demo/process?products= is the operator-gated search the pipeline
+   * already exposes, so this screen asks the same question the rest of the
+   * module asks rather than introducing another path to the catalogue.
+   */
+  const [productTerm, setProductTerm] = useState("");
+  const [productQuery, setProductQuery] = useState("");
+  const productHits = useQuery({
+    queryKey: ["add-demo-products", productQuery],
+    enabled: productQuery.trim().length >= 2,
+    queryFn: async (): Promise<{ id: string; name: string; slug: string }[]> => {
+      const response = await fetch(
+        `/api/demo/process?products=${encodeURIComponent(productQuery.trim())}`,
+        { headers: await authHeaders() },
+      );
+      if (!response.ok) throw new Error("The catalogue could not be searched");
+      const body = (await response.json()) as { products?: { id: string; name: string; slug: string }[] };
+      return body.products ?? [];
+    },
+  });
 
   const onSubmit = async (data: DemoFormData) => {
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("demos").insert({
-        title: data.title,
-        category: data.category,
-        demo_type: data.demo_type,
-        url: data.url,
-        description: data.description,
-        status: "active",
+      /**
+       * The same canonical path Bulk Add uses.
+       *
+       * This wrote straight into `demos` with status "active" and reported
+       * success. /api/demo/assign writes product_demo_urls, refuses a duplicate
+       * mapping, refuses an address this server cannot reach, and reports what
+       * actually happened per row - so the toast below can only say what the
+       * database did.
+       *
+       * Nothing is published here. A new row is inactive and unprocessed and
+       * still has to go through investigate and activate.
+       */
+      const response = await fetch("/api/demo/assign", {
+        method: "POST",
+        headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "commit",
+          rows: [{ url: data.url, name: data.title, product: data.product }],
+        }),
       });
+      const report = (await response.json()) as {
+        error?: string;
+        rows?: { state: string; reason: string; productSlug?: string | null }[];
+      };
+      if (!response.ok) throw new Error(report.error ?? "The demo could not be taken in");
 
-      if (error) throw error;
+      const row = report.rows?.[0];
+      if (!row) throw new Error("The server returned no result for this demo");
 
-      toast.success("Demo created successfully!", {
-        description: "Demo is now READ-ONLY and cannot be edited."
+      if (row.state === "ASSIGNED") {
+        toast.success("Demo added", {
+          description: `Attached to ${row.productSlug ?? "the product"}. It is not live yet — investigate and activate it next.`,
+        });
+        onSuccess();
+        return;
+      }
+
+      // Anything else is a real outcome the operator has to see, not a failure
+      // to hide and not a success to claim.
+      toast.error(`Not added: ${row.state}`, { description: row.reason });
+    } catch (error: unknown) {
+      toast.error("Failed to add demo", {
+        description: error instanceof Error ? error.message : String(error),
       });
-      onSuccess();
-    } catch (error: any) {
-      toast.error("Failed to create demo", { description: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -231,6 +292,57 @@ const AddDemo = ({ onSuccess }: AddDemoProps) => {
             {/* Step 3: Final Details */}
             {step === 3 && (
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Product</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={productTerm}
+                      onChange={(e) => setProductTerm(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          setProductQuery(productTerm);
+                        }
+                      }}
+                      placeholder="Search the catalogue — at least two letters"
+                      className="bg-slate-800 border-slate-600 text-white"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setProductQuery(productTerm)}
+                    >
+                      Search
+                    </Button>
+                  </div>
+                  {productHits.data && productHits.data.length > 0 && (
+                    <div className="max-h-40 overflow-y-auto rounded-md border border-slate-700">
+                      {productHits.data.map((product) => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => setValue("product", product.id, { shouldValidate: true })}
+                          className={cn(
+                            "flex w-full items-center justify-between px-3 py-2 text-left text-sm",
+                            chosenProduct === product.id
+                              ? "bg-blue-600/20 text-white"
+                              : "text-slate-300 hover:bg-slate-800",
+                          )}
+                        >
+                          <span className="truncate">{product.name}</span>
+                          {chosenProduct === product.id && <Check className="h-4 w-4 text-blue-400" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {productHits.data && productHits.data.length === 0 && (
+                    <p className="text-xs text-slate-400">Nothing in the catalogue matched that.</p>
+                  )}
+                  {errors.product && (
+                    <p className="text-xs text-red-400">{errors.product.message}</p>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <Label className="text-slate-300">Demo URL</Label>
                   <Input

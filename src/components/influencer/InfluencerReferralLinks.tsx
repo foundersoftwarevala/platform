@@ -400,7 +400,7 @@ function ProductPromotion() {
 
       {found.isFetching && (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Searching
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("influencer.promote.searching")}
         </p>
       )}
       {found.data && found.data.length === 0 && (
