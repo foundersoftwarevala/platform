@@ -44,7 +44,15 @@ type Summary = {
 
 type Detail = Summary & {
   sections: { title: string; fields: { key: string; label: string; value: string | null }[] }[];
-  documents: { id: string; field: string; label: string; name: string; mime: string; size: number; uploadedAt: string }[];
+  documents: {
+    id: string;
+    field: string;
+    label: string;
+    name: string;
+    mime: string;
+    size: number;
+    uploadedAt: string;
+  }[];
   history: { at: string; action: string; actor: string; reason: string | null }[];
 };
 
@@ -54,7 +62,11 @@ const NEEDS_REASON = new Set(["rejected", "suspended"]);
 async function api<T>(input: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(input, {
     ...init,
-    headers: { ...(await authHeaders()), ...(init.body ? { "Content-Type": "application/json" } : {}), ...init.headers },
+    headers: {
+      ...(await authHeaders()),
+      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...init.headers,
+    },
   });
   const body = (await response.json().catch(() => ({}))) as T & { error?: string };
   if (!response.ok) throw new Error(body.error ?? "The request did not go through");
@@ -87,7 +99,10 @@ function ApplicationDetails({ kind, id }: { kind: Kind; id: string }) {
   const { t } = useTranslation();
   const q = useQuery({
     queryKey: ["role-application", kind, id],
-    queryFn: () => api<{ application: Detail }>(`/api/applications/queue?kind=${kind}&id=${encodeURIComponent(id)}`),
+    queryFn: () =>
+      api<{ application: Detail }>(
+        `/api/applications/queue?kind=${kind}&id=${encodeURIComponent(id)}`,
+      ),
   });
 
   if (q.isLoading) {
@@ -102,10 +117,15 @@ function ApplicationDetails({ kind, id }: { kind: Kind; id: string }) {
   if (!detail) return null;
 
   return (
-    <div className="mt-4 space-y-4 border-t border-border pt-4" data-application-detail={detail.number}>
+    <div
+      className="mt-4 space-y-4 border-t border-border pt-4"
+      data-application-detail={detail.number}
+    >
       {detail.sections.map((section) => (
         <div key={section.title}>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{section.title}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {section.title}
+          </p>
           <dl className="mt-2 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
             {section.fields.map((field) => (
               <div key={field.key} className="flex min-w-0 gap-2" data-field={field.key}>
@@ -120,7 +140,9 @@ function ApplicationDetails({ kind, id }: { kind: Kind; id: string }) {
       ))}
 
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("apply.documents")}</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {t("apply.documents")}
+        </p>
         {detail.documents.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">{t("apply.queue.no_documents")}</p>
         ) : (
@@ -145,7 +167,9 @@ function ApplicationDetails({ kind, id }: { kind: Kind; id: string }) {
 
       {detail.history.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("apply.queue.history")}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("apply.queue.history")}
+          </p>
           <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
             {detail.history.map((event, index) => (
               <li key={`${event.at}-${index}`}>
@@ -175,14 +199,21 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
   const q = useQuery({
     queryKey: ["role-applications", kind, showing, filter],
     queryFn: async () =>
-      (await api<{ rows: Summary[] }>(`/api/applications/queue?kind=${showing}&filter=${filter}`)).rows,
+      (await api<{ rows: Summary[] }>(`/api/applications/queue?kind=${showing}&filter=${filter}`))
+        .rows,
   });
 
   const decide = useMutation({
     mutationFn: (v: { kind: Kind; id: string; status: string; reason: string | null }) =>
       api("/api/applications/queue", {
         method: "POST",
-        body: JSON.stringify({ action: "decide", kind: v.kind, id: v.id, status: v.status, reason: v.reason }),
+        body: JSON.stringify({
+          action: "decide",
+          kind: v.kind,
+          id: v.id,
+          status: v.status,
+          reason: v.reason,
+        }),
       }),
     onSuccess: (_d, v) => {
       toast.success(t("apply.queue.decided", { status: v.status }));
@@ -219,7 +250,9 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
     <section className="space-y-4" data-applications-queue={kind}>
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">{t("apply.queue.eyebrow")}</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">
+            {t("apply.queue.eyebrow")}
+          </p>
           <h1 className="flex items-center gap-2 text-xl font-semibold">
             <ClipboardCheck className="h-5 w-5 text-primary" /> {title}
           </h1>
@@ -297,29 +330,43 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
                   <button
                     type="button"
                     data-details
-                    onClick={() => setOpen(open === `${r.kind}-${r.id}` ? null : `${r.kind}-${r.id}`)}
+                    onClick={() =>
+                      setOpen(open === `${r.kind}-${r.id}` ? null : `${r.kind}-${r.id}`)
+                    }
                     className="mt-2 inline-flex items-center gap-1 text-xs text-primary"
                   >
-                    {open === `${r.kind}-${r.id}` ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    {open === `${r.kind}-${r.id}` ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
                     {t("apply.queue.details")}
                   </button>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <span className="rounded-full border border-border px-2 py-0.5 text-xs">{r.status}</span>
+                  <span className="rounded-full border border-border px-2 py-0.5 text-xs">
+                    {r.status}
+                  </span>
                   {r.actions.length > 0 && (
                     <div className="flex flex-wrap justify-end gap-2">
                       {r.actions.map((status) => (
                         <button
                           key={status}
                           type="button"
-                          data-approve={status === "approved" || status === "active" ? "" : undefined}
+                          data-approve={
+                            status === "approved" || status === "active" ? "" : undefined
+                          }
                           data-reject={status === "rejected" ? "" : undefined}
                           data-suspend={status === "suspended" ? "" : undefined}
                           data-review={status === "in_review" ? "" : undefined}
                           disabled={decide.isPending}
                           onClick={() => {
                             if (NEEDS_REASON.has(status)) {
-                              setAsking(asking?.id === r.id && asking.status === status ? null : { id: r.id, status });
+                              setAsking(
+                                asking?.id === r.id && asking.status === status
+                                  ? null
+                                  : { id: r.id, status },
+                              );
                               setReason("");
                             } else {
                               decide.mutate({ kind: r.kind, id: r.id, status, reason: null });
@@ -337,7 +384,9 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
                         >
                           {status === "rejected" && <XCircle className="h-3.5 w-3.5" />}
                           {status === "suspended" && <PauseCircle className="h-3.5 w-3.5" />}
-                          {(status === "approved" || status === "active") && <CheckCircle2 className="h-3.5 w-3.5" />}
+                          {(status === "approved" || status === "active") && (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          )}
                           {label(r, status)}
                         </button>
                       ))}
@@ -350,17 +399,30 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
                   <input
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder={asking.status === "suspended" ? t("apply.queue.suspend_reason") : t("apply.queue.reason")}
+                    placeholder={
+                      asking.status === "suspended"
+                        ? t("apply.queue.suspend_reason")
+                        : t("apply.queue.reason")
+                    }
                     className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
                   />
                   <button
                     type="button"
                     data-confirm-decision
                     disabled={!reason.trim() || decide.isPending}
-                    onClick={() => decide.mutate({ kind: r.kind, id: r.id, status: asking.status, reason: reason.trim() })}
+                    onClick={() =>
+                      decide.mutate({
+                        kind: r.kind,
+                        id: r.id,
+                        status: asking.status,
+                        reason: reason.trim(),
+                      })
+                    }
                     className="rounded-lg bg-destructive px-3 py-1.5 text-xs text-destructive-foreground disabled:opacity-50"
                   >
-                    {asking.status === "suspended" ? t("apply.queue.confirm_suspend") : t("apply.queue.confirm_reject")}
+                    {asking.status === "suspended"
+                      ? t("apply.queue.confirm_suspend")
+                      : t("apply.queue.confirm_reject")}
                   </button>
                 </div>
               )}

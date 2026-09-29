@@ -25,13 +25,19 @@ import { applySellerCommissionRule } from "@/lib/commerce/seller-commission.serv
  * application, a reason for every refusal, a refusal is final.
  */
 
-async function gate(request: Request): Promise<{ ok: true; token: string } | { ok: false; response: Response }> {
+async function gate(
+  request: Request,
+): Promise<{ ok: true; token: string } | { ok: false; response: Response }> {
   const token = bearer(request);
-  if (!token) return { ok: false, response: Response.json({ error: "Please sign in" }, { status: 401 }) };
+  if (!token)
+    return { ok: false, response: Response.json({ error: "Please sign in" }, { status: 401 }) };
   if (!(await isApplicationStaff(token))) {
     return {
       ok: false,
-      response: Response.json({ error: "Application review is limited to application staff." }, { status: 403 }),
+      response: Response.json(
+        { error: "Application review is limited to application staff." },
+        { status: 403 },
+      ),
     };
   }
   return { ok: true, token };
@@ -49,20 +55,29 @@ export const Route = createFileRoute("/api/applications/queue")({
         const id = url.searchParams.get("id");
 
         if (id) {
-          if (!isApplicationKind(kindParam)) return Response.json({ error: "Name the kind of application" }, { status: 400 });
+          if (!isApplicationKind(kindParam))
+            return Response.json({ error: "Name the kind of application" }, { status: 400 });
           const detail = await getApplication(kindParam, id);
           if (!detail) return Response.json({ error: "Application not found" }, { status: 404 });
           return Response.json({ application: detail });
         }
 
         const kinds: ApplicationKind[] =
-          kindParam === "all" ? [...APPLICATION_KINDS] : isApplicationKind(kindParam) ? [kindParam] : [];
-        if (!kinds.length) return Response.json({ error: "Unknown kind of application" }, { status: 400 });
+          kindParam === "all"
+            ? [...APPLICATION_KINDS]
+            : isApplicationKind(kindParam)
+              ? [kindParam]
+              : [];
+        if (!kinds.length)
+          return Response.json({ error: "Unknown kind of application" }, { status: 400 });
         try {
           const rows = await listApplications(kinds, url.searchParams.get("filter") !== "all");
           return Response.json({ rows });
         } catch (error) {
-          return Response.json({ error: error instanceof Error ? error.message : "The queue could not be read" }, { status: 502 });
+          return Response.json(
+            { error: error instanceof Error ? error.message : "The queue could not be read" },
+            { status: 502 },
+          );
         }
       },
 
@@ -78,25 +93,36 @@ export const Route = createFileRoute("/api/applications/queue")({
         }
         const kind = body.kind;
         const id = String(body.id ?? "").trim();
-        if (!isApplicationKind(kind)) return Response.json({ error: "Unknown kind of application" }, { status: 400 });
-        if (!/^[0-9a-f-]{36}$/i.test(id)) return Response.json({ error: "An application id is required" }, { status: 400 });
+        if (!isApplicationKind(kind))
+          return Response.json({ error: "Unknown kind of application" }, { status: 400 });
+        if (!/^[0-9a-f-]{36}$/i.test(id))
+          return Response.json({ error: "An application id is required" }, { status: 400 });
         const definition = definitionOf(kind);
 
-        if (body.action !== "decide") return Response.json({ error: "Unknown action" }, { status: 400 });
+        if (body.action !== "decide")
+          return Response.json({ error: "Unknown action" }, { status: 400 });
         const status = String(body.status ?? "").trim();
-        const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
+        const reason =
+          typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
         const current = await getApplication(kind, id);
         if (!current) return Response.json({ error: "Application not found" }, { status: 404 });
         if (!current.actions.includes(status)) {
-          return Response.json({ error: `An application that is ${current.status} cannot become ${status}.` }, { status: 409 });
+          return Response.json(
+            { error: `An application that is ${current.status} cannot become ${status}.` },
+            { status: 409 },
+          );
         }
         if ((status === "rejected" || status === "suspended") && !reason) {
-          return Response.json({ error: `Record why the application is ${status}.` }, { status: 400 });
+          return Response.json(
+            { error: `Record why the application is ${status}.` },
+            { status: 400 },
+          );
         }
 
         const { fn, args } = definition.review(id, status, reason);
         const outcome = await rpcAs(allowed.token, fn, args);
-        if (!outcome.ok) return Response.json({ error: outcome.message }, { status: outcome.status });
+        if (!outcome.ok)
+          return Response.json({ error: outcome.message }, { status: outcome.status });
 
         // An approved vendor or author carries the commission their agreement
         // promised, exactly as an approval in the Vendor Manager does.

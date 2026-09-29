@@ -48,7 +48,10 @@ const ONLINE_ROLES: ReadonlySet<string> = new Set([
  * and notifies. Status and approval are set by staff only. Documents are not
  * part of this: they are uploaded to the application once it exists.
  */
-async function submitToServer(role: string, values: Record<string, string>): Promise<Omit<Submitted, "uploads">> {
+async function submitToServer(
+  role: string,
+  values: Record<string, string>,
+): Promise<Omit<Submitted, "uploads">> {
   const response = await fetch("/api/applications/submit", {
     method: "POST",
     headers: { ...(await authHeaders()), "Content-Type": "application/json" },
@@ -68,7 +71,12 @@ async function submitToServer(role: string, values: Record<string, string>): Pro
 }
 
 /** One document, uploaded to the application it belongs to. */
-async function uploadDocument(kind: string, applicationId: string, field: string, file: File): Promise<string | null> {
+async function uploadDocument(
+  kind: string,
+  applicationId: string,
+  field: string,
+  file: File,
+): Promise<string | null> {
   const form = new FormData();
   form.set("kind", kind);
   form.set("applicationId", applicationId);
@@ -259,14 +267,26 @@ function ApplyRolePage() {
   };
 
   /** Uploads the chosen documents to an application, one by one, and says what happened to each. */
-  const uploadAll = async (kind: string, applicationId: string, fields: string[]): Promise<Upload[]> => {
-    const labels = new Map((role?.sections ?? []).flatMap((s) => s.fields).map((f) => [f.name, f.label]));
+  const uploadAll = async (
+    kind: string,
+    applicationId: string,
+    fields: string[],
+  ): Promise<Upload[]> => {
+    const labels = new Map(
+      (role?.sections ?? []).flatMap((s) => s.fields).map((f) => [f.name, f.label]),
+    );
     const results: Upload[] = [];
     for (const field of fields) {
       const file = files[field];
       if (!file) continue;
       const error = await uploadDocument(kind, applicationId, field, file);
-      results.push({ field, label: labels.get(field) ?? field, name: file.name, ok: !error, error: error ?? undefined });
+      results.push({
+        field,
+        label: labels.get(field) ?? field,
+        name: file.name,
+        ok: !error,
+        error: error ?? undefined,
+      });
     }
     return results;
   };
@@ -310,10 +330,14 @@ function ApplyRolePage() {
       const result = await submitToServer(role.key, values);
       // Documents go to this application only if it is this role's own and
       // still waiting - never onto the other seller kind's application.
-      const canAttach = !result.conflict && result.id && ["pending", "in_review"].includes(result.status);
-      const uploads = canAttach ? await uploadAll(result.kind, result.id as string, Object.keys(files)) : [];
+      const canAttach =
+        !result.conflict && result.id && ["pending", "in_review"].includes(result.status);
+      const uploads = canAttach
+        ? await uploadAll(result.kind, result.id as string, Object.keys(files))
+        : [];
       setApplication({ ...result, uploads });
-      if (result.conflict) toast.error(t("apply.conflict_title", { kind: result.existingKind ?? "" }));
+      if (result.conflict)
+        toast.error(t("apply.conflict_title", { kind: result.existingKind ?? "" }));
       else toast.success(result.duplicate ? t("apply.already_applied") : t("apply.submitted"));
       if (uploads.some((u) => !u.ok)) toast.error(t("apply.documents_some_failed"));
     } catch (problem) {
@@ -328,7 +352,10 @@ function ApplyRolePage() {
       <div className="mpc-home min-h-screen px-5 py-16">
         <div className="mx-auto max-w-xl rounded-3xl border border-white/12 bg-white/[0.05] p-8 text-center backdrop-blur-xl">
           <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-300" />
-          <h1 className="mt-4 text-2xl font-black" data-application-conflict={application.conflict ? "" : undefined}>
+          <h1
+            className="mt-4 text-2xl font-black"
+            data-application-conflict={application.conflict ? "" : undefined}
+          >
             {application.conflict
               ? t("apply.conflict_title", { kind: application.existingKind ?? "" })
               : application.duplicate
@@ -349,15 +376,26 @@ function ApplyRolePage() {
             {role.key === "reseller" ? t("reseller.apply.next") : t("apply.next")}
           </p>
           {application.uploads.length > 0 && (
-            <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-left" data-application-documents>
-              <p className="text-[12px] font-bold uppercase tracking-wider text-white/55">{t("apply.documents")}</p>
+            <div
+              className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-left"
+              data-application-documents
+            >
+              <p className="text-[12px] font-bold uppercase tracking-wider text-white/55">
+                {t("apply.documents")}
+              </p>
               <ul className="mt-2 space-y-1.5 text-[12.5px]">
                 {application.uploads.map((u) => (
-                  <li key={u.field} data-document-field={u.field} data-document-ok={u.ok ? "" : undefined}>
+                  <li
+                    key={u.field}
+                    data-document-field={u.field}
+                    data-document-ok={u.ok ? "" : undefined}
+                  >
                     <span className="font-semibold">{u.label}</span>{" "}
                     <span className="text-white/55">— {u.name}</span>{" "}
                     <span className={u.ok ? "text-emerald-300" : "text-rose-300"}>
-                      {u.ok ? t("apply.document_uploaded") : t("apply.document_failed", { error: u.error ?? "" })}
+                      {u.ok
+                        ? t("apply.document_uploaded")
+                        : t("apply.document_failed", { error: u.error ?? "" })}
                     </span>
                   </li>
                 ))}
@@ -369,7 +407,11 @@ function ApplyRolePage() {
                   onClick={async () => {
                     setRetrying(true);
                     const failed = application.uploads.filter((u) => !u.ok).map((u) => u.field);
-                    const again = await uploadAll(application.kind, application.id as string, failed);
+                    const again = await uploadAll(
+                      application.kind,
+                      application.id as string,
+                      failed,
+                    );
                     const byField = new Map(again.map((u) => [u.field, u]));
                     setApplication({
                       ...application,

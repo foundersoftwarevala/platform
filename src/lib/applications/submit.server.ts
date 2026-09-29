@@ -69,14 +69,21 @@ export async function submitApplication(
   let outcome;
   switch (role) {
     case "reseller":
-      outcome = await rpcAs<RpcResult>(token, "submit_reseller_application", { p_application: application });
+      outcome = await rpcAs<RpcResult>(token, "submit_reseller_application", {
+        p_application: application,
+      });
       break;
     case "vendor":
     case "author":
-      outcome = await rpcAs<RpcResult>(token, "submit_seller_application", { p_kind: role, p_application: application });
+      outcome = await rpcAs<RpcResult>(token, "submit_seller_application", {
+        p_kind: role,
+        p_application: application,
+      });
       break;
     case "franchise":
-      outcome = await rpcAs<RpcResult>(token, "submit_franchise_application", { p_application: application });
+      outcome = await rpcAs<RpcResult>(token, "submit_franchise_application", {
+        p_application: application,
+      });
       break;
     case "affiliate":
       outcome = await rpcAs<RpcResult>(token, "submit_affiliate_application", {
@@ -118,13 +125,18 @@ export async function submitApplication(
   }
 
   if (!outcome || !outcome.ok) {
-    return { error: outcome?.message ?? "The application could not be submitted.", status: outcome?.status ?? 400 };
+    return {
+      error: outcome?.message ?? "The application could not be submitted.",
+      status: outcome?.status ?? 400,
+    };
   }
 
   const result = outcome.data ?? {};
   const conflict = result.conflict === true;
   const existingKind = result.existing_kind ?? null;
-  const ownKind = (conflict && isApplicationKind(existingKind) ? existingKind : role) as ApplicationKind;
+  const ownKind = (
+    conflict && isApplicationKind(existingKind) ? existingKind : role
+  ) as ApplicationKind;
   const found = result.id ? null : await findOwnApplication(ownKind, userId);
 
   return {

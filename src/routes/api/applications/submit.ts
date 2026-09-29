@@ -20,7 +20,8 @@ export const Route = createFileRoute("/api/applications/submit")({
       POST: async ({ request }) => {
         const token = bearer(request);
         const user = token ? await currentUser(request) : null;
-        if (!token || !user) return Response.json({ error: "Please sign in to apply" }, { status: 401 });
+        if (!token || !user)
+          return Response.json({ error: "Please sign in to apply" }, { status: 401 });
 
         let body: Record<string, unknown>;
         try {
@@ -41,7 +42,10 @@ export const Route = createFileRoute("/api/applications/submit")({
           user.id,
         );
         if ("error" in result) {
-          return Response.json({ error: result.error, fields: result.fields ?? [] }, { status: result.status });
+          return Response.json(
+            { error: result.error, fields: result.fields ?? [] },
+            { status: result.status },
+          );
         }
         return Response.json(result);
       },

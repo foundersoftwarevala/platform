@@ -25,7 +25,11 @@ describe("checkApplication", () => {
   };
 
   it("keeps every field the form has, and only those", () => {
-    const checked = checkApplication("affiliate", { ...affiliate, website: "https://asha.example.com", injected: "x" });
+    const checked = checkApplication("affiliate", {
+      ...affiliate,
+      website: "https://asha.example.com",
+      injected: "x",
+    });
     expect(checked.ok).toBe(true);
     if (!checked.ok) return;
     expect(checked.values.website).toBe("https://asha.example.com");
@@ -39,11 +43,17 @@ describe("checkApplication", () => {
     expect(checked.ok).toBe(false);
     if (checked.ok) return;
     expect(checked.error).toMatch(/^Missing required fields: /);
-    expect(checked.fields).toEqual(expect.arrayContaining(["email", "phone", "country", "idType", "audienceSize"]));
+    expect(checked.fields).toEqual(
+      expect.arrayContaining(["email", "phone", "country", "idType", "audienceSize"]),
+    );
   });
 
   it("refuses values of the wrong kind", () => {
-    const checked = checkApplication("affiliate", { ...affiliate, email: "not-an-email", website: "javascript:alert(1)" });
+    const checked = checkApplication("affiliate", {
+      ...affiliate,
+      email: "not-an-email",
+      website: "javascript:alert(1)",
+    });
     expect(checked.ok).toBe(false);
     if (checked.ok) return;
     expect(checked.fields).toEqual(expect.arrayContaining(["email", "website"]));
@@ -99,10 +109,23 @@ describe("documents", () => {
 describe("what is not collected", () => {
   it("keeps no bank details or identity number, whatever is sent", () => {
     const checked = checkApplication("reseller", {
-      fullName: "Asha Rao", email: "asha@example.com", phone: "+91 90000 12345", country: "India",
-      companyName: "Rao Traders", businessType: "Retailer", salesExperience: "4", targetMarket: "SMB",
-      expectedMonthlySales: "10", marketingChannels: "Field sales", idType: "PAN",
-      accountHolder: "Asha Rao", accountNumber: "123456789012", ifsc: "HDFC0001234", bankName: "HDFC", upi: "a@ok", idNumber: "ABCDE1234F",
+      fullName: "Asha Rao",
+      email: "asha@example.com",
+      phone: "+91 90000 12345",
+      country: "India",
+      companyName: "Rao Traders",
+      businessType: "Retailer",
+      salesExperience: "4",
+      targetMarket: "SMB",
+      expectedMonthlySales: "10",
+      marketingChannels: "Field sales",
+      idType: "PAN",
+      accountHolder: "Asha Rao",
+      accountNumber: "123456789012",
+      ifsc: "HDFC0001234",
+      bankName: "HDFC",
+      upi: "a@ok",
+      idNumber: "ABCDE1234F",
     });
     expect(checked.ok).toBe(true);
     if (!checked.ok) return;

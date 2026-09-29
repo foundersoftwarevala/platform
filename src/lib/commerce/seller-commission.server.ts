@@ -11,7 +11,10 @@ import { rateForAgreement } from "@/lib/commerce/commission-rates";
  * seller administration and the Control Panel's application decisions - so
  * both attach the same rule the same way. Returns the rate applied.
  */
-export async function applySellerCommissionRule(sellerId: string, agreement: unknown): Promise<number> {
+export async function applySellerCommissionRule(
+  sellerId: string,
+  agreement: unknown,
+): Promise<number> {
   const rate = rateForAgreement(typeof agreement === "string" ? agreement : null);
   const existing = await rest(
     `marketplace_commission_rules?select=id&seller_id=eq.${encodeURIComponent(sellerId)}` +

@@ -11,7 +11,14 @@ import { serviceRest } from "./gateway.server";
  * from a single queue while each role's Manager keeps its own account view.
  */
 
-export const APPLICATION_KINDS = ["reseller", "vendor", "author", "franchise", "influencer", "affiliate"] as const;
+export const APPLICATION_KINDS = [
+  "reseller",
+  "vendor",
+  "author",
+  "franchise",
+  "influencer",
+  "affiliate",
+] as const;
 export type ApplicationKind = (typeof APPLICATION_KINDS)[number];
 
 export function isApplicationKind(value: unknown): value is ApplicationKind {
@@ -62,15 +69,23 @@ const seller = (kind: "vendor" | "author"): Definition => ({
   table: "marketplace_sellers",
   owner: "owner_user_id",
   scope: `seller_kind=eq.${kind}`,
-  select: "id,display_name,slug,status,seller_kind,application,applied_at,created_at,rejection_reason",
+  select:
+    "id,display_name,slug,status,seller_kind,application,applied_at,created_at,rejection_reason",
   number: (r) => text((r.application as Row | null)?.application_number) || text(r.slug),
   name: (r) => text(r.display_name),
   email: (r) => text((r.application as Row | null)?.email),
   reason: (r) => (r.rejection_reason == null ? null : text(r.rejection_reason)),
   submitted: (r) => text(r.applied_at ?? r.created_at),
-  answers: (r) => ((r.application as Row | null) ?? {}),
-  transitions: { pending: ["approved", "rejected"], approved: ["suspended"], suspended: ["approved"] },
-  review: (id, status, reason) => ({ fn: "review_seller_application", args: { p_id: id, p_status: status, p_reason: reason } }),
+  answers: (r) => (r.application as Row | null) ?? {},
+  transitions: {
+    pending: ["approved", "rejected"],
+    approved: ["suspended"],
+    suspended: ["approved"],
+  },
+  review: (id, status, reason) => ({
+    fn: "review_seller_application",
+    args: { p_id: id, p_status: status, p_reason: reason },
+  }),
   audit: { table: "marketplace_audit_logs", entity: "marketplace_seller" },
   approvedStatus: "approved",
 });
@@ -86,9 +101,12 @@ const DEFINITIONS: Record<ApplicationKind, Definition> = {
     // A reseller refusal is recorded in the audit trail; the latest one is shown.
     reason: () => null,
     submitted: (r) => text(r.applied_at ?? r.created_at),
-    answers: (r) => ((r.application as Row | null) ?? {}),
+    answers: (r) => (r.application as Row | null) ?? {},
     transitions: { pending: ["active", "rejected"], active: ["suspended"], suspended: ["active"] },
-    review: (id, status, reason) => ({ fn: "mm_reseller_status", args: { p_id: id, p_to: status, p_reason: reason } }),
+    review: (id, status, reason) => ({
+      fn: "mm_reseller_status",
+      args: { p_id: id, p_to: status, p_reason: reason },
+    }),
     audit: { table: "marketplace_audit_logs", entity: "reseller" },
     approvedStatus: "active",
   },
@@ -97,14 +115,18 @@ const DEFINITIONS: Record<ApplicationKind, Definition> = {
   franchise: {
     table: "franchise_applications",
     owner: "applicant_user_id",
-    select: "id,code,owner_name,business_name,email,status,review_notes,application,applied_at,created_at",
+    select:
+      "id,code,owner_name,business_name,email,status,review_notes,application,applied_at,created_at",
     number: (r) => text(r.code),
     name: (r) => [text(r.owner_name), text(r.business_name)].filter(Boolean).join(" — "),
     email: (r) => text(r.email),
     reason: (r) => (r.review_notes == null ? null : text(r.review_notes)),
     submitted: (r) => text(r.applied_at ?? r.created_at),
-    answers: (r) => ((r.application as Row | null) ?? {}),
-    transitions: { pending: ["in_review", "approved", "rejected"], in_review: ["approved", "rejected"] },
+    answers: (r) => (r.application as Row | null) ?? {},
+    transitions: {
+      pending: ["in_review", "approved", "rejected"],
+      in_review: ["approved", "rejected"],
+    },
     review: (id, status, reason) => ({
       fn: "review_franchise_application",
       args: { p_id: id, p_status: status, p_notes: reason },
@@ -148,7 +170,10 @@ const DEFINITIONS: Record<ApplicationKind, Definition> = {
         idType: tax.id_type,
       };
     },
-    transitions: { pending: ["in_review", "approved", "rejected"], in_review: ["approved", "rejected"] },
+    transitions: {
+      pending: ["in_review", "approved", "rejected"],
+      in_review: ["approved", "rejected"],
+    },
     review: (id, status, reason) => ({
       fn: "review_influencer_application",
       args: { p_application_id: id, p_status: status, p_rejection_reason: reason },
@@ -165,8 +190,12 @@ const DEFINITIONS: Record<ApplicationKind, Definition> = {
     email: (r) => text((r.application as Row | null)?.email),
     reason: (r) => (r.rejection_reason == null ? null : text(r.rejection_reason)),
     submitted: (r) => text(r.applied_at ?? r.created_at),
-    answers: (r) => ((r.application as Row | null) ?? {}),
-    transitions: { pending: ["approved", "rejected"], approved: ["suspended"], suspended: ["approved"] },
+    answers: (r) => (r.application as Row | null) ?? {},
+    transitions: {
+      pending: ["approved", "rejected"],
+      approved: ["suspended"],
+      suspended: ["approved"],
+    },
     review: (id, status, reason) => ({
       fn: "review_affiliate_application",
       args: { p_id: id, p_status: status, p_reason: reason },
@@ -206,15 +235,21 @@ function summarise(kind: ApplicationKind, r: Row): ApplicationSummary {
  * and generous: the queue is the working set, not an archive, and a limit that
  * silently hid applications would be worse than a long list.
  */
-export async function listApplications(kinds: ApplicationKind[], open: boolean): Promise<ApplicationSummary[]> {
+export async function listApplications(
+  kinds: ApplicationKind[],
+  open: boolean,
+): Promise<ApplicationSummary[]> {
   const results = await Promise.all(
     kinds.map(async (kind) => {
       const d = DEFINITIONS[kind];
-      const filters = [d.scope, open ? `status=in.(${OPEN_STATUSES.join(",")})` : null].filter(Boolean).join("&");
+      const filters = [d.scope, open ? `status=in.(${OPEN_STATUSES.join(",")})` : null]
+        .filter(Boolean)
+        .join("&");
       const response = await serviceRest(
         `${d.table}?select=${d.select}${filters ? `&${filters}` : ""}&order=created_at.desc&limit=1000`,
       );
-      if (!response.ok) throw new Error(`${kind} applications could not be read (${response.status})`);
+      if (!response.ok)
+        throw new Error(`${kind} applications could not be read (${response.status})`);
       const rows = (await response.json()) as Row[];
       // Resellers, sellers and affiliates an operator created directly - or who
       // joined before the form existed - have no application: they are
@@ -222,7 +257,12 @@ export async function listApplications(kinds: ApplicationKind[], open: boolean):
       // influencer tables hold nothing but applications.
       const holdsOnlyApplications = kind === "franchise" || kind === "influencer";
       return rows
-        .filter((r) => holdsOnlyApplications || r.application != null || OPEN_STATUSES.includes(text(r.status)))
+        .filter(
+          (r) =>
+            holdsOnlyApplications ||
+            r.application != null ||
+            OPEN_STATUSES.includes(text(r.status)),
+        )
         .map((r) => summarise(kind, r));
     }),
   );
@@ -263,7 +303,10 @@ function display(value: unknown): string | null {
 }
 
 /** One application, in full: every answer, its documents and its decisions. */
-export async function getApplication(kind: ApplicationKind, id: string): Promise<ApplicationDetail | null> {
+export async function getApplication(
+  kind: ApplicationKind,
+  id: string,
+): Promise<ApplicationDetail | null> {
   const d = DEFINITIONS[kind];
   const response = await serviceRest(
     `${d.table}?select=${d.select},${d.owner}&id=eq.${encodeURIComponent(id)}${d.scope ? `&${d.scope}` : ""}&limit=1`,
@@ -311,7 +354,10 @@ export async function getApplication(kind: ApplicationKind, id: string): Promise
   };
 }
 
-export async function listDocuments(kind: ApplicationKind, id: string): Promise<ApplicationDocument[]> {
+export async function listDocuments(
+  kind: ApplicationKind,
+  id: string,
+): Promise<ApplicationDocument[]> {
   const response = await serviceRest(
     `application_documents?select=id,field,original_name,mime_type,size_bytes,uploaded_at` +
       `&application_kind=eq.${kind}&application_id=eq.${encodeURIComponent(id)}&order=uploaded_at.asc`,
@@ -376,12 +422,17 @@ export async function findOwnApplication(
 }
 
 /** Whether this user is the applicant, read from the application itself. */
-export async function ownerOf(kind: ApplicationKind, id: string): Promise<{ owner: string | null; status: string } | null> {
+export async function ownerOf(
+  kind: ApplicationKind,
+  id: string,
+): Promise<{ owner: string | null; status: string } | null> {
   const d = DEFINITIONS[kind];
   const response = await serviceRest(
     `${d.table}?select=${d.owner},status&id=eq.${encodeURIComponent(id)}${d.scope ? `&${d.scope}` : ""}&limit=1`,
   );
   if (!response.ok) return null;
   const [row] = (await response.json()) as Row[];
-  return row ? { owner: row[d.owner] == null ? null : text(row[d.owner]), status: text(row.status) } : null;
+  return row
+    ? { owner: row[d.owner] == null ? null : text(row[d.owner]), status: text(row.status) }
+    : null;
 }

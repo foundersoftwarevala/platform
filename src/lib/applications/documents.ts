@@ -29,7 +29,8 @@ export const DOCUMENT_ACCEPT = DOCUMENT_TYPES.map((t) => t.mime).join(",");
  */
 export function sniffDocumentType(head: Uint8Array): DocumentMime | null {
   const at = (i: number) => head[i];
-  if (at(0) === 0x25 && at(1) === 0x50 && at(2) === 0x44 && at(3) === 0x46) return "application/pdf"; // %PDF
+  if (at(0) === 0x25 && at(1) === 0x50 && at(2) === 0x44 && at(3) === 0x46)
+    return "application/pdf"; // %PDF
   if (at(0) === 0xff && at(1) === 0xd8 && at(2) === 0xff) return "image/jpeg";
   if (at(0) === 0x89 && at(1) === 0x50 && at(2) === 0x4e && at(3) === 0x47) return "image/png";
   const text = (from: number, to: number) => String.fromCharCode(...head.slice(from, to));
