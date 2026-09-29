@@ -15,121 +15,73 @@ import {
 } from "lucide-react";
 import "@/styles/marketplace-home.css";
 import { getRole, type Field } from "@/lib/applications/config";
+import { checkDocument, DOCUMENT_ACCEPT } from "@/lib/applications/documents";
 import { partnerHashtags, partnerSeo, partnerStructuredData } from "@/lib/seo/partner-opportunity";
 import { absoluteUrl } from "@/lib/seo/site-url";
 import { supabase } from "@/integrations/supabase/client";
 import { authHeaders } from "@/lib/auth/operator-fetch";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
-type Submitted = { number: string; status: string; duplicate: boolean };
+type Upload = { field: string; label: string; name: string; ok: boolean; error?: string };
+
+type Submitted = {
+  kind: string;
+  id: string | null;
+  number: string;
+  status: string;
+  duplicate: boolean;
+  /** Vendor and author share one seller record per account; this names the one held. */
+  conflict: boolean;
+  existingKind: string | null;
+  uploads: Upload[];
+};
 
 /** Roles whose application reaches a server table and a manager workflow. */
 const ONLINE_ROLES: ReadonlySet<string> = new Set([
   "reseller", "vendor", "author", "franchise", "influencer", "affiliate",
 ]);
 
-type RpcResult = { application_number: string; status: string; duplicate?: boolean };
-
-async function rpc(fn: string, args: Record<string, unknown>): Promise<RpcResult> {
-  const { data, error } = (await supabase.rpc(fn as never, args as never)) as {
-    data: RpcResult | null;
-    error: Error | null;
+/**
+ * Every role goes to the same server path, which checks the form's fields,
+ * encrypts the secret ones and calls the role's own database function as the
+ * applicant - the function numbers the application, refuses a second open one
+ * and notifies. Status and approval are set by staff only. Documents are not
+ * part of this: they are uploaded to the application once it exists.
+ */
+async function submitToServer(role: string, values: Record<string, string>): Promise<Omit<Submitted, "uploads">> {
+  const response = await fetch("/api/applications/submit", {
+    method: "POST",
+    headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+    body: JSON.stringify({ role, values, agreementAccepted: true }),
+  });
+  const body = (await response.json().catch(() => ({}))) as Partial<Submitted> & { error?: string };
+  if (!response.ok) throw new Error(body.error ?? "The application could not be submitted.");
+  return {
+    kind: body.kind ?? role,
+    id: body.id ?? null,
+    number: body.number ?? "",
+    status: body.status ?? "pending",
+    duplicate: body.duplicate === true,
+    conflict: body.conflict === true,
+    existingKind: body.existingKind ?? null,
   };
-  if (error) throw error;
-  if (!data) throw new Error("No application was returned.");
-  return data;
 }
 
-const num = (v: string | undefined): number | null => {
-  const n = Number(String(v ?? "").replace(/[^0-9.]/g, ""));
-  return Number.isFinite(n) && String(v ?? "").trim() !== "" ? n : null;
-};
-
-/**
- * Each role goes to the server path that already owns it; the database
- * validates, de-duplicates (one open application per account), numbers it and
- * notifies. Status and approval are set by staff only.
- */
-async function submitToServer(role: string, values: Record<string, string>): Promise<Submitted> {
-  const application = { ...values, agreementAccepted: true };
-  let result: RpcResult;
-  switch (role) {
-    case "reseller":
-      result = await rpc("submit_reseller_application", { p_application: application });
-      break;
-    case "vendor":
-    case "author":
-      result = await rpc("submit_seller_application", { p_kind: role, p_application: application });
-      break;
-    case "franchise":
-      result = await rpc("submit_franchise_application", { p_application: application });
-      break;
-    case "influencer": {
-      /**
-       * Through the server, to the VPS.
-       *
-       * The same submit_influencer_application with the same arguments, but
-       * called server-side. The browser Supabase client is built against the
-       * hosted project, and the influencer module's profiles, tiers, referral
-       * codes and commissions are all on the VPS - so an application sent the
-       * old way landed where an approval could never lead to a referral link or
-       * a payment. Nothing about the form, its fields or its validation
-       * changes; only where the row is written.
-       */
-      const response = await fetch("/api/influencer/apply", {
-        method: "POST",
-        headers: { ...(await authHeaders()), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName: values.fullName ?? "",
-          email: values.email ?? "",
-          phone: values.phone || null,
-          country: values.country || null,
-          region: [values.city, values.state].filter(Boolean).join(", ") || null,
-          socialProfiles: {
-            instagram: values.instagram || null,
-            youtube: values.youtube || null,
-            linkedin: values.linkedin || null,
-            x: values.xTwitter || null,
-            rate_card: values.rateCard || null,
-            past_brands: values.pastBrands || null,
-          },
-          followers: num(values.followers) ?? 0,
-          niche: values.niche ?? "",
-          contentTypes: null,
-          engagementRate: num(values.engagementRate),
-          paymentDetails: {},
-          taxDetails: { id_type: values.idType || null, id_number: values.idNumber || null },
-          agreementAccepted: true,
-          consentAccepted: true,
-          termsAccepted: true,
-        }),
-      });
-      const payload = (await response.json()) as RpcResult & { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "The application could not be submitted.");
-      result = payload;
-      break;
-    }
-    case "affiliate": {
-      const response = await fetch("/api/affiliate/account", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-        body: JSON.stringify({ action: "apply", displayName: values.fullName ?? "", termsAccepted: true }),
-      });
-      const body = (await response.json().catch(() => ({}))) as {
-        error?: string; status?: string; partnerId?: string; alreadyApplied?: boolean;
-      };
-      if (!response.ok) throw new Error(body.error ?? "The application could not be submitted.");
-      result = {
-        application_number: `AFF-${String(body.partnerId ?? "").replace(/-/g, "").slice(0, 10).toUpperCase()}`,
-        status: body.status ?? "pending",
-        duplicate: Boolean(body.alreadyApplied),
-      };
-      break;
-    }
-    default:
-      throw new Error("Online applications for this role are not open.");
-  }
-  return { number: result.application_number, status: result.status, duplicate: Boolean(result.duplicate) };
+/** One document, uploaded to the application it belongs to. */
+async function uploadDocument(kind: string, applicationId: string, field: string, file: File): Promise<string | null> {
+  const form = new FormData();
+  form.set("kind", kind);
+  form.set("applicationId", applicationId);
+  form.set("field", field);
+  form.set("file", file);
+  const response = await fetch("/api/applications/documents", {
+    method: "POST",
+    headers: await authHeaders(),
+    body: form,
+  });
+  if (response.ok) return null;
+  const body = (await response.json().catch(() => ({}))) as { error?: string };
+  return body.error ?? "The document could not be uploaded.";
 }
 
 export const Route = createFileRoute("/apply/$role")({
@@ -205,10 +157,16 @@ function FieldInput({
   field,
   value,
   onChange,
+  onFile,
+  hint,
 }: {
   field: Field;
   value: string;
   onChange: (v: string) => void;
+  /** A document field hands over the file itself; its name is never kept as a value. */
+  onFile?: (file: File | null, input: HTMLInputElement) => void;
+  /** Shown under a document field: what may be uploaded. */
+  hint?: string;
 }) {
   const id = `f_${field.name}`;
   return (
@@ -245,12 +203,16 @@ function FieldInput({
           ))}
         </select>
       ) : field.type === "file" ? (
-        <input
-          id={id}
-          type="file"
-          onChange={(e) => onChange(e.target.files?.[0]?.name ?? "")}
-          className={`${inputCls} file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-400/20 file:px-3 file:py-1 file:text-[11px] file:font-semibold file:text-cyan-100`}
-        />
+        <>
+          <input
+            id={id}
+            type="file"
+            accept={DOCUMENT_ACCEPT}
+            onChange={(e) => onFile?.(e.target.files?.[0] ?? null, e.target)}
+            className={`${inputCls} file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-400/20 file:px-3 file:py-1 file:text-[11px] file:font-semibold file:text-cyan-100`}
+          />
+          {hint && <p className="mt-1 text-[10.5px] text-white/45">{hint}</p>}
+        </>
       ) : (
         <input
           id={id}
@@ -275,8 +237,39 @@ function ApplyRolePage() {
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [application, setApplication] = useState<Submitted | null>(null);
+  // The documents themselves, by field. They are uploaded once the application
+  // exists; until then they stay here and never become text in `values`.
+  const [files, setFiles] = useState<Record<string, File>>({});
+  const [retrying, setRetrying] = useState(false);
 
   const set = (k: string, v: string) => setValues((p) => ({ ...p, [k]: v }));
+  const pickFile = (field: Field, file: File | null, input: HTMLInputElement) => {
+    if (!file) {
+      setFiles(({ [field.name]: _drop, ...rest }) => rest);
+      return;
+    }
+    const problem = checkDocument(file);
+    if (problem) {
+      toast.error(t("apply.document_invalid", { field: field.label, problem }));
+      input.value = "";
+      setFiles(({ [field.name]: _drop, ...rest }) => rest);
+      return;
+    }
+    setFiles((current) => ({ ...current, [field.name]: file }));
+  };
+
+  /** Uploads the chosen documents to an application, one by one, and says what happened to each. */
+  const uploadAll = async (kind: string, applicationId: string, fields: string[]): Promise<Upload[]> => {
+    const labels = new Map((role?.sections ?? []).flatMap((s) => s.fields).map((f) => [f.name, f.label]));
+    const results: Upload[] = [];
+    for (const field of fields) {
+      const file = files[field];
+      if (!file) continue;
+      const error = await uploadDocument(kind, applicationId, field, file);
+      results.push({ field, label: labels.get(field) ?? field, name: file.name, ok: !error, error: error ?? undefined });
+    }
+    return results;
+  };
   const acceptsOnline = role ? ONLINE_ROLES.has(role.key) : false;
 
   const progress = useMemo(() => {
@@ -315,8 +308,14 @@ function ApplyRolePage() {
     setBusy(true);
     try {
       const result = await submitToServer(role.key, values);
-      setApplication(result);
-      toast.success(result.duplicate ? t("apply.already_applied") : t("apply.submitted"));
+      // Documents go to this application only if it is this role's own and
+      // still waiting - never onto the other seller kind's application.
+      const canAttach = !result.conflict && result.id && ["pending", "in_review"].includes(result.status);
+      const uploads = canAttach ? await uploadAll(result.kind, result.id as string, Object.keys(files)) : [];
+      setApplication({ ...result, uploads });
+      if (result.conflict) toast.error(t("apply.conflict_title", { kind: result.existingKind ?? "" }));
+      else toast.success(result.duplicate ? t("apply.already_applied") : t("apply.submitted"));
+      if (uploads.some((u) => !u.ok)) toast.error(t("apply.documents_some_failed"));
     } catch (problem) {
       toast.error(problem instanceof Error ? problem.message : t("apply.failed"));
     } finally {
@@ -329,9 +328,18 @@ function ApplyRolePage() {
       <div className="mpc-home min-h-screen px-5 py-16">
         <div className="mx-auto max-w-xl rounded-3xl border border-white/12 bg-white/[0.05] p-8 text-center backdrop-blur-xl">
           <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-300" />
-          <h1 className="mt-4 text-2xl font-black">
-            {application.duplicate ? t("apply.already_applied") : t("apply.submitted")}
+          <h1 className="mt-4 text-2xl font-black" data-application-conflict={application.conflict ? "" : undefined}>
+            {application.conflict
+              ? t("apply.conflict_title", { kind: application.existingKind ?? "" })
+              : application.duplicate
+                ? t("apply.already_applied")
+                : t("apply.submitted")}
           </h1>
+          {application.conflict && (
+            <p className="mt-3 text-[13px] leading-relaxed text-amber-100/90">
+              {t("apply.conflict_body", { kind: application.existingKind ?? "", role: role.key })}
+            </p>
+          )}
           <p className="mt-3 text-[13px] text-white/60">{t("apply.number")}</p>
           <p className="mt-1 font-mono text-2xl font-black tracking-wider text-cyan-200" data-application-number>
             {application.number}
@@ -340,6 +348,43 @@ function ApplyRolePage() {
             {t("apply.status", { status: application.status })}{" "}
             {role.key === "reseller" ? t("reseller.apply.next") : t("apply.next")}
           </p>
+          {application.uploads.length > 0 && (
+            <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-left" data-application-documents>
+              <p className="text-[12px] font-bold uppercase tracking-wider text-white/55">{t("apply.documents")}</p>
+              <ul className="mt-2 space-y-1.5 text-[12.5px]">
+                {application.uploads.map((u) => (
+                  <li key={u.field} data-document-field={u.field} data-document-ok={u.ok ? "" : undefined}>
+                    <span className="font-semibold">{u.label}</span>{" "}
+                    <span className="text-white/55">— {u.name}</span>{" "}
+                    <span className={u.ok ? "text-emerald-300" : "text-rose-300"}>
+                      {u.ok ? t("apply.document_uploaded") : t("apply.document_failed", { error: u.error ?? "" })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {application.uploads.some((u) => !u.ok) && application.id && (
+                <button
+                  type="button"
+                  disabled={retrying}
+                  onClick={async () => {
+                    setRetrying(true);
+                    const failed = application.uploads.filter((u) => !u.ok).map((u) => u.field);
+                    const again = await uploadAll(application.kind, application.id as string, failed);
+                    const byField = new Map(again.map((u) => [u.field, u]));
+                    setApplication({
+                      ...application,
+                      uploads: application.uploads.map((u) => byField.get(u.field) ?? u),
+                    });
+                    setRetrying(false);
+                  }}
+                  className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-[12px] font-bold disabled:opacity-60"
+                >
+                  {retrying && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {t("apply.documents_retry")}
+                </button>
+              )}
+            </div>
+          )}
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link to="/" className="rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-[13px] font-bold">
               {t("apply.home")}
@@ -419,7 +464,14 @@ function ApplyRolePage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 {section.fields.map((f) => (
-                  <FieldInput key={f.name} field={f} value={values[f.name] ?? ""} onChange={(v) => set(f.name, v)} />
+                  <FieldInput
+                    key={f.name}
+                    field={f}
+                    value={values[f.name] ?? ""}
+                    onChange={(v) => set(f.name, v)}
+                    onFile={(file, input) => pickFile(f, file, input)}
+                    hint={t("apply.document_hint")}
+                  />
                 ))}
               </div>
             </section>

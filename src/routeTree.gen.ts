@@ -15,6 +15,7 @@ import { Route as AiApiManagerRouteImport } from './routes/ai-api-manager'
 import { Route as AiCeoRouteImport } from './routes/ai-ceo'
 import { Route as AmsRouteImport } from './routes/ams'
 import { Route as AmsManagerRouteImport } from './routes/ams-manager'
+import { Route as ApplicationManagerRouteImport } from './routes/application-manager'
 import { Route as AssistManagerRouteImport } from './routes/assist-manager'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BossRouteImport } from './routes/boss'
@@ -266,6 +267,9 @@ import { Route as ApiActionsRegistryRouteImport } from './routes/api/actions/reg
 import { Route as ApiAffiliateAccountRouteImport } from './routes/api/affiliate/account'
 import { Route as ApiAffiliateAttributeRouteImport } from './routes/api/affiliate/attribute'
 import { Route as ApiAnalyticsProductsRouteImport } from './routes/api/analytics/products'
+import { Route as ApiApplicationsDocumentsRouteImport } from './routes/api/applications/documents'
+import { Route as ApiApplicationsQueueRouteImport } from './routes/api/applications/queue'
+import { Route as ApiApplicationsSubmitRouteImport } from './routes/api/applications/submit'
 import { Route as ApiAuthorEarningsRouteImport } from './routes/api/author/earnings'
 import { Route as ApiAuthorProductsRouteImport } from './routes/api/author/products'
 import { Route as ApiDemoAssignRouteImport } from './routes/api/demo/assign'
@@ -385,6 +389,11 @@ const AmsRoute = AmsRouteImport.update({
 const AmsManagerRoute = AmsManagerRouteImport.update({
   id: '/ams-manager',
   path: '/ams-manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApplicationManagerRoute = ApplicationManagerRouteImport.update({
+  id: '/application-manager',
+  path: '/application-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AssistManagerRoute = AssistManagerRouteImport.update({
@@ -1667,6 +1676,22 @@ const ApiAnalyticsProductsRoute = ApiAnalyticsProductsRouteImport.update({
   path: '/api/analytics/products',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiApplicationsDocumentsRoute =
+  ApiApplicationsDocumentsRouteImport.update({
+    id: '/api/applications/documents',
+    path: '/api/applications/documents',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiApplicationsQueueRoute = ApiApplicationsQueueRouteImport.update({
+  id: '/api/applications/queue',
+  path: '/api/applications/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiApplicationsSubmitRoute = ApiApplicationsSubmitRouteImport.update({
+  id: '/api/applications/submit',
+  path: '/api/applications/submit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthorEarningsRoute = ApiAuthorEarningsRouteImport.update({
   id: '/api/author/earnings',
   path: '/api/author/earnings',
@@ -2145,6 +2170,7 @@ export interface FileRoutesByFullPath {
   '/ai-ceo': typeof AiCeoRouteWithChildren
   '/ams': typeof AmsRouteWithChildren
   '/ams-manager': typeof AmsManagerRoute
+  '/application-manager': typeof ApplicationManagerRoute
   '/assist-manager': typeof AssistManagerRoute
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
@@ -2388,6 +2414,9 @@ export interface FileRoutesByFullPath {
   '/api/affiliate/account': typeof ApiAffiliateAccountRoute
   '/api/affiliate/attribute': typeof ApiAffiliateAttributeRoute
   '/api/analytics/products': typeof ApiAnalyticsProductsRoute
+  '/api/applications/documents': typeof ApiApplicationsDocumentsRoute
+  '/api/applications/queue': typeof ApiApplicationsQueueRoute
+  '/api/applications/submit': typeof ApiApplicationsSubmitRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
@@ -2491,6 +2520,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-api-manager': typeof AiApiManagerRoute
   '/ams-manager': typeof AmsManagerRoute
+  '/application-manager': typeof ApplicationManagerRoute
   '/assist-manager': typeof AssistManagerRoute
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
@@ -2727,6 +2757,9 @@ export interface FileRoutesByTo {
   '/api/affiliate/account': typeof ApiAffiliateAccountRoute
   '/api/affiliate/attribute': typeof ApiAffiliateAttributeRoute
   '/api/analytics/products': typeof ApiAnalyticsProductsRoute
+  '/api/applications/documents': typeof ApiApplicationsDocumentsRoute
+  '/api/applications/queue': typeof ApiApplicationsQueueRoute
+  '/api/applications/submit': typeof ApiApplicationsSubmitRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
@@ -2834,6 +2867,7 @@ export interface FileRoutesById {
   '/ai-ceo': typeof AiCeoRouteWithChildren
   '/ams': typeof AmsRouteWithChildren
   '/ams-manager': typeof AmsManagerRoute
+  '/application-manager': typeof ApplicationManagerRoute
   '/assist-manager': typeof AssistManagerRoute
   '/auth': typeof AuthRoute
   '/boss': typeof BossRoute
@@ -3077,6 +3111,9 @@ export interface FileRoutesById {
   '/api/affiliate/account': typeof ApiAffiliateAccountRoute
   '/api/affiliate/attribute': typeof ApiAffiliateAttributeRoute
   '/api/analytics/products': typeof ApiAnalyticsProductsRoute
+  '/api/applications/documents': typeof ApiApplicationsDocumentsRoute
+  '/api/applications/queue': typeof ApiApplicationsQueueRoute
+  '/api/applications/submit': typeof ApiApplicationsSubmitRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
@@ -3185,6 +3222,7 @@ export interface FileRouteTypes {
     | '/ai-ceo'
     | '/ams'
     | '/ams-manager'
+    | '/application-manager'
     | '/assist-manager'
     | '/auth'
     | '/boss'
@@ -3428,6 +3466,9 @@ export interface FileRouteTypes {
     | '/api/affiliate/account'
     | '/api/affiliate/attribute'
     | '/api/analytics/products'
+    | '/api/applications/documents'
+    | '/api/applications/queue'
+    | '/api/applications/submit'
     | '/api/author/earnings'
     | '/api/author/products'
     | '/api/demo/assign'
@@ -3531,6 +3572,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-api-manager'
     | '/ams-manager'
+    | '/application-manager'
     | '/assist-manager'
     | '/auth'
     | '/boss'
@@ -3767,6 +3809,9 @@ export interface FileRouteTypes {
     | '/api/affiliate/account'
     | '/api/affiliate/attribute'
     | '/api/analytics/products'
+    | '/api/applications/documents'
+    | '/api/applications/queue'
+    | '/api/applications/submit'
     | '/api/author/earnings'
     | '/api/author/products'
     | '/api/demo/assign'
@@ -3873,6 +3918,7 @@ export interface FileRouteTypes {
     | '/ai-ceo'
     | '/ams'
     | '/ams-manager'
+    | '/application-manager'
     | '/assist-manager'
     | '/auth'
     | '/boss'
@@ -4116,6 +4162,9 @@ export interface FileRouteTypes {
     | '/api/affiliate/account'
     | '/api/affiliate/attribute'
     | '/api/analytics/products'
+    | '/api/applications/documents'
+    | '/api/applications/queue'
+    | '/api/applications/submit'
     | '/api/author/earnings'
     | '/api/author/products'
     | '/api/demo/assign'
@@ -4223,6 +4272,7 @@ export interface RootRouteChildren {
   AiCeoRoute: typeof AiCeoRouteWithChildren
   AmsRoute: typeof AmsRouteWithChildren
   AmsManagerRoute: typeof AmsManagerRoute
+  ApplicationManagerRoute: typeof ApplicationManagerRoute
   AssistManagerRoute: typeof AssistManagerRoute
   AuthRoute: typeof AuthRoute
   BossRoute: typeof BossRoute
@@ -4306,6 +4356,9 @@ export interface RootRouteChildren {
   ApiAffiliateAccountRoute: typeof ApiAffiliateAccountRoute
   ApiAffiliateAttributeRoute: typeof ApiAffiliateAttributeRoute
   ApiAnalyticsProductsRoute: typeof ApiAnalyticsProductsRoute
+  ApiApplicationsDocumentsRoute: typeof ApiApplicationsDocumentsRoute
+  ApiApplicationsQueueRoute: typeof ApiApplicationsQueueRoute
+  ApiApplicationsSubmitRoute: typeof ApiApplicationsSubmitRoute
   ApiAuthorEarningsRoute: typeof ApiAuthorEarningsRoute
   ApiAuthorProductsRoute: typeof ApiAuthorProductsRoute
   ApiDemoAssignRoute: typeof ApiDemoAssignRoute
@@ -4426,6 +4479,13 @@ declare module '@tanstack/react-router' {
       path: '/ams-manager'
       fullPath: '/ams-manager'
       preLoaderRoute: typeof AmsManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/application-manager': {
+      id: '/application-manager'
+      path: '/application-manager'
+      fullPath: '/application-manager'
+      preLoaderRoute: typeof ApplicationManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/assist-manager': {
@@ -6185,6 +6245,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnalyticsProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/applications/documents': {
+      id: '/api/applications/documents'
+      path: '/api/applications/documents'
+      fullPath: '/api/applications/documents'
+      preLoaderRoute: typeof ApiApplicationsDocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/applications/queue': {
+      id: '/api/applications/queue'
+      path: '/api/applications/queue'
+      fullPath: '/api/applications/queue'
+      preLoaderRoute: typeof ApiApplicationsQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/applications/submit': {
+      id: '/api/applications/submit'
+      path: '/api/applications/submit'
+      fullPath: '/api/applications/submit'
+      preLoaderRoute: typeof ApiApplicationsSubmitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/author/earnings': {
       id: '/api/author/earnings'
       path: '/api/author/earnings'
@@ -7304,6 +7385,7 @@ const rootRouteChildren: RootRouteChildren = {
   AiCeoRoute: AiCeoRouteWithChildren,
   AmsRoute: AmsRouteWithChildren,
   AmsManagerRoute: AmsManagerRoute,
+  ApplicationManagerRoute: ApplicationManagerRoute,
   AssistManagerRoute: AssistManagerRoute,
   AuthRoute: AuthRoute,
   BossRoute: BossRoute,
@@ -7387,6 +7469,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAffiliateAccountRoute: ApiAffiliateAccountRoute,
   ApiAffiliateAttributeRoute: ApiAffiliateAttributeRoute,
   ApiAnalyticsProductsRoute: ApiAnalyticsProductsRoute,
+  ApiApplicationsDocumentsRoute: ApiApplicationsDocumentsRoute,
+  ApiApplicationsQueueRoute: ApiApplicationsQueueRoute,
+  ApiApplicationsSubmitRoute: ApiApplicationsSubmitRoute,
   ApiAuthorEarningsRoute: ApiAuthorEarningsRoute,
   ApiAuthorProductsRoute: ApiAuthorProductsRoute,
   ApiDemoAssignRoute: ApiDemoAssignRoute,

@@ -8,6 +8,8 @@ import {
   requireAffiliate,
   rest,
 } from "@/lib/affiliate/core";
+import { bearer } from "@/lib/applications/gateway.server";
+import { submitApplication } from "@/lib/applications/submit.server";
 
 /**
  * The affiliate's own account: apply, see status, manage referral links.
@@ -84,9 +86,20 @@ export const Route = createFileRoute("/api/affiliate/account")({
         const action = String(body.action ?? "apply");
 
         // ------------------------------------------------------------ apply
+        /**
+         * Applying to join.
+         *
+         * This used to insert a row with the service key keeping only the
+         * display name, so the rest of the affiliate form was thrown away. It
+         * now goes through the same path as every other role: the form's
+         * fields checked and kept, secrets encrypted, and
+         * submit_affiliate_application called as the applicant - which refuses
+         * a second application and records and announces the first.
+         */
         if (action === "apply") {
           const user = await currentUser(request);
-          if (!user) return Response.json({ error: "Please sign in" }, { status: 401 });
+          const token = bearer(request);
+          if (!user || !token) return Response.json({ error: "Please sign in" }, { status: 401 });
 
           const existing = await partnerForUser(user.id);
           if (existing) {
@@ -95,36 +108,14 @@ export const Route = createFileRoute("/api/affiliate/account")({
               { status: 200 },
             );
           }
-          if (body.termsAccepted !== true) {
-            return Response.json(
-              { error: "The affiliate agreement must be accepted" },
-              { status: 400 },
-            );
-          }
-
-          const displayName = String(body.displayName ?? "").trim().slice(0, 120);
-          if (displayName.length < 2) {
-            return Response.json({ error: "A display name is required" }, { status: 400 });
-          }
-
-          const created = await rest("marketplace_affiliate_partners", {
-            method: "POST",
-            headers: { Prefer: "return=representation" },
-            body: JSON.stringify({
-              user_id: user.id,
-              display_name: displayName,
-              // Approval is the platform's, never the applicant's.
-              status: "pending",
-            }),
-          });
-          if (!created.ok) {
-            const detail = await created.text();
-            console.error("[affiliate apply] failed", created.status, detail.slice(0, 200));
-            return Response.json({ error: "Could not submit the application" }, { status: 502 });
-          }
-          const rows = (await created.json()) as { id: string }[];
+          const values =
+            body.values && typeof body.values === "object" && !Array.isArray(body.values)
+              ? (body.values as Record<string, unknown>)
+              : { fullName: body.displayName };
+          const result = await submitApplication("affiliate", values, body.termsAccepted === true, token, user.id);
+          if ("error" in result) return Response.json({ error: result.error }, { status: result.status });
           return Response.json(
-            { ok: true, applied: true, status: "pending", partnerId: rows[0]?.id },
+            { ok: true, applied: true, status: result.status, partnerId: result.id },
             { status: 201 },
           );
         }

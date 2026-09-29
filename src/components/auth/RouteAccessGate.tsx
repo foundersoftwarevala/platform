@@ -37,6 +37,8 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/influencer-manager", roles: ["finance", "support", "sales_support_manager"], label: "Influencer Manager" },
   { prefix: "/affiliate-manager", roles: ["finance", "support", "sales_support_manager"], label: "Affiliate Manager" },
   { prefix: "/vendor-manager", roles: ["finance", "support", "sales_support_manager"], label: "Vendor Manager" },
+  // The same roles the database's application_staff() lets decide an application.
+  { prefix: "/application-manager", roles: ["marketing"], label: "Application Manager" },
   { prefix: "/creator-manager", roles: ["finance", "support"], label: "Creator Manager" },
   { prefix: "/finance-manager", roles: ["finance"], label: "Finance Manager" },
   { prefix: "/lead-manager", roles: ["sales", "marketing", "support", "sales_support_manager"], label: "Lead Manager" },
