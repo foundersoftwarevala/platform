@@ -322,6 +322,40 @@ const RESOURCES: Record<string, Resource> = {
     archive: { status: "inactive" },
   },
 
+  /**
+   * Someone opening a demo. The only engagement figure this module actually has.
+   *
+   * The studio's "Demo Engagement" card counted demo_url_audit_log entries with
+   * the action `demo_url.test`, and no such action has ever been written - the
+   * log holds demo_url.monitor, .sync, .investigate, .activate, .intake and
+   * .create. So the card read zero whatever happened, and a health-check count
+   * would not have been engagement anyway: that is the platform checking itself,
+   * not a visitor opening anything.
+   *
+   * Read-only. Nothing here is an operator decision.
+   */
+  demo_clicks: {
+    table: "demo_clicks",
+    select: [
+      "id",
+      "demo_id",
+      "product_id",
+      "demo_url_id",
+      "device_type",
+      "browser",
+      "country",
+      "session_duration",
+      "converted",
+      "source_page",
+      "clicked_at",
+    ],
+    editable: [],
+    searchable: ["country", "device_type", "browser", "source_page"],
+    order: "clicked_at.desc",
+    retirable: false,
+    label: "Demo open",
+  },
+
   /** What an operator did to an address, kept where the team can see it. */
   demo_audit: {
     table: "demo_url_audit_log",

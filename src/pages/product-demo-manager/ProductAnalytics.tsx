@@ -17,10 +17,18 @@ import { useResource } from "@/lib/manager/use-resource";
  */
 const ProductAnalytics = () => {
   const all = useResource("demo_audit", { limit: 1 });
-  const tests = useResource("demo_audit", { limit: 1, filters: ["action.eq.demo_url.test"] });
-  const isLoading = all.loading || tests.loading;
+  /**
+   * "Demo Engagement" counted audit entries with the action `demo_url.test`,
+   * and nothing has ever written that action - the log holds demo_url.monitor,
+   * .sync, .investigate, .activate, .intake and .create. The card read zero
+   * whatever happened. It counts demo opens now, which is the only engagement
+   * this module actually records; monitor runs are the platform checking
+   * itself, not a visitor opening anything.
+   */
+  const opens = useResource("demo_clicks", { limit: 1 });
+  const isLoading = all.loading || opens.loading;
   const audit = { length: all.total };
-  const checks = tests.total;
+  const checks = opens.total;
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
