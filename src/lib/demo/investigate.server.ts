@@ -285,7 +285,9 @@ export async function investigateOne(input: {
     return { ...base, state: "ALREADY_ASSIGNED", reason: "It already has a product.", productId: String(current.product_id) };
   }
 
-  let evidence: Investigation["evidence"];
+  // The evidence exactly as the reader produces it, so what is handed to the
+  // agent is the same shape the agent is typed for.
+  let evidence: ReturnType<typeof identityEvidence>;
   try {
     // The guarded fetcher: public addresses only, every redirect re-checked,
     // bounded in time and size.

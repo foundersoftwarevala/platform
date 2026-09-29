@@ -257,7 +257,9 @@ export async function assignDemoUrls(input: AssignInput): Promise<AssignReport> 
       }
 
       const assigned = match.state === "MATCHED";
-      result.state = assigned ? "ASSIGNED" : match.state;
+      // Spelled out rather than passed through: the matcher speaks of MATCHED
+      // and a row speaks of ASSIGNED, and the two vocabularies must not blur.
+      result.state = assigned ? "ASSIGNED" : match.state === "AMBIGUOUS" ? "AMBIGUOUS" : "UNMATCHED";
       result.productId = assigned ? (match.product_id ?? null) : null;
       result.productSlug = assigned ? (String(match.evidence?.product_slug ?? "") || null) : null;
 
