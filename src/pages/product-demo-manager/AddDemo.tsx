@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,7 +18,20 @@ import {
 import { MonitorPlay, AlertTriangle, Lock, Plus, Check } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { DemoUrlManagerSection } from "@/components/marketplace-manager/sections/DemoUrlManager";
+/**
+ * Loaded on demand, not at module scope.
+ *
+ * A static import of this section from here put Add Demo inside a module cycle
+ * reaching back through marketplace-manager, and the chunk threw "Cannot access
+ * G before initialization" the moment it evaluated - so the whole screen showed
+ * "This page did not load". lazy() is the pattern the role dashboards already use
+ * for heavy cross-module screens, and it keeps the edge out of the static graph.
+ */
+const DemoUrlManagerSection = lazy(() =>
+  import("@/components/marketplace-manager/sections/DemoUrlManager").then((m) => ({
+    default: m.DemoUrlManagerSection,
+  })),
+);
 
 /**
  * operator-fetch is imported where it is used rather than at the top.
@@ -61,7 +74,7 @@ const demoTypes = [
 
 const AddDemo = ({ onSuccess }: AddDemoProps) => {
   void onSuccess;
-  return <DemoUrlManagerSection />;
+  return <Suspense fallback={<p className="text-sm text-slate-400">Loading the URL manager…</p>}><DemoUrlManagerSection /></Suspense>;
 
   /* Legacy wizard retained below for reference; the live manager owns the
      product_demo_urls contract and provides the complete CRUD/audit flow. */

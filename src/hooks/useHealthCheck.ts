@@ -63,6 +63,14 @@ export const useHealthCheck = () => {
         setCurrentBatch(i + 1);
         const batchIds = idsToCheck.slice(i * batchSize, (i + 1) * batchSize);
 
+        /**
+         * The client is imported here rather than at module scope. A static
+         * import put this hook in a module cycle whose chunk threw "Cannot
+         * access G before initialization" as it evaluated, and every screen
+         * that reaches it - Add Demo, the broken-demo alerts, the health panel -
+         * fell to the error boundary.
+         */
+        const { supabase } = await import("@/integrations/supabase/client");
         const { data, error } = await supabase.functions.invoke("health-check", {
           body: { demo_ids: batchIds, batch_size: batchSize },
         });
