@@ -127,6 +127,20 @@ if (await queueTab.count()) {
   step("the mismatch list is on screen", /Category mismatch/i.test(text), "");
 }
 
+// Re-process, on the same screen, through the real pipeline.
+await page.goto(`${SITE}/demo-ops`, { waitUntil: "domcontentloaded", timeout: 60000 });
+await page.waitForTimeout(10000);
+const reTab = page.getByText("Re-process", { exact: true }).first();
+step("the Re-process section exists", (await reTab.count()) > 0);
+if (await reTab.count()) {
+  await reTab.click({ timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(8000);
+  const rows = await page.locator("[data-reprocess]").count();
+  step("it lists the assigned demos", rows > 0, `rows=${rows}`);
+  const txt = await page.evaluate(() => document.body.innerText || "");
+  step("it renders without falling over", !txt.includes("didn't load"), "");
+}
+
 await browser.close();
 
 execFileSync(
