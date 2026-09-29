@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { authHeaders } from "@/lib/auth/operator-fetch";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +20,15 @@ import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { DemoUrlManagerSection } from "@/components/marketplace-manager/sections/DemoUrlManager";
 
+/**
+ * operator-fetch is imported where it is used rather than at the top.
+ *
+ * A static import of it from this screen produced "Cannot access G before
+ * initialization" at render - a module cycle through the Supabase client that
+ * only bit once this file joined it - and the whole Add Demo screen fell to the
+ * error boundary. Imported inside the two functions that need it, the cycle is
+ * not there to trip over.
+ */
 const demoSchema = z.object({
   title: z.string().min(3, "Demo title must be at least 3 characters"),
   category: z.string().min(1, "Category is required"),
@@ -101,7 +109,7 @@ const AddDemo = ({ onSuccess }: AddDemoProps) => {
     queryFn: async (): Promise<{ id: string; name: string; slug: string }[]> => {
       const response = await fetch(
         `/api/demo/process?products=${encodeURIComponent(productQuery.trim())}`,
-        { headers: await authHeaders() },
+        { headers: await (await import("@/lib/auth/operator-fetch")).authHeaders() },
       );
       if (!response.ok) throw new Error("The catalogue could not be searched");
       const body = (await response.json()) as { products?: { id: string; name: string; slug: string }[] };
@@ -126,7 +134,10 @@ const AddDemo = ({ onSuccess }: AddDemoProps) => {
        */
       const response = await fetch("/api/demo/assign", {
         method: "POST",
-        headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+        headers: {
+          ...(await (await import("@/lib/auth/operator-fetch")).authHeaders()),
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           action: "commit",
           rows: [{ url: data.url, name: data.title, product: data.product }],
