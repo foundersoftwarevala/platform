@@ -62,6 +62,33 @@ export function OpsReviewQueue() {
     setHits((h) => ({ ...h, [row.id]: body.products ?? [] }));
   };
 
+  /**
+   * Read this one page again. The same pipeline the batch uses, so a rerun
+   * cannot reach a different conclusion by a different route, and it assigns
+   * only what the matcher is certain of.
+   */
+  const reinvestigate = async (row: OpsReviewRow) => {
+    setBusy(row.id);
+    try {
+      const { authHeaders } = await import("@/lib/auth/operator-fetch");
+      const response = await fetch("/api/demo/investigate", {
+        method: "POST",
+        headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "one", demoUrlId: row.id, commit: true }),
+      });
+      const body = (await response.json()) as { error?: string; row?: { state: string; reason: string } };
+      if (!response.ok) throw new Error(body.error ?? "The investigation did not run");
+      toast.success(body.row?.state ?? "Done", { description: body.row?.reason ?? "" });
+      await qc.invalidateQueries({ queryKey: ["demo-ops"] });
+    } catch (error) {
+      toast.error("Investigation failed", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const assign = async (row: OpsReviewRow, product: { id: string; name: string }) => {
     setBusy(row.id);
     try {
@@ -118,6 +145,47 @@ export function OpsReviewQueue() {
 
                 {/* Why the machine would not place it. */}
                 {row.reason && <p className="text-xs text-slate-400">{row.reason}</p>}
+
+                {/* What reading the page found. */}
+                {row.investigation ? (
+                  <div className="space-y-1 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                    <p className="text-xs text-slate-300">
+                      <span className="font-semibold">{row.investigation.state}</span>
+                      {row.investigation.evidence?.title ? (
+                        <span className="text-slate-400"> · {row.investigation.evidence.title}</span>
+                      ) : null}
+                    </p>
+                    {row.investigation.reason ? (
+                      <p className="text-xs text-slate-500">{row.investigation.reason}</p>
+                    ) : null}
+                    {row.investigation.ai_suggestion?.name ? (
+                      <p className="text-xs text-blue-300">
+                        AI suggests {row.investigation.ai_suggestion.name}
+                        {row.investigation.ai_suggestion.confidence
+                          ? " (" + row.investigation.ai_suggestion.confidence + " confidence)"
+                          : ""}
+                        {" — confirm it below; it assigns nothing on its own."}
+                      </p>
+                    ) : null}
+                    {row.investigation.ai_error ? (
+                      <p className="text-xs text-amber-300">AI unavailable: {row.investigation.ai_error}</p>
+                    ) : null}
+                    <p className="text-[11px] text-slate-600">
+                      investigated {new Date(row.investigation.investigated_at).toLocaleString()}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">Not investigated yet.</p>
+                )}
+
+                <button
+                  type="button"
+                  disabled={busy === row.id}
+                  onClick={() => void reinvestigate(row)}
+                  className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 disabled:opacity-50"
+                >
+                  {row.investigation ? "Investigate again" : "Investigate this page"}
+                </button>
 
                 {/* What it thought the candidates were, when it found several. */}
                 {row.candidates && row.candidates.length > 0 && (
