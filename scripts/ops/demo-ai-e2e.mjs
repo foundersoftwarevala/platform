@@ -112,7 +112,7 @@ step("an address is taken in for the run", (taken.body?.totals?.UNMATCHED ?? 0) 
 
 const demoId = sql(`select id from product_demo_urls where url = '${url}'`);
 
-/* ---------------------------------------------------- the real AI completion */
+/* ------------------------------------ the address the matcher can decide alone */
 const started = Date.now();
 const run = await call("/api/demo/investigate", { action: "one", demoUrlId: demoId, commit: true, withAi: true });
 const elapsed = Date.now() - started;
@@ -120,30 +120,18 @@ const elapsed = Date.now() - started;
 const aiError = run.body?.row?.aiError ?? null;
 const suggestion = run.body?.row?.aiSuggestion ?? null;
 
-step("the gateway was invoked and answered", run.status === 200, `http=${run.status} in ${elapsed}ms`);
-if (aiError) {
-  console.log(`     AI error: ${String(aiError).slice(0, 200)}`);
-}
-step(
-  "the AI result is reported either way",
-  Boolean(suggestion) || Boolean(aiError),
-  suggestion ? `suggested "${suggestion.name}" (${suggestion.confidence})` : "error reported, not swallowed",
-);
+step("the page was read and decided", run.status === 200, `http=${run.status} in ${elapsed}ms`);
 
-/* -------------------------------------------- what matters more than the answer */
-const stored = sql(
-  `select processing->'investigation'->'ai_suggestion'->>'name' from product_demo_urls where url = '${url}'`,
-);
-const storedAgent = sql(
-  `select processing->'investigation'->>'ai_agent' from product_demo_urls where url = '${url}'`,
-);
-const storedError = sql(
-  `select processing->'investigation'->>'ai_error' from product_demo_urls where url = '${url}'`,
-);
+/**
+ * This page's title names a product the catalogue has exactly one of, so the
+ * matcher settles it and the agent is never asked. That is the rule the twelve
+ * thousand depend on: a completion is bought only where the answer is not
+ * already certain, and thousands of them are not spent confirming rule C.
+ */
 step(
-  "the AI outcome is recorded against the row",
-  stored !== "" || storedError !== "",
-  `name=${stored} agent=${storedAgent} error=${String(storedError).slice(0, 40)}`,
+  "the AI is not asked where the matcher decided",
+  run.body?.row?.state === "MATCHED" && !suggestion && !aiError,
+  `state=${run.body?.row?.state} suggestion=${suggestion ? suggestion.name : "none"}`,
 );
 
 const audited = sql(
@@ -191,7 +179,41 @@ step("an invented product name is refused", invented === "UNMATCHED", `state=${i
   const queueUrl = `https://example.com/?sv-ai-queue=${STAMP}`;
   await call("/api/demo/assign", { action: "commit", rows: [{ url: queueUrl }] });
   const queueId = sql(`select id from product_demo_urls where url = '${queueUrl}'`);
-  await call("/api/demo/investigate", { action: "one", demoUrlId: queueId, commit: true, withAi: true });
+  const asked = Date.now();
+  const queueRun = await call("/api/demo/investigate", {
+    action: "one",
+    demoUrlId: queueId,
+    commit: true,
+    withAi: true,
+  });
+  const queueElapsed = Date.now() - asked;
+
+  /* -------------------------------------------------- the real AI completion */
+  const queueSuggestion = queueRun.body?.row?.aiSuggestion ?? null;
+  const queueError = queueRun.body?.row?.aiError ?? null;
+  if (queueError) console.log(`     AI error: ${String(queueError).slice(0, 200)}`);
+  step(
+    "the gateway is invoked where the matcher could not decide",
+    queueRun.status === 200 && (Boolean(queueSuggestion) || Boolean(queueError)),
+    queueSuggestion
+      ? `suggested "${queueSuggestion.name}" (${queueSuggestion.confidence}) in ${queueElapsed}ms`
+      : `error reported, not swallowed, in ${queueElapsed}ms`,
+  );
+
+  const storedName = sql(
+    `select processing->'investigation'->'ai_suggestion'->>'name' from product_demo_urls where url = '${queueUrl}'`,
+  );
+  const storedAgent = sql(
+    `select processing->'investigation'->>'ai_agent' from product_demo_urls where url = '${queueUrl}'`,
+  );
+  const storedError = sql(
+    `select processing->'investigation'->>'ai_error' from product_demo_urls where url = '${queueUrl}'`,
+  );
+  step(
+    "the AI outcome is recorded against the row",
+    storedName !== "" || storedError !== "",
+    `name=${storedName} agent=${storedAgent} error=${String(storedError).slice(0, 40)}`,
+  );
 
   const inQueue = sql(
     `select count(*) from product_demo_urls where id = '${queueId}' and product_id is null and processing->'investigation' is not null`,

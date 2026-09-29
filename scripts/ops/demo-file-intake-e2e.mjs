@@ -64,7 +64,9 @@ const preview = (text) =>
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ action: "file-preview", text: body }),
+      // register:false - this check is about reading the file, so it leaves
+      // no batch in the operator's history.
+      body: JSON.stringify({ action: "file-preview", text: body, register: false }),
     });
     return { status: r.status, body: await r.json() };
   }, text);
