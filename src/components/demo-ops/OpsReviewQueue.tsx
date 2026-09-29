@@ -25,6 +25,26 @@ export function OpsReviewQueue() {
   const [hits, setHits] = useState<Record<string, { id: string; name: string; slug: string }[]>>({});
 
   const review = overview.data?.review ?? [];
+  const [suggested, setSuggested] = useState<Record<string, { id: string; name: string; slug: string }[]>>({});
+
+  /**
+   * A suggestion, not an answer.
+   *
+   * The matcher refuses to place these rows, and that refusal stands. This only
+   * offers what the catalogue holds under the demo's own title so the operator
+   * does not have to type it - picking one is still their decision, and the
+   * assignment is recorded as theirs.
+   */
+  const suggest = async (row: OpsReviewRow) => {
+    if (suggested[row.id]) return;
+    const { authHeaders } = await import("@/lib/auth/operator-fetch");
+    const response = await fetch(`/api/demo/process?products=${encodeURIComponent(row.title)}`, {
+      headers: await authHeaders(),
+    });
+    if (!response.ok) return;
+    const body = (await response.json()) as { products?: { id: string; name: string; slug: string }[] };
+    setSuggested((s) => ({ ...s, [row.id]: body.products ?? [] }));
+  };
   const mismatches = overview.data?.category_mismatches ?? [];
 
   const search = async (row: OpsReviewRow) => {
@@ -115,6 +135,40 @@ export function OpsReviewQueue() {
                       </button>
                     ))}
                   </div>
+                )}
+
+                {/* Offered from the demo's own title; never applied on its own. */}
+                {suggested[row.id] === undefined ? (
+                  <button
+                    type="button"
+                    onClick={() => void suggest(row)}
+                    className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300"
+                  >
+                    Suggest products from the title
+                  </button>
+                ) : suggested[row.id].length > 0 ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-slate-500">
+                      Suggested from the title — confirm one, or search below.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {suggested[row.id].map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          disabled={busy === row.id}
+                          onClick={() => void assign(row, c)}
+                          className="rounded-lg border border-blue-500/40 px-2.5 py-1.5 text-xs text-blue-200"
+                        >
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Nothing in the catalogue is called "{row.title}".
+                  </p>
                 )}
 
                 <div className="flex flex-wrap gap-2">
