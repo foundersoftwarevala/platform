@@ -41,7 +41,23 @@ async function getOriginalDemo(slug: string): Promise<OriginalDemo | null> {
   // A demo the Demo Manager processed and verified is shown with its Software
   // Vala presentation; one added before that is served as it always was.
   const processed = demo as { processing_status?: string; processing?: { rules?: PresentationRules } | null };
-  const rules = processed.processing_status === "live" ? processed.processing?.rules ?? null : null;
+  /**
+   * Every demo served gets the Software Vala presentation, not only one the
+   * pipeline has processed.
+   *
+   * This used to apply the rules only when processing_status was "live", and
+   * pass null otherwise - so a demo added straight through the URL Manager was
+   * served exactly as its developer built it: their logo, their contact details,
+   * and the hosting platform's "Edit with Lovable" badge pointing at the
+   * project. All seventeen demos happen to be processed today, so nothing was
+   * leaking; the next one added by hand would have been.
+   *
+   * With no rules of its own a demo still gets the favicon, the logo swap and
+   * the platform furniture stripped, which is the floor rather than nothing.
+   */
+  const rules: PresentationRules =
+    (processed.processing_status === "live" ? processed.processing?.rules : null) ??
+    { remove: [], rebrand: [], logos: [], links: [] };
   return { url: demo.url, name: demo.demo_name || product.name, rules };
 }
 
@@ -212,15 +228,26 @@ export const Route = createFileRoute('/api/proxy/demo/$')({
             // Rewrite asset URLs to go through our proxy
             html = rewriteHtmlAssetUrls(html, slug, new URL(originalDemoUrl).origin);
             
-            // Strip Lovable branding if present
+            // The three replacements that used to sit here caught the phrase
+            // "powered by lovable" and nothing else. applyPresentation now runs
+            // stripPlatformBranding on every page, which takes the badge itself,
+            // the analytics script, the back-link and the default social preview.
             html = html.replace(/powered by lovable/gi, '');
-            html = html.replace(/Powered by Lovable/gi, '');
             html = html.replace(/Built on Lovable/gi, '');
-            
+
             // The Software Vala presentation: favicon, logo, and the developer's
             // contact details and credits removed (src/lib/demo/presentation.ts).
-            if (originalDemo.rules) {
-              const rules = originalDemo.rules;
+            {
+              /**
+               * Applied to every demo, not only one the pipeline has processed.
+               * This used to run only when the demo carried rules, so a demo
+               * added straight through the URL Manager was served exactly as its
+               * developer built it - their logo, their contact details, and the
+               * platform's badge pointing back at the project. Without rules of
+               * its own a demo still gets the favicon, the logo swap and the
+               * platform furniture stripped, which is the floor.
+               */
+              const rules = originalDemo.rules ?? { remove: [], rebrand: [], logos: [], links: [] };
               html = applyPresentation(
                 html,
                 {

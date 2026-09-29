@@ -57,6 +57,74 @@ const ASSET_EMAIL = /\.(?:png|jpe?g|gif|svg|webp|avif|js|css|woff2?)$/i;
 
 const unique = <T,>(list: T[]) => [...new Set(list)];
 
+/**
+ * Software Vala's own contact, put in place of the developer's.
+ *
+ * Until now a developer's e-mail or phone number was deleted and nothing took
+ * its place, so a demo's "Contact us" read as an empty line - the page looked
+ * broken rather than rebranded, and a visitor who wanted to buy had nobody to
+ * write to.
+ */
+export const SOFTWARE_VALA_CONTACT = {
+  email: "support@softwarevala.net",
+  phone: "+91 83488 38383",
+};
+
+/**
+ * The hosting platform's own furniture, which is not the developer's branding
+ * and was never removed with it.
+ *
+ * A demo built on Lovable ships an "Edit with Lovable" badge, a link back to the
+ * project and an analytics script; one on Vercel ships its own. Left in place
+ * they tell a visitor exactly where the software came from and where to find it,
+ * which is the one thing the demo gateway exists to prevent.
+ *
+ * Only the platform's furniture is touched. The demo's sample data, its login
+ * accounts and anything the developer actually built are left alone.
+ */
+const PLATFORM_FURNITURE: { what: string; pattern: RegExp }[] = [
+  { what: "platform badge", pattern: /<a\b[^>]*(?:lovable\.(?:dev|app)|gpteng\.co)[^>]*>[\s\S]{0,400}?<\/a>/gi },
+  { what: "platform script", pattern: /<script\b[^>]*(?:gpteng\.co|flock\.js)[^>]*>[\s\S]{0,2000}?<\/script>/gi },
+  { what: "platform script tag", pattern: /<script\b[^>]*src\s*=\s*["'][^"']*(?:gpteng\.co|flock\.js)[^"']*["'][^>]*>\s*<\/script>/gi },
+  { what: "vercel analytics", pattern: /<script\b[^>]*\/_vercel\/(?:insights|speed-insights)[^>]*>\s*<\/script>/gi },
+  { what: "platform link", pattern: /<a\b[^>]*href\s*=\s*["'][^"']*(?:lovable\.dev|lovable\.app|vercel\.com|netlify\.app)[^"']*["'][^>]*>[\s\S]{0,200}?<\/a>/gi },
+];
+
+/**
+ * Removes the hosting platform's badge, scripts and back-links, and rewrites the
+ * default social preview a generated site ships with.
+ *
+ * Returns what was taken out as well as the page, so the pipeline can record it
+ * rather than claim it silently.
+ */
+export function stripPlatformBranding(
+  html: string,
+  brandName = "Software Vala",
+): { html: string; removed: string[] } {
+  let out = html;
+  const removed: string[] = [];
+  for (const { what, pattern } of PLATFORM_FURNITURE) {
+    pattern.lastIndex = 0;
+    if (pattern.test(out)) {
+      pattern.lastIndex = 0;
+      out = out.replace(pattern, "");
+      removed.push(what);
+    }
+  }
+
+  // The tag is kept - removing it leaves the demo with no preview at all - and
+  // only its content is replaced, and only when it names the platform.
+  const social =
+    /(<meta\b[^>]*(?:property|name)\s*=\s*["'](?:og:site_name|og:title|twitter:title|og:description|twitter:description|description)["'][^>]*content\s*=\s*["'])([^"']*)(["'])/gi;
+  out = out.replace(social, (whole, open: string, value: string, close: string) => {
+    if (!/lovable|gpteng|vercel|netlify|generated with|built with/i.test(String(value))) return whole;
+    removed.push("platform social preview");
+    return `${open}${brandName}${close}`;
+  });
+
+  return { html: out, removed: [...new Set(removed)] };
+}
+
 function attr(tag: string, name: string): string | null {
   const m = tag.match(new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"));
   return m ? (m[1] ?? m[2] ?? m[3] ?? "").trim() : null;
@@ -228,7 +296,13 @@ export function applyPresentation(
   rules: PresentationRules,
   brand: { favicon: string; logo: string; name: string },
 ): string {
-  let out = html;
+  /**
+   * The hosting platform's furniture goes first, before anything else looks at
+   * the page. It is not in `rules` and never was: rules describe the developer's
+   * branding, which the AI found on the page, while the badge and the analytics
+   * script are the platform's and are the same on every demo built there.
+   */
+  let out = stripPlatformBranding(html, brand.name).html;
 
   // 1. Favicon: every icon the page declares goes; Software Vala's is added.
   out = out.replace(/<link\b[^>]*\brel\s*=\s*["']?[^"'>]*icon[^>]*>\s*/gi, "");
@@ -278,7 +352,20 @@ export function applyPresentation(
 export function cleanText(text: string, rules: PresentationRules, brandName: string): string {
   let out = text;
   for (const value of unique([...rules.remove, ...rules.links]).sort((a, b) => b.length - a.length)) {
-    if (value.length >= 4) out = out.split(value).join("");
+    if (value.length >= 4) {
+      /**
+       * Replaced, not deleted. An e-mail address becomes ours and a phone
+       * number becomes ours, so a demo's "Contact us" reaches Software Vala
+       * instead of reaching nobody. Anything else - a link, a studio name -
+       * still goes, because there is nothing of ours to put in its place.
+       */
+      const replacement = value.includes("@")
+        ? SOFTWARE_VALA_CONTACT.email
+        : /^\+?[\d\s().-]{8,}$/.test(value)
+          ? SOFTWARE_VALA_CONTACT.phone
+          : "";
+      out = out.split(value).join(replacement);
+    }
   }
   for (const value of [...rules.rebrand].sort((a, b) => b.length - a.length)) {
     if (value.length >= 3) out = out.split(value).join(brandName);

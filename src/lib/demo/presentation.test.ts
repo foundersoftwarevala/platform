@@ -8,6 +8,8 @@ import {
   keyHash,
   hasBrandFavicon,
   remainingViolations,
+  SOFTWARE_VALA_CONTACT,
+  stripPlatformBranding,
   type PresentationRules,
 } from "./presentation";
 import { addressBlocked, assertPublicUrl } from "./safe-fetch.server";
@@ -90,7 +92,13 @@ describe("Software Vala presentation", () => {
 
   it("cleans a single-page app bundle without touching its code", () => {
     const js = `var a={email:"sales@acme-devs.example",by:"Acme Devs",n:1};`;
-    expect(cleanText(js, RULES, BRAND.name)).toBe(`var a={email:"",by:"Software Vala",n:1};`);
+    // The developer's address used to be deleted, leaving email:"" - so an app
+    // whose own "contact us" read from that string showed an empty line and the
+    // demo looked broken rather than rebranded. It carries ours now. The shape
+    // of the code around it is still untouched, which is what this test is for.
+    expect(cleanText(js, RULES, BRAND.name)).toBe(
+      `var a={email:"${SOFTWARE_VALA_CONTACT.email}",by:"Software Vala",n:1};`,
+    );
   });
 
   it("keys contact details the same way however they are written", () => {
@@ -125,4 +133,62 @@ describe("demo address safety", () => {
     (ip) => expect(addressBlocked(ip)).toBe(true),
   );
   it.each(["93.184.216.34", "2606:4700::6810:84e5"])("allows %s", (ip) => expect(addressBlocked(ip)).toBe(false));
+});
+
+describe("stripPlatformBranding", () => {
+  it("takes out the hosting platform's badge, script and back-link", () => {
+    const page = [
+      '<html><head>',
+      '<meta property="og:title" content="my-app | Built with Lovable">',
+      '<script src="https://cdn.gpteng.co/gptengineer.js"></script>',
+      '</head><body>',
+      '<a href="https://lovable.dev/projects/abc123">Edit with Lovable</a>',
+      '<script src="/_vercel/insights/script.js"></script>',
+      '<p>Real product content stays</p>',
+      '</body></html>',
+    ].join("");
+
+    const { html, removed } = stripPlatformBranding(page);
+
+    expect(html).not.toContain("gpteng.co");
+    expect(html).not.toContain("lovable.dev/projects");
+    expect(html).not.toContain("Edit with Lovable");
+    expect(html).not.toContain("_vercel/insights");
+    // The preview tag is kept and rewritten, not deleted.
+    expect(html).toContain('property="og:title"');
+    expect(html).toContain('content="Software Vala"');
+    // Nothing of the product itself is touched.
+    expect(html).toContain("Real product content stays");
+    expect(removed.length).toBeGreaterThan(0);
+  });
+
+  it("leaves a page that carries no platform furniture alone", () => {
+    const page = '<html><head><meta name="description" content="A school ERP"></head><body>Hello</body></html>';
+    const { html, removed } = stripPlatformBranding(page);
+    expect(html).toBe(page);
+    expect(removed).toEqual([]);
+  });
+});
+
+describe("cleanText contact replacement", () => {
+  const rules = {
+    remove: ["hello@devstudio.com", "+91 90000 00001"],
+    rebrand: ["DevStudio"],
+    logos: [],
+    links: [],
+  };
+
+  it("puts Software Vala's contact where the developer's was", () => {
+    const cleaned = cleanText(
+      "Write to hello@devstudio.com or call +91 90000 00001. Made by DevStudio.",
+      rules,
+      "Software Vala",
+    );
+    expect(cleaned).not.toContain("hello@devstudio.com");
+    expect(cleaned).not.toContain("90000 00001");
+    expect(cleaned).toContain(SOFTWARE_VALA_CONTACT.email);
+    expect(cleaned).toContain(SOFTWARE_VALA_CONTACT.phone);
+    // A studio name still becomes ours rather than being replaced by a contact.
+    expect(cleaned).toContain("Made by Software Vala");
+  });
 });

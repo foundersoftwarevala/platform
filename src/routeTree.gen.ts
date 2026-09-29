@@ -275,6 +275,11 @@ import { Route as ApiGovernanceConsoleRouteImport } from './routes/api/governanc
 import { Route as ApiI18nAdminRouteImport } from './routes/api/i18n/admin'
 import { Route as ApiI18nJobsRouteImport } from './routes/api/i18n/jobs'
 import { Route as ApiI18nPackRouteImport } from './routes/api/i18n/pack'
+import { Route as ApiInfluencerApplicationsRouteImport } from './routes/api/influencer/applications'
+import { Route as ApiInfluencerApplyRouteImport } from './routes/api/influencer/apply'
+import { Route as ApiInfluencerMetricsRouteImport } from './routes/api/influencer/metrics'
+import { Route as ApiInfluencerQrRouteImport } from './routes/api/influencer/qr'
+import { Route as ApiInfluencerReferralRouteImport } from './routes/api/influencer/referral'
 import { Route as ApiInternalApplyMigrationsRouteImport } from './routes/api/internal/apply-migrations'
 import { Route as ApiInternalApplyResellerSchemaRouteImport } from './routes/api/internal/apply-reseller-schema'
 import { Route as ApiInternalAuthorReviewRouteImport } from './routes/api/internal/author-review'
@@ -334,7 +339,6 @@ import { Route as MarketplaceCategoryCountryRouteImport } from './routes/marketp
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
 import { Route as MarketplaceCountryCountryRouteImport } from './routes/marketplace.country.$country'
 import { Route as MarketplaceProductSlugRouteImport } from './routes/marketplace.product.$slug'
-import { Route as ProxyDemoRouteImport } from './routes/proxy.demo.'
 import { Route as AmsAwardsIdEditRouteImport } from './routes/ams.awards.$id.edit'
 import { Route as AmsAwardsLibrariesAchievementsRouteImport } from './routes/ams.awards.libraries.achievements'
 import { Route as AmsAwardsLibrariesBadgesRouteImport } from './routes/ams.awards.libraries.badges'
@@ -348,6 +352,7 @@ import { Route as AmsAwardsRulesXpRouteImport } from './routes/ams.awards.rules.
 import { Route as ApiAccountInvoiceIdRouteImport } from './routes/api/account/invoice/$id'
 import { Route as ApiOrdersIdFulfilRouteImport } from './routes/api/orders/$id/fulfil'
 import { Route as ApiProxyDemoSplatRouteImport } from './routes/api/proxy/demo.$'
+import { Route as ApiQrScanCodeRouteImport } from './routes/api/qr/scan/$code'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -1705,6 +1710,32 @@ const ApiI18nPackRoute = ApiI18nPackRouteImport.update({
   path: '/api/i18n/pack',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInfluencerApplicationsRoute =
+  ApiInfluencerApplicationsRouteImport.update({
+    id: '/api/influencer/applications',
+    path: '/api/influencer/applications',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInfluencerApplyRoute = ApiInfluencerApplyRouteImport.update({
+  id: '/api/influencer/apply',
+  path: '/api/influencer/apply',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInfluencerMetricsRoute = ApiInfluencerMetricsRouteImport.update({
+  id: '/api/influencer/metrics',
+  path: '/api/influencer/metrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInfluencerQrRoute = ApiInfluencerQrRouteImport.update({
+  id: '/api/influencer/qr',
+  path: '/api/influencer/qr',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInfluencerReferralRoute = ApiInfluencerReferralRouteImport.update({
+  id: '/api/influencer/referral',
+  path: '/api/influencer/referral',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInternalApplyMigrationsRoute =
   ApiInternalApplyMigrationsRouteImport.update({
     id: '/api/internal/apply-migrations',
@@ -2014,11 +2045,6 @@ const MarketplaceProductSlugRoute = MarketplaceProductSlugRouteImport.update({
   path: '/product/$slug',
   getParentRoute: () => MarketplaceRoute,
 } as any)
-const ProxyDemoRoute = ProxyDemoRouteImport.update({
-  id: '/proxy/demo/',
-  path: '/proxy/demo/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AmsAwardsIdEditRoute = AmsAwardsIdEditRouteImport.update({
   id: '/edit',
   path: '/edit',
@@ -2086,6 +2112,11 @@ const ApiOrdersIdFulfilRoute = ApiOrdersIdFulfilRouteImport.update({
 const ApiProxyDemoSplatRoute = ApiProxyDemoSplatRouteImport.update({
   id: '/api/proxy/demo/$',
   path: '/api/proxy/demo/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiQrScanCodeRoute = ApiQrScanCodeRouteImport.update({
+  id: '/api/qr/scan/$code',
+  path: '/api/qr/scan/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -2319,7 +2350,6 @@ export interface FileRoutesByFullPath {
   '/marketplace/': typeof MarketplaceIndexRoute
   '/promise-tracker/': typeof PromiseTrackerIndexRoute
   '/vala-ai/': typeof ValaAiIndexRoute
-  '/proxy/demo/': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
   '/ai-ceo/agents/$agentId': typeof AiCeoAgentsAgentIdRoute
   '/ai-ceo/tasks/$taskId': typeof AiCeoTasksTaskIdRoute
@@ -2349,6 +2379,11 @@ export interface FileRoutesByFullPath {
   '/api/i18n/admin': typeof ApiI18nAdminRoute
   '/api/i18n/jobs': typeof ApiI18nJobsRoute
   '/api/i18n/pack': typeof ApiI18nPackRoute
+  '/api/influencer/applications': typeof ApiInfluencerApplicationsRoute
+  '/api/influencer/apply': typeof ApiInfluencerApplyRoute
+  '/api/influencer/metrics': typeof ApiInfluencerMetricsRoute
+  '/api/influencer/qr': typeof ApiInfluencerQrRoute
+  '/api/influencer/referral': typeof ApiInfluencerReferralRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
   '/api/internal/author-review': typeof ApiInternalAuthorReviewRoute
@@ -2429,6 +2464,7 @@ export interface FileRoutesByFullPath {
   '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
+  '/api/qr/scan/$code': typeof ApiQrScanCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -2650,7 +2686,6 @@ export interface FileRoutesByTo {
   '/marketplace': typeof MarketplaceIndexRoute
   '/promise-tracker': typeof PromiseTrackerIndexRoute
   '/vala-ai': typeof ValaAiIndexRoute
-  '/proxy/demo': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
   '/ai-ceo/agents/$agentId': typeof AiCeoAgentsAgentIdRoute
   '/ai-ceo/tasks/$taskId': typeof AiCeoTasksTaskIdRoute
@@ -2680,6 +2715,11 @@ export interface FileRoutesByTo {
   '/api/i18n/admin': typeof ApiI18nAdminRoute
   '/api/i18n/jobs': typeof ApiI18nJobsRoute
   '/api/i18n/pack': typeof ApiI18nPackRoute
+  '/api/influencer/applications': typeof ApiInfluencerApplicationsRoute
+  '/api/influencer/apply': typeof ApiInfluencerApplyRoute
+  '/api/influencer/metrics': typeof ApiInfluencerMetricsRoute
+  '/api/influencer/qr': typeof ApiInfluencerQrRoute
+  '/api/influencer/referral': typeof ApiInfluencerReferralRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
   '/api/internal/author-review': typeof ApiInternalAuthorReviewRoute
@@ -2760,6 +2800,7 @@ export interface FileRoutesByTo {
   '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
+  '/api/qr/scan/$code': typeof ApiQrScanCodeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -2992,7 +3033,6 @@ export interface FileRoutesById {
   '/marketplace/': typeof MarketplaceIndexRoute
   '/promise-tracker/': typeof PromiseTrackerIndexRoute
   '/vala-ai/': typeof ValaAiIndexRoute
-  '/proxy/demo/': typeof ProxyDemoRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
   '/ai-ceo/agents/$agentId': typeof AiCeoAgentsAgentIdRoute
   '/ai-ceo/tasks/$taskId': typeof AiCeoTasksTaskIdRoute
@@ -3022,6 +3062,11 @@ export interface FileRoutesById {
   '/api/i18n/admin': typeof ApiI18nAdminRoute
   '/api/i18n/jobs': typeof ApiI18nJobsRoute
   '/api/i18n/pack': typeof ApiI18nPackRoute
+  '/api/influencer/applications': typeof ApiInfluencerApplicationsRoute
+  '/api/influencer/apply': typeof ApiInfluencerApplyRoute
+  '/api/influencer/metrics': typeof ApiInfluencerMetricsRoute
+  '/api/influencer/qr': typeof ApiInfluencerQrRoute
+  '/api/influencer/referral': typeof ApiInfluencerReferralRoute
   '/api/internal/apply-migrations': typeof ApiInternalApplyMigrationsRoute
   '/api/internal/apply-reseller-schema': typeof ApiInternalApplyResellerSchemaRoute
   '/api/internal/author-review': typeof ApiInternalAuthorReviewRoute
@@ -3102,6 +3147,7 @@ export interface FileRoutesById {
   '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
+  '/api/qr/scan/$code': typeof ApiQrScanCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -3335,7 +3381,6 @@ export interface FileRouteTypes {
     | '/marketplace/'
     | '/promise-tracker/'
     | '/vala-ai/'
-    | '/proxy/demo/'
     | '/affiliate-manager/affiliates/$id'
     | '/ai-ceo/agents/$agentId'
     | '/ai-ceo/tasks/$taskId'
@@ -3365,6 +3410,11 @@ export interface FileRouteTypes {
     | '/api/i18n/admin'
     | '/api/i18n/jobs'
     | '/api/i18n/pack'
+    | '/api/influencer/applications'
+    | '/api/influencer/apply'
+    | '/api/influencer/metrics'
+    | '/api/influencer/qr'
+    | '/api/influencer/referral'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
     | '/api/internal/author-review'
@@ -3445,6 +3495,7 @@ export interface FileRouteTypes {
     | '/api/account/invoice/$id'
     | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
+    | '/api/qr/scan/$code'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -3666,7 +3717,6 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/promise-tracker'
     | '/vala-ai'
-    | '/proxy/demo'
     | '/affiliate-manager/affiliates/$id'
     | '/ai-ceo/agents/$agentId'
     | '/ai-ceo/tasks/$taskId'
@@ -3696,6 +3746,11 @@ export interface FileRouteTypes {
     | '/api/i18n/admin'
     | '/api/i18n/jobs'
     | '/api/i18n/pack'
+    | '/api/influencer/applications'
+    | '/api/influencer/apply'
+    | '/api/influencer/metrics'
+    | '/api/influencer/qr'
+    | '/api/influencer/referral'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
     | '/api/internal/author-review'
@@ -3776,6 +3831,7 @@ export interface FileRouteTypes {
     | '/api/account/invoice/$id'
     | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
+    | '/api/qr/scan/$code'
   id:
     | '__root__'
     | '/'
@@ -4007,7 +4063,6 @@ export interface FileRouteTypes {
     | '/marketplace/'
     | '/promise-tracker/'
     | '/vala-ai/'
-    | '/proxy/demo/'
     | '/affiliate-manager/affiliates/$id'
     | '/ai-ceo/agents/$agentId'
     | '/ai-ceo/tasks/$taskId'
@@ -4037,6 +4092,11 @@ export interface FileRouteTypes {
     | '/api/i18n/admin'
     | '/api/i18n/jobs'
     | '/api/i18n/pack'
+    | '/api/influencer/applications'
+    | '/api/influencer/apply'
+    | '/api/influencer/metrics'
+    | '/api/influencer/qr'
+    | '/api/influencer/referral'
     | '/api/internal/apply-migrations'
     | '/api/internal/apply-reseller-schema'
     | '/api/internal/author-review'
@@ -4117,6 +4177,7 @@ export interface FileRouteTypes {
     | '/api/account/invoice/$id'
     | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
+    | '/api/qr/scan/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -4203,7 +4264,6 @@ export interface RootRouteChildren {
   ApplyIndexRoute: typeof ApplyIndexRoute
   BlogIndexRoute: typeof BlogIndexRoute
   LegalIndexRoute: typeof LegalIndexRoute
-  ProxyDemoRoute: typeof ProxyDemoRoute
   ApiAccountPurchasesRoute: typeof ApiAccountPurchasesRoute
   ApiActionsConfigRoute: typeof ApiActionsConfigRoute
   ApiActionsRegistryRoute: typeof ApiActionsRegistryRoute
@@ -4219,6 +4279,11 @@ export interface RootRouteChildren {
   ApiI18nAdminRoute: typeof ApiI18nAdminRoute
   ApiI18nJobsRoute: typeof ApiI18nJobsRoute
   ApiI18nPackRoute: typeof ApiI18nPackRoute
+  ApiInfluencerApplicationsRoute: typeof ApiInfluencerApplicationsRoute
+  ApiInfluencerApplyRoute: typeof ApiInfluencerApplyRoute
+  ApiInfluencerMetricsRoute: typeof ApiInfluencerMetricsRoute
+  ApiInfluencerQrRoute: typeof ApiInfluencerQrRoute
+  ApiInfluencerReferralRoute: typeof ApiInfluencerReferralRoute
   ApiInternalApplyMigrationsRoute: typeof ApiInternalApplyMigrationsRoute
   ApiInternalApplyResellerSchemaRoute: typeof ApiInternalApplyResellerSchemaRoute
   ApiInternalAuthorReviewRoute: typeof ApiInternalAuthorReviewRoute
@@ -4277,6 +4342,7 @@ export interface RootRouteChildren {
   ApiAccountInvoiceIdRoute: typeof ApiAccountInvoiceIdRoute
   ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
   ApiProxyDemoSplatRoute: typeof ApiProxyDemoSplatRoute
+  ApiQrScanCodeRoute: typeof ApiQrScanCodeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -6143,6 +6209,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiI18nPackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/influencer/applications': {
+      id: '/api/influencer/applications'
+      path: '/api/influencer/applications'
+      fullPath: '/api/influencer/applications'
+      preLoaderRoute: typeof ApiInfluencerApplicationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/influencer/apply': {
+      id: '/api/influencer/apply'
+      path: '/api/influencer/apply'
+      fullPath: '/api/influencer/apply'
+      preLoaderRoute: typeof ApiInfluencerApplyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/influencer/metrics': {
+      id: '/api/influencer/metrics'
+      path: '/api/influencer/metrics'
+      fullPath: '/api/influencer/metrics'
+      preLoaderRoute: typeof ApiInfluencerMetricsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/influencer/qr': {
+      id: '/api/influencer/qr'
+      path: '/api/influencer/qr'
+      fullPath: '/api/influencer/qr'
+      preLoaderRoute: typeof ApiInfluencerQrRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/influencer/referral': {
+      id: '/api/influencer/referral'
+      path: '/api/influencer/referral'
+      fullPath: '/api/influencer/referral'
+      preLoaderRoute: typeof ApiInfluencerReferralRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/internal/apply-migrations': {
       id: '/api/internal/apply-migrations'
       path: '/api/internal/apply-migrations'
@@ -6556,13 +6657,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketplaceProductSlugRouteImport
       parentRoute: typeof MarketplaceRoute
     }
-    '/proxy/demo/': {
-      id: '/proxy/demo/'
-      path: '/proxy/demo'
-      fullPath: '/proxy/demo/'
-      preLoaderRoute: typeof ProxyDemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/ams/awards/$id/edit': {
       id: '/ams/awards/$id/edit'
       path: '/edit'
@@ -6652,6 +6746,13 @@ declare module '@tanstack/react-router' {
       path: '/api/proxy/demo/$'
       fullPath: '/api/proxy/demo/$'
       preLoaderRoute: typeof ApiProxyDemoSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/qr/scan/$code': {
+      id: '/api/qr/scan/$code'
+      path: '/api/qr/scan/$code'
+      fullPath: '/api/qr/scan/$code'
+      preLoaderRoute: typeof ApiQrScanCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -7220,7 +7321,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApplyIndexRoute: ApplyIndexRoute,
   BlogIndexRoute: BlogIndexRoute,
   LegalIndexRoute: LegalIndexRoute,
-  ProxyDemoRoute: ProxyDemoRoute,
   ApiAccountPurchasesRoute: ApiAccountPurchasesRoute,
   ApiActionsConfigRoute: ApiActionsConfigRoute,
   ApiActionsRegistryRoute: ApiActionsRegistryRoute,
@@ -7236,6 +7336,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiI18nAdminRoute: ApiI18nAdminRoute,
   ApiI18nJobsRoute: ApiI18nJobsRoute,
   ApiI18nPackRoute: ApiI18nPackRoute,
+  ApiInfluencerApplicationsRoute: ApiInfluencerApplicationsRoute,
+  ApiInfluencerApplyRoute: ApiInfluencerApplyRoute,
+  ApiInfluencerMetricsRoute: ApiInfluencerMetricsRoute,
+  ApiInfluencerQrRoute: ApiInfluencerQrRoute,
+  ApiInfluencerReferralRoute: ApiInfluencerReferralRoute,
   ApiInternalApplyMigrationsRoute: ApiInternalApplyMigrationsRoute,
   ApiInternalApplyResellerSchemaRoute: ApiInternalApplyResellerSchemaRoute,
   ApiInternalAuthorReviewRoute: ApiInternalAuthorReviewRoute,
@@ -7294,6 +7399,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAccountInvoiceIdRoute: ApiAccountInvoiceIdRoute,
   ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,
   ApiProxyDemoSplatRoute: ApiProxyDemoSplatRoute,
+  ApiQrScanCodeRoute: ApiQrScanCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
