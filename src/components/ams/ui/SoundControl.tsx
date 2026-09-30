@@ -21,7 +21,7 @@ const SAMPLES = [
  * mute toggle, volume, and cue previews. Preferences persist locally.
  */
 export function SoundControl({ className }: { className?: string }) {
-  const { prefs, play, setEnabled, setVolume } = useUiSound();
+  const { prefs, play, setEnabled, setVolume, setCelebrations } = useUiSound();
   const reduced = useReducedMotion();
   const Icon = prefs.enabled && prefs.volume > 0 ? Volume2 : VolumeX;
 
@@ -90,9 +90,23 @@ export function SoundControl({ className }: { className?: string }) {
 
         <div className="flex items-start justify-between gap-3 border-t border-border pt-3">
           <div className="min-w-0">
+            <div className="text-xs font-medium">Celebrations</div>
+            <p className="text-[11px] text-muted-foreground">
+              Show a full celebration when you earn something. Off: a quiet notice instead.
+            </p>
+          </div>
+          <Switch
+            checked={prefs.celebrations}
+            onCheckedChange={setCelebrations}
+            aria-label="Celebrations"
+          />
+        </div>
+
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <div className="text-xs font-medium">Reduced motion</div>
             <p className="text-[11px] text-muted-foreground">
-              Skip celebration, reveal and XP animations.
+              Calmer celebrations: no particles or movement. Recognition still shows.
             </p>
           </div>
           <Switch

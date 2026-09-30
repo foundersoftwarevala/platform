@@ -42,7 +42,7 @@ async function signIn(email, password) {
     const url = r.url();
     // Reads, auth refresh and server-function reads pass; everything else is stopped.
     if (r.method() === "GET" || r.method() === "HEAD" || url.includes("/auth/v1/") || (url.includes("/_serverFn/") && r.method() === "GET")) return route.continue();
-    if (url.includes("/rest/v1/rpc/") && /mm_notifications|affiliate_dashboard_stats/.test(url)) return route.continue();
+    if (url.includes("/rest/v1/rpc/") && /mm_notifications|affiliate_dashboard_stats|ams_recognition_pending/.test(url)) return route.continue();
     writes.push(`${r.method()} ${url.replace(BASE, "")}`);
     return route.abort();
   });

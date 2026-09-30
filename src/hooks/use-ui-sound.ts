@@ -9,7 +9,7 @@ import {
  * SSR-safe: preferences are read after hydration.
  */
 export function useUiSound() {
-  const [prefs, setPrefs] = useState<SoundPrefs>({ enabled: true, volume: 0.6 });
+  const [prefs, setPrefs] = useState<SoundPrefs>({ enabled: true, volume: 0.6, celebrations: true });
 
   useEffect(() => {
     setPrefs(getSoundPrefs());
@@ -28,7 +28,11 @@ export function useUiSound() {
     setSoundPrefs({ volume });
   }, []);
 
-  return { prefs, play, setEnabled, setVolume };
+  const setCelebrations = useCallback((celebrations: boolean) => {
+    setSoundPrefs({ celebrations });
+  }, []);
+
+  return { prefs, play, setEnabled, setVolume, setCelebrations };
 }
 
 export type { UiSound };

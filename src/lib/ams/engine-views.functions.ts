@@ -384,7 +384,7 @@ async function hallOfFame(sb: Sb): Promise<ViewResult> {
 
 async function audit(sb: Sb): Promise<ViewResult> {
   const [ledger, xpTx, day, xpDay, decisions, failing] = await Promise.all([
-    rows(sb.from("ams_award_ledger").select("id,user_id,role,asset_kind,asset_slug,reason,created_at").order("created_at", { ascending: false }).limit(500)),
+    rows(sb.from("ams_award_ledger").select("id,user_id,role,asset_kind,asset_slug,xp_awarded,reason,created_at").order("created_at", { ascending: false }).limit(500)),
     rows(sb.from("xp_transactions").select("id,user_id,role,amount,reason,created_at").order("created_at", { ascending: false }).limit(500)),
     count(sb.from("ams_award_ledger").select("id", head).gte("created_at", since(DAY))),
     count(sb.from("xp_transactions").select("id", head).gte("created_at", since(DAY))),
@@ -393,12 +393,32 @@ async function audit(sb: Sb): Promise<ViewResult> {
     count(sb.from("ams_activity_events").select("id", head).is("processed_at", null).not("last_error", "is", null)),
   ]);
   const who = await names(sb, [...ledger.map((l) => l.user_id), ...xpTx.map((x) => x.user_id)]);
+  // Whether each recognition reached the person: shown on their screen, kept as
+  // history (granted before recognition was presented, or by a backfill), or
+  // still waiting. Presentations are written at or after the ledger line.
+  const oldest = ledger.reduce((m, l) => (String(l.created_at) < m ? String(l.created_at) : m), new Date().toISOString());
+  const [presented, notifyFailures] = await Promise.all([
+    rows(sb.from("ams_recognition_presentations").select("ledger_id,client,presented_at").gte("presented_at", oldest).limit(5000)),
+    count(sb.from("error_events").select("id", head).in("fn_name", ["ams_notify_recognition", "ams_recognition_repair"]).gte("created_at", since(DAY))),
+  ]);
+  const shownBy = new Map(presented.map((p) => [String(p.ledger_id), String(p.client)]));
+  const recognised = (l: Record<string, unknown>) =>
+    String(l.reason ?? "") !== "claimed" && (String(l.asset_kind) !== "xp" || Number(l.xp_awarded ?? 0) > 0);
+  const presentation = (l: Record<string, unknown>): { label: string; tone: ViewTone } => {
+    if (!recognised(l)) return { label: "recorded", tone: "success" };
+    const by = shownBy.get(String(l.id));
+    if (by === "browser") return { label: "shown", tone: "success" };
+    if (by === "historical") return { label: "history", tone: "muted" };
+    if (by === "silent") return { label: "backfill", tone: "muted" };
+    return { label: "not shown yet", tone: "warn" };
+  };
+  const waiting = ledger.filter((l) => recognised(l) && !shownBy.has(String(l.id))).length;
   const entries: (ViewRow & { at: string })[] = [
     ...ledger.map((l) => ({
       id: `award:${l.id}`,
       at: String(l.created_at),
-      cells: { time: date(l.created_at), scope: String(l.asset_kind), action: String(l.reason ?? "awarded"), actor: "AMS", target: `${who.get(String(l.user_id))} · ${String(l.role ?? "—")} · ${String(l.asset_slug)}` },
-      status: { label: "recorded", tone: "success" as ViewTone },
+      cells: { time: date(l.created_at), scope: String(l.asset_kind), action: String(l.reason ?? "awarded"), actor: "AMS", target: `${who.get(String(l.user_id))} · ${String(l.role ?? "—")} · ${String(l.asset_slug ?? (Number(l.xp_awarded ?? 0) ? `${n(Number(l.xp_awarded))} XP` : "—"))}` },
+      status: presentation(l),
     })),
     ...xpTx.map((x) => ({
       id: `xp:${x.id}`,
@@ -414,6 +434,8 @@ async function audit(sb: Sb): Promise<ViewResult> {
       { label: "Admin Decisions (24h)", value: n(decisions) },
       { label: "Shown", value: n(entries.length) },
       { label: "Failed, awaiting retry", value: n(failing) },
+      { label: "Recognitions not yet shown", value: n(waiting) },
+      { label: "Notification failures (24h)", value: n(notifyFailures) },
       { label: "Retention", value: "Kept" },
     ],
     rows: entries.map(({ at: _at, ...row }) => row),

@@ -531,22 +531,27 @@ function fresh(_role: RoleKey): AmsUserState {
   };
 }
 
+/**
+ * The starting state for a role's AMS screen: nothing earned until the engine
+ * says otherwise.
+ *
+ * This used to be restored from the browser, and what the browser held was not
+ * only a copy of the database: a "completed" mission, a "verified" identity or
+ * a "claimed" reward added XP, trust and reputation there that the engine had
+ * never granted, and the screen kept showing them whenever the real reader was
+ * slow or failed. Recognition is now read from the database every time, and
+ * whatever an older build left in this browser is removed.
+ */
 export function loadAmsState(role: RoleKey, scope?: string | null): AmsUserState {
-  if (typeof window === "undefined") return fresh(role);
-  try {
-    const raw = window.localStorage.getItem(LS_KEY(role, scope));
-    if (!raw) return fresh(role);
-    // A passport number is never taken from the browser: an older build stored
-    // a generated one here, and only the engine's own number may be shown.
-    return { ...fresh(role), ...(JSON.parse(raw) as Partial<AmsUserState>), passportId: "" };
-  } catch {
-    return fresh(role);
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.removeItem(LS_KEY(role, scope));
+      window.localStorage.removeItem(LS_KEY(role, null));
+    } catch {
+      /* storage unavailable: nothing was kept there either */
+    }
   }
-}
-
-export function saveAmsState(role: RoleKey, s: AmsUserState, scope?: string | null) {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(LS_KEY(role, scope), JSON.stringify({ ...s, passportId: "" })); } catch { /* ignore */ }
+  return fresh(role);
 }
 
 export function sectionsForLevel(level: number) {

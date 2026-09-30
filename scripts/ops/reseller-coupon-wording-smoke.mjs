@@ -39,7 +39,7 @@ await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000
 const writes = [];
 await context.route("**/*", (route) => {
   const r = route.request();
-  const read = ["GET", "HEAD", "OPTIONS"].includes(r.method()) || /\/auth\/v1\/(token|user)/.test(r.url()) || /rpc\/mm_notifications/.test(r.url());
+  const read = ["GET", "HEAD", "OPTIONS"].includes(r.method()) || /\/auth\/v1\/(token|user)/.test(r.url()) || /rpc\/(mm_notifications|ams_recognition_pending)/.test(r.url());
   if (!read) writes.push(`${r.method()} ${r.url().replace(BASE, "").split("?")[0]}`);
   return read ? route.continue() : route.abort();
 });

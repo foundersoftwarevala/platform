@@ -53,7 +53,7 @@ export type StateRow = { state: string; indexable: boolean; sitemap_eligible: bo
  */
 let fileSettings: Record<string, string> | null = null;
 
-function deploymentSetting(name: string): string {
+export function deploymentSetting(name: string): string {
   const fromEnv = process.env[name]?.trim();
   if (fromEnv) return fromEnv;
 

@@ -4,6 +4,7 @@ import { Bell, CheckCheck, Loader2 } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
+import { subscribeNotificationStream } from "@/lib/realtime/notification-stream";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
 /**
@@ -11,9 +12,13 @@ import { useTranslation } from "@/lib/i18n/use-translation";
  *
  * Rows live in user_notifications, written by mm_notify. This reads them with
  * mm_notifications (only the signed-in user's own rows, or ones addressed to a
- * role they hold) and marks them with mm_notification_read. A realtime
- * subscription on the user's own rows refreshes the list the moment one
- * arrives; a slow poll covers a dropped socket.
+ * role they hold) and marks them with mm_notification_read. The live
+ * notification stream (lib/realtime/notification-stream) refreshes the list the
+ * moment one arrives; a slow poll covers a dropped stream.
+ *
+ * It used to subscribe to /realtime/v1 postgres_changes, but that socket is
+ * routed to the hosted project, which never sees a write to this database, so
+ * the subscription never fired.
  */
 
 type BellItem = {
@@ -80,25 +85,15 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
     refetchInterval: 60_000,
   });
 
-  // New rows for this user refresh the bell straight away.
+  // New rows for this user refresh the bell straight away; a reconnect
+  // refreshes too, for anything that arrived while the stream was down.
   useEffect(() => {
     if (!userId) return;
-    const channel = supabase
-      .channel(`bell:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "user_notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        () => qc.invalidateQueries({ queryKey: ["notification-bell", userId] }),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return subscribeNotificationStream((e) => {
+      if (e.type === "notification" || e.type === "open") {
+        void qc.invalidateQueries({ queryKey: ["notification-bell", userId] });
+      }
+    });
   }, [userId, qc]);
 
   const markRead = async (ids: string[]) => {

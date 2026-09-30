@@ -13,6 +13,7 @@ import { useAmsCenter } from "@/lib/ams/use-ams-center";
 import { amsRoleForDashboard } from "@/lib/ams/dashboard-role";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { prefersReducedMotion } from "@/hooks/use-reduced-motion";
 
 
 type AmsKind =
@@ -521,6 +522,8 @@ function EmptyState({ title, sub }: { title: string; sub: string }) {
 // ---------- confetti ----------
 function launchConfetti() {
   if (typeof document === "undefined") return;
+  // The claim is confirmed by the toast either way; the confetti is motion.
+  if (prefersReducedMotion()) return;
   const root = document.createElement("div");
   root.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden";
   document.body.appendChild(root);

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Volume2, Sparkles, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCelebration } from "@/components/ams/effects/Celebration";
+import { getSoundPrefs } from "@/lib/ams/ui-sound";
 import { ProceduralEmblem } from "./ProceduralEmblem";
 import { RARITY_META, type Award } from "@/lib/ams/types";
 
@@ -12,10 +13,15 @@ export function PreviewStage({ award }: { award: PreviewAward }) {
   const { celebrate } = useCelebration();
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
 
+  // The award's own uploaded sound, under the same mute and volume as every
+  // other sound AMS makes.
   const playSound = () => {
     if (!award.media.soundUrl) return;
+    const prefs = getSoundPrefs();
+    if (!prefs.enabled || prefs.volume <= 0) return;
     if (audio) audio.pause();
     const a = new Audio(award.media.soundUrl);
+    a.volume = prefs.volume;
     setAudio(a); a.play().catch(() => undefined);
   };
 
