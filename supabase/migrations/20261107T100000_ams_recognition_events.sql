@@ -889,10 +889,13 @@ grant execute on function public.ams_verify_certificate(text) to anon, authentic
 -- ---------------------------------------------------------------- history
 
 -- Recognition that existed before today is history: never presented as new.
+-- Only on the first application: run again later, this would mark recognition
+-- that is genuinely waiting to be shown as history.
 insert into public.ams_recognition_presentations (ledger_id, user_id, presented_at, client)
 select l.id, l.user_id, l.created_at, 'historical'
   from public.ams_award_ledger l
  where public.ams_recognition_notifiable(l.asset_kind, l.reason, l.xp_awarded)
+   and not exists (select 1 from public.ams_recognition_presentations)
 on conflict (ledger_id) do nothing;
 
 -- Awards already earned get the certificate the engine now issues with every

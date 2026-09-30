@@ -29,6 +29,34 @@ let attempt = 0;
 let token: string | null = null;
 let userId: string | null = null;
 let authWatch: { unsubscribe: () => void } | null = null;
+/** When the open stream last delivered anything, heartbeats included. */
+let lastData = 0;
+let watchdog: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * The server sends a heartbeat every 25 seconds. A stream silent for longer
+ * than this is dead even though nothing has errored - a dropped network can
+ * leave the socket looking open - so it is replaced, and the reconnect's
+ * "open" makes every subscriber catch up on what it missed.
+ */
+const STALE_MS = 60_000;
+
+function reconnectNow() {
+  stop();
+  attempt = 0;
+  void connect();
+}
+
+function installWatchdog() {
+  if (watchdog || typeof window === "undefined") return;
+  watchdog = setInterval(() => {
+    if (controller && lastData && Date.now() - lastData > STALE_MS) reconnectNow();
+  }, 10_000);
+  // Back online: whatever the socket looks like, start a fresh one.
+  window.addEventListener("online", () => {
+    if (listeners.size > 0 && token) reconnectNow();
+  });
+}
 
 function emit(e: StreamEvent) {
   for (const fn of listeners) {
@@ -74,12 +102,14 @@ async function connect() {
     if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
 
     attempt = 0;
+    lastData = Date.now();
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
+      lastData = Date.now();
       buffer += decoder.decode(value, { stream: true });
       let at: number;
       while ((at = buffer.indexOf("\n\n")) >= 0) {
@@ -140,6 +170,7 @@ function watchAuth() {
 export function subscribeNotificationStream(fn: Listener): () => void {
   listeners.add(fn);
   watchAuth();
+  installWatchdog();
   if (token) void connect();
   return () => {
     listeners.delete(fn);

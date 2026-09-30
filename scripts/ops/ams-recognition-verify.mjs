@@ -27,7 +27,7 @@
  * ams-recognition-ui-verify.mjs, which drives the same overlay.
  */
 import { readFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { chromium } from "@playwright/test";
 
 const ops = {};
@@ -46,9 +46,20 @@ const check = (name, ok, detail = "") => {
 /** SQL through the ops tool; any psql ERROR is a failure, not a silent pass. */
 function sql(q) {
   // psql reports errors on stderr and db.mjs still exits 0, so both are read.
-  const r = spawnSync("node", ["scripts/ops/db.mjs", "--sql", q], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  // The VPS's ssh sometimes refuses a connection. When the connection or the
+  // copy of the SQL file failed, nothing reached the database, so that - and
+  // only that - is retried.
+  let r;
+  for (let attempt = 1; ; attempt++) {
+    r = spawnSync("node", ["scripts/ops/db.mjs", "--sql", q], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    const unreached = /ssh: connect to host .* (timed out|refused)|scp: Connection closed|Connection reset by peer|kex_exchange_identification/.test(`${r.stdout ?? ""}${r.stderr ?? ""}`);
+    if (!unreached || attempt === 4) break;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5000 * attempt);
+  }
   const out = r.stdout ?? "";
-  if (/\bERROR:/.test(`${out}\n${r.stderr ?? ""}`)) throw new Error(`${r.stderr ?? ""}${out}`.slice(0, 800));
+  if (r.status !== 0 || /\b(ERROR|FATAL|PANIC):|permission denied/i.test(`${out}\n${r.stderr ?? ""}`)) {
+    throw new Error(`${r.stderr ?? ""}${out}`.slice(0, 800));
+  }
   return out.split("\n").map((l) => l.trim()).filter((l) => l && !/^target|^-+(\+-+)*$|rows?\)$/.test(l));
 }
 const one = (q) => sql(q)[1] ?? "";
@@ -136,7 +147,7 @@ async function drain(page, ms = 40_000) {
 let cleanupNeeded = false;
 try {
   const reseller = await signIn("RESELLER");
-  const { page } = reseller;
+  let { page } = reseller;
   await page.goto(`${BASE}/dashboard/reseller`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(6000);
 
@@ -152,6 +163,44 @@ try {
   }, token);
   console.log(`  delivery: ${mode === 200 ? "live stream" : `periodic (stream answered ${mode})`}`);
   const WAIT = mode === 200 ? 15_000 : 40_000;
+
+  // The stream itself, read raw alongside the app: what the database announced
+  // and the server delivered to this person, by ledger id. A second person's
+  // stream is read the same way and must receive none of it.
+  const RAW = async (t) => {
+    window.__raw = [];
+    const r = await fetch("/api/notifications/stream", { headers: { Authorization: `Bearer ${t}` } });
+    if (!r.ok || !r.body) return r.status;
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    (async () => {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n\n")) >= 0) {
+          const block = buf.slice(0, i);
+          buf = buf.slice(i + 2);
+          const data = block.match(/^data: (.*)$/m);
+          if (/^event: notification$/m.test(block) && data) window.__raw.push(JSON.parse(data[1]));
+        }
+      }
+    })();
+    return r.status;
+  };
+  const tokenOf = (p) => p.evaluate(() => {
+    const k = Object.keys(localStorage).find((x) => /auth-token$/.test(x));
+    return k ? JSON.parse(localStorage.getItem(k) ?? "{}").access_token ?? null : null;
+  });
+  const bystander = await signIn("AUTHOR");
+  await bystander.page.goto(`${BASE}/dashboard/author`, { waitUntil: "domcontentloaded" });
+  await bystander.page.waitForTimeout(4000);
+  if (mode === 200) {
+    await page.evaluate(RAW, token);
+    await bystander.page.evaluate(RAW, await tokenOf(bystander.page));
+  }
 
   /* ---------------------------------------------------------- 1 */
   const ledgerBefore = ledgerCount();
@@ -169,11 +218,25 @@ try {
   const p1 = await probe(page);
   check("1  the recognition reached the screen", appeared, JSON.stringify(p1.kinds.map((k) => k.kind)));
   check("1  it played sound as it began", p1.starts.some((t) => p1.kinds[0] && t >= p1.kinds[0].at - 100 && t <= p1.kinds[0].at + 2500), `${p1.starts.length} starts`);
-  const extras = await page.locator("[data-recognition-extras] li").count();
-  check("1  one presentation carried the whole moment", p1.kinds.length === 1 && extras >= 1, `presentations=${p1.kinds.length} also-earned=${extras}`);
+  // Read from the text captured as it appeared: by now it may have closed.
+  const t1 = String(p1.kinds[0]?.text ?? "");
+  const alsoEarned = (t1.split("Also earned")[1] ?? "").match(/(Achievement|Badge|Trophy|Award|Certificate|Passport) · /g)?.length ?? 0;
+  check("1  one presentation carried the whole moment", p1.kinds.length === 1 && alsoEarned === newLines - 2, `presentations=${p1.kinds.length}, also earned ${alsoEarned} of ${newLines - 2} (headline and XP aside)`);
+  check("1  it names the stage, rank and XP from the database", /Stage 2 of 10/.test(t1) && /Rank Developing/.test(t1) && /\+250 XP/.test(t1), t1.slice(0, 90));
+  check("1  it claims no rarity the stage does not have", !/Legendary ·|Mythic ·|Epic ·/.test(t1.split("Also earned")[0]), t1.slice(0, 40));
   await drain(page);
   const presented = Number(one(`select count(*) from ams_recognition_presentations p join ams_award_ledger l on l.id=p.ledger_id where l.user_id=${RESELLER} and l.created_at >= ${since} and p.client='browser'`));
   check("1  every line is marked shown, once", presented === newNotes, `${presented}/${newNotes}`);
+  if (mode === 200) {
+    const dbIds = sql(`select id from ams_award_ledger where user_id=${RESELLER} and created_at >= ${since}`).slice(1);
+    const got = await page.evaluate(() => window.__raw.map((e) => e.ledger_id));
+    check("9  the stream delivered every ledger id the database announced", dbIds.length > 0 && dbIds.every((id) => got.includes(id)), `${got.length}/${dbIds.length}`);
+    const theirs = await bystander.page.evaluate(() => window.__raw.length);
+    check("9  another signed-in person's stream received none of it", theirs === 0, `${theirs}`);
+    check("9  and nothing was presented to them", (await shown(bystander.page)).length === 0);
+  } else {
+    check("9  live stream available for this run", false, `stream answered ${mode}; delivery was periodic`);
+  }
 
   /* ---------------------------------------------------------- 2 */
   const before2 = [ledgerCount(), noteCount()];
@@ -188,10 +251,27 @@ try {
   await page.waitForTimeout(WAIT);
   check("3  a refresh replays nothing", (await shown(page)).length === 0);
 
+  /* ---------------------------------------------------------- 8: concurrent submission */
+  const concurrent = await Promise.all([0, 1].map(() => new Promise((resolve) => {
+    const child = spawn("node", ["scripts/ops/db.mjs", "--sql", ingest("lead.captured", "c1")], { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    child.stdout.on("data", (d) => { out += d; });
+    child.on("close", () => resolve(out));
+  })));
+  const accepted = concurrent.filter((o) => /"duplicate": false/.test(o)).length;
+  const refused = concurrent.filter((o) => /"duplicate": true/.test(o)).length;
+  check("8  the same event sent twice at once lands once", accepted === 1 && refused === 1, `accepted ${accepted}, duplicate ${refused}`);
+  const c1Lines = Number(one(`select count(*) from ams_award_ledger l join ams_activity_events e on e.id = l.event_id where e.entity_id='${RUN}:c1'`));
+  check("8  and pays once", c1Lines === 1, `${c1Lines} XP line(s)`);
+  await waitFor(async () => (await shown(page)).length > 0, WAIT);
+  await drain(page);
+
   /* ---------------------------------------------------------- 4 */
   const second = await reseller.context.newPage();
   await second.goto(`${BASE}/dashboard/reseller`, { waitUntil: "domcontentloaded" });
   await second.waitForTimeout(6000);
+  // Count only what this event brings, in each tab.
+  for (const p of [page, second]) await p.evaluate(() => { window.__sv.kinds = []; });
   one(ingest("order.paid", "2"));
   await waitFor(async () => (await shown(page)).length + (await shown(second)).length > 0, WAIT);
   await page.waitForTimeout(3000);
@@ -224,6 +304,35 @@ try {
   check("7  never two on screen at once", p6.maxOverlays === 1, `max ${p6.maxOverlays}`);
   const stray = p6.starts.filter((t) => !p6.kinds.some((k) => t >= k.at - 100 && t <= k.at + 2500));
   check("7  no sound outside a presentation's start", stray.length === 0, `${stray.length}/${p6.starts.length}`);
+
+  /* ---------------------------------------------------------- 11/12: refresh mid-queue */
+  // Two plain-XP moments at once (same priority: first come, first served).
+  // The page is reloaded as soon as the first shows; the second, not yet
+  // shown, must still be shown after the reload, and the first must not be.
+  await page.evaluate(() => { window.__sv.kinds = []; });
+  sql(`${ingest("lead.converted", "6")}; ${ingest("order.paid", "7")};`);
+  await waitFor(async () => (await shown(page)).length > 0, WAIT + 30_000);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitFor(async () => (await shown(page)).length > 0, WAIT + 30_000);
+  await drain(page, 40_000);
+  const afterReload = (await shown(page)).length;
+  const moment6 = `(select min(l.created_at) from ams_award_ledger l join ams_activity_events e on e.id=l.event_id where e.entity_id in ('${RUN}:6','${RUN}:7'))`;
+  const unseen67 = Number(one(`select count(*) from ams_award_ledger l where l.user_id=${RESELLER} and l.created_at >= ${moment6} and not exists (select 1 from ams_recognition_presentations p where p.ledger_id=l.id)`));
+  check("11 a refresh mid-queue loses nothing: the waiting one still shows", afterReload === 1 && unseen67 === 0, `after reload ${afterReload}, unseen ${unseen67}`);
+
+  // The tab closes; a recognition arrives; a new tab opens and shows it once.
+  await page.close();
+  one(ingest("lead.captured", "8"));
+  const reopened = await reseller.context.newPage();
+  await reopened.goto(`${BASE}/dashboard/reseller`, { waitUntil: "domcontentloaded" });
+  await waitFor(async () => (await shown(reopened)).length > 0, WAIT + 20_000);
+  await drain(reopened);
+  await reopened.waitForTimeout(3000);
+  check("12 granted while no tab was open, it shows once when one opens", (await shown(reopened)).length === 1, `${(await shown(reopened)).length}`);
+  await reopened.reload({ waitUntil: "domcontentloaded" });
+  await reopened.waitForTimeout(WAIT);
+  check("12 and not again after that", (await shown(reopened)).length === 0);
+  page = reopened;
 
   /* ---------------------------------------------------------- 15 */
   const certs = sql(`select certificate_no from ams_certificates where user_id=${RESELLER} and role='reseller' order by stage`).slice(1);
@@ -263,7 +372,8 @@ try {
   await page.goto(`${BASE}/dashboard/reseller`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(6000);
   const foreign = one(`select id from ams_award_ledger where user_id=(select id from auth.users where email='test.author@softwarevala.test') limit 1`);
-  const forged = await page.evaluate(async ({ t, foreignId, run, base, key }) => {
+  const foreignOwner = one("select id from auth.users where email='test.author@softwarevala.test'");
+  const forged = await page.evaluate(async ({ t, foreignId, foreignOwner, run, base, key }) => {
     const h = { Authorization: `Bearer ${t}`, "Content-Type": "application/json", apikey: key };
     const uid = JSON.parse(atob(t.split(".")[1])).sub;
     const ins = await fetch(`${base}/rest/v1/user_notifications`, {
@@ -271,15 +381,20 @@ try {
       body: JSON.stringify({ user_id: uid, type: "success", message: "Trophy earned: forged", event_type: "ams.recognition.trophy", dedupe_key: `${run}:forged`, data: { ledger_id: foreignId } }),
     });
     const claim = await fetch(`${base}/rest/v1/rpc/ams_recognition_claim`, { method: "POST", headers: h, body: JSON.stringify({ p_ledger_ids: [foreignId] }) });
+    const peekRpc = await fetch(`${base}/rest/v1/rpc/ams_recognition_peek`, { method: "POST", headers: h, body: JSON.stringify({ p_ledger_ids: [foreignId] }) });
+    const history = await fetch(`${base}/rest/v1/rpc/ams_recognitions`, { method: "POST", headers: h, body: JSON.stringify({ p_role: "author", p_user_id: foreignOwner, p_limit: 10 }) });
     const peek = await fetch(`${base}/rest/v1/ams_recognition_presentations?select=ledger_id&ledger_id=eq.${foreignId}`, { headers: h });
-    return { inserted: ins.status, claim: await claim.json(), peek: await peek.json() };
-  }, { t: token, foreignId: foreign, run: RUN, base: ops.SV_API_BASE ?? "https://softwarevala.net", key: ops.SUPABASE_PUBLISHABLE_KEY });
+    return { inserted: ins.status, claim: await claim.json(), read: await peekRpc.json(), history: await history.json(), peek: await peek.json() };
+  }, { t: token, foreignId: foreign, foreignOwner, run: RUN, base: ops.SV_API_BASE ?? "https://softwarevala.net", key: ops.SUPABASE_PUBLISHABLE_KEY });
   check("18 a user cannot claim someone else's recognition", Array.isArray(forged.claim?.claimed) && forged.claim.claimed.length === 0, JSON.stringify(forged.claim).slice(0, 80));
+  check("18 nor read it before it is shown", Array.isArray(forged.read?.recognitions) && forged.read.recognitions.length === 0, JSON.stringify(forged.read).slice(0, 80));
+  check("18 nor read their history", forged.history?.reason === "not_permitted", JSON.stringify(forged.history).slice(0, 80));
   check("18 nor read whether it was shown", Array.isArray(forged.peek) && forged.peek.length === 0, JSON.stringify(forged.peek).slice(0, 60));
   await page.waitForTimeout(WAIT);
   check("18 a notification the user wrote themselves shows nothing", (await shown(page)).length === 0, `insert ${forged.inserted}`);
   check("no page error for the reseller", reseller.errors.length === 0, reseller.errors.slice(0, 2).join(" | "));
   await reseller.context.close();
+  await bystander.context.close();
 
   const admin = await signIn("CONTROL_PANEL");
   await admin.page.goto(`${BASE}/dashboard/admin`, { waitUntil: "domcontentloaded" });
@@ -300,8 +415,8 @@ try {
     select 'cross_role_lines', count(*) from ams_award_ledger where user_id=${RESELLER} and role='vendor' and asset_slug like 'reseller-%';
     alter table user_notifications add constraint sv_verify_block check (event_type not like 'ams.recognition.%') not valid;
     select 'failing_event', ams_ingest_event(${RESELLER}, 'lead.converted', 'verification', '${RUN}:f1', 1, now(), 'verification', '{"ams_role":"reseller"}'::jsonb)->>'ok';
-    select 'failing_lines', count(*) from ams_award_ledger l where l.user_id=${RESELLER} and l.created_at = now();
-    select 'failing_notes', count(*) from user_notifications where user_id=${RESELLER} and created_at = now() and event_type like 'ams.recognition.%';
+    select 'failing_lines', count(*) from ams_award_ledger l where l.user_id=${RESELLER} and l.role='reseller' and l.created_at = now();
+    select 'failing_notes', count(*) from user_notifications where user_id=${RESELLER} and created_at = now() and data->>'role'='reseller' and event_type like 'ams.recognition.%';
     select 'failures_recorded', count(*) from error_events where fn_name='ams_notify_recognition' and created_at = now();
     alter table user_notifications drop constraint sv_verify_block;
     select 'repair_first', ams_recognition_repair();
@@ -354,7 +469,7 @@ try {
       commit;`);
     const left = (out.find((l) => l.startsWith("left ")) ?? "").split("|").pop().trim();
     check("the run's rows were removed", left === "0", `left ${left}`);
-    const triggers = one("select string_agg(tgname || '=' || tgenabled, ',') from pg_trigger where tgname in ('ams_ledger_no_rewrite','ams_events_no_rewrite')");
+    const triggers = one("select string_agg(tgname || '=' || tgenabled::text, ',') from pg_trigger where tgname in ('ams_ledger_no_rewrite','ams_events_no_rewrite')");
     check("the append-only guards are back on", !/=D/.test(triggers), triggers);
   }
   await browser.close();

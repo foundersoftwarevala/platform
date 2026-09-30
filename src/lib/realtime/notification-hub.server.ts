@@ -54,12 +54,23 @@ function deliver(raw: string) {
 export function ensureListening(): Promise<boolean> {
   if (connection) return Promise.resolve(true);
   if (starting) return starting;
-  const url = deploymentSetting("VPS_DATABASE_URL");
+  // The platform database - the one PostgREST serves and user_notifications
+  // lives in. Not VPS_DATABASE_URL: that is the SEO store's database, and a
+  // NOTIFY is only heard by listeners on the database it was sent in.
+  const url = deploymentSetting("SV_PLATFORM_DATABASE_URL");
   if (!url) return Promise.resolve(false);
 
   starting = (async () => {
     const { default: postgres } = await import("postgres");
     const sql = postgres(url, { max: 1, idle_timeout: 0, connect_timeout: 10, onnotice: () => {} });
+    // Listening to a database that never announces would look healthy and
+    // deliver nothing, so the database must be the one with the announcer.
+    const [{ announces }] = await sql<{ announces: boolean }[]>`
+      select to_regproc('public.sv_announce_user_notification') is not null as announces`;
+    if (!announces) {
+      await sql.end({ timeout: 1 });
+      throw new Error("SV_PLATFORM_DATABASE_URL is not the database that announces notifications");
+    }
     // The driver re-establishes LISTEN by itself when the connection drops.
     await sql.listen("sv_user_notification", deliver);
     connection = sql;
