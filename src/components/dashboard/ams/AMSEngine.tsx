@@ -14,6 +14,8 @@ import {
   type AmsSectionKey, type AmsUserState, type AmsRoleConfig, type AmsItem,
 } from "@/lib/ams-engine";
 import { getAmsStanding } from "@/lib/ams/user-state.functions";
+import { amsRoleForDashboard } from "@/lib/ams/dashboard-role";
+import { getRoleChain, type RoleChain } from "@/lib/ams/chain.functions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/dashboard/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -22,15 +24,63 @@ import { cn } from "@/lib/utils";
 /* ────────────────────── ROOT ────────────────────── */
 
 export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => void }) {
-  const cfg = AMS_ROLE[role.key as RoleKey];
+  const baseCfg = AMS_ROLE[role.key as RoleKey];
+  const amsRole = amsRoleForDashboard(role.key);
+
+  // The role's journey from the engine itself (ams_role_chain): its stages,
+  // the achievement, badge, trophy and award of each, and this person's state
+  // in every one. The awards, badges, trophies and certificates below used to
+  // be a catalogue written in lib/ams-engine.ts, whose keys ("lifetime-author")
+  // the engine never awards, so recognition a person had really earned could
+  // never show as earned here. The local file still supplies the wording and
+  // colours; what exists and what is earned comes from the database.
+  const fetchChain = useServerFn(getRoleChain);
+  const chainQuery = useQuery({
+    queryKey: ["ams", "role-chain", amsRole],
+    queryFn: () => fetchChain({ data: { role: amsRole as string } }),
+    enabled: Boolean(amsRole),
+    staleTime: 60_000,
+  });
+  const chain = chainQuery.data as RoleChain | null | undefined;
+  const stages = useMemo(() => chain?.stages ?? [], [chain]);
+  const cfg = useMemo<AmsRoleConfig>(() => {
+    if (!stages.length) return baseCfg;
+    const item = (s: (typeof stages)[number], a: { slug: string | null; name: string | null }) => ({
+      key: String(a.slug ?? `${amsRole}-${s.stage}`),
+      label: String(a.name ?? s.title),
+      requirement: `Stage ${s.stage} · ${s.title}`,
+      xp: Number(s.min_xp),
+      visibleAtLevel: s.stage,
+    });
+    return {
+      ...baseCfg,
+      awards: stages.map((s) => item(s, s.achievement)),
+      badges: stages.map((s) => item(s, s.badge)),
+      trophies: stages.map((s) => item(s, s.trophy)),
+      certificates: stages.map((s) => item(s, s.award)),
+    };
+  }, [baseCfg, stages, amsRole]);
+  // The engine's stages are the levels: the same XP thresholds and the rank
+  // names the engine gives them.
+  const chainLevels = useMemo(
+    () => stages.map((s) => ({
+      level: s.stage,
+      label: String(s.standing?.rank ?? s.title),
+      xpFrom: Number(s.min_xp),
+      xpTo: Number(s.next_min_xp ?? s.min_xp),
+    })),
+    [stages],
+  );
+  const earnedOf = (pick: (s: (typeof stages)[number]) => { slug: string | null; state: string }) =>
+    stages.map(pick).filter((a) => a.state === "earned" || a.state === "claimed").map((a) => String(a.slug));
 
   // The person's real AMS record — the same tables AMS Manager reads. This
   // used to come from localStorage keyed by role, so it persisted nowhere,
   // the manager could not see it, and two accounts on one browser shared it.
   const fetchStanding = useServerFn(getAmsStanding);
   const standing = useQuery({
-    queryKey: ["ams", "standing"],
-    queryFn: () => fetchStanding(),
+    queryKey: ["ams", "standing", role.key],
+    queryFn: () => fetchStanding({ data: { role: amsRoleForDashboard(role.key) } }),
     staleTime: 60_000,
   });
   const scope = standing.data?.userId ?? null;
@@ -50,17 +100,36 @@ export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => vo
       earnedAwards: s.earnedAchievements,
       earnedBadges: s.earnedBadges,
       earnedTrophies: s.earnedTrophies,
+      earnedCertificates: prev.earnedCertificates,
       earnedMissions: s.completedMissions,
       claimedRewards: s.claimedRewards,
-      passportId: s.passportId ?? prev.passportId,
       joinedAt: s.joinedAt ?? prev.joinedAt,
     }));
   }, [standing.data, role.key]);
 
+  // Earned recognition and XP from the role chain, which is this role's only.
+  useEffect(() => {
+    if (!chain?.ok || !chain.user_id) return;
+    setState((prev) => ({
+      ...prev,
+      xp: Number(chain.total_xp ?? 0),
+      earnedAwards: earnedOf((s) => s.achievement),
+      earnedBadges: earnedOf((s) => s.badge),
+      earnedTrophies: earnedOf((s) => s.trophy),
+      earnedCertificates: earnedOf((s) => s.award),
+      // The role's own passport as the engine issued it, or none yet. A number
+      // worked out from the account would name a passport that does not exist.
+      passportId: chain.passport?.passport_no ?? "Not issued yet",
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chain]);
+
   useEffect(() => { saveAmsState(role.key as RoleKey, state, scope); }, [role.key, state, scope]);
 
-  const lvl = levelForXp(state.xp);
-  const nextBand = LEVELS.find((l) => l.level === lvl.level + 1);
+  const lvl = chainLevels.length
+    ? ([...chainLevels].reverse().find((l) => state.xp >= l.xpFrom) ?? chainLevels[0])
+    : levelForXp(state.xp);
+  const nextBand = (chainLevels.length ? chainLevels : LEVELS).find((l) => l.level === lvl.level + 1);
   const xpInBand = state.xp - lvl.xpFrom;
   const xpBandSize = lvl.xpTo - lvl.xpFrom;
   const pct = Math.min(100, Math.round((xpInBand / Math.max(1, xpBandSize)) * 100));
@@ -68,12 +137,29 @@ export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => vo
   const visibleSections = useMemo(() => sectionsForLevel(lvl.level), [lvl.level]);
 
   const ctx: SectionCtx = {
-    role, cfg, state, setState, level: lvl,
+    role, cfg, state, setState, level: lvl, nextLevelLabel: nextBand?.label ?? null,
     onGoto: setSection,
   };
 
+  // AMS has eleven roles. A dashboard whose role is not one of them has no AMS
+  // journey, and says so rather than showing one.
+  if (!amsRole) {
+    return (
+      <div className="space-y-5" data-ams-role="none">
+        <button onClick={onBack} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition">
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+          AMS covers User, Reseller, Franchise, Author, Vendor, Affiliate, Influencer, Developer,
+          Creator, SEO and Support. The {role.name} role is not one of them, so there is no AMS
+          journey here.
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-5" data-ams-role={role.key}>
+    <div className="space-y-5" data-ams-role={amsRole}>
       <div className="flex items-center justify-between gap-3">
         <button onClick={onBack} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition">
           <ArrowLeft className="h-4 w-4" /> Back
@@ -110,6 +196,7 @@ type SectionCtx = {
   state: AmsUserState;
   setState: React.Dispatch<React.SetStateAction<AmsUserState>>;
   level: (typeof LEVELS)[number];
+  nextLevelLabel: string | null;
   onGoto: (k: AmsSectionKey) => void;
 };
 
@@ -370,7 +457,7 @@ function HomeSection({ ctx }: { ctx: SectionCtx }) {
 
         <div className="rounded-2xl border border-border bg-surface-1 p-4">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Current Goal</div>
-          <div className="mt-1 font-medium">Reach {LEVELS[level.level]?.label ?? "Max"}</div>
+          <div className="mt-1 font-medium">Reach {ctx.nextLevelLabel ?? "Max"}</div>
           <div className="text-xs text-muted-foreground mt-0.5">Earn XP through missions & achievements.</div>
           <div className="mt-3">
             <Progress value={Math.min(100, Math.round(((state.xp - level.xpFrom) / Math.max(1, level.xpTo - level.xpFrom)) * 100))} />

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/dashboard/ui/button";
 import type { CrudRecord } from "@/lib/crud-store";
 import { useAmsCenter } from "@/lib/ams/use-ams-center";
+import { amsRoleForDashboard } from "@/lib/ams/dashboard-role";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -93,10 +94,10 @@ function rewardValueOf(r: CrudRecord) {
   return { coins, gems, xp };
 }
 
-export function AMSCenterWorkspace({ onBack }: { onBack: () => void }) {
+export function AMSCenterWorkspace({ onBack, dashboardRole }: { onBack: () => void; dashboardRole?: string }) {
   // The live AMS: rewards, missions and campaigns, and this person's own
   // wallet, level and claims (see useAmsCenter).
-  const center = useAmsCenter();
+  const center = useAmsCenter(dashboardRole ? amsRoleForDashboard(dashboardRole) : null);
   const [tab, setTab] = useState<Tab>("overview");
   const [q, setQ] = useState("");
 

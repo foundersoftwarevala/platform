@@ -54,7 +54,7 @@ export type AmsCenter = {
   claimedCount: number;
 };
 
-async function load(): Promise<AmsCenter> {
+async function load(role: string | null): Promise<AmsCenter> {
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth.user?.id;
   if (!uid) throw new Error("Please sign in to see your rewards.");
@@ -65,7 +65,10 @@ async function load(): Promise<AmsCenter> {
     rows(from("missions").select("id,name,description,conditions,rewards,xp_reward,ends_at").eq("status", "active")),
     rows(from("campaigns").select("id,name,description,ends_at,rewards").eq("status", "active")),
     rows(from("reward_wallets").select("kind,balance").eq("user_id", uid)),
-    rows(from("user_xp").select("total_xp,current_level").eq("user_id", uid)),
+    // This dashboard's role only: XP and level are kept per role.
+    role
+      ? rows(from("user_xp").select("total_xp,current_level").eq("user_id", uid).eq("role", role))
+      : rows(from("user_xp").select("total_xp,current_level").eq("user_id", uid).order("total_xp", { ascending: false }).limit(1)),
     rows(from("levels").select("level_number,xp_required").order("xp_required")),
     rows(from("claims").select("id,reward_id,status,cost_coins,cost_tokens,created_at,decided_at,notes").eq("user_id", uid).order("created_at", { ascending: false })),
     rows(from("user_mission_progress").select("mission_id,progress,completed_at").eq("user_id", uid)),
@@ -167,9 +170,9 @@ async function load(): Promise<AmsCenter> {
   };
 }
 
-export function useAmsCenter() {
+export function useAmsCenter(role: string | null = null) {
   const client = useQueryClient();
-  const query = useQuery({ queryKey: ["ams-center"], queryFn: load });
+  const query = useQuery({ queryKey: ["ams-center", role], queryFn: () => load(role) });
   return {
     data: query.data ?? null,
     loading: query.isLoading,

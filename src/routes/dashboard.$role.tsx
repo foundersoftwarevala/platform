@@ -9,6 +9,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { Hero } from "@/components/dashboard/Hero";
 import { VendorSliderHero } from "@/components/dashboard/VendorSliderHero";
 import { ResellerHero } from "@/components/dashboard/ResellerHero";
+import { AmsSummaryCard } from "@/components/dashboard/ams/AmsSummaryCard";
 import { notBuilt } from "@/lib/ui/not-built";
 import { AuthorHero } from "@/components/dashboard/AuthorHero";
 import { ResellerProfileHero } from "@/components/dashboard/ResellerProfileHero";
@@ -324,6 +325,8 @@ function DashboardPage() {
               ) : (
                 <Hero role={cfg} onCta={openHero} onAnalytics={() => openModule(cfg.modules.find(m => /analytic|report|insight/i.test(m.label))?.key ?? cfg.modules[0]?.key ?? null)} />
               )}
+              {/* This role's AMS standing; "Open AMS" is the role's Achievements module. */}
+              <AmsSummaryCard dashboardRole={role} onOpen={() => openModule("achievements")} />
               <KpiToolbar
                 tones={availableTones}
                 tone={kpiTone}

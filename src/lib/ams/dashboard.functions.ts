@@ -69,7 +69,7 @@ export const getCommandCenter = createServerFn({ method: "GET" }).handler(async 
     levelsAll, ranksAll, leaderboardDefs,
     notificationsCount, xpTxRecent,
   ] = await Promise.all([
-    supabase.from("user_xp").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("user_xp").select("*").eq("user_id", userId).order("total_xp", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
     supabase.from("achievements").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("badges").select("id", { count: "exact", head: true }).eq("status", "active"),
