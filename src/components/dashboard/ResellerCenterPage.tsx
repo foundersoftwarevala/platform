@@ -2,18 +2,27 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, ChevronRight, Inbox, Plus, Search } from "lucide-react";
 import { RESELLER_CENTERS, type CenterKey, type CenterFeature } from "@/lib/reseller-extras";
+import { ResellerReferralLinks } from "@/components/reseller/ResellerReferralLinks";
+
+/** Coupon features: coupons are issued by Software Vala, not by a reseller. */
+const COUPON_FEATURES = new Set(["gen", "discount", "campaign", "limited", "analytics", "history"]);
 
 export function ResellerCenterPage({
   centerKey,
   onBack,
+  initialFeature,
 }: {
   centerKey: CenterKey;
   onBack: () => void;
+  /** Open straight on one feature, as the dashboard hero's buttons do. */
+  initialFeature?: string | null;
 }) {
   const cfg = RESELLER_CENTERS[centerKey];
   const Icon = cfg.icon;
   const allFeatures = cfg.sections.flatMap((s) => s.features);
-  const [active, setActive] = useState<CenterFeature | null>(null);
+  const [active, setActive] = useState<CenterFeature | null>(
+    () => allFeatures.find((f) => f.key === initialFeature) ?? null,
+  );
   const [q, setQ] = useState("");
 
   const filtered = (features: CenterFeature[]) =>
@@ -57,7 +66,7 @@ export function ResellerCenterPage({
       </div>
 
       {active ? (
-        <FeatureDetail feature={active} accent={cfg.accent} />
+        <FeatureDetail feature={active} accent={cfg.accent} centerKey={centerKey} />
       ) : (
         <>
           {/* Banner card */}
@@ -144,7 +153,7 @@ function FeatureCard({ feature, onOpen }: { feature: CenterFeature; onOpen: () =
   );
 }
 
-function FeatureDetail({ feature, accent }: { feature: CenterFeature; accent: string }) {
+function FeatureDetail({ feature, accent, centerKey }: { feature: CenterFeature; accent: string; centerKey: CenterKey }) {
   const Icon = feature.icon;
   const [configOpen, setConfigOpen] = useState(false);
   return (
@@ -174,16 +183,11 @@ function FeatureDetail({ feature, accent }: { feature: CenterFeature; accent: st
           className="animate-fade-in border-b border-border p-6 md:p-8 grid gap-4 sm:grid-cols-2"
           onSubmit={(e) => {
             e.preventDefault();
-            const fd = new FormData(e.currentTarget);
-            try {
-              localStorage.setItem(
-                `sv.center.${feature.key}`,
-                JSON.stringify({ endpoint: fd.get("endpoint"), owner: fd.get("owner") }),
-              );
-              toast.success(`${feature.label} settings saved`);
-            } catch {
-              toast.error("Could not save settings locally");
-            }
+            // This form used to keep an "API endpoint" in this browser, which
+            // nothing ever read. Say so instead of claiming a save.
+            toast.info(`${feature.label} has no settings to save yet`, {
+              description: "Nothing was stored. This feature is configured by Software Vala.",
+            });
             setConfigOpen(false);
           }}
         >
@@ -210,16 +214,21 @@ function FeatureDetail({ feature, accent }: { feature: CenterFeature; accent: st
         </form>
       )}
 
+      {centerKey === "referral" && feature.key === "link" ? (
+        <ResellerReferralLinks />
+      ) : (
       <div className="p-8 md:p-12 grid place-items-center text-center">
         <div className="grid h-14 w-14 place-items-center rounded-full bg-surface-2 text-muted-foreground">
           <Inbox className="h-5 w-5" />
         </div>
         <div className="mt-4 text-base font-semibold">No records yet</div>
         <div className="text-xs text-muted-foreground mt-1 max-w-md">
-          This screen is ready to be wired to your existing Reseller API endpoint.
-          When connected, real records will appear here in real time — nothing is faked.
+          {centerKey === "referral" && COUPON_FEATURES.has(feature.key)
+            ? "Discount coupons are issued by Software Vala. Resellers cannot create their own coupons yet; share a referral link instead."
+            : "This screen is ready to be wired to your existing Reseller API endpoint. When connected, real records will appear here in real time — nothing is faked."}
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -9,30 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { UserPlus, FileCheck, Shield, Award, Crown, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-
-const onboardingRequests = [
-  { 
-    id: 'ONB-001', 
-    name: 'CANDIDATE-A1B2', 
-    role: 'Full Stack', 
-    step: 'nda_review',
-    steps: { join: true, docs: true, nda: false, skill: false, boss: false }
-  },
-  { 
-    id: 'ONB-002', 
-    name: 'CANDIDATE-C3D4', 
-    role: 'Frontend', 
-    step: 'skill_validation',
-    steps: { join: true, docs: true, nda: true, skill: false, boss: false }
-  },
-  { 
-    id: 'ONB-003', 
-    name: 'CANDIDATE-E5F6', 
-    role: 'Backend', 
-    step: 'boss_approval',
-    steps: { join: true, docs: true, nda: true, skill: true, boss: false }
-  },
-];
+import { useCompleteOnboarding, useDeveloperRegistry, useSetDeveloperStatus } from '@/hooks/useDevManagerData';
 
 const stepIcons = {
   join: UserPlus,
@@ -42,7 +19,31 @@ const stepIcons = {
   boss: Crown,
 };
 
+/**
+ * Developers still onboarding, from the developer registry. The three
+ * candidates here were typed in and the buttons only showed messages.
+ * Approve marks onboarding complete, and Reject exits the developer with the
+ * reason given - both audited. Documents and the NDA are not recorded per
+ * developer, so those steps show as not done until they are.
+ */
 export const DMOnboardingRequests: React.FC = () => {
+  const registry = useDeveloperRegistry();
+  const approve = useCompleteOnboarding();
+  const setStatus = useSetDeveloperStatus();
+  const onboardingRequests = (registry.data ?? [])
+    .filter((d) => !d.onboardingCompleted && d.status !== 'exited')
+    .map((d) => ({
+      id: d.valaId || d.id.slice(0, 8).toUpperCase(),
+      uuid: d.id,
+      name: d.fullName,
+      role: d.skillTags.length ? d.skillTags.slice(0, 3).join(', ') : 'Skills not set',
+      steps: { join: true, docs: false, nda: false, skill: d.skillTags.length > 0, boss: false },
+    }));
+  const ask = (question: string) => {
+    const answer = window.prompt(question)?.trim();
+    if (!answer || answer.length < 5) { toast.error('At least 5 characters are needed.'); return null; }
+    return answer;
+  };
   return (
     <div className="space-y-6">
       <div>
@@ -56,7 +57,7 @@ export const DMOnboardingRequests: React.FC = () => {
           <CardTitle className="text-sm">Onboarding Flow</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between overflow-x-auto">
             {[
               { key: 'join', label: 'New Join' },
               { key: 'docs', label: 'Documents' },
@@ -88,9 +89,14 @@ export const DMOnboardingRequests: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {(registry.isLoading || registry.isError || onboardingRequests.length === 0) && (
+              <p className="text-sm text-muted-foreground">
+                {registry.isLoading ? 'Loading…' : registry.isError ? `The registry could not be read: ${(registry.error as Error).message}` : 'No developer is waiting on onboarding.'}
+              </p>
+            )}
             {onboardingRequests.map((request) => (
               <div 
-                key={request.id}
+                key={request.uuid}
                 className="p-4 bg-muted/30 rounded-lg border"
               >
                 <div className="flex items-center justify-between mb-4">
@@ -121,7 +127,8 @@ export const DMOnboardingRequests: React.FC = () => {
                   <Button 
                     size="sm" 
                     className="bg-green-600 hover:bg-green-700"
-                    onClick={() => toast.success(`${request.id} approved`)}
+                    disabled={approve.isPending}
+                    onClick={() => { const note = ask(`Approve onboarding for ${request.name}? Add a note:`); if (note) approve.mutate({ developerId: request.uuid, note }); }}
                   >
                     <CheckCircle className="h-4 w-4 mr-1" />
                     Approve
@@ -129,7 +136,8 @@ export const DMOnboardingRequests: React.FC = () => {
                   <Button 
                     size="sm" 
                     variant="destructive"
-                    onClick={() => toast.error(`${request.id} rejected`)}
+                    disabled={setStatus.isPending}
+                    onClick={() => { const reason = ask(`Why is ${request.name} rejected? They will be exited.`); if (reason) setStatus.mutate({ developerId: request.uuid, status: 'exited', reason }); }}
                   >
                     <XCircle className="h-4 w-4 mr-1" />
                     Reject
@@ -137,7 +145,7 @@ export const DMOnboardingRequests: React.FC = () => {
                   <Button 
                     size="sm" 
                     variant="outline"
-                    onClick={() => toast.info(`${request.id} on hold`)}
+                    onClick={() => toast.info('Left as it is: it stays in this queue until approved or rejected.')}
                   >
                     <Clock className="h-4 w-4 mr-1" />
                     Hold

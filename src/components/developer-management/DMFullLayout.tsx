@@ -9,7 +9,8 @@
  * Uses the shared UnifiedShell so the module matches the global UI system.
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useCodeSubmissions, useDeliveryOverview, useDeveloperRegistry } from '@/hooks/useDevManagerData';
 import {
   LayoutDashboard, Users, UserPlus, Layers, ListTodo, Target, Hammer,
   FileCode, CheckCircle, Bug, TrendingUp, Wallet, Shield, Lock,
@@ -44,14 +45,14 @@ const GROUPS: UnifiedNavGroup[] = [
     title: 'People & Skills',
     items: [
       { id: 'developer_registry', label: 'Developer Registry', icon: Users },
-      { id: 'onboarding_requests', label: 'Onboarding Requests', icon: UserPlus, badge: 3 },
+      { id: 'onboarding_requests', label: 'Onboarding Requests', icon: UserPlus },
       { id: 'role_skill_mapping', label: 'Role & Skill Mapping', icon: Layers },
     ],
   },
   {
     title: 'Work Pipeline',
     items: [
-      { id: 'task_management', label: 'Task Management', icon: ListTodo, badge: 12 },
+      { id: 'task_management', label: 'Task Management', icon: ListTodo },
       { id: 'sprint_milestone', label: 'Sprint / Milestone', icon: Target },
       { id: 'build_assignment', label: 'Build Assignment', icon: Hammer },
       { id: 'code_submission', label: 'Code Submission', icon: FileCode },
@@ -126,12 +127,36 @@ export const DMFullLayout: React.FC = () => {
     GROUPS.flatMap((g) => g.items).find((i) => i.id === activeScreen)?.label ??
     'Developer Management';
 
+  // Two items carried typed-in badges (3 and 12). A badge is now the count the
+  // screen itself shows, and none is drawn while it is unknown or zero.
+  const overview = useDeliveryOverview();
+  const registry = useDeveloperRegistry();
+  const submissions = useCodeSubmissions();
+  const counts: Partial<Record<DMScreen, number | undefined>> = {
+    onboarding_requests: registry.data?.filter((d) => !d.onboardingCompleted && d.status !== 'exited').length,
+    task_management: overview.data?.stats.activeTasks,
+    review_qa: submissions.data?.filter((s) => s.status === 'submitted').length,
+    alerts_escalation: overview.data ? overview.data.risks.length + overview.data.blocked.length : undefined,
+  };
+  const groups = useMemo(
+    () =>
+      GROUPS.map((g) => ({
+        ...g,
+        items: g.items.map((i) => {
+          const n = counts[i.id as DMScreen];
+          return n ? { ...i, badge: n } : i;
+        }),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [counts.onboarding_requests, counts.task_management, counts.review_qa, counts.alerts_escalation],
+  );
+
   return (
     <UnifiedShell
       brandTitle="Developer Mgmt"
       brandSubtitle="Enterprise Mode"
       brandIcon={Code2}
-      groups={GROUPS}
+      groups={groups}
       activeId={activeScreen}
       onSelect={(id) => setActiveScreen(id as DMScreen)}
       topbarTitle={title}

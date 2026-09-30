@@ -636,3 +636,38 @@ export async function setDeveloperStatusInDb(
 
   return { ok: true as const };
 }
+
+/**
+ * Mark a developer's onboarding complete - the Dev Manager's approval of a
+ * pending onboarding. Only a developer still onboarding can be approved, and
+ * the approval is written to the audit trail with the reviewer's note.
+ */
+export async function completeDeveloperOnboardingInDb(
+  supabase: Db,
+  reviewerId: string,
+  developerId: string,
+  note: string,
+  actor?: string,
+) {
+  // developers is not in the generated types, as elsewhere in this file.
+  const { data, error } = await supabase
+    .from("developers" as never)
+    .update({ onboarding_completed: true } as never)
+    .eq("id" as never, developerId as never)
+    .eq("onboarding_completed" as never, false as never)
+    .select("vala_id")
+    .maybeSingle();
+  if (error) throw new Error(`Onboarding update failed: ${error.message}`);
+  const row = data as { vala_id: string | null } | null;
+  if (!row) throw new Error("This developer is not awaiting onboarding approval.");
+
+  await writeAudit(
+    supabase,
+    reviewerId,
+    "dev_manager.registry",
+    "DEVELOPER_ONBOARDING_APPROVED",
+    { developer_id: developerId, vala_id: row.vala_id, note },
+    actor,
+  );
+  return { ok: true as const };
+}

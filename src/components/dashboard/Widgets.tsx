@@ -8,7 +8,9 @@ import { SectionTitle, StatCard, ProgressBar, EmptyHint } from "./Primitives";
 import { cn } from "@/lib/utils";
 import { AnimatedNumber } from "@/components/ams/effects/AnimatedNumber";
 
-import { notBuilt } from "@/lib/ui/not-built";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@/lib/serverFn";
+import { runAmsAnalysis, type AnalysisKind } from "@/lib/ams/analysis.functions";
 type Data = any; // shape matches getCommandCenter return
 
 const fmt = new Intl.NumberFormat();
@@ -200,24 +202,55 @@ export function Row9Timelines({ data }: { data: Data }) {
   );
 }
 
+/**
+ * The AI Center. Each card runs a real analysis of the programme's own figures
+ * (see lib/ams/analysis.functions.ts) through the AI API Manager, and shows
+ * what came back - or why there was nothing to analyse, or the provider's own
+ * error.
+ */
 export function Row10AI() {
-  const cards: { title: string; copy: string }[] = [
-    { title: "AI Growth Analysis", copy: "Run growth analysis to surface XP velocity, achievement gaps, and at-risk users." },
-    { title: "AI Recommendation", copy: "Generate personalized next-best-actions based on current progression." },
-    { title: "AI Achievement Suggestions", copy: "Let AI propose achievements matched to your behavior model." },
-    { title: "AI Reward Suggestions", copy: "Get curated reward suggestions tuned to wallet balances and history." },
+  const cards: { kind: AnalysisKind; title: string; copy: string }[] = [
+    { kind: "growth", title: "AI Growth Analysis", copy: "Run growth analysis to surface XP velocity, achievement gaps, and at-risk users." },
+    { kind: "recommendation", title: "AI Recommendation", copy: "Generate personalized next-best-actions based on current progression." },
+    { kind: "achievements", title: "AI Achievement Suggestions", copy: "Let AI propose achievements matched to your behavior model." },
+    { kind: "rewards", title: "AI Reward Suggestions", copy: "Get curated reward suggestions tuned to wallet balances and history." },
   ];
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-      {cards.map((c) => (
-        <Card key={c.title} title={c.title} icon={<Sparkles className="h-4 w-4 text-secondary" />}>
-          <div className="text-xs text-muted-foreground">{c.copy}</div>
-          <button
-        type="button"
-        onClick={() => notBuilt("Run analysis →")} className="mt-3 text-xs font-medium text-primary hover:underline">Run analysis →</button>
-        </Card>
-      ))}
+      {cards.map((c) => <AnalysisCard key={c.kind} {...c} />)}
     </div>
+  );
+}
+
+function AnalysisCard({ kind, title, copy }: { kind: AnalysisKind; title: string; copy: string }) {
+  const run = useServerFn(runAmsAnalysis);
+  const analysis = useMutation({ mutationFn: () => run({ data: { kind } }) });
+  const result = analysis.data;
+  return (
+    <Card title={title} icon={<Sparkles className="h-4 w-4 text-secondary" />}>
+      <div className="text-xs text-muted-foreground">{copy}</div>
+      {analysis.isError && (
+        <div role="alert" className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-[11px] text-destructive">
+          {(analysis.error as Error).message}
+        </div>
+      )}
+      {result && (
+        <div className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-[11px] leading-relaxed">
+          {result.text ?? result.reason}
+          <div className="mt-1 text-[10px] text-muted-foreground">
+            {new Date(result.generatedAt).toLocaleString()}{result.model ? ` · ${result.model}` : ""}
+          </div>
+        </div>
+      )}
+      <button
+        type="button"
+        disabled={analysis.isPending}
+        onClick={() => analysis.mutate()}
+        className="mt-3 text-xs font-medium text-primary hover:underline disabled:opacity-60"
+      >
+        {analysis.isPending ? "Analysing…" : result ? "Run again →" : "Run analysis →"}
+      </button>
+    </Card>
   );
 }
 

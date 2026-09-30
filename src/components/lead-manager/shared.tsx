@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -453,6 +454,8 @@ export function exportLeadsCsv(leads: Lead[], filename = "leads", unmasked = fal
   a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+  // A download gives no sign on the page; say what was exported, including none.
+  toast.success(leads.length ? `Exported ${leads.length} lead${leads.length === 1 ? "" : "s"} as CSV` : "No lead in view - the CSV has headers only");
 }
 
 /** The CSV text itself, split out so the masking above can be tested. */

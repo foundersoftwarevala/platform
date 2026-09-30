@@ -132,6 +132,13 @@ export function useSystemActions() {
     const actionId = generateActionId();
     const timestamp = new Date().toISOString();
 
+    // Without a handler nothing happens, and success must not be announced -
+    // it used to be, for every button that called this without one.
+    if (!handler) {
+      toast.info(`This ${config.action} is not connected yet`, { description: "Nothing was changed." });
+      return { success: false, error: "not_connected", timestamp, actionId };
+    }
+
     setState(prev => ({
       ...prev,
       isLoading: true,

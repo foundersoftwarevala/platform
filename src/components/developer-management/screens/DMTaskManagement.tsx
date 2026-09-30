@@ -10,14 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ListTodo, UserPlus, RefreshCw, Pause, AlertTriangle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
-
-const tasks = [
-  { id: 'TSK-001', project: 'Project Alpha', module: 'Auth', priority: 'high', deadline: '2024-01-20', dependency: 'None', status: 'new', assignee: null },
-  { id: 'TSK-002', project: 'Project Alpha', module: 'Dashboard', priority: 'medium', deadline: '2024-01-22', dependency: 'TSK-001', status: 'assigned', assignee: 'DEV-001' },
-  { id: 'TSK-003', project: 'Project Beta', module: 'API', priority: 'high', deadline: '2024-01-19', dependency: 'None', status: 'in_progress', assignee: 'DEV-003' },
-  { id: 'TSK-004', project: 'Project Beta', module: 'Payment', priority: 'critical', deadline: '2024-01-18', dependency: 'TSK-003', status: 'blocked', assignee: 'DEV-002' },
-  { id: 'TSK-005', project: 'Project Gamma', module: 'UI', priority: 'low', deadline: '2024-01-25', dependency: 'None', status: 'completed', assignee: 'DEV-005' },
-];
+import { useDeliveryOverview, useEscalateTask, useReassignTask } from '@/hooks/useDevManagerData';
 
 const getPriorityBadge = (priority: string) => {
   switch (priority) {
@@ -40,8 +33,51 @@ const getStatusBadge = (status: string) => {
   }
 };
 
+/**
+ * Developer tasks, from the delivery overview (developer_tasks).
+ *
+ * The five tasks here were typed in, and every button only showed a message.
+ * Assign and reassign now move the task to the developer chosen, and escalate
+ * records an escalation - both audited by the Dev Manager's server functions.
+ * Pausing and closing belong to the developer's own workflow, so those say so.
+ */
 export const DMTaskManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState('all');
+  const overview = useDeliveryOverview();
+  const reassign = useReassignTask();
+  const escalate = useEscalateTask();
+  const developers = overview.data?.developers ?? [];
+  const tasks = (overview.data?.tasks ?? []).map((t) => ({
+    id: t.code,
+    uuid: t.id,
+    project: t.title,
+    module: t.promiseId ? 'Promise-linked' : '',
+    priority: t.priority,
+    deadline: t.dueDate ? t.dueDate.slice(0, 10) : '—',
+    dependency: 'None',
+    status: t.status === 'pending' ? (t.developerId ? 'assigned' : 'new') : t.status === 'review' ? 'in_progress' : t.status,
+    assignee: t.developerId ? t.assignedTo : null,
+  }));
+
+  const pickDeveloper = (current: string | null) => {
+    const choices = developers.filter((d) => d.fullName !== current);
+    if (!choices.length) { toast.error('No other developer is registered.'); return null; }
+    const answer = window.prompt(`Assign to which developer?\n${choices.map((d, i) => `${i + 1}. ${d.fullName} (${d.activeTasks} open)`).join('\n')}`);
+    const index = Number(answer) - 1;
+    return choices[index] ?? null;
+  };
+  const moveTask = (taskId: string, current: string | null) => {
+    const developer = pickDeveloper(current);
+    if (!developer) return;
+    const reason = window.prompt('Why is it moving? (at least 5 characters)')?.trim();
+    if (!reason || reason.length < 5) { toast.error('A reason of at least 5 characters is needed.'); return; }
+    reassign.mutate({ taskId, newDeveloperId: developer.id, reason });
+  };
+  const escalateTask = (taskId: string) => {
+    const reason = window.prompt('Why is it being escalated? (at least 5 characters)')?.trim();
+    if (!reason || reason.length < 5) { toast.error('A reason of at least 5 characters is needed.'); return; }
+    escalate.mutate({ taskId, reason });
+  };
 
   const filteredTasks = tasks.filter(task => 
     activeTab === 'all' || task.status === activeTab
@@ -74,6 +110,17 @@ export const DMTaskManagement: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
+                {(overview.isLoading || overview.isError || filteredTasks.length === 0) && (
+                  <p className="text-sm text-muted-foreground">
+                    {overview.isLoading
+                      ? 'Loading tasks…'
+                      : overview.isError
+                        ? `Tasks could not be read: ${(overview.error as Error).message}`
+                        : activeTab === 'completed'
+                          ? 'Completed tasks are not part of the open delivery view.'
+                          : 'No task here.'}
+                  </p>
+                )}
                 {filteredTasks.map((task) => (
                   <div 
                     key={task.id}
@@ -103,23 +150,23 @@ export const DMTaskManagement: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => toast.success(`Task ${task.id} assigned`)}>
+                      <Button size="sm" variant="outline" disabled={reassign.isPending} onClick={() => moveTask(task.uuid, task.assignee)}>
                         <UserPlus className="h-4 w-4 mr-1" />
                         Assign
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => toast.info(`Task ${task.id} reassigned`)}>
+                      <Button size="sm" variant="outline" disabled={reassign.isPending || !task.assignee} onClick={() => moveTask(task.uuid, task.assignee)}>
                         <RefreshCw className="h-4 w-4 mr-1" />
                         Reassign
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => toast.warning(`Task ${task.id} paused`)}>
+                      <Button size="sm" variant="outline" onClick={() => toast.info('A task is paused by the developer working it, from their own dashboard.')}>
                         <Pause className="h-4 w-4 mr-1" />
                         Pause
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => toast.error(`Task ${task.id} escalated`)}>
+                      <Button size="sm" variant="outline" disabled={escalate.isPending} onClick={() => escalateTask(task.uuid)}>
                         <AlertTriangle className="h-4 w-4 mr-1" />
                         Escalate
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => toast.success(`Task ${task.id} closed`)}>
+                      <Button size="sm" variant="outline" onClick={() => toast.info('A task is closed when its work is approved in review, not from here.')}>
                         <CheckCircle className="h-4 w-4 mr-1" />
                         Close
                       </Button>

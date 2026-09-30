@@ -62,7 +62,7 @@ async function requireLegalUser(): Promise<{ userId: string }> {
   if (!(roles ?? []).some((r) => allowed.has(String(r.role)))) {
     throw new Error("Legal AI is available to legal and operator roles.");
   }
-  return { userId: data.user.id };
+  return { userId: caller.id };
 }
 
 /**

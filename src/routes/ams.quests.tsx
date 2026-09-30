@@ -19,7 +19,7 @@ import {
 } from "@/lib/ams/missions.types";
 import {
   listQuests, createQuest, deleteQuest, subscribeMissions,
-  upsertStage, removeStage, completeStage, listMissions,
+  upsertStage, removeStage, listMissions, missionsLoadError,
 } from "@/lib/ams/missions.api";
 
 export const Route = createFileRoute("/ams/quests")({
@@ -61,6 +61,11 @@ function QuestsPage() {
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-6">
+      {missionsLoadError() && (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+          Quests could not be read: {missionsLoadError()}
+        </div>
+      )}
       <PageHeader
         kicker="quest chain editor"
         title="Quests"
@@ -133,7 +138,10 @@ function QuestEditor({ quest }: { quest: QuestChain }) {
             {quest.description && <p className="text-sm text-muted-foreground mt-1 max-w-2xl">{quest.description}</p>}
             {quest.season && <Badge variant="outline" className="mt-2 bg-amber-500/10 text-amber-300 border-amber-500/30">{quest.season}</Badge>}
           </div>
-          <Button variant="ghost" size="sm" className="text-rose-400 gap-1" onClick={() => { deleteQuest(quest.id); toast("Quest deleted"); }}>
+          <Button variant="ghost" size="sm" className="text-rose-400 gap-1" onClick={() => {
+            if (!window.confirm(`Delete the quest chain "${quest.name}"?`)) return;
+            deleteQuest(quest.id).then(() => toast("Quest deleted"), (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)));
+          }}>
             <Trash2 className="h-3.5 w-3.5" /> Delete chain
           </Button>
         </div>
@@ -167,11 +175,7 @@ function QuestEditor({ quest }: { quest: QuestChain }) {
               quest={quest}
               stage={s}
               prevStage={quest.stages[i - 1]}
-              onComplete={() => {
-                completeStage(quest.id, s.id);
-                toast.success(`Stage "${s.title}" completed — rewards granted`);
-              }}
-              onDelete={() => { removeStage(quest.id, s.id); toast("Stage removed"); }}
+              onDelete={() => { removeStage(quest.id, s.id).then(() => toast("Stage removed"), (e: unknown) => toast.error(e instanceof Error ? e.message : String(e))); }}
             />
           ))}
         </ol>
@@ -180,9 +184,9 @@ function QuestEditor({ quest }: { quest: QuestChain }) {
   );
 }
 
-function StageRow({ quest, stage, prevStage, onComplete, onDelete }: {
+function StageRow({ quest, stage, prevStage, onDelete }: {
   quest: QuestChain; stage: QuestStage; prevStage?: QuestStage;
-  onComplete: () => void; onDelete: () => void;
+  onDelete: () => void;
 }) {
   const locked = stage.status === "locked";
   const done = stage.status === "completed";
@@ -224,12 +228,7 @@ function StageRow({ quest, stage, prevStage, onComplete, onDelete }: {
       </div>
 
       <div className="flex gap-1 shrink-0">
-        {!done && !locked && (
-          <Button size="sm" variant="ghost" className="h-7 gap-1 text-emerald-400" onClick={onComplete}>
-            <CheckCircle2 className="h-3.5 w-3.5" /> Complete
-          </Button>
-        )}
-        <Button size="sm" variant="ghost" className="h-7 text-rose-400" onClick={onDelete}>
+        <Button size="sm" variant="ghost" className="h-7 text-rose-400" aria-label={`Remove stage ${stage.title}`} onClick={onDelete}>
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -263,9 +262,10 @@ function NewQuestDialog({ onClose }: { onClose: () => void }) {
       season: season || undefined,
       department: department ? (department as QuestChain["department"]) : undefined,
       finaleRewards: { xp, coins, tokens, awardIds: [] },
-    });
-    toast.success(`Quest chain "${name}" created`);
-    onClose();
+    }).then(() => {
+      toast.success(`Quest chain "${name}" created`);
+      onClose();
+    }, (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)));
   }
 
   return (
@@ -325,9 +325,10 @@ function StageDialog({ quest, onClose }: { quest: QuestChain; onClose: () => voi
     upsertStage(quest.id, {
       title, description, order, dependsOn, missionIds,
       rewards: { xp, coins, tokens, awardIds: [] },
-    });
-    toast.success(`Stage "${title}" added`);
-    onClose();
+    }).then(() => {
+      toast.success(`Stage "${title}" added`);
+      onClose();
+    }, (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)));
   }
 
   function toggle<T>(arr: T[], v: T, setter: (a: T[]) => void) {

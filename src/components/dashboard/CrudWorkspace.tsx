@@ -1,19 +1,17 @@
 import { useCallback, useMemo, useState, useEffect, useRef, createContext, useContext } from "react";
 import {
-  ArrowLeft, Plus, Search, Filter, Download, Upload, Trash2, Copy,
-  Archive, ArchiveRestore, Check, X, Eye, Pencil, MoreHorizontal,
-  LayoutGrid, List as ListIcon, Table as TableIcon, ChevronLeft, ChevronRight,
-  CheckCheck, RotateCcw, FileJson, FileText, Printer, Share2, Paperclip,
-  MessageSquare, History, ShieldCheck, Inbox, AlertTriangle, Tag, Calendar,
-  DollarSign, User, FolderOpen, Clock, ListChecks,
+  ArrowLeft, Plus, Search, Download, Upload, Archive, Check, X, Eye, MoreHorizontal, LayoutGrid, List as ListIcon, Table as TableIcon, ChevronLeft, ChevronRight, CheckCheck, RotateCcw, FileJson, FileText, Printer, Share2, Paperclip, MessageSquare, History, ShieldCheck, Inbox, AlertTriangle, Tag, Calendar, DollarSign, User, FolderOpen, Clock, ListChecks,
 } from "lucide-react";
 import { can, type Capability } from "@/lib/permissions";
 import { toast } from "sonner";
 import type { RoleConfig } from "@/lib/roles";
-import { useCrud, exportJson, downloadFile, type CrudRecord, type RecordStatus } from "@/lib/crud-store";
+import { useNavigate } from "@tanstack/react-router";
+import { exportJson, downloadFile, type CrudRecord, type RecordStatus } from "@/lib/crud-store";
+import { sourceFor, type AmountKind } from "@/lib/dashboard-records/sources";
+import { useDashboardRecords } from "@/lib/dashboard-records/use-dashboard-records";
 
 type View = "table" | "grid" | "list";
-type Mode = { kind: "list" } | { kind: "detail"; id: string } | { kind: "add" } | { kind: "edit"; id: string };
+type Mode = { kind: "list" } | { kind: "detail"; id: string };
 
 const STATUS_OPTIONS: RecordStatus[] = ["active", "pending", "approved", "rejected", "draft", "archived"];
 
@@ -30,8 +28,24 @@ function StatusPill({ s }: { s: RecordStatus }) {
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${statusTone[s]}`}>{s}</span>;
 }
 
-function fmtMoney(n: number) {
-  return n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+/**
+ * A record's amount, as its module measures it. Every amount used to be shown
+ * as US dollars, whatever it was - a follower count, a rating, a price in
+ * rupees. Money is shown in the record's own currency, and without a symbol
+ * when the record does not say which currency it is.
+ */
+function fmtAmount(r: Pick<CrudRecord, "amount" | "extra">, kind: AmountKind) {
+  const n = r.amount;
+  if (kind === "none") return "—";
+  if (kind === "count") return n.toLocaleString();
+  if (kind === "percent") return `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
+  const currency = typeof r.extra?.currency === "string" ? r.extra.currency : null;
+  if (!currency) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  try {
+    return n.toLocaleString(undefined, { style: "currency", currency, maximumFractionDigits: 2 });
+  } catch {
+    return `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${currency}`;
+  }
 }
 function fmtDate(s: string) {
   try { return new Date(s).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); }
@@ -41,24 +55,105 @@ function fmtDate(s: string) {
 const CapContext = createContext<(cap: Capability) => boolean>(() => true);
 const useCap = () => useContext(CapContext);
 
+/** How this module's amounts read. */
+const AmountContext = createContext<{ kind: AmountKind; label: string }>({ kind: "money", label: "Amount" });
+const useAmount = () => useContext(AmountContext);
+
+/**
+ * What changes a record. A module read from the platform shows the platform's
+ * records as they are: an order, a commission or a click is not something to
+ * edit, duplicate or delete from here, so none of these are offered on it.
+ */
+const WRITE_CAPS = new Set<Capability>(["create", "update", "delete", "approve", "import", "reset_data"]);
+
 type CrudProps = { role: RoleConfig; moduleKey: string; onBack: () => void };
 
 export function CrudWorkspace(props: CrudProps) {
-  const cap = useCallback((c: Capability) => can(props.role.key, c), [props.role.key]);
+  const source = sourceFor(props.role.key, props.moduleKey);
+  // Records read from the platform are shown as they are; see WRITE_CAPS.
+  const cap = useCallback(
+    (c: Capability) => !WRITE_CAPS.has(c) && can(props.role.key, c),
+    [props.role.key],
+  );
+  if (source.kind === "route") return <OpenElsewhere {...props} to={source.to} label={source.label} />;
+  if (source.kind !== "records") {
+    return (
+      <NotConnected
+        {...props}
+        reason={source.kind === "none" ? source.reason : `This is done in ${source.label}.`}
+      />
+    );
+  }
   return (
     <CapContext.Provider value={cap}>
-      <CrudWorkspaceInner {...props} />
+      <AmountContext.Provider value={{ kind: source.amountKind, label: source.amountLabel || "Amount" }}>
+        <CrudWorkspaceInner {...props} />
+      </AmountContext.Provider>
     </CapContext.Provider>
   );
 }
 
+function ModuleHeading({ role, moduleKey, onBack }: CrudProps) {
+  const mod = role.modules.find((m) => m.key === moduleKey) ?? { key: moduleKey, label: moduleKey, icon: Inbox };
+  const Icon = mod.icon;
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <button onClick={onBack}
+        className="inline-flex items-center gap-2 rounded-lg bg-surface border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 transition">
+        <ArrowLeft className="h-3.5 w-3.5" /> Back to Dashboard
+      </button>
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand/15 text-[oklch(0.72_0.2_265)]">
+          <Icon className="h-4 w-4" />
+        </div>
+        <h1 className="text-xl md:text-2xl font-bold tracking-tight truncate">{mod.label}</h1>
+      </div>
+    </div>
+  );
+}
+
+/** A module the platform already has a full screen for: it opens that screen. */
+function OpenElsewhere(props: CrudProps & { to: string; label: string }) {
+  const navigate = useNavigate();
+  useEffect(() => {
+    void navigate({ to: props.to });
+  }, [navigate, props.to]);
+  return (
+    <div className="space-y-5">
+      <ModuleHeading {...props} />
+      <EmptyState
+        icon={FolderOpen}
+        title={`Opening ${props.label}…`}
+        sub={`This is managed in ${props.label}, which has the full records and every action.`}
+        primary={{ label: `Open ${props.label}`, onClick: () => void navigate({ to: props.to }) }}
+      />
+    </div>
+  );
+}
+
+/** A module with no record behind it on the platform. It says so instead of pretending. */
+function NotConnected(props: CrudProps & { reason: string }) {
+  return (
+    <div className="space-y-5">
+      <ModuleHeading {...props} />
+      <EmptyState
+        icon={Inbox}
+        title="Not connected yet"
+        sub={props.reason}
+        secondary={{ label: "Back to Dashboard", onClick: props.onBack }}
+      />
+    </div>
+  );
+}
+
 function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
-  const allow = (cap: Capability) => can(role.key, cap);
+  const allow = useCap();
   const mod = role.modules.find((m) => m.key === moduleKey) ?? { key: moduleKey, label: moduleKey, icon: Inbox };
   const Icon = mod.icon;
   const singular = mod.label.replace(/s$/, "") || mod.label;
 
-  const crud = useCrud(role.key, moduleKey);
+  const crud = useDashboardRecords(role.key, moduleKey, true);
+  const amount = useAmount();
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<RecordStatus | "all">("all");
@@ -67,7 +162,6 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
   const [page, setPage] = useState(1);
   const pageSize = 8;
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirm, setConfirm] = useState<{ ids: string[] } | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   // Reset selection / page when module changes
@@ -127,14 +221,8 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
   }
 
   function handleImportClick() { importRef.current?.click(); }
+  // Records read from the platform are never imported into from a file.
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]; if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const n = crud.importJson(String(reader.result || ""));
-      toast[n > 0 ? "success" : "error"](n > 0 ? `Imported ${n} record${n === 1 ? "" : "s"}` : "Import failed: invalid JSON");
-    };
-    reader.readAsText(f);
     e.target.value = "";
   }
 
@@ -156,8 +244,6 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
             <span>/</span>
             <button onClick={() => setMode({ kind: "list" })} className="hover:text-foreground">{mod.label}</button>
             {mode.kind === "detail" && <><span>/</span><span className="text-foreground">Details</span></>}
-            {mode.kind === "add" && <><span>/</span><span className="text-foreground">New {singular}</span></>}
-            {mode.kind === "edit" && <><span>/</span><span className="text-foreground">Edit</span></>}
           </nav>
           <h1 className="text-xl md:text-2xl font-bold tracking-tight truncate">{mod.label}</h1>
         </div>
@@ -165,29 +251,6 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
     </div>
   );
 
-  if (mode.kind === "add" || mode.kind === "edit") {
-    return (
-      <div className="space-y-5">
-        {Header}
-        <RecordForm
-          singular={singular}
-          initial={mode.kind === "edit" ? crud.records.find((r) => r.id === mode.id) : undefined}
-          onCancel={() => setMode({ kind: "list" })}
-          onSubmit={(values) => {
-            if (mode.kind === "edit") {
-              crud.update(mode.id, values);
-              toast.success(`${singular} updated`);
-              setMode({ kind: "detail", id: mode.id });
-            } else {
-              const rec = crud.create(values);
-              toast.success(`${singular} created`);
-              setMode({ kind: "detail", id: rec.id });
-            }
-          }}
-        />
-      </div>
-    );
-  }
 
   if (mode.kind === "detail") {
     const rec = crud.records.find((r) => r.id === mode.id);
@@ -210,30 +273,8 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
         <DetailView
           rec={rec}
           singular={singular}
-          onEdit={() => setMode({ kind: "edit", id: rec.id })}
-          onDuplicate={() => { const c = crud.duplicate(rec.id); if (c) { toast.success("Duplicated"); setMode({ kind: "detail", id: c.id }); } }}
-          onArchive={() => { crud.setStatus(rec.id, rec.status === "archived" ? "active" : "archived"); toast.success(rec.status === "archived" ? "Restored" : "Archived"); }}
-          onApprove={() => { crud.setStatus(rec.id, "approved"); toast.success("Approved"); }}
-          onReject={() => { crud.setStatus(rec.id, "rejected"); toast.success("Rejected"); }}
-          onDelete={() => setConfirm({ ids: [rec.id] })}
           onExport={() => handleExport([rec])}
-          onComment={(text) => crud.addComment(rec.id, text)}
-          onAttach={(name, size) => crud.addAttachment(rec.id, name, size)}
         />
-        {confirm && (
-          <ConfirmDialog
-            title={`Delete ${confirm.ids.length === 1 ? "this " + singular.toLowerCase() : confirm.ids.length + " records"}?`}
-            body="This action removes the record from this workspace. You can re-import it later."
-            confirmLabel="Delete"
-            onCancel={() => setConfirm(null)}
-            onConfirm={() => {
-              crud.bulkRemove(confirm.ids);
-              toast.success("Deleted");
-              setConfirm(null);
-              setMode({ kind: "list" });
-            }}
-          />
-        )}
       </div>
     );
   }
@@ -292,14 +333,10 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
             className="inline-flex items-center gap-1.5 rounded-lg bg-surface border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 transition">
             <Download className="h-3.5 w-3.5" /> Export
           </button>}
-          {allow("reset_data") && <button onClick={() => { crud.reset(); toast.success("Reset to sample data"); }}
+          <button onClick={crud.refresh}
             className="inline-flex items-center gap-1.5 rounded-lg bg-surface border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 transition">
-            <RotateCcw className="h-3.5 w-3.5" /> Reset
-          </button>}
-          {allow("create") && <button onClick={() => setMode({ kind: "add" })}
-            className="inline-flex items-center gap-2 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">
-            <Plus className="h-3.5 w-3.5" /> New {singular}
-          </button>}
+            <RotateCcw className="h-3.5 w-3.5" /> Refresh
+          </button>
         </div>
       </div>
 
@@ -326,24 +363,36 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs">
           <span className="font-medium">{selected.size} selected</span>
           <div className="ml-auto flex flex-wrap items-center gap-1">
-            {allow("approve") && <BulkBtn icon={Check} label="Approve" onClick={() => { crud.bulkSetStatus([...selected], "approved"); toast.success("Approved"); setSelected(new Set()); }} />}
-            {allow("approve") && <BulkBtn icon={X} label="Reject" onClick={() => { crud.bulkSetStatus([...selected], "rejected"); toast.success("Rejected"); setSelected(new Set()); }} />}
-            {allow("update") && <BulkBtn icon={Archive} label="Archive" onClick={() => { crud.bulkSetStatus([...selected], "archived"); toast.success("Archived"); setSelected(new Set()); }} />}
-            {allow("update") && <BulkBtn icon={ArchiveRestore} label="Restore" onClick={() => { crud.bulkSetStatus([...selected], "active"); toast.success("Restored"); setSelected(new Set()); }} />}
             {allow("export") && <BulkBtn icon={Download} label="Export" onClick={() => { handleExport(crud.records.filter(r => selected.has(r.id))); }} />}
-            {allow("delete") && <BulkBtn icon={Trash2} label="Delete" danger onClick={() => setConfirm({ ids: [...selected] })} />}
             <BulkBtn icon={X} label="Clear" onClick={() => setSelected(new Set())} />
           </div>
         </div>
       )}
 
       {/* Body: views */}
-      {filtered.length === 0 ? (
+      {crud.note && crud.records.length > 0 && (
+        <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">{crud.note}</div>
+      )}
+      {crud.loading ? (
+        <EmptyState icon={Clock} title={`Loading ${mod.label.toLowerCase()}…`} sub="Reading your records from the platform." />
+      ) : crud.error ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title={`${mod.label} could not be read`}
+          sub={crud.error}
+          secondary={{ label: "Try again", onClick: crud.refresh }}
+        />
+      ) : crud.records.length === 0 ? (
+        <EmptyState
+          icon={Inbox}
+          title={`No ${mod.label.toLowerCase()} yet`}
+          sub={crud.note ?? `Nothing has been recorded here yet. ${mod.label} appear here as they happen on the platform.`}
+        />
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title={`No ${mod.label.toLowerCase()} match your filters`}
-          sub="Try clearing search, switching status, or create a new record."
-          primary={allow("create") ? { label: `Create ${singular}`, onClick: () => setMode({ kind: "add" }) } : undefined}
+          sub="Try clearing the search or choosing another status."
           secondary={{ label: "Clear filters", onClick: () => { setQuery(""); setStatusFilter("all"); } }}
         />
       ) : view === "table" ? (
@@ -354,10 +403,6 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
           onToggleAll={toggleAll}
           allChecked={paged.length > 0 && paged.every((r) => selected.has(r.id))}
           onOpen={(id) => setMode({ kind: "detail", id })}
-          onEdit={(id) => setMode({ kind: "edit", id })}
-          onDuplicate={(id) => { const c = crud.duplicate(id); if (c) toast.success("Duplicated"); }}
-          onArchive={(id, s) => { crud.setStatus(id, s === "archived" ? "active" : "archived"); }}
-          onDelete={(id) => setConfirm({ ids: [id] })}
         />
       ) : view === "grid" ? (
         <GridView rows={paged} onOpen={(id) => setMode({ kind: "detail", id })} selected={selected} onToggle={toggleOne} />
@@ -385,20 +430,6 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
         </div>
       )}
 
-      {confirm && (
-        <ConfirmDialog
-          title={`Delete ${confirm.ids.length === 1 ? "this " + singular.toLowerCase() : confirm.ids.length + " records"}?`}
-          body="This removes the record(s) from this workspace. You can re-import them later from a JSON backup."
-          confirmLabel="Delete"
-          onCancel={() => setConfirm(null)}
-          onConfirm={() => {
-            crud.bulkRemove(confirm.ids);
-            toast.success(`Deleted ${confirm.ids.length}`);
-            setSelected(new Set());
-            setConfirm(null);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -415,13 +446,13 @@ function BulkBtn({ icon: I, label, onClick, danger }: { icon: typeof Check; labe
 }
 
 function TableView({
-  rows, selected, allChecked, onToggle, onToggleAll, onOpen, onEdit, onDuplicate, onArchive, onDelete,
+  rows, selected, allChecked, onToggle, onToggleAll, onOpen,
 }: {
   rows: CrudRecord[]; selected: Set<string>; allChecked: boolean;
   onToggle: (id: string) => void; onToggleAll: () => void;
-  onOpen: (id: string) => void; onEdit: (id: string) => void;
-  onDuplicate: (id: string) => void; onArchive: (id: string, s: RecordStatus) => void; onDelete: (id: string) => void;
+  onOpen: (id: string) => void;
 }) {
+  const amount = useAmount();
   return (
     <div className="rounded-2xl bg-card border border-border overflow-hidden shadow-card">
       <div className="overflow-x-auto">
@@ -435,7 +466,7 @@ function TableView({
               <th className="px-3 py-2 text-left font-medium">Status</th>
               <th className="px-3 py-2 text-left font-medium">Owner</th>
               <th className="px-3 py-2 text-left font-medium">Category</th>
-              <th className="px-3 py-2 text-right font-medium">Amount</th>
+              <th className="px-3 py-2 text-right font-medium">{amount.kind === "none" ? "" : amount.label}</th>
               <th className="px-3 py-2 text-left font-medium">Date</th>
               <th className="px-3 py-2 text-right font-medium w-8"></th>
             </tr>
@@ -459,17 +490,10 @@ function TableView({
                 <td className="px-3 py-2"><StatusPill s={r.status} /></td>
                 <td className="px-3 py-2 text-muted-foreground">{r.owner}</td>
                 <td className="px-3 py-2 text-muted-foreground">{r.category}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs">{fmtMoney(r.amount)}</td>
+                <td className="px-3 py-2 text-right font-mono text-xs">{amount.kind === "none" ? "" : fmtAmount(r, amount.kind)}</td>
                 <td className="px-3 py-2 text-muted-foreground text-xs">{fmtDate(r.date)}</td>
                 <td className="px-3 py-2 text-right">
-                  <RowMenu
-                    onView={() => onOpen(r.id)}
-                    onEdit={() => onEdit(r.id)}
-                    onDuplicate={() => onDuplicate(r.id)}
-                    onArchive={() => onArchive(r.id, r.status)}
-                    archived={r.status === "archived"}
-                    onDelete={() => onDelete(r.id)}
-                  />
+                  <RowMenu onView={() => onOpen(r.id)} />
                 </td>
               </tr>
             ))}
@@ -480,11 +504,8 @@ function TableView({
   );
 }
 
-function RowMenu({ onView, onEdit, onDuplicate, onArchive, onDelete, archived }: {
-  onView: () => void; onEdit: () => void; onDuplicate: () => void; onArchive: () => void; onDelete: () => void; archived: boolean;
-}) {
+function RowMenu({ onView }: { onView: () => void }) {
   const [open, setOpen] = useState(false);
-  const cap = useCap();
   useEffect(() => {
     if (!open) return;
     const close = () => setOpen(false);
@@ -500,13 +521,6 @@ function RowMenu({ onView, onEdit, onDuplicate, onArchive, onDelete, archived }:
       {open && (
         <div className="absolute right-0 z-30 mt-1 w-44 rounded-lg border border-border bg-card shadow-lg p-1 text-xs">
           <MenuItem icon={Eye} label="View details" onClick={() => { setOpen(false); onView(); }} />
-          {cap("update") && <MenuItem icon={Pencil} label="Edit" onClick={() => { setOpen(false); onEdit(); }} />}
-          {cap("create") && <MenuItem icon={Copy} label="Duplicate" onClick={() => { setOpen(false); onDuplicate(); }} />}
-          {cap("update") && <MenuItem icon={archived ? ArchiveRestore : Archive} label={archived ? "Restore" : "Archive"} onClick={() => { setOpen(false); onArchive(); }} />}
-          {cap("delete") && <>
-            <div className="my-1 h-px bg-border" />
-            <MenuItem icon={Trash2} label="Delete" danger onClick={() => { setOpen(false); onDelete(); }} />
-          </>}
         </div>
       )}
     </div>
@@ -523,6 +537,7 @@ function MenuItem({ icon: I, label, onClick, danger }: { icon: typeof Eye; label
 }
 
 function GridView({ rows, onOpen, selected, onToggle }: { rows: CrudRecord[]; onOpen: (id: string) => void; selected: Set<string>; onToggle: (id: string) => void }) {
+  const amount = useAmount();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
       {rows.map((r) => (
@@ -536,7 +551,7 @@ function GridView({ rows, onOpen, selected, onToggle }: { rows: CrudRecord[]; on
             <div className="mt-0.5 text-xs text-muted-foreground truncate">{r.category} · {r.owner}</div>
           </button>
           <div className="mt-3 flex items-center justify-between text-xs">
-            <span className="font-mono">{fmtMoney(r.amount)}</span>
+            <span className="font-mono">{fmtAmount(r, amount.kind)}</span>
             <span className="text-muted-foreground">{fmtDate(r.date)}</span>
           </div>
         </div>
@@ -546,6 +561,7 @@ function GridView({ rows, onOpen, selected, onToggle }: { rows: CrudRecord[]; on
 }
 
 function ListView({ rows, onOpen, selected, onToggle }: { rows: CrudRecord[]; onOpen: (id: string) => void; selected: Set<string>; onToggle: (id: string) => void }) {
+  const amount = useAmount();
   return (
     <div className="rounded-2xl border border-border bg-card shadow-card divide-y divide-border">
       {rows.map((r) => (
@@ -556,7 +572,7 @@ function ListView({ rows, onOpen, selected, onToggle }: { rows: CrudRecord[]; on
             <div className="text-[11px] text-muted-foreground truncate">{r.owner} · {r.category} · {fmtDate(r.date)}</div>
           </button>
           <StatusPill s={r.status} />
-          <span className="font-mono text-xs w-20 text-right">{fmtMoney(r.amount)}</span>
+          <span className="font-mono text-xs w-20 text-right">{fmtAmount(r, amount.kind)}</span>
         </div>
       ))}
     </div>
@@ -598,16 +614,14 @@ function EmptyState({
 // =============== Detail ===============
 
 function DetailView({
-  rec, singular, onEdit, onDuplicate, onArchive, onApprove, onReject, onDelete, onExport, onComment, onAttach,
+  rec, singular, onExport,
 }: {
   rec: CrudRecord; singular: string;
-  onEdit: () => void; onDuplicate: () => void; onArchive: () => void;
-  onApprove: () => void; onReject: () => void; onDelete: () => void;
-  onExport: () => void; onComment: (text: string) => void; onAttach: (name: string, size: number) => void;
+  onExport: () => void;
 }) {
   const [tab, setTab] = useState<"overview" | "activity" | "comments" | "attachments" | "audit">("overview");
-  const [comment, setComment] = useState("");
-  const attachRef = useRef<HTMLInputElement>(null);
+  const amount = useAmount();
+  void singular;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -621,15 +635,9 @@ function DetailView({
               <div className="mt-1 text-xs text-muted-foreground">Last updated {fmtDate(rec.date)}</div>
             </div>
             <div className="flex flex-wrap gap-1">
-              <PillBtn icon={Pencil} label="Edit" onClick={onEdit} />
-              <PillBtn icon={Copy} label="Duplicate" onClick={onDuplicate} />
-              <PillBtn icon={rec.status === "archived" ? ArchiveRestore : Archive} label={rec.status === "archived" ? "Restore" : "Archive"} onClick={onArchive} />
-              <PillBtn icon={Check} label="Approve" onClick={onApprove} />
-              <PillBtn icon={X} label="Reject" onClick={onReject} />
               <PillBtn icon={Download} label="Export" onClick={onExport} />
               <PillBtn icon={Printer} label="Print" onClick={() => window.print()} />
               <PillBtn icon={Share2} label="Share" onClick={() => { navigator.clipboard?.writeText(`${location.origin}${location.pathname}#${rec.id}`); toast.success("Link copied"); }} />
-              <PillBtn icon={Trash2} label="Delete" danger onClick={onDelete} />
             </div>
           </div>
         </div>
@@ -656,7 +664,7 @@ function DetailView({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Field label="Owner" icon={User} value={rec.owner} />
                 <Field label="Category" icon={FolderOpen} value={rec.category} />
-                <Field label="Amount" icon={DollarSign} value={fmtMoney(rec.amount)} mono />
+                <Field label={amount.label} icon={DollarSign} value={fmtAmount(rec, amount.kind)} mono />
                 <Field label="Date" icon={Calendar} value={fmtDate(rec.date)} />
                 <Field label="Status" icon={CheckCheck} value={rec.status} />
                 <Field label="Tags" icon={Tag} value={rec.tags.length ? rec.tags.map((t) => `#${t}`).join(" ") : "—"} />
@@ -673,11 +681,6 @@ function DetailView({
             )}
             {tab === "comments" && (
               <div className="space-y-3">
-                <form onSubmit={(e) => { e.preventDefault(); if (!comment.trim()) return; onComment(comment.trim()); setComment(""); toast.success("Comment added"); }} className="flex gap-2">
-                  <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Write a comment…"
-                    className="flex-1 rounded-lg bg-surface border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-                  <button type="submit" className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">Post</button>
-                </form>
                 {rec.comments.length === 0 ? (
                   <div className="text-xs text-muted-foreground italic">No comments yet.</div>
                 ) : rec.comments.map((c) => (
@@ -690,14 +693,6 @@ function DetailView({
             )}
             {tab === "attachments" && (
               <div className="space-y-3">
-                <input ref={attachRef} type="file" hidden onChange={(e) => {
-                  const f = e.target.files?.[0]; if (!f) return;
-                  onAttach(f.name, f.size); toast.success("Attached"); e.target.value = "";
-                }} />
-                <button onClick={() => attachRef.current?.click()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-surface border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 transition">
-                  <Upload className="h-3.5 w-3.5" /> Upload file
-                </button>
                 {rec.attachments.length === 0 ? (
                   <div className="text-xs text-muted-foreground italic">No attachments yet.</div>
                 ) : (
@@ -726,12 +721,8 @@ function DetailView({
         <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Quick actions</div>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <QuickAction icon={Pencil} label="Edit" onClick={onEdit} />
-            <QuickAction icon={Copy} label="Clone" onClick={onDuplicate} />
-            <QuickAction icon={Check} label="Approve" onClick={onApprove} />
-            <QuickAction icon={X} label="Reject" onClick={onReject} />
-            <QuickAction icon={Archive} label="Archive" onClick={onArchive} />
             <QuickAction icon={Download} label="Export" onClick={onExport} />
+            <QuickAction icon={Printer} label="Print" onClick={() => window.print()} />
           </div>
         </div>
         <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
@@ -796,215 +787,5 @@ function Timeline({ items, empty }: { items: { id: string; action: string; by: s
         </li>
       ))}
     </ol>
-  );
-}
-
-// =============== Form (Add/Edit) ===============
-
-function RecordForm({
-  singular, initial, onSubmit, onCancel,
-}: {
-  singular: string;
-  initial?: CrudRecord;
-  onSubmit: (values: Partial<CrudRecord>) => void;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState(initial?.name ?? "");
-  const [status, setStatus] = useState<RecordStatus>(initial?.status ?? "draft");
-  const [owner, setOwner] = useState(initial?.owner ?? "you");
-  const [category, setCategory] = useState(initial?.category ?? "Core");
-  const [amount, setAmount] = useState<string>(String(initial?.amount ?? 0));
-  const [date, setDate] = useState(initial?.date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
-  const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [tagsStr, setTagsStr] = useState((initial?.tags ?? []).join(", "));
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [savedAt, setSavedAt] = useState<string | null>(null);
-
-  // Draft autosave (sessionStorage)
-  const draftKey = `crud-draft:${initial?.id ?? "new"}`;
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(draftKey);
-      if (!initial && raw) {
-        const d = JSON.parse(raw);
-        setName(d.name ?? ""); setStatus(d.status ?? "draft"); setOwner(d.owner ?? "you");
-        setCategory(d.category ?? "Core"); setAmount(String(d.amount ?? 0));
-        setDate(d.date ?? new Date().toISOString().slice(0, 10));
-        setNotes(d.notes ?? ""); setTagsStr(d.tagsStr ?? "");
-      }
-    } catch { /* ignore */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  useEffect(() => {
-    const t = setTimeout(() => {
-      try { sessionStorage.setItem(draftKey, JSON.stringify({ name, status, owner, category, amount, date, notes, tagsStr })); setSavedAt(new Date().toLocaleTimeString()); } catch { /* ignore */ }
-    }, 600);
-    return () => clearTimeout(t);
-  }, [name, status, owner, category, amount, date, notes, tagsStr, draftKey]);
-
-  function validate(): string | null {
-    if (!name.trim()) return "Name is required.";
-    if (name.length > 80) return "Name must be 80 characters or less.";
-    const amt = Number(amount);
-    if (Number.isNaN(amt) || amt < 0) return "Amount must be a non-negative number.";
-    return null;
-  }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const err = validate();
-    if (err) { setError(err); toast.error(err); return; }
-    setSubmitting(true); setError(null);
-    const values: Partial<CrudRecord> = {
-      name: name.trim(),
-      status,
-      owner: owner.trim(),
-      category: category.trim(),
-      amount: Number(amount),
-      date: new Date(date).toISOString(),
-      notes: notes.trim(),
-      tags: tagsStr.split(",").map((t) => t.trim().replace(/^#/, "")).filter(Boolean),
-    };
-    setTimeout(() => {
-      onSubmit(values);
-      try { sessionStorage.removeItem(draftKey); } catch { /* ignore */ }
-      setSubmitting(false);
-    }, 150);
-  }
-
-  return (
-    <form onSubmit={submit} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div className="lg:col-span-2 space-y-4">
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-card space-y-4">
-          <div>
-            <Label>Name *</Label>
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80}
-              placeholder={`${singular} name`}
-              className="w-full rounded-lg bg-surface border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-            <div className="mt-1 text-[10px] text-muted-foreground">{name.length}/80</div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Status</Label>
-              <select value={status} onChange={(e) => setStatus(e.target.value as RecordStatus)}
-                className="w-full rounded-lg bg-surface border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring">
-                {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label>Owner</Label>
-              <input value={owner} onChange={(e) => setOwner(e.target.value)}
-                className="w-full rounded-lg bg-surface border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div>
-              <Label>Category</Label>
-              <input value={category} onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-lg bg-surface border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div>
-              <Label>Amount (USD)</Label>
-              <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal"
-                className="w-full rounded-lg bg-surface border border-border px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div>
-              <Label>Date</Label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg bg-surface border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-            <div>
-              <Label>Tags (comma separated)</Label>
-              <input value={tagsStr} onChange={(e) => setTagsStr(e.target.value)} placeholder="priority, vip"
-                className="w-full rounded-lg bg-surface border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-          </div>
-          <div>
-            <Label>Notes</Label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} maxLength={1000}
-              className="w-full rounded-lg bg-surface border border-border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-            <div className="mt-1 text-[10px] text-muted-foreground">{notes.length}/1000</div>
-          </div>
-          {error && (
-            <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger inline-flex items-center gap-2">
-              <AlertTriangle className="h-3.5 w-3.5" /> {error}
-            </div>
-          )}
-          <div className="flex items-center justify-between">
-            <div className="text-[11px] text-muted-foreground">{savedAt ? `Draft autosaved · ${savedAt}` : "Autosaving draft…"}</div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={onCancel}
-                className="rounded-lg bg-surface border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 transition">Cancel</button>
-              <button type="submit" disabled={submitting}
-                className="inline-flex items-center gap-2 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-60">
-                <Check className="h-3.5 w-3.5" /> {submitting ? "Saving…" : initial ? "Save changes" : `Create ${singular}`}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Preview */}
-      <div className="space-y-4">
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Live preview</div>
-          <div className="mt-3 rounded-xl border border-border bg-surface/50 p-3">
-            <div className="flex items-center justify-between">
-              <StatusPill s={status} />
-              <span className="text-[10px] text-muted-foreground">{date}</span>
-            </div>
-            <div className="mt-2 font-semibold truncate">{name || `New ${singular}`}</div>
-            <div className="text-xs text-muted-foreground truncate">{category} · {owner}</div>
-            <div className="mt-2 font-mono text-sm">{fmtMoney(Number(amount) || 0)}</div>
-            {tagsStr && (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {tagsStr.split(",").map((t) => t.trim()).filter(Boolean).map((t) => (
-                  <span key={t} className="inline-flex items-center rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted-foreground">#{t.replace(/^#/, "")}</span>
-                ))}
-              </div>
-            )}
-          </div>
-          <ul className="mt-3 text-[11px] text-muted-foreground space-y-1">
-            <li className="flex items-center gap-1"><Check className="h-3 w-3 text-success" /> Required fields validated</li>
-            <li className="flex items-center gap-1"><Check className="h-3 w-3 text-success" /> Draft autosaves to this session</li>
-            <li className="flex items-center gap-1"><Check className="h-3 w-3 text-success" /> Creates an audit entry on save</li>
-          </ul>
-        </div>
-      </div>
-    </form>
-  );
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return <div className="text-[11px] font-medium text-muted-foreground mb-1">{children}</div>;
-}
-
-// =============== Confirm dialog ===============
-
-function ConfirmDialog({ title, body, confirmLabel, onCancel, onConfirm }: {
-  title: string; body: string; confirmLabel: string;
-  onCancel: () => void; onConfirm: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl p-5">
-        <div className="flex items-start gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-danger/15 text-danger">
-            <AlertTriangle className="h-4 w-4" />
-          </div>
-          <div className="flex-1">
-            <div className="font-semibold">{title}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{body}</div>
-          </div>
-        </div>
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <button onClick={onCancel}
-            className="rounded-lg bg-surface border border-border px-3 py-2 text-xs font-medium hover:bg-surface-2 transition">Cancel</button>
-          <button onClick={onConfirm}
-            className="inline-flex items-center gap-2 rounded-lg bg-danger text-white px-3 py-2 text-xs font-semibold hover:opacity-90">
-            <Trash2 className="h-3.5 w-3.5" /> {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

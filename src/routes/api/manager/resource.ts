@@ -1459,6 +1459,16 @@ const RESOURCES: Record<string, Resource> = {
   },
 
   // ---------------------------------------------------------------- reseller
+  // The AMS tickets resellers have raised (a view over ams_tickets). Read only:
+  // a ticket is worked in the AMS Manager, which owns its statuses and history.
+  reseller_support_tickets: {
+    table: "reseller_support_tickets",
+    select: ["id", "ticket_no", "subject", "category", "priority", "status", "requester", "reseller", "assignee", "created_at", "updated_at"],
+    editable: [],
+    searchable: ["subject", "requester", "reseller", "ticket_no"],
+    order: "created_at.desc",
+    label: "Reseller support ticket",
+  },
   // Eleven reseller tables existed and no screen read any of them. These are
   // the ones a manager screen has business editing.
   reseller_membership_plans: {

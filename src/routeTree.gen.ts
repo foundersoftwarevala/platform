@@ -272,6 +272,9 @@ import { Route as ApiApplicationsQueueRouteImport } from './routes/api/applicati
 import { Route as ApiApplicationsSubmitRouteImport } from './routes/api/applications/submit'
 import { Route as ApiAuthorEarningsRouteImport } from './routes/api/author/earnings'
 import { Route as ApiAuthorProductsRouteImport } from './routes/api/author/products'
+import { Route as ApiControlPanelCockpitRouteImport } from './routes/api/control-panel/cockpit'
+import { Route as ApiControlPanelFeedRouteImport } from './routes/api/control-panel/feed'
+import { Route as ApiControlPanelPartnersRouteImport } from './routes/api/control-panel/partners'
 import { Route as ApiDemoAssignRouteImport } from './routes/api/demo/assign'
 import { Route as ApiDemoInvestigateRouteImport } from './routes/api/demo/investigate'
 import { Route as ApiDemoOpsRouteImport } from './routes/api/demo/ops'
@@ -333,6 +336,7 @@ import { Route as ApiPaymentInitiateRouteImport } from './routes/api/payment/ini
 import { Route as ApiPaymentStatusRouteImport } from './routes/api/payment/status'
 import { Route as ApiPaymentWebhookRouteImport } from './routes/api/payment/webhook'
 import { Route as ApiQrCodeRouteImport } from './routes/api/qr/$code'
+import { Route as ApiResellerReferralRouteImport } from './routes/api/reseller/referral'
 import { Route as ApiSecurityConsoleRouteImport } from './routes/api/security/console'
 import { Route as ApiSecuritySettingsRouteImport } from './routes/api/security/settings'
 import { Route as ApiSellerMetricsRouteImport } from './routes/api/seller/metrics'
@@ -1702,6 +1706,21 @@ const ApiAuthorProductsRoute = ApiAuthorProductsRouteImport.update({
   path: '/api/author/products',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiControlPanelCockpitRoute = ApiControlPanelCockpitRouteImport.update({
+  id: '/api/control-panel/cockpit',
+  path: '/api/control-panel/cockpit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiControlPanelFeedRoute = ApiControlPanelFeedRouteImport.update({
+  id: '/api/control-panel/feed',
+  path: '/api/control-panel/feed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiControlPanelPartnersRoute = ApiControlPanelPartnersRouteImport.update({
+  id: '/api/control-panel/partners',
+  path: '/api/control-panel/partners',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDemoAssignRoute = ApiDemoAssignRouteImport.update({
   id: '/api/demo/assign',
   path: '/api/demo/assign',
@@ -2019,6 +2038,11 @@ const ApiPaymentWebhookRoute = ApiPaymentWebhookRouteImport.update({
 const ApiQrCodeRoute = ApiQrCodeRouteImport.update({
   id: '/api/qr/$code',
   path: '/api/qr/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiResellerReferralRoute = ApiResellerReferralRouteImport.update({
+  id: '/api/reseller/referral',
+  path: '/api/reseller/referral',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSecurityConsoleRoute = ApiSecurityConsoleRouteImport.update({
@@ -2419,6 +2443,9 @@ export interface FileRoutesByFullPath {
   '/api/applications/submit': typeof ApiApplicationsSubmitRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
+  '/api/control-panel/cockpit': typeof ApiControlPanelCockpitRoute
+  '/api/control-panel/feed': typeof ApiControlPanelFeedRoute
+  '/api/control-panel/partners': typeof ApiControlPanelPartnersRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
   '/api/demo/investigate': typeof ApiDemoInvestigateRoute
   '/api/demo/ops': typeof ApiDemoOpsRoute
@@ -2480,6 +2507,7 @@ export interface FileRoutesByFullPath {
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/api/qr/$code': typeof ApiQrCodeRoute
+  '/api/reseller/referral': typeof ApiResellerReferralRoute
   '/api/security/console': typeof ApiSecurityConsoleRoute
   '/api/security/settings': typeof ApiSecuritySettingsRoute
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
@@ -2762,6 +2790,9 @@ export interface FileRoutesByTo {
   '/api/applications/submit': typeof ApiApplicationsSubmitRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
+  '/api/control-panel/cockpit': typeof ApiControlPanelCockpitRoute
+  '/api/control-panel/feed': typeof ApiControlPanelFeedRoute
+  '/api/control-panel/partners': typeof ApiControlPanelPartnersRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
   '/api/demo/investigate': typeof ApiDemoInvestigateRoute
   '/api/demo/ops': typeof ApiDemoOpsRoute
@@ -2823,6 +2854,7 @@ export interface FileRoutesByTo {
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/api/qr/$code': typeof ApiQrCodeRoute
+  '/api/reseller/referral': typeof ApiResellerReferralRoute
   '/api/security/console': typeof ApiSecurityConsoleRoute
   '/api/security/settings': typeof ApiSecuritySettingsRoute
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
@@ -3116,6 +3148,9 @@ export interface FileRoutesById {
   '/api/applications/submit': typeof ApiApplicationsSubmitRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
+  '/api/control-panel/cockpit': typeof ApiControlPanelCockpitRoute
+  '/api/control-panel/feed': typeof ApiControlPanelFeedRoute
+  '/api/control-panel/partners': typeof ApiControlPanelPartnersRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
   '/api/demo/investigate': typeof ApiDemoInvestigateRoute
   '/api/demo/ops': typeof ApiDemoOpsRoute
@@ -3177,6 +3212,7 @@ export interface FileRoutesById {
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/api/qr/$code': typeof ApiQrCodeRoute
+  '/api/reseller/referral': typeof ApiResellerReferralRoute
   '/api/security/console': typeof ApiSecurityConsoleRoute
   '/api/security/settings': typeof ApiSecuritySettingsRoute
   '/api/seller/metrics': typeof ApiSellerMetricsRoute
@@ -3471,6 +3507,9 @@ export interface FileRouteTypes {
     | '/api/applications/submit'
     | '/api/author/earnings'
     | '/api/author/products'
+    | '/api/control-panel/cockpit'
+    | '/api/control-panel/feed'
+    | '/api/control-panel/partners'
     | '/api/demo/assign'
     | '/api/demo/investigate'
     | '/api/demo/ops'
@@ -3532,6 +3571,7 @@ export interface FileRouteTypes {
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/api/qr/$code'
+    | '/api/reseller/referral'
     | '/api/security/console'
     | '/api/security/settings'
     | '/api/seller/metrics'
@@ -3814,6 +3854,9 @@ export interface FileRouteTypes {
     | '/api/applications/submit'
     | '/api/author/earnings'
     | '/api/author/products'
+    | '/api/control-panel/cockpit'
+    | '/api/control-panel/feed'
+    | '/api/control-panel/partners'
     | '/api/demo/assign'
     | '/api/demo/investigate'
     | '/api/demo/ops'
@@ -3875,6 +3918,7 @@ export interface FileRouteTypes {
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/api/qr/$code'
+    | '/api/reseller/referral'
     | '/api/security/console'
     | '/api/security/settings'
     | '/api/seller/metrics'
@@ -4167,6 +4211,9 @@ export interface FileRouteTypes {
     | '/api/applications/submit'
     | '/api/author/earnings'
     | '/api/author/products'
+    | '/api/control-panel/cockpit'
+    | '/api/control-panel/feed'
+    | '/api/control-panel/partners'
     | '/api/demo/assign'
     | '/api/demo/investigate'
     | '/api/demo/ops'
@@ -4228,6 +4275,7 @@ export interface FileRouteTypes {
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/api/qr/$code'
+    | '/api/reseller/referral'
     | '/api/security/console'
     | '/api/security/settings'
     | '/api/seller/metrics'
@@ -4361,6 +4409,9 @@ export interface RootRouteChildren {
   ApiApplicationsSubmitRoute: typeof ApiApplicationsSubmitRoute
   ApiAuthorEarningsRoute: typeof ApiAuthorEarningsRoute
   ApiAuthorProductsRoute: typeof ApiAuthorProductsRoute
+  ApiControlPanelCockpitRoute: typeof ApiControlPanelCockpitRoute
+  ApiControlPanelFeedRoute: typeof ApiControlPanelFeedRoute
+  ApiControlPanelPartnersRoute: typeof ApiControlPanelPartnersRoute
   ApiDemoAssignRoute: typeof ApiDemoAssignRoute
   ApiDemoInvestigateRoute: typeof ApiDemoInvestigateRoute
   ApiDemoOpsRoute: typeof ApiDemoOpsRoute
@@ -4422,6 +4473,7 @@ export interface RootRouteChildren {
   ApiPaymentStatusRoute: typeof ApiPaymentStatusRoute
   ApiPaymentWebhookRoute: typeof ApiPaymentWebhookRoute
   ApiQrCodeRoute: typeof ApiQrCodeRoute
+  ApiResellerReferralRoute: typeof ApiResellerReferralRoute
   ApiSecurityConsoleRoute: typeof ApiSecurityConsoleRoute
   ApiSecuritySettingsRoute: typeof ApiSecuritySettingsRoute
   ApiSellerMetricsRoute: typeof ApiSellerMetricsRoute
@@ -6280,6 +6332,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthorProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/control-panel/cockpit': {
+      id: '/api/control-panel/cockpit'
+      path: '/api/control-panel/cockpit'
+      fullPath: '/api/control-panel/cockpit'
+      preLoaderRoute: typeof ApiControlPanelCockpitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/control-panel/feed': {
+      id: '/api/control-panel/feed'
+      path: '/api/control-panel/feed'
+      fullPath: '/api/control-panel/feed'
+      preLoaderRoute: typeof ApiControlPanelFeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/control-panel/partners': {
+      id: '/api/control-panel/partners'
+      path: '/api/control-panel/partners'
+      fullPath: '/api/control-panel/partners'
+      preLoaderRoute: typeof ApiControlPanelPartnersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/demo/assign': {
       id: '/api/demo/assign'
       path: '/api/demo/assign'
@@ -6705,6 +6778,13 @@ declare module '@tanstack/react-router' {
       path: '/api/qr/$code'
       fullPath: '/api/qr/$code'
       preLoaderRoute: typeof ApiQrCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/reseller/referral': {
+      id: '/api/reseller/referral'
+      path: '/api/reseller/referral'
+      fullPath: '/api/reseller/referral'
+      preLoaderRoute: typeof ApiResellerReferralRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/security/console': {
@@ -7474,6 +7554,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiApplicationsSubmitRoute: ApiApplicationsSubmitRoute,
   ApiAuthorEarningsRoute: ApiAuthorEarningsRoute,
   ApiAuthorProductsRoute: ApiAuthorProductsRoute,
+  ApiControlPanelCockpitRoute: ApiControlPanelCockpitRoute,
+  ApiControlPanelFeedRoute: ApiControlPanelFeedRoute,
+  ApiControlPanelPartnersRoute: ApiControlPanelPartnersRoute,
   ApiDemoAssignRoute: ApiDemoAssignRoute,
   ApiDemoInvestigateRoute: ApiDemoInvestigateRoute,
   ApiDemoOpsRoute: ApiDemoOpsRoute,
@@ -7535,6 +7618,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPaymentStatusRoute: ApiPaymentStatusRoute,
   ApiPaymentWebhookRoute: ApiPaymentWebhookRoute,
   ApiQrCodeRoute: ApiQrCodeRoute,
+  ApiResellerReferralRoute: ApiResellerReferralRoute,
   ApiSecurityConsoleRoute: ApiSecurityConsoleRoute,
   ApiSecuritySettingsRoute: ApiSecuritySettingsRoute,
   ApiSellerMetricsRoute: ApiSellerMetricsRoute,

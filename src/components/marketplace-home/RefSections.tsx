@@ -8,7 +8,7 @@ import {
 
 import { LIFETIME_PRICE, SITE_STATS } from "@/lib/site-content/constants";
 import { listPublishedFaqs } from "@/lib/site-content/faq";
-import { embedUrl, hasPlayableVideo, listPublishedVideos } from "@/lib/site-content/videos";
+import { embedUrl, hasPlayableVideo } from "@/lib/site-content/videos";
 import { listCourses } from "@/lib/site-content/academy";
 import { listAwards } from "@/lib/site-content/awards";
 import { listStories } from "@/lib/site-content/stories";

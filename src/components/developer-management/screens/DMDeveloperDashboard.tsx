@@ -10,27 +10,55 @@ import {
   ShieldAlert, FileCheck, Wallet, TrendingDown, Shield, Brain
 } from 'lucide-react';
 import { DMScreen } from '../DMFullSidebar';
+import {
+  useAllDeveloperTasks, useCodeSubmissions, useDeliveryOverview, useDeveloperActivity, useDeveloperRegistry,
+} from '@/hooks/useDevManagerData';
 
 interface DMDeveloperDashboardProps {
   onNavigate: (screen: DMScreen) => void;
 }
 
+type Figure = 'activeDevelopers' | 'activeTasks' | 'pendingReviews' | 'openBugs' | 'atRisk' | 'pendingOnboarding' | 'performanceDrop' | 'quality';
+
+// A card whose value is null has no source: builds, security flags, payment
+// holds and compliance are not recorded for developers anywhere yet.
 const dashboardCards = [
-  { id: 'developer_registry' as DMScreen, label: 'Active Developers', value: 24, icon: Users, color: 'text-blue-500', bgColor: 'bg-blue-500/10' },
-  { id: 'task_management' as DMScreen, label: 'Tasks In Progress', value: 18, icon: ListTodo, color: 'text-green-500', bgColor: 'bg-green-500/10' },
-  { id: 'review_qa' as DMScreen, label: 'Pending Reviews', value: 5, icon: CheckCircle, color: 'text-amber-500', bgColor: 'bg-amber-500/10' },
-  { id: 'build_assignment' as DMScreen, label: 'Failed Builds', value: 2, icon: XCircle, color: 'text-red-500', bgColor: 'bg-red-500/10' },
-  { id: 'bug_fix_tracker' as DMScreen, label: 'Open Bugs', value: 8, icon: Bug, color: 'text-orange-500', bgColor: 'bg-orange-500/10' },
-  { id: 'alerts_escalation' as DMScreen, label: 'SLA Risk', value: 3, icon: Clock, color: 'text-purple-500', bgColor: 'bg-purple-500/10' },
-  { id: 'security_access' as DMScreen, label: 'Security Flags', value: 1, icon: ShieldAlert, color: 'text-red-600', bgColor: 'bg-red-600/10' },
-  { id: 'onboarding_requests' as DMScreen, label: 'Pending Approvals', value: 4, icon: FileCheck, color: 'text-cyan-500', bgColor: 'bg-cyan-500/10' },
-  { id: 'payment_incentive' as DMScreen, label: 'Payment Hold', value: 2, icon: Wallet, color: 'text-amber-600', bgColor: 'bg-amber-600/10' },
-  { id: 'performance_kpi' as DMScreen, label: 'Performance Drop', value: 3, icon: TrendingDown, color: 'text-pink-500', bgColor: 'bg-pink-500/10' },
-  { id: 'compliance_nda' as DMScreen, label: 'Compliance Issues', value: 1, icon: Shield, color: 'text-indigo-500', bgColor: 'bg-indigo-500/10' },
-  { id: 'review_qa' as DMScreen, label: 'AI Quality Score', value: 87, icon: Brain, color: 'text-emerald-500', bgColor: 'bg-emerald-500/10' },
+  { id: 'developer_registry' as DMScreen, label: 'Active Developers', value: 'activeDevelopers' as Figure | null, icon: Users, color: 'text-blue-500', bgColor: 'bg-blue-500/10' },
+  { id: 'task_management' as DMScreen, label: 'Tasks In Progress', value: 'activeTasks' as Figure | null, icon: ListTodo, color: 'text-green-500', bgColor: 'bg-green-500/10' },
+  { id: 'review_qa' as DMScreen, label: 'Pending Reviews', value: 'pendingReviews' as Figure | null, icon: CheckCircle, color: 'text-amber-500', bgColor: 'bg-amber-500/10' },
+  { id: 'build_assignment' as DMScreen, label: 'Failed Builds', value: null as Figure | null, icon: XCircle, color: 'text-red-500', bgColor: 'bg-red-500/10' },
+  { id: 'bug_fix_tracker' as DMScreen, label: 'Open Bugs', value: 'openBugs' as Figure | null, icon: Bug, color: 'text-orange-500', bgColor: 'bg-orange-500/10' },
+  { id: 'alerts_escalation' as DMScreen, label: 'SLA Risk', value: 'atRisk' as Figure | null, icon: Clock, color: 'text-purple-500', bgColor: 'bg-purple-500/10' },
+  { id: 'security_access' as DMScreen, label: 'Security Flags', value: null as Figure | null, icon: ShieldAlert, color: 'text-red-600', bgColor: 'bg-red-600/10' },
+  { id: 'onboarding_requests' as DMScreen, label: 'Pending Approvals', value: 'pendingOnboarding' as Figure | null, icon: FileCheck, color: 'text-cyan-500', bgColor: 'bg-cyan-500/10' },
+  { id: 'payment_incentive' as DMScreen, label: 'Payment Hold', value: null as Figure | null, icon: Wallet, color: 'text-amber-600', bgColor: 'bg-amber-600/10' },
+  { id: 'performance_kpi' as DMScreen, label: 'Performance Drop', value: 'performanceDrop' as Figure | null, icon: TrendingDown, color: 'text-pink-500', bgColor: 'bg-pink-500/10' },
+  { id: 'compliance_nda' as DMScreen, label: 'Compliance Issues', value: null as Figure | null, icon: Shield, color: 'text-indigo-500', bgColor: 'bg-indigo-500/10' },
+  { id: 'review_qa' as DMScreen, label: 'AI Quality Score', value: 'quality' as Figure | null, icon: Brain, color: 'text-emerald-500', bgColor: 'bg-emerald-500/10' },
 ];
 
+/**
+ * The Dev Manager's front page. Its twelve counts and four activity lines were
+ * typed in; each count is now read from the developer tables, and a count the
+ * platform does not record shows "not tracked".
+ */
 export const DMDeveloperDashboard: React.FC<DMDeveloperDashboardProps> = ({ onNavigate }) => {
+  const overview = useDeliveryOverview();
+  const registry = useDeveloperRegistry();
+  const tasks = useAllDeveloperTasks();
+  const submissions = useCodeSubmissions();
+  const activity = useDeveloperActivity(8);
+  const quality = (overview.data?.performance ?? []).map((p) => p.qualityScore).filter((n) => n > 0);
+  const figures: Record<Figure, number | string | undefined> = {
+    activeDevelopers: registry.data?.filter((d) => d.status === 'active').length,
+    activeTasks: overview.data?.stats.activeTasks,
+    pendingReviews: submissions.data?.filter((s) => s.status === 'submitted').length,
+    openBugs: tasks.data?.filter((t) => t.category === 'bug' && t.status !== 'completed').length,
+    atRisk: overview.data?.stats.atRisk,
+    pendingOnboarding: registry.data?.filter((d) => !d.onboardingCompleted).length,
+    performanceDrop: overview.data?.performance.filter((p) => p.trend === 'down').length,
+    quality: overview.data ? (quality.length ? `${Math.round(quality.reduce((a, b) => a + b, 0) / quality.length)}%` : '—') : undefined,
+  };
   return (
     <div className="space-y-6">
       <div>
@@ -55,7 +83,11 @@ export const DMDeveloperDashboard: React.FC<DMDeveloperDashboardProps> = ({ onNa
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{card.value}</div>
+              {card.value == null ? (
+                <div className="text-sm font-medium text-muted-foreground">Not tracked</div>
+              ) : (
+                <div className="text-2xl font-bold">{figures[card.value] ?? '—'}</div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -68,14 +100,18 @@ export const DMDeveloperDashboard: React.FC<DMDeveloperDashboardProps> = ({ onNa
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {[
-              { dev: 'DEV-001', action: 'Submitted code for review', time: '2 min ago', type: 'code' },
-              { dev: 'DEV-005', action: 'Fixed bug BUG-234', time: '10 min ago', type: 'bug' },
-              { dev: 'DEV-003', action: 'Completed task TSK-089', time: '25 min ago', type: 'task' },
-              { dev: 'DEV-008', action: 'Onboarding approved', time: '1 hour ago', type: 'onboard' },
-            ].map((item, idx) => (
+            {(activity.isLoading || activity.isError || (activity.data ?? []).length === 0) && (
+              <p className="text-sm text-muted-foreground">
+                {activity.isLoading ? 'Loading…' : activity.isError ? `Activity could not be read: ${(activity.error as Error).message}` : 'No developer activity recorded yet.'}
+              </p>
+            )}
+            {(activity.data ?? []).map((a) => ({
+              dev: a.developer,
+              action: a.description || a.type.replace(/_/g, ' '),
+              time: new Date(a.createdAt).toLocaleString(),
+            })).map((item, idx) => (
               <div key={idx} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <span className="font-mono text-sm">{item.dev}</span>
                   <span className="text-sm">{item.action}</span>
                 </div>

@@ -6,7 +6,10 @@ import {
   Paperclip, Pencil, Trash2, Activity, Heart, Inbox,
 } from "lucide-react";
 import { LocalOnlyNotice } from "./LocalOnlyNotice";
-import { useCrud, type CrudRecord } from "@/lib/crud-store";
+import type { CrudRecord } from "@/lib/crud-store";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@/lib/serverFn";
+import { listResellerClientLicences } from "@/lib/reseller-dashboard.functions";
 import { useResellerCustomers } from "@/lib/useResellerCustomers";
 
 type Tab = "profile" | "purchases" | "licenses" | "notes" | "documents" | "followup" | "timeline";
@@ -25,7 +28,6 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
   // The clients themselves are rows in crm_customers, which is the table the
   // Reseller Manager's Customers wall reads.
   const crud = useResellerCustomers();
-  const licenses = useCrud("reseller", "licenses");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
@@ -41,9 +43,29 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
   }, [crud.records, query]);
 
   const active = (selectedId ? crud.records.find((r) => r.id === selectedId) : null) ?? null;
-  const clientLicenses = active
-    ? licenses.records.filter((l) => l.extra.clientId === active.id)
-    : [];
+  // Licences this reseller sold to the selected client, from the orders they
+  // are credited with (see listResellerClientLicences).
+  const listLicences = useServerFn(listResellerClientLicences);
+  const licenceQuery = useQuery({
+    queryKey: ["reseller", "client-licences", active?.id],
+    enabled: !!active,
+    queryFn: () => listLicences({ data: { clientId: active!.id } }),
+  });
+  const clientLicenses: CrudRecord[] = (licenceQuery.data ?? []).map((l) => ({
+    id: l.id,
+    name: l.product,
+    status: l.status === "active" ? "active" : l.status === "revoked" ? "rejected" : "archived",
+    owner: "",
+    category: l.model ?? "",
+    amount: 0,
+    date: l.expires_at ?? "",
+    notes: "",
+    tags: [],
+    comments: [],
+    audit: [],
+    attachments: [],
+    extra: { key: l.keyHint, expiry: l.expires_at ? l.expires_at.slice(0, 10) : "Does not expire" },
+  }));
 
   return (
     <div className="space-y-5">
@@ -354,7 +376,7 @@ function PurchasesTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Pa
 }
 
 function LicensesTab({ licenses }: { licenses: CrudRecord[] }) {
-  if (licenses.length === 0) return <Empty icon={FileBadge} text="No licenses linked to this client. Go to Licenses to issue one." />;
+  if (licenses.length === 0) return <Empty icon={FileBadge} text="No licence has been sold to this client through you yet." />;
   return (
     <div className="rounded-xl border border-border overflow-hidden">
       <table className="w-full text-xs">

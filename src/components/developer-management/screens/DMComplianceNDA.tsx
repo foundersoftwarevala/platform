@@ -8,19 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Shield, FileCheck, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
-const complianceData = [
-  { id: 'DEV-001', nda: 'signed', policy: true, violations: 0 },
-  { id: 'DEV-002', nda: 'signed', policy: true, violations: 1 },
-  { id: 'DEV-003', nda: 'signed', policy: true, violations: 0 },
-  { id: 'DEV-004', nda: 'pending', policy: false, violations: 0 },
-  { id: 'DEV-005', nda: 'signed', policy: true, violations: 2 },
-];
-
-const violationHistory = [
-  { id: 'VIO-001', dev: 'DEV-002', type: 'Late submission', date: '2024-01-10', resolved: true },
-  { id: 'VIO-002', dev: 'DEV-005', type: 'Policy breach', date: '2024-01-08', resolved: true },
-  { id: 'VIO-003', dev: 'DEV-005', type: 'Unauthorized access', date: '2024-01-05', resolved: false },
-];
+/**
+ * NDA and policy compliance. Five developers' NDA states and three violations
+ * were typed in here. The platform does not record an NDA, a policy
+ * acceptance or a violation for developers, so both lists say so rather than
+ * show anyone as signed, clean or in breach.
+ */
+const complianceData: { id: string; nda: string; policy: boolean; violations: number }[] = [];
+const violationHistory: { id: string; dev: string; type: string; date: string; resolved: boolean }[] = [];
 
 export const DMComplianceNDA: React.FC = () => {
   return (
@@ -40,6 +35,7 @@ export const DMComplianceNDA: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
+            {complianceData.length === 0 && <p className="text-sm text-muted-foreground">NDA and policy acceptance are not recorded for developers yet.</p>}
             {complianceData.map((dev) => (
               <div 
                 key={dev.id}
@@ -86,6 +82,7 @@ export const DMComplianceNDA: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
+            {violationHistory.length === 0 && <p className="text-sm text-muted-foreground">Violations are not recorded for developers yet.</p>}
             {violationHistory.map((vio) => (
               <div 
                 key={vio.id}

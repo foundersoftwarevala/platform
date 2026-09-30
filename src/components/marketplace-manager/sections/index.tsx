@@ -31,6 +31,8 @@ import { Card, EmptyHint, PageHeader, PillButton, StatCard, SubNav, SectionRow }
 import { TableToolbar, RowActions, BulkActionBar } from "../actions";
 
 import { notBuilt, previewOnly } from "@/lib/ui/not-built";
+import { useQuery } from "@tanstack/react-query";
+import { authHeaders } from "@/lib/auth/operator-fetch";
 // ---------- HERO BANNER MANAGER ----------
 // Real, DB-backed implementation lives in ./HeroSlidesManager.tsx
 export { HeroBannerSection } from "./HeroSlidesManager";
@@ -265,11 +267,35 @@ export function PopupsSection() {
 }
 
 // ---------- PARTNERS ----------
+type PartnerProgramme = { kind: string; live: number | null; openApplications: number | null };
+
+/**
+ * The six partner programmes, counted where each already lives: live partners
+ * from the programme's own table, open applications from the application
+ * registry (GET /api/control-panel/partners). Every figure here was a dash
+ * before. GMV is not attributed to a programme anywhere, so it stays a dash,
+ * and a programme cannot be switched off, so its switch says so.
+ */
 export function PartnersSection() {
   const types = ["Reseller","Vendor","Author","Affiliate","Influencer","Franchise"];
+  const query = useQuery({
+    queryKey: ["control-panel", "partners"],
+    queryFn: async () => {
+      const response = await fetch("/api/control-panel/partners", { headers: await authHeaders() });
+      const body = (await response.json().catch(() => ({}))) as { programmes?: PartnerProgramme[]; error?: string };
+      if (!response.ok) throw new Error(body.error ?? `The partner figures could not be read (${response.status})`);
+      return body.programmes ?? [];
+    },
+    staleTime: 30_000,
+  });
+  const figure = (t: string) => query.data?.find((p) => p.kind === t.toLowerCase());
+  const show = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString());
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader eyebrow="Partner Manager" title="Partner Programs" description="HubSpot + PartnerStack style program management." />
+      {query.isError && (
+        <p className="mb-3 text-sm text-destructive">{(query.error as Error).message}</p>
+      )}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {types.map((t) => (
           <Card key={t}>
@@ -278,16 +304,20 @@ export function PartnersSection() {
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 text-accent"><Users2 className="h-5 w-5" /></div>
                 <div>
                   <div className="text-sm font-bold">{t}</div>
-                  <div className="text-[11px] text-muted-foreground">— active partners</div>
+                  <div className="text-[11px] text-muted-foreground">{query.isLoading ? "…" : show(figure(t)?.live)} active partners</div>
                 </div>
               </div>
-              <Switch on />
+              <Switch on label={`${t} programme`} />
             </div>
             <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-              {["Apps", "Live", "GMV"].map((k) => (
-                <div key={k} className="rounded-lg bg-background/40 py-2">
+              {[
+                { k: "Apps", v: show(figure(t)?.openApplications), hint: "Open applications" },
+                { k: "Live", v: show(figure(t)?.live), hint: "Live partners" },
+                { k: "GMV", v: "—", hint: "Sales are not attributed to a programme yet" },
+              ].map(({ k, v, hint }) => (
+                <div key={k} className="rounded-lg bg-background/40 py-2" title={hint}>
                   <div className="text-xs text-muted-foreground">{k}</div>
-                  <div className="text-sm font-bold">—</div>
+                  <div className="text-sm font-bold">{query.isLoading ? "…" : v}</div>
                 </div>
               ))}
             </div>
@@ -708,11 +738,15 @@ function IconBtn({ icon }: { icon: ReactNode }) {
     </button>
   );
 }
-function Switch({ on = false }: { on?: boolean }) {
-  const [v, setV] = useState(on);
+function Switch({ on = false, label = "This switch" }: { on?: boolean; label?: string }) {
+  const v = on;
   return (
     <button
-      onClick={() => setV(!v)}
+      type="button"
+      role="switch"
+      aria-checked={v}
+      aria-label={label}
+      onClick={() => notBuilt(label)}
       className={`relative h-5 w-9 rounded-full transition-colors ${v ? "bg-gradient-to-r from-primary to-accent" : "bg-secondary"}`}
     >
       <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-background shadow transition-transform ${v ? "translate-x-4" : "translate-x-0.5"}`} />
@@ -723,7 +757,7 @@ function Toggle({ label, on = false }: { label: string; on?: boolean }) {
   return (
     <div className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2">
       <span className="text-xs font-medium">{label}</span>
-      <Switch on={on} />
+      <Switch on={on} label={label} />
     </div>
   );
 }

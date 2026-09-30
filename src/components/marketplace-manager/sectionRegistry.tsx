@@ -5,7 +5,9 @@ import { DashboardSection } from "./sections/DashboardSection";
 // FaqManagerSection is the earlier editor over a browser-local store. It is
 // kept imported and unused rather than removed; FAQ now resolves to the
 // connected screen in sections/index.
-import { FaqManagerSection, ValaTvSection } from "./sections/ContentStudio";
+import { FaqManagerSection } from "./sections/ContentStudio";
+// Vala TV reads and writes vala_tv_videos, the table the storefront shows.
+import { ValaTvSection } from "./sections/ValaTvLive";
 import { StoriesAwardsSection } from "./sections/StoriesAwards";
 import { OrdersSection as OrdersLive } from "./sections/OrdersLive";
 // The module screens that were designed as shells and are now reading their

@@ -35,13 +35,35 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  completeBannerItem,
-  resolveBannerItem,
+  dismissBannerItem,
+  primaryLabelOf,
+  useBannerAction,
   useBannerFeed,
   type BannerItem,
 } from "@/components/slider-banner/bannerFeed";
-import { useDemoState } from "@/components/marketplace/demoUrlStore";
-import { logExecAction, useExecSignals } from "./execSignals";
+import { useNavigate } from "@tanstack/react-router";
+import { useDemoHealth } from "@/lib/control-panel/demo-health";
+import { useCockpitFigures } from "@/lib/control-panel/use-cockpit";
+import { logExecAction, saveExecNotes, useExecSignals } from "./execSignals";
+
+/**
+ * Runs a feed item's main action - the real decision or acknowledgement, or
+ * opening its module - and reports what actually happened.
+ */
+function useItemAction() {
+  const runAction = useBannerAction();
+  const navigate = useNavigate();
+  return (item: BannerItem) =>
+    runAction(item).then(
+      (outcome) => {
+        if (outcome.navigate) return void navigate({ to: outcome.navigate });
+        if (!outcome.message) return;
+        logExecAction(item.kind === "approval" ? "approval" : "task", outcome.message, item.title);
+        toast.success(outcome.message);
+      },
+      (error: unknown) => toast.error(error instanceof Error ? error.message : String(error)),
+    );
+}
 import { useRuntimeStats } from "./useLive";
 
 const Panel = memo<{
@@ -74,7 +96,11 @@ function endOfDay() {
 }
 
 export const TodaysPriority = memo(() => {
-  const items = useBannerFeed();
+  const feed = useBannerFeed();
+  const items = feed.items;
+  const runItem = useItemAction();
+  const navigate = useNavigate();
+  const { actions } = useExecSignals();
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     setNow(Date.now());
@@ -82,7 +108,7 @@ export const TodaysPriority = memo(() => {
     return () => clearInterval(t);
   }, []);
 
-  const open = items.filter((i) => !i.done);
+  const open = items;
   const top =
     open.find((i) => i.kind === "alert") ??
     open.find((i) => i.kind === "approval") ??
@@ -103,11 +129,6 @@ export const TodaysPriority = memo(() => {
       ? "border-amber-400/45 bg-amber-400/12"
       : "border-sky-400/45 bg-sky-400/12";
 
-  const act = (label: string, fn?: () => void) => {
-    fn?.();
-    logExecAction("approval", label, top?.title ?? "");
-    toast.success(`${label} · ${top?.title ?? "priority"}`);
-  };
 
   return (
     <Panel
@@ -130,7 +151,7 @@ export const TodaysPriority = memo(() => {
           <p className="truncate text-[11px] font-extrabold text-foreground">{top.title}</p>
           <p className="mt-0.5 line-clamp-2 text-[9.5px] text-foreground/70">{top.detail}</p>
           <div className="mt-1.5 flex items-center justify-between">
-            <span className="text-[9px] uppercase tracking-wider text-foreground/50">Closes in</span>
+            <span className="text-[9px] uppercase tracking-wider text-foreground/50">Day ends in</span>
             <span className="font-mono text-[14px] font-extrabold text-foreground tabular-nums">
               {hh}:{mm}:{ss}
             </span>
@@ -142,15 +163,27 @@ export const TodaysPriority = memo(() => {
             />
           </div>
           <div className="mt-2 grid grid-cols-4 gap-1">
+            {/* Approve and Reject both only removed the item, and Assign and
+                Remind only announced themselves. Each button now does what it
+                says: the item's own decision, its module (where a refusal is
+                made with its reason), hide it here, or read the feed again. */}
             {[
-              { l: "Approve", i: Check, fn: () => resolveBannerItem(top.id) },
-              { l: "Reject", i: X, fn: () => resolveBannerItem(top.id) },
-              { l: "Assign", i: Users },
-              { l: "Remind", i: Timer },
+              { l: primaryLabelOf(top), i: Check, fn: () => void runItem(top) },
+              { l: "Open", i: Users, fn: () => void navigate({ to: top.href }) },
+              {
+                l: "Hide",
+                i: X,
+                fn: () => {
+                  dismissBannerItem(top.id);
+                  toast.info("Hidden from your feed", { description: "Nothing on the platform was changed." });
+                },
+              },
+              { l: "Refresh", i: Timer, fn: feed.refresh },
             ].map((b) => (
               <button
                 key={b.l}
-                onClick={() => act(b.l, b.fn)}
+                type="button"
+                onClick={b.fn}
                 className="flex items-center justify-center gap-1 rounded-md border border-white/12 bg-white/[0.07] py-1 text-[9px] font-bold text-foreground/85 transition-all hover:-translate-y-0.5 hover:bg-white/[0.16] active:scale-95"
               >
                 <b.i className="h-3 w-3" />
@@ -160,7 +193,8 @@ export const TodaysPriority = memo(() => {
           </div>
           <p className="mt-1.5 flex items-start gap-1 text-[9px] text-sky-200/80">
             <Sparkles className="mt-0.5 h-2.5 w-2.5 shrink-0" />
-            {open.length} open items in the live feed · {items.filter((i) => i.done).length} resolved this session.
+            {open.length} open items in the live feed ·{" "}
+            {actions.filter((a) => a.kind === "approval" || a.kind === "task").length} dealt with this session.
           </p>
         </div>
       ) : (
@@ -183,10 +217,11 @@ const kindStyle: Record<BannerItem["kind"], string> = {
 };
 
 export const LiveNotifications = memo(() => {
-  const items = useBannerFeed();
+  const items = useBannerFeed().items;
+  const runItem = useItemAction();
   const [filter, setFilter] = useState<"all" | BannerItem["kind"]>("all");
   const [read, setRead] = useState<string[]>([]);
-  const visible = items.filter((i) => !i.done && (filter === "all" || i.kind === filter));
+  const visible = items.filter((i) => filter === "all" || i.kind === filter);
   const unread = visible.filter((i) => !read.includes(i.id)).length;
 
   return (
@@ -234,16 +269,15 @@ export const LiveNotifications = memo(() => {
             <p className="line-clamp-2 text-[9px] text-foreground/65">{n.detail}</p>
             <div className="mt-1 flex gap-1">
               {[
-                { l: "Approve", i: Check, fn: () => resolveBannerItem(n.id) },
+                { l: primaryLabelOf(n), i: Check, fn: () => void runItem(n) },
+                // Read and Hide are this viewer's own view; neither changes the platform.
                 { l: "Read", i: CheckCircle2, fn: () => setRead((r) => [...r, n.id]) },
-                { l: "Archive", i: Archive, fn: () => completeBannerItem(n.id) },
+                { l: "Hide", i: Archive, fn: () => dismissBannerItem(n.id) },
               ].map((b) => (
                 <button
                   key={b.l}
-                  onClick={() => {
-                    b.fn();
-                    logExecAction("task", b.l, n.title);
-                  }}
+                  type="button"
+                  onClick={b.fn}
                   className="flex flex-1 items-center justify-center gap-0.5 rounded-md border border-white/12 bg-white/[0.07] py-0.5 text-[8.5px] font-bold text-foreground/80 hover:bg-white/[0.16] active:scale-95"
                 >
                   <b.i className="h-2.5 w-2.5" />
@@ -372,10 +406,12 @@ RunningPipelines.displayName = "RunningPipelines";
 /* ----------------------------- 4. support --------------------------------- */
 
 export const SupportCenterLive = memo(() => {
-  const { demos } = useDemoState();
   const rt = useRuntimeStats();
-  const offline = demos.filter((d) => d.health === "offline").length;
-  const slow = demos.filter((d) => d.health === "slow").length;
+  const navigate = useNavigate();
+  const cockpit = useCockpitFigures();
+  // The open-ticket count was the number of slow and offline demos. It is the
+  // support desk's own count now.
+  const tickets = cockpit.data?.tickets_open ?? null;
 
   const tiles = [
     {
@@ -388,10 +424,10 @@ export const SupportCenterLive = memo(() => {
     {
       i: AlertTriangle,
       l: "Open tickets",
-      s: `${offline + slow} from health`,
-      c: offline ? "border-rose-400/25 bg-rose-400/10 text-rose-300" : "border-amber-400/25 bg-amber-400/10 text-amber-300",
+      s: tickets == null ? (cockpit.isError ? "Could not be read" : "Loading…") : `${tickets} open`,
+      c: tickets ? "border-amber-400/25 bg-amber-400/10 text-amber-300" : "border-emerald-400/25 bg-emerald-400/10 text-emerald-300",
     },
-    { i: Phone, l: "Escalate", s: "24×7 hotline", c: "border-sky-400/25 bg-sky-400/10 text-sky-300" },
+    { i: Phone, l: "Escalate", s: "Open the support desk", c: "border-sky-400/25 bg-sky-400/10 text-sky-300" },
   ];
 
   return (
@@ -400,11 +436,12 @@ export const SupportCenterLive = memo(() => {
         {tiles.map((b) => (
           <button
             key={b.l}
+            type="button"
             onClick={() => {
               logExecAction("nav", b.l);
               if (b.l === "Vala AI") {
                 (document.querySelector("[data-vala-launcher]") as HTMLButtonElement | null)?.click();
-              } else toast.success(`${b.l} · ${b.s}`);
+              } else void navigate({ to: "/support", search: { section: undefined } });
             }}
             className={cn(
               "rounded-lg border px-2 py-2 text-left transition-all hover:-translate-y-0.5 active:scale-[0.98]",
@@ -435,13 +472,45 @@ const QUICK = [
 
 export const QuickActionsLive = memo(() => {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const { notes } = useExecSignals();
+  // The keyboard shortcuts below are bound once, so they read the notes
+  // through this rather than the value captured when they were bound.
+  const notesRef = React.useRef(notes);
+  notesRef.current = notes;
 
+  // Every one of these used to answer "<label> triggered" and do nothing else.
   const run = (label: string) => {
-    if (label === "Refresh All") void qc.refetchQueries();
-    if (label === "Ask Vala")
-      (document.querySelector("[data-vala-launcher]") as HTMLButtonElement | null)?.click();
     logExecAction("nav", label);
-    toast.success(`${label} triggered`);
+    switch (label) {
+      case "Add User":
+        // People join by signing up and gain a role through an application;
+        // there is no screen that creates an account for someone else.
+        toast.info("There is no screen for adding a user", {
+          description: "People sign up themselves and gain a role through the Application Manager.",
+        });
+        return;
+      case "New Invoice":
+        return void navigate({ to: "/finance-manager" });
+      case "New Task":
+        return void navigate({ to: "/task-manager" });
+      case "Ask Vala":
+        (document.querySelector("[data-vala-launcher]") as HTMLButtonElement | null)?.click();
+        return;
+      case "Refresh All":
+        void qc.refetchQueries();
+        toast.success("Reading every panel again");
+        return;
+      case "Log Note": {
+        const note = window.prompt("Note");
+        if (!note?.trim()) return;
+        const stamp = new Date().toLocaleString();
+        const current = notesRef.current;
+        saveExecNotes(`${current ? `${current}\n` : ""}[${stamp}] ${note.trim()}`);
+        toast.success("Saved to your Executive notes", { description: "Kept in this browser." });
+        return;
+      }
+    }
   };
 
   useEffect(() => {
@@ -464,6 +533,7 @@ export const QuickActionsLive = memo(() => {
         {QUICK.map((a) => (
           <button
             key={a.l}
+            type="button"
             onClick={() => run(a.l)}
             className="group relative flex items-center justify-between gap-1.5 overflow-hidden rounded-lg border border-primary/25 bg-primary/12 px-2 py-1.5 text-left transition-all hover:-translate-y-0.5 hover:border-primary-glow/60 hover:bg-primary/25 active:scale-[0.98]"
           >
@@ -499,8 +569,8 @@ function Spark({ values }: { values: number[] }) {
 
 export const MiniAnalyticsLive = memo(() => {
   const { actions } = useExecSignals();
-  const items = useBannerFeed();
-  const { demos } = useDemoState();
+  const items = useBannerFeed().items;
+  const { demos } = useDemoHealth();
   const rt = useRuntimeStats();
 
   const buckets = useMemo(() => {
@@ -515,8 +585,8 @@ export const MiniAnalyticsLive = memo(() => {
   const working = demos.filter((d) => d.health === "working").length;
   const stats = [
     { k: "Session actions", v: actions.length, d: "live log" },
-    { k: "Open items", v: items.filter((i) => !i.done).length, d: "feed" },
-    { k: "Resolved", v: items.filter((i) => i.done).length, d: "today" },
+    { k: "Open items", v: items.length, d: "feed" },
+    { k: "Dealt with", v: actions.filter((a) => a.kind === "approval" || a.kind === "task").length, d: "this session" },
     { k: "Demos healthy", v: `${working}/${demos.length}`, d: "validated" },
     { k: "Render FPS", v: rt.fps, d: rt.fps >= 50 ? "smooth" : "watch" },
     { k: "Net RTT", v: rt.rtt !== null ? `${rt.rtt}ms` : "—", d: rt.effectiveType },

@@ -53,7 +53,7 @@ async function requireOperator(): Promise<{ userId: string }> {
   if (!(roles ?? []).some((r) => allowed.has(String(r.role)))) {
     throw new Error("Generating insights needs manager or operator rights.");
   }
-  return { userId: data.user.id };
+  return { userId: caller.id };
 }
 
 const SYSTEM =

@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import {
   addInternalNote,
+  completeDeveloperOnboarding,
   escalateTask,
   getAuditTrail,
   getDeliveryOverview,
@@ -189,5 +190,185 @@ export function useSetDeveloperStatus() {
     },
     onError: (error) =>
       toast({ title: "Status change failed", description: describeError(error), variant: "destructive" }),
+  });
+}
+
+export interface CodeSubmissionRow {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  developer: string;
+  type: string;
+  commitMessage: string;
+  notes: string;
+  files: number;
+  status: string;
+  reviewNotes: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+}
+
+export const SUBMISSIONS_QUERY_KEY = ["dev-manager", "code-submissions"] as const;
+
+/**
+ * Code submissions (developer_code_submissions), newest first. Operators read
+ * them through the table's own dev_manager_is_operator() policy.
+ */
+export function useCodeSubmissions() {
+  return useQuery<CodeSubmissionRow[]>({
+    queryKey: SUBMISSIONS_QUERY_KEY,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("developer_code_submissions" as never)
+        .select(
+          "id, task_id, submission_type, commit_message, notes, file_urls, review_status, review_notes, reviewed_at, created_at, developer_tasks(title), developers(vala_id, full_name)",
+        )
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) throw new Error(error.message);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id,
+        taskId: r.task_id,
+        taskTitle: r.developer_tasks?.title ?? "—",
+        developer: r.developers?.vala_id || r.developers?.full_name || "—",
+        type: r.submission_type ?? "",
+        commitMessage: r.commit_message ?? "",
+        notes: r.notes ?? "",
+        files: Array.isArray(r.file_urls) ? r.file_urls.length : 0,
+        status: r.review_status ?? "submitted",
+        reviewNotes: r.review_notes,
+        reviewedAt: r.reviewed_at,
+        createdAt: r.created_at,
+      }));
+    },
+    staleTime: 15_000,
+  });
+}
+
+/**
+ * Approve a submission or send it back, through review_developer_submission:
+ * the database checks the reviewer's role, moves the task on and records the
+ * decision in the developer's activity log, in one transaction.
+ */
+export function useReviewSubmission() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; decision: "approved" | "changes_requested"; notes: string }) => {
+      const { error } = await supabase.rpc("review_developer_submission" as never, {
+        _submission_id: input.id,
+        _decision: input.decision,
+        _notes: input.notes,
+      } as never);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: (_r, vars) => {
+      toast({ title: vars.decision === "approved" ? "Submission approved" : "Changes requested", variant: "success" });
+      void queryClient.invalidateQueries({ queryKey: SUBMISSIONS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: DELIVERY_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: DEV_TASKS_QUERY_KEY });
+    },
+    onError: (error) =>
+      toast({ title: "Review failed", description: describeError(error), variant: "destructive" }),
+  });
+}
+
+export interface DevTaskRow {
+  id: string;
+  title: string;
+  category: string;
+  status: string;
+  developerId: string | null;
+  estimatedHours: number;
+  amount: number;
+  completedAt: string | null;
+  deadline: string | null;
+  techStack: string[];
+  priority: string;
+}
+
+export const DEV_TASKS_QUERY_KEY = ["dev-manager", "all-tasks"] as const;
+
+/** Every developer task, including completed ones the delivery view leaves out. */
+export function useAllDeveloperTasks() {
+  return useQuery<DevTaskRow[]>({
+    queryKey: DEV_TASKS_QUERY_KEY,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("developer_tasks" as never)
+        .select("id, title, category, status, developer_id, estimated_hours, task_amount, completed_at, deadline, tech_stack, priority")
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      if (error) throw new Error(error.message);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id,
+        title: r.title ?? "",
+        category: r.category ?? "",
+        status: r.status ?? "",
+        developerId: r.developer_id,
+        estimatedHours: Number(r.estimated_hours ?? 0),
+        amount: Number(r.task_amount ?? 0),
+        completedAt: r.completed_at,
+        deadline: r.deadline,
+        techStack: Array.isArray(r.tech_stack) ? r.tech_stack.map(String) : [],
+        priority: r.priority ?? "medium",
+      }));
+    },
+    staleTime: 15_000,
+  });
+}
+
+export interface DevActivityRow {
+  id: string;
+  developerId: string;
+  ip: string | null;
+  device: string | null;
+  developer: string;
+  type: string;
+  description: string;
+  createdAt: string;
+}
+
+/** The latest entries of developer_activity_logs. */
+export function useDeveloperActivity(limit = 10) {
+  return useQuery<DevActivityRow[]>({
+    queryKey: ["dev-manager", "activity", limit],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("developer_activity_logs" as never)
+        .select("id, developer_id, ip_address, device_info, activity_type, description, created_at, developers(vala_id, full_name)")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) throw new Error(error.message);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id,
+        developerId: r.developer_id,
+        ip: r.ip_address == null ? null : String(r.ip_address),
+        device: r.device_info == null ? null : typeof r.device_info === "string" ? r.device_info : JSON.stringify(r.device_info),
+        developer: r.developers?.vala_id || r.developers?.full_name || "—",
+        type: r.activity_type ?? "",
+        description: r.description ?? "",
+        createdAt: r.created_at,
+      }));
+    },
+    staleTime: 15_000,
+  });
+}
+
+/** Approve a developer's onboarding (audited on the server). */
+export function useCompleteOnboarding() {
+  const mutate = useServerFn(completeDeveloperOnboarding);
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { developerId: string; note: string }) =>
+      mutate({ data: { ...input, actor: hostActor() } }),
+    onSuccess: () => {
+      toast({ title: "Onboarding approved", description: "Recorded in the audit trail.", variant: "success" });
+      void queryClient.invalidateQueries({ queryKey: REGISTRY_QUERY_KEY });
+    },
+    onError: (error) =>
+      toast({ title: "Approval failed", description: describeError(error), variant: "destructive" }),
   });
 }

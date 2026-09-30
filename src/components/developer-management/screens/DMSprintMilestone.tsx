@@ -8,24 +8,27 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Target, Calendar, Brain, AlertTriangle } from 'lucide-react';
+import { useDeliveryOverview } from '@/hooks/useDevManagerData';
 
-const sprints = [
-  { id: 'SPR-001', name: 'Sprint 23', start: '2024-01-15', end: '2024-01-29', progress: 65, tasks: 12, completed: 8, status: 'active' },
-  { id: 'SPR-002', name: 'Sprint 24', start: '2024-01-29', end: '2024-02-12', progress: 0, tasks: 15, completed: 0, status: 'planned' },
-];
-
-const milestones = [
-  { id: 'MS-001', name: 'Alpha Release', deadline: '2024-02-01', progress: 78, status: 'on_track' },
-  { id: 'MS-002', name: 'Beta Release', deadline: '2024-03-01', progress: 45, status: 'at_risk' },
-  { id: 'MS-003', name: 'Production Release', deadline: '2024-04-01', progress: 20, status: 'on_track' },
-];
-
-const riskAlerts = [
-  { task: 'TSK-004', reason: 'Blocked by dependency', delay: '2 days', severity: 'high' },
-  { task: 'TSK-008', reason: 'Developer unavailable', delay: '1 day', severity: 'medium' },
-];
-
+/**
+ * Sprints and milestones. Two sprints, three milestones, a "3 days" AI
+ * prediction and two risk alerts were typed in here. The platform keeps no
+ * sprint or milestone for developer work, so those lists say so rather than
+ * invent any, and no prediction is claimed. The risk alerts are real: the
+ * tasks at SLA risk and the blocked tasks from the delivery overview.
+ */
 export const DMSprintMilestone: React.FC = () => {
+  const overview = useDeliveryOverview();
+  const sprints: { id: string; name: string; start: string; end: string; progress: number; tasks: number; completed: number; status: string }[] = [];
+  const milestones: { id: string; name: string; deadline: string; progress: number; status: string }[] = [];
+  const riskAlerts = [
+    ...(overview.data?.blocked ?? []).map((b) => ({ task: b.code, reason: `Blocked: ${b.blockedReason}`, delay: `${Math.round(b.blockedHours)} h blocked` })),
+    ...(overview.data?.risks ?? []).map((r) => ({
+      task: r.code,
+      reason: r.title,
+      delay: r.hoursRemaining < 0 ? `${Math.abs(Math.round(r.hoursRemaining))} h late` : `${Math.round(r.hoursRemaining)} h left`,
+    })),
+  ];
   return (
     <div className="space-y-6">
       <div>
@@ -43,6 +46,7 @@ export const DMSprintMilestone: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {sprints.length === 0 && <p className="text-sm text-muted-foreground">Sprints are not recorded for developer work yet.</p>}
             {sprints.map((sprint) => (
               <div key={sprint.id} className="p-4 bg-muted/30 rounded-lg border">
                 <div className="flex items-center justify-between mb-3">
@@ -75,6 +79,7 @@ export const DMSprintMilestone: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {milestones.length === 0 && <p className="text-sm text-muted-foreground">Milestones are not recorded for developer work yet.</p>}
             {milestones.map((ms) => (
               <div key={ms.id} className={`p-4 rounded-lg border ${ms.status === 'at_risk' ? 'bg-amber-500/5 border-amber-500/30' : 'bg-muted/30'}`}>
                 <div className="flex items-center justify-between mb-3">
@@ -93,7 +98,7 @@ export const DMSprintMilestone: React.FC = () => {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* AI Delay Prediction */}
         <Card className="bg-purple-500/5 border-purple-500/20">
           <CardHeader>
@@ -104,8 +109,8 @@ export const DMSprintMilestone: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-center">
-              <div className="text-4xl font-bold text-purple-500 mb-2">3 days</div>
-              <p className="text-sm text-muted-foreground">Predicted delay for current sprint</p>
+              <div className="text-4xl font-bold text-purple-500 mb-2">—</div>
+              <p className="text-sm text-muted-foreground">No delay-prediction model is connected, and there is no sprint to predict.</p>
             </div>
           </CardContent>
         </Card>
@@ -120,9 +125,12 @@ export const DMSprintMilestone: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
+              {riskAlerts.length === 0 && (
+                <p className="text-sm text-muted-foreground">{overview.isLoading ? 'Loading…' : overview.isError ? 'Risks could not be read.' : 'No task at risk.'}</p>
+              )}
               {riskAlerts.map((alert, idx) => (
                 <div key={idx} className="p-2 bg-background rounded text-sm">
-                  <span className="font-mono">{alert.task}</span>: {alert.reason} (+{alert.delay})
+                  <span className="font-mono">{alert.task}</span>: {alert.reason} ({alert.delay})
                 </div>
               ))}
             </div>

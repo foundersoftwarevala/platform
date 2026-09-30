@@ -9,6 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useGlobalActions } from '@/hooks/useGlobalActions';
+import { useTeamMembers, useTickets, useUpdateRow } from '@/hooks/useSalesSupportData';
+
+const STATUS_OF: Record<string, 'available' | 'busy' | 'break' | 'offline'> = {
+  online: 'available', active: 'available', busy: 'busy', away: 'break', offline: 'offline',
+};
 
 interface Agent {
   id: string;
@@ -33,48 +38,75 @@ interface Shift {
 const ShiftAvailability = () => {
   const { executeAction } = useGlobalActions();
 
-  const [agents] = useState<Agent[]>([
-    { id: '1', name: 'John Davis', avatar: 'JD', status: 'available', shift: 'Morning', currentLoad: 3, maxLoad: 8, ticketsToday: 12 },
-    { id: '2', name: 'Sarah Miller', avatar: 'SM', status: 'busy', shift: 'Morning', currentLoad: 6, maxLoad: 8, ticketsToday: 15 },
-    { id: '3', name: 'Mike Roberts', avatar: 'MR', status: 'break', shift: 'Morning', currentLoad: 0, maxLoad: 8, ticketsToday: 8 },
-    { id: '4', name: 'Emily Chen', avatar: 'EC', status: 'available', shift: 'Afternoon', currentLoad: 4, maxLoad: 10, ticketsToday: 18 },
-    { id: '5', name: 'David Kim', avatar: 'DK', status: 'offline', shift: 'Night', currentLoad: 0, maxLoad: 8, ticketsToday: 0 },
-    { id: '6', name: 'Lisa Wang', avatar: 'LW', status: 'available', shift: 'Afternoon', currentLoad: 2, maxLoad: 8, ticketsToday: 6 },
-  ]);
+  // The support team from the team directory, each with the open tickets
+  // assigned to them. The six agents and three shifts here were typed in.
+  const { data: members } = useTeamMembers('support');
+  const { data: ticketRows } = useTickets();
+  const updateMember = useUpdateRow('team_members');
+  const updateTicket = useUpdateRow('support_tickets');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tickets = (ticketRows ?? []) as any[];
+  const openFor = (id: string) => tickets.filter((t) => t.assigned_to === id && t.status !== 'resolved' && t.status !== 'closed');
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const agents: Agent[] = (members ?? []).map((m) => ({
+    id: m.id,
+    name: m.full_name,
+    avatar: (m as unknown as { avatar_initials?: string }).avatar_initials || m.full_name.split(' ').map((p) => p[0]).join('').slice(0, 2),
+    status: STATUS_OF[String(m.status ?? 'offline')] ?? 'offline',
+    shift: String((m as unknown as { shift?: string }).shift ?? '—'),
+    currentLoad: openFor(m.id).length,
+    // No capacity is recorded per agent; the bar compares agents with the busiest.
+    maxLoad: 0,
+    ticketsToday: tickets.filter((t) => t.assigned_to === m.id && new Date(t.created_at) >= dayStart).length,
+  }));
+  const busiest = Math.max(1, ...agents.map((x) => x.currentLoad));
+  for (const agent of agents) agent.maxLoad = busiest;
+  const shifts: Shift[] = [...new Set(agents.map((x) => x.shift))].map((name) => {
+    const inShift = agents.filter((x) => x.shift === name);
+    return {
+      id: name,
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      startTime: '—',
+      endTime: '—',
+      agents: inShift.length,
+      coverage: inShift.length ? Math.round((inShift.filter((x) => x.status === 'available').length / inShift.length) * 100) : 0,
+    };
+  });
 
-  const [shifts] = useState<Shift[]>([
-    { id: '1', name: 'Morning', startTime: '06:00', endTime: '14:00', agents: 5, coverage: 95 },
-    { id: '2', name: 'Afternoon', startTime: '14:00', endTime: '22:00', agents: 4, coverage: 88 },
-    { id: '3', name: 'Night', startTime: '22:00', endTime: '06:00', agents: 2, coverage: 75 },
-  ]);
+  // No automatic load balancer runs on the platform.
+  const [loadBalancerEnabled] = useState(false);
 
-  const [loadBalancerEnabled, setLoadBalancerEnabled] = useState(true);
+  const handleToggleAvailability = async (agentId: string, agentName: string) => {
+    const agent = agents.find((x) => x.id === agentId);
+    const next = agent?.status === 'available' ? 'away' : 'online';
+    try {
+      await updateMember.mutateAsync({ id: agentId, values: { status: next, updated_at: new Date().toISOString() } });
+      toast.success(`${agentName} is now ${next}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'The status could not be changed');
+    }
+  };
 
-  const handleToggleAvailability = useCallback(async (agentId: string, agentName: string) => {
-    await executeAction({
-      actionId: `toggle_availability_${agentId}`,
-      actionType: 'toggle',
-      entityType: 'user',
-      entityId: agentId,
-      metadata: { agentName },
-      successMessage: `${agentName} availability updated`,
-    });
-  }, [executeAction]);
-
-  const handleReassignTickets = useCallback(async (agentId: string) => {
-    await executeAction({
-      actionId: `reassign_${agentId}`,
-      actionType: 'reassign',
-      entityType: 'ticket',
-      entityId: agentId,
-      metadata: { action: 'load_balance' },
-      successMessage: 'Tickets reassigned successfully',
-    });
-    toast.success('Tickets redistributed');
-  }, [executeAction]);
+  // Hands this agent's open tickets to the least-loaded available colleagues.
+  const handleReassignTickets = async (agentId: string) => {
+    const others = agents.filter((x) => x.id !== agentId && x.status === 'available');
+    const load = new Map(others.map((x) => [x.id, x.currentLoad]));
+    const theirs = openFor(agentId);
+    if (!theirs.length) { toast.info('This agent has no open ticket to hand over.'); return; }
+    if (!others.length) { toast.error('No other agent is available to take them.'); return; }
+    try {
+      for (const ticket of theirs) {
+        const target = [...load.entries()].sort((x, y) => x[1] - y[1])[0][0];
+        await updateTicket.mutateAsync({ id: ticket.id, values: { assigned_to: target, updated_at: new Date().toISOString() } });
+        load.set(target, (load.get(target) ?? 0) + 1);
+      }
+      toast.success(`${theirs.length} ticket${theirs.length === 1 ? '' : 's'} handed over`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'The tickets could not be handed over');
+    }
+  };
 
   const handleToggleLoadBalancer = useCallback(async () => {
-    setLoadBalancerEnabled(!loadBalancerEnabled);
     await executeAction({
       actionId: 'toggle_load_balancer',
       actionType: 'toggle',
@@ -230,7 +262,7 @@ const ShiftAvailability = () => {
               <div className="mb-3">
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span className="text-muted-foreground">Current Load</span>
-                  <span className="text-foreground">{agent.currentLoad}/{agent.maxLoad}</span>
+                  <span className="text-foreground">{agent.currentLoad} open</span>
                 </div>
                 <div className="h-2 bg-muted/40 rounded-full overflow-hidden">
                   <motion.div

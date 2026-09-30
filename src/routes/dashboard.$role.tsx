@@ -9,6 +9,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { Hero } from "@/components/dashboard/Hero";
 import { VendorSliderHero } from "@/components/dashboard/VendorSliderHero";
 import { ResellerHero } from "@/components/dashboard/ResellerHero";
+import { notBuilt } from "@/lib/ui/not-built";
 import { AuthorHero } from "@/components/dashboard/AuthorHero";
 import { ResellerProfileHero } from "@/components/dashboard/ResellerProfileHero";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
@@ -21,6 +22,7 @@ import { ModuleBoundary } from "@/components/dashboard/ModuleBoundary";
 import { ModuleFocusScope } from "@/components/dashboard/ModuleFocusScope";
 import { ROLES, isRoleKey, type RoleKey } from "@/lib/roles";
 import { RequireRole } from "@/components/auth/RequireRole";
+import { sourceFor } from "@/lib/dashboard-records/sources";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ModuleFallback, AccessDenied } from "@/components/dashboard/AccessStates";
 
@@ -31,6 +33,7 @@ const ResellerPricingWorkspace = lazy(() => import("@/components/dashboard/Resel
 const ResellerMembershipPlans = lazy(() => import("@/components/reseller/ResellerMembershipPlans").then((m) => ({ default: m.ResellerMembershipPlans })));
 const ResellerCenterPage = lazy(() => import("@/components/dashboard/ResellerCenterPage").then((m) => ({ default: m.ResellerCenterPage })));
 const InfluencerReferralLinks = lazy(() => import("@/components/influencer/InfluencerReferralLinks").then((m) => ({ default: m.InfluencerReferralLinks })));
+const ResellerReferralLinks = lazy(() => import("@/components/reseller/ResellerReferralLinks").then((m) => ({ default: m.ResellerReferralLinks })));
 const ModulePage = lazy(() => import("@/components/dashboard/ModulePage").then((m) => ({ default: m.ModulePage })));
 const ResellerModulePage = lazy(() => import("@/components/dashboard/ResellerModulePage").then((m) => ({ default: m.ResellerModulePage })));
 const FranchiseHome = lazy(() => import("@/components/dashboard/franchise/FranchiseHome").then((m) => ({ default: m.FranchiseHome })));
@@ -99,11 +102,36 @@ const DASHBOARD_ROLE_REQUIREMENT: Record<string, string[]> = {
   "promise-tracker": [],
 };
 
+/**
+ * The banner button of the other partner dashboards. Each used to open the
+ * role's first module whatever it said - "Create Link" opened Clicks, "New
+ * Campaign" opened Followers. The affiliate's now opens their real link
+ * generator. Vendors, authors and influencers cannot create products or
+ * campaigns themselves yet (a submission is opened by Software Vala, a
+ * campaign by Influencer Manager), so theirs opens the list it names and says
+ * so rather than promising a form.
+ */
+const PARTNER_HERO: Partial<Record<string, { module: string; notice?: string }>> = {
+  affiliate: { module: "referrals" },
+  vendor: { module: "products", notice: "New products are listed by the Software Vala catalogue team; you cannot add one from here yet." },
+  author: { module: "products", notice: "New products are uploaded through the Software Vala catalogue team; self-upload is not available yet." },
+  influencer: { module: "campaigns", notice: "Campaigns are created by Software Vala's Influencer Manager and appear here when you are added to one." },
+};
+
 /** Reseller hero buttons that open one of the reseller's own modules. */
 const RESELLER_HERO_MODULES: Record<string, string> = {
   "View commissions": "commissions",
   "Open AI collection": "ai",
   "ai-chat": "ai-chat",
+  // Growing revenue is moving up a membership plan: a higher plan pays a
+  // higher commission rate.
+  "Show plan": "membership",
+  "View ranks": "rank",
+};
+/** Reseller hero buttons that open a feature of the Referral & Coupon Center. */
+const RESELLER_HERO_CENTER: Record<string, string> = {
+  "Open generator": "link",
+  "New coupon": "gen",
 };
 /** Reseller hero buttons whose destination is the marketplace itself. */
 const RESELLER_HERO_MARKETPLACE = new Set(["Browse catalog", "Open marketplace", "See top 50"]);
@@ -122,6 +150,8 @@ function DashboardPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState<string | null>(null);
+  // The Referral & Coupon Center feature a hero button asked for, if any.
+  const [centerFeature, setCenterFeature] = useState<string | null>(null);
   const cfg = ROLES[role as RoleKey];
   const perms = usePermissions(role as RoleKey);
   // Vendors and authors both sell on the marketplace, so both dashboards
@@ -133,10 +163,26 @@ function DashboardPage() {
   const influencerMetrics = useInfluencerMetrics(role);
   const metricValues = sellerMetrics.values ?? influencerMetrics.values;
   const openModule = useCallback(
-    (key: string | null) => setActiveModule(key && perms.canOpen(key) ? key : null),
-    [perms],
+    (key: string | null) => {
+      // A module whose job another module on this dashboard does (an "AI"
+      // entry, say) opens that module.
+      const source = key ? sourceFor(role, key) : null;
+      const target = source?.kind === "module" ? source.key : key;
+      setActiveModule(target && perms.canOpen(target) ? target : null);
+      setCenterFeature(null);
+    },
+    [perms, role],
   );
-  const closeModule = useCallback(() => setActiveModule(null), []);
+  const openHero = useCallback(() => {
+    const target = PARTNER_HERO[role];
+    if (!target) return openModule(cfg.modules[0]?.key ?? null);
+    openModule(target.module);
+    if (target.notice) notBuilt(cfg.banner.cta, target.notice);
+  }, [cfg, openModule, role]);
+  const closeModule = useCallback(() => {
+    setActiveModule(null);
+    setCenterFeature(null);
+  }, []);
   const kpiTone = search.kpiTone as KpiTone;
   const kpiSort = search.kpiSort as KpiSort;
   const setKpiTone = (t: KpiTone) =>
@@ -167,7 +213,7 @@ function DashboardPage() {
       closeModule();
       navigate({ to: "/dashboard/$role", params: { role: next } });
     },
-    [navigate, perms.accessibleRoles],
+    [closeModule, navigate, perms.accessibleRoles],
   );
 
   const isAIChat = activeModule === "ai-chat";
@@ -198,7 +244,7 @@ function DashboardPage() {
     if (isAIChat) return "AI Chat";
     if (isPricing) return "Pricing Engine";
     if (isCenter) return `${centerMatch} Center`;
-    if (activeModule) return cfg.modules.find((m) => m.key === activeModule)?.label ?? activeModule;
+    if (activeModule) return cfg.modules.find((m) => m.key === activeModule)?.label ?? (activeModule === "rank" ? "Leaderboard" : activeModule === "referrals" ? "Referral Links" : activeModule);
     return null;
   })();
 
@@ -224,12 +270,14 @@ function DashboardPage() {
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><AIChatWorkspace onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
           ) : activeModule === "referrals" && role === "influencer" ? (
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><InfluencerReferralLinks onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
+          ) : activeModule === "referrals" && role === "affiliate" ? (
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerReferralLinks endpoint="/api/affiliate/account" /></Suspense></ModuleBoundary></ModuleFocusScope>
           ) : activeModule === "membership" && role === "reseller" ? (
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerMembershipPlans /></Suspense></ModuleBoundary></ModuleFocusScope>
           ) : isPricing ? (
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerPricingWorkspace onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
           ) : isCenter && role === "reseller" ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerCenterPage centerKey={centerMatch as CenterKey} onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerCenterPage key={`${centerMatch}:${centerFeature ?? ""}`} centerKey={centerMatch as CenterKey} initialFeature={centerFeature} onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
           ) : activeModule && role === "franchise" && isFranchiseModule(activeModule) ? (
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><FranchiseModulePage moduleKey={activeModule} onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
           ) : activeModule === "ai" && role === "vendor" ? (
@@ -258,15 +306,23 @@ function DashboardPage() {
                     // ones with no screen behind them yet still do nothing.
                     const module = RESELLER_HERO_MODULES[cta];
                     if (module) return openModule(module);
-                    if (RESELLER_HERO_MARKETPLACE.has(cta)) void navigate({ to: "/" });
+                    const feature = RESELLER_HERO_CENTER[cta];
+                    if (feature) {
+                      openModule("center:referral");
+                      return setCenterFeature(feature);
+                    }
+                    if (RESELLER_HERO_MARKETPLACE.has(cta)) return void navigate({ to: "/" });
+                    // Anything left (the partner network) has no screen yet:
+                    // say so rather than do nothing.
+                    notBuilt(cta, "The partner network has no page on the platform yet.");
                   }}
                 />
               ) : role === "vendor" ? (
-                <VendorSliderHero role={cfg} onCta={() => openModule(cfg.modules[0]?.key ?? null)} />
+                <VendorSliderHero role={cfg} onCta={openHero} />
               ) : role === "author" ? (
-                <AuthorHero role={cfg} onCta={() => openModule(cfg.modules[0]?.key ?? null)} />
+                <AuthorHero role={cfg} onCta={openHero} />
               ) : (
-                <Hero role={cfg} onCta={() => openModule(cfg.modules[0]?.key ?? null)} onAnalytics={() => openModule(cfg.modules.find(m => /analytic|report|insight/i.test(m.label))?.key ?? cfg.modules[0]?.key ?? null)} />
+                <Hero role={cfg} onCta={openHero} onAnalytics={() => openModule(cfg.modules.find(m => /analytic|report|insight/i.test(m.label))?.key ?? cfg.modules[0]?.key ?? null)} />
               )}
               <KpiToolbar
                 tones={availableTones}

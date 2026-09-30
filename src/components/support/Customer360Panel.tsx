@@ -1,15 +1,14 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  User, CreditCard, Package, Ticket, AlertTriangle, 
-  MessageCircle, FileText, Clock, Star, MapPin, Phone,
-  Mail, Building, Shield, X, ChevronRight, TrendingUp
+import {
+  User, Ticket, MessageCircle, FileText, Star, MapPin, Phone, Mail, Building, Shield, X, TrendingUp,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { memberName, relativeTime, useCustomers, useTeamMembers, useTickets } from '@/hooks/useSalesSupportData';
 
 interface Customer360PanelProps {
   customerId?: string;
@@ -17,49 +16,50 @@ interface Customer360PanelProps {
   onClose: () => void;
 }
 
-// Mock customer data
-const customerData = {
-  id: 'C001',
-  name: 'Tech Solutions Ltd',
-  email: 'contact@techsolutions.com',
-  phone: '+1 (555) 123-4567',
-  company: 'Tech Solutions Ltd',
-  location: 'San Francisco, CA',
-  segment: 'Enterprise',
-  riskScore: 15,
-  lifetimeValue: 125000,
-  accountStatus: 'Active',
-  joinedDate: 'Jan 2022',
-  lastActivity: '5 min ago',
-};
-
-const pastTickets = [
-  { id: 'TKT-1240', subject: 'API integration help', status: 'resolved', date: '2 days ago', csat: 5 },
-  { id: 'TKT-1235', subject: 'Billing question', status: 'resolved', date: '1 week ago', csat: 4 },
-  { id: 'TKT-1228', subject: 'Feature request', status: 'closed', date: '2 weeks ago', csat: 5 },
-  { id: 'TKT-1220', subject: 'Login issues', status: 'resolved', date: '3 weeks ago', csat: 5 },
-];
-
-const products = [
-  { name: 'Enterprise Suite', status: 'active', since: 'Jan 2022', usage: 95 },
-  { name: 'API Pro', status: 'active', since: 'Mar 2022', usage: 78 },
-  { name: 'Analytics Dashboard', status: 'trial', since: 'Dec 2024', usage: 45 },
-];
-
-const paymentHistory = [
-  { id: 'PAY-001', amount: 2500, date: 'Jan 1, 2025', status: 'paid' },
-  { id: 'PAY-002', amount: 2500, date: 'Dec 1, 2024', status: 'paid' },
-  { id: 'PAY-003', amount: 2500, date: 'Nov 1, 2024', status: 'paid' },
-];
-
-const internalNotes = [
-  { author: 'Sarah Chen', note: 'VIP customer - prioritize all tickets', date: '1 week ago' },
-  { author: 'Mike Johnson', note: 'Interested in enterprise expansion', date: '2 weeks ago' },
-  { author: 'Lisa Park', note: 'Prefers email communication', date: '1 month ago' },
-];
-
+/**
+ * One customer, from the CRM, with their support tickets.
+ *
+ * This showed a single invented company ("Tech Solutions Ltd", $125K lifetime
+ * value, four past tickets, three products, three payments and three notes)
+ * whoever opened it. The agent now picks a real crm_customers record and sees
+ * it with its support tickets. Products, payments and internal notes are not
+ * linked to a CRM customer anywhere yet, so those tabs say so.
+ */
 const Customer360Panel = ({ customerId, isOpen, onClose }: Customer360PanelProps) => {
   const [activeTab, setActiveTab] = useState('overview');
+  const { data: customerRows } = useCustomers();
+  const { data: ticketRows } = useTickets();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const customers = (customerRows ?? []) as any[];
+  const [selectedId, setSelectedId] = useState<string | null>(customerId ?? null);
+  const row = customers.find((c) => c.id === selectedId) ?? customers[0] ?? null;
+  const customerData = {
+    id: row?.id ?? '',
+    name: row ? String(row.company_name || row.contact_name || 'Customer') : 'No customer',
+    email: row?.email ?? '—',
+    phone: row?.phone ?? '—',
+    company: row?.company_name ?? '—',
+    location: row?.country ?? '—',
+    segment: row?.plan ?? '—',
+    // The CRM records a health score; risk is its complement.
+    riskScore: row?.health_score == null ? 0 : Math.max(0, 100 - Number(row.health_score)),
+    lifetimeValue: Number(row?.lifetime_value ?? 0),
+    accountStatus: row?.status ?? '—',
+    joinedDate: row?.created_at ? new Date(row.created_at).toLocaleDateString() : '—',
+    lastActivity: relativeTime(row?.last_contact_at),
+  };
+  const names = new Set([row?.company_name, row?.contact_name].filter(Boolean).map((n) => String(n).toLowerCase()));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pastTickets = ((ticketRows ?? []) as any[])
+    .filter((t) => row && (t.customer_id === row.id || names.has(String(t.customer_name ?? '').toLowerCase())))
+    .map((t) => ({ id: t.reference ?? t.id.slice(0, 8), subject: t.subject, status: t.status, date: relativeTime(t.created_at), csat: t.csat }));
+  const rated = pastTickets.filter((t) => t.csat != null);
+  const avgCsat = rated.length ? (rated.reduce((sum, t) => sum + Number(t.csat), 0) / rated.length).toFixed(1) : '—';
+  const { data: allMembers } = useTeamMembers();
+  const ownerName = memberName(allMembers, row?.owner_id ?? null);
+  const products: { name: string; status: string; since: string; usage: number }[] = [];
+  const paymentHistory: { id: string; amount: number; date: string; status: string }[] = [];
+  const internalNotes: { author: string; note: string; date: string }[] = [];
 
   const getRiskColor = (score: number) => {
     if (score <= 20) return 'text-emerald-400 bg-emerald-500/20';
@@ -91,10 +91,21 @@ const Customer360Panel = ({ customerId, isOpen, onClose }: Customer360PanelProps
                   <User className="w-5 h-5 text-teal-400" />
                   Customer 360°
                 </h2>
-                <Button variant="ghost" size="sm" onClick={onClose}>
+                <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close customer panel">
                   <X className="w-5 h-5" />
                 </Button>
               </div>
+              <select
+                aria-label="Customer"
+                value={row?.id ?? ''}
+                onChange={(e) => setSelectedId(e.target.value)}
+                className="mb-4 w-full rounded-lg border border-border bg-card/60 px-3 py-2 text-sm text-foreground"
+              >
+                {customers.length === 0 && <option value="">No customer in the CRM yet</option>}
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.company_name || c.contact_name}</option>
+                ))}
+              </select>
 
               <div className="flex items-start gap-4">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-foreground text-2xl font-bold">
@@ -118,7 +129,7 @@ const Customer360Panel = ({ customerId, isOpen, onClose }: Customer360PanelProps
             <div className="grid grid-cols-3 gap-3 p-4 border-b border-border">
               <div className="text-center p-3 rounded-lg bg-card/60">
                 <TrendingUp className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
-                <div className="text-lg font-bold text-foreground">${(customerData.lifetimeValue / 1000).toFixed(0)}K</div>
+                <div className="text-lg font-bold text-foreground">{customerData.lifetimeValue.toLocaleString()}</div>
                 <div className="text-xs text-muted-foreground">LTV</div>
               </div>
               <div className="text-center p-3 rounded-lg bg-card/60">
@@ -128,7 +139,7 @@ const Customer360Panel = ({ customerId, isOpen, onClose }: Customer360PanelProps
               </div>
               <div className="text-center p-3 rounded-lg bg-card/60">
                 <Star className="w-5 h-5 text-amber-400 mx-auto mb-1" />
-                <div className="text-lg font-bold text-foreground">4.8</div>
+                <div className="text-lg font-bold text-foreground">{avgCsat}</div>
                 <div className="text-xs text-muted-foreground">Avg CSAT</div>
               </div>
             </div>
@@ -197,18 +208,19 @@ const Customer360Panel = ({ customerId, isOpen, onClose }: Customer360PanelProps
                       <CardTitle className="text-sm text-muted-foreground">Linked Accounts</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <Button variant="outline" className="w-full justify-between border-border text-muted-foreground">
+                      {/* Who owns this customer in the CRM - a reseller or a team member. */}
+                      <div className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-sm text-muted-foreground">
                         <span className="flex items-center gap-2">
                           <Building className="w-4 h-4" />
-                          West Coast Franchise
+                          {ownerName ?? "No owner recorded"}
                         </span>
-                        <ChevronRight className="w-4 h-4" />
-                      </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </TabsContent>
 
                 <TabsContent value="tickets" className="mt-0 space-y-3">
+                  {pastTickets.length === 0 && <p className="text-sm text-muted-foreground">No support ticket from this customer.</p>}
                   {pastTickets.map((ticket) => (
                     <Card key={ticket.id} className="bg-card/60 border-border">
                       <CardContent className="p-4">
@@ -223,7 +235,7 @@ const Customer360Panel = ({ customerId, isOpen, onClose }: Customer360PanelProps
                           <span>{ticket.date}</span>
                           <div className="flex items-center gap-1">
                             <Star className="w-3 h-3 text-amber-400" />
-                            <span>{ticket.csat}/5</span>
+                            <span>{ticket.csat == null ? '—' : `${ticket.csat}/5`}</span>
                           </div>
                         </div>
                       </CardContent>
@@ -232,6 +244,7 @@ const Customer360Panel = ({ customerId, isOpen, onClose }: Customer360PanelProps
                 </TabsContent>
 
                 <TabsContent value="products" className="mt-0 space-y-3">
+                  {products.length === 0 && <p className="text-sm text-muted-foreground">Products are not linked to a CRM customer yet.</p>}
                   {products.map((product) => (
                     <Card key={product.name} className="bg-card/60 border-border">
                       <CardContent className="p-4">
@@ -257,6 +270,7 @@ const Customer360Panel = ({ customerId, isOpen, onClose }: Customer360PanelProps
                 </TabsContent>
 
                 <TabsContent value="payments" className="mt-0 space-y-3">
+                  {paymentHistory.length === 0 && <p className="text-sm text-muted-foreground">Payments are not linked to a CRM customer yet.</p>}
                   {paymentHistory.map((payment) => (
                     <Card key={payment.id} className="bg-card/60 border-border">
                       <CardContent className="p-4">
@@ -274,6 +288,7 @@ const Customer360Panel = ({ customerId, isOpen, onClose }: Customer360PanelProps
                 </TabsContent>
 
                 <TabsContent value="notes" className="mt-0 space-y-3">
+                  {internalNotes.length === 0 && <p className="text-sm text-muted-foreground">No internal note is kept for CRM customers yet.</p>}
                   {internalNotes.map((note, idx) => (
                     <Card key={idx} className="bg-card/60 border-border">
                       <CardContent className="p-4">

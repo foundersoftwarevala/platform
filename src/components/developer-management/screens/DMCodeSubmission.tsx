@@ -9,12 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileCode, Upload, RefreshCw, Lock, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useCodeSubmissions } from '@/hooks/useDevManagerData';
 
-const submissions = [
-  { id: 'SUB-001', task: 'TSK-001', dev: 'DEV-001', files: 12, lines: 450, status: 'pending', time: '10 min ago' },
-  { id: 'SUB-002', task: 'TSK-003', dev: 'DEV-003', files: 8, lines: 280, status: 'approved', time: '1 hour ago' },
-  { id: 'SUB-003', task: 'TSK-002', dev: 'DEV-002', files: 5, lines: 120, status: 'rejected', time: '2 hours ago' },
-];
+// review_status in developer_code_submissions, in this screen's words.
+const STATUS: Record<string, string> = { submitted: 'pending', approved: 'approved', changes_requested: 'rejected' };
 
 const getStatusBadge = (status: string) => {
   switch (status) {
@@ -25,7 +23,22 @@ const getStatusBadge = (status: string) => {
   }
 };
 
+/**
+ * Code submissions, from developer_code_submissions. The three here were typed
+ * in. A developer submits and resubmits from their own dashboard, against their
+ * task, so those buttons say so; the review decision is taken in Review & QA.
+ */
 export const DMCodeSubmission: React.FC = () => {
+  const query = useCodeSubmissions();
+  const submissions = (query.data ?? []).map((s) => ({
+    id: s.id.slice(0, 8).toUpperCase(),
+    task: s.taskTitle,
+    dev: s.developer,
+    files: s.files,
+    status: STATUS[s.status] ?? s.status,
+    time: new Date(s.createdAt).toLocaleString(),
+    message: s.commitMessage,
+  }));
   return (
     <div className="space-y-6">
       <div>
@@ -42,7 +55,7 @@ export const DMCodeSubmission: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
             <span>• No raw download</span>
             <span>• No external repo link</span>
             <span>• Internal commit only</span>
@@ -60,6 +73,11 @@ export const DMCodeSubmission: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
+            {(query.isLoading || query.isError || submissions.length === 0) && (
+              <p className="text-sm text-muted-foreground">
+                {query.isLoading ? 'Loading submissions…' : query.isError ? `Submissions could not be read: ${(query.error as Error).message}` : 'No code has been submitted yet.'}
+              </p>
+            )}
             {submissions.map((sub) => (
               <div 
                 key={sub.id}
@@ -82,13 +100,13 @@ export const DMCodeSubmission: React.FC = () => {
                     <span className="font-mono">{sub.dev}</span>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    {sub.files} files • {sub.lines} lines
+                    {sub.files} files{sub.message ? ` • ${sub.message}` : ''}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button 
                     size="sm" 
-                    onClick={() => toast.success(`Submission ${sub.id} submitted`)}
+                    onClick={() => toast.info('Code is submitted by the developer, from their own dashboard, against their task.')}
                   >
                     <Upload className="h-4 w-4 mr-1" />
                     Submit
@@ -96,7 +114,7 @@ export const DMCodeSubmission: React.FC = () => {
                   <Button 
                     size="sm" 
                     variant="outline"
-                    onClick={() => toast.info(`Resubmitting ${sub.id}`)}
+                    onClick={() => toast.info(sub.status === 'rejected' ? 'The developer resubmits after the requested changes, from their own dashboard.' : 'Only a submission sent back for changes is resubmitted.')}
                   >
                     <RefreshCw className="h-4 w-4 mr-1" />
                     Resubmit
@@ -104,7 +122,7 @@ export const DMCodeSubmission: React.FC = () => {
                   <Button 
                     size="sm" 
                     variant="outline"
-                    onClick={() => toast.warning(`Submission ${sub.id} locked`)}
+                    onClick={() => toast.info(sub.status === 'pending' ? 'A submission cannot be edited once made; it is decided in Review & QA.' : 'This submission is already decided and cannot change.')}
                   >
                     <Lock className="h-4 w-4 mr-1" />
                     Lock

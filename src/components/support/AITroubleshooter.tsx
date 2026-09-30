@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { useServerFn } from '@/lib/serverFn';
+import { askSupportAssistant } from '@/lib/support/assistant.functions';
 import { motion } from 'framer-motion';
-import { 
-  X, Sparkles, Send, FileText, Globe, 
-  Smile, Lightbulb, CheckCircle2, Volume2
+import {
+  X, Sparkles, Send, FileText, Globe, Smile, CheckCircle2, Volume2,
 } from 'lucide-react';
 
 interface AITroubleshooterProps {
@@ -17,38 +18,43 @@ const quickActions = [
   "Generate calm response",
 ];
 
-const suggestedFixes = [
-  { step: 1, text: "Verify the user's software version is up to date" },
-  { step: 2, text: "Check if the invoice template is properly configured" },
-  { step: 3, text: "Clear browser cache and retry the operation" },
-  { step: 4, text: "If issue persists, escalate to developer team" },
-];
-
 const AITroubleshooter = ({ isOpen, onClose }: AITroubleshooterProps) => {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: "Hello! I'm here to help you resolve issues calmly and efficiently. I can suggest fixes, translate responses, and help maintain a positive tone. How can I assist?"
+      content: "Describe the customer's issue and I will suggest steps to try, or draft a reply in the tone you pick. I cannot see the customer's account or logs."
     }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [toneMode, setToneMode] = useState<'calm' | 'professional' | 'friendly'>('calm');
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-
-    setMessages(prev => [...prev, { role: 'user', content: input }]);
+  // Every question used to get the same canned answer after a timed pause.
+  // It is asked of the model configured in AI API Manager now.
+  const ask = useServerFn(askSupportAssistant);
+  const handleSend = async () => {
+    if (!input.trim() || isTyping) return;
+    const next = [...messages, { role: 'user', content: input.trim() }];
+    setMessages(next);
     setInput('');
     setIsTyping(true);
-
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
+    try {
+      const { reply } = await ask({
+        data: {
+          tone: toneMode,
+          // The greeting is the panel's, not part of the conversation.
+          messages: next.slice(1).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        },
+      });
+      setMessages((prev) => [...prev, { role: 'assistant', content: reply || '(no answer)' }]);
+    } catch (e) {
+      setMessages((prev) => [...prev, {
         role: 'assistant',
-        content: "Based on the issue description, I've analyzed similar tickets. The most likely cause is a cache synchronization issue. Here's a step-by-step guide to help the client, with a calm and reassuring tone."
+        content: `The assistant could not answer: ${e instanceof Error ? e.message : String(e)}`,
       }]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -123,24 +129,6 @@ const AITroubleshooter = ({ isOpen, onClose }: AITroubleshooterProps) => {
         </div>
       </div>
 
-      {/* Suggested Fixes Panel */}
-      <div className="p-4 border-b border-border bg-teal-500/5">
-        <div className="flex items-center gap-2 mb-3">
-          <Lightbulb className="w-4 h-4 text-teal-400" />
-          <span className="text-sm text-teal-400 font-medium">Suggested Fix Steps</span>
-        </div>
-        <div className="space-y-2">
-          {suggestedFixes.map((fix) => (
-            <div key={fix.step} className="flex items-start gap-3 text-sm">
-              <div className="w-5 h-5 rounded-full bg-teal-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-xs text-teal-400">{fix.step}</span>
-              </div>
-              <span className="text-muted-foreground">{fix.text}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Chat Messages */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
         {messages.map((message, index) => (
@@ -202,14 +190,14 @@ const AITroubleshooter = ({ isOpen, onClose }: AITroubleshooterProps) => {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+            onKeyDown={(e) => { if (e.key === 'Enter') void handleSend(); }}
             placeholder="Describe the issue or ask for help..."
             className="flex-1 px-4 py-3 rounded-xl bg-card/60 border border-border text-foreground placeholder-slate-500 focus:outline-none focus:border-teal-500/30 transition-colors text-sm"
           />
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={handleSend}
+            onClick={() => void handleSend()}
             className="px-4 py-3 rounded-xl bg-teal-500/20 border border-teal-500/30 text-teal-400 hover:bg-teal-500/30 transition-all"
           >
             <Send className="w-5 h-5" />

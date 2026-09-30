@@ -168,7 +168,6 @@ export const menuSections: MenuItem[] = [
     id: "demo-issue-manager",
     label: "Demo Issue Manager",
     icon: Bug,
-    badge: "3",
     subItems: [
       { id: "report-bug", label: "Report Bug", icon: Bug },
       { id: "view-bug-list", label: "View Bug List", icon: ListChecks },

@@ -8,13 +8,11 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/dashboard/ui/button";
-import { useCrud, type CrudRecord } from "@/lib/crud-store";
+import type { CrudRecord } from "@/lib/crud-store";
+import { useAmsCenter } from "@/lib/ams/use-ams-center";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-// Shared store so ANY user dashboard reads the same AMS Manager pool.
-const AMS_STORE_ROLE = "_shared";
-const AMS_STORE_MODULE = "ams-center";
 
 type AmsKind =
   | "offer" | "reward" | "bonus-daily" | "bonus-weekly" | "bonus-monthly"
@@ -96,26 +94,21 @@ function rewardValueOf(r: CrudRecord) {
 }
 
 export function AMSCenterWorkspace({ onBack }: { onBack: () => void }) {
-  const crud = useCrud(AMS_STORE_ROLE, AMS_STORE_MODULE);
+  // The live AMS: rewards, missions and campaigns, and this person's own
+  // wallet, level and claims (see useAmsCenter).
+  const center = useAmsCenter();
   const [tab, setTab] = useState<Tab>("overview");
   const [q, setQ] = useState("");
 
-  const active = useMemo(() => crud.records.filter(isActive), [crud.records]);
-  const claimed = useMemo(
-    () => crud.records.filter(r => String(r.extra.claimed ?? "") === "1"),
-    [crud.records]
-  );
-
-  const totals = useMemo(() => {
-    let coins = 0, gems = 0, xp = 0;
-    for (const r of claimed) {
-      const v = rewardValueOf(r);
-      coins += v.coins; gems += v.gems; xp += v.xp;
-    }
-    const level = Math.floor(xp / 500) + 1;
-    const levelProgress = xp === 0 ? 0 : Math.round(((xp % 500) / 500) * 100);
-    return { coins, gems, xp, level, levelProgress };
-  }, [claimed]);
+  const active = useMemo(() => (center.data?.items ?? []).filter(isActive), [center.data]);
+  const claimedCount = center.data?.claimedCount ?? 0;
+  const totals = {
+    coins: center.data?.wallet.coins ?? 0,
+    tokens: center.data?.wallet.tokens ?? 0,
+    xp: center.data?.xp ?? 0,
+    level: center.data?.level ?? 1,
+    levelProgress: center.data?.levelProgress ?? 0,
+  };
 
   const filteredActive = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -131,19 +124,21 @@ export function AMSCenterWorkspace({ onBack }: { onBack: () => void }) {
     );
   }, [active, tab, q]);
 
-  function handleClaim(r: CrudRecord) {
+  async function handleClaim(r: CrudRecord) {
+    if (kindOf(r) !== "reward") return;
     if (String(r.extra.claimed ?? "") === "1") {
-      toast.info("Already claimed");
+      toast.info("You have already claimed this reward");
       return;
     }
-    crud.update(r.id, { extra: { ...r.extra, claimed: "1", claimedAt: new Date().toISOString() } });
-    launchConfetti();
-    const v = rewardValueOf(r);
-    const parts: string[] = [];
-    if (v.coins) parts.push(`+${v.coins} coins`);
-    if (v.gems)  parts.push(`+${v.gems} gems`);
-    if (v.xp)    parts.push(`+${v.xp} XP`);
-    toast.success(`Claimed: ${r.name}`, { description: parts.join(" · ") || "Reward added to your wallet" });
+    try {
+      await center.requestClaim(r.id);
+      launchConfetti();
+      toast.success(`Claim sent: ${r.name}`, {
+        description: "An administrator approves it; the cost is taken from your wallet then.",
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    }
   }
 
   return (
@@ -186,11 +181,18 @@ export function AMSCenterWorkspace({ onBack }: { onBack: () => void }) {
 
           <div className="grid grid-cols-3 gap-2 md:gap-3 self-center">
             <StatChip icon={Coins} label="Coins" value={totals.coins} />
-            <StatChip icon={Gem}   label="Gems"  value={totals.gems} />
-            <StatChip icon={Trophy} label="Claimed" value={claimed.length} />
+            <StatChip icon={Gem}   label="Tokens" value={totals.tokens} />
+            <StatChip icon={Trophy} label="Claimed" value={claimedCount} />
           </div>
         </div>
       </div>
+
+      {center.error && (
+        <div role="alert" className="rounded-2xl border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger flex items-center justify-between gap-3">
+          <span>Your rewards could not be read: {center.error}</span>
+          <Button size="sm" variant="outline" onClick={center.refresh}>Try again</Button>
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="space-y-4">
@@ -218,12 +220,13 @@ export function AMSCenterWorkspace({ onBack }: { onBack: () => void }) {
             {t.key === "overview" ? (
               <Overview
                 records={active}
-                claimedCount={claimed.length}
+                loading={center.loading}
+                claimedCount={claimedCount}
                 onOpen={setTab}
                 onClaim={handleClaim}
               />
             ) : t.key === "history" ? (
-              <HistoryList records={crud.records} />
+              <HistoryList records={center.data?.history ?? []} />
             ) : (
               <RewardGrid records={filteredActive} onClaim={handleClaim} sectionLabel={t.label} />
             )}
@@ -249,9 +252,10 @@ function StatChip({ icon: Icon, label, value }: { icon: React.ComponentType<{ cl
 }
 
 function Overview({
-  records, claimedCount, onOpen, onClaim,
+  records, loading, claimedCount, onOpen, onClaim,
 }: {
   records: CrudRecord[];
+  loading: boolean;
   claimedCount: number;
   onOpen: (t: Tab) => void;
   onClaim: (r: CrudRecord) => void;
@@ -280,7 +284,7 @@ function Overview({
 
       {empty && (
         <EmptyState
-          title="Waiting for AMS Manager"
+          title={loading ? "Loading your rewards…" : "Waiting for AMS Manager"}
           sub="No active offers, rewards or campaigns yet. Anything created and activated in AMS Manager will appear here instantly for eligible users."
         />
       )}
@@ -367,7 +371,8 @@ function RewardCard({ record, onClaim }: { record: CrudRecord; onClaim: (r: Crud
           </div>
           {claimed && (
             <span className="inline-flex items-center gap-1 rounded-full bg-white/20 text-white text-[10px] px-2 py-0.5 border border-white/25">
-              <ShieldCheck className="h-3 w-3" /> Claimed
+              <ShieldCheck className="h-3 w-3" />
+              {kind === "mission" ? "Completed" : String(record.extra.claimState ?? "") === "pending" ? "Requested" : "Claimed"}
             </span>
           )}
         </div>
@@ -414,7 +419,7 @@ function RewardCard({ record, onClaim }: { record: CrudRecord; onClaim: (r: Crud
               disabled={claimed || !claimable}
               className="h-8 gap-1.5 text-xs bg-gradient-brand text-brand-foreground shadow-glow hover:opacity-95 disabled:opacity-50"
             >
-              {claimed ? "Claimed" : claimable ? "Claim" : "View"}
+              {claimed ? (kind === "mission" ? "Completed" : String(record.extra.claimState ?? "") === "pending" ? "Requested" : "Claimed") : claimable ? "Claim" : kind === "reward" ? "Unavailable" : "Active"}
               {!claimed && <Sparkles className="h-3 w-3" />}
             </Button>
           </div>

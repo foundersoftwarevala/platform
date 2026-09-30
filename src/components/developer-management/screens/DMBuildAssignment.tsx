@@ -10,12 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Hammer, Play, Square, Send } from 'lucide-react';
 import { toast } from 'sonner';
 
-const builds = [
-  { id: 'BLD-001', module: 'Auth Module', assignee: 'DEV-001', status: 'in_progress', started: '2024-01-18 10:00' },
-  { id: 'BLD-002', module: 'Dashboard API', assignee: 'DEV-003', status: 'completed', started: '2024-01-17 14:00' },
-  { id: 'BLD-003', module: 'Payment Gateway', assignee: 'DEV-002', status: 'failed', started: '2024-01-18 09:00' },
-  { id: 'BLD-004', module: 'User Settings', assignee: null, status: 'pending', started: null },
-];
+/**
+ * Builds. Four builds were typed in here, and Start, Stop and Send to QA only
+ * showed messages. No build pipeline is connected to developer work, so the
+ * queue says so; a build's start and stop would come from that pipeline.
+ */
+const builds: { id: string; module: string; assignee: string | null; status: string; started: string | null }[] = [];
 
 const getStatusBadge = (status: string) => {
   switch (status) {
@@ -44,6 +44,7 @@ export const DMBuildAssignment: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
+            {builds.length === 0 && <p className="text-sm text-muted-foreground">No build pipeline is connected to developer work yet.</p>}
             {builds.map((build) => (
               <div 
                 key={build.id}

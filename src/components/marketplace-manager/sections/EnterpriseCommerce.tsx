@@ -103,6 +103,9 @@ function useResourceRows(resource: string, limit = 20) {
 
 import { notBuilt } from "@/lib/ui/not-built";
 import { useQuery } from "@tanstack/react-query";
+// ReleaseStats reads this; it was called without being imported, so the
+// Release Management section crashed when it opened.
+import { getReleaseOverview } from "@/lib/marketplace-manager/customers.functions";
 import {
   listOrders,
   listOrderDocs,

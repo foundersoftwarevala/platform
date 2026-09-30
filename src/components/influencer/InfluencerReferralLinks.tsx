@@ -72,7 +72,10 @@ async function call(method: "GET" | "POST", body?: unknown): Promise<Account | {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const payload = (await response.json()) as Record<string, unknown>;
-  if (!response.ok) throw new Error(String(payload.error ?? t("influencer.referral.failed")));
+  // `t` belongs to the components below, not to this module; a failure with
+  // no message of its own used to crash here instead of reporting itself.
+  // i18n-ignore: a fallback error, shown only when the server gave none.
+  if (!response.ok) throw new Error(String(payload.error ?? "The request did not go through."));
   return payload as Account | { ok: true };
 }
 

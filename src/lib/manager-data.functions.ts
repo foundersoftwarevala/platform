@@ -76,6 +76,7 @@ async function requireManager(accessToken?: string) {
   // service-role client sends the service key as apikey, which the auth
   // service refuses with "Invalid API key", so this guard used to turn
   // every valid operator away. See lib/auth/bearer-user.server.ts.
+  const { userFromBearerToken } = await import("@/lib/auth/bearer-user.server");
   const caller = await userFromBearerToken(token);
   if (!caller) throw new Error("Manager authentication required");
   // The Control Panel gates the Finance Manager on the `finance` role, so a
@@ -91,7 +92,7 @@ async function requireManager(accessToken?: string) {
   const role = isBoss ? "boss" : isAdmin ? "admin" : "finance";
   return {
     client: db,
-    actor: { id: user.user.id, email: user.user.email ?? null, role },
+    actor: { id: caller.id, email: caller.email ?? null, role },
   };
 }
 

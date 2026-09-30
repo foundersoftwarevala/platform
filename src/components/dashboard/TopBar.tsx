@@ -6,6 +6,28 @@ import { LogoButton } from "./LogoButton";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { signOut } from "@/lib/auth-bridge";
 import { copyToClipboard, notifyPending, readPref, writePref } from "@/lib/ui-actions";
+import { authHeaders } from "@/lib/auth/operator-fetch";
+
+/**
+ * The reseller's own referral link, from /api/reseller/referral.
+ *
+ * The copy button used to copy "/?ref=reseller" - the role's name, which is no
+ * one's code, so a visit through it was credited to nobody. It now copies the
+ * reseller's newest active link, and with none it opens the generator.
+ */
+async function copyResellerLink(onOpenModule?: (k: string) => void) {
+  try {
+    const response = await fetch("/api/reseller/referral", { headers: await authHeaders() });
+    const body = (await response.json().catch(() => ({}))) as { links?: { url: string; active: boolean }[]; error?: string };
+    if (!response.ok) throw new Error(body.error ?? "Your referral links could not be read");
+    const link = (body.links ?? []).find((l) => l.active);
+    if (link) return copyToClipboard(`${window.location.origin}${link.url}`, "Referral link copied");
+    notifyPending("No referral link yet", "Create one in the Referral Link Generator, then copy it from here.");
+    onOpenModule?.("center:referral");
+  } catch (error) {
+    notifyPending("Referral link", error instanceof Error ? error.message : String(error));
+  }
+}
 import { ROLES, ROLE_ORDER, type RoleConfig, type RoleKey } from "@/lib/roles";
 
 export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowedRoles }: { role: RoleConfig; onSwitchRole: (r: RoleKey) => void; onOpenAIChat?: () => void; onOpenModule?: (k: string) => void; allowedRoles?: RoleKey[] }) {
@@ -86,10 +108,12 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
       </button>
 
 
-      {/* Secondary controls from tablet width up. On a phone they pushed the
-          bar 50 px past the screen edge, so every dashboard scrolled sideways;
+      {/* Secondary controls from wide-laptop width up (the value pills from 2xl). On a phone they pushed the
+          bar 50 px past the screen edge, and on a 768 px tablet still 34 px
+          (130 px on the reseller's), and at 1024 px 440 px, so the dashboard
+          scrolled sideways;
           search, chat, theme, notifications and the profile menu stay. */}
-      <div className="hidden md:contents">
+      <div className={role.key === "reseller" ? "hidden 2xl:contents" : "hidden xl:contents"}>
       <SelectChip prefKey="currency" ariaLabel="Display currency" label="USD" options={["USD","INR","EUR","GBP","AED"]} />
 
       <Divider />
@@ -98,13 +122,13 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
 
       {role.key === "reseller" ? (
         <>
-          <Pill icon={Trophy}     label="—" tone="warning" title="Reseller Rank" />
-          <Pill icon={BadgeCheck} label="—" tone="violet"  title="Reseller Level" />
-          <Pill icon={Zap}        label="—" tone="violet"  title="XP / Achievements" />
-          <Pill icon={Wallet}     label="—" tone="success" title="Wallet Balance" />
-          <Pill icon={Coins}      label="—" tone="success" title="Available Commission" />
-          <Pill icon={Hourglass}  label="—" tone="warning" title="Pending Commission" />
-          <Pill icon={TrendingUp} label="—" tone="success" title="Lifetime Earnings" />
+          <Pill wide icon={Trophy}     label="—" tone="warning" title="Reseller Rank" />
+          <Pill wide icon={BadgeCheck} label="—" tone="violet"  title="Reseller Level" />
+          <Pill wide icon={Zap}        label="—" tone="violet"  title="XP / Achievements" />
+          <Pill wide icon={Wallet}     label="—" tone="success" title="Wallet Balance" />
+          <Pill wide icon={Coins}      label="—" tone="success" title="Available Commission" />
+          <Pill wide icon={Hourglass}  label="—" tone="warning" title="Pending Commission" />
+          <Pill wide icon={TrendingUp} label="—" tone="success" title="Lifetime Earnings" />
         </>
       ) : (
         <>
@@ -123,7 +147,7 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
           <IconBtn
             icon={Link2}
             title="Copy referral link"
-            onClick={() => copyToClipboard(`${window.location.origin}/?ref=${role.key}`, "Referral link copied")}
+            onClick={() => void copyResellerLink(onOpenModule)}
           />
           <IconBtn
             icon={QrCode}
@@ -384,14 +408,14 @@ function StoreSwitcher() {
 }
 
 
-function Pill({ icon: Icon, label, tone, title }: { icon: any; label: string; tone: "warning"|"violet"|"success"; title?: string }) {
+function Pill({ icon: Icon, label, tone, title, wide }: { icon: any; label: string; tone: "warning"|"violet"|"success"; title?: string; wide?: boolean }) {
   const toneMap = {
     warning: "text-warning",
     violet:  "text-[oklch(0.75_0.18_300)]",
     success: "text-success",
   } as const;
   return (
-    <div title={title} className="hidden lg:flex items-center gap-1.5 rounded-lg bg-surface border border-border px-2.5 py-1.5 text-xs">
+    <div title={title} className={`${wide ? "hidden min-[2400px]:flex" : "hidden 2xl:flex"} items-center gap-1.5 rounded-lg bg-surface border border-border px-2.5 py-1.5 text-xs`}>
       <Icon className={`h-3.5 w-3.5 ${toneMap[tone]}`} />
       <span className="font-semibold text-foreground/60">{label}</span>
     </div>

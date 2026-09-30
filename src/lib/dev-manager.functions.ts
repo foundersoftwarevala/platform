@@ -46,7 +46,7 @@ async function requireDevManager(): Promise<string> {
   if (!(roles ?? []).some((r) => allowed.has(String(r.role)))) {
     throw new Error("Forbidden: Developer Manager role required");
   }
-  return user.user.id;
+  return caller.id;
 }
 
 
@@ -192,4 +192,21 @@ export const setDeveloperStatus = createServerFn({ method: "POST" })
       data.reason,
       data.actor,
     );
+  });
+
+export const completeDeveloperOnboarding = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        developerId: z.string().uuid(),
+        note: z.string().trim().min(5).max(500),
+        actor: actorSchema,
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const reviewerId = await requireDevManager();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { completeDeveloperOnboardingInDb } = await import("./dev-manager.server");
+    return completeDeveloperOnboardingInDb(supabaseAdmin, reviewerId, data.developerId, data.note, data.actor);
   });

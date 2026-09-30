@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { RequireRole } from "@/components/auth/RequireRole";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -55,6 +55,9 @@ import { CommandCenter } from "@/components/command-center/CommandCenter";
 import { ExecutiveRotator } from "@/components/command-center/ExecutiveRotator";
 
 import { KPIGrid, KPIBox } from "@/components/boss/KPIGrid";
+import { supabase } from "@/integrations/supabase/client";
+import { cockpitTiles, relative, type Tile } from "@/lib/control-panel/cockpit";
+import { useCockpitFigures } from "@/lib/control-panel/use-cockpit";
 import { ValaAiAgent } from "@/components/vala-ai/ValaAiAgent";
 
 export const Route = createFileRoute("/control-panel")({
@@ -81,75 +84,73 @@ export const Route = createFileRoute("/control-panel")({
   component: GuardedIndex,
 });
 
-type Status = "healthy" | "warning" | "critical" | "action";
-type Urgency = "low" | "medium" | "high" | "critical";
-
+/**
+ * The cockpit's forty tiles: what each one is and which module it belongs to.
+ * Their values used to be typed in here - "₹42.5L", "2,847", "99.97%" - and
+ * never changed. They now come from /api/control-panel/cockpit, counted from
+ * the tables each Manager reads (see src/lib/control-panel/cockpit.ts).
+ */
 interface Kpi {
   id: string;
   label: string;
-  value: string;
-  subValues: string[];
-  status: Status;
   icon: React.ElementType;
   source: string;
-  urgency: Urgency;
-  lastUpdate: string;
 }
 
 // ===== MERGED 2 × 20 = 40 KPI CARDS (all 14 dashboard boxes folded in) =====
 const KPI_BOXES: Kpi[] = [
   // KEY STATS
-  { id: "revenue", label: "Total Revenue", value: "₹42.5L", subValues: ["Finance ledger"], status: "healthy", icon: DollarSign, source: "Key Stats", urgency: "low", lastUpdate: "2 min ago" },
-  { id: "growth", label: "Growth", value: "+18%", subValues: ["Month over month"], status: "healthy", icon: TrendingUp, source: "Key Stats", urgency: "low", lastUpdate: "2 min ago" },
-  { id: "users", label: "Active Users", value: "2,847", subValues: ["Across all products"], status: "healthy", icon: Users, source: "Key Stats", urgency: "low", lastUpdate: "1 min ago" },
-  { id: "countries", label: "Countries", value: "12", subValues: ["4 continents"], status: "healthy", icon: Globe2, source: "Key Stats", urgency: "low", lastUpdate: "10 min ago" },
-  { id: "franchises", label: "Franchises", value: "24", subValues: ["22 active, 2 pending"], status: "warning", icon: Building2, source: "Key Stats", urgency: "medium", lastUpdate: "8 min ago" },
+  { id: "revenue", label: "Total Revenue", icon: DollarSign, source: "Key Stats" },
+  { id: "growth", label: "Growth", icon: TrendingUp, source: "Key Stats" },
+  { id: "users", label: "Active Users", icon: Users, source: "Key Stats" },
+  { id: "countries", label: "Countries", icon: Globe2, source: "Key Stats" },
+  { id: "franchises", label: "Franchises", icon: Building2, source: "Key Stats" },
   // SYSTEM HEALTH
-  { id: "server-status", label: "Server Status", value: "ONLINE", subValues: ["All nodes reachable"], status: "healthy", icon: Server, source: "System Health", urgency: "low", lastUpdate: "just now" },
-  { id: "uptime", label: "Uptime", value: "99.97%", subValues: ["Last 30 days"], status: "healthy", icon: Activity, source: "System Health", urgency: "low", lastUpdate: "5 min ago" },
-  { id: "cpu-load", label: "CPU Load", value: "32%", subValues: ["Cluster average"], status: "healthy", icon: Cpu, source: "System Health", urgency: "low", lastUpdate: "30 sec ago" },
-  { id: "ram", label: "RAM Usage", value: "58%", subValues: ["128 GB pool"], status: "warning", icon: MemoryStick, source: "System Health", urgency: "medium", lastUpdate: "30 sec ago" },
-  { id: "storage", label: "Storage Used", value: "38%", subValues: ["1.9 TB free"], status: "healthy", icon: HardDrive, source: "Server Mgmt", urgency: "low", lastUpdate: "25 min ago" },
+  { id: "server-status", label: "Server Status", icon: Server, source: "System Health" },
+  { id: "uptime", label: "Uptime", icon: Activity, source: "System Health" },
+  { id: "cpu-load", label: "CPU Load", icon: Cpu, source: "System Health" },
+  { id: "ram", label: "RAM Usage", icon: MemoryStick, source: "System Health" },
+  { id: "storage", label: "Storage Used", icon: HardDrive, source: "Server Mgmt" },
   // LIVE ACTIVITY + APPROVALS
-  { id: "live-activity", label: "Live Activity", value: "45", subValues: ["Events in last hour"], status: "action", icon: Zap, source: "Live Activity", urgency: "medium", lastUpdate: "just now" },
-  { id: "approvals", label: "Pending Approvals", value: "6", subValues: ["3 role · 2 deploy · 1 legal"], status: "action", icon: FileCheck, source: "Approvals", urgency: "high", lastUpdate: "9 min ago" },
-  { id: "role-approvals", label: "Role Approvals", value: "3", subValues: ["Awaiting boss sign-off"], status: "action", icon: BadgeCheck, source: "Approvals", urgency: "high", lastUpdate: "9 min ago" },
-  { id: "deploy-approvals", label: "Deployment Requests", value: "2", subValues: ["Build #4521 queued"], status: "warning", icon: Rocket, source: "Approvals", urgency: "medium", lastUpdate: "5 min ago" },
-  { id: "completed-today", label: "Completed Today", value: "12", subValues: ["Across all teams"], status: "healthy", icon: CheckCircle, source: "CEO Overview", urgency: "low", lastUpdate: "12 min ago" },
+  { id: "live-activity", label: "Live Activity", icon: Zap, source: "Live Activity" },
+  { id: "approvals", label: "Pending Approvals", icon: FileCheck, source: "Approvals" },
+  { id: "role-approvals", label: "Role Approvals", icon: BadgeCheck, source: "Approvals" },
+  { id: "deploy-approvals", label: "Deployment Requests", icon: Rocket, source: "Approvals" },
+  { id: "completed-today", label: "Completed Today", icon: CheckCircle, source: "CEO Overview" },
   // CEO OVERVIEW
-  { id: "active-tasks", label: "Active Tasks", value: "24", subValues: ["CEO workstream"], status: "action", icon: Target, source: "CEO Overview", urgency: "medium", lastUpdate: "6 min ago" },
-  { id: "performance", label: "Performance", value: "92%", subValues: ["On track"], status: "healthy", icon: Gauge, source: "CEO Overview", urgency: "low", lastUpdate: "1 hr ago" },
+  { id: "active-tasks", label: "Active Tasks", icon: Target, source: "CEO Overview" },
+  { id: "performance", label: "Performance", icon: Gauge, source: "CEO Overview" },
   // VALA AI
-  { id: "ai-jobs", label: "AI Active Jobs", value: "12", subValues: ["Vala AI workers"], status: "action", icon: Brain, source: "Vala AI", urgency: "medium", lastUpdate: "just now" },
-  { id: "ai-queue", label: "AI Queue Count", value: "45", subValues: ["Avg wait 42 sec"], status: "warning", icon: Bot, source: "Vala AI", urgency: "high", lastUpdate: "just now" },
-  { id: "clone-status", label: "Clone Status", value: "Ready", subValues: ["Last clone 2 min ago"], status: "healthy", icon: Terminal, source: "Vala AI", urgency: "low", lastUpdate: "2 min ago" },
-  { id: "deploy-status", label: "Deploy Status", value: "Ready", subValues: ["Pipeline green"], status: "healthy", icon: Rocket, source: "Vala AI", urgency: "low", lastUpdate: "4 min ago" },
-  { id: "server-alerts", label: "Server Alerts", value: "0", subValues: ["Health excellent"], status: "healthy", icon: ShieldCheck, source: "Server Mgmt", urgency: "low", lastUpdate: "20 min ago" },
+  { id: "ai-jobs", label: "AI Active Jobs", icon: Brain, source: "Vala AI" },
+  { id: "ai-queue", label: "AI Queue Count", icon: Bot, source: "Vala AI" },
+  { id: "clone-status", label: "Clone Status", icon: Terminal, source: "Vala AI" },
+  { id: "deploy-status", label: "Deploy Status", icon: Rocket, source: "Vala AI" },
+  { id: "server-alerts", label: "Server Alerts", icon: ShieldCheck, source: "Server Mgmt" },
   // CONTINENT / COUNTRY
-  { id: "continents", label: "Active Continents", value: "4", subValues: ["Top region: Asia"], status: "healthy", icon: Globe2, source: "Geo Control", urgency: "low", lastUpdate: "40 min ago" },
-  { id: "risk", label: "Region Risk Level", value: "Low", subValues: ["No escalations"], status: "healthy", icon: Flag, source: "Geo Control", urgency: "low", lastUpdate: "40 min ago" },
-  { id: "compliance", label: "Compliance", value: "100%", subValues: ["12 countries cleared"], status: "healthy", icon: BadgeCheck, source: "Legal", urgency: "low", lastUpdate: "1 day ago" },
+  { id: "continents", label: "Active Continents", icon: Globe2, source: "Geo Control" },
+  { id: "risk", label: "Region Risk Level", icon: Flag, source: "Geo Control" },
+  { id: "compliance", label: "Compliance", icon: BadgeCheck, source: "Legal" },
   // FRANCHISE
-  { id: "franchise-active", label: "Franchise Active", value: "22", subValues: ["2 onboarding"], status: "healthy", icon: Building2, source: "Franchise", urgency: "low", lastUpdate: "50 min ago" },
-  { id: "revenue-share", label: "Revenue Share", value: "₹18.2L", subValues: ["+15% growth"], status: "healthy", icon: PiggyBank, source: "Franchise", urgency: "low", lastUpdate: "1 hr ago" },
+  { id: "franchise-active", label: "Franchise Active", icon: Building2, source: "Franchise" },
+  { id: "revenue-share", label: "Revenue Share", icon: PiggyBank, source: "Franchise" },
   // SALES & SUPPORT
-  { id: "tickets", label: "Open Tickets", value: "34", subValues: ["28 resolved today"], status: "warning", icon: Headphones, source: "Sales & Support", urgency: "medium", lastUpdate: "3 min ago" },
-  { id: "today-revenue", label: "Today Revenue", value: "₹2.4L", subValues: ["SLA on track"], status: "healthy", icon: DollarSign, source: "Sales & Support", urgency: "low", lastUpdate: "7 min ago" },
-  { id: "csat", label: "CSAT Score", value: "4.7/5", subValues: ["1,204 ratings"], status: "healthy", icon: Star, source: "Support", urgency: "low", lastUpdate: "15 min ago" },
+  { id: "tickets", label: "Open Tickets", icon: Headphones, source: "Sales & Support" },
+  { id: "today-revenue", label: "Today Revenue", icon: DollarSign, source: "Sales & Support" },
+  { id: "csat", label: "CSAT Score", icon: Star, source: "Support" },
   // PRODUCT
-  { id: "products", label: "Total Products", value: "18", subValues: ["14 live · 4 in dev"], status: "healthy", icon: Box, source: "Product Mgr", urgency: "low", lastUpdate: "35 min ago" },
-  { id: "update-requests", label: "Update Requests", value: "6", subValues: ["2 pending review"], status: "action", icon: UserPlus, source: "Product Mgr", urgency: "medium", lastUpdate: "22 min ago" },
+  { id: "products", label: "Total Products", icon: Box, source: "Product Mgr" },
+  { id: "update-requests", label: "Update Requests", icon: UserPlus, source: "Product Mgr" },
   // DEMO / LIVE
-  { id: "demos", label: "Active Demos", value: "8", subValues: ["5 scheduled"], status: "action", icon: Terminal, source: "Demo Manager", urgency: "medium", lastUpdate: "18 min ago" },
-  { id: "conversion", label: "Demo Conversion", value: "42%", subValues: ["12 demo requests"], status: "healthy", icon: Percent, source: "Demo Manager", urgency: "low", lastUpdate: "18 min ago" },
-  { id: "live-software", label: "Live Software", value: "14", subValues: ["All deployments stable"], status: "healthy", icon: Eye, source: "Demo Manager", urgency: "low", lastUpdate: "30 min ago" },
+  { id: "demos", label: "Active Demos", icon: Terminal, source: "Demo Manager" },
+  { id: "conversion", label: "Demo Conversion", icon: Percent, source: "Demo Manager" },
+  { id: "live-software", label: "Live Software", icon: Eye, source: "Demo Manager" },
   // FINANCE
-  { id: "wallet", label: "Wallet Balance", value: "₹8.5L", subValues: ["Payout processed"], status: "healthy", icon: Wallet, source: "Finance", urgency: "low", lastUpdate: "12 min ago" },
-  { id: "inflow", label: "Monthly Inflow", value: "₹24.3L", subValues: ["+9% MoM"], status: "healthy", icon: TrendingUp, source: "Finance", urgency: "low", lastUpdate: "1 hr ago" },
-  { id: "outflow", label: "Monthly Outflow", value: "₹12.1L", subValues: ["Within budget"], status: "warning", icon: TrendingDown, source: "Finance", urgency: "medium", lastUpdate: "1 hr ago" },
-  { id: "net-profit", label: "Net Profit", value: "+₹12.2L", subValues: ["Margin 50.2%"], status: "healthy", icon: PiggyBank, source: "Finance", urgency: "low", lastUpdate: "1 hr ago" },
+  { id: "wallet", label: "Wallet Balance", icon: Wallet, source: "Finance" },
+  { id: "inflow", label: "Monthly Inflow", icon: TrendingUp, source: "Finance" },
+  { id: "outflow", label: "Monthly Outflow", icon: TrendingDown, source: "Finance" },
+  { id: "net-profit", label: "Net Profit", icon: PiggyBank, source: "Finance" },
   // ALERTS
-  { id: "alerts", label: "Alert Summary", value: "10", subValues: ["0 critical · 3 warning · 7 info"], status: "critical", icon: AlertTriangle, source: "Alerts", urgency: "critical", lastUpdate: "just now" },
+  { id: "alerts", label: "Alert Summary", icon: AlertTriangle, source: "Alerts" },
 ];
 
 function CockpitBanner() {
@@ -175,6 +176,16 @@ function Index() {
   const [activeRole, setActiveRole] = useState<RoleId>("boss_owner");
   const [selectedKpi, setSelectedKpi] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // On a phone the full 244px sidebar left the cockpit 146px, so every panel
+  // was squeezed and the page scrolled sideways. Below the md breakpoint it
+  // starts collapsed to its icons; it still opens on toggle or hover, so
+  // nothing is hidden.
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) setSidebarCollapsed(true);
+  }, []);
+  const cockpit = useCockpitFigures();
+  const tiles: Record<string, Tile> | null = cockpit.data ? cockpitTiles(cockpit.data) : null;
+  const updated = cockpit.data ? relative(cockpit.data.computed_at) : null;
 
   return (
     <TooltipProvider>
@@ -318,7 +329,15 @@ function Index() {
               }
               toast.info(`No module is wired to "${roleId.replace(/_/g, " ")}" yet`);
             }}
-            onLogout={() => toast.info("Logging out...")}
+            onLogout={async () => {
+              // This only ever showed "Logging out..." - the session stayed.
+              const { error } = await supabase.auth.signOut();
+              if (error) {
+                toast.error(error.message);
+                return;
+              }
+              void navigate({ to: "/login" });
+            }}
           />
         </div>
 
@@ -336,15 +355,49 @@ function Index() {
                 LIVE
               </span>
             </div>
+            {cockpit.isError && (
+              <div
+                role="alert"
+                className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+              >
+                <span>{(cockpit.error as Error).message}</span>
+                <button
+                  type="button"
+                  onClick={() => void cockpit.refetch()}
+                  className="rounded-md border border-red-400/40 px-2 py-1 font-semibold hover:bg-red-500/20"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
             <KPIGrid>
-              {KPI_BOXES.map((kpi) => (
-                <KPIBox
-                  key={kpi.id}
-                  {...kpi}
-                  isSelected={selectedKpi === kpi.id}
-                  onClick={() => setSelectedKpi(kpi.id === selectedKpi ? null : kpi.id)}
-                />
-              ))}
+              {KPI_BOXES.map((kpi) => {
+                const tile = tiles?.[kpi.id];
+                return (
+                  <KPIBox
+                    key={kpi.id}
+                    {...kpi}
+                    value={tile?.value ?? "—"}
+                    subValues={tile?.subValues ?? [cockpit.isError ? "Could not be read" : "Loading…"]}
+                    status={tile?.status ?? "untracked"}
+                    series={tile?.series}
+                    trend={tile?.trend}
+                    urgency={tile?.status === "critical" ? "critical" : tile?.status === "warning" ? "medium" : "low"}
+                    lastUpdate={updated ?? undefined}
+                    activity={
+                      !tile
+                        ? cockpit.isError
+                          ? "Not available"
+                          : "Loading…"
+                        : tile.status === "untracked"
+                          ? "Not recorded anywhere yet"
+                          : `Updated ${updated}`
+                    }
+                    isSelected={selectedKpi === kpi.id}
+                    onClick={() => setSelectedKpi(kpi.id === selectedKpi ? null : kpi.id)}
+                  />
+                );
+              })}
             </KPIGrid>
           </section>
         </main>

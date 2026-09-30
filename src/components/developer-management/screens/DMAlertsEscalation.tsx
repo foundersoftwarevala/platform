@@ -7,13 +7,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Clock, Shield, TrendingDown } from 'lucide-react';
-
-const alerts = [
-  { id: 'ALT-001', type: 'delay', message: 'Task TSK-004 delayed by 2 days', severity: 'high', dev: 'DEV-002', time: '10 min ago' },
-  { id: 'ALT-002', type: 'security', message: 'Unusual login attempt detected', severity: 'critical', dev: 'DEV-004', time: '30 min ago' },
-  { id: 'ALT-003', type: 'performance', message: 'Performance dropped below threshold', severity: 'medium', dev: 'DEV-004', time: '1 hour ago' },
-  { id: 'ALT-004', type: 'delay', message: 'Sprint deadline at risk', severity: 'high', dev: null, time: '2 hours ago' },
-];
+import { useDeliveryOverview } from '@/hooks/useDevManagerData';
 
 const getTypeIcon = (type: string) => {
   switch (type) {
@@ -34,7 +28,35 @@ const getSeverityColor = (severity: string) => {
   }
 };
 
+/**
+ * Alerts, from the delivery overview.
+ *
+ * The four alerts here were typed in. Delay alerts are now the tasks at SLA
+ * risk and the blocked tasks; performance alerts are developers whose trend is
+ * down. Security alerts for developers are not recorded anywhere, so that
+ * count is shown as not tracked rather than as a number.
+ */
 export const DMAlertsEscalation: React.FC = () => {
+  const overview = useDeliveryOverview();
+  const d = overview.data;
+  const delay = [
+    ...(d?.risks ?? []).map((r) => ({
+      id: r.code, type: 'delay', severity: r.riskLevel === 'moderate' ? 'medium' : r.riskLevel,
+      message: `${r.title}: ${r.hoursRemaining < 0 ? `${Math.abs(Math.round(r.hoursRemaining))} h past its SLA` : `${Math.round(r.hoursRemaining)} h left on its SLA`}`,
+      dev: r.assignee || null, time: r.escalatedAt ? `escalated ${new Date(r.escalatedAt).toLocaleString()}` : '',
+    })),
+    ...(d?.blocked ?? []).map((b) => ({
+      id: b.code, type: 'delay', severity: b.escalated ? 'critical' : 'high',
+      message: `${b.title} is blocked: ${b.blockedReason}`,
+      dev: b.assignee || null, time: `blocked ${Math.round(b.blockedHours)} h`,
+    })),
+  ];
+  const performance = (d?.performance ?? []).filter((p) => p.trend === 'down').map((p) => ({
+    id: p.valaId, type: 'performance', severity: 'medium',
+    message: `On-time rate ${Math.round(p.onTimeRate)}%, quality ${Math.round(p.qualityScore)}%, trending down`,
+    dev: p.valaId, time: '',
+  }));
+  const alerts = [...delay, ...performance];
   return (
     <div className="space-y-6">
       <div>
@@ -43,13 +65,13 @@ export const DMAlertsEscalation: React.FC = () => {
       </div>
 
       {/* Alert Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="bg-amber-500/5 border-amber-500/20">
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <Clock className="h-8 w-8 text-amber-500" />
               <div>
-                <div className="text-2xl font-bold">2</div>
+                <div className="text-2xl font-bold">{d ? delay.length : '—'}</div>
                 <div className="text-sm text-muted-foreground">Delay Alerts</div>
               </div>
             </div>
@@ -60,8 +82,8 @@ export const DMAlertsEscalation: React.FC = () => {
             <div className="flex items-center gap-3">
               <Shield className="h-8 w-8 text-red-500" />
               <div>
-                <div className="text-2xl font-bold">1</div>
-                <div className="text-sm text-muted-foreground">Security Alerts</div>
+                <div className="text-2xl font-bold">—</div>
+                <div className="text-sm text-muted-foreground">Security Alerts (not tracked)</div>
               </div>
             </div>
           </CardContent>
@@ -71,7 +93,7 @@ export const DMAlertsEscalation: React.FC = () => {
             <div className="flex items-center gap-3">
               <TrendingDown className="h-8 w-8 text-purple-500" />
               <div>
-                <div className="text-2xl font-bold">1</div>
+                <div className="text-2xl font-bold">{d ? performance.length : '—'}</div>
                 <div className="text-sm text-muted-foreground">Performance Alerts</div>
               </div>
             </div>
@@ -89,9 +111,14 @@ export const DMAlertsEscalation: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
+            {(overview.isLoading || overview.isError || alerts.length === 0) && (
+              <p className="text-sm text-muted-foreground">
+                {overview.isLoading ? 'Loading alerts…' : overview.isError ? `Alerts could not be read: ${(overview.error as Error).message}` : 'No active alert.'}
+              </p>
+            )}
             {alerts.map((alert) => (
               <div 
-                key={alert.id}
+                key={`${alert.type}-${alert.id}-${alert.message}`}
                 className={`p-4 rounded-lg border ${getSeverityColor(alert.severity)}`}
               >
                 <div className="flex items-center justify-between mb-2">

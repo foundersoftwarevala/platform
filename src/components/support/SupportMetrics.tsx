@@ -1,61 +1,78 @@
 import { motion } from 'framer-motion';
+import { relativeTime, useEscalations, useTeamMembers, useTickets } from '@/hooks/useSalesSupportData';
 import { 
   Inbox, CheckCircle2, Clock, Smile, ArrowUpRight, 
   TrendingUp, Users, MessageCircle
 } from 'lucide-react';
 
-const metrics = [
-  { 
-    label: 'Open Tickets', 
-    value: '12', 
-    icon: Inbox, 
-    subtext: '3 high priority',
-    color: 'teal',
-    trend: null
-  },
-  { 
-    label: 'Resolved Today', 
-    value: '24', 
-    icon: CheckCircle2, 
-    subtext: '+8 from yesterday',
-    color: 'emerald',
-    trend: 'up'
-  },
-  { 
-    label: 'Avg Response', 
-    value: '4.2m', 
-    icon: Clock, 
-    subtext: 'Under 5min target',
-    color: 'sky',
-    trend: 'up'
-  },
-  { 
-    label: 'Satisfaction', 
-    value: '96%', 
-    icon: Smile, 
-    subtext: 'Excellent rating',
-    color: 'amber',
-    trend: 'up'
-  },
-  { 
-    label: 'Escalations', 
-    value: '2', 
-    icon: ArrowUpRight, 
-    subtext: 'To developer team',
-    color: 'rose',
-    trend: null
-  },
-];
-
-const recentActivity = [
-  { action: 'Ticket #1247 resolved', time: '2 min ago', type: 'resolved' },
-  { action: 'New ticket from Raj Enterprises', time: '5 min ago', type: 'new' },
-  { action: 'Escalated to dev team', time: '12 min ago', type: 'escalated' },
-  { action: 'Client satisfaction received: 5★', time: '18 min ago', type: 'feedback' },
-  { action: 'Ticket #1245 resolved', time: '25 min ago', type: 'resolved' },
-];
-
+/**
+ * The support desk's overview. Every figure here was typed in - "12 open",
+ * "24 resolved today", "96% satisfaction", "5 active agents", a response-time
+ * chart drawn from a fixed list of heights. They are now counted from the
+ * support tickets and the support team, through the same hooks the rest of
+ * Sales & Support reads.
+ */
 const SupportMetrics = () => {
+  const ticketQuery = useTickets();
+  const escalations = useEscalations().data ?? [];
+  const agents = useTeamMembers("support").data ?? [];
+  const desk = { loading: ticketQuery.isLoading, error: ticketQuery.error ? (ticketQuery.error as Error).message : null };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tickets = (ticketQuery.data ?? []) as any[];
+  const isOpen = (t: { status: string | null }) => t.status !== "resolved" && t.status !== "closed";
+  const firstResponseMinutes = (t: { first_response_at?: string | null; created_at: string }) =>
+    t.first_response_at ? Math.max(0, (new Date(t.first_response_at).getTime() - new Date(t.created_at).getTime()) / 60_000) : null;
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const since = (iso: string | null) => !!iso && new Date(iso) >= dayStart;
+  const open = tickets.filter(isOpen);
+  const responses = tickets.map(firstResponseMinutes).filter((m): m is number => m != null);
+  const rated = tickets.filter((t) => t.csat != null);
+  const avgCsat = rated.length ? rated.reduce((sum, t) => sum + Number(t.csat), 0) / rated.length : null;
+  const figure = (v: string) => (desk.loading ? "…" : v);
+  const metrics = [
+    {
+      label: 'Open Tickets', value: figure(String(open.length)), icon: Inbox,
+      subtext: `${open.filter((t) => t.priority === "high" || t.priority === "urgent" || t.priority === "critical").length} high priority`,
+      color: 'teal', trend: null,
+    },
+    {
+      label: 'Resolved Today', value: figure(String(tickets.filter((t) => since(t.resolved_at)).length)), icon: CheckCircle2,
+      subtext: `${tickets.filter((t) => since(t.created_at)).length} opened today`, color: 'emerald', trend: null,
+    },
+    {
+      label: 'Avg First Response', value: figure(responses.length ? `${Math.round(responses.reduce((a, m) => a + m, 0) / responses.length)}m` : "—"),
+      icon: Clock, subtext: `${responses.length} tickets answered`, color: 'sky', trend: null,
+    },
+    {
+      label: 'Satisfaction', value: figure(avgCsat == null ? "—" : `${avgCsat.toFixed(1)}/5`), icon: Smile,
+      subtext: rated.length ? `${rated.length} ratings` : 'No ratings yet', color: 'amber', trend: null,
+    },
+    {
+      label: 'Escalations', value: figure(String(escalations.length)), icon: ArrowUpRight,
+      subtext: `${tickets.filter((t) => t.sla_breached).length} past SLA`, color: 'rose', trend: null,
+    },
+  ];
+  const recentActivity = [...tickets]
+    .sort((x, y) => String(y.updated_at).localeCompare(String(x.updated_at)))
+    .slice(0, 5)
+    .map((t) => ({
+      action: `${t.reference ?? "Ticket"} ${t.status === "resolved" || t.status === "closed" ? "resolved" : t.status.replace(/_/g, " ")} — ${t.subject}`,
+      time: relativeTime(t.updated_at),
+      type: t.status === "resolved" || t.status === "closed" ? 'resolved' : t.status === "new" ? 'new' : t.sla_breached ? 'escalated' : 'feedback',
+    }));
+  // The support team as recorded in the team directory.
+  const team = [
+    { name: 'Online', count: agents.filter((a) => a.status === "online" || a.status === "active").length, status: 'online' },
+    { name: 'Away', count: agents.filter((a) => a.status === "away").length, status: 'busy' },
+    { name: 'Offline', count: agents.filter((a) => a.status === "offline").length, status: 'away' },
+  ];
+  // Tickets opened in each of the last 12 hours - the desk's real load.
+  const hours = Array.from({ length: 12 }, (_, i) => {
+    const end = Date.now() - (11 - i) * 3_600_000;
+    return tickets.filter((t) => { const at = new Date(t.created_at).getTime(); return at > end - 3_600_000 && at <= end; }).length;
+  });
+  const peak = Math.max(1, ...hours);
+
   const getColorClasses = (color: string) => {
     const colors: Record<string, { bg: string; text: string; border: string }> = {
       teal: { bg: 'bg-teal-500/10', text: 'text-teal-400', border: 'border-teal-500/20' },
@@ -71,8 +88,10 @@ const SupportMetrics = () => {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-semibold text-foreground">Good afternoon, Support Team</h2>
-        <p className="text-muted-foreground mt-1">Here's your overview for today</p>
+        <h2 className="text-2xl font-semibold text-foreground">Support overview</h2>
+        <p className="text-muted-foreground mt-1">
+          {desk.error ? `The desk could not be read: ${desk.error}` : "Counted from the support tickets, now"}
+        </p>
       </div>
 
       {/* Metrics Grid */}
@@ -118,6 +137,9 @@ const SupportMetrics = () => {
             Recent Activity
           </h3>
           <div className="space-y-4">
+            {recentActivity.length === 0 && (
+              <p className="text-sm text-muted-foreground">{desk.loading ? "Loading…" : "No ticket activity yet."}</p>
+            )}
             {recentActivity.map((activity, index) => (
               <motion.div
                 key={index}
@@ -150,11 +172,7 @@ const SupportMetrics = () => {
             Team Status
           </h3>
           <div className="space-y-4">
-            {[
-              { name: 'Active Agents', count: 5, status: 'online' },
-              { name: 'In Call', count: 2, status: 'busy' },
-              { name: 'On Break', count: 1, status: 'away' },
-            ].map((item, index) => (
+            {team.map((item, index) => (
               <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-card/60">
                 <div className="flex items-center gap-3">
                   <div className={`w-2 h-2 rounded-full ${
@@ -170,20 +188,21 @@ const SupportMetrics = () => {
 
           {/* Response Time Chart */}
           <div className="mt-6 pt-6 border-t border-border">
-            <p className="text-sm text-muted-foreground mb-3">Response Time Today</p>
+            <p className="text-sm text-muted-foreground mb-3">Tickets opened, last 12 hours</p>
             <div className="flex items-end gap-1 h-16">
-              {[35, 45, 30, 60, 40, 55, 25, 50, 35, 45, 30, 40].map((height, i) => (
+              {hours.map((n, i) => (
                 <motion.div
                   key={i}
+                  title={`${n} ticket${n === 1 ? "" : "s"}`}
                   initial={{ height: 0 }}
-                  animate={{ height: `${height}%` }}
+                  animate={{ height: `${Math.max(4, (n / peak) * 100)}%` }}
                   transition={{ delay: 0.8 + i * 0.05, duration: 0.4 }}
                   className="flex-1 rounded-t bg-gradient-to-t from-teal-500/30 to-teal-500/60"
                 />
               ))}
             </div>
             <div className="flex justify-between text-xs text-muted-foreground mt-2">
-              <span>8 AM</span>
+              <span>12h ago</span>
               <span>Now</span>
             </div>
           </div>
