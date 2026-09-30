@@ -33,20 +33,10 @@ interface BehaviorPattern {
 const FraudDetection = () => {
   const { executeAction } = useGlobalActions();
 
-  const [alerts] = useState<FraudAlert[]>([
-    { id: '1', type: 'abuse', severity: 'critical', customerId: 'USR-1234', customerName: 'John Smith', description: 'Multiple refund requests with different payment methods', detectedAt: '5 min ago', status: 'pending', riskScore: 95 },
-    { id: '2', type: 'spam', severity: 'high', customerId: 'USR-5678', customerName: 'Mike Johnson', description: 'Sending repetitive tickets with similar content', detectedAt: '15 min ago', status: 'investigating', riskScore: 78 },
-    { id: '3', type: 'bot', severity: 'medium', customerId: 'USR-9012', customerName: 'Bot Account', description: 'Automated ticket submission pattern detected', detectedAt: '1 hour ago', status: 'pending', riskScore: 65 },
-    { id: '4', type: 'chargeback', severity: 'high', customerId: 'USR-3456', customerName: 'Sarah Davis', description: 'History of chargebacks after receiving support', detectedAt: '2 hours ago', status: 'resolved', riskScore: 82 },
-    { id: '5', type: 'impersonation', severity: 'critical', customerId: 'USR-7890', customerName: 'Admin Fake', description: 'Attempting to impersonate staff member', detectedAt: '30 min ago', status: 'pending', riskScore: 98 },
-  ]);
+  // Nothing on the platform detects support fraud yet; these lists held invented cases.
+  const alerts: FraudAlert[] = [];
 
-  const [patterns] = useState<BehaviorPattern[]>([
-    { id: '1', pattern: 'Rapid ticket creation', occurrences: 23, lastSeen: '10 min ago', isAnomaly: true },
-    { id: '2', pattern: 'VPN usage with location changes', occurrences: 45, lastSeen: '5 min ago', isAnomaly: true },
-    { id: '3', pattern: 'Multiple accounts same IP', occurrences: 12, lastSeen: '1 hour ago', isAnomaly: true },
-    { id: '4', pattern: 'Normal support request', occurrences: 1240, lastSeen: '1 min ago', isAnomaly: false },
-  ]);
+  const patterns: BehaviorPattern[] = [];
 
   const handleInvestigate = useCallback(async (alertId: string, type: string) => {
     await executeAction({
@@ -57,7 +47,6 @@ const FraudDetection = () => {
       metadata: { status: 'investigating', type },
       successMessage: 'Investigation started',
     });
-    toast.success('Alert moved to investigation');
   }, [executeAction]);
 
   const handleBanUser = useCallback(async (customerId: string, customerName: string) => {
@@ -145,10 +134,10 @@ const FraudDetection = () => {
         className="grid grid-cols-4 gap-4"
       >
         {[
-          { label: 'Active Alerts', value: '5', change: '+2', color: 'text-red-400', bgColor: 'bg-red-500/10' },
-          { label: 'Resolved Today', value: '12', change: '+5', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10' },
-          { label: 'Accounts Flagged', value: '8', change: '+1', color: 'text-orange-400', bgColor: 'bg-orange-500/10' },
-          { label: 'Risk Score Avg', value: '72', change: '-3', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10' },
+          { label: 'Active Alerts', value: String(alerts.filter((a) => a.status !== 'resolved' && a.status !== 'dismissed').length), change: '', color: 'text-red-400', bgColor: 'bg-red-500/10' },
+          { label: 'Resolved Today', value: '—', change: '', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10' },
+          { label: 'Accounts Flagged', value: String(new Set(alerts.map((a) => a.customerId)).size), change: '', color: 'text-orange-400', bgColor: 'bg-orange-500/10' },
+          { label: 'Risk Score Avg', value: '—', change: '', color: 'text-yellow-400', bgColor: 'bg-yellow-500/10' },
         ].map((stat, idx) => (
           <motion.div
             key={idx}
@@ -180,6 +169,7 @@ const FraudDetection = () => {
         </div>
 
         <div className="space-y-3">
+          {alerts.length === 0 && <p className="text-sm text-muted-foreground">No fraud detection runs on the platform yet, so there is no alert to review.</p>}
           {alerts.map((alert) => {
             const TypeIcon = getTypeIcon(alert.type);
             return (
@@ -273,6 +263,7 @@ const FraudDetection = () => {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
+          {patterns.length === 0 && <p className="text-sm text-muted-foreground">No behaviour pattern is recorded yet.</p>}
           {patterns.map((pattern) => (
             <motion.div
               key={pattern.id}

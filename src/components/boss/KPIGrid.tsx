@@ -40,7 +40,7 @@ export function KPIGrid({ children, className, gap = 'md' }: KPIGridProps) {
 /* helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-type Status = 'healthy' | 'warning' | 'critical' | 'action';
+type Status = 'healthy' | 'warning' | 'critical' | 'action' | 'untracked';
 
 const BASE_THEME: Record<
   Status,
@@ -74,14 +74,16 @@ const BASE_THEME: Record<
     dot: 'bg-red-400',
     label: 'CRITICAL',
   },
+  // A figure the platform keeps no record of. Grey, and it says so.
+  untracked: {
+    glow: 'rgba(148,163,184,0.4)',
+    strip: 'linear-gradient(180deg,#cbd5e1 0%,#94a3b8 55%,#64748b 100%)',
+    text: 'text-[#0f172a]',
+    dot: 'bg-slate-400',
+    label: 'NOT TRACKED',
+  },
 };
 
-const ACTIVITY_BY_STATUS: Record<Status, string[]> = {
-  healthy: ['Database synchronized', 'Backup completed', 'CPU normal', 'Marketplace active'],
-  action: ['AI analysing revenue', 'Revenue updated', 'Live users online', 'Syncing inventory'],
-  warning: ['Threshold approaching', 'Queue backlog rising', 'Latency above normal', 'Review pending'],
-  critical: ['Immediate action required', 'Error rate spiking', 'Escalation triggered', 'Retry in progress'],
-};
 
 /** parses a leading/embedded numeric part so we can animate it */
 function splitNumeric(value: string | number) {
@@ -135,15 +137,16 @@ function AnimatedValue({ value }: { value: string | number }) {
   );
 }
 
-function Sparkline({ seed, color }: { seed: string; color: string }) {
+/**
+ * The tile's real history. The line used to be generated from the tile's id,
+ * so it looked like a trend and meant nothing. Without a history it is a flat
+ * baseline, which is what "no history kept" looks like.
+ */
+function Sparkline({ seed, color, series }: { seed: string; color: string; series?: number[] }) {
   const points = React.useMemo(() => {
-    let h = 0;
-    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 9973;
-    return Array.from({ length: 14 }, (_, i) => {
-      h = (h * 1103515245 + 12345) % 2147483647;
-      return 4 + ((h >>> 8) % 18) + i * 0.5;
-    });
-  }, [seed]);
+    const real = (series ?? []).map(Number).filter((n) => Number.isFinite(n));
+    return real.length >= 2 ? real : [0, 0];
+  }, [series]);
 
   const max = Math.max(...points);
   const min = Math.min(...points);
@@ -195,6 +198,12 @@ interface KPIBoxProps {
   onClick?: () => void;
   actions?: React.ReactNode;
   className?: string;
+  /** The tile's real history, oldest first. */
+  series?: number[];
+  /** A real comparison; the chip is not shown without one. */
+  trend?: { up: boolean; text: string };
+  /** The line shown on the status strip under the card. */
+  activity?: string;
 }
 
 export function KPIBox({
@@ -211,14 +220,15 @@ export function KPIBox({
   onClick,
   actions,
   className,
+  series,
+  trend,
+  activity,
 }: KPIBoxProps) {
   const theme = BASE_THEME[status];
   const cardRef = React.useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = React.useState({ x: 0, y: 0, mx: 50, my: 50 });
   const [clock, setClock] = React.useState('--:--:--');
 
-  const activities = ACTIVITY_BY_STATUS[status];
-  const [activityIndex, setActivityIndex] = React.useState(0);
 
   React.useEffect(() => {
     const tick = () =>
@@ -237,11 +247,6 @@ export function KPIBox({
     return () => clearInterval(t);
   }, []);
 
-  React.useEffect(() => {
-    const offset = (id.length % 5) * 700;
-    const t = setInterval(() => setActivityIndex((i) => (i + 1) % activities.length), 4200 + offset);
-    return () => clearInterval(t);
-  }, [id, activities.length]);
 
   const handleMove = (e: React.MouseEvent) => {
     const el = cardRef.current;
@@ -252,8 +257,6 @@ export function KPIBox({
     setTilt({ x: (0.5 - py) * 6, y: (px - 0.5) * 8, mx: px * 100, my: py * 100 });
   };
 
-  const trend = (id.charCodeAt(0) + label.length) % 2 === 0;
-  const delta = (((id.charCodeAt(1) || 7) * 13) % 180) / 10;
 
   return (
     <div className={cn('relative h-full pb-7 [perspective:1200px]', className)}>
@@ -265,8 +268,8 @@ export function KPIBox({
         <div className="absolute inset-0 animate-[kpi-sweep_3.2s_linear_infinite] bg-[linear-gradient(100deg,transparent_20%,rgba(255,255,255,0.55)_50%,transparent_80%)] opacity-60" />
         <div className={cn('absolute inset-x-0 bottom-0 flex h-7 items-center justify-center gap-1.5 px-3', theme.text)}>
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
-          <span key={activityIndex} className="animate-fade-in truncate text-[10px] font-bold tracking-wide">
-            {activities[activityIndex]}
+          <span className="truncate text-[10px] font-bold tracking-wide">
+            {activity ?? `Updated ${lastUpdate ?? 'just now'}`}
           </span>
         </div>
       </div>
@@ -324,16 +327,18 @@ export function KPIBox({
               <AnimatedValue value={value} />
             </p>
             <div className="mt-1.5 flex items-center gap-1.5">
-              <span
-                className={cn(
-                  'rounded-md px-1.5 py-0.5 text-[9px] font-bold tabular-nums',
-                  trend ? 'bg-emerald-400/12 text-emerald-300' : 'bg-red-400/12 text-red-300'
-                )}
-              >
-                {trend ? '▲' : '▼'} {delta.toFixed(1)}%
-              </span>
+              {trend && (
+                <span
+                  className={cn(
+                    'rounded-md px-1.5 py-0.5 text-[9px] font-bold tabular-nums',
+                    trend.up ? 'bg-emerald-400/12 text-emerald-300' : 'bg-red-400/12 text-red-300'
+                  )}
+                >
+                  {trend.up ? '▲' : '▼'} {trend.text}
+                </span>
+              )}
               <span className="truncate text-[9px] font-medium text-foreground/40">
-                vs yesterday · {source}
+                {source}
               </span>
             </div>
           </div>
@@ -350,7 +355,7 @@ export function KPIBox({
 
         {/* Sparkline */}
         <div className="relative -mx-1 mt-1.5">
-          <Sparkline seed={id} color={theme.glow.replace(/[\d.]+\)$/, '1)')} />
+          <Sparkline seed={id} series={series} color={theme.glow.replace(/[\d.]+\)$/, '1)')} />
         </div>
 
         {/* footer */}

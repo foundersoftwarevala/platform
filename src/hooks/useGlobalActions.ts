@@ -42,33 +42,40 @@ export interface ActionResult {
 export function useGlobalActions() {
   const { user, userRole, isBossOwner } = useAuth();
 
-  // Audit log every action
+  // Audit a real action. This wrote user_id, role, module and meta_json - none
+  // of them columns of audit_logs - so every entry was refused and nothing was
+  // ever recorded. It writes the table's own columns now.
   const logToAudit = useCallback(async (
     action: string,
     module: string,
     meta: Record<string, any>
   ) => {
-    try {
-      await supabase.from('audit_logs').insert({
-        user_id: user?.id,
-        role: userRole as any,
-        module,
-        action,
-        meta_json: {
-          ...meta,
-          timestamp: new Date().toISOString(),
-          user_agent: navigator.userAgent,
-        }
-      });
-    } catch (error) {
-      console.error('Audit log failed:', error);
-    }
-  }, [user?.id, userRole]);
+    const { error } = await (supabase as any).from('audit_logs').insert({
+      actor: user?.email ?? user?.id ?? 'unknown',
+      action,
+      entity_type: module,
+      entity_id: meta.entityId ?? null,
+      severity: 'info',
+      metadata: { ...meta, user_id: user?.id ?? null, role: userRole ?? null },
+    });
+    if (error) console.error('Audit log failed:', error.message);
+  }, [user?.id, user?.email, userRole]);
 
   // Execute any action with full tracking
   const executeAction = useCallback(async (payload: ActionPayload): Promise<ActionResult> => {
     const startTime = Date.now();
     const toastId = payload.actionId;
+
+    // An action with nothing behind it does nothing. It used to be logged and
+    // then announced as "Approved successfully", "Escalated", "Resolved" - on
+    // screens whose buttons changed no record anywhere. It now says so.
+    if (!payload.apiEndpoint) {
+      toast.info(`This ${payload.actionType} is not connected yet`, {
+        id: toastId,
+        description: 'Nothing was changed.',
+      });
+      return { success: false, error: 'not_connected', duration: 0 };
+    }
 
     try {
       // Log action start

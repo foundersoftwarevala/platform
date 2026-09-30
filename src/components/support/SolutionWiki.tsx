@@ -1,82 +1,63 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { relativeTime, useWikiArticles } from '@/hooks/useSalesSupportData';
 import { motion } from 'framer-motion';
-import { 
-  BookOpen, Search, FileText, Video, Globe, 
-  ChevronRight, Star, Clock, Tag
+import {
+  BookOpen, Search, FileText, Video, ChevronRight, Star, Clock, Tag,
 } from 'lucide-react';
 
-const categories = [
-  { id: 'all', label: 'All', count: 156 },
-  { id: 'pos', label: 'POS System', count: 42 },
-  { id: 'erp', label: 'School ERP', count: 38 },
-  { id: 'crm', label: 'Hospital CRM', count: 28 },
-  { id: 'common', label: 'Common Issues', count: 48 },
-];
+// wiki_articles is not in the generated types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const wikiTable = () => (supabase as any).from('wiki_articles');
 
-const articles = [
-  {
-    id: 1,
-    title: 'Invoice Generation Troubleshooting',
-    category: 'POS System',
-    type: 'article',
-    views: 1240,
-    helpful: 98,
-    languages: ['English', 'Hindi', 'Marathi'],
-    lastUpdated: '2 days ago',
-    featured: true,
-  },
-  {
-    id: 2,
-    title: 'Student Data Import Guide',
-    category: 'School ERP',
-    type: 'video',
-    views: 890,
-    helpful: 94,
-    languages: ['English', 'Hindi'],
-    lastUpdated: '1 week ago',
-    featured: true,
-  },
-  {
-    id: 3,
-    title: 'Patient Record Sync Issues',
-    category: 'Hospital CRM',
-    type: 'article',
-    views: 560,
-    helpful: 91,
-    languages: ['English'],
-    lastUpdated: '3 days ago',
-    featured: false,
-  },
-  {
-    id: 4,
-    title: 'Dashboard Not Loading - Quick Fix',
-    category: 'Common Issues',
-    type: 'article',
-    views: 2100,
-    helpful: 96,
-    languages: ['English', 'Hindi', 'Tamil'],
-    lastUpdated: '1 day ago',
-    featured: true,
-  },
-  {
-    id: 5,
-    title: 'Report Export Tutorial',
-    category: 'Common Issues',
-    type: 'video',
-    views: 670,
-    helpful: 89,
-    languages: ['English', 'Hindi'],
-    lastUpdated: '5 days ago',
-    featured: false,
-  },
-];
-
+/**
+ * The support knowledge base, from wiki_articles.
+ *
+ * Five invented articles with invented view counts and languages stood here,
+ * and none could be opened. These are the published articles; opening one
+ * shows it and counts the view.
+ */
 const SolutionWiki = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { data: rows, isLoading, error } = useWikiArticles();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const published = ((rows ?? []) as any[]).filter((r) => r.status === 'published');
+  const articles = published.map((r) => ({
+    id: String(r.id),
+    title: String(r.title ?? ''),
+    category: String(r.category ?? 'general'),
+    type: 'article' as 'article' | 'video',
+    views: Number(r.views ?? 0),
+    helpful: Number(r.helpful_count ?? 0),
+    lastUpdated: relativeTime(r.updated_at),
+    summary: String(r.summary ?? ''),
+    body: String(r.body ?? ''),
+    featured: false,
+  }));
+  const featuredIds = new Set([...articles].sort((x, y) => y.views - x.views).slice(0, 3).map((x) => x.id));
+  for (const article of articles) article.featured = featuredIds.has(article.id);
+  const categories = [
+    { id: 'all', label: 'All', count: articles.length },
+    ...[...new Set(articles.map((x) => x.category))].map((c) => ({
+      id: c, label: c.charAt(0).toUpperCase() + c.slice(1), count: articles.filter((x) => x.category === c).length,
+    })),
+  ];
+  const open = async (id: string) => {
+    const next = openId === id ? null : id;
+    setOpenId(next);
+    if (!next) return;
+    const article = articles.find((x) => x.id === id);
+    // Counting the view is best effort; the article is already open.
+    await wikiTable().update({ views: (article?.views ?? 0) + 1 }).eq('id', id);
+    void queryClient.invalidateQueries({ queryKey: ['wiki_articles'] });
+  };
 
   const filteredArticles = articles.filter(article => {
-    if (selectedCategory !== 'all' && !article.category.toLowerCase().includes(selectedCategory)) {
+    if (selectedCategory !== 'all' && article.category !== selectedCategory) {
       return false;
     }
     if (searchQuery && !article.title.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -148,6 +129,7 @@ const SolutionWiki = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 + index * 0.1 }}
             whileHover={{ y: -2 }}
+            onClick={() => void open(article.id)}
             className="p-5 rounded-2xl bg-gradient-to-br from-teal-500/5 to-sky-500/5 border border-teal-500/20 cursor-pointer group"
           >
             <div className="flex items-center gap-2 mb-3">
@@ -175,12 +157,22 @@ const SolutionWiki = () => {
         transition={{ delay: 0.3 }}
         className="space-y-3"
       >
+        {(isLoading || error || filteredArticles.length === 0) && (
+          <p className="text-sm text-muted-foreground">
+            {isLoading ? 'Loading articles…' : error ? `Articles could not be read: ${(error as Error).message}` : 'No published article here yet.'}
+          </p>
+        )}
         {filteredArticles.map((article, index) => (
           <motion.div
             key={article.id}
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 + index * 0.05 }}
+            role="button"
+            tabIndex={0}
+            aria-expanded={openId === article.id}
+            onClick={() => void open(article.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void open(article.id); } }}
             className="p-4 rounded-xl bg-card/60 border border-border hover:border-teal-500/20 transition-all cursor-pointer group"
           >
             <div className="flex items-center justify-between">
@@ -204,10 +196,6 @@ const SolutionWiki = () => {
                       {article.category}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Globe className="w-3 h-3" />
-                      {article.languages.length} languages
-                    </span>
-                    <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {article.lastUpdated}
                     </span>
@@ -217,11 +205,17 @@ const SolutionWiki = () => {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">{article.views} views</p>
-                  <p className="text-xs text-emerald-400">{article.helpful}% helpful</p>
+                  <p className="text-xs text-emerald-400">{article.helpful} found it helpful</p>
                 </div>
-                <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-teal-400 transition-colors" />
+                <ChevronRight className={`w-5 h-5 text-muted-foreground group-hover:text-teal-400 transition-all ${openId === article.id ? 'rotate-90' : ''}`} />
               </div>
             </div>
+            {openId === article.id && (
+              <div className="mt-4 border-t border-border pt-4 text-sm text-muted-foreground whitespace-pre-wrap">
+                {article.summary && <p className="mb-2 font-medium text-foreground">{article.summary}</p>}
+                {article.body || 'This article has no text yet.'}
+              </div>
+            )}
           </motion.div>
         ))}
       </motion.div>

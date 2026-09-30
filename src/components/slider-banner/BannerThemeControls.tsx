@@ -28,7 +28,7 @@ function Slider({
   onChange: (v: number) => void;
 }) {
   return (
-    <label className="flex min-w-[150px] flex-1 items-center gap-2">
+    <label className="flex min-w-[150px] max-w-full flex-1 items-center gap-2">
       <Icon className="h-3.5 w-3.5 shrink-0 text-primary-glow" />
       <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-foreground/70">
         {label}
@@ -40,7 +40,7 @@ function Slider({
         step={0.05}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-primary/30 accent-[var(--color-primary-glow)]"
+        className="h-1.5 w-full min-w-0 cursor-pointer appearance-none rounded-full bg-primary/30 accent-[var(--color-primary-glow)]"
         aria-label={label}
       />
       <span className="w-8 shrink-0 text-right text-[10px] font-bold text-foreground/70">

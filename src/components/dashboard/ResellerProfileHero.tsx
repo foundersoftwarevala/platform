@@ -1,4 +1,10 @@
 import { useState } from "react";
+import { toast } from "sonner";
+
+// The banner and logo are only shown in this browser tab: no profile field
+// stores a dashboard banner or logo yet. Every change says so rather than
+// looking saved and vanishing on reload.
+const NOT_SAVED = "Shown until you reload - saving a banner or logo is not connected yet.";
 import {
   Camera, ImageIcon, ShieldCheck, Pencil, Crown, Layers, Briefcase, Trophy,
   Target as TargetIcon, Gauge, TrendingUp, RotateCcw, Trash2, Upload,
@@ -64,6 +70,7 @@ export function ResellerProfileHero({
       const f = input.files?.[0];
       if (!f) return;
       setProfile((p) => ({ ...p, [field]: URL.createObjectURL(f) }));
+      toast.info(NOT_SAVED);
     };
     input.click();
   }
@@ -74,11 +81,13 @@ export function ResellerProfileHero({
       [field]: field === "logoUrl" ? defaultLogoAsset.url : defaultBannerAsset.url,
     }));
     setMenuOpen(null);
+    toast.info(NOT_SAVED);
   }
 
   function removeImage(field: "logoUrl" | "bannerUrl") {
     setProfile((p) => ({ ...p, [field]: null }));
     setMenuOpen(null);
+    toast.info(NOT_SAVED);
   }
 
   return (

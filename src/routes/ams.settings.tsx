@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EngineDashboard, StatusChip } from "@/components/ams/shared/EngineDashboard";
-import { MotionSoundPanel } from "@/components/ams/ui/MotionSoundPanel";
+import { AmsEngineView } from "@/components/ams/shared/AmsEngineView";
 
 export const Route = createFileRoute("/ams/settings")({
   head: () => ({
@@ -18,35 +17,38 @@ export const Route = createFileRoute("/ams/settings")({
 
 function Page() {
   return (
-    <EngineDashboard
-      kicker="AMS Manager"
+    <AmsEngineView
+      view="settings"
       title="Global Settings"
       description="System, security, branding, integrations, feature flags, anti-abuse and localization."
-      primaryAction="New Setting"
-      extraPanels={<MotionSoundPanel />}
-      kpis={[
-        { label: "Settings", value: "142" },
-        { label: "Feature Flags", value: "48" },
-        { label: "Integrations", value: "12" },
-        { label: "Env", value: "Prod", accent: "#22d3ee" },
-        { label: "Last Deploy", value: "2h ago" },
-        { label: "Uptime", value: "99.98%" },
+      columns={[
+        {
+          key: "key",
+          label: "Key"
+        },
+        {
+          key: "group",
+          label: "Group"
+        },
+        {
+          key: "value",
+          label: "Value"
+        },
+        {
+          key: "updated",
+          label: "Updated"
+        },
+        {
+          key: "status",
+          label: "Status"
+        }
       ]}
       filters={[
-        { label: "Group", values: ["System", "Security", "Branding", "Integrations", "Flags", "Anti-Abuse"] },
-      ]}
-      columns={[
-        { key: "key", label: "Key" },
-        { key: "group", label: "Group" },
-        { key: "value", label: "Value" },
-        { key: "updated", label: "Updated" },
-        { key: "status", label: "Status" },
-      ]}
-      rows={[
-        { id: "s1", key: "ams.season", group: "System", value: "3", updated: "2h ago", status: <StatusChip tone="success">Live</StatusChip> },
-        { id: "s2", key: "xp.daily_cap", group: "Anti-Abuse", value: "10,000", updated: "1d ago", status: <StatusChip tone="success">Live</StatusChip> },
-        { id: "s3", key: "features.mystery_box_v2", group: "Flags", value: "on (rollout 40%)", updated: "3d ago", status: <StatusChip tone="warn">Rollout</StatusChip> },
-        { id: "s4", key: "brand.primary_color", group: "Branding", value: "#facc15", updated: "1w ago", status: <StatusChip tone="success">Live</StatusChip> },
+        {
+          label: "Group",
+          key: "group",
+          values: []
+        }
       ]}
     />
   );

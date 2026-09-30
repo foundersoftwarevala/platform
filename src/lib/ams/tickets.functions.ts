@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import type { Database } from "@/integrations/supabase/types";
-import { AMS_STATUSES, AMS_PRIORITIES, AMS_CHAT_CHANNELS, type AmsStatus, type AmsPriority, type AmsChatChannel } from "./tickets.types";
+import { AMS_STATUSES, AMS_PRIORITIES, AMS_CHAT_CHANNELS, requesterMayMove, type AmsStatus, type AmsPriority, type AmsChatChannel } from "./tickets.types";
 
 /**
  * Server fns for the Enterprise AMS ticket module.
@@ -35,9 +35,24 @@ async function requireUser() {
   return { sb, uid };
 }
 
+/**
+ * The people who work tickets. Anyone else who can see a ticket is the person
+ * who raised it (or the customer on it), and may only move it along the
+ * requester's own path - see REQUESTER_TRANSITIONS.
+ */
+const AMS_STAFF_ROLES = [
+  "developer", "support", "sales_support_manager",
+  "admin", "super_admin", "boss", "boss_owner", "founder", "owner",
+];
+
+async function isAmsStaff(sb: SupabaseClient<Database>, uid: string): Promise<boolean> {
+  const { data } = await sb.from("user_roles").select("role").eq("user_id", uid);
+  return (data ?? []).some((r) => AMS_STAFF_ROLES.includes(String(r.role)));
+}
+
 // ---------- list ----------
 export const listTickets = createServerFn({ method: "GET" })
-  .inputValidator((d: { status?: AmsStatus | "all"; priority?: AmsPriority; q?: string; assignee?: "me" | "any" }) => d)
+  .inputValidator((d: { status?: AmsStatus | "all"; priority?: AmsPriority; q?: string; assignee?: "me" | "any"; mine?: boolean }) => d)
   .handler(async ({ data }) => {
     const tok = token();
     if (!tok) return { rows: [], stats: emptyStats() };
@@ -49,6 +64,13 @@ export const listTickets = createServerFn({ method: "GET" })
     if (data.status && data.status !== "all") q = q.eq("status", data.status);
     if (data.priority) q = q.eq("priority", data.priority);
     if (data.assignee === "me" && uid) q = q.eq("assignee_id", uid);
+    // A partner's own desk: the tickets they raised, even when the viewer is
+    // staff who could read every ticket.
+    if (data.mine) {
+      if (!uid) return { rows: [], stats: emptyStats() };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      q = (q as any).eq("created_by", uid);
+    }
     if (data.q) q = q.or(`subject.ilike.%${data.q}%,ticket_no.ilike.%${data.q}%`);
     const { data: rows } = await q;
 
@@ -132,7 +154,16 @@ export const changeStatus = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string; to: AmsStatus }) => d)
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
-    const { data: prev } = await sb.from("ams_tickets").select("status").eq("id", data.id).single();
+    if (!AMS_STATUSES.includes(data.to)) throw new Error("Unknown status");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: prev } = (await (sb as any).from("ams_tickets").select("status, created_by, assignee_id").eq("id", data.id).single()) as
+      { data: { status: string; created_by: string | null; assignee_id: string | null } | null };
+    if (!prev) throw new Error("Ticket not found");
+    if (!(await isAmsStaff(sb, uid)) && prev.assignee_id !== uid) {
+      if (!requesterMayMove(prev.status as AmsStatus, data.to)) {
+        throw new Error(`A ticket cannot be moved from ${prev.status} to ${data.to} by the person who raised it.`);
+      }
+    }
     const patch: Record<string, unknown> = { status: data.to };
     if (data.to === "resolved") patch.resolved_at = new Date().toISOString();
     if (data.to === "closed") patch.closed_at = new Date().toISOString();
@@ -151,6 +182,8 @@ export const assignTicket = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string; assignee_id: string | null }) => d)
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
+    // Who works a ticket is the support team's decision, not the requester's.
+    if (!(await isAmsStaff(sb, uid))) throw new Error("Only the support team can assign a ticket.");
     const { data: prev } = await sb.from("ams_tickets").select("assignee_id, status").eq("id", data.id).single();
     const patch: Record<string, unknown> = { assignee_id: data.assignee_id };
     if (data.assignee_id && prev?.status === "submitted") patch.status = "assigned";
@@ -169,7 +202,8 @@ export const archiveTicket = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string }) => d)
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
-    await sb.from("ams_tickets").update({ deleted_at: new Date().toISOString(), status: "archived" }).eq("id", data.id);
+    const { error } = await sb.from("ams_tickets").update({ deleted_at: new Date().toISOString(), status: "archived" }).eq("id", data.id);
+    if (error) throw new Error(error.message);
     await sb.from("ams_events").insert({ ticket_id: data.id, actor_id: uid, kind: "archived" });
     return { ok: true };
   });
@@ -178,7 +212,8 @@ export const restoreTicket = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string }) => d)
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
-    await sb.from("ams_tickets").update({ deleted_at: null, status: "submitted" }).eq("id", data.id);
+    const { error } = await sb.from("ams_tickets").update({ deleted_at: null, status: "submitted" }).eq("id", data.id);
+    if (error) throw new Error(error.message);
     await sb.from("ams_events").insert({ ticket_id: data.id, actor_id: uid, kind: "restored" });
     return { ok: true };
   });

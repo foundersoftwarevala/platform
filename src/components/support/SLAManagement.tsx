@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Clock, AlertTriangle, CheckCircle, XCircle, Play, Pause, 
@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useGlobalActions } from '@/hooks/useGlobalActions';
+import { supabase } from '@/integrations/supabase/client';
+import { memberName, useInsertRow, useTeamMembers, useTickets, useUpdateRow } from '@/hooks/useSalesSupportData';
 
 interface SLATemplate {
   id: string;
@@ -41,24 +43,28 @@ interface BreachAlert {
 const SLAManagement = () => {
   const { executeAction } = useGlobalActions();
   
-  const [slaTemplates] = useState<SLATemplate[]>([
-    { id: '1', name: 'Critical SLA', priority: 'critical', responseTime: 15, resolutionTime: 60, escalationLevels: 3, isActive: true },
-    { id: '2', name: 'High Priority SLA', priority: 'high', responseTime: 30, resolutionTime: 120, escalationLevels: 2, isActive: true },
-    { id: '3', name: 'Medium Priority SLA', priority: 'medium', responseTime: 60, resolutionTime: 240, escalationLevels: 2, isActive: true },
-    { id: '4', name: 'Low Priority SLA', priority: 'low', responseTime: 120, resolutionTime: 480, escalationLevels: 1, isActive: false },
-  ]);
+  // No SLA policy or escalation rule is stored on the platform; these lists
+  // held typed-in examples. They stay empty until a table holds them.
+  const slaTemplates: SLATemplate[] = [];
+  const escalationRules: EscalationRule[] = [];
 
-  const [escalationRules] = useState<EscalationRule[]>([
-    { id: '1', name: 'L1 to L2 Auto', trigger: '50% response time exceeded', action: 'Escalate to L2', level: 2, isAutomatic: true },
-    { id: '2', name: 'L2 to L3 Auto', trigger: '75% resolution time exceeded', action: 'Escalate to L3', level: 3, isAutomatic: true },
-    { id: '3', name: 'Admin Override', trigger: 'SLA breached', action: 'Notify Admin + Flag', level: 4, isAutomatic: false },
-  ]);
-
-  const [breachAlerts] = useState<BreachAlert[]>([
-    { id: '1', ticketId: 'TKT-1234', type: 'warning', slaType: 'Response', timeRemaining: '5 min', assignedTo: 'John D.' },
-    { id: '2', ticketId: 'TKT-1189', type: 'breach', slaType: 'Resolution', timeRemaining: '-15 min', assignedTo: 'Sarah M.' },
-    { id: '3', ticketId: 'TKT-1201', type: 'warning', slaType: 'Response', timeRemaining: '12 min', assignedTo: 'Mike R.' },
-  ]);
+  // Breaches are real: open tickets past, or within 30 minutes of, their SLA.
+  const { data: ticketRows } = useTickets();
+  const { data: members } = useTeamMembers('support');
+  const updateTicket = useUpdateRow('support_tickets');
+  const insertEscalation = useInsertRow('support_escalations');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const breachAlerts: BreachAlert[] = ((ticketRows ?? []) as any[])
+    .filter((t) => t.status !== 'resolved' && t.status !== 'closed')
+    .filter((t) => t.sla_breached || (t.sla_minutes_remaining != null && t.sla_minutes_remaining <= 30))
+    .map((t) => ({
+      id: t.id,
+      ticketId: t.reference ?? t.id.slice(0, 8),
+      type: t.sla_breached ? 'breach' : 'warning',
+      slaType: t.first_response_at ? 'Resolution' : 'Response',
+      timeRemaining: t.sla_breached ? 'breached' : `${t.sla_minutes_remaining} min`,
+      assignedTo: memberName(members, t.assigned_to) ?? 'Unassigned',
+    }));
 
   const handleCreateTemplate = useCallback(async () => {
     await executeAction({
@@ -81,16 +87,22 @@ const SLAManagement = () => {
     });
   }, [executeAction]);
 
-  const handleEscalate = useCallback(async (ticketId: string) => {
-    await executeAction({
-      actionId: `escalate_${ticketId}`,
-      actionType: 'escalate',
-      entityType: 'ticket',
-      entityId: ticketId,
-      metadata: { reason: 'SLA breach prevention' },
-      successMessage: 'Ticket escalated successfully',
-    });
-  }, [executeAction]);
+  // Escalating raises the ticket to critical and records the escalation.
+  const handleEscalate = async (ticketRef: string) => {
+    const alert = breachAlerts.find((x) => x.ticketId === ticketRef);
+    if (!alert) return;
+    try {
+      const { data } = await supabase.auth.getUser();
+      await insertEscalation.mutateAsync({
+        ticket_id: alert.id, reference: alert.ticketId, reason: 'SLA breach prevention',
+        level: 1, status: 'open', raised_by: data.user?.id ?? null,
+      });
+      await updateTicket.mutateAsync({ id: alert.id, values: { priority: 'critical', updated_at: new Date().toISOString() } });
+      toast.success(`${alert.ticketId} escalated`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'The ticket could not be escalated');
+    }
+  };
 
   const handleAdminOverride = useCallback(async (ticketId: string) => {
     await executeAction({
@@ -101,7 +113,6 @@ const SLAManagement = () => {
       metadata: { action: 'admin_override' },
       successMessage: 'Admin override applied',
     });
-    toast.success('Admin override applied');
   }, [executeAction]);
 
   const getPriorityColor = (priority: string) => {
@@ -141,6 +152,7 @@ const SLAManagement = () => {
         </div>
 
         <div className="space-y-3">
+          {breachAlerts.length === 0 && <p className="text-sm text-muted-foreground">No open ticket is past or near its SLA.</p>}
           {breachAlerts.map((alert) => (
             <motion.div
               key={alert.id}
@@ -207,6 +219,7 @@ const SLAManagement = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {slaTemplates.length === 0 && <p className="text-sm text-muted-foreground">No SLA policy is stored on the platform yet. Each ticket carries its own SLA time.</p>}
           {slaTemplates.map((template) => (
             <motion.div
               key={template.id}
@@ -269,6 +282,7 @@ const SLAManagement = () => {
         </div>
 
         <div className="space-y-3">
+          {escalationRules.length === 0 && <p className="text-sm text-muted-foreground">No automatic escalation rule is stored yet. Tickets are escalated by hand.</p>}
           {escalationRules.map((rule) => (
             <div
               key={rule.id}

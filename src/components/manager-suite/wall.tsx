@@ -85,6 +85,8 @@ export type WallConfig = {
    * button is then not offered at all, rather than offered and refused.
    */
   creatable?: boolean;
+  /** Shown but never changed here - the records are worked on another screen. */
+  readOnly?: boolean;
   seed: any[];
   columns: WallColumn[];
   filters: WallFilterDef[];
@@ -179,11 +181,24 @@ function Field({
 
 const PAGE_SIZE = 10;
 
-export function ManagerWall({ config }: { config: WallConfig }) {
-  const table = useMemo(() => createTable<WallRow>(`wall:${config.scope}`, config.seed as WallRow[]), [config]);
+export function ManagerWall({ config: given }: { config: WallConfig }) {
+  /**
+   * A wall with no table behind it keeps nothing. These walls used to keep
+   * their rows in the browser, seeded from the config - so a reseller report
+   * or support ticket "created" here lived in one person's browser and nowhere
+   * else, and some walls opened on rows nobody had entered. Such a wall is now
+   * shown empty and read-only, and says it is not connected.
+   */
+  const noTable = !given.resource;
+  const readOnly = noTable || given.readOnly === true;
+  const config = useMemo<WallConfig>(
+    () => (readOnly ? { ...given, seed: [], creatable: false, bulkActions: [], rowActions: [] } : given),
+    [given, readOnly],
+  );
+  const table = useMemo(() => createTable<WallRow>(`wall:${config.scope}`, []), [config]);
   const remote = config.resource ?? null;
 
-  const [rows, setRows] = useState<WallRow[]>(() => (remote ? [] : table.all()));
+  const [rows, setRows] = useState<WallRow[]>([]);
   // A read that fails must say so. An empty table with no message reads as
   // "nothing here yet", which is a different and much worse claim.
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -229,7 +244,9 @@ export function ManagerWall({ config }: { config: WallConfig }) {
   const [detail, setDetail] = useState<WallRow | null>(null);
 
   useEffect(() => {
-    setRows(table.all());
+    // Never the browser's copy: a connected wall reads its table (above), and
+    // a wall with no table has nothing to show.
+    if (!remote) setRows([]);
     setSearch("");
     setFilters({});
     setSelected(new Set());
@@ -456,6 +473,12 @@ export function ManagerWall({ config }: { config: WallConfig }) {
         }
       />
 
+      {noTable && (
+        <div className="mb-4 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Not connected: no table on the platform holds {config.entity} records yet, so nothing is kept here.
+        </div>
+      )}
+
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         {config.kpis.map((k, i) => (
           <StatCard
@@ -604,19 +627,24 @@ export function ManagerWall({ config }: { config: WallConfig }) {
                           {a.icon ? <a.icon className="h-3.5 w-3.5" /> : a.label}
                         </button>
                       ))}
-                      <button
-                        onClick={() => openEdit(r)}
-                        className="rounded-md border border-border px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground transition hover:border-accent/40 hover:text-accent"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => applyPatch([r.id], undefined, true)}
-                        title="Delete"
-                        className="rounded-md border border-border p-1.5 text-destructive transition hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {!readOnly && (
+                        <>
+                          <button
+                            onClick={() => openEdit(r)}
+                            className="rounded-md border border-border px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground transition hover:border-accent/40 hover:text-accent"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => applyPatch([r.id], undefined, true)}
+                            title="Delete"
+                            aria-label={`Delete ${String(r[config.primaryField] ?? r.id)}`}
+                            className="rounded-md border border-border p-1.5 text-destructive transition hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

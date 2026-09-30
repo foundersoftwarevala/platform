@@ -125,7 +125,8 @@ export function useMisuseAlerts() {
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []).map((row) => ({ ...row, detected_at: row.created_at }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as Record<string, any>[]).map((row) => ({ ...row, detected_at: row.created_at }));
     },
   });
 }

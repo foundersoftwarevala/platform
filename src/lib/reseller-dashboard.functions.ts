@@ -240,3 +240,75 @@ export const deleteResellerLead = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { removed: data.id };
   });
+
+/**
+ * The licences a reseller has sold to one of their clients.
+ *
+ * A client is a crm_customers row with an email address, and a licence belongs
+ * to a buyer account, so the two are joined by that address - but only among
+ * the orders this reseller is credited with. Matching every licence on the
+ * platform by email would let anyone who adds a "client" read that person's
+ * purchases; limited to the reseller's own sales, it shows only what they sold.
+ * The key itself is the buyer's, so only its ends are shown.
+ */
+export const listResellerClientLicences = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) => z.object({ clientId: z.string().min(1) }).parse(value ?? {}))
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const owner = await ownerIdFor(sb, callerFrom(context.claims, context.userId));
+    const client = await sb
+      .from("crm_customers" as never)
+      .select("id, email")
+      .eq("id" as never, data.clientId as never)
+      .eq("owner_id" as never, owner as never)
+      .maybeSingle();
+    if (client.error) throw new Error(client.error.message);
+    const email = (client.data as { email?: string | null } | null)?.email?.trim().toLowerCase();
+    if (!email) return [];
+
+    const reseller = await sb.from("resellers" as never).select("id").eq("user_id" as never, context.userId as never).maybeSingle();
+    const resellerId = (reseller.data as { id?: string } | null)?.id;
+    if (!resellerId) return [];
+
+    const buyers = await sb.from("profiles").select("id").ilike("email", email);
+    const buyerIds = ((buyers.data ?? []) as { id: string }[]).map((b) => b.id);
+    if (!buyerIds.length) return [];
+
+    const credited = await sb
+      .from("marketplace_order_attributions" as never)
+      .select("order_id")
+      .eq("reseller_id", resellerId);
+    const orderIds = ((credited.data ?? []) as { order_id: string }[]).map((a) => a.order_id);
+    if (!orderIds.length) return [];
+
+    const orders = await sb
+      .from("marketplace_orders" as never)
+      .select("id")
+      .in("id", orderIds)
+      .in("buyer_id", buyerIds);
+    const theirs = ((orders.data ?? []) as { id: string }[]).map((o) => o.id);
+    if (!theirs.length) return [];
+
+    const items = await sb.from("marketplace_order_items" as never).select("id, product_name").in("order_id", theirs);
+    const product = new Map(((items.data ?? []) as { id: string; product_name: string }[]).map((i) => [i.id, i.product_name]));
+    if (!product.size) return [];
+
+    const licences = await sb
+      .from("marketplace_licenses" as never)
+      .select("id, order_item_id, license_key, license_model, status, expires_at, created_at")
+      .in("order_item_id", [...product.keys()])
+      .order("created_at", { ascending: false });
+    if (licences.error) throw new Error(licences.error.message);
+    return ((licences.data ?? []) as {
+      id: string; order_item_id: string; license_key: string | null; license_model: string | null;
+      status: string; expires_at: string | null; created_at: string;
+    }[]).map((l) => ({
+      id: l.id,
+      product: product.get(l.order_item_id) ?? "Licence",
+      keyHint: l.license_key ? `${l.license_key.slice(0, 4)}…${l.license_key.slice(-4)}` : "—",
+      model: l.license_model,
+      status: l.status,
+      expires_at: l.expires_at,
+    }));
+  });

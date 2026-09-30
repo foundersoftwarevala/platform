@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
+import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { 
   Shield, CheckCircle, XCircle, AlertTriangle, Star, 
@@ -8,16 +9,20 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useGlobalActions } from '@/hooks/useGlobalActions';
+import { useNavigate } from '@tanstack/react-router';
+import { memberName, relativeTime, useTeamMembers, useTickets } from '@/hooks/useSalesSupportData';
+import { downloadCsv, stampedName } from '@/lib/export/download';
 
+/** A score is null where nothing on the platform measures it. */
 interface QualityScore {
   agentId: string;
   agentName: string;
   avatar: string;
-  overallScore: number;
-  compliance: number;
-  tone: number;
-  accuracy: number;
-  slaAdherence: number;
+  overallScore: number | null;
+  compliance: number | null;
+  tone: number | null;
+  accuracy: number | null;
+  slaAdherence: number | null;
   ticketsAudited: number;
 }
 
@@ -44,40 +49,61 @@ interface AIMisclassification {
 const QualityAudit = () => {
   const { executeAction } = useGlobalActions();
 
-  const [qualityScores] = useState<QualityScore[]>([
-    { agentId: '1', agentName: 'John Davis', avatar: 'JD', overallScore: 94, compliance: 96, tone: 92, accuracy: 95, slaAdherence: 93, ticketsAudited: 45 },
-    { agentId: '2', agentName: 'Sarah Miller', avatar: 'SM', overallScore: 91, compliance: 89, tone: 94, accuracy: 92, slaAdherence: 88, ticketsAudited: 52 },
-    { agentId: '3', agentName: 'Mike Roberts', avatar: 'MR', overallScore: 87, compliance: 85, tone: 88, accuracy: 89, slaAdherence: 86, ticketsAudited: 38 },
-    { agentId: '4', agentName: 'Emily Chen', avatar: 'EC', overallScore: 96, compliance: 98, tone: 95, accuracy: 97, slaAdherence: 94, ticketsAudited: 61 },
-  ]);
-
-  const [auditItems] = useState<AuditItem[]>([
-    { id: '1', ticketId: 'TKT-1234', agentName: 'Mike Roberts', category: 'Compliance', finding: 'Missing customer verification step', severity: 'critical', status: 'pending', auditedAt: '2 hours ago' },
-    { id: '2', ticketId: 'TKT-1189', agentName: 'John Davis', category: 'Tone', finding: 'Response could be more empathetic', severity: 'warning', status: 'reviewed', auditedAt: '4 hours ago' },
-    { id: '3', ticketId: 'TKT-1201', agentName: 'Sarah Miller', category: 'SLA', finding: 'Response time exceeded by 5 minutes', severity: 'warning', status: 'resolved', auditedAt: '1 day ago' },
-  ]);
-
-  const [aiMisclassifications] = useState<AIMisclassification[]>([
-    { id: '1', ticketId: 'TKT-2001', aiPrediction: 'Billing', actualCategory: 'Technical', confidence: 78, correctedBy: 'John Davis' },
-    { id: '2', ticketId: 'TKT-2015', aiPrediction: 'General', actualCategory: 'Urgent - Account Lock', confidence: 65, correctedBy: 'Emily Chen' },
-  ]);
-
-  const [samplingConfig] = useState({
-    dailyTarget: 50,
-    completed: 38,
-    lastSampled: '15 min ago',
+  // Quality from the tickets themselves: customer ratings and SLA. The four
+  // agents, their scores, the audit findings and the AI corrections here were
+  // typed in. Compliance, tone and accuracy are scored by nothing yet.
+  const navigate = useNavigate();
+  const { data: members } = useTeamMembers('support');
+  const { data: ticketRows } = useTickets();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tickets = (ticketRows ?? []) as any[];
+  const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : null);
+  const qualityScores: QualityScore[] = (members ?? []).map((m) => {
+    const theirs = tickets.filter((t) => t.assigned_to === m.id);
+    const answered = theirs.filter((t) => t.first_response_at);
+    const rated = theirs.filter((t) => t.csat != null);
+    return {
+      agentId: m.id,
+      agentName: m.full_name,
+      avatar: m.full_name.split(' ').map((p) => p[0]).join('').slice(0, 2),
+      overallScore: rated.length ? Math.round((rated.reduce((sum, t) => sum + Number(t.csat), 0) / rated.length / 5) * 100) : null,
+      compliance: null,
+      tone: null,
+      accuracy: null,
+      slaAdherence: pct(answered.filter((t) => !t.sla_breached).length, answered.length),
+      ticketsAudited: rated.length,
+    };
   });
 
-  const handleReviewAudit = useCallback(async (auditId: string, ticketId: string) => {
-    await executeAction({
-      actionId: `review_audit_${auditId}`,
-      actionType: 'read',
-      entityType: 'ticket',
-      entityId: ticketId,
-      metadata: { auditId },
-      successMessage: 'Opening audit review',
-    });
-  }, [executeAction]);
+  // Findings: tickets a customer rated low, or that broke their SLA.
+  const auditItems: AuditItem[] = tickets
+    .filter((t) => (t.csat != null && Number(t.csat) <= 2) || t.sla_breached)
+    .map((t) => ({
+      id: t.id,
+      ticketId: t.reference ?? t.id.slice(0, 8),
+      agentName: memberName(members, t.assigned_to) ?? 'Unassigned',
+      category: t.sla_breached ? 'SLA' : 'Satisfaction',
+      finding: t.sla_breached ? 'SLA breached' : `Customer rated ${t.csat}/5`,
+      severity: t.sla_breached && Number(t.csat ?? 5) <= 2 ? 'critical' : 'warning',
+      status: t.status === 'resolved' || t.status === 'closed' ? 'resolved' : 'pending',
+      auditedAt: relativeTime(t.updated_at),
+    }));
+
+  // No AI classifies tickets on the platform, so nothing has been corrected.
+  const aiMisclassifications: AIMisclassification[] = [];
+
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const ratedToday = tickets.filter((t) => t.csat != null && new Date(t.updated_at) >= dayStart);
+  const samplingConfig = {
+    dailyTarget: Math.max(1, tickets.filter((t) => t.resolved_at && new Date(t.resolved_at) >= dayStart).length),
+    completed: ratedToday.length,
+    lastSampled: ratedToday.length ? relativeTime(ratedToday.map((t) => t.updated_at).sort().at(-1)) : '—',
+  };
+
+  // Reviewing a finding means reading the ticket, in the inbox.
+  const handleReviewAudit = useCallback((_auditId: string, _ticketId: string) => {
+    void navigate({ to: '/support', search: { section: 'inbox' } });
+  }, [navigate]);
 
   const handleResolveAudit = useCallback(async (auditId: string) => {
     await executeAction({
@@ -99,15 +125,13 @@ const QualityAudit = () => {
     });
   }, [executeAction]);
 
-  const handleExportReport = useCallback(async () => {
-    await executeAction({
-      actionId: 'export_qa_report',
-      actionType: 'export',
-      entityType: 'report',
-      metadata: { type: 'quality_audit', format: 'pdf' },
-      successMessage: 'Report exported',
-    });
-  }, [executeAction]);
+  const handleExportReport = () => {
+    const n = downloadCsv(stampedName('quality-audit', 'csv'), [
+      ...qualityScores.map((q) => ({ kind: 'agent', name: q.agentName, customer_rating_percent: q.overallScore ?? '', sla_percent: q.slaAdherence ?? '', rated_tickets: q.ticketsAudited })),
+      ...auditItems.map((i) => ({ kind: 'finding', name: i.ticketId, agent: i.agentName, finding: i.finding, status: i.status })),
+    ]);
+    toast.success(`Exported ${n} rows as CSV`);
+  };
 
   const getScoreColor = (score: number) => {
     if (score >= 95) return 'text-emerald-400';
@@ -156,9 +180,9 @@ const QualityAudit = () => {
       >
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-muted-foreground">Daily Sampling Progress</span>
-          <span className="text-sm text-teal-400">{samplingConfig.completed}/{samplingConfig.dailyTarget} tickets</span>
+          <span className="text-sm text-teal-400">{samplingConfig.completed} rated of {samplingConfig.dailyTarget} resolved today</span>
         </div>
-        <Progress value={(samplingConfig.completed / samplingConfig.dailyTarget) * 100} className="h-2" />
+        <Progress value={Math.min(100, (samplingConfig.completed / samplingConfig.dailyTarget) * 100)} className="h-2" />
         <p className="text-xs text-muted-foreground mt-2">Last sampled: {samplingConfig.lastSampled}</p>
       </motion.div>
 
@@ -189,7 +213,7 @@ const QualityAudit = () => {
                   <p className="text-xs text-muted-foreground">{agent.ticketsAudited} tickets audited</p>
                 </div>
                 <div className="text-right">
-                  <p className={`text-2xl font-bold ${getScoreColor(agent.overallScore)}`}>{agent.overallScore}%</p>
+                  <p className={`text-2xl font-bold ${agent.overallScore == null ? 'text-muted-foreground' : getScoreColor(agent.overallScore)}`}>{agent.overallScore == null ? '—' : `${agent.overallScore}%`}</p>
                   <p className="text-xs text-muted-foreground">Overall</p>
                 </div>
               </div>
@@ -201,7 +225,7 @@ const QualityAudit = () => {
                   { label: 'SLA', value: agent.slaAdherence },
                 ].map((metric) => (
                   <div key={metric.label} className="text-center p-2 rounded-lg bg-card/60">
-                    <p className={`text-lg font-bold ${getScoreColor(metric.value)}`}>{metric.value}%</p>
+                    <p className={`text-lg font-bold ${metric.value == null ? 'text-muted-foreground' : getScoreColor(metric.value)}`}>{metric.value == null ? '—' : `${metric.value}%`}</p>
                     <p className="text-xs text-muted-foreground">{metric.label}</p>
                   </div>
                 ))}
@@ -226,6 +250,7 @@ const QualityAudit = () => {
           </Badge>
         </div>
         <div className="space-y-3">
+          {auditItems.length === 0 && <p className="text-sm text-muted-foreground">No low-rated or SLA-breached ticket to review.</p>}
           {auditItems.map((item) => (
             <motion.div
               key={item.id}
@@ -297,6 +322,7 @@ const QualityAudit = () => {
           <Badge className="bg-purple-500/20 text-purple-400">{aiMisclassifications.length} corrections</Badge>
         </div>
         <div className="space-y-3">
+          {aiMisclassifications.length === 0 && <p className="text-sm text-muted-foreground">No AI classifies tickets on the platform yet, so there is nothing to correct.</p>}
           {aiMisclassifications.map((item) => (
             <div
               key={item.id}

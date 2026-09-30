@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+// Called by the category load below without being imported, so it always
+// failed and the form reported the categories as unreadable.
+import { listDemoCategories } from "@/lib/demo-manager/demos.functions";
 import { 
   Plus, 
   Edit, 

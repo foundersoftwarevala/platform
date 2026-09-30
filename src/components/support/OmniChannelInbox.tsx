@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useTickets, useEmailQueue, useChatSessions, useCallLogs, useChatMessages,
   useInsertRow, relativeTime,
@@ -125,24 +126,37 @@ const OmniChannelInbox = () => {
 
   const handleSendReply = useCallback(async () => {
     if (!replyText.trim() || !selectedMessage) return;
+    // Only a chat reply is delivered from here - it is written to the chat
+    // session the customer is in. Email, call and ticket replies have no
+    // sending channel connected, so saying "sent" for them was untrue.
+    if (selectedMessage.channel !== 'chat') {
+      toast.info(`Replying to ${selectedMessage.channel} is not connected yet`, {
+        description: 'Nothing was sent. Reply in the channel itself for now.',
+      });
+      return;
+    }
     try {
-      if (selectedMessage.channel === 'chat') {
-        await insertChatMessage.mutateAsync({
-          session_id: selectedMessage.id,
-          sender_type: 'agent',
-          body: replyText,
-        });
-      }
-      toast.success('Reply sent successfully');
+      await insertChatMessage.mutateAsync({
+        session_id: selectedMessage.id,
+        sender_type: 'agent',
+        body: replyText,
+      });
+      toast.success('Reply sent to the chat');
       setReplyText('');
     } catch {
       toast.error('Failed to send reply');
     }
   }, [replyText, selectedMessage, insertChatMessage]);
 
-  const handleRefresh = useCallback(() => {
-    toast.success('Inbox refreshed');
-  }, []);
+  const queryClient = useQueryClient();
+  const handleRefresh = useCallback(async () => {
+    await Promise.all(
+      ['support_tickets', 'email_queue', 'chat_sessions', 'call_logs', 'chat_messages'].map((table) =>
+        queryClient.invalidateQueries({ queryKey: [table] }),
+      ),
+    );
+    toast.success('Inbox read again');
+  }, [queryClient]);
 
   const filteredMessages = messages.filter((msg) => {
     if (activeChannel !== 'all' && msg.channel !== activeChannel) return false;

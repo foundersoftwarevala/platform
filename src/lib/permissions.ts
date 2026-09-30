@@ -41,11 +41,11 @@ const CAPABILITIES: Record<RoleKey, Capability[]> = {
 
 /** Extra virtual surfaces a role may open beyond its module list. */
 const EXTRA_SURFACES: Record<RoleKey, string[]> = {
-  reseller: ["ai-chat", "pricing", "center:*"],
+  reseller: ["ai-chat", "pricing", "center:*", "rank"],
   admin: ["ai-chat", "pricing", "center:*"],
   author: ["ai-chat"],
   vendor: ["ai-chat"],
-  affiliate: ["ai-chat"],
+  affiliate: ["ai-chat", "referrals"],
   influencer: ["ai-chat"],
   franchise: ["ai-chat"],
   seo: ["ai-chat"],

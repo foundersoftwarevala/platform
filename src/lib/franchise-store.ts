@@ -1,27 +1,23 @@
 // Franchise network data layer: branches, leads pipeline, employees, payments.
-// The dashboard should prefer the real Supabase schema when available, while the
-// seeded local data remains a safe fallback during demo, preview, or auth-less
-// sessions.
+//
+// This used to open on generated data - 26 leads, 34 employees, 18 payments
+// from a random-number generator - and fell back to it whenever the tables
+// were empty or a read failed, so a franchise owner could not tell their real
+// network from an invented one. It also read every franchise's rows, not the
+// signed-in franchise's, and every create, edit and delete changed only the
+// browser's memory.
+//
+// Now: the franchise is the one the signed-in person owns or belongs to; its
+// branches, leads, employees and royalties are read from the franchise tables
+// and nothing is generated. Changes are shown at once and written to the table,
+// and a refusal is shown and the rows read again. Royalties are read only - the
+// database lets only franchise administrators and finance change them. The
+// revenue charts are the franchise's own monthly performance.
 
 import { useEffect, useSyncExternalStore } from "react";
-import { pickFrom, rng } from "./metrics";
+import { toast } from "sonner";
 
-async function getSupabaseClient() {
-  const url = typeof import.meta !== "undefined" ? import.meta.env?.VITE_SUPABASE_URL : undefined;
-  const key = typeof import.meta !== "undefined" ? import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY : undefined;
-
-  if (!url || !key) {
-    return null;
-  }
-
-  try {
-    const clientModule = await import("@/integrations/supabase/client");
-    return clientModule.supabase;
-  } catch (error) {
-    console.warn("Franchise dashboard could not initialize Supabase client; using local seeded data instead.", error);
-    return null;
-  }
-}
+import { supabase } from "@/integrations/supabase/client";
 
 export type BranchStatus = "active" | "onboarding" | "paused" | "closed";
 export type Branch = {
@@ -33,9 +29,12 @@ export type Branch = {
   status: BranchStatus;
   openedAt: string;
   employees: number;
+  /** Total sales recorded against the branch. */
   monthlyRevenue: number;
-  target: number;
+  /** No sales target is recorded for a branch; kept for the screen, always null. */
+  target: number | null;
   rating: number;
+  /** No per-branch history is kept, so this is empty. */
   trend: number[];
 };
 
@@ -77,349 +76,307 @@ export type Payment = {
   date: string;
 };
 
-type State = { branches: Branch[]; leads: Lead[]; employees: Employee[]; payments: Payment[] };
+type State = {
+  loading: boolean;
+  error: string | null;
+  /** Why there is nothing to show, when there is nothing. */
+  note: string | null;
+  franchiseIds: string[];
+  branches: Branch[];
+  leads: Lead[];
+  employees: Employee[];
+  payments: Payment[];
+  /** The franchise's recorded revenue, one point per period, oldest first. */
+  revenueByPeriod: { label: string; value: number }[];
+};
 
-const CITIES: [string, string][] = [
-  ["Mumbai", "West"], ["Pune", "West"], ["Delhi", "North"], ["Gurugram", "North"],
-  ["Bengaluru", "South"], ["Chennai", "South"], ["Hyderabad", "South"],
-  ["Kolkata", "East"], ["Ahmedabad", "West"], ["Jaipur", "North"], ["Indore", "Central"],
-  ["Lucknow", "North"],
-];
-const PEOPLE = [
-  "Aarav Mehta", "Priya Shah", "Rohit Verma", "Maya Patel", "Noah Singh", "Ava Khan",
-  "Kabir Rao", "Zoya Iyer", "Ishaan Gupta", "Neha Kulkarni", "Arjun Nair", "Sara Sheikh",
-];
-const SOURCES = ["Website", "Referral", "Expo", "Cold call", "Paid ads", "Partner"];
-const JOB_ROLES = ["Branch Manager", "Sales Executive", "Support Agent", "Trainer", "Operations Lead", "Accountant"];
+const EMPTY: State = {
+  loading: true, error: null, note: null, franchiseIds: [],
+  branches: [], leads: [], employees: [], payments: [], revenueByPeriod: [],
+};
 
-function uid() { return Math.random().toString(36).slice(2, 9); }
-function iso(daysAgo: number) { return new Date(Date.now() - daysAgo * 864e5).toISOString(); }
-
-function seedTrend(seed: string) {
-  const r = rng(seed);
-  let v = 60 + r() * 40;
-  return Array.from({ length: 12 }, () => {
-    v = Math.max(20, Math.min(140, v + (r() - 0.45) * 22));
-    return Math.round(v);
-  });
-}
-
-function seed(): State {
-  const r = rng("franchise-network-v1");
-  const branches: Branch[] = CITIES.map(([city, region], i) => {
-    const rev = Math.round(180_000 + r() * 920_000);
-    return {
-      id: `BR-${String(101 + i)}`,
-      name: `${city} ${pickFrom(r, ["Central", "Hub", "Flagship", "Express", "Prime"])}`,
-      city, region,
-      manager: PEOPLE[i % PEOPLE.length],
-      status: i === 10 ? "onboarding" : i === 11 ? "paused" : "active",
-      openedAt: iso(Math.round(120 + r() * 1200)),
-      employees: Math.round(6 + r() * 28),
-      monthlyRevenue: rev,
-      target: Math.round(rev * (0.8 + r() * 0.5)),
-      rating: Math.round((3.6 + r() * 1.4) * 10) / 10,
-      trend: seedTrend(`branch-${city}`),
-    };
-  });
-
-  const leads: Lead[] = Array.from({ length: 26 }, (_, i) => {
-    const [city] = CITIES[i % CITIES.length];
-    return {
-      id: `LD-${1001 + i}`,
-      name: PEOPLE[(i * 5) % PEOPLE.length],
-      company: `${city} ${pickFrom(r, ["Ventures", "Retail", "Enterprises", "Traders", "Group", "Labs"])}`,
-      city,
-      owner: PEOPLE[(i * 3) % PEOPLE.length],
-      stage: LEAD_STAGES[i % LEAD_STAGES.length],
-      value: Math.round(45_000 + r() * 640_000),
-      source: pickFrom(r, SOURCES),
-      createdAt: iso(Math.round(1 + r() * 90)),
-      notes: "",
-    };
-  });
-
-  const employees: Employee[] = Array.from({ length: 34 }, (_, i) => {
-    const b = branches[i % branches.length];
-    return {
-      id: `EM-${2001 + i}`,
-      name: PEOPLE[(i * 7) % PEOPLE.length],
-      role: JOB_ROLES[i % JOB_ROLES.length],
-      branch: b.name,
-      status: i % 11 === 0 ? "probation" : i % 17 === 0 ? "leave" : "active",
-      joinedAt: iso(Math.round(30 + r() * 900)),
-      performance: Math.round(52 + r() * 46),
-      email: `${PEOPLE[(i * 7) % PEOPLE.length].toLowerCase().replace(/\s+/g, ".")}@softwarevala.com`,
-      availability: Array.from({ length: 7 }, (_, d) => d < 5 || r() > 0.6),
-    };
-  });
-
-  const payments: Payment[] = Array.from({ length: 18 }, (_, i) => {
-    const b = branches[i % branches.length];
-    const amount = Math.round(30_000 + r() * 420_000);
-    return {
-      id: `PM-${3001 + i}`,
-      branch: b.name,
-      invoice: `INV-2026-${String(400 + i)}`,
-      amount,
-      commission: Math.round(amount * 0.12),
-      status: i % 7 === 0 ? "overdue" : i % 3 === 0 ? "pending" : "paid",
-      date: iso(Math.round(1 + r() * 120)),
-    };
-  });
-
-  return { branches, leads, employees, payments };
-}
+// The franchise tables are not all in the generated types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const from = (t: string) => (supabase as any).from(t);
 
 function asNumber(value: unknown, fallback = 0) {
   const result = Number(value ?? fallback);
   return Number.isFinite(result) ? result : fallback;
 }
 
-function mapBranch(row: Record<string, any>, index: number): Branch {
-  const city = String(row.city ?? CITIES[index % CITIES.length]?.[0] ?? "Mumbai");
-  const region = String(row.region ?? CITIES[index % CITIES.length]?.[1] ?? "West");
-  const manager = String(row.manager ?? row.owner_name ?? "Unassigned");
-  const revenue = asNumber(row.total_sales ?? row.monthly_revenue ?? row.revenue, 0);
-  const target = Math.max(revenue, asNumber(row.target ?? row.sales_target ?? revenue * 1.1, revenue * 1.1));
-  const performance = asNumber(row.performance_score ?? 0, 0);
+type Row = Record<string, unknown>;
 
+function mapBranch(row: Row): Branch {
   return {
-    id: String(row.id ?? `BR-${index + 1}`),
-    name: String(row.name ?? `${city} Branch`),
-    city,
-    region,
-    manager,
+    id: String(row.id),
+    name: String(row.name ?? "Branch"),
+    city: String(row.city ?? ""),
+    region: String(row.region ?? ""),
+    manager: String(row.manager ?? "Unassigned"),
     status: (row.status as BranchStatus) ?? "active",
-    openedAt: String(row.joined_date ?? row.created_at ?? new Date().toISOString()),
-    employees: Math.max(0, Math.round(asNumber(row.active_employees ?? row.employees, 0))),
-    monthlyRevenue: revenue,
-    target,
-    rating: Number((performance / 20).toFixed(1)) || 4.5,
-    trend: Array.from({ length: 12 }, (_, item) => Math.max(30, Math.min(150, Math.round(performance + (item - 5) * 6)))),
+    openedAt: String(row.joined_date ?? row.created_at ?? ""),
+    employees: Math.max(0, Math.round(asNumber(row.active_employees, 0))),
+    monthlyRevenue: asNumber(row.total_sales, 0),
+    target: null,
+    rating: Number((asNumber(row.performance_score, 0) / 20).toFixed(1)),
+    trend: [],
   };
 }
 
-function mapLead(row: Record<string, any>): Lead {
+function mapLead(row: Row): Lead {
   return {
-    id: String(row.id ?? `LD-${uid()}`),
-    name: String(row.name ?? "New Lead"),
+    id: String(row.id),
+    name: String(row.name ?? ""),
     company: String(row.company ?? "—"),
-    city: String(row.city ?? "Mumbai"),
-    owner: String(row.owner ?? row.owner_name ?? "you"),
+    city: "",
+    owner: String(row.owner_user_id ? "you" : "—"),
     stage: (row.stage as LeadStage) ?? "new",
-    value: asNumber(row.value ?? row.amount ?? 0, 0),
-    source: String(row.source ?? "Website"),
-    createdAt: String(row.created_at ?? new Date().toISOString()),
+    value: asNumber(row.value, 0),
+    source: String(row.source ?? ""),
+    createdAt: String(row.created_at ?? ""),
     notes: String(row.notes ?? ""),
   };
 }
 
-function mapEmployee(row: Record<string, any>): Employee {
-  const availability = Array.isArray(row.availability)
-    ? row.availability.map((value: unknown) => Boolean(value))
-    : [true, true, true, true, true, false, false];
-
+function mapEmployee(row: Row, branchName: Map<string, string>): Employee {
   return {
-    id: String(row.id ?? `EM-${uid()}`),
-    name: String(row.full_name ?? row.name ?? "New Employee"),
-    role: String(row.role ?? "Sales Executive"),
-    branch: String(row.branch ?? row.branch_name ?? row.branch_id ?? "—"),
+    id: String(row.id),
+    name: String(row.full_name ?? ""),
+    role: String(row.role ?? ""),
+    branch: branchName.get(String(row.branch_id ?? "")) ?? "—",
     status: (row.status as EmployeeStatus) ?? "active",
-    joinedAt: String(row.joined_at ?? row.created_at ?? new Date().toISOString()),
-    performance: Math.max(0, Math.min(100, asNumber(row.performance, 60))),
+    joinedAt: String(row.joined_at ?? row.created_at ?? ""),
+    performance: Math.max(0, Math.min(100, asNumber(row.performance, 0))),
     email: String(row.email ?? ""),
-    availability,
+    availability: Array.isArray(row.availability)
+      ? (row.availability as unknown[]).map((v) => Boolean(v))
+      : [false, false, false, false, false, false, false],
   };
 }
 
-function mapPayment(row: Record<string, any>): Payment {
+function mapPayment(row: Row): Payment {
   const status = String(row.status ?? "pending");
-  const normalizedStatus = status === "paid" ? "paid" : status === "overdue" ? "overdue" : "pending";
-
+  const due = row.due_date ? new Date(String(row.due_date)).getTime() : null;
   return {
-    id: String(row.id ?? `PM-${uid()}`),
-    branch: String(row.branch ?? row.franchise_id ?? "Franchise"),
-    invoice: String(row.invoice ?? `INV-${String(row.id ?? uid()).slice(0, 8).toUpperCase()}`),
-    amount: asNumber(row.amount ?? row.royalty_due ?? 0, 0),
-    commission: asNumber(row.commission ?? row.commission_due ?? 0, 0),
-    status: normalizedStatus as Payment["status"],
-    date: String(row.date ?? row.due_date ?? row.created_at ?? new Date().toISOString()),
+    id: String(row.id),
+    branch: String(row.period ?? ""),
+    invoice: `ROY-${String(row.id).slice(0, 8).toUpperCase()}`,
+    amount: asNumber(row.royalty_due, 0),
+    commission: asNumber(row.commission_due, 0),
+    status: status === "paid" ? "paid" : due != null && due < Date.now() ? "overdue" : "pending",
+    date: String(row.due_date ?? row.created_at ?? ""),
   };
 }
 
-async function loadLiveState(): Promise<State> {
-  const supabase = await getSupabaseClient();
-  if (!supabase) {
-    return seed();
-  }
-
-  try {
-    const [branchesQuery, leadsQuery, employeesQuery, paymentsQuery] = await Promise.all([
-      supabase.from("franchise_branches").select("*").order("created_at", { ascending: false }),
-      supabase.from("franchise_leads").select("*").order("created_at", { ascending: false }),
-      supabase.from("franchise_employees").select("*").order("created_at", { ascending: false }),
-      supabase.from("franchise_royalties").select("*").order("created_at", { ascending: false }),
-    ]);
-
-    if (branchesQuery.error || leadsQuery.error || employeesQuery.error || paymentsQuery.error) {
-      console.warn("Franchise dashboard falling back to seeded data because Supabase reads failed.", {
-        branchesQuery: branchesQuery.error,
-        leadsQuery: leadsQuery.error,
-        employeesQuery: employeesQuery.error,
-        paymentsQuery: paymentsQuery.error,
-      });
-      return seed();
-    }
-
-    const branches = (branchesQuery.data ?? []).map((row, index) => mapBranch(row as Record<string, any>, index));
-    const leads = (leadsQuery.data ?? []).map((row) => mapLead(row as Record<string, any>));
-    const employees = (employeesQuery.data ?? []).map((row) => mapEmployee(row as Record<string, any>));
-    const payments = (paymentsQuery.data ?? []).map((row) => mapPayment(row as Record<string, any>));
-
-    if (branches.length === 0 && leads.length === 0 && employees.length === 0 && payments.length === 0) {
-      return seed();
-    }
-
-    return { branches, leads, employees, payments };
-  } catch (error) {
-    console.warn("Franchise dashboard could not access the live schema; using local seeded data instead.", error);
-    return seed();
-  }
-}
-
-let state: State = seed();
+let state: State = EMPTY;
 const listeners = new Set<() => void>();
-
 function emit() { listeners.forEach((listener) => listener()); }
 function setState(patch: Partial<State>) { state = { ...state, ...patch }; emit(); }
 
-function persistWithFallback(event: string, operation: () => Promise<unknown>) {
-  return void (async () => {
-    const supabase = await getSupabaseClient();
-    if (!supabase) return;
+async function rows(q: PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<Row[]> {
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Row[];
+}
 
-    try {
-      await operation();
-    } catch (error) {
-      console.warn(`Franchise ${event} deferred to local demo data because Supabase is unavailable.`, error);
+async function load(): Promise<void> {
+  try {
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth.user?.id;
+    if (!uid) {
+      setState({ ...EMPTY, loading: false, note: "Please sign in to see your franchise." });
+      return;
     }
-  })();
+    const [owned, member] = await Promise.all([
+      rows(from("franchises").select("id").eq("owner_user_id", uid)),
+      rows(from("franchise_users").select("franchise_id").eq("user_id", uid).eq("active", true)),
+    ]);
+    const franchiseIds = [...new Set([...owned.map((f) => String(f.id)), ...member.map((m) => String(m.franchise_id))])];
+    if (!franchiseIds.length) {
+      setState({ ...EMPTY, loading: false, note: "No franchise is linked to this account yet." });
+      return;
+    }
+    const [branches, leads, employees, royalties, performance] = await Promise.all([
+      rows(from("franchise_branches").select("*").in("franchise_id", franchiseIds).order("created_at", { ascending: false })),
+      rows(from("franchise_leads").select("*").in("franchise_id", franchiseIds).order("created_at", { ascending: false })),
+      rows(from("franchise_employees").select("*").in("franchise_id", franchiseIds).order("created_at", { ascending: false })),
+      rows(from("franchise_royalties").select("*").in("franchise_id", franchiseIds).order("created_at", { ascending: false })),
+      rows(from("franchise_performance").select("period,revenue").in("franchise_id", franchiseIds).order("period")),
+    ]);
+    const branchName = new Map(branches.map((b) => [String(b.id), String(b.name ?? "")]));
+    const byPeriod = new Map<string, number>();
+    for (const p of performance) byPeriod.set(String(p.period), (byPeriod.get(String(p.period)) ?? 0) + asNumber(p.revenue, 0));
+    setState({
+      loading: false,
+      error: null,
+      note: null,
+      franchiseIds,
+      branches: branches.map(mapBranch),
+      leads: leads.map(mapLead),
+      employees: employees.map((e) => mapEmployee(e, branchName)),
+      payments: royalties.map(mapPayment),
+      revenueByPeriod: [...byPeriod.entries()].slice(-12).map(([label, value]) => ({ label, value })),
+    });
+  } catch (error) {
+    setState({ loading: false, error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/** Writes one change; a refusal is shown and the rows are read again. */
+async function write(what: string, run: () => PromiseLike<{ error: { message: string } | null }>) {
+  const { error } = await run();
+  if (error) {
+    toast.error(`${what} was not saved: ${error.message}`);
+    await load();
+    return false;
+  }
+  return true;
+}
+
+/** Typing in a field writes once the typing stops, not on every keystroke. */
+const pending = new Map<string, ReturnType<typeof setTimeout>>();
+function later(key: string, run: () => void) {
+  const existing = pending.get(key);
+  if (existing) clearTimeout(existing);
+  pending.set(key, setTimeout(() => { pending.delete(key); run(); }, 500));
+}
+
+function branchColumns(input: Partial<Branch>): Row {
+  const out: Row = {};
+  if (input.name !== undefined) out.name = input.name.trim() || "Branch";
+  if (input.city !== undefined) out.city = input.city;
+  if (input.region !== undefined) out.region = input.region;
+  if (input.manager !== undefined) out.manager = input.manager;
+  if (input.status !== undefined) out.status = input.status;
+  return out;
+}
+
+function leadColumns(input: Partial<Lead>): Row {
+  const out: Row = {};
+  if (input.name !== undefined) out.name = input.name.trim() || "Lead";
+  if (input.company !== undefined) out.company = input.company;
+  if (input.stage !== undefined) out.stage = input.stage;
+  if (input.value !== undefined) out.value = input.value;
+  if (input.source !== undefined) out.source = input.source;
+  if (input.notes !== undefined) out.notes = input.notes;
+  return out;
+}
+
+function employeeColumns(input: Partial<Employee>): Row {
+  const out: Row = {};
+  if (input.name !== undefined) out.full_name = input.name.trim() || "Employee";
+  if (input.role !== undefined) out.role = input.role;
+  if (input.email !== undefined) out.email = input.email;
+  if (input.status !== undefined) out.status = input.status;
+  if (input.performance !== undefined) out.performance = input.performance;
+  if (input.availability !== undefined) out.availability = input.availability;
+  if (input.branch !== undefined) {
+    out.branch_id = state.branches.find((b) => b.name === input.branch || b.id === input.branch)?.id ?? null;
+  }
+  return out;
 }
 
 export function useFranchise() {
   const snap = useSyncExternalStore(
     (l) => { listeners.add(l); return () => listeners.delete(l); },
     () => state,
-    () => state,
+    () => EMPTY,
   );
 
   useEffect(() => {
-    let active = true;
-
-    void loadLiveState().then((live) => {
-      if (!active) return;
-      state = live;
-      emit();
-    });
-
-    return () => {
-      active = false;
-    };
+    void load();
   }, []);
+
+  const franchiseId = () => {
+    const id = state.franchiseIds[0];
+    if (!id) toast.error("No franchise is linked to this account, so nothing can be added.");
+    return id;
+  };
 
   return {
     ...snap,
+    reload: load,
     /* branches */
-    createBranch(input: Partial<Branch>) {
-      const b: Branch = {
-        id: `BR-${uid().toUpperCase().slice(0, 4)}`,
-        name: input.name?.trim() || "New Branch",
-        city: input.city || "Mumbai",
-        region: input.region || "West",
-        manager: input.manager || "Unassigned",
-        status: input.status || "onboarding",
-        openedAt: input.openedAt || new Date().toISOString(),
-        employees: input.employees ?? 0,
-        monthlyRevenue: input.monthlyRevenue ?? 0,
-        target: input.target ?? 250_000,
-        rating: input.rating ?? 0,
-        trend: seedTrend(input.name || uid()),
-      };
-      setState({ branches: [b, ...state.branches] });
-      return b;
+    async createBranch(input: Partial<Branch>) {
+      const id = franchiseId();
+      if (!id) return;
+      if (await write("The branch", () => from("franchise_branches").insert({
+        ...branchColumns({ status: "onboarding", ...input }),
+        franchise_id: id,
+        joined_date: new Date().toISOString().slice(0, 10),
+      }))) {
+        toast.success("Branch added");
+        await load();
+      }
     },
     updateBranch(id: string, patch: Partial<Branch>) {
-      setState({ branches: state.branches.map((b) => (b.id === id ? { ...b, ...patch } : b)) });
+      setState({ branches: state.branches.map((b) => (b.id === id ? { ...b, ...patch, target: null } : b)) });
+      later(`branch:${id}`, () => void write("The branch", () => from("franchise_branches").update(branchColumns(patch)).eq("id", id)));
     },
-    removeBranches(ids: string[]) {
-      const s = new Set(ids);
-      setState({ branches: state.branches.filter((b) => !s.has(b.id)) });
+    async removeBranches(ids: string[]) {
+      if (!window.confirm(`Delete ${ids.length === 1 ? "this branch" : `${ids.length} branches`}?`)) return;
+      setState({ branches: state.branches.filter((b) => !ids.includes(b.id)) });
+      if (await write("Deleting", () => from("franchise_branches").delete().in("id", ids))) toast.success("Deleted");
     },
     /* leads */
-    createLead(input: Partial<Lead>) {
-      const l: Lead = {
-        id: `LD-${uid().toUpperCase().slice(0, 5)}`,
-        name: input.name?.trim() || "New Lead",
-        company: input.company || "—",
-        city: input.city || "Mumbai",
-        owner: input.owner || "you",
-        stage: input.stage || "new",
-        value: input.value ?? 0,
-        source: input.source || "Website",
-        createdAt: new Date().toISOString(),
-        notes: input.notes || "",
-      };
-      setState({ leads: [l, ...state.leads] });
-      return l;
+    async createLead(input: Partial<Lead>) {
+      const id = franchiseId();
+      if (!id) return;
+      const { data: auth } = await supabase.auth.getUser();
+      if (await write("The lead", () => from("franchise_leads").insert({
+        ...leadColumns({ stage: "new", ...input }),
+        franchise_id: id,
+        owner_user_id: auth.user?.id ?? null,
+      }))) {
+        toast.success("Lead added");
+        await load();
+      }
     },
     updateLead(id: string, patch: Partial<Lead>) {
       setState({ leads: state.leads.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
+      later(`lead:${id}`, () => void write("The lead", () => from("franchise_leads").update(leadColumns(patch)).eq("id", id)));
     },
-    removeLead(id: string) {
+    async removeLead(id: string) {
+      if (!window.confirm("Delete this lead?")) return;
       setState({ leads: state.leads.filter((l) => l.id !== id) });
+      if (await write("Deleting", () => from("franchise_leads").delete().eq("id", id))) toast.success("Deleted");
     },
     /* employees */
-    createEmployee(input: Partial<Employee>) {
-      const e: Employee = {
-        id: `EM-${uid().toUpperCase().slice(0, 5)}`,
-        name: input.name?.trim() || "New Employee",
-        role: input.role || "Sales Executive",
-        branch: input.branch || state.branches[0]?.name || "—",
-        status: input.status || "probation",
-        joinedAt: input.joinedAt || new Date().toISOString(),
-        performance: input.performance ?? 60,
-        email: input.email || "",
-        availability: input.availability || [true, true, true, true, true, false, false],
-      };
-      setState({ employees: [e, ...state.employees] });
-      return e;
+    async createEmployee(input: Partial<Employee>) {
+      const id = franchiseId();
+      if (!id) return;
+      if (await write("The employee", () => from("franchise_employees").insert({
+        ...employeeColumns({ status: "probation", ...input }),
+        franchise_id: id,
+        joined_at: new Date().toISOString(),
+      }))) {
+        toast.success("Employee added");
+        await load();
+      }
     },
     updateEmployee(id: string, patch: Partial<Employee>) {
       setState({ employees: state.employees.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
+      later(`employee:${id}`, () => void write("The employee", () => from("franchise_employees").update(employeeColumns(patch)).eq("id", id)));
     },
-    removeEmployees(ids: string[]) {
-      const s = new Set(ids);
-      setState({ employees: state.employees.filter((e) => !s.has(e.id)) });
+    async removeEmployees(ids: string[]) {
+      if (!window.confirm(`Delete ${ids.length === 1 ? "this employee" : `${ids.length} employees`}?`)) return;
+      setState({ employees: state.employees.filter((e) => !ids.includes(e.id)) });
+      if (await write("Deleting", () => from("franchise_employees").delete().in("id", ids))) toast.success("Deleted");
     },
-    importEmployees(rows: Partial<Employee>[]) {
-      const incoming = rows.map((p, i) => ({
-        id: `EM-${uid().toUpperCase().slice(0, 5)}${i}`,
-        name: String(p.name ?? "Imported"),
-        role: String(p.role ?? "Sales Executive"),
-        branch: String(p.branch ?? state.branches[0]?.name ?? "—"),
-        status: (p.status as EmployeeStatus) ?? "probation",
-        joinedAt: String(p.joinedAt ?? new Date().toISOString()),
-        performance: Number(p.performance ?? 60),
-        email: String(p.email ?? ""),
-        availability: Array.isArray(p.availability) ? p.availability : [true, true, true, true, true, false, false],
-      }));
-      setState({ employees: [...incoming, ...state.employees] });
-      return incoming.length;
-    },
-    /* payments */
-    updatePayment(id: string, patch: Partial<Payment>) {
-      setState({ payments: state.payments.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+    async importEmployees(rowsIn: Partial<Employee>[]) {
+      const id = franchiseId();
+      if (!id || !rowsIn.length) return 0;
+      const ok = await write("The import", () => from("franchise_employees").insert(
+        rowsIn.map((p) => ({
+          ...employeeColumns({ status: "probation", ...p, name: String(p.name ?? "Employee") }),
+          franchise_id: id,
+          joined_at: p.joinedAt ?? new Date().toISOString(),
+        })),
+      ));
+      if (!ok) return 0;
+      await load();
+      toast.success(`Imported ${rowsIn.length} employee${rowsIn.length === 1 ? "" : "s"}`);
+      return rowsIn.length;
     },
   };
 }

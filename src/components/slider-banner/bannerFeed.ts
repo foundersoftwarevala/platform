@@ -1,114 +1,164 @@
 /**
- * BANNER FEED — single source of truth for the auto-slider banner.
+ * BANNER FEED — the Control Panel's live items, shared by the slider banner
+ * and the Command Center.
  *
- * Add a new important item any time (alert / notification / approval / todo)
- * and it will LIVE-slide into every SliderBanner in the project:
+ * This used to be six sentences typed into this file (a ₹8,42,000 payout, a
+ * 91% load on "EU-Cluster-2", 142 leads) held in memory, and every button only
+ * removed them from the screen and announced success. The items now come from
+ * /api/control-panel/feed - open applications, open alerts, the viewer's own
+ * tasks, today's arrivals - and each action changes the row behind the item:
  *
- *   import { addBannerItem } from "@/components/slider-banner/bannerFeed";
- *   addBannerItem({ kind: "approval", title: "New payout ₹4.2L", detail: "Finance", });
+ *   approve      decides the application through the applications API
+ *   acknowledge  marks the alert acknowledged in the module that raised it
+ *   open         goes to the module that owns the item
+ *
+ * Dismiss only hides an item from this viewer's banner, in this browser. It
+ * changes nothing on the platform and says so.
  */
 
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-export type BannerKind = "alert" | "notification" | "approval" | "todo";
+import { authHeaders } from "@/lib/auth/operator-fetch";
+import type { FeedItem } from "@/lib/control-panel/feed";
 
-export interface BannerItem {
-  id: string;
-  kind: BannerKind;
-  title: string;
-  detail: string;
-  meta?: string;
-  /** primary button label, defaults per kind */
-  primaryLabel?: string;
-  secondaryLabel?: string;
-  done?: boolean;
-}
+export type BannerKind = FeedItem["kind"];
+export type BannerItem = FeedItem;
 
-const DEFAULT_ITEMS: BannerItem[] = [
-  {
-    id: "ap-1",
-    kind: "approval",
-    title: "Payout approval — ₹8,42,000",
-    detail: "Finance Manager ne 3 vendor payouts approval ke liye bheje hain.",
-    meta: "Finance • 4 min ago",
-  },
-  {
-    id: "al-1",
-    kind: "alert",
-    title: "Server load 91% on EU-Cluster-2",
-    detail: "Auto-scale trigger armed. Boss approval se extra node add hoga.",
-    meta: "Server Manager • live",
-  },
-  {
-    id: "nt-1",
-    kind: "notification",
-    title: "142 new leads captured today",
-    detail: "Lead Manager pipeline me 18% growth vs yesterday.",
-    meta: "Lead Manager • 12 min ago",
-  },
-  {
-    id: "td-1",
-    kind: "todo",
-    title: "Review Q3 franchise expansion deck",
-    detail: "Continent Admin ne 6 naye city proposals submit kiye hain.",
-    meta: "To-Do • due today",
-  },
-  {
-    id: "al-2",
-    kind: "alert",
-    title: "2 failed AI API keys detected",
-    detail: "AI API Manager me rotation required — fallback gateway active hai.",
-    meta: "AI API Manager • 1 min ago",
-  },
-  {
-    id: "ap-2",
-    kind: "approval",
-    title: "Reseller tier upgrade — 9 partners",
-    detail: "Reseller Manager ne Gold tier upgrade request bheji hai.",
-    meta: "Reseller • 22 min ago",
-  },
-];
+const FEED_KEY = ["control-panel", "feed"] as const;
+const HIDDEN_KEY = "sv.banner.hidden.v1";
 
-let items: BannerItem[] = [...DEFAULT_ITEMS];
+/* ----------------------------- hidden items ------------------------------ */
+
+let hidden: Set<string> = new Set();
+let hydrated = false;
 const listeners = new Set<() => void>();
 
-function emit() {
-  items = [...items];
-  listeners.forEach((l) => l());
+function hydrate() {
+  if (hydrated || typeof window === "undefined") return;
+  hydrated = true;
+  try {
+    const raw = window.localStorage.getItem(HIDDEN_KEY);
+    if (raw) hidden = new Set(JSON.parse(raw) as string[]);
+  } catch {
+    /* storage unavailable: nothing is hidden */
+  }
 }
 
-export function addBannerItem(item: Omit<BannerItem, "id"> & { id?: string }) {
-  items = [
-    { id: item.id ?? `b-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...item },
-    ...items,
-  ];
-  emit();
-}
-
-export function resolveBannerItem(id: string) {
-  items = items.filter((i) => i.id !== id);
-  emit();
-}
-
-export function completeBannerItem(id: string) {
-  items = items.map((i) => (i.id === id ? { ...i, done: true } : i));
-  emit();
+function persistHidden() {
+  try {
+    // Only the most recent few hundred; old ids belong to rows long gone.
+    window.localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden].slice(-300)));
+  } catch {
+    /* storage unavailable: hidden for this visit only */
+  }
 }
 
 function subscribe(cb: () => void) {
+  hydrate();
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
 
-function getSnapshot() {
-  return items;
+function hiddenSnapshot() {
+  return hidden;
 }
 
-export function useBannerFeed() {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+/** Hide an item from this viewer's banner. Nothing on the platform changes. */
+export function dismissBannerItem(id: string) {
+  hydrate();
+  hidden = new Set(hidden).add(id);
+  persistHidden();
+  listeners.forEach((l) => l());
 }
 
-// expose for quick manual additions from the console
-if (typeof window !== "undefined") {
-  (window as unknown as Record<string, unknown>)["addBannerItem"] = addBannerItem;
+/* --------------------------------- feed ---------------------------------- */
+
+async function api<T>(input: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(input, {
+    ...init,
+    headers: {
+      ...(await authHeaders()),
+      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...init.headers,
+    },
+  });
+  const body = (await response.json().catch(() => ({}))) as T & { error?: string };
+  if (!response.ok) throw new Error(body.error ?? `The request did not go through (${response.status})`);
+  return body;
+}
+
+export type BannerFeed = {
+  items: BannerItem[];
+  loading: boolean;
+  error: string | null;
+  /** Sources that could not be read this time; their items are missing. */
+  unavailable: string[];
+  refresh: () => void;
+};
+
+export function useBannerFeed(): BannerFeed {
+  const hiddenIds = useSyncExternalStore(subscribe, hiddenSnapshot, hiddenSnapshot);
+  const query = useQuery({
+    queryKey: FEED_KEY,
+    queryFn: () => api<{ items: BannerItem[]; unavailable: string[] }>("/api/control-panel/feed"),
+    refetchInterval: 60_000,
+  });
+  return {
+    items: (query.data?.items ?? []).filter((i) => !hiddenIds.has(i.id)),
+    loading: query.isLoading,
+    error: query.error ? (query.error as Error).message : null,
+    unavailable: query.data?.unavailable ?? [],
+    refresh: () => void query.refetch(),
+  };
+}
+
+/** The main button's label for an item. */
+export function primaryLabelOf(item: BannerItem): string {
+  switch (item.action.type) {
+    case "approve":
+      return "Approve";
+    case "acknowledge":
+      return "Acknowledge";
+    default:
+      return "Open";
+  }
+}
+
+/**
+ * The item's main action. Resolves with a message describing what changed, or
+ * with a destination to go to; throws with the platform's own refusal.
+ */
+export function useBannerAction() {
+  const client = useQueryClient();
+  return useCallback(
+    async (item: BannerItem): Promise<{ message?: string; navigate?: string }> => {
+      const action = item.action;
+      if (action.type === "open") return { navigate: item.href };
+      if (action.type === "approve") {
+        // Approving is a real decision on someone's application; it is asked,
+        // not taken on a stray click.
+        if (!window.confirm(`Approve ${item.title}?`)) return {};
+        await api("/api/applications/queue", {
+          method: "POST",
+          body: JSON.stringify({ action: "decide", kind: action.kind, id: action.id, status: "approved" }),
+        });
+        await Promise.all([
+          client.invalidateQueries({ queryKey: FEED_KEY }),
+          client.invalidateQueries({ queryKey: ["control-panel", "cockpit"] }),
+        ]);
+        return { message: `Approved: ${item.title}` };
+      }
+      await api("/api/control-panel/feed", {
+        method: "POST",
+        body: JSON.stringify({ action: "acknowledge", source: action.source, id: action.id }),
+      });
+      await Promise.all([
+        client.invalidateQueries({ queryKey: FEED_KEY }),
+        client.invalidateQueries({ queryKey: ["control-panel", "cockpit"] }),
+      ]);
+      return { message: `Acknowledged: ${item.title}` };
+    },
+    [client],
+  );
 }

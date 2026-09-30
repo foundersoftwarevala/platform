@@ -1,7 +1,6 @@
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, isValidElement, useEffect, useMemo, useState } from "react";
 import {
-  Search, Plus, Download, Upload, Copy, Archive, Trash2, Check, Filter,
-  MoreHorizontal, TrendingUp, TrendingDown, ArrowUpRight,
+  Search, Plus, Download, Filter, MoreHorizontal, TrendingUp, TrendingDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +9,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Checkbox } from "@/components/ui/checkbox";
+
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ams/shared/PageHeader";
@@ -29,6 +28,14 @@ export interface DashboardRow {
   [k: string]: ReactNode;
 }
 
+/** An action on one row. Offered only where `when` allows it. */
+export interface RowAction {
+  label: string;
+  danger?: boolean;
+  when?: (row: DashboardRow) => boolean;
+  onSelect: (row: DashboardRow) => void;
+}
+
 export interface DashboardColumn {
   key: string;
   label: string;
@@ -39,6 +46,8 @@ export interface DashboardColumn {
 export interface FilterChip {
   label: string;
   values: string[];
+  /** The column it filters; the label, lower-cased, when not given. */
+  key?: string;
 }
 
 export interface EngineDashboardProps {
@@ -52,42 +61,90 @@ export interface EngineDashboardProps {
   rows: DashboardRow[];
   emptyLabel?: string;
   extraPanels?: ReactNode;
+  /** The primary action. Without one, no primary button is shown. */
+  onPrimary?: () => void;
+  rowActions?: RowAction[];
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
+const PAGE_SIZE = 25;
+
+/** A cell's text, for search, filters and export: a string, a number, or a chip's own text. */
+function textOf(value: unknown): string {
+  if (value == null || typeof value === "boolean") return "";
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(textOf).join(" ");
+  if (isValidElement(value)) return textOf((value.props as { children?: unknown }).children);
+  return "";
+}
+
+function exportCsv(title: string, columns: DashboardColumn[], rows: DashboardRow[]) {
+  const quote = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const lines = [
+    columns.map((c) => quote(c.label)).join(","),
+    ...rows.map((r) => columns.map((c) => quote(textOf(r[c.key]))).join(",")),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+}
+
+/**
+ * The AMS engine screens' shared layout.
+ *
+ * Every button on it used to be inert - Import, Export, New, the bulk actions
+ * and every row action - and paging was two permanently disabled buttons.
+ * Export now writes the rows on screen to a CSV file, paging pages, and the
+ * primary and row actions are the ones a screen actually supplies: a screen
+ * that supplies none shows none. Filters search the values a column really
+ * holds.
+ */
 export function EngineDashboard({
   kicker, title, description, primaryAction = "New",
   kpis, filters = [], columns, rows,
-  emptyLabel = "No records yet — create your first entry.",
-  extraPanels,
+  emptyLabel = "No records yet.",
+  extraPanels, onPrimary, rowActions = [], loading = false, error = null, onRetry,
 }: EngineDashboardProps) {
   const [q, setQ] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [active, setActive] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(0);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
       if (needle) {
-        const hay = Object.values(r).map((v) => String(v ?? "")).join(" ").toLowerCase();
+        const hay = Object.values(r).map(textOf).join(" ").toLowerCase();
         if (!hay.includes(needle)) return false;
       }
       for (const [k, v] of Object.entries(active)) {
-        if (v && String(r[k] ?? "").toLowerCase() !== v.toLowerCase()) return false;
+        if (v && textOf(r[k]).toLowerCase() !== v.toLowerCase()) return false;
       }
       return true;
     });
   }, [rows, q, active]);
 
-  const toggle = (id: string) => {
-    setSelected((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id); else n.add(id);
-      return n;
-    });
-  };
-  const toggleAll = () => {
-    setSelected((s) => s.size === filtered.length ? new Set() : new Set(filtered.map((r) => r.id)));
-  };
+  // The filter's choices are the values the column holds, not a fixed list.
+  const filterValues = useMemo(
+    () =>
+      filters.map((f) => {
+        const key = f.key ?? f.label.toLowerCase();
+        const present = [...new Set(rows.map((r) => textOf(r[key])).filter(Boolean))].sort();
+        return { label: f.label, key, values: present.length ? present : f.values };
+      }),
+    [filters, rows],
+  );
+
+  useEffect(() => { setPage(0); }, [q, active, rows]);
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const shown = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
 
   return (
     <div className="space-y-6">
@@ -98,9 +155,16 @@ export function EngineDashboard({
         description={description}
         actions={
           <>
-            <Button variant="outline" size="sm" sound="importComplete" className="gap-1.5"><Upload className="h-3.5 w-3.5" /> Import</Button>
-            <Button variant="outline" size="sm" sound="exportComplete" className="gap-1.5"><Download className="h-3.5 w-3.5" /> Export</Button>
-            <Button size="sm" className="gap-1.5"><Plus className="h-3.5 w-3.5" /> {primaryAction}</Button>
+            <Button
+              variant="outline" size="sm" className="gap-1.5"
+              disabled={!filtered.length}
+              onClick={() => exportCsv(title, columns, filtered)}
+            >
+              <Download className="h-3.5 w-3.5" /> Export
+            </Button>
+            {onPrimary && (
+              <Button size="sm" className="gap-1.5" onClick={onPrimary}><Plus className="h-3.5 w-3.5" /> {primaryAction}</Button>
+            )}
           </>
         }
       />
@@ -135,38 +199,27 @@ export function EngineDashboard({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="pl-9 h-9 bg-muted/30" />
         </div>
-        {filters.map((f) => (
+        {filterValues.map((f) => (
           <DropdownMenu key={f.label}>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5">
                 <Filter className="h-3.5 w-3.5" />
-                {f.label}{active[f.label.toLowerCase()] ? `: ${active[f.label.toLowerCase()]}` : ""}
+                {f.label}{active[f.key] ? `: ${active[f.key]}` : ""}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-44">
-              <DropdownMenuItem onClick={() => setActive((a) => ({ ...a, [f.label.toLowerCase()]: "" }))}>
+              <DropdownMenuItem onClick={() => setActive((a) => ({ ...a, [f.key]: "" }))}>
                 All
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {f.values.map((v) => (
-                <DropdownMenuItem key={v} onClick={() => setActive((a) => ({ ...a, [f.label.toLowerCase()]: v }))}>
+                <DropdownMenuItem key={v} onClick={() => setActive((a) => ({ ...a, [f.key]: v }))}>
                   {v}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
         ))}
-        <div className="ml-auto flex items-center gap-1">
-          {selected.size > 0 && (
-            <>
-              <span className="text-xs text-muted-foreground mr-2">{selected.size} selected</span>
-              <Button variant="ghost" size="sm" sound="approval" className="gap-1.5"><Check className="h-3.5 w-3.5" /> Activate</Button>
-              <Button variant="ghost" size="sm" className="gap-1.5"><Copy className="h-3.5 w-3.5" /> Duplicate</Button>
-              <Button variant="ghost" size="sm" sound="archive" className="gap-1.5"><Archive className="h-3.5 w-3.5" /> Archive</Button>
-              <Button variant="ghost" size="sm" sound="delete" className="gap-1.5 text-destructive"><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
-            </>
-          )}
-        </div>
       </div>
 
       {/* Table */}
@@ -175,84 +228,82 @@ export function EngineDashboard({
           <table className="w-full text-sm">
             <thead>
               <tr className="sticky top-0 z-10 border-b border-border/60 bg-[oklch(0.2_0.032_260)] backdrop-blur text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-                <th scope="col" className="w-10 px-3 py-2 text-left">
-                  <Checkbox
-                    checked={filtered.length > 0 && selected.size === filtered.length}
-                    onCheckedChange={toggleAll}
-                    aria-label="Select all rows"
-                  />
-                </th>
                 {columns.map((c) => (
                   <th key={c.key} scope="col" className={cn("px-3 py-2 font-medium", c.align === "right" && "text-right", c.align === "center" && "text-center")} style={{ width: c.width }}>
                     {c.label}
                   </th>
                 ))}
-                <th scope="col" className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
+                {rowActions.length > 0 && <th scope="col" className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>}
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {loading || error || filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + 2} className="px-3 py-16 text-center">
-                    <div className="motion-fade mx-auto flex max-w-sm flex-col items-center gap-3">
+                  <td colSpan={columns.length + (rowActions.length ? 1 : 0)} className="px-3 py-16 text-center">
+                    <div className="motion-fade mx-auto flex max-w-sm flex-col items-center gap-3" role={error ? "alert" : undefined}>
                       <span className="grid h-12 w-12 place-items-center rounded-xl border border-border bg-muted/30 text-muted-foreground">
                         <Filter className="h-5 w-5" />
                       </span>
-                      <p className="text-sm text-muted-foreground">{emptyLabel}</p>
-                      <Button size="sm" variant="outline" className="gap-1.5"><Plus className="h-3.5 w-3.5" /> {primaryAction}</Button>
+                      <p className="text-sm text-muted-foreground">
+                        {loading ? "Loading…" : error ? error : rows.length ? "Nothing matches the search or filters." : emptyLabel}
+                      </p>
+                      {error && onRetry && <Button size="sm" variant="outline" onClick={onRetry}>Try again</Button>}
+                      {!loading && !error && !rows.length && onPrimary && (
+                        <Button size="sm" variant="outline" className="gap-1.5" onClick={onPrimary}><Plus className="h-3.5 w-3.5" /> {primaryAction}</Button>
+                      )}
                     </div>
                   </td>
                 </tr>
-              ) : filtered.map((r) => (
+              ) : shown.map((r) => (
                 <tr
                   key={r.id}
-                  data-selected={selected.has(r.id) || undefined}
-                  className="motion-row border-b border-border/40 hover:bg-muted/25 data-[selected]:bg-trophy/5"
+                  className="motion-row border-b border-border/40 hover:bg-muted/25"
                 >
-                  <td className="px-3 py-2.5">
-                    <Checkbox
-                      checked={selected.has(r.id)}
-                      onCheckedChange={() => toggle(r.id)}
-                      aria-label={`Select row ${r.id}`}
-                    />
-                  </td>
                   {columns.map((c) => (
                     <td key={c.key} className={cn("px-3 py-2.5", c.align === "right" && "text-right", c.align === "center" && "text-center")}>
                       {r[c.key]}
                     </td>
                   ))}
-                  <td className="px-3 py-2.5">
-                    <DropdownMenu>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon-sm" aria-label="Row actions" sound="dropdown">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent>Row actions</TooltipContent>
-                      </Tooltip>
-                      <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem><ArrowUpRight className="h-3.5 w-3.5 mr-2" /> View</DropdownMenuItem>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <DropdownMenuItem><Copy className="h-3.5 w-3.5 mr-2" /> Duplicate</DropdownMenuItem>
-                        <DropdownMenuItem><Archive className="h-3.5 w-3.5 mr-2" /> Archive</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive"><Trash2 className="h-3.5 w-3.5 mr-2" /> Delete</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
+                  {rowActions.length > 0 && (
+                    <td className="px-3 py-2.5">
+                      {rowActions.some((a) => !a.when || a.when(r)) && (
+                        <DropdownMenu>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${textOf(r[columns[0]?.key ?? "id"]) || r.id}`} sound="dropdown">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent>Row actions</TooltipContent>
+                          </Tooltip>
+                          <DropdownMenuContent align="end" className="w-44">
+                            {rowActions.filter((a) => !a.when || a.when(r)).map((a) => (
+                              <DropdownMenuItem key={a.label} className={a.danger ? "text-destructive" : undefined} onClick={() => a.onSelect(r)}>
+                                {a.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <div className="border-t border-border/60 px-3 py-2 flex items-center justify-between text-xs text-muted-foreground">
-          <div>Showing {filtered.length} of {rows.length}</div>
+          <div>
+            {filtered.length
+              ? `Showing ${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, filtered.length)} of ${filtered.length}`
+              : `Showing 0 of ${rows.length}`}
+          </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" disabled>Prev</Button>
-            <Button variant="ghost" size="sm" disabled>Next</Button>
+            <Button variant="ghost" size="sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Prev</Button>
+            <span className="px-1">{page + 1} / {pages}</span>
+            <Button variant="ghost" size="sm" disabled={page >= pages - 1} onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}>Next</Button>
           </div>
         </div>
       </div>

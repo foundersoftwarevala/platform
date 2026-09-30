@@ -664,6 +664,8 @@ function CommandPalette({
   onClose: () => void;
   onPick: (id: SectionId) => void;
 }) {
+  // The palette used `t` without taking it, so opening it crashed the page.
+  const { translate: t } = useLanguage();
   const [q, setQ] = useState("");
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();

@@ -32,45 +32,38 @@ interface SuggestedReply {
 const AIFeaturesPanel = () => {
   const { executeAction } = useGlobalActions();
 
-  const [aiModules, setAiModules] = useState<AIModule[]>([
+  // None of these AI modules runs on the platform yet. The catalogue says what
+  // each would do; it no longer claims them enabled, accurate or busy.
+  const [aiModules] = useState<AIModule[]>(() => ([
     {
       id: 'priority',
       name: 'Auto-Priority Detection',
       description: 'Automatically classify ticket priority based on content analysis',
       icon: Target,
-      enabled: true,
-      accuracy: 94.5,
-      lastRun: '2 min ago',
-      stats: [
-        { label: 'Processed', value: '1,234' },
-        { label: 'Auto-assigned', value: '89%' },
-      ]
+      enabled: false,
+      accuracy: 0,
+      lastRun: 'Not running',
+      stats: [],
     },
     {
       id: 'sentiment',
       name: 'Sentiment Analysis',
       description: 'Detect customer emotion and urgency from message tone',
       icon: Brain,
-      enabled: true,
-      accuracy: 91.2,
-      lastRun: '1 min ago',
-      stats: [
-        { label: 'Analyzed', value: '856' },
-        { label: 'Flagged', value: '12' },
-      ]
+      enabled: false,
+      accuracy: 0,
+      lastRun: 'Not running',
+      stats: [],
     },
     {
       id: 'duplicate',
       name: 'Duplicate Detection',
       description: 'Identify and merge duplicate tickets automatically',
       icon: Copy,
-      enabled: true,
-      accuracy: 97.8,
-      lastRun: '5 min ago',
-      stats: [
-        { label: 'Detected', value: '45' },
-        { label: 'Merged', value: '38' },
-      ]
+      enabled: false,
+      accuracy: 0,
+      lastRun: 'Not running',
+      stats: [],
     },
     {
       id: 'autoclose',
@@ -78,61 +71,41 @@ const AIFeaturesPanel = () => {
       description: 'Close resolved tickets automatically after inactivity',
       icon: CheckCircle,
       enabled: false,
-      accuracy: 99.1,
-      lastRun: '10 min ago',
-      stats: [
-        { label: 'Auto-closed', value: '123' },
-        { label: 'Reopened', value: '2' },
-      ]
+      accuracy: 0,
+      lastRun: 'Not running',
+      stats: [],
     },
     {
       id: 'breach',
       name: 'SLA Breach Prediction',
       description: 'Predict tickets at risk of SLA breach before it happens',
       icon: AlertTriangle,
-      enabled: true,
-      accuracy: 88.5,
-      lastRun: '30 sec ago',
-      stats: [
-        { label: 'Predicted', value: '15' },
-        { label: 'Prevented', value: '12' },
-      ]
+      enabled: false,
+      accuracy: 0,
+      lastRun: 'Not running',
+      stats: [],
     },
     {
       id: 'replies',
       name: 'Smart Reply Suggestions',
       description: 'Generate contextual response suggestions for agents',
       icon: MessageSquare,
-      enabled: true,
-      accuracy: 85.3,
-      lastRun: 'Live',
-      stats: [
-        { label: 'Suggested', value: '567' },
-        { label: 'Used', value: '78%' },
-      ]
+      enabled: false,
+      accuracy: 0,
+      lastRun: 'Not running',
+      stats: [],
     },
-  ]);
+  ] as AIModule[]));
 
-  const [suggestedReplies] = useState<SuggestedReply[]>([
-    { id: '1', ticketId: 'TKT-1234', suggestion: 'Thank you for contacting us. I understand your concern about the billing issue...', confidence: 92, category: 'Billing' },
-    { id: '2', ticketId: 'TKT-1235', suggestion: 'I apologize for the inconvenience. Let me check the status of your order...', confidence: 88, category: 'Orders' },
-    { id: '3', ticketId: 'TKT-1236', suggestion: 'Great question! Here are the steps to reset your password...', confidence: 95, category: 'Account' },
-  ]);
+  // No AI writes reply suggestions yet; these were invented.
+  const suggestedReplies: SuggestedReply[] = [];
 
-  const [regionSettings] = useState([
-    { id: '1', region: 'North America', aiEnabled: true },
-    { id: '2', region: 'Europe', aiEnabled: true },
-    { id: '3', region: 'Asia Pacific', aiEnabled: false },
-    { id: '4', region: 'Middle East', aiEnabled: true },
-  ]);
+  // No region-level AI setting is stored; the four regions here were invented.
+  const regionSettings: { id: string; region: string; aiEnabled: boolean }[] = [];
 
   const handleToggleModule = useCallback(async (moduleId: string) => {
     const module = aiModules.find(m => m.id === moduleId);
     if (!module) return;
-
-    setAiModules(prev => prev.map(m => 
-      m.id === moduleId ? { ...m, enabled: !m.enabled } : m
-    ));
 
     await executeAction({
       actionId: `toggle_ai_${moduleId}`,
@@ -153,7 +126,6 @@ const AIFeaturesPanel = () => {
       metadata: { ticketId },
       successMessage: 'Suggestion applied to ticket',
     });
-    toast.success('Reply suggestion applied');
   }, [executeAction]);
 
   const handleTrainModel = useCallback(async () => {
@@ -164,7 +136,6 @@ const AIFeaturesPanel = () => {
       metadata: { action: 'retrain' },
       successMessage: 'AI model training initiated',
     });
-    toast.success('Model training started');
   }, [executeAction]);
 
   return (
@@ -191,10 +162,10 @@ const AIFeaturesPanel = () => {
         className="grid grid-cols-4 gap-4"
       >
         {[
-          { label: 'Overall Accuracy', value: '93.2%', icon: Target, color: 'text-emerald-400' },
-          { label: 'Tickets Processed', value: '2,847', icon: Zap, color: 'text-purple-400' },
-          { label: 'Time Saved', value: '47 hrs', icon: Clock, color: 'text-teal-400' },
-          { label: 'Agent Satisfaction', value: '4.8/5', icon: TrendingUp, color: 'text-orange-400' },
+          { label: 'Overall Accuracy', value: '—', icon: Target, color: 'text-emerald-400' },
+          { label: 'Tickets Processed', value: '0', icon: Zap, color: 'text-purple-400' },
+          { label: 'Time Saved', value: '—', icon: Clock, color: 'text-teal-400' },
+          { label: 'Modules Running', value: String(aiModules.filter((m) => m.enabled).length), icon: TrendingUp, color: 'text-orange-400' },
         ].map((stat, idx) => (
           <motion.div
             key={idx}
@@ -249,7 +220,7 @@ const AIFeaturesPanel = () => {
               <p className="text-xs text-muted-foreground mb-3">{module.description}</p>
               <div className="flex items-center justify-between">
                 <Badge className={module.enabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-muted/40 text-muted-foreground'}>
-                  {module.accuracy}% accuracy
+                  {module.enabled ? `${module.accuracy}% accuracy` : 'Not running'}
                 </Badge>
                 <div className="flex gap-2 text-xs">
                   {module.stats.map((stat, idx) => (
@@ -278,6 +249,7 @@ const AIFeaturesPanel = () => {
         </div>
 
         <div className="space-y-3">
+          {suggestedReplies.length === 0 && <p className="text-sm text-muted-foreground">No AI writes reply suggestions on the platform yet.</p>}
           {suggestedReplies.map((reply) => (
             <div
               key={reply.id}

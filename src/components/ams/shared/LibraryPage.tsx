@@ -43,7 +43,8 @@ export function LibraryPage({
   const toggle = (id: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)));
@@ -73,9 +74,13 @@ export function LibraryPage({
   async function handleCategoryChange(category: AwardCategory) {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
-    const n = await bulkUpdate(ids, { category });
-    toast.success(`${n} moved to ${category}`);
-    clearSel(); refresh();
+    try {
+      const n = await bulkUpdate(ids, { category });
+      toast.success(`${n} moved to ${category}`);
+      clearSel(); refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not move them");
+    }
   }
 
   function exportRows(format: "csv" | "json", scope: "selected" | "all") {

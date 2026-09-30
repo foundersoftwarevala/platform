@@ -19,8 +19,7 @@ import {
 } from "@/lib/ams/missions.types";
 import {
   createMission, deleteMission, setMissionStatus,
-  progressMission, completeMission, subscribeMissions,
-  missionsSnapshot, missionsServerSnapshot,
+  subscribeMissions, missionsSnapshot, missionsServerSnapshot, missionsLoadError,
 } from "@/lib/ams/missions.api";
 
 export const Route = createFileRoute("/ams/missions")({
@@ -114,6 +113,11 @@ function MissionsPage() {
         </Select>
       </div>
 
+      {missionsLoadError() && (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+          Missions could not be read: {missionsLoadError()}
+        </div>
+      )}
       {filtered.length === 0 ? (
         <EmptyState
           icon={<Sparkles className="h-6 w-6" />}
@@ -168,7 +172,8 @@ function MissionCard({ m }: { m: Mission }) {
 
       <div>
         <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
-          <span>Progress</span><span>{m.progress.current} / {m.progress.target}</span>
+          {/* Of the people taking part, how many have completed it. */}
+          <span>Completed / taking part</span><span>{m.progress.current} / {m.progress.target}</span>
         </div>
         <Progress value={pct} className="h-1.5" />
       </div>
@@ -182,32 +187,24 @@ function MissionCard({ m }: { m: Mission }) {
 
       <div className="flex gap-1.5 pt-2 border-t border-border">
         {m.status !== "active" && m.status !== "completed" && (
-          <Button size="sm" variant="ghost" className="h-7 gap-1" onClick={() => { setMissionStatus(m.id, "active"); toast.success("Mission activated"); }}>
+          <Button size="sm" variant="ghost" className="h-7 gap-1" onClick={() => { setMissionStatus(m.id, "active").then(() => toast.success("Mission activated"), (e: unknown) => toast.error(e instanceof Error ? e.message : String(e))); }}>
             <Play className="h-3.5 w-3.5" /> Activate
           </Button>
         )}
         {m.status === "active" && (
-          <Button size="sm" variant="ghost" className="h-7 gap-1" onClick={() => { setMissionStatus(m.id, "paused"); toast("Mission paused"); }}>
+          <Button size="sm" variant="ghost" className="h-7 gap-1" onClick={() => { setMissionStatus(m.id, "paused").then(() => toast("Mission paused"), (e: unknown) => toast.error(e instanceof Error ? e.message : String(e))); }}>
             <Pause className="h-3.5 w-3.5" /> Pause
           </Button>
         )}
-        {m.status !== "completed" && (
-          <Button size="sm" variant="ghost" className="h-7 gap-1" onClick={() => {
-            const p = progressMission(m.id, 1);
-            if (p.status === "completed") toast.success(`Completed! +${p.rewards.xp} XP granted`);
-          }}>
-            +1 progress
+        {m.status !== "archived" && (
+          <Button size="sm" variant="ghost" className="h-7 gap-1" onClick={() => { setMissionStatus(m.id, "archived").then(() => toast("Mission archived"), (e: unknown) => toast.error(e instanceof Error ? e.message : String(e))); }}>
+            <CheckCircle2 className="h-3.5 w-3.5" /> Archive
           </Button>
         )}
-        {m.status !== "completed" && (
-          <Button size="sm" variant="ghost" className="h-7 gap-1 text-emerald-400" onClick={() => {
-            completeMission(m.id);
-            toast.success(`"${m.name}" completed — rewards granted`);
-          }}>
-            <CheckCircle2 className="h-3.5 w-3.5" /> Complete
-          </Button>
-        )}
-        <Button size="sm" variant="ghost" className="h-7 gap-1 text-rose-400 ml-auto" onClick={() => { deleteMission(m.id); toast("Mission deleted"); }}>
+        <Button size="sm" variant="ghost" className="h-7 gap-1 text-rose-400 ml-auto" aria-label={`Delete ${m.name}`} onClick={() => {
+          if (!window.confirm(`Delete the mission "${m.name}"?`)) return;
+          deleteMission(m.id).then(() => toast("Mission deleted"), (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)));
+        }}>
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -232,7 +229,7 @@ function NewMissionDialog({ onClose }: { onClose: () => void }) {
 
   function submit() {
     if (!name.trim()) { toast.error("Name required"); return; }
-    createMission({
+    void createMission({
       name, description, type,
       department: department ? (department as Mission["department"]) : undefined,
       hidden: hidden || type === "hidden",
@@ -244,9 +241,10 @@ function NewMissionDialog({ onClose }: { onClose: () => void }) {
         repeatable: repeatable || ["daily", "weekly", "monthly"].includes(type),
       },
       status: startsAt ? "scheduled" : "active",
-    });
-    toast.success(`Mission "${name}" created`);
-    onClose();
+    }).then(() => {
+      toast.success(`Mission "${name}" created`);
+      onClose();
+    }, (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)));
   }
 
   return (

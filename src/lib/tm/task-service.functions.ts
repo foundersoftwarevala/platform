@@ -39,16 +39,20 @@ async function requireUser(): Promise<{ userId: string; isOperator: boolean }> {
   if (!token) throw new Error("Unauthorized: sign in required");
 
   const db = await admin();
-  const { data, error } = await db.auth.getUser(token);
-  if (error || !data.user) throw new Error("Unauthorized: sign in required");
+  // Asked with the publishable key: auth.getUser() on the service-role client
+  // is refused by the auth service with "Invalid API key", which turned every
+  // caller away. See lib/auth/bearer-user.server.ts.
+  const { userFromBearerToken } = await import("@/lib/auth/bearer-user.server");
+  const caller = await userFromBearerToken(token);
+  if (!caller) throw new Error("Unauthorized: sign in required");
 
   const { data: roles } = await db
     .from("user_roles")
     .select("role")
-    .eq("user_id", data.user.id);
+    .eq("user_id", caller.id);
   const operator = new Set(["admin", "boss", "founder", "super_admin", "boss_owner"]);
   return {
-    userId: data.user.id,
+    userId: caller.id,
     isOperator: (roles ?? []).some((r) => operator.has(String(r.role))),
   };
 }

@@ -238,6 +238,7 @@ async function authenticatedManager() {
   // service-role client sends the service key as apikey, which the auth
   // service refuses with "Invalid API key", so this guard used to turn
   // every valid operator away. See lib/auth/bearer-user.server.ts.
+  const { userFromBearerToken } = await import("@/lib/auth/bearer-user.server");
   const caller = await userFromBearerToken(token);
   if (!caller) throw new Error("Manager authentication required.");
   const roles = await Promise.all(
@@ -247,7 +248,7 @@ async function authenticatedManager() {
     }),
   );
   if (!roles.some(Boolean)) throw new Error("Boss or admin permission required.");
-  return { db, user: user.user };
+  return { db, user: caller };
 }
 
 export const testAiService = createServerFn({ method: "POST" })

@@ -260,6 +260,7 @@ export function ValaAiAgent() {
             }}
             rows={1}
             placeholder="Ask Vala anything… e.g. Open Finance"
+            aria-label="Message Vala AI"
             className="max-h-24 min-h-[38px] flex-1 resize-none rounded-xl border border-primary/40 bg-background/60 px-3 py-2 text-[12.5px] text-foreground outline-none placeholder:text-foreground/40 focus:border-accent focus:ring-2 focus:ring-accent/35"
           />
           <button

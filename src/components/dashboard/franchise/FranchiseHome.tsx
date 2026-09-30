@@ -1,17 +1,16 @@
 import { ArrowUpRight, Building2, Plus, TrendingUp, UserPlus, Users, Wallet } from "lucide-react";
 import { BarChart, DonutChart, LineChart } from "@/components/charts/Charts";
-import { useFranchise, MONTHS } from "@/lib/franchise-store";
+import { useFranchise } from "@/lib/franchise-store";
 import { fmtMoney } from "@/lib/metrics";
 
 export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void }) {
-  const { branches, leads, employees, payments } = useFranchise();
+  const { branches, leads, employees, payments, revenueByPeriod, loading, error, note } = useFranchise();
 
   const totalRevenue = branches.reduce((s, b) => s + b.monthlyRevenue, 0);
   const pipeline = leads.filter((l) => l.stage !== "won" && l.stage !== "lost").reduce((s, l) => s + l.value, 0);
-  const revenueTrend = MONTHS.map((m, i) => ({
-    label: m,
-    value: branches.reduce((s, b) => s + (b.trend[i] ?? 0), 0) * 900,
-  }));
+  // The franchise's own recorded revenue per period. It used to be each
+  // branch's generated trend line multiplied by 900.
+  const revenueTrend = revenueByPeriod;
   const byRegion = Object.entries(
     branches.reduce<Record<string, number>>((acc, b) => {
       acc[b.region] = (acc[b.region] ?? 0) + b.monthlyRevenue;
@@ -38,6 +37,11 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
 
   return (
     <div className="space-y-4 ams-cascade">
+      {(loading || error || note) && (
+        <div role={error ? "alert" : undefined} className="rounded-xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+          {loading ? "Loading your franchise…" : error ? `Your franchise could not be read: ${error}` : note}
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
         {quickActions.map((a) => (
           <button
@@ -56,7 +60,7 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold">Network revenue</div>
-              <div className="text-xs text-muted-foreground">Monthly run-rate {fmtMoney(totalRevenue)}</div>
+              <div className="text-xs text-muted-foreground">Total branch sales {fmtMoney(totalRevenue)}</div>
             </div>
             <button onClick={() => onOpen("revenue")} className="press-3d inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs hover:border-brand/60">
               Details <ArrowUpRight className="h-3 w-3" />
@@ -82,7 +86,7 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
           </div>
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {topBranches.map((b) => {
-              const pct = Math.min(100, Math.round((b.monthlyRevenue / Math.max(1, b.target)) * 100));
+              const pct = b.target ? Math.min(100, Math.round((b.monthlyRevenue / b.target) * 100)) : null;
               return (
                 <button
                   key={b.id}
@@ -100,10 +104,10 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
                   </div>
                   <div className="mt-2 text-lg font-black tracking-tight">{fmtMoney(b.monthlyRevenue)}</div>
                   <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-brand transition-all duration-700" style={{ width: `${pct}%` }} />
+                    <div className="h-full rounded-full bg-brand transition-all duration-700" style={{ width: `${pct ?? 0}%` }} />
                   </div>
                   <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>{pct}% of target</span>
+                    <span>{pct == null ? "No target set" : `${pct}% of target`}</span>
                     <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{b.employees}</span>
                   </div>
                 </button>

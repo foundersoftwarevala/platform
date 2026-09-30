@@ -18,6 +18,9 @@ import {
 import { MonitorPlay, AlertTriangle, Lock, Plus, Check } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+// Used by the category query below; it was called without being imported, so
+// the category list was always empty.
+import { listDemoCategories } from "@/lib/demo-manager/demos.functions";
 /**
  * Loaded on demand, not at module scope.
  *

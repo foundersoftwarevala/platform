@@ -30,14 +30,8 @@ const ApprovalWorkflow = () => {
   const [rejectReason, setRejectReason] = useState<string>('');
   const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
 
-  const [requests] = useState<ApprovalRequest[]>([
-    { id: '1', type: 'refund', ticketId: 'TKT-1234', customerId: 'USR-5678', customerName: 'John Smith', requestedBy: 'Agent Sarah', requestedByRole: 'L1 Support', amount: 149.99, reason: 'Product defect - customer unsatisfied', status: 'pending', createdAt: '15 min ago', priority: 'high' },
-    { id: '2', type: 'suspension', ticketId: 'TKT-1189', customerId: 'USR-9012', customerName: 'Bad Actor Inc', requestedBy: 'Agent Mike', requestedByRole: 'L2 Support', reason: 'Repeated abuse of support system', status: 'pending', createdAt: '1 hour ago', priority: 'critical' },
-    { id: '3', type: 'deletion', ticketId: 'TKT-1201', customerId: 'USR-3456', customerName: 'Jane Doe', requestedBy: 'Agent Emily', requestedByRole: 'L1 Support', reason: 'GDPR data deletion request', status: 'pending', createdAt: '2 hours ago', priority: 'medium' },
-    { id: '4', type: 'priority_override', ticketId: 'TKT-2001', customerId: 'USR-7890', customerName: 'Enterprise Corp', requestedBy: 'Agent John', requestedByRole: 'L2 Support', reason: 'VIP customer - escalated priority needed', status: 'escalated', createdAt: '30 min ago', priority: 'high' },
-    { id: '5', type: 'sla_reset', ticketId: 'TKT-2015', customerId: 'USR-1234', customerName: 'TechStart Ltd', requestedBy: 'Agent Lisa', requestedByRole: 'L1 Support', reason: 'System outage caused delay - not agent fault', status: 'approved', createdAt: '3 hours ago', priority: 'low' },
-    { id: '6', type: 'refund', ticketId: 'TKT-2023', customerId: 'USR-4567', customerName: 'Global Finance', requestedBy: 'Agent David', requestedByRole: 'L2 Support', amount: 599.00, reason: 'Double charge - billing error', status: 'rejected', createdAt: '1 day ago', priority: 'high' },
-  ]);
+  // No support approval request is stored on the platform; this list held invented ones. Refunds are decided in Finance.
+  const requests: ApprovalRequest[] = [];
 
   const handleApprove = useCallback(async (requestId: string, type: string) => {
     await executeAction({
@@ -48,7 +42,6 @@ const ApprovalWorkflow = () => {
       metadata: { type, decision: 'approved' },
       successMessage: `${type.replace('_', ' ')} approved`,
     });
-    toast.success('Request approved and logged');
   }, [executeAction]);
 
   const handleReject = useCallback(async (requestId: string, type: string) => {
@@ -158,6 +151,7 @@ const ApprovalWorkflow = () => {
         </div>
 
         <div className="space-y-4">
+          {pendingRequests.length === 0 && <p className="text-sm text-muted-foreground">No approval request is waiting. Refunds are decided in the Finance Manager.</p>}
           {pendingRequests.map((request) => {
             const TypeIcon = getTypeIcon(request.type);
             return (

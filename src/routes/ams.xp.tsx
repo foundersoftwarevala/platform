@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EngineDashboard, StatusChip } from "@/components/ams/shared/EngineDashboard";
+import { AmsEngineView } from "@/components/ams/shared/AmsEngineView";
 
 export const Route = createFileRoute("/ams/xp")({
   head: () => ({
@@ -17,36 +17,45 @@ export const Route = createFileRoute("/ams/xp")({
 
 function Page() {
   return (
-    <EngineDashboard
-      kicker="AMS Manager"
+    <AmsEngineView
+      view="xp"
       title="XP Engine"
       description="XP sources, multipliers, decay, boosters, transactions and anti-farming rules."
-      primaryAction="New XP Rule"
-      kpis={[
-        { label: "XP Issued (30d)", value: "12.4M", delta: "+22%", trend: "up", accent: "#22d3ee" },
-        { label: "Active Rules", value: "42" },
-        { label: "Sources", value: "18" },
-        { label: "Boosters", value: "6" },
-        { label: "Avg / User", value: "1,284", delta: "+8%", trend: "up" },
-        { label: "Fraud Blocked", value: "204", delta: "-14%", trend: "down" },
+      columns={[
+        {
+          key: "rule",
+          label: "Rule"
+        },
+        {
+          key: "source",
+          label: "Source"
+        },
+        {
+          key: "xp",
+          label: "XP",
+          align: "right"
+        },
+        {
+          key: "cap",
+          label: "Daily Cap",
+          align: "right"
+        },
+        {
+          key: "status",
+          label: "Status"
+        }
       ]}
       filters={[
-        { label: "Source", values: ["Sales", "Commit", "Ticket", "Review", "Referral", "Login"] },
-        { label: "Status", values: ["Active", "Paused", "Draft"] },
-      ]}
-      columns={[
-        { key: "rule", label: "Rule" },
-        { key: "source", label: "Source" },
-        { key: "amount", label: "XP", align: "right" },
-        { key: "cap", label: "Daily Cap", align: "right" },
-        { key: "status", label: "Status" },
-      ]}
-      rows={[
-        { id: "x1", rule: "Successful sale", source: "Sales", amount: "+250", cap: "10,000", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "x2", rule: "Merged PR", source: "Commit", amount: "+120", cap: "2,400", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "x3", rule: "Ticket resolved", source: "Ticket", amount: "+40", cap: "1,600", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "x4", rule: "First login of day", source: "Login", amount: "+10", cap: "10", status: <StatusChip tone="success">Active</StatusChip> },
-        { id: "x5", rule: "Weekend booster ×2", source: "Sales", amount: "×2", cap: "—", status: <StatusChip tone="warn">Scheduled</StatusChip> },
+        {
+          label: "Source",
+          key: "source",
+          values: []
+        },
+        {
+          label: "Status",
+          key: "status",
+          values: []
+        }
       ]}
     />
   );

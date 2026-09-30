@@ -314,6 +314,8 @@ export function DemoUrlManagerSection() {
         <DemoEditor
           value={editing}
           products={products}
+          productSearch={productSearch}
+          onProductSearch={setProductSearch}
           onCancel={() => setEditing(null)}
           onSave={(v) => upsertMut.mutate(v)}
           saving={upsertMut.isPending}
@@ -324,10 +326,13 @@ export function DemoUrlManagerSection() {
 }
 
 function DemoEditor({
-  value, products, onCancel, onSave, saving,
+  value, products, productSearch, onProductSearch, onCancel, onSave, saving,
 }: {
   value: Partial<DemoUrl>;
   products: { id: string; name: string }[];
+  /** The search is the manager's, which runs it; the editor only shows it. */
+  productSearch: string;
+  onProductSearch: (value: string) => void;
   onCancel: () => void;
   onSave: (v: Partial<DemoUrl>) => void;
   saving: boolean;
@@ -356,7 +361,7 @@ function DemoEditor({
             <input
               className={inp}
               value={productSearch}
-              onChange={(e) => setProductSearch(e.target.value)}
+              onChange={(e) => onProductSearch(e.target.value)}
               placeholder="Search products by name or slug"
               aria-label="Search products"
             />
