@@ -21,6 +21,12 @@ import { Button } from "@/components/dashboard/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
+/**
+ * A passport number exactly as the engine issued it (ams_passports.passport_no
+ * for this role), or plainly none. Nothing here derives one.
+ */
+const passportLabel = (id: string) => id || "Not issued yet";
+
 /* ────────────────────── ROOT ────────────────────── */
 
 export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => void }) {
@@ -85,7 +91,7 @@ export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => vo
   });
   const scope = standing.data?.userId ?? null;
 
-  const [state, setState] = useState<AmsUserState>(() => loadAmsState(role.key as RoleKey));
+  const [state, setState] = useState<AmsUserState>(() => ({ ...loadAmsState(role.key as RoleKey), passportId: "" }));
   const [section, setSection] = useState<AmsSectionKey>("home");
   const [search, setSearch] = useState("");
 
@@ -119,7 +125,7 @@ export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => vo
       earnedCertificates: earnedOf((s) => s.award),
       // The role's own passport as the engine issued it, or none yet. A number
       // worked out from the account would name a passport that does not exist.
-      passportId: chain.passport?.passport_no ?? "Not issued yet",
+      passportId: chain.passport?.passport_no ?? "",
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chain]);
@@ -251,7 +257,7 @@ function AMSHeader({ ctx, pct, nextBandLabel }: { ctx: SectionCtx; pct: number; 
           <div className="text-[10px] uppercase tracking-[0.18em] text-white/70">{cfg.eyebrow}</div>
           <div className="mt-0.5 text-xl md:text-2xl font-semibold text-white truncate">{role.name} · {level.label}</div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-            <Chip>Passport {state.passportId}</Chip>
+            <Chip>Passport {passportLabel(state.passportId)}</Chip>
             <Chip>Level {level.level}</Chip>
             <Chip>Rank —</Chip>
             <Chip>{state.xp.toLocaleString()} XP</Chip>
@@ -558,14 +564,14 @@ function PassportSection({ ctx }: { ctx: SectionCtx }) {
             <div className="text-[10px] uppercase tracking-[0.2em] text-white/70">Achievement Passport</div>
             <div className="mt-1 text-2xl font-semibold">{role.name} · {cfg.subject}</div>
             <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-[13px]">
-              <PassRow k="Passport ID" v={state.passportId} />
+              <PassRow k="Passport ID" v={passportLabel(state.passportId)} />
               <PassRow k="Level" v={`L${level.level} · ${level.label}`} />
               <PassRow k="XP" v={state.xp.toLocaleString()} />
               <PassRow k="Joined" v={new Date(state.joinedAt).toLocaleDateString()} />
               <PassRow k="Trust" v={`${state.trustScore}/100`} />
               <PassRow k="Reputation" v={`${state.reputation}/100`} />
               <PassRow k="Status" v={state.verified ? "Verified ✓" : "Unverified"} />
-              <PassRow k="Signature" v={`SV·${state.passportId.slice(-4)}`} />
+              <PassRow k="Signature" v={state.passportId ? `SV·${state.passportId.slice(-4)}` : "—"} />
             </div>
           </div>
           <div className="flex flex-col items-center gap-2">
@@ -578,12 +584,13 @@ function PassportSection({ ctx }: { ctx: SectionCtx }) {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        <Button size="sm" variant="outline" onClick={() => { navigator.clipboard?.writeText(state.passportId); toast.success("Passport ID copied."); }}>
+        <Button size="sm" variant="outline" disabled={!state.passportId} onClick={() => { navigator.clipboard?.writeText(state.passportId); toast.success("Passport ID copied."); }}>
           <Copy className="h-4 w-4 mr-1" /> Copy Passport ID
         </Button>
         <Button
           size="sm"
           variant="outline"
+          disabled={!state.passportId}
           onClick={async () => {
             // There is no public registry for an engine passport id, so a
             // /verify link would resolve to "not recognised". Share the card
@@ -615,6 +622,7 @@ function PassportSection({ ctx }: { ctx: SectionCtx }) {
         <Button
           size="sm"
           variant="outline"
+          disabled={!state.passportId}
           onClick={async () => {
             // A real file, built from the passport shown above.
             const { downloadJson, stampedName } = await import("@/lib/export/download");
@@ -690,7 +698,7 @@ function IdentitySection({ ctx }: { ctx: SectionCtx }) {
   return (
     <SectionShell title="Identity" subtitle="Verification, trust and reputation scores.">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 ams-stagger">
-        <StatCard label="Passport ID" value={state.passportId} tone="brand" />
+        <StatCard label="Passport ID" value={passportLabel(state.passportId)} tone="brand" />
         <StatCard label="Trust Score" value={`${state.trustScore}/100`} tone="success" hint="Increases as you complete verified actions." />
         <StatCard label="Reputation" value={`${state.reputation}/100`} tone="cyan" hint="Feedback from your community." />
         <StatCard label="Status" value={state.verified ? "Verified" : "Unverified"} tone={state.verified ? "success" : "warning"} />
@@ -699,7 +707,7 @@ function IdentitySection({ ctx }: { ctx: SectionCtx }) {
         <div>
           <div className="font-medium">Digital Signature</div>
           <div className="text-xs text-muted-foreground">Every asset issued to you is signed with this key.</div>
-          <div className="mt-2 font-mono text-xs bg-surface-2 rounded-md px-2 py-1 inline-block">SV·SIG·{state.passportId}</div>
+          <div className="mt-2 font-mono text-xs bg-surface-2 rounded-md px-2 py-1 inline-block">{state.passportId ? `SV·SIG·${state.passportId}` : "No passport issued yet"}</div>
         </div>
         {!state.verified ? (
           <Button size="sm" onClick={() => { setState((s) => ({ ...s, verified: true, trustScore: Math.max(s.trustScore, 40), reputation: Math.max(s.reputation, 30) })); toast.success("Identity verified."); }}>
@@ -837,7 +845,7 @@ function CertificatesSection({ ctx }: { ctx: SectionCtx }) {
               <div className="mt-2 font-medium">{c.label}</div>
               <div className="text-[11px] text-muted-foreground">{c.requirement}</div>
               <div className="mt-3 rounded-lg border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground">
-                Preview · signed by Software Vala · verify with {state.passportId}
+                Preview · signed by Software Vala · verify with {passportLabel(state.passportId)}
               </div>
               <div className="mt-3 flex gap-2">
                 <Button size="sm" variant="outline" disabled={!earned} onClick={() => toast.success("Certificate downloaded.")}>
@@ -1188,14 +1196,14 @@ function ProfileSection({ ctx }: { ctx: SectionCtx }) {
       <div className="rounded-2xl border border-border bg-surface-1 p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field k="Display Name"    v={role.name} />
         <Field k="Role"            v={cfg.subject} />
-        <Field k="Passport ID"     v={state.passportId} />
+        <Field k="Passport ID"     v={passportLabel(state.passportId)} />
         <Field k="Level"           v={`L${level.level} · ${level.label}`} />
         <Field k="Lifetime XP"     v={state.xp.toLocaleString()} />
         <Field k="Joined"          v={new Date(state.joinedAt).toLocaleDateString()} />
         <Field k="Trust Score"     v={`${state.trustScore}/100`} />
         <Field k="Reputation"      v={`${state.reputation}/100`} />
         <Field k="Verification"    v={state.verified ? "Verified" : "Unverified"} />
-        <Field k="Signature"       v={`SV·SIG·${state.passportId}`} />
+        <Field k="Signature"       v={state.passportId ? `SV·SIG·${state.passportId}` : "—"} />
       </div>
     </SectionShell>
   );

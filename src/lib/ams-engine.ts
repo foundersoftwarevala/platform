@@ -519,14 +519,14 @@ export type AmsUserState = {
 const LS_KEY = (role: RoleKey, scope?: string | null) =>
   `sv.ams.${scope ?? "anon"}.${role}.v1`;
 
-function fresh(role: RoleKey): AmsUserState {
-  const seed = role.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const id = `SV-AMS-${String(2000 + seed).padStart(4, "0")}-${String((seed * 137) % 10000).padStart(4, "0")}`;
+function fresh(_role: RoleKey): AmsUserState {
   return {
     xp: 0,
     earnedAwards: [], earnedBadges: [], earnedTrophies: [],
     earnedCertificates: [], earnedMissions: [], claimedRewards: [],
-    passportId: id, joinedAt: new Date().toISOString(),
+    // The passport number is the engine's (ams_passports.passport_no), read
+    // per role; it is never generated here. Empty means none is issued.
+    passportId: "", joinedAt: new Date().toISOString(),
     trustScore: 0, reputation: 0, verified: false,
   };
 }
@@ -536,7 +536,9 @@ export function loadAmsState(role: RoleKey, scope?: string | null): AmsUserState
   try {
     const raw = window.localStorage.getItem(LS_KEY(role, scope));
     if (!raw) return fresh(role);
-    return { ...fresh(role), ...(JSON.parse(raw) as Partial<AmsUserState>) };
+    // A passport number is never taken from the browser: an older build stored
+    // a generated one here, and only the engine's own number may be shown.
+    return { ...fresh(role), ...(JSON.parse(raw) as Partial<AmsUserState>), passportId: "" };
   } catch {
     return fresh(role);
   }
@@ -544,7 +546,7 @@ export function loadAmsState(role: RoleKey, scope?: string | null): AmsUserState
 
 export function saveAmsState(role: RoleKey, s: AmsUserState, scope?: string | null) {
   if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(LS_KEY(role, scope), JSON.stringify(s)); } catch { /* ignore */ }
+  try { window.localStorage.setItem(LS_KEY(role, scope), JSON.stringify({ ...s, passportId: "" })); } catch { /* ignore */ }
 }
 
 export function sectionsForLevel(level: number) {

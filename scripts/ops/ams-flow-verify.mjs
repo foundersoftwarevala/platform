@@ -44,7 +44,7 @@ check("the database holds an author passport for the test author", Boolean(passp
 
 const browser = await chromium.launch();
 async function signIn(login) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e.message ?? e)));
@@ -95,6 +95,27 @@ check(`the module shows the engine's rank "${rank1}"`, moduleText.includes(rank1
 check(`the module shows the earned achievement "${achName}"`, moduleText.includes(achName));
 check("the module shows none of the old local catalogue names", !/Lifetime Author|Verified Author|Rookie/.test(moduleText));
 check("the module shows the author passport the engine issued", moduleText.includes(passportNo), passportNo);
+// Every passport number on the module is the engine's, character for character.
+const shown = [...new Set(moduleText.match(/SV-AMS-[0-9A-Z-]+/g) ?? [])];
+check("every passport number the module shows equals ams_passports.passport_no", shown.length > 0 && shown.every((n) => n === passportNo), shown.join(", "));
+const chip = (await author.page.locator("[data-ams-role]").first().getByText(/^Passport /).first().innerText().catch(() => "")).trim();
+check("the header chip shows the database passport", chip === `Passport ${passportNo}`, chip);
+await author.page.locator("[data-ams-role]").first().getByRole("button", { name: /^Passport$/ }).first().click();
+await author.page.waitForTimeout(1500);
+const passportSection = (await author.page.locator("[data-ams-role]").first().innerText().catch(() => "")).replace(/\s+/g, " ");
+check("the Passport section's Passport ID is the database passport", new RegExp(`Passport ID ${passportNo}`).test(passportSection), (passportSection.match(/Passport ID.{0,30}/) ?? [""])[0]);
+check("its signature is cut from the database passport", passportSection.includes(`SV·${passportNo.slice(-4)}`));
+const [download] = await Promise.all([
+  author.page.waitForEvent("download", { timeout: 15_000 }).catch(() => null),
+  author.page.getByRole("button", { name: /^Download$/ }).first().click(),
+]);
+let exported = null;
+if (download) {
+  const { readFile } = await import("node:fs/promises");
+  exported = JSON.parse(await readFile(await download.path(), "utf8"));
+}
+check("the downloaded JSON's passportId is the database passport", exported?.passportId === passportNo, exported?.passportId ?? "no download");
+check("the download is named after the database passport", Boolean(download?.suggestedFilename().includes(`passport-${passportNo}`)), download?.suggestedFilename() ?? "");
 check("no page error on the author dashboard", author.errors.length === 0, author.errors.slice(0, 2).join(" | "));
 check("nothing was written as the author", author.writes.length === 0, author.writes.slice(0, 3).join(" ; "));
 await author.context.close();
@@ -114,6 +135,14 @@ const rModule = (await reseller.page.locator("[data-ams-role]").first().innerTex
 check("the reseller module shows no passport number it was never issued",
   /Not issued yet/.test(rModule) && !/SV-AMS-\d{4}-\d{4}/.test(rModule),
   (rModule.match(/Passport.{0,40}/) ?? [rModule.slice(0, 120)])[0]);
+await reseller.page.locator("[data-ams-role]").first().getByRole("button", { name: /^Passport$/ }).first().click();
+await reseller.page.waitForTimeout(1500);
+const rPass = (await reseller.page.locator("[data-ams-role]").first().innerText().catch(() => "")).replace(/\s+/g, " ");
+check("the reseller Passport section shows no passport and nothing derived from one",
+  /Passport ID Not issued yet/.test(rPass) && !/SV-AMS-/.test(rPass), (rPass.match(/Passport ID.{0,30}/) ?? [""])[0]);
+check("the reseller cannot copy or download a passport it was never issued",
+  await reseller.page.getByRole("button", { name: /^Download$/ }).first().isDisabled()
+  && await reseller.page.getByRole("button", { name: /^Copy/ }).first().isDisabled());
 check("nothing was written as the reseller", reseller.writes.length === 0, reseller.writes.slice(0, 3).join(" ; "));
 await reseller.context.close();
 
