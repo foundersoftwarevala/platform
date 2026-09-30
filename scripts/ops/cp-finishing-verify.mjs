@@ -156,7 +156,7 @@ check("operator checks wrote nothing", op.writes.length === 0, op.writes.slice(0
 const rs = await signIn(ops.SV_LOGIN_RESELLER, ops.SV_PW_RESELLER ?? ops.SV_PW_TEST ?? ops.SV_PW_CONTROL_PANEL);
 const HERO = [
   { cta: "Open generator", expect: /Referral Link Generator/ },
-  { cta: "New coupon", expect: /Discount coupons are issued by Software Vala/ },
+  { cta: "How coupons work", expect: /Coupons are issued and managed by Software Vala only/ },
   { cta: "Show plan", expect: /Membership|plan/i },
   { cta: "View ranks", expect: /Leaderboard|leaderboard|No record|Unranked/ },
 ];

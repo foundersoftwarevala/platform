@@ -52,12 +52,9 @@ export const RESELLER_CENTERS: Record<CenterKey, CenterConfig> = {
         ],
       },
       {
-        key: "coupons", label: "Coupon Workshop",
+        key: "coupons", label: "Company Coupons",
         features: [
-          { key: "gen",       label: "Coupon Generator",       icon: Ticket,    description: "Create branded coupon codes with rules and stacking." },
-          { key: "discount",  label: "Discount Coupons",       icon: Ticket,    description: "Flat or percentage discounts across the catalog." },
-          { key: "campaign",  label: "Campaign Coupons",       icon: Ticket,    description: "Limit by campaign, audience or referral source." },
-          { key: "limited",   label: "Limited Time Coupons",   icon: Ticket,    description: "Schedule start, end & countdown badges automatically." },
+          { key: "gen",       label: "Company Coupons",        icon: Ticket,    description: "Issued and managed by Software Vala only. Resellers do not create or edit coupons." },
         ],
       },
       {
@@ -178,7 +175,7 @@ export const RESELLER_BANNERS: Array<{
   { eyebrow: "AI Ready", headline: "AI Ready Software Collection",            sub: "Plug AI features straight into your client stacks.", cta: "Open AI collection", gradient: "linear-gradient(120deg, oklch(0.26 0.06 290), oklch(0.32 0.18 275), oklch(0.44 0.22 260))", accent: "oklch(0.82 0.2 275)" },
   { eyebrow: "Marketplace", headline: "SaaS Marketplace Access",              sub: "Unlock every reseller-eligible SaaS in one click.", cta: "Open marketplace", gradient: "linear-gradient(120deg, oklch(0.24 0.05 200), oklch(0.3 0.14 190), oklch(0.4 0.2 180))",   accent: "oklch(0.82 0.16 190)" },
   { eyebrow: "Referrals", headline: "Generate Referral Links",                sub: "Trackable URLs, QR codes & UTM in seconds.",        cta: "Open generator",   gradient: "linear-gradient(120deg, oklch(0.26 0.07 145), oklch(0.32 0.16 135), oklch(0.42 0.2 125))", accent: "oklch(0.82 0.18 135)" },
-  { eyebrow: "Coupons", headline: "Create Discount Coupons",                  sub: "Build promo codes, schedule & analyse them.",       cta: "New coupon",       gradient: "linear-gradient(120deg, oklch(0.26 0.07 320), oklch(0.32 0.18 330), oklch(0.42 0.22 340))", accent: "oklch(0.82 0.2 325)" },
+  { eyebrow: "Coupons", headline: "Company Coupons & Offers",                 sub: "Software Vala issues every coupon; your price is set by your reseller plan.", cta: "How coupons work",       gradient: "linear-gradient(120deg, oklch(0.26 0.07 320), oklch(0.32 0.18 330), oklch(0.42 0.22 340))", accent: "oklch(0.82 0.2 325)" },
   { eyebrow: "Growth", headline: "Grow Your Monthly Revenue",                 sub: "Personal growth plan tailored to your pipeline.",   cta: "Show plan",        gradient: "linear-gradient(120deg, oklch(0.26 0.06 105), oklch(0.32 0.16 95), oklch(0.42 0.22 85))",  accent: "oklch(0.86 0.2 95)" },
   { eyebrow: "Leaderboard", headline: "Become Top Ranked Reseller",           sub: "Climb the leaderboard, unlock elite tier perks.",    cta: "View ranks",       gradient: "linear-gradient(120deg, oklch(0.26 0.08 60), oklch(0.32 0.18 50), oklch(0.42 0.22 35))",  accent: "oklch(0.86 0.2 50)" },
   { eyebrow: "Partner Network", headline: "Join Software Vala Partner Network", sub: "Co-marketing, events, leads — the whole network.",  cta: "Explore network",  gradient: "linear-gradient(120deg, oklch(0.26 0.06 0), oklch(0.32 0.18 350), oklch(0.42 0.22 335))",   accent: "oklch(0.84 0.2 350)" },

@@ -4,8 +4,8 @@ import { ArrowLeft, ChevronRight, Inbox, Plus, Search } from "lucide-react";
 import { RESELLER_CENTERS, type CenterKey, type CenterFeature } from "@/lib/reseller-extras";
 import { ResellerReferralLinks } from "@/components/reseller/ResellerReferralLinks";
 
-/** Coupon features: coupons are issued by Software Vala, not by a reseller. */
-const COUPON_FEATURES = new Set(["gen", "discount", "campaign", "limited", "analytics", "history"]);
+/** Coupon features: coupons are issued and managed by Software Vala, never by a reseller. */
+const COUPON_FEATURES = new Set(["gen", "analytics", "history"]);
 
 export function ResellerCenterPage({
   centerKey,
@@ -168,6 +168,8 @@ function FeatureDetail({ feature, accent, centerKey }: { feature: CenterFeature;
           <p className="text-xs md:text-sm text-muted-foreground mt-1 max-w-xl">{feature.description}</p>
         </div>
         </div>
+        {/* Coupons are the company's: a reseller has nothing to configure on them. */}
+        {!(centerKey === "referral" && COUPON_FEATURES.has(feature.key)) && (
         <button
           type="button"
           onClick={() => setConfigOpen((v) => !v)}
@@ -176,6 +178,7 @@ function FeatureDetail({ feature, accent, centerKey }: { feature: CenterFeature;
         >
           <Plus className="h-3.5 w-3.5" /> {configOpen ? "Close" : "Configure"}
         </button>
+        )}
       </div>
 
       {configOpen && (
@@ -224,7 +227,7 @@ function FeatureDetail({ feature, accent, centerKey }: { feature: CenterFeature;
         <div className="mt-4 text-base font-semibold">No records yet</div>
         <div className="text-xs text-muted-foreground mt-1 max-w-md">
           {centerKey === "referral" && COUPON_FEATURES.has(feature.key)
-            ? "Discount coupons are issued by Software Vala. Resellers cannot create their own coupons yet; share a referral link instead."
+            ? "Coupons are issued and managed by Software Vala only; resellers do not create or edit them. Your price is the rate set by your reseller plan."
             : "This screen is ready to be wired to your existing Reseller API endpoint. When connected, real records will appear here in real time — nothing is faked."}
         </div>
       </div>

@@ -131,7 +131,7 @@ const RESELLER_HERO_MODULES: Record<string, string> = {
 /** Reseller hero buttons that open a feature of the Referral & Coupon Center. */
 const RESELLER_HERO_CENTER: Record<string, string> = {
   "Open generator": "link",
-  "New coupon": "gen",
+  "How coupons work": "gen",
 };
 /** Reseller hero buttons whose destination is the marketplace itself. */
 const RESELLER_HERO_MARKETPLACE = new Set(["Browse catalog", "Open marketplace", "See top 50"]);
