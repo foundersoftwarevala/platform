@@ -3729,10 +3729,11 @@ const Index = () => {
       <footer className="bg-[#0a1628] border-t border-cyan-500/20 py-8 px-4">
         <div className="max-w-7xl mx-auto text-center">
           <p className="text-gray-400">
-            © 2024 Software Vala - The Name of Trust. All rights reserved.
+            © {new Date().getFullYear()} Software Vala - The Name of Trust. All rights reserved.
           </p>
           <p className="text-cyan-400 mt-2">
-            55 Master Categories • {allDemos.length} Software Solutions • 20 Live Demos Ready
+            {allMasterCategories55.length} Master Categories • {allDemos.length} Software Solutions •{" "}
+            {allDemos.filter((d) => d.status === "ACTIVE").length} Live Demos Ready
           </p>
         </div>
       </footer>
