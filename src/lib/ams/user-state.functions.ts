@@ -95,8 +95,13 @@ function passportNumberFor(userId: string): string {
   return `SV-AMS-${String(a).padStart(4, "0")}-${String(b).padStart(4, "0")}`;
 }
 
-export const getAmsStanding = createServerFn({ method: "GET" }).handler(
-  async (): Promise<AmsStanding> => {
+export const getAmsStanding = createServerFn({ method: "GET" })
+  .inputValidator((input: unknown) => {
+    const role = (input as { role?: unknown } | undefined)?.role;
+    return { role: typeof role === "string" && role.length <= 40 ? role : null };
+  })
+  .handler(
+  async ({ data }): Promise<AmsStanding> => {
     const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
     const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
     if (!token) return SIGNED_OUT;
@@ -108,16 +113,32 @@ export const getAmsStanding = createServerFn({ method: "GET" }).handler(
 
     // One round trip. A table that is empty is not an error — it means this
     // person has not earned anything yet, which is a real answer.
+    // XP, level and rank are kept per AMS role: the dashboard's own role, or
+    // the person's strongest when no role is named.
+    const xpBase = supabase.from("user_xp").select("total_xp,current_level,current_rank").eq("user_id", userId);
+    const xpQuery = (data.role
+      ? xpBase.eq("role" as never, data.role as never)
+      : xpBase.order("total_xp", { ascending: false })
+    ).limit(1).maybeSingle();
+
+    // This role's recognition only. Every catalogue slug starts with its role
+    // ("author-stage-01", "author-01"), so the role narrows each list.
+    const achBase = supabase.from("user_achievements").select("achievements!inner(slug)")
+      .eq("user_id", userId).not("unlocked_at", "is", null);
+    const achQuery = data.role ? achBase.like("achievements.slug" as never, `${data.role}-%` as never) : achBase;
+    const badgeBase = supabase.from("user_badges").select("badges!inner(slug)").eq("user_id", userId);
+    const badgeQuery = data.role ? badgeBase.like("badges.slug" as never, `${data.role}-%` as never) : badgeBase;
+    const trophyBase = supabase.from("user_trophies").select("trophies!inner(slug)").eq("user_id", userId);
+    const trophyQuery = data.role ? trophyBase.like("trophies.slug" as never, `${data.role}-%` as never) : trophyBase;
+
     const [xp, achievements, badges, trophies, missions, claims, streak, profile] =
       await Promise.all([
-        supabase.from("user_xp").select("total_xp,current_level,current_rank")
-          .eq("user_id", userId).maybeSingle(),
+        xpQuery,
         // Joined to the catalogue so the UI receives slugs, which is what its
         // role definitions match on. Ids would silently match nothing.
-        supabase.from("user_achievements").select("achievements(slug)")
-          .eq("user_id", userId).not("unlocked_at", "is", null),
-        supabase.from("user_badges").select("badges(slug)").eq("user_id", userId),
-        supabase.from("user_trophies").select("trophies(slug)").eq("user_id", userId),
+        achQuery,
+        badgeQuery,
+        trophyQuery,
         supabase.from("user_mission_progress").select("mission_id,completed_at")
           .eq("user_id", userId).not("completed_at", "is", null),
         supabase.from("claims").select("reward_id,status").eq("user_id", userId),
