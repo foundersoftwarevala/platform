@@ -38,6 +38,7 @@ export const APPLY_MESSAGES = {
   "apply.queue.search": ["Search", "placeholder of the search box"],
   "apply.queue.filter_open": "Open (pending, in review)",
   "apply.queue.filter_all": "All",
+  "apply.queue.filter_label": "Which applications to show",
   "apply.queue.loading": "Loading applications",
   "apply.queue.empty": "No applications here.",
   "apply.queue.review": ["Start review", "moves an application to in review"],

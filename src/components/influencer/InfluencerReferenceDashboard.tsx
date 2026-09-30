@@ -1,5 +1,6 @@
 import { ArrowUpRight, BarChart3, CheckCircle2, Megaphone, ShieldCheck, Sparkles, UserPlus, Users, Wallet } from "lucide-react";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 
 import { influencerProgrammeQueryOptions } from "@/lib/influencer/analytics";
 import type { ModuleConfig } from "@/components/creator/ModuleDashboard";
@@ -26,6 +27,7 @@ export function InfluencerReferenceDashboard({
   // read zeros: the owner has no influencer_profiles row of his own.
   const { data } = useSuspenseQuery(influencerProgrammeQueryOptions());
   const { translate: t } = useLanguage();
+  const navigate = useNavigate();
   const { metrics, connected } = data;
   const number = (key: keyof typeof metrics) => metrics[key]?.value ?? 0;
 
@@ -42,7 +44,11 @@ export function InfluencerReferenceDashboard({
             <h1 className="mt-5 text-4xl font-bold tracking-tight md:text-6xl">Influencer Manager</h1>
             <p className="mt-3 max-w-md text-white/80">Onboard creators, run campaigns, verify documents and settle payouts from one control surface.</p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <button type="button" onClick={() => onNavigate?.("Campaigns")} className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-primary hover:bg-white/90">
+              {/* Campaigns are created in Marketing Manager's campaign builder
+                  (marketing_campaigns), which influencer assignments point at.
+                  This opened Influencer Manager's own campaign wall, which has
+                  no table behind it, so nothing could be created there. */}
+              <button type="button" onClick={() => void navigate({ to: "/marketing/campaign-builder" })} className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-primary hover:bg-white/90">
                 <Megaphone className="h-4 w-4" /> {t("Create a Campaign")} <ArrowUpRight className="h-4 w-4" />
               </button>
               <button type="button" onClick={() => onNavigate?.("Applications")} className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold backdrop-blur hover:bg-white/20">

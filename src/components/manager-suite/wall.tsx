@@ -509,6 +509,7 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
           {config.filters.map((f) => (
             <select
               key={f.key}
+              aria-label={`Filter by ${f.label}`}
               value={filters[f.key] ?? ""}
               onChange={(e) => {
                 setFilters((s) => ({ ...s, [f.key]: e.target.value }));
@@ -563,6 +564,7 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                 <th className="w-10 px-4 py-3">
                   <input
                     type="checkbox"
+                    aria-label="Select every row on this page"
                     checked={paged.length > 0 && paged.every((r) => selected.has(r.id))}
                     onChange={() =>
                       setSelected((s) =>
@@ -602,7 +604,7 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
               {paged.map((r) => (
                 <tr key={r.id} className="border-b border-border/60 transition hover:bg-white/[0.03]">
                   <td className="px-4 py-3">
-                    <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
+                    <input type="checkbox" aria-label="Select this row" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
                   </td>
                   {config.columns.map((c) => (
                     <td
@@ -659,6 +661,8 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
           </span>
           <div className="flex gap-1">
             <button
+              type="button"
+              aria-label="Previous page"
               disabled={page === 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               className="rounded-md border border-border p-1.5 disabled:opacity-40"
@@ -666,6 +670,8 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
             <button
+              type="button"
+              aria-label="Next page"
               disabled={page >= pages}
               onClick={() => setPage((p) => Math.min(pages, p + 1))}
               className="rounded-md border border-border p-1.5 disabled:opacity-40"

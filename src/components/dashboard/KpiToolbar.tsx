@@ -37,6 +37,7 @@ function KpiToolbarBase({
       <div className="ml-auto inline-flex items-center gap-2">
         <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
         <select
+          aria-label="Sort figures"
           value={sort}
           onChange={(e) => onSortChange(e.target.value as KpiSort)}
           className="rounded-lg border border-border bg-card px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-brand/50"

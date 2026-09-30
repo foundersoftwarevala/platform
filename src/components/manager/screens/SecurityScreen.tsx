@@ -315,7 +315,7 @@ export default function SecurityScreen({ view }: { view?: string | undefined }) 
               />
             </div>
             <Select value={logStatusFilter} onValueChange={setLogStatusFilter}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger aria-label="Status" className="w-[160px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -390,7 +390,7 @@ export default function SecurityScreen({ view }: { view?: string | undefined }) 
               <div className="w-[110px]">
                 <Label className="text-xs">Type</Label>
                 <Select value={newIpType} onValueChange={(v) => setNewIpType(v as "allow" | "deny")}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -562,7 +562,7 @@ export default function SecurityScreen({ view }: { view?: string | undefined }) 
               <div>
                 <Label className="text-xs">Revoke API key (optional)</Label>
                 <Select value={blockKeyId} onValueChange={setBlockKeyId}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Revoke API key (optional)">
                     <SelectValue placeholder="Select key to revoke" />
                   </SelectTrigger>
                   <SelectContent>

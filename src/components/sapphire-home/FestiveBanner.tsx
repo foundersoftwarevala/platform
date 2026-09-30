@@ -59,7 +59,9 @@ const FestiveBanner = () => {
         </div>
 
         <button
+          type="button"
           onClick={() => setDismissed(true)}
+          aria-label="Dismiss offers banner"
           className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-5 h-5 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white transition-colors border border-white/25"
         >
           <X className="w-3 h-3" />
