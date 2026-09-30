@@ -45,7 +45,7 @@ export type AmsStanding = {
   currentStreak: number;
   longestStreak: number;
   joinedAt: string | null;
-  /** Stable per person, derived from their account rather than their role. */
+  /** The role's passport number as the engine issued it, or null. */
   passportId: string | null;
   /**
    * Nothing in the schema records these yet. Null rather than zero so the UI
@@ -87,14 +87,6 @@ function clientFor(token: string) {
   );
 }
 
-/** A stable passport number for a person, derived from their account id. */
-function passportNumberFor(userId: string): string {
-  const hex = userId.replace(/-/g, "");
-  const a = parseInt(hex.slice(0, 6), 16) % 10000;
-  const b = parseInt(hex.slice(6, 12), 16) % 10000;
-  return `SV-AMS-${String(a).padStart(4, "0")}-${String(b).padStart(4, "0")}`;
-}
-
 export const getAmsStanding = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => {
     const role = (input as { role?: unknown } | undefined)?.role;
@@ -131,7 +123,13 @@ export const getAmsStanding = createServerFn({ method: "GET" })
     const trophyBase = supabase.from("user_trophies").select("trophies!inner(slug)").eq("user_id", userId);
     const trophyQuery = data.role ? trophyBase.like("trophies.slug" as never, `${data.role}-%` as never) : trophyBase;
 
-    const [xp, achievements, badges, trophies, missions, claims, streak, profile] =
+    // The role's passport as the engine issued it; none without a role.
+    const passportQuery = data.role
+      ? supabase.from("ams_passports" as never).select("passport_no")
+          .eq("user_id" as never, userId as never).eq("role" as never, data.role as never).maybeSingle()
+      : Promise.resolve({ data: null });
+
+    const [xp, achievements, badges, trophies, missions, claims, streak, profile, passport] =
       await Promise.all([
         xpQuery,
         // Joined to the catalogue so the UI receives slugs, which is what its
@@ -145,6 +143,7 @@ export const getAmsStanding = createServerFn({ method: "GET" })
         supabase.from("user_streaks").select("current_streak,longest_streak")
           .eq("user_id", userId).maybeSingle(),
         supabase.from("profiles").select("created_at").eq("id", userId).maybeSingle(),
+        passportQuery,
       ]);
 
     const ids = <T extends Record<string, unknown>>(rows: T[] | null, key: keyof T): string[] =>
@@ -176,7 +175,7 @@ export const getAmsStanding = createServerFn({ method: "GET" })
       currentStreak: Number(streak.data?.current_streak ?? 0),
       longestStreak: Number(streak.data?.longest_streak ?? 0),
       joinedAt: profile.data?.created_at ?? null,
-      passportId: passportNumberFor(userId),
+      passportId: (passport.data as { passport_no?: string } | null)?.passport_no ?? null,
       // No column records any of these yet.
       trustScore: null,
       reputation: null,
