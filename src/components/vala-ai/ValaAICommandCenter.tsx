@@ -74,7 +74,7 @@ export function ValaAICommandCenter() {
 
         <div className="flex flex-wrap items-center gap-3 border-b border-border bg-primary/10 px-4 py-2 sm:px-6">
           <span className="text-xs font-medium text-muted-foreground">{t("ACTIVE PROJECT")}</span>
-          <select value={activeProject} onChange={(e) => setActiveProject(e.target.value)} className="h-8 w-56 rounded border bg-transparent px-2 text-sm">
+          <select aria-label={t("ACTIVE PROJECT")} value={activeProject} onChange={(e) => setActiveProject(e.target.value)} className="h-8 w-56 rounded border bg-transparent px-2 text-sm">
             <option value="none">{t("None selected")}</option>
             {(projects.data?.data ?? []).map((p: any) => <option key={p.id} value={p.title}>{p.title}</option>)}
           </select>

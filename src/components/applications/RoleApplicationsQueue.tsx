@@ -286,6 +286,7 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
             </select>
           )}
           <select
+            aria-label={t("apply.queue.filter_label")}
             value={filter}
             onChange={(e) => setFilter(e.target.value as "open" | "all")}
             className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"

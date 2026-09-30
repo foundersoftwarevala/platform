@@ -108,14 +108,14 @@ const DASHBOARD_ROLE_REQUIREMENT: Record<string, string[]> = {
  * Campaign" opened Followers. The affiliate's now opens their real link
  * generator. Vendors, authors and influencers cannot create products or
  * campaigns themselves yet (a submission is opened by Software Vala, a
- * campaign by Influencer Manager), so theirs opens the list it names and says
+ * campaign in Marketing Manager), so theirs opens the list it names and says
  * so rather than promising a form.
  */
 const PARTNER_HERO: Partial<Record<string, { module: string; notice?: string }>> = {
   affiliate: { module: "referrals" },
   vendor: { module: "products", notice: "New products are listed by the Software Vala catalogue team; you cannot add one from here yet." },
   author: { module: "products", notice: "New products are uploaded through the Software Vala catalogue team; self-upload is not available yet." },
-  influencer: { module: "campaigns", notice: "Campaigns are created by Software Vala's Influencer Manager and appear here when you are added to one." },
+  influencer: { module: "campaigns", notice: "Campaigns are created by Software Vala's marketing team and appear here when you are added to one." },
 };
 
 /** Reseller hero buttons that open one of the reseller's own modules. */

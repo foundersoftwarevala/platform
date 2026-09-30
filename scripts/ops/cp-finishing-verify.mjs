@@ -185,7 +185,7 @@ const PARTNERS = [
   { login: "AFFILIATE", role: "affiliate", cta: "Create Link", expect: /New link|referral link yet|not an affiliate|pending/i },
   { login: "VENDOR", role: "vendor", cta: "Add Product", expect: /catalogue team/ },
   { login: "AUTHOR", role: "author", cta: "Upload Product", expect: /catalogue team/ },
-  { login: "INFLUENCER", role: "influencer", cta: "New Campaign", expect: /Influencer Manager/ },
+  { login: "INFLUENCER", role: "influencer", cta: "New Campaign", expect: /marketing team/ },
 ];
 for (const p of PARTNERS) {
   const s = await signIn(ops[`SV_LOGIN_${p.login}`], ops[`SV_PW_${p.login}`] ?? ops.SV_PW_TEST ?? ops.SV_PW_CONTROL_PANEL);

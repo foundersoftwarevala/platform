@@ -81,7 +81,9 @@ const AITroubleshooter = ({ isOpen, onClose }: AITroubleshooterProps) => {
           </div>
         </div>
         <button
+          type="button"
           onClick={onClose}
+          aria-label="Close troubleshooter"
           className="p-2 rounded-lg hover:bg-card/60 transition-colors"
         >
           <X className="w-5 h-5 text-muted-foreground" />
@@ -198,6 +200,7 @@ const AITroubleshooter = ({ isOpen, onClose }: AITroubleshooterProps) => {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => void handleSend()}
+            aria-label="Send to the troubleshooter"
             className="px-4 py-3 rounded-xl bg-teal-500/20 border border-teal-500/30 text-teal-400 hover:bg-teal-500/30 transition-all"
           >
             <Send className="w-5 h-5" />

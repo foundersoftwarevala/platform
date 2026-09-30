@@ -296,6 +296,7 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
           />
         </div>
         <select
+          aria-label="Filter by status"
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value as RecordStatus | "all"); setPage(1); }}
           className="rounded-lg bg-surface border border-border px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
@@ -304,6 +305,7 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
           {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <select
+          aria-label="Sort records"
           value={sort}
           onChange={(e) => setSort(e.target.value as typeof sort)}
           className="rounded-lg bg-surface border border-border px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage, LANGUAGES } from "@/lib/language-catalog";
 import { Link } from "@tanstack/react-router";
-import { listNotifications, markAllRead, subscribe as subscribeApps } from "@/lib/applications/store";
 import {
   Popover,
   PopoverContent,
@@ -19,7 +18,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@/lib/serverFn";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -928,35 +927,72 @@ function Notifications({ t }: { t: (s: string) => string }) {
     staleTime: 1000 * 60 * 5,
   });
 
-  const [appNotifs, setAppNotifs] = useState(() => listNotifications());
+  // The signed-in visitor's own notifications, beside the site's public
+  // announcements. They used to come from an applications list kept in this
+  // browser, which nothing has written since applications moved to the
+  // server, and whose link (/admin/applications) led to no page. They now come
+  // from the platform's one notification system - user_notifications, read
+  // with mm_notifications - on the very query the dashboard bell uses, so the
+  // two bells share one cache and one unread count.
+  const qc = useQueryClient();
+  const [userId, setUserId] = useState<string | null>(null);
   useEffect(() => {
-    const sync = () => setAppNotifs(listNotifications());
-    sync();
-    return subscribeApps(sync);
+    let alive = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (alive) setUserId(data.user?.id ?? null);
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => setUserId(session?.user?.id ?? null));
+    return () => {
+      alive = false;
+      data.subscription.unsubscribe();
+    };
   }, []);
+  const mineKey = ["notification-bell", userId];
+  const mine = useQuery({
+    queryKey: mineKey,
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("mm_notifications" as never, { p_limit: 25 } as never);
+      if (error) throw new Error(error.message);
+      return data as unknown as {
+        unread?: number;
+        notifications?: { id: string; message: string; event: string | null; action_url: string | null; read: boolean | null; created_at: string }[];
+      };
+    },
+    refetchInterval: 60_000,
+  });
+  const markMineRead = async () => {
+    const unreadMine = (mine.data?.notifications ?? []).filter((n) => !n.read);
+    if (!unreadMine.length) return;
+    for (const n of unreadMine) {
+      await supabase.rpc("mm_notification_read" as never, { p_id: n.id, p_dismiss: false } as never);
+    }
+    await qc.invalidateQueries({ queryKey: mineKey });
+  };
 
   const items = useMemo<Notification[]>(
     () => [
-      ...appNotifs.map((n) => ({
+      ...(mine.data?.notifications ?? []).map((n) => ({
         id: n.id,
-        title: n.title,
-        body: n.body,
-        kind: n.kind === "application" ? "update" : "promo",
-        link_url: "/admin/applications",
-        published_at: n.createdAt,
+        title: String(n.event ?? "Notification").replace(/[._]/g, " "),
+        body: n.message,
+        kind: "update",
+        // Only links inside this site are followed, as in the dashboard bell.
+        link_url: n.action_url && n.action_url.startsWith("/") && !n.action_url.startsWith("//") ? n.action_url : null,
+        published_at: n.created_at,
       })),
       ...(q.data ?? []),
     ],
-    [appNotifs, q.data],
+    [mine.data, q.data],
   );
   const unread =
-    appNotifs.filter((n) => !n.read).length +
+    Number(mine.data?.unread ?? 0) +
     (q.data ?? []).filter((n) => !lastSeen || n.published_at > lastSeen).length;
 
   return (
     <Popover
       onOpenChange={(open) => {
-        if (open) markAllRead();
+        if (open) void markMineRead();
         if (open && items.length) {
           const newest = items.reduce((a, b) => (a > b.published_at ? a : b.published_at), "");
           localStorage.setItem("sv_notif_seen", newest);
