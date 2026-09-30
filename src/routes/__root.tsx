@@ -23,6 +23,7 @@ import { AttributionCapture } from "@/components/marketplace/AttributionCapture"
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { CelebrationProvider } from "../components/ams/effects/Celebration";
+import { RecognitionDetector } from "../components/ams/effects/RecognitionDetector";
 
 function NotFoundComponent() {
   return (
@@ -161,6 +162,8 @@ function RootComponent() {
       <LanguageDock />
       <TooltipProvider>
         <CelebrationProvider>
+          {/* The one path from a recognition the engine granted to the screen. */}
+          <RecognitionDetector />
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           {/* Operator consoles are gated centrally by path; public pages pass straight through. */}
           {/* Notices a ?ref= arrival on any page and tells the server once. */}

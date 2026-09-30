@@ -331,6 +331,7 @@ import { Route as ApiMarketplaceSupportRouteImport } from './routes/api/marketpl
 import { Route as ApiMarketplaceSystemRouteImport } from './routes/api/marketplace/system'
 import { Route as ApiMarketplaceTrackRouteImport } from './routes/api/marketplace/track'
 import { Route as ApiMarketplaceTranslateRouteImport } from './routes/api/marketplace/translate'
+import { Route as ApiNotificationsStreamRouteImport } from './routes/api/notifications/stream'
 import { Route as ApiPartnerQuoteRouteImport } from './routes/api/partner/quote'
 import { Route as ApiPaymentInitiateRouteImport } from './routes/api/payment/initiate'
 import { Route as ApiPaymentStatusRouteImport } from './routes/api/payment/status'
@@ -2015,6 +2016,11 @@ const ApiMarketplaceTranslateRoute = ApiMarketplaceTranslateRouteImport.update({
   path: '/api/marketplace/translate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiNotificationsStreamRoute = ApiNotificationsStreamRouteImport.update({
+  id: '/api/notifications/stream',
+  path: '/api/notifications/stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPartnerQuoteRoute = ApiPartnerQuoteRouteImport.update({
   id: '/api/partner/quote',
   path: '/api/partner/quote',
@@ -2502,6 +2508,7 @@ export interface FileRoutesByFullPath {
   '/api/marketplace/system': typeof ApiMarketplaceSystemRoute
   '/api/marketplace/track': typeof ApiMarketplaceTrackRoute
   '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
+  '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
@@ -2849,6 +2856,7 @@ export interface FileRoutesByTo {
   '/api/marketplace/system': typeof ApiMarketplaceSystemRoute
   '/api/marketplace/track': typeof ApiMarketplaceTrackRoute
   '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
+  '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
@@ -3207,6 +3215,7 @@ export interface FileRoutesById {
   '/api/marketplace/system': typeof ApiMarketplaceSystemRoute
   '/api/marketplace/track': typeof ApiMarketplaceTrackRoute
   '/api/marketplace/translate': typeof ApiMarketplaceTranslateRoute
+  '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
@@ -3566,6 +3575,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/system'
     | '/api/marketplace/track'
     | '/api/marketplace/translate'
+    | '/api/notifications/stream'
     | '/api/partner/quote'
     | '/api/payment/initiate'
     | '/api/payment/status'
@@ -3913,6 +3923,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/system'
     | '/api/marketplace/track'
     | '/api/marketplace/translate'
+    | '/api/notifications/stream'
     | '/api/partner/quote'
     | '/api/payment/initiate'
     | '/api/payment/status'
@@ -4270,6 +4281,7 @@ export interface FileRouteTypes {
     | '/api/marketplace/system'
     | '/api/marketplace/track'
     | '/api/marketplace/translate'
+    | '/api/notifications/stream'
     | '/api/partner/quote'
     | '/api/payment/initiate'
     | '/api/payment/status'
@@ -4468,6 +4480,7 @@ export interface RootRouteChildren {
   ApiMarketplaceSystemRoute: typeof ApiMarketplaceSystemRoute
   ApiMarketplaceTrackRoute: typeof ApiMarketplaceTrackRoute
   ApiMarketplaceTranslateRoute: typeof ApiMarketplaceTranslateRoute
+  ApiNotificationsStreamRoute: typeof ApiNotificationsStreamRoute
   ApiPartnerQuoteRoute: typeof ApiPartnerQuoteRoute
   ApiPaymentInitiateRoute: typeof ApiPaymentInitiateRoute
   ApiPaymentStatusRoute: typeof ApiPaymentStatusRoute
@@ -6745,6 +6758,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMarketplaceTranslateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/notifications/stream': {
+      id: '/api/notifications/stream'
+      path: '/api/notifications/stream'
+      fullPath: '/api/notifications/stream'
+      preLoaderRoute: typeof ApiNotificationsStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/partner/quote': {
       id: '/api/partner/quote'
       path: '/api/partner/quote'
@@ -7613,6 +7633,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketplaceSystemRoute: ApiMarketplaceSystemRoute,
   ApiMarketplaceTrackRoute: ApiMarketplaceTrackRoute,
   ApiMarketplaceTranslateRoute: ApiMarketplaceTranslateRoute,
+  ApiNotificationsStreamRoute: ApiNotificationsStreamRoute,
   ApiPartnerQuoteRoute: ApiPartnerQuoteRoute,
   ApiPaymentInitiateRoute: ApiPaymentInitiateRoute,
   ApiPaymentStatusRoute: ApiPaymentStatusRoute,

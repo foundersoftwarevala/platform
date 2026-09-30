@@ -3,7 +3,6 @@ import { Lock, Check, Sparkles, Volume2 } from "lucide-react";
 import type { DeveloperStage } from "@/lib/ams/developer-stages";
 import { StageCard } from "@/components/ams/trophy-gallery/StageCard";
 import { useCelebration, type CelebrateKind } from "@/components/ams/effects/Celebration";
-import { playUnlock } from "@/lib/ams/trophy-sounds";
 import { useReducedMotion, setReducedMotionOverride } from "@/hooks/use-reduced-motion";
 
 const UNLOCK_KIND: Record<string, CelebrateKind> = {
@@ -33,9 +32,8 @@ export function ProgressionTimeline({
 }) {
   const [selected, setSelected] = useState(0);
   const [unlocked, setUnlocked] = useState<Set<number>>(new Set([1]));
-  const [soundOn, setSoundOn] = useState(true);
   const reducedMotion = useReducedMotion();
-  const { celebrate, soundOn: globalSound, setSoundOn: setGlobalSound } = useCelebration();
+  const { celebrate, soundOn, setSoundOn } = useCelebration();
 
   const stage = stages[selected];
   const [rFrom, rTo] = stage.ribbon;
@@ -45,14 +43,13 @@ export function ProgressionTimeline({
     if (!s) return;
     setUnlocked((prev) => new Set(prev).add(n));
     setSelected(stages.findIndex((x) => x.n === n));
-    if (soundOn && globalSound) {
-      try { playUnlock(s.unlock); } catch { /* noop */ }
-    }
+    // A showcase preview: it grants nothing, so it shows no XP, and the
+    // presentation plays the stage's own voice once.
     celebrate({
       kind: UNLOCK_KIND[s.unlock] ?? "achievement",
       title: `${s.title} Unlocked`,
       subtitle: `${role} · ${s.material} · Stage ${String(s.n).padStart(2, "0")}`,
-      xp: 100 * s.n,
+      unlock: s.unlock,
     });
   }
 
@@ -73,16 +70,12 @@ export function ProgressionTimeline({
 
         <div className="mt-5 flex flex-wrap items-center gap-2 text-[11px]">
           <button
-            onClick={() => {
-              const next = !soundOn;
-              setSoundOn(next);
-              setGlobalSound(next);
-            }}
+            onClick={() => setSoundOn(!soundOn)}
             className="rounded-full border px-3 py-1 flex items-center gap-1.5 transition"
             style={{ borderColor: `${stage.bg.accent}66`, color: stage.bg.accent }}
           >
             <Volume2 className="h-3.5 w-3.5" />
-            Sound: {soundOn && globalSound ? "On" : "Off"}
+            Sound: {soundOn ? "On" : "Off"}
           </button>
           <button
             onClick={() => setReducedMotionOverride(reducedMotion ? false : true)}

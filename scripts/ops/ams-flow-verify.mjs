@@ -58,7 +58,7 @@ async function signIn(login) {
   await context.route("**/*", (route) => {
     const r = route.request();
     const read = ["GET", "HEAD", "OPTIONS"].includes(r.method()) || /\/auth\/v1\/(token|user)/.test(r.url())
-      || /rpc\/(mm_notifications|ams_role_chain)/.test(r.url()) || /_serverFn/.test(r.url());
+      || /rpc\/(mm_notifications|ams_role_chain|ams_recognition_pending)/.test(r.url()) || /_serverFn/.test(r.url());
     if (!read) writes.push(`${r.method()} ${r.url().replace(BASE, "").split("?")[0]}`);
     return read ? route.continue() : route.abort();
   });

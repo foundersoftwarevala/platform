@@ -10,12 +10,16 @@ import {
 import type { RoleKey, RoleConfig } from "@/lib/roles";
 import {
   AMS_SECTIONS, AMS_ROLE, LEVELS, levelForXp,
-  loadAmsState, saveAmsState, sectionsForLevel,
+  loadAmsState, sectionsForLevel,
   type AmsSectionKey, type AmsUserState, type AmsRoleConfig, type AmsItem,
 } from "@/lib/ams-engine";
 import { getAmsStanding } from "@/lib/ams/user-state.functions";
 import { amsRoleForDashboard } from "@/lib/ams/dashboard-role";
-import { getRoleChain, type RoleChain } from "@/lib/ams/chain.functions";
+import {
+  getRoleChain, getRecognitions,
+  type RoleChain, type ChainCertificate, type RecognitionRecord,
+} from "@/lib/ams/chain.functions";
+import { SoundControl } from "@/components/ams/ui/SoundControl";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/dashboard/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -26,6 +30,32 @@ import { cn } from "@/lib/utils";
  * for this role), or plainly none. Nothing here derives one.
  */
 const passportLabel = (id: string) => id || "Not issued yet";
+
+/**
+ * Trust score, reputation and identity verification have no source in AMS yet
+ * (the standing reader returns null for all three). They used to be counters
+ * in this browser that a "Verify Identity" button or a completed mission
+ * raised; they now say plainly that nothing records them.
+ */
+const NOT_TRACKED = "Not tracked yet";
+
+/** The passport's verification as ams_passports records it. */
+function verificationLabel(v: string | null | undefined): string {
+  if (!v) return "No passport yet";
+  return v === "verified" ? "Verified" : v.charAt(0).toUpperCase() + v.slice(1);
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  xp: "XP", stage: "Stage", legacy: "Legacy", achievement: "Achievement", milestone: "Milestone",
+  badge: "Badge", trophy: "Trophy", award: "Award", certificate: "Certificate", passport: "Passport",
+};
+
+/** A recognition as a line of text: what it was and, for XP, why. */
+function recognitionText(r: RecognitionRecord): string {
+  if (r.type === "xp") return `+${r.xp} XP${r.description ? ` for ${r.description.replace(/\./g, " ")}` : ""}`;
+  if (r.type === "stage" || r.type === "legacy") return `Stage ${r.stage} · ${r.name}${r.rank ? ` · Rank ${r.rank}` : ""}`;
+  return r.name;
+}
 
 /* ────────────────────── ROOT ────────────────────── */
 
@@ -89,9 +119,18 @@ export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => vo
     queryFn: () => fetchStanding({ data: { role: amsRoleForDashboard(role.key) } }),
     staleTime: 60_000,
   });
-  const scope = standing.data?.userId ?? null;
+  // Every recognition the engine granted this person in this role, newest
+  // first - the source for the timeline, history and notifications below.
+  const fetchRecognitions = useServerFn(getRecognitions);
+  const recognitionsQuery = useQuery({
+    queryKey: ["ams", "recognitions", amsRole],
+    queryFn: () => fetchRecognitions({ data: { role: amsRole as string } }),
+    enabled: Boolean(amsRole),
+    staleTime: 60_000,
+  });
+  const recognitions = recognitionsQuery.data ?? [];
 
-  const [state, setState] = useState<AmsUserState>(() => ({ ...loadAmsState(role.key as RoleKey), passportId: "" }));
+  const [state, setState] = useState<AmsUserState>(() => loadAmsState(role.key as RoleKey));
   const [section, setSection] = useState<AmsSectionKey>("home");
   const [search, setSearch] = useState("");
 
@@ -100,7 +139,6 @@ export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => vo
     const s = standing.data;
     if (!s?.authenticated) return;
     setState((prev) => ({
-      ...loadAmsState(role.key as RoleKey, s.userId),
       ...prev,
       xp: s.xp,
       earnedAwards: s.earnedAchievements,
@@ -130,8 +168,6 @@ export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => vo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chain]);
 
-  useEffect(() => { saveAmsState(role.key as RoleKey, state, scope); }, [role.key, state, scope]);
-
   const lvl = chainLevels.length
     ? ([...chainLevels].reverse().find((l) => state.xp >= l.xpFrom) ?? chainLevels[0])
     : levelForXp(state.xp);
@@ -145,6 +181,9 @@ export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => vo
   const ctx: SectionCtx = {
     role, cfg, state, setState, level: lvl, nextLevelLabel: nextBand?.label ?? null,
     onGoto: setSection,
+    recognitions,
+    certificates: chain?.certificates ?? [],
+    verification: chain?.passport?.verification ?? null,
   };
 
   // AMS has eleven roles. A dashboard whose role is not one of them has no AMS
@@ -175,6 +214,10 @@ export function AMSEngine({ role, onBack }: { role: RoleConfig; onBack: () => vo
           <h1 className="text-xl md:text-2xl font-semibold">Achievement Management System</h1>
         </div>
       </div>
+      <div className="-mt-3 flex justify-end">
+        {/* Sound, celebrations and motion: the same settings AMS Manager uses. */}
+        <SoundControl />
+      </div>
 
       <AMSHeader ctx={ctx} pct={pct} nextBandLabel={nextBand?.label ?? "Max Tier"} />
 
@@ -204,6 +247,12 @@ type SectionCtx = {
   level: (typeof LEVELS)[number];
   nextLevelLabel: string | null;
   onGoto: (k: AmsSectionKey) => void;
+  /** The engine's ledger for this person and role, newest first. */
+  recognitions: RecognitionRecord[];
+  /** Certificates issued for this role. */
+  certificates: ChainCertificate[];
+  /** ams_passports.verification, or null with no passport. */
+  verification: string | null;
 };
 
 function renderSection(k: AmsSectionKey, ctx: SectionCtx, search: string) {
@@ -234,7 +283,7 @@ function renderSection(k: AmsSectionKey, ctx: SectionCtx, search: string) {
 /* ────────────────────── HEADER ────────────────────── */
 
 function AMSHeader({ ctx, pct, nextBandLabel }: { ctx: SectionCtx; pct: number; nextBandLabel: string }) {
-  const { cfg, state, level, role } = ctx;
+  const { cfg, state, level, role, verification } = ctx;
   const nextUnlock = AMS_SECTIONS.find((s) => s.unlockLevel > level.level);
   const currentMission = cfg.missions[0];
 
@@ -259,12 +308,10 @@ function AMSHeader({ ctx, pct, nextBandLabel }: { ctx: SectionCtx; pct: number; 
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
             <Chip>Passport {passportLabel(state.passportId)}</Chip>
             <Chip>Level {level.level}</Chip>
-            <Chip>Rank —</Chip>
+            <Chip>Rank {level.label}</Chip>
             <Chip>{state.xp.toLocaleString()} XP</Chip>
-            <Chip>Trust {state.trustScore}</Chip>
-            <Chip>Reputation {state.reputation}</Chip>
-            <Chip tone={state.verified ? "success" : "muted"}>
-              <ShieldCheck className="h-3 w-3" /> {state.verified ? "Verified" : "Unverified"}
+            <Chip tone={verification === "verified" ? "success" : "muted"}>
+              <ShieldCheck className="h-3 w-3" /> {verificationLabel(verification)}
             </Chip>
           </div>
           <div className="mt-3 max-w-md">
@@ -281,7 +328,7 @@ function AMSHeader({ ctx, pct, nextBandLabel }: { ctx: SectionCtx; pct: number; 
             <div className="rounded-xl border border-white/15 bg-white/10 p-3 max-w-[220px]">
               <div className="text-[10px] uppercase tracking-wider text-white/70">Current Mission</div>
               <div className="text-sm text-white font-medium truncate">{currentMission.label}</div>
-              <div className="text-[11px] text-white/80">+{currentMission.xp} XP · {currentMission.cadence}</div>
+              <div className="text-[11px] text-white/80">{NOT_TRACKED} · {currentMission.cadence}</div>
             </div>
           )}
           {nextUnlock && (
@@ -425,10 +472,22 @@ function StatCard({ label, value, hint, tone = "brand" }: { label: string; value
 /* ────────────────────── HOME ────────────────────── */
 
 function HomeSection({ ctx }: { ctx: SectionCtx }) {
-  const { cfg, state, level, onGoto } = ctx;
+  const { cfg, state, level, onGoto, recognitions } = ctx;
   const currentMission = cfg.missions[0];
   const nextUnlock = AMS_SECTIONS.find((s) => s.unlockLevel > level.level);
-  const recentAward = state.earnedAwards.length > 0
+  // XP actually paid, from the ledger, by when it was paid.
+  const now = new Date();
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const weekStart = dayStart - ((now.getDay() + 6) % 7) * 86_400_000;
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const xpSince = (from: number) => recognitions
+    .filter((r) => r.type === "xp" && new Date(r.created_at).getTime() >= from)
+    .reduce((s, r) => s + Number(r.xp || 0), 0);
+  const today = xpSince(dayStart);
+  const recent = recognitions.find((r) => r.type !== "xp");
+  // Before the ledger history loads (or where it is empty), the latest earned
+  // achievement the role chain reports - still the engine's, never local.
+  const earnedAward = !recent && state.earnedAwards.length > 0
     ? cfg.awards.find((a) => a.key === state.earnedAwards[state.earnedAwards.length - 1])
     : null;
   const nextAward = cfg.awards.find((a) => !state.earnedAwards.includes(a.key) && (a.visibleAtLevel ?? 1) <= level.level + 1);
@@ -436,9 +495,9 @@ function HomeSection({ ctx }: { ctx: SectionCtx }) {
   return (
     <SectionShell title="Home" subtitle={`Today · ${new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}`}>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 ams-stagger">
-        <StatCard label="Today"   value="0 XP" hint="No activity yet" tone="brand" />
-        <StatCard label="This Week"  value="0 XP" tone="cyan" />
-        <StatCard label="This Month" value="0 XP" tone="violet" />
+        <StatCard label="Today"   value={`${today.toLocaleString()} XP`} hint={today === 0 ? "No activity yet" : undefined} tone="brand" />
+        <StatCard label="This Week"  value={`${xpSince(weekStart).toLocaleString()} XP`} tone="cyan" />
+        <StatCard label="This Month" value={`${xpSince(monthStart).toLocaleString()} XP`} tone="violet" />
         <StatCard label="Current Level" value={`L${level.level} · ${level.label}`} tone="success" />
       </div>
 
@@ -453,7 +512,7 @@ function HomeSection({ ctx }: { ctx: SectionCtx }) {
                 <Button size="sm" onClick={() => onGoto("missions")}>
                   Go to Missions <ChevronRight className="h-3.5 w-3.5 ml-1" />
                 </Button>
-                <span className="text-[11px] text-muted-foreground">+{currentMission.xp} XP · {currentMission.cadence}</span>
+                <span className="text-[11px] text-muted-foreground">{NOT_TRACKED} · {currentMission.cadence}</span>
               </div>
             </>
           ) : (
@@ -464,7 +523,7 @@ function HomeSection({ ctx }: { ctx: SectionCtx }) {
         <div className="rounded-2xl border border-border bg-surface-1 p-4">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Current Goal</div>
           <div className="mt-1 font-medium">Reach {ctx.nextLevelLabel ?? "Max"}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">Earn XP through missions & achievements.</div>
+          <div className="text-xs text-muted-foreground mt-0.5">XP comes from your verified activity on Software Vala.</div>
           <div className="mt-3">
             <Progress value={Math.min(100, Math.round(((state.xp - level.xpFrom) / Math.max(1, level.xpTo - level.xpFrom)) * 100))} />
             <div className="mt-1 text-[11px] text-muted-foreground">{state.xp - level.xpFrom} / {level.xpTo - level.xpFrom} XP this tier</div>
@@ -475,16 +534,26 @@ function HomeSection({ ctx }: { ctx: SectionCtx }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="rounded-2xl border border-border bg-surface-1 p-4">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Recent Achievement</div>
-          {recentAward ? (
+          {recent ? (
             <div className="mt-2 flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-brand/15 text-brand flex items-center justify-center"><AwardIcon className="h-5 w-5" /></div>
               <div className="min-w-0">
-                <div className="font-medium truncate">{recentAward.label}</div>
-                <div className="text-[11px] text-muted-foreground truncate">+{recentAward.xp} XP</div>
+                <div className="font-medium truncate">{recognitionText(recent)}</div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {TYPE_LABEL[recent.type] ?? recent.type} · {new Date(recent.created_at).toLocaleDateString()}
+                </div>
+              </div>
+            </div>
+          ) : earnedAward ? (
+            <div className="mt-2 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-brand/15 text-brand flex items-center justify-center"><AwardIcon className="h-5 w-5" /></div>
+              <div className="min-w-0">
+                <div className="font-medium truncate">{earnedAward.label}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{earnedAward.requirement}</div>
               </div>
             </div>
           ) : (
-            <div className="text-xs text-muted-foreground mt-1">No achievements yet — complete missions to earn your first.</div>
+            <div className="text-xs text-muted-foreground mt-1">No achievements yet — your verified activity earns the first.</div>
           )}
         </div>
         <div className="rounded-2xl border border-border bg-surface-1 p-4">
@@ -550,7 +619,7 @@ function JourneySection({ ctx }: { ctx: SectionCtx }) {
 /* ────────────────────── PASSPORT ────────────────────── */
 
 function PassportSection({ ctx }: { ctx: SectionCtx }) {
-  const { cfg, state, level, role } = ctx;
+  const { cfg, state, level, role, verification } = ctx;
   const stamps = [
     ...state.earnedAwards.map((k) => ({ k, kind: "Award" as const, label: cfg.awards.find((a) => a.key === k)?.label ?? k })),
     ...state.earnedTrophies.map((k) => ({ k, kind: "Trophy" as const, label: cfg.trophies.find((a) => a.key === k)?.label ?? k })),
@@ -568,9 +637,9 @@ function PassportSection({ ctx }: { ctx: SectionCtx }) {
               <PassRow k="Level" v={`L${level.level} · ${level.label}`} />
               <PassRow k="XP" v={state.xp.toLocaleString()} />
               <PassRow k="Joined" v={new Date(state.joinedAt).toLocaleDateString()} />
-              <PassRow k="Trust" v={`${state.trustScore}/100`} />
-              <PassRow k="Reputation" v={`${state.reputation}/100`} />
-              <PassRow k="Status" v={state.verified ? "Verified ✓" : "Unverified"} />
+              <PassRow k="Trust" v={NOT_TRACKED} />
+              <PassRow k="Reputation" v={NOT_TRACKED} />
+              <PassRow k="Status" v={verificationLabel(verification)} />
               <PassRow k="Signature" v={state.passportId ? `SV·${state.passportId.slice(-4)}` : "—"} />
             </div>
           </div>
@@ -602,7 +671,7 @@ function PassportSection({ ctx }: { ctx: SectionCtx }) {
 ` +
               `Level ${level.level} (${level.label}) - ${state.xp.toLocaleString()} XP
 ` +
-              `Trust ${state.trustScore}/100 - Reputation ${state.reputation}/100`;
+              `Status: ${verificationLabel(verification)}`;
             if (navigator.share) {
               try {
                 await navigator.share({ title: "Software Vala passport", text: summary });
@@ -633,9 +702,7 @@ function PassportSection({ ctx }: { ctx: SectionCtx }) {
               level: { number: level.level, label: level.label },
               xp: state.xp,
               joinedAt: state.joinedAt,
-              trustScore: state.trustScore,
-              reputation: state.reputation,
-              verified: state.verified,
+              verification: verification ?? null,
               stamps: stamps.map((s) => ({ kind: s.kind, label: s.label })),
             });
             toast.success("Passport downloaded.");
@@ -673,11 +740,12 @@ function PassRow({ k, v }: { k: string; v: string }) {
   return (<><div className="text-white/70">{k}</div><div className="font-medium text-right">{v}</div></>);
 }
 function PassportTimeline({ ctx }: { ctx: SectionCtx }) {
-  const { state, cfg } = ctx;
+  const { state, cfg, recognitions } = ctx;
   const items = [
+    ...recognitions
+      .filter((r) => r.type !== "xp")
+      .map((r) => ({ when: new Date(r.created_at).toLocaleDateString(), what: `${TYPE_LABEL[r.type] ?? r.type} · ${recognitionText(r)}` })),
     { when: new Date(state.joinedAt).toLocaleDateString(), what: `Joined as ${cfg.subject}` },
-    ...(state.verified ? [{ when: "—", what: "Verified account" }] : []),
-    ...state.earnedAwards.map((k) => ({ when: "—", what: `Earned award · ${cfg.awards.find((a) => a.key === k)?.label ?? k}` })),
   ];
   return (
     <div className="rounded-2xl border border-border bg-surface-1 divide-y divide-border">
@@ -694,14 +762,14 @@ function PassportTimeline({ ctx }: { ctx: SectionCtx }) {
 /* ────────────────────── IDENTITY ────────────────────── */
 
 function IdentitySection({ ctx }: { ctx: SectionCtx }) {
-  const { state, setState } = ctx;
+  const { state, verification } = ctx;
   return (
     <SectionShell title="Identity" subtitle="Verification, trust and reputation scores.">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 ams-stagger">
         <StatCard label="Passport ID" value={passportLabel(state.passportId)} tone="brand" />
-        <StatCard label="Trust Score" value={`${state.trustScore}/100`} tone="success" hint="Increases as you complete verified actions." />
-        <StatCard label="Reputation" value={`${state.reputation}/100`} tone="cyan" hint="Feedback from your community." />
-        <StatCard label="Status" value={state.verified ? "Verified" : "Unverified"} tone={state.verified ? "success" : "warning"} />
+        <StatCard label="Trust Score" value={NOT_TRACKED} tone="success" hint="AMS does not record a trust score yet." />
+        <StatCard label="Reputation" value={NOT_TRACKED} tone="cyan" hint="AMS does not record reputation yet." />
+        <StatCard label="Status" value={verificationLabel(verification)} tone={verification === "verified" ? "success" : "warning"} />
       </div>
       <div className="rounded-2xl border border-border bg-surface-1 p-4 flex flex-wrap items-center gap-3 justify-between">
         <div>
@@ -709,12 +777,12 @@ function IdentitySection({ ctx }: { ctx: SectionCtx }) {
           <div className="text-xs text-muted-foreground">Every asset issued to you is signed with this key.</div>
           <div className="mt-2 font-mono text-xs bg-surface-2 rounded-md px-2 py-1 inline-block">{state.passportId ? `SV·SIG·${state.passportId}` : "No passport issued yet"}</div>
         </div>
-        {!state.verified ? (
-          <Button size="sm" onClick={() => { setState((s) => ({ ...s, verified: true, trustScore: Math.max(s.trustScore, 40), reputation: Math.max(s.reputation, 30) })); toast.success("Identity verified."); }}>
-            <ShieldCheck className="h-4 w-4 mr-1" /> Verify Identity
-          </Button>
-        ) : (
+        {verification === "verified" ? (
           <span className="inline-flex items-center gap-1 text-success text-sm"><CheckCircle2 className="h-4 w-4" /> Verified</span>
+        ) : (
+          <span className="text-xs text-muted-foreground max-w-xs">
+            Verification is recorded by Software Vala on your passport. Current status: {verificationLabel(verification)}.
+          </span>
         )}
       </div>
     </SectionShell>
@@ -736,7 +804,7 @@ function AchievementsSection({ ctx }: { ctx: SectionCtx }) {
   return (
     <SectionShell title="Achievements" subtitle="Only unlocked achievements appear here — locked ones are blurred.">
       {earned.length === 0 && upcoming.length === 0 ? (
-        <EmptyState title="Nothing yet" message="Complete missions to earn your first achievement." cta="Go to Missions" onCta={() => onGoto("missions")} />
+        <EmptyState title="Nothing yet" message="Your verified activity on Software Vala earns your first achievement." cta="See your journey" onCta={() => onGoto("journey")} />
       ) : (
         <>
           {earned.length > 0 && (
@@ -780,7 +848,7 @@ function ItemCard({ item, earned }: { item: AmsItem & { kind?: string }; earned:
         <div className="text-[11px] text-muted-foreground">{item.requirement}</div>
         <div className={cn("mt-2 inline-block text-[10px] px-2 py-0.5 rounded-full",
           earned ? "bg-success/15 text-success" : "bg-surface-2 text-muted-foreground")}>
-          {earned ? "Unlocked" : "Locked"} · +{item.xp} XP
+          {earned ? "Unlocked" : "Locked"} · at {item.xp.toLocaleString()} XP
         </div>
       </div>
     </div>
@@ -824,16 +892,18 @@ function ItemGridSection({ ctx, kind }: { ctx: SectionCtx; kind: "awards" | "bad
 /* ────────────────────── CERTIFICATES ────────────────────── */
 
 function CertificatesSection({ ctx }: { ctx: SectionCtx }) {
-  const { cfg, state, level, onGoto } = ctx;
+  const { cfg, level, onGoto, role, certificates } = ctx;
   const visible = cfg.certificates.filter((c) => (c.visibleAtLevel ?? 1) <= level.level + 1);
   if (visible.length === 0) {
-    return <SectionShell title="Certificates"><EmptyState title="No certificates yet" message="Certificates are issued as you reach higher tiers." cta="Go to Missions" onCta={() => onGoto("missions")} icon={ShieldCheck} /></SectionShell>;
+    return <SectionShell title="Certificates"><EmptyState title="No certificates yet" message="Certificates are issued as you reach higher tiers." cta="See your journey" onCta={() => onGoto("journey")} icon={ShieldCheck} /></SectionShell>;
   }
   return (
-    <SectionShell title="Certificates" subtitle="Digitally signed, verifiable via your Passport ID.">
+    <SectionShell title="Certificates" subtitle="Issued by Software Vala with every award. Each number verifies publicly.">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {visible.map((c) => {
-          const earned = state.earnedCertificates.includes(c.key);
+          // The certificate the engine issued for this stage, if it has.
+          const cert = certificates.find((x) => x.stage === c.visibleAtLevel && !x.revoked_at);
+          const earned = Boolean(cert);
           return (
             <div key={c.key} className={cn("rounded-2xl border p-4", earned ? "border-brand/40 bg-brand/5" : "border-border bg-surface-1 opacity-80")}>
               <div className="flex items-center gap-2">
@@ -844,15 +914,42 @@ function CertificatesSection({ ctx }: { ctx: SectionCtx }) {
               </div>
               <div className="mt-2 font-medium">{c.label}</div>
               <div className="text-[11px] text-muted-foreground">{c.requirement}</div>
-              <div className="mt-3 rounded-lg border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground">
-                Preview · signed by Software Vala · verify with {passportLabel(state.passportId)}
+              <div className="mt-3 rounded-lg border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground" data-certificate-no={cert?.certificate_no ?? ""}>
+                {cert
+                  ? <>Certificate {cert.certificate_no} · issued {new Date(cert.issued_at).toLocaleDateString()}</>
+                  : "Certificate not issued yet"}
               </div>
               <div className="mt-3 flex gap-2">
-                <Button size="sm" variant="outline" disabled={!earned} onClick={() => toast.success("Certificate downloaded.")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!cert}
+                  onClick={async () => {
+                    if (!cert) return;
+                    // The certificate exactly as ams_certificates holds it.
+                    const { downloadJson, stampedName } = await import("@/lib/export/download");
+                    downloadJson(stampedName(`certificate-${cert.certificate_no}`, "json"), {
+                      certificateNo: cert.certificate_no,
+                      title: cert.title,
+                      role: role.name,
+                      stage: cert.stage,
+                      achievement: cert.achievement_slug,
+                      issuedAt: cert.issued_at,
+                      verification: cert.verification,
+                      verifyAt: `${window.location.origin}/verify/${cert.certificate_no}`,
+                    });
+                  }}
+                >
                   <Download className="h-3.5 w-3.5 mr-1" /> Download
                 </Button>
-                <Button size="sm" variant="outline" disabled={!earned} onClick={() => toast.success("Verification link opened.")}>
-                  <ShieldCheck className="h-3.5 w-3.5 mr-1" /> Verify
+                <Button size="sm" variant="outline" disabled={!cert} asChild={Boolean(cert)}>
+                  {cert ? (
+                    <a href={`/verify/${cert.certificate_no}`} target="_blank" rel="noreferrer">
+                      <ShieldCheck className="h-3.5 w-3.5 mr-1" /> Verify
+                    </a>
+                  ) : (
+                    <span><ShieldCheck className="h-3.5 w-3.5 mr-1" /> Verify</span>
+                  )}
                 </Button>
               </div>
             </div>
@@ -896,24 +993,15 @@ function CollectionsSection({ ctx }: { ctx: SectionCtx }) {
 /* ────────────────────── MISSIONS ────────────────────── */
 
 function MissionsSection({ ctx }: { ctx: SectionCtx }) {
-  const { cfg, state, setState } = ctx;
+  const { cfg, state } = ctx;
   const [tab, setTab] = useState<"daily"|"weekly"|"monthly"|"special"|"founder"|"seasonal">("daily");
   const filtered = cfg.missions.filter((m) => m.cadence === tab);
 
-  function complete(key: string, xp: number) {
-    if (state.earnedMissions.includes(key)) return;
-    setState((s) => ({
-      ...s,
-      earnedMissions: [...s.earnedMissions, key],
-      xp: s.xp + xp,
-      trustScore: Math.min(100, s.trustScore + 2),
-      reputation: Math.min(100, s.reputation + 1),
-    }));
-    toast.success(`+${xp} XP earned.`);
-  }
-
+  // Missions are guidance for the role. AMS does not track them, so they grant
+  // nothing: marking one complete used to add XP, trust and reputation in this
+  // browser that the engine never paid. XP comes from verified activity only.
   return (
-    <SectionShell title="Missions" subtitle="Complete missions to earn XP and level up.">
+    <SectionShell title="Missions" subtitle="Ways to grow in your role. AMS does not track missions yet — XP comes from your verified activity.">
       <div className="flex flex-wrap gap-2">
         {(["daily","weekly","monthly","special","founder","seasonal"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
@@ -933,14 +1021,13 @@ function MissionsSection({ ctx }: { ctx: SectionCtx }) {
               <div key={m.key} className="rounded-2xl border border-border bg-surface-1 p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground capitalize">{m.cadence}</span>
-                  <span className="text-[11px] text-brand font-medium">+{m.xp} XP</span>
                 </div>
                 <div className="mt-1 font-medium">{m.label}</div>
                 <div className="text-xs text-muted-foreground">{m.detail}</div>
-                <div className="mt-3">
-                  <Button size="sm" disabled={done} onClick={() => complete(m.key, m.xp)}>
-                    {done ? <><CheckCircle2 className="h-4 w-4 mr-1" /> Completed</> : "Mark Complete"}
-                  </Button>
+                <div className="mt-3 text-[11px] text-muted-foreground">
+                  {done
+                    ? <span className="inline-flex items-center gap-1 text-success"><CheckCircle2 className="h-4 w-4" /> Completed</span>
+                    : NOT_TRACKED}
                 </div>
               </div>
             );
@@ -954,48 +1041,22 @@ function MissionsSection({ ctx }: { ctx: SectionCtx }) {
 /* ────────────────────── REWARDS ────────────────────── */
 
 function RewardsSection({ ctx }: { ctx: SectionCtx }) {
-  const { cfg, state, level, setState, onGoto } = ctx;
-  const catalog = [
-    { key:"reward-lvl2", label:`${cfg.subject} Kit`,      req:"Reach Level 2", atLevel:2 },
-    { key:"reward-lvl3", label:"Priority Support Pass",   req:"Reach Level 3", atLevel:3 },
-    { key:"reward-lvl4", label:"Featured Placement Week", req:"Reach Level 4", atLevel:4 },
-    { key:"reward-lvl5", label:"Elite Merchandise Box",   req:"Reach Level 5", atLevel:5 },
-  ];
-  function claim(k: string) {
-    if (state.claimedRewards.includes(k)) return;
-    setState((s) => ({ ...s, claimedRewards: [...s.claimedRewards, k] }));
-    toast.success("Reward claimed.");
-  }
+  const { state } = ctx;
+  // Rewards come from the rewards Software Vala publishes and are claimed in the
+  // Rewards Center, where an administrator approves each claim. This section
+  // used to list four invented rewards and mark them claimed in this browser.
   return (
     <SectionShell title="Rewards" subtitle="Earn as you grow.">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {catalog.map((r) => {
-          const eligible = level.level >= r.atLevel;
-          const claimed = state.claimedRewards.includes(r.key);
-          const status = claimed ? "Claimed" : eligible ? "Available" : "Locked";
-          return (
-            <div key={r.key} className={cn("rounded-2xl border p-4", eligible ? "border-brand/30 bg-surface-1" : "border-border bg-surface-1 opacity-80")}>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Reward</span>
-                <span className={cn("text-[10px] px-2 py-0.5 rounded-full",
-                  claimed ? "bg-success/15 text-success" : eligible ? "bg-brand/15 text-brand" : "bg-surface-2 text-muted-foreground")}>
-                  {status}
-                </span>
-              </div>
-              <div className="mt-1 font-medium">{r.label}</div>
-              <div className="text-[11px] text-muted-foreground">{r.req}</div>
-              <div className="mt-3">
-                <Button size="sm" disabled={!eligible || claimed} onClick={() => claim(r.key)}>
-                  {claimed ? "Claimed" : eligible ? "Claim" : "Locked"}
-                </Button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="text-xs text-muted-foreground">
-        Need more XP? <button className="underline underline-offset-4" onClick={() => onGoto("missions")}>Complete missions →</button>
-      </div>
+      {state.claimedRewards.length > 0 && (
+        <div className="text-xs text-muted-foreground">
+          You have {state.claimedRewards.length} reward claim{state.claimedRewards.length === 1 ? "" : "s"} on record.
+        </div>
+      )}
+      <EmptyState
+        title="No rewards to claim here"
+        message="Rewards Software Vala publishes are claimed from the Rewards Center, where each claim is approved."
+        icon={Crown}
+      />
     </SectionShell>
   );
 }
@@ -1076,7 +1137,7 @@ function LockedSection({ title, reason, ctx, minLevel }: { title: string; reason
         </div>
         <div className="mt-3 font-medium">{title}</div>
         <div className="text-sm text-muted-foreground mt-1">🔒 {reason}</div>
-        <Button size="sm" variant="outline" className="mt-4" onClick={() => ctx.onGoto("missions")}>Earn XP</Button>
+        <Button size="sm" variant="outline" className="mt-4" onClick={() => ctx.onGoto("journey")}>See your journey</Button>
       </div>
     </SectionShell>
   );
@@ -1085,18 +1146,14 @@ function LockedSection({ title, reason, ctx, minLevel }: { title: string; reason
 /* ────────────────────── TIMELINE ────────────────────── */
 
 function TimelineSection({ ctx }: { ctx: SectionCtx }) {
-  const { state, cfg, level } = ctx;
+  const { state, cfg, level, recognitions } = ctx;
   const items: { when: string; what: string; kind: string }[] = [
     { when: new Date(state.joinedAt).toLocaleDateString(), what: `Joined as ${cfg.subject}`, kind: "Joined" },
-    ...(state.verified ? [{ when: "—", what: "Identity verified", kind: "Milestone" }] : []),
-    ...state.earnedMissions.map((k) => {
-      const m = cfg.missions.find((x) => x.key === k);
-      return { when: "—", what: `Mission complete · ${m?.label ?? k}`, kind: "Mission" };
-    }),
-    ...state.earnedAwards.map((k) => {
-      const a = cfg.awards.find((x) => x.key === k);
-      return { when: "—", what: `Award earned · ${a?.label ?? k}`, kind: "Award" };
-    }),
+    ...[...recognitions].reverse().filter((r) => r.type !== "xp").map((r) => ({
+      when: new Date(r.created_at).toLocaleDateString(),
+      what: recognitionText(r),
+      kind: TYPE_LABEL[r.type] ?? r.type,
+    })),
   ];
   const future = cfg.journey.filter((s) => s.atLevel > level.level).slice(0, 2);
   return (
@@ -1129,21 +1186,21 @@ function TimelineSection({ ctx }: { ctx: SectionCtx }) {
 /* ────────────────────── NOTIFICATIONS / HISTORY / PROFILE ────────────────────── */
 
 function NotificationsSection({ ctx }: { ctx: SectionCtx }) {
-  const { state, cfg } = ctx;
-  const notes = [
-    ...state.earnedMissions.slice(-5).reverse().map((k) => {
-      const m = cfg.missions.find((x) => x.key === k);
-      return { title: "Mission completed", detail: m?.label ?? k, xp: m?.xp };
-    }),
-  ];
+  const { recognitions } = ctx;
+  const notes = recognitions.slice(0, 20).map((r) => ({
+    key: r.ledger_id,
+    title: TYPE_LABEL[r.type] ?? r.type,
+    detail: `${recognitionText(r)} · ${new Date(r.created_at).toLocaleString()}`,
+    xp: r.type === "xp" ? r.xp : undefined,
+  }));
   if (notes.length === 0) {
-    return <SectionShell title="Notifications"><EmptyState title="All caught up" message="You'll see mission completions, awards, and rewards here." icon={CheckCircle2} /></SectionShell>;
+    return <SectionShell title="Notifications"><EmptyState title="All caught up" message="Everything AMS recognises you for appears here." icon={CheckCircle2} /></SectionShell>;
   }
   return (
     <SectionShell title="Notifications">
       <div className="rounded-2xl border border-border bg-surface-1 divide-y divide-border">
-        {notes.map((n, i) => (
-          <div key={i} className="px-4 py-3 flex items-center justify-between">
+        {notes.map((n) => (
+          <div key={n.key} className="px-4 py-3 flex items-center justify-between" data-recognition={n.key}>
             <div><div className="text-sm font-medium">{n.title}</div><div className="text-xs text-muted-foreground">{n.detail}</div></div>
             {n.xp && <span className="text-[11px] text-brand">+{n.xp} XP</span>}
           </div>
@@ -1154,32 +1211,30 @@ function NotificationsSection({ ctx }: { ctx: SectionCtx }) {
 }
 
 function HistorySection({ ctx }: { ctx: SectionCtx }) {
-  const { state, cfg, setState } = ctx;
-  const rows = [
-    ...state.earnedMissions.map((k) => ({ kind: "Mission", label: cfg.missions.find((m) => m.key === k)?.label ?? k })),
-    ...state.earnedAwards.map((k)  => ({ kind: "Award",   label: cfg.awards.find((a) => a.key === k)?.label ?? k })),
-    ...state.earnedBadges.map((k)  => ({ kind: "Badge",   label: cfg.badges.find((a) => a.key === k)?.label ?? k })),
-    ...state.claimedRewards.map((k)=> ({ kind: "Reward",  label: k })),
-  ];
+  const { recognitions } = ctx;
+  // The engine's ledger for this role. It is the record, so there is nothing
+  // here to reset.
   return (
-    <SectionShell
-      title="History"
-      subtitle="Every XP-earning action across your journey."
-      action={rows.length > 0 && (
-        <Button size="sm" variant="outline" onClick={() => { setState((s) => ({ ...s, earnedMissions: [], earnedAwards: [], earnedBadges: [], earnedTrophies: [], claimedRewards: [], xp: 0 })); toast.success("History cleared."); }}>Reset</Button>
-      )}
-    >
-      {rows.length === 0 ? (
-        <EmptyState title="No history" message="Complete missions to build your history." icon={Zap} />
+    <SectionShell title="History" subtitle="Everything AMS has recognised you for in this role.">
+      {recognitions.length === 0 ? (
+        <EmptyState title="No history" message="Your verified activity on Software Vala builds your history." icon={Zap} />
       ) : (
-        <div className="rounded-2xl border border-border bg-surface-1 overflow-hidden">
+        <div className="rounded-2xl border border-border bg-surface-1 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-surface-2 text-xs text-muted-foreground">
-              <tr><th className="text-left px-4 py-2 w-28">Kind</th><th className="text-left px-4 py-2">Item</th></tr>
+              <tr>
+                <th className="text-left px-4 py-2 w-28">Kind</th>
+                <th className="text-left px-4 py-2">Item</th>
+                <th className="text-left px-4 py-2 whitespace-nowrap">When</th>
+              </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className="border-t border-border"><td className="px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground">{r.kind}</td><td className="px-4 py-2">{r.label}</td></tr>
+              {recognitions.map((r) => (
+                <tr key={r.ledger_id} className="border-t border-border" data-recognition={r.ledger_id}>
+                  <td className="px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground">{TYPE_LABEL[r.type] ?? r.type}</td>
+                  <td className="px-4 py-2">{recognitionText(r)}</td>
+                  <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</td>
+                </tr>
               ))}
             </tbody>
           </table>
@@ -1190,7 +1245,7 @@ function HistorySection({ ctx }: { ctx: SectionCtx }) {
 }
 
 function ProfileSection({ ctx }: { ctx: SectionCtx }) {
-  const { role, cfg, state, level } = ctx;
+  const { role, cfg, state, level, verification } = ctx;
   return (
     <SectionShell title="Profile" subtitle={`Your public ${cfg.subject} profile.`}>
       <div className="rounded-2xl border border-border bg-surface-1 p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1200,9 +1255,9 @@ function ProfileSection({ ctx }: { ctx: SectionCtx }) {
         <Field k="Level"           v={`L${level.level} · ${level.label}`} />
         <Field k="Lifetime XP"     v={state.xp.toLocaleString()} />
         <Field k="Joined"          v={new Date(state.joinedAt).toLocaleDateString()} />
-        <Field k="Trust Score"     v={`${state.trustScore}/100`} />
-        <Field k="Reputation"      v={`${state.reputation}/100`} />
-        <Field k="Verification"    v={state.verified ? "Verified" : "Unverified"} />
+        <Field k="Trust Score"     v={NOT_TRACKED} />
+        <Field k="Reputation"      v={NOT_TRACKED} />
+        <Field k="Verification"    v={verificationLabel(verification)} />
         <Field k="Signature"       v={state.passportId ? `SV·SIG·${state.passportId}` : "—"} />
       </div>
     </SectionShell>

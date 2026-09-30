@@ -20,27 +20,21 @@ const PRESETS: Record<UnlockPreset, {
   founder: { freqs: [261.63, 392, 523.25, 659.25, 783.99, 1046.5, 1318.5], type: "sine", duration: 2.6, gain: 0.17, sweep: 640 },
 };
 
-let ctx: AudioContext | null = null;
-function getCtx() {
-  if (typeof window === "undefined") return null;
-  if (!ctx) {
-    const AC = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
-    ctx = new AC();
-  }
-  if (ctx.state === "suspended") ctx.resume().catch(() => {});
-  return ctx;
-}
+// Through the shared output in lib/ams/ui-sound: one context, and the one mute
+// and volume setting. Muted means nothing is scheduled.
+import { recognitionOutput } from "@/lib/ams/ui-sound";
 
 export function playUnlock(preset: UnlockPreset) {
-  const ac = getCtx();
-  if (!ac) return;
+  const o = recognitionOutput();
+  if (!o) return;
+  const { ac } = o;
   const cfg = PRESETS[preset];
   const now = ac.currentTime;
 
   // Master bus with soft reverb-ish delay
   const master = ac.createGain();
-  master.gain.value = cfg.gain;
-  master.connect(ac.destination);
+  master.gain.value = cfg.gain * o.volume;
+  master.connect(o.out);
   const delay = ac.createDelay(0.4);
   delay.delayTime.value = 0.14;
   const feedback = ac.createGain();
@@ -48,7 +42,7 @@ export function playUnlock(preset: UnlockPreset) {
   delay.connect(feedback).connect(delay);
   const wet = ac.createGain();
   wet.gain.value = 0.35;
-  master.connect(delay).connect(wet).connect(ac.destination);
+  master.connect(delay).connect(wet).connect(o.out);
 
   cfg.freqs.forEach((f, i) => {
     const t = now + i * 0.06;
