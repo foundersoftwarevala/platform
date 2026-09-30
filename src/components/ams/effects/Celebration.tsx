@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Crown, Trophy, Award, Sparkles, Star, Diamond, Gift, ScrollText, IdCard, Medal, X } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import trophy3d from "@/assets/trophy-3d.png";
 import medal3d from "@/assets/medal-3d.png";
 import badge3d from "@/assets/badge-3d.png";
@@ -40,6 +42,11 @@ export interface CelebrationPayload {
   extras?: string[];
   /** A line about what comes next. */
   next?: string;
+  /**
+   * False when the recognition has no rarity of its own (a stage, a passport,
+   * XP): the kind's display palette still applies, but no rarity is claimed.
+   */
+  showRarity?: boolean;
 }
 
 /**
@@ -380,7 +387,7 @@ function Overlay({
           </div>
 
           <div className="flex items-center justify-center gap-2 text-[10px] uppercase tracking-[0.3em]" style={{ color: ringColor }}>
-            <Icon className="h-3 w-3" /> {rarity} · {meta.title}
+            <Icon className="h-3 w-3" /> {payload.showRarity === false ? meta.title : `${rarity} · ${meta.title}`}
           </div>
           <h2 id={titleId} className="mt-2 font-display text-2xl font-semibold text-gold-gradient sm:text-3xl">{payload.title}</h2>
           {payload.subtitle && <p className="mt-2 text-sm text-muted-foreground">{payload.subtitle}</p>}
@@ -528,6 +535,11 @@ function presentationOf(group: Recognition[]): { payload: CelebrationPayload; pr
   }
 
   const kind = kindOf(head);
+  // A rarity is stated only when the catalogue gives one, or the tier is the
+  // catalogue's own legendary or legacy band.
+  const rarity: Rarity | undefined = head.rarity
+    ? RARITY[head.rarity]
+    : head.tier === "legacy" ? "Founder" : head.tier === "legendary" ? "Legendary" : undefined;
   const tierLabel = head.tier !== "standard" ? `${TYPE_LABEL[head.type] ?? head.type} · ` : "";
   const extras = sorted
     .filter((r) => r !== head && r.type !== "xp")
@@ -541,7 +553,8 @@ function presentationOf(group: Recognition[]): { payload: CelebrationPayload; pr
       kind,
       title: head.name,
       subtitle: tierLabel + subtitleOf(head),
-      rarity: head.rarity ? RARITY[head.rarity] : undefined,
+      rarity,
+      showRarity: Boolean(rarity),
       xp: xp > 0 ? xp : undefined,
       unlock: head.type === "trophy" && head.tier === "standard" && head.rarity ? TROPHY_VOICE[head.rarity] : undefined,
       asset: recognitionArt(kind === "legendary" ? head.type : kind, head.role, head.stage),
@@ -556,10 +569,26 @@ function presentationOf(group: Recognition[]): { payload: CelebrationPayload; pr
 // Provider: one queue for the whole application
 // ──────────────────────────────────────────────────────────────
 
-type Queued = { seq: number; priority: number; payload: CelebrationPayload };
+/**
+ * `ledgerIds` marks a real recognition: it is claimed on the server as it
+ * begins (the claim is the seen-marker), and skipped if another tab already
+ * showed it. A preview has none and needs no claim.
+ */
+type Queued = { seq: number; priority: number; payload: CelebrationPayload; ledgerIds?: string[] };
 
 /** The pause between one presentation and the next. */
 const COOLDOWN_MS = 700;
+
+async function claimRecognitions(ids: string[]): Promise<Recognition[]> {
+  // The server takes 50 ids a call; a jump of several stages grants more.
+  const won: Recognition[] = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const { data, error } = await supabase.rpc("ams_recognition_claim" as never, { p_ledger_ids: ids.slice(i, i + 50) } as never);
+    if (error) throw error;
+    won.push(...((data as { claimed?: Recognition[] } | null)?.claimed ?? []).filter(Boolean));
+  }
+  return won;
+}
 
 export function CelebrationProvider({ children }: { children: React.ReactNode }) {
   const [queue, setQueue] = useState<Queued[]>([]);
@@ -568,6 +597,16 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
   const seq = useRef(0);
   const seen = useRef(new Set<string>());
   const cooling = useRef(false);
+  const advancing = useRef(false);
+  const [wake, setWake] = useState(0);
+  const qc = useQueryClient();
+
+  // A hidden tab starts nothing; coming back resumes the queue.
+  useEffect(() => {
+    const onVisible = () => setWake((w) => w + 1);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   // The sound switch is the one persisted setting, not a second copy of it.
   useEffect(() => {
@@ -577,7 +616,7 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
   }, []);
   const setSoundOn = useCallback((b: boolean) => setSoundPrefs({ enabled: b }), []);
 
-  const enqueue = useCallback((items: { priority: number; payload: CelebrationPayload }[]) => {
+  const enqueue = useCallback((items: { priority: number; payload: CelebrationPayload; ledgerIds?: string[] }[]) => {
     if (items.length === 0) return;
     setQueue((q) => {
       const next = [...q, ...items.map((i) => ({ ...i, seq: ++seq.current }))];
@@ -603,41 +642,69 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
       const key = `${r.role}|${r.created_at}`;
       groups.set(key, [...(groups.get(key) ?? []), r]);
     }
-    const presentations = [...groups.values()].map(presentationOf);
-
-    if (!getSoundPrefs().celebrations) {
-      // Celebrations are off: say it plainly, once per moment, without the show.
-      for (const { payload } of presentations) {
-        toast.success(payload.title, {
-          description: [payload.subtitle, payload.extras?.length ? `Also: ${payload.extras.join(", ")}` : ""]
-            .filter(Boolean).join(" · "),
-        });
-      }
-      return;
-    }
-    enqueue(presentations);
+    enqueue([...groups.values()].map((group) => ({
+      ...presentationOf(group),
+      ledgerIds: group.map((r) => r.ledger_id),
+    })));
   }, [enqueue]);
 
-  // One presentation at a time, with a short pause between them.
+  // One presentation at a time, with a short pause between them. A real
+  // recognition is claimed as it begins; what this tab wins is what it shows.
   useEffect(() => {
-    if (current || cooling.current || queue.length === 0) return;
+    if (current || cooling.current || advancing.current || queue.length === 0) return;
+    if (document.visibilityState !== "visible") return;
     const [head, ...rest] = queue;
-    setQueue(rest);
-    setCurrent(head);
-  }, [queue, current]);
+    if (!head.ledgerIds?.length) {
+      setQueue(rest);
+      setCurrent(head);
+      return;
+    }
+    advancing.current = true;
+    const ids = head.ledgerIds;
+    claimRecognitions(ids)
+      .then((won) => {
+        setQueue((q) => q.filter((x) => x.seq !== head.seq));
+        if (won.length === 0) return; // shown elsewhere already
+        void qc.invalidateQueries({ queryKey: ["ams"] });
+        void qc.invalidateQueries({ queryKey: ["notification-bell"] });
+        const shown = { ...head, payload: presentationOf(won).payload };
+        if (!getSoundPrefs().celebrations) {
+          // Celebrations are off: say it plainly, once, without the show.
+          const p = shown.payload;
+          toast.success(p.title, {
+            description: [p.subtitle, p.extras?.length ? `Also: ${p.extras.join(", ")}` : ""].filter(Boolean).join(" · "),
+          });
+          return;
+        }
+        setCurrent(shown);
+      })
+      .catch(() => {
+        // Not claimed, so still unseen on the server: a later visit shows it.
+        setQueue((q) => q.filter((x) => x.seq !== head.seq));
+        ids.forEach((id) => seen.current.delete(id));
+      })
+      .finally(() => {
+        advancing.current = false;
+        setWake((w) => w + 1);
+      });
+  }, [queue, current, wake, qc]);
 
   const close = useCallback(() => {
     setCurrent(null);
     cooling.current = true;
     setTimeout(() => {
       cooling.current = false;
-      // Wake the queue after the pause.
-      setQueue((q) => [...q]);
+      setWake((w) => w + 1);
     }, COOLDOWN_MS);
   }, []);
 
+  // Skipping is the person dismissing them: they count as seen.
   const skipAll = useCallback(() => {
-    setQueue([]);
+    setQueue((q) => {
+      const ids = q.flatMap((x) => x.ledgerIds ?? []);
+      if (ids.length) void claimRecognitions(ids).catch(() => undefined);
+      return [];
+    });
     close();
   }, [close]);
 
