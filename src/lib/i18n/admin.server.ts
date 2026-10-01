@@ -3,11 +3,13 @@ import { z } from "zod";
 import {
   enqueueCatalogue,
   enqueueJobs,
+  requeueFailedJobs,
   runJobBatch,
   syncMessageCatalogue,
   translatableLanguages,
 } from "./jobs.server";
 import { NAMESPACE_PATTERN } from "./pipeline";
+import { extractPlaceholders } from "./quality";
 import { DICTIONARY_LANGUAGES, SUPPORTED_LANGUAGES, getLanguage } from "./registry";
 import {
   db,
@@ -114,10 +116,26 @@ export async function metrics() {
   };
 }
 
+/**
+ * Coverage counts every memory row of every language: a full scan, and the
+ * console asks for the overview every 30 seconds while it is open. Kept for a
+ * minute, which is as fresh as background translation changes it in any way
+ * a person would notice. Errors are not kept.
+ */
+const COVERAGE_TTL_MS = 60_000;
+let coverageCache: { at: number; result: { data: unknown; error: unknown } } | null = null;
+
+async function translationCoverage(client: ReturnType<typeof database>) {
+  if (coverageCache && Date.now() - coverageCache.at < COVERAGE_TTL_MS) return coverageCache.result;
+  const result = await client.rpc("i18n_translation_coverage");
+  if (!result.error) coverageCache = { at: Date.now(), result };
+  return result;
+}
+
 export async function overview() {
   const client = database();
   const [coverage, jobs, languages, glossary] = await Promise.all([
-    client.rpc("i18n_translation_coverage"),
+    translationCoverage(client),
     client.rpc("i18n_job_summary"),
     client.from("i18n_languages").select("code, enabled, translation_status, updated_at"),
     client.from("i18n_glossary_terms").select("id", { count: "exact", head: true }),
@@ -260,7 +278,51 @@ export const action = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("glossary_save"), term: glossaryTerm }),
   z.object({ action: z.literal("sync_messages") }),
+  z.object({
+    action: z.literal("requeue_failed"),
+    // Only failed jobs whose last error starts with this; null for all of them.
+    error_prefix: z.string().max(100).nullable().default(null),
+  }),
 ]);
+
+/**
+ * A reviewer's own wording must keep what the program fills in: the same
+ * {placeholders}, ICU arguments, tags and links as the English. A verified row
+ * outranks every machine translation, so a broken one would be shown everywhere.
+ */
+async function checkEditedText(id: string, text: string) {
+  const { data, error } = await database()
+    .from("marketplace_translations")
+    .select("source_text")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Translation not found.");
+  const expected = extractPlaceholders(String(data.source_text));
+  const found = extractPlaceholders(text);
+  if (expected.join("|") !== found.join("|")) {
+    throw new Error(
+      `The edited translation must keep the same placeholders as the English: ${expected.join(" ") || "none"}.`,
+    );
+  }
+}
+
+/** The most recent failed background jobs, with why they failed. */
+export async function failedJobs() {
+  const { data, error, count } = await database()
+    .from("i18n_translation_jobs")
+    .select(
+      "id, source_text, target_language, namespace, context, attempts, last_error, updated_at",
+      {
+        count: "exact",
+      },
+    )
+    .eq("status", "failed")
+    .order("updated_at", { ascending: false })
+    .limit(100);
+  if (error) throw new Error(error.message);
+  return { rows: data ?? [], total: count ?? 0 };
+}
 
 export async function performAction(body: unknown, caller: Caller) {
   const input = action.parse(body);
@@ -290,8 +352,11 @@ export async function performAction(body: unknown, caller: Caller) {
       return runJobBatch(input.limit);
     case "sync_messages":
       return syncMessageCatalogue({ requestedBy: caller.userId });
+    case "requeue_failed":
+      return { requeued: await requeueFailedJobs(input.error_prefix) };
     case "review": {
       const now = new Date().toISOString();
+      if (input.text !== undefined) await checkEditedText(input.id, input.text);
       if (input.decision === "retranslate" || input.decision === "lock") {
         return reviewAction(input.decision, input.id, input.text, caller, now);
       }

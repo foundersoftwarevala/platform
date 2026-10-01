@@ -115,6 +115,8 @@ export type PipelineDeps = {
   memory?: TranslationMemoryStore | null;
   glossary?: GlossaryStore | null;
   quota?: QuotaGuard | null;
+  /** Gives back units reserved by `quota` for engine work that did not happen. */
+  refundQuota?: ((units: number) => void) | null;
   /** Operator overrides from i18n_languages; false disables a language. */
   isLanguageEnabled?: (code: string) => boolean;
   log?: (message: string, detail?: unknown) => void;
@@ -375,6 +377,7 @@ export async function runTranslationPipeline(
   // 6. Cost control, for the text that really goes to the engine. Brand and
   // product names answered above cost nothing, and charging them meant a
   // quota round trip to the database on every page batch that contained one.
+  let charged = 0;
   if (deps.quota) {
     const units = segments.reduce((sum, segment) => sum + segment.text.length, 0);
     if (!(await deps.quota(units))) {
@@ -382,6 +385,7 @@ export async function runTranslationPipeline(
         throw new PipelineError("quota_exceeded", "Translation limit reached.");
       return result({ pendingReason: "quota_exceeded" });
     }
+    charged = units;
   }
 
   // 7. Engine.
@@ -397,6 +401,8 @@ export async function runTranslationPipeline(
   } catch (error) {
     if (!(error instanceof EngineUnavailableError)) throw error;
     log("[i18n] engine unavailable", error.attempts);
+    // Nothing was translated: a visitor retrying through an outage keeps the allowance.
+    if (charged > 0) deps.refundQuota?.(charged);
     if (byText.size === 0) {
       throw new PipelineError("engine_unavailable", "No translation engine is available.");
     }
@@ -416,6 +422,7 @@ export async function runTranslationPipeline(
       translated: restored.text,
       target,
       lostTokens: restored.missing,
+      keptTerms: (protectedTokens.get(id) ?? []).map((token) => token.replacement),
       terminologyIssues: checkTerminology(text, restored.text, terms),
       engineConfidence: answer.confidence,
       sourceUnknown: source === null,

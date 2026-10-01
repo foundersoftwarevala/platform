@@ -379,6 +379,21 @@ describe("translation pipeline", () => {
     ).rejects.toMatchObject({ reason: "engine_unavailable" });
   });
 
+  it("gives the quota back when the engine did not answer", async () => {
+    const noEngine = new TranslationEngine([unconfigured("owned-engine", "owned")], {
+      allowExternal: true,
+    });
+    const quota = vi.fn(async () => true);
+    const refundQuota = vi.fn();
+    await expect(
+      runTranslationPipeline(
+        { texts: ["Apply Now"], source: "en", target: "hi" },
+        { engine: noEngine, quota, refundQuota },
+      ),
+    ).rejects.toMatchObject({ reason: "engine_unavailable" });
+    expect(refundQuota).toHaveBeenCalledWith("Apply Now".length);
+  });
+
   it("answers from memory only when asked to", async () => {
     const provider = dictionaryProvider();
     const result = await runTranslationPipeline(
@@ -570,6 +585,22 @@ describe("AI API Manager provider (external adapter)", () => {
       },
     });
     await expect(provider.translate(request)).rejects.toThrow("No active AI service");
+  });
+
+  it("reports itself as not configured for a while after answering nothing", async () => {
+    let clock = 1_000;
+    const provider = createAiApiManagerProvider({
+      complete: async () => {
+        throw new Error("No active AI service is configured in AI API Manager.");
+      },
+      cooldownMs: 60_000,
+      now: () => clock,
+    });
+    expect(provider.isConfigured()).toBe(true);
+    await expect(provider.translate(request)).rejects.toThrow();
+    expect(provider.isConfigured()).toBe(false);
+    clock += 60_000;
+    expect(provider.isConfigured()).toBe(true);
   });
 });
 

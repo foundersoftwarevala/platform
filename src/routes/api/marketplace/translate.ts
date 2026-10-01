@@ -42,7 +42,19 @@ import { SOURCE_LANGUAGE } from "@/lib/i18n/registry";
  * rate_limited, quota_exceeded, engine_unavailable, service_error.
  */
 
+/** Catalogue content operators translated for the storefront: public, readable from memory by anyone. */
+const PUBLIC_MEMORY_NAMESPACE = "catalogue";
+
 const limiter = new SlidingWindowLimiter(60_000);
+
+/**
+ * Requests per address, counted before the caller is resolved: checking a
+ * bearer token is a round trip to the auth service, and without this a stream
+ * of made-up tokens from one address cost one each. Twice the operator rate,
+ * so an office behind one address is not held back by it.
+ */
+const addressLimiter = new SlidingWindowLimiter(60_000);
+const ADDRESS_REQUESTS_PER_MINUTE = TIER_LIMITS.operator.requestsPerMinute * 2;
 
 /**
  * Engine work still running after its request answered, by batch
@@ -62,7 +74,8 @@ const bodySchema = z
     source: z.string().max(64).optional(),
     namespace: z.string().regex(NAMESPACE_PATTERN).optional(),
     context: z.string().max(MAX_CONTEXT_LENGTH).optional(),
-    // Answer from translation memory only; allowed in any namespace for every caller.
+    // Answer from translation memory only. Every caller may read the public
+    // catalogue namespace this way; other namespaces follow the tier rules.
     memory_only: z.boolean().optional(),
     // Operators may ask for the slower, higher-quality engine mode.
     mode: z.enum(["realtime", "quality"]).optional(),
@@ -113,10 +126,16 @@ async function handleTranslate(request: Request): Promise<Response> {
   const texts = parsed.texts.map((t) => t.trim()).filter(Boolean);
   if (texts.length === 0) return Response.json({ translations: {}, target, results: [] });
 
-  const { resolveCaller, translateForCaller } = await import("@/lib/i18n/service.server");
+  const { mayKeepText, resolveCaller, translateForCaller } =
+    await import("@/lib/i18n/service.server");
   const { ensureJobWorker } = await import("@/lib/i18n/jobs.server");
   ensureJobWorker();
   const address = clientAddress(request.headers);
+  if (addressLimiter.hit(address, ADDRESS_REQUESTS_PER_MINUTE)) {
+    return fail(429, "rate_limited", "Too many translation requests. Try again shortly.", {
+      "Retry-After": "60",
+    });
+  }
   const caller = await resolveCaller(
     request.headers.get("authorization"),
     address,
@@ -125,7 +144,8 @@ async function handleTranslate(request: Request): Promise<Response> {
 
   const memoryOnly = parsed.memory_only === true;
   const shape = checkRequestShape(caller.tier, { texts, namespace });
-  if (shape && !(memoryOnly && shape === "namespace_not_allowed")) {
+  const publicRead = memoryOnly && namespace === PUBLIC_MEMORY_NAMESPACE;
+  if (shape && !(publicRead && shape === "namespace_not_allowed")) {
     return fail(
       shape === "namespace_not_allowed" ? 403 : 413,
       "invalid_request",
@@ -167,7 +187,11 @@ async function handleTranslate(request: Request): Promise<Response> {
         work.catch((error) => console.error("[translate] background translation failed", error));
         result = await translateForCaller({ ...request, memoryOnly: true }, caller);
         inProgress = true;
-        const unfinished = result.outcomes.filter((o) => o.translation === null).map((o) => o.text);
+        // Only what may be kept in shared memory is queued: the worker stores
+        // everything it translates (see mayKeepText).
+        const unfinished = result.outcomes
+          .filter((o) => o.translation === null && mayKeepText(caller, namespace, o.text))
+          .map((o) => o.text);
         if (unfinished.length) {
           const { enqueueJobs } = await import("@/lib/i18n/jobs.server");
           enqueueJobs(

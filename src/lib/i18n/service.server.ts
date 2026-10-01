@@ -474,7 +474,8 @@ function localQuota(subject: string, units: number, limit: number, windowSeconds
   const window = Math.floor(now / 1000 / windowSeconds);
   const key = `${subject}:${windowSeconds}`;
   const current = localWindows.peek(key, now);
-  const used = (current && current.window === window ? current.units : 0) + units;
+  // Negative units are a refund; usage never drops below zero.
+  const used = Math.max(0, (current && current.window === window ? current.units : 0) + units);
   const windowEnds = (window + 1) * windowSeconds * 1000;
   localWindows.set(key, { window, units: used }, windowEnds - now, now);
   return used <= limit;
@@ -597,11 +598,12 @@ export async function resolveCaller(
   // operator scripts). Same trust level as src/lib/auth/internal-guard.ts.
   const expected = process.env.INTERNAL_API_TOKEN?.trim();
   const presented = internalToken?.trim();
+  // Compared as digests of the same length, so the time taken says nothing
+  // about the token, its length included.
   if (
     expected &&
     presented &&
-    expected.length === presented.length &&
-    timingSafeEqual(expected, presented)
+    timingSafeEqual(await sourceHash(expected), await sourceHash(presented))
   ) {
     return { tier: "operator", subject: "internal:token", userId: null };
   }
@@ -653,8 +655,7 @@ export async function resolveCaller(
 /* ----------------------------------------------------------------- service */
 
 // The interface catalogue: the dictionary's English wording and the keyed
-// messages (src/lib/i18n/messages). Only these are written to shared memory on
-// behalf of visitors; anything else a page sends is translated but not kept.
+// messages (src/lib/i18n/messages). See mayKeepText for what else is kept.
 const CATALOGUE = new Set([
   ...Object.keys(UI_DICTIONARY.en ?? {}),
   ...allMessages().map((m) => m.text),
@@ -663,6 +664,24 @@ const CATALOGUE = new Set([
 /** Whether a source string is part of the interface catalogue. */
 export function isCatalogueText(text: string): boolean {
   return CATALOGUE.has(text);
+}
+
+/**
+ * Whether text a caller sent may be kept in shared translation memory (written
+ * directly, or queued for the background worker, which writes what it
+ * translates). Memory is served to everyone through the language pack.
+ *
+ * Interface text ("ui") is what the page translator reads off the screen. The
+ * catalogue is always safe. Anything else is kept only for anonymous callers:
+ * without a session a page shows only public content. A signed-in screen - a
+ * dashboard, an order, an invoice - shows a person's own data (names, e-mail
+ * addresses, amounts), and an operator's screens show everyone's, so their page
+ * text is translated for them and never kept. Other namespaces are content an
+ * operator submits on purpose.
+ */
+export function mayKeepText(caller: Caller, namespace: string, text: string): boolean {
+  if (namespace === "ui") return isCatalogueText(text) || caller.tier === "anonymous";
+  return caller.tier === "operator";
 }
 
 /**
@@ -696,20 +715,29 @@ export async function translateForCaller(
     }
     return true;
   };
+  // Engine work that did not happen: the units come off this process's count
+  // and off the usage not yet sent to the database.
+  const refundQuota = (units: number) => {
+    const subjects: [string, number][] = [[caller.subject, 3600]];
+    if (caller.tier === "anonymous") subjects.push(["anon:all", 86_400]);
+    for (const [subject, windowSeconds] of subjects) {
+      localQuota(subject, -units, Number.POSITIVE_INFINITY, windowSeconds);
+      const pending = pendingUsage.get(`${subject}|${windowSeconds}`);
+      if (pending) pending.units = Math.max(0, pending.units - units);
+    }
+  };
 
   return runTranslationPipeline(
     {
       ...request,
-      mayPersist:
-        caller.tier === "operator"
-          ? undefined
-          : (text) => (request.namespace ?? "ui") === "ui" && isCatalogueText(text),
+      mayPersist: (text) => mayKeepText(caller, request.namespace ?? "ui", text),
     },
     {
       engine: getTranslationEngine(),
       memory: client ? createSupabaseMemoryStore(client) : null,
       glossary: client ? createSupabaseGlossaryStore(client) : null,
       quota,
+      refundQuota,
       isLanguageEnabled: (code) => !disabled.has(code),
       log,
     },

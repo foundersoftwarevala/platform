@@ -35,6 +35,9 @@ export type AiApiManagerProviderConfig = {
   complete: CompleteFn;
   /** Requests sent at once. */
   concurrency?: number;
+  /** How long the provider counts as not configured after it answered nothing at all. */
+  cooldownMs?: number;
+  now?: () => number;
 };
 
 export function buildTranslationPrompt(request: EngineRequest, segment: TranslationSegment) {
@@ -74,13 +77,20 @@ export function createAiApiManagerProvider(
   config: AiApiManagerProviderConfig,
 ): TranslationProvider {
   const concurrency = Math.max(1, config.concurrency ?? 4);
+  const cooldownMs = config.cooldownMs ?? 5 * 60_000;
+  const now = config.now ?? Date.now;
+  // Until this time the provider reports itself as not configured.
+  let unusableUntil = 0;
 
   return {
     id: AI_API_MANAGER_PROVIDER_ID,
     kind: "external",
     // Whether AI API Manager has an active, approved service with a credential
-    // is only known when it is asked; a failure moves the engine on.
-    isConfigured: () => true,
+    // is only known when it is asked. A request that got nothing back at all
+    // (no service, no credential, provider down) makes it report itself as not
+    // configured for a while, so the job worker does not keep claiming work
+    // for it and the Language Manager does not show it as usable.
+    isConfigured: () => now() >= unusableUntil,
     supports: () => true,
     async translate(request: EngineRequest): Promise<EngineResponse> {
       const results: EngineSegmentResult[] = [];
@@ -117,6 +127,7 @@ export function createAiApiManagerProvider(
 
       // Nothing at all came back: the provider is not usable right now.
       if (results.length === 0 && errors.length > 0) {
+        unusableUntil = now() + cooldownMs;
         throw errors[0] instanceof Error ? errors[0] : new Error(String(errors[0]));
       }
       return {

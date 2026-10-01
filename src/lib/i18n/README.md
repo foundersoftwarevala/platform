@@ -72,6 +72,12 @@ Rules of the road:
   translation and its reasons, and the caller shows the fallback.
 - Private text (chat) is translated with `persist: false`: it is never read
   from or written to shared translation memory.
+- Shared memory is public: the language pack serves it to anyone. Page text
+  (`ui`) is kept only when it is catalogue text or came from an anonymous
+  visitor (a page without a session shows only public content). What a
+  signed-in screen shows - names, e-mail addresses, amounts - is translated
+  for that person and never kept, operators included (`mayKeepText` in
+  `service.server.ts`). The same rule decides what is queued for the worker.
 
 ## Database
 
@@ -80,7 +86,8 @@ Rules of the road:
   context, status (`machine`, `verified`, `needs_review`, `rejected`, `legacy`,
   `stale`), quality score, engine, version. A trigger stops automatic writes
   from replacing what a person decided, and records every change in
-  `i18n_translation_revisions`.
+  `i18n_translation_revisions`. Only the server reads and writes it (service
+  role); there is no client policy.
 - `i18n_glossary_terms` — locked, preferred and forbidden terms.
 - `i18n_translation_jobs` — the background queue, claimed with SKIP LOCKED.
 - `i18n_request_quota` + `i18n_consume_quota()` — cost control across instances.
@@ -106,6 +113,15 @@ pre-translate the catalogue into any language.
 The application works the queue inside the server process, batch after batch
 while there is work, pausing when the host's load average is above 120 % of its
 CPUs (`I18N_JOB_MAX_LOAD`).
+
+### When the engine is down (job queue)
+
+The worker asks the engine's `/ready` (cached 30 s) before it claims jobs, so
+nothing is claimed while the engine restarts or loads its model. A job that
+still meets an engine that does not answer is not failed: the attempt is given
+back and it waits five minutes (`i18n_finish_translation_job`). Failed jobs
+whose last error is `engine_unavailable` are re-queued hourly, and the Language
+Manager lists failed jobs and can re-queue all of them.
 
 ### When the engine is busy
 

@@ -26,6 +26,9 @@ const REQUESTS_PER_MINUTE = 120;
 
 const EMPTY_SOURCE = new Set([SOURCE_LANGUAGE]);
 
+/** Not a language this site serves: unknown, or switched off in the Language Manager. */
+const UNSUPPORTED = { error: "Unsupported language.", reason: "invalid_language" };
+
 function isSourceVariety(code: string): boolean {
   const language = getLanguage(code);
   const source = getLanguage(SOURCE_LANGUAGE);
@@ -52,12 +55,7 @@ export const Route = createFileRoute("/api/i18n/pack")({
         const requested = new URL(request.url).searchParams.get("lang") ?? "";
         const language = resolveLanguage(requested.slice(0, 64));
         if (!language) {
-          return finish(
-            Response.json(
-              { error: "Unsupported language.", reason: "invalid_language" },
-              { status: 400 },
-            ),
-          );
+          return finish(Response.json(UNSUPPORTED, { status: 400 }));
         }
         if (limiter.hit(clientAddress(request.headers), REQUESTS_PER_MINUTE)) {
           return finish(
@@ -81,7 +79,12 @@ export const Route = createFileRoute("/api/i18n/pack")({
         }
 
         try {
-          const { languagePack } = await import("@/lib/i18n/service.server");
+          const { db, disabledLanguages, languagePack } = await import("@/lib/i18n/service.server");
+          // Switched off in the Language Manager: refused here as the
+          // translation endpoint refuses it, so the page shows English at once.
+          if ((await disabledLanguages(db())).has(language.code)) {
+            return finish(Response.json(UNSUPPORTED, { status: 400 }));
+          }
           const pack = await languagePack(language.code);
           if (request.headers.get("if-none-match") === pack.etag) {
             return finish(

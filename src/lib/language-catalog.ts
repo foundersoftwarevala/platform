@@ -19,6 +19,7 @@ import {
   getCurrentLanguage as getCurrentLanguageFromService,
   setCurrentLanguage as setCurrentLanguageInService,
 } from "@/lib/i18n/language-service";
+import { TIER_LIMITS } from "@/lib/i18n/limits";
 import { retryAfterFor } from "@/lib/i18n/realtime-budget";
 import {
   LANGUAGE_REGISTRY,
@@ -255,8 +256,14 @@ type FetchOutcome = {
   translations: Record<string, string>;
   /** Strings answered without a usable translation. */
   unavailable: string[];
-  /** The engine is not configured anywhere: stop asking for every language. */
-  serviceDown: boolean;
+  /**
+   * The request itself was refused (too large, a namespace this caller may not
+   * use). Asking again with the same strings gets the same answer, so they are
+   * given up for the session instead of retried.
+   */
+  invalidRequest: boolean;
+  /** Whether the request carried a signed-in session (it decides the size limits). */
+  signedIn: boolean;
   /**
    * The engine did not answer this time (busy, timed out, restarting). The
    * batch is asked again after a back-off; nothing is given up for the session.
@@ -289,16 +296,19 @@ async function fetchTranslations(
   const empty: FetchOutcome = {
     translations: {},
     unavailable: [],
-    serviceDown: false,
+    invalidRequest: false,
+    signedIn: false,
     engineUnavailable: false,
     refused: false,
     retryAfter: null,
     reason: null,
   };
   try {
+    const authorization = await authorizationHeader();
+    empty.signedIn = "Authorization" in authorization;
     const response = await fetch("/api/marketplace/translate", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(await authorizationHeader()) },
+      headers: { "Content-Type": "application/json", ...authorization },
       body: JSON.stringify({
         texts,
         target,
@@ -319,14 +329,15 @@ async function fetchTranslations(
 
     if (!response.ok) {
       const reason = payload.reason ?? null;
+      const invalidRequest = reason === "invalid_request";
       return {
         ...empty,
+        invalidRequest,
         // "engine_unavailable" is also what a busy or restarting engine
         // answers, so it is a pause, not the end of translation for the visit.
-        serviceDown: reason === "ai_not_configured",
         engineUnavailable: reason === "engine_unavailable",
         refused: reason === "invalid_language",
-        retryAfter: retryAfter ?? (response.status === 429 ? 60 : 30),
+        retryAfter: invalidRequest ? null : (retryAfter ?? (response.status === 429 ? 60 : 30)),
         reason: payload.error ?? "Translation service refused the request.",
       };
     }
@@ -413,7 +424,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     ready: true,
     reason: null,
   });
-  const serviceDown = useRef(false);
+  // Whether this visitor has a session: it decides how large a request may be
+  // (src/lib/i18n/limits.ts). Null until the first batch looks.
+  const signedIn = useRef<boolean | null>(null);
+  const sessionCheck = useRef<Promise<void> | null>(null);
 
   const sync = useCallback(() => {
     const current = getCurrentLanguageFromService();
@@ -471,13 +485,22 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
           created.packUntil = 0;
           if (pack) {
             created.locked = pack.locked;
-            // Held for review on the server: shown in the fallback, not asked for.
+            let added = 0;
+            // Held for review or rejected on the server: shown in the fallback,
+            // not asked for. A copy this browser kept from before a reviewer
+            // rejected it is forgotten, or it would be shown on every visit.
             for (const key of pack.withheld) {
-              if (typeof key !== "string" || created.held[key]) continue;
+              if (typeof key !== "string") continue;
+              if (key in created.held) {
+                delete created.held[key];
+                added += 1;
+              }
               created.unavailable.add(key);
               created.pending.delete(key);
             }
-            let added = 0;
+            // A string the server now holds a translation for is no longer
+            // "unavailable" (a reviewer verified it since this page asked).
+            for (const key of Object.keys(pack.entries)) created.unavailable.delete(key);
             for (const [key, text] of Object.entries(pack.entries)) {
               if (typeof text !== "string" || !text) continue;
               if (created.held[key] !== text) {
@@ -508,7 +531,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
    */
   const drain = useCallback((code: string) => {
     const state = remote.current[code];
-    if (!state || state.refused || serviceDown.current || state.pending.size === 0) return;
+    if (!state || state.refused || state.pending.size === 0) return;
     // The language pack usually answers everything; wait for it briefly.
     if (state.packUntil > Date.now()) {
       timer.current = setTimeout(() => drain(code), Math.min(200, state.packUntil - Date.now()));
@@ -536,12 +559,40 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Strings are kept as `contexttext`; one request carries one context.
+    if (signedIn.current === null) {
+      sessionCheck.current ??= authorizationHeader().then((authorization) => {
+        signedIn.current = "Authorization" in authorization;
+      });
+      void sessionCheck.current.then(() => drain(code));
+      return;
+    }
+
+    // Strings are kept as `contexttext`; one request carries one context and
+    // stays inside what the server accepts from this caller. A request over
+    // those limits is refused whole, and asking again gets the same answer.
+    const limits = TIER_LIMITS[signedIn.current ? "user" : "anonymous"];
     const first = state.pending.values().next().value as string;
     const context = first.slice(0, first.indexOf(SEPARATOR));
-    const keys = Array.from(state.pending)
-      .filter((entry) => entry.startsWith(`${context}${SEPARATOR}`))
-      .slice(0, BATCH);
+    const keys: string[] = [];
+    let total = 0;
+    for (const entry of state.pending) {
+      if (!entry.startsWith(`${context}${SEPARATOR}`)) continue;
+      const length = entry.slice(context.length + 1).trim().length;
+      if (length > limits.maxItemChars) {
+        // Longer than this caller may send: shown in English, never asked for.
+        state.pending.delete(entry);
+        state.unavailable.add(entry);
+        continue;
+      }
+      if (total + length > limits.maxTotalChars) continue;
+      keys.push(entry);
+      total += length;
+      if (keys.length >= Math.min(BATCH, limits.maxItems)) break;
+    }
+    if (keys.length === 0) {
+      if (state.pending.size > 0) timer.current = setTimeout(() => drain(code), 0);
+      return;
+    }
     keys.forEach((entry) => {
       state.pending.delete(entry);
       state.inFlight.add(entry);
@@ -553,12 +604,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       const current = remote.current[code];
       if (!current) return;
 
-      if (outcome.serviceDown) {
-        serviceDown.current = true;
-        current.pending.clear();
-        setService({ ready: false, reason: outcome.reason });
-        return;
-      }
+      signedIn.current = outcome.signedIn;
       if (outcome.refused) {
         current.refused = true;
         current.pending.clear();
@@ -641,7 +687,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       if (held) return shown(held);
 
       if (
-        !serviceDown.current &&
         !state.refused &&
         !state.pending.has(cacheKey) &&
         !state.inFlight.has(cacheKey) &&

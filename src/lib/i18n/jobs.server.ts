@@ -182,6 +182,8 @@ export async function syncMessageCatalogue(options: { requestedBy?: string | nul
         .in("context", contexts)
         .eq("status", "machine")
         .or("metadata->>mode.is.null,metadata->>mode.neq.quality")
+        // An upgrade the quality gate already refused is not tried again.
+        .is("metadata->>upgrade_attempted", null)
         .range(from, from + 999);
       if (error) {
         log("[i18n] finding realtime translations to upgrade failed", error.message);
@@ -236,6 +238,8 @@ export async function enqueueCatalogue(
 
 type JobRow = {
   id: string;
+  source_hash: string;
+  context_hash: string;
   source_text: string;
   source_language: string;
   target_language: string;
@@ -259,6 +263,36 @@ function schemaMissing(message: string): boolean {
 
 let running = false;
 
+/** How long an answer from the engine's /ready is trusted. */
+const READY_TTL_MS = 30_000;
+let readiness = { at: 0, ready: true };
+
+/**
+ * Whether the engine can take work now. The engine counts as available as soon
+ * as it is configured; a configured engine that is restarting or loading its
+ * model is not ready, and every job claimed meanwhile used to spend one of its
+ * attempts on that. When an external provider may be used it is tried as is.
+ */
+async function engineReady(engine: ReturnType<typeof getTranslationEngine>): Promise<boolean> {
+  const providers = engine.describe();
+  if (providers.some((p) => p.kind === "external" && p.usable)) return true;
+  const endpoint = process.env.TRANSLATE_PROVIDER_URL?.trim();
+  if (!endpoint || !providers.some((p) => p.kind === "owned" && p.usable)) return true;
+  if (Date.now() - readiness.at < READY_TTL_MS) return readiness.ready;
+  let ready = false;
+  try {
+    const response = await fetch(new URL("/ready", endpoint), {
+      signal: AbortSignal.timeout(5000),
+    });
+    ready = response.ok;
+  } catch {
+    ready = false;
+  }
+  readiness = { at: Date.now(), ready };
+  if (!ready) count("jobs.paused_engine_not_ready");
+  return ready;
+}
+
 /** Claim and translate one batch. */
 export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
   const client = db();
@@ -271,6 +305,9 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
 
   running = true;
   try {
+    if (!(await engineReady(engine)))
+      return { claimed: 0, done: 0, retried: 0, skipped: true, reason: "engine not ready" };
+
     const { data, error } = await client.rpc("i18n_claim_translation_jobs", {
       p_worker: WORKER_ID,
       p_limit: limit,
@@ -356,13 +393,41 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
           },
         );
         const byText = new Map(result.outcomes.map((o) => [o.text, o]));
+        // Pending with no engine answer at all: the engine was down, which the
+        // database does not count as an attempt. Pending although the engine
+        // answered: it cannot translate this text, which is an attempt.
+        const pendingError = result.engine
+          ? "not_translated: the engine answered without this text"
+          : (result.pendingReason ?? "not translated");
+        if (!result.engine && result.pendingReason === "engine_unavailable") readiness.at = 0;
+        // Upgrades the quality gate refused: the realtime translation stays, and
+        // is marked so the catalogue sync does not queue it again on every start.
+        const refresh = first.refresh || KEYED_CONTEXTS.has(first.context ?? "");
+        const kept = refresh
+          ? group.filter((job) => {
+              const outcome = byText.get(job.source_text.trim());
+              return outcome?.origin === "memory" && outcome.status === "machine";
+            })
+          : [];
+        if (kept.length > 0) {
+          const { error: markError } = await client.rpc("i18n_mark_upgrade_attempted", {
+            p_keys: kept.map((job) => ({
+              source_hash: job.source_hash,
+              source_language: job.source_language,
+              target_language: job.target_language,
+              context_hash: job.context_hash,
+            })),
+          });
+          if (markError && !schemaMissing(markError.message))
+            log("[i18n] could not mark refused upgrades", markError.message);
+        }
         // Outcomes are recorded together: each is its own round trip to the
         // database, and one after another they cost more than the translation.
         await Promise.all(
           group.map((job) => {
             const outcome = byText.get(job.source_text.trim());
             if (!outcome || outcome.status === "pending") {
-              return finish(job, false, "pending", null, result.pendingReason ?? "not translated");
+              return finish(job, false, "pending", null, pendingError);
             }
             return finish(
               job,
@@ -376,6 +441,7 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
       } catch (err) {
         const message =
           err instanceof PipelineError ? `${err.reason}: ${err.message}` : String(err);
+        if (err instanceof PipelineError && err.reason === "engine_unavailable") readiness.at = 0;
         await Promise.all(group.map((job) => finish(job, false, null, null, message)));
       }
     }
@@ -415,12 +481,40 @@ function hostBusyThreshold(): number {
 const PRUNE_EVERY_MS = 60 * 60_000;
 let lastPrune = 0;
 
-/** Hourly: delete finished jobs and old quota windows (public.i18n_prune). */
+/**
+ * Failed jobs whose last error starts with `prefix` (all failed jobs for null)
+ * go back to the queue. Jobs that failed because the engine was down did not
+ * fail on their own text.
+ */
+export async function requeueFailedJobs(prefix: string | null): Promise<number> {
+  const client = db();
+  if (!client) throw new Error("The database is not configured.");
+  const { data, error } = await client.rpc("i18n_requeue_failed_jobs", {
+    p_error_prefix: prefix,
+  });
+  if (error) throw new Error(error.message);
+  return Number(data ?? 0);
+}
+
+/**
+ * Hourly: jobs an engine outage failed go back to the queue (before the prune
+ * below would delete them), then finished jobs, old quota windows and old
+ * machine revisions are deleted.
+ */
 async function pruneIfDue() {
   if (Date.now() - lastPrune < PRUNE_EVERY_MS) return;
   lastPrune = Date.now();
   const client = db();
   if (!client) return;
+  try {
+    count("jobs.requeued", await requeueFailedJobs("engine_unavailable"));
+  } catch (error) {
+    if (!schemaMissing(String(error))) log("[i18n] requeue of failed jobs failed", error);
+  }
+  const revisions = await client.rpc("i18n_prune_revisions");
+  if (revisions.error && !schemaMissing(revisions.error.message))
+    log("[i18n] revision prune failed", revisions.error.message);
+  else count("revisions.pruned", Number(revisions.data ?? 0));
   const { data, error } = await client.rpc("i18n_prune");
   if (error) {
     log("[i18n] prune failed", error.message);

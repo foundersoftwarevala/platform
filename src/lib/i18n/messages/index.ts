@@ -32,6 +32,7 @@ import { CHAT_MESSAGES } from "./chat";
 import { CHECKOUT_MESSAGES } from "./checkout";
 import { COMMON_MESSAGES } from "./common";
 import { EMAIL_MESSAGES } from "./email";
+import { LANGUAGES_MESSAGES } from "./languages";
 import { MARKETPLACE_MESSAGES } from "./marketplace";
 import { NOTIFICATIONS_MESSAGES } from "./notifications";
 import { PAYMENT_MESSAGES } from "./payment";
@@ -47,6 +48,7 @@ export const MODULES = {
   checkout: CHECKOUT_MESSAGES,
   common: COMMON_MESSAGES,
   email: EMAIL_MESSAGES,
+  languages: LANGUAGES_MESSAGES,
   marketplace: MARKETPLACE_MESSAGES,
   notifications: NOTIFICATIONS_MESSAGES,
   payment: PAYMENT_MESSAGES,

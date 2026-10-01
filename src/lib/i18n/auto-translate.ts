@@ -89,39 +89,71 @@ export function collectTargets(
 
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) => {
-      const text = node.nodeValue ?? "";
-      if (!isTranslatableText(text)) return NodeFilter.FILTER_REJECT;
+      // A node this translator wrote to holds a translation now (often in
+      // another script); it is still collected, to restore or update it.
+      if (!originals.has(node) && !isTranslatableText(node.nodeValue ?? ""))
+        return NodeFilter.FILTER_REJECT;
       if (skipped(node)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },
   });
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const text = node as Text;
-    const remembered = originals.get(text)?.get("text");
-    targets.push({ kind: "text", node: text, original: remembered ?? text.nodeValue ?? "" });
+    const original = resolveOriginal(originals.get(text), "text", text.nodeValue ?? "");
+    if (original !== null) targets.push({ kind: "text", node: text, original });
   }
 
   const elements = root.querySelectorAll?.("[placeholder],[title],[aria-label],[alt]") ?? [];
   for (const element of Array.from(elements)) {
     if (skipped(element)) continue;
+    const entry = originals.get(element);
     for (const attribute of ATTRIBUTES) {
       const value = element.getAttribute(attribute);
-      if (!value || !isTranslatableText(value)) continue;
-      const remembered = originals.get(element)?.get(attribute);
-      targets.push({ kind: "attribute", element, attribute, original: remembered ?? value });
+      if (!value) continue;
+      const original = resolveOriginal(entry, attribute, value);
+      if (original !== null) targets.push({ kind: "attribute", element, attribute, original });
     }
   }
   return targets;
+}
+
+/** Where the value last written into a slot is kept, beside its English. */
+const APPLIED = "\u0000applied";
+
+/**
+ * The English for one slot of a node (its text, or one attribute), or null when
+ * there is nothing to translate.
+ *
+ * The page keeps changing what it shows: React reuses a text node and only
+ * sets its value ("Pending" becomes "Paid"). A value that is neither the
+ * remembered English nor the translation written here is the page's new
+ * English; the old one is forgotten, or its translation would be written over
+ * the new value.
+ */
+export function resolveOriginal(
+  entry: Map<string, string> | undefined,
+  slot: string,
+  current: string,
+): string | null {
+  const remembered = entry?.get(slot);
+  if (entry && remembered !== undefined) {
+    if (current === remembered || current === entry.get(slot + APPLIED)) return remembered;
+    entry.delete(slot);
+    entry.delete(slot + APPLIED);
+  }
+  return isTranslatableText(current) ? current : null;
 }
 
 function remember(
   originals: WeakMap<object, Map<string, string>>,
   key: object,
   slot: string,
-  value: string,
+  original: string,
+  applied: string,
 ) {
   const entry = originals.get(key) ?? new Map<string, string>();
-  if (!entry.has(slot)) entry.set(slot, value);
+  if (!entry.has(slot)) entry.set(slot, original);
+  entry.set(slot + APPLIED, applied);
   originals.set(key, entry);
 }
 
@@ -145,14 +177,14 @@ export function applyTranslations(
     const lead = original.slice(0, original.length - original.trimStart().length);
     const trail = original.slice(original.trimEnd().length);
     if (target.kind === "text") {
-      remember(originals, target.node, "text", original);
       const next = `${lead}${translated}${trail}`;
+      remember(originals, target.node, "text", original, next);
       if (target.node.nodeValue !== next) {
         target.node.nodeValue = next;
         written += 1;
       }
     } else {
-      remember(originals, target.element, target.attribute, original);
+      remember(originals, target.element, target.attribute, original, translated);
       if (target.element.getAttribute(target.attribute) !== translated) {
         target.element.setAttribute(target.attribute, translated);
         written += 1;

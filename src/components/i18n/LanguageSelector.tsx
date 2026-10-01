@@ -48,6 +48,48 @@ const ENTRIES: Entry[] = [...SUPPORTED_LANGUAGES]
     ),
   }));
 
+/* ---------------------------------------------------- operator overrides */
+
+/**
+ * Languages an operator switched off in the Language Manager
+ * (i18n_languages.enabled, readable by everyone). The server refuses them, so
+ * offering one would leave the page in English with no explanation. Read once
+ * per page load, the first time a picker opens; until then, and if the read
+ * fails, every registry language is offered.
+ */
+let disabledRead: Promise<Set<string>> | null = null;
+
+function readDisabledLanguages(): Promise<Set<string>> {
+  disabledRead ??= import("@/integrations/supabase/client")
+    .then(async ({ supabase }) => {
+      // i18n_languages is not in the generated types.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("i18n_languages")
+        .select("code")
+        .eq("enabled", false);
+      if (error) throw error;
+      return new Set(((data ?? []) as { code: string }[]).map((row) => row.code));
+    })
+    .catch(() => new Set<string>());
+  return disabledRead;
+}
+
+function useDisabledLanguages(active: boolean): Set<string> {
+  const [disabled, setDisabled] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    void readDisabledLanguages().then((codes) => {
+      if (!cancelled && codes.size > 0) setDisabled(codes);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active]);
+  return disabled;
+}
+
 /* ------------------------------------------------------------ registration */
 
 // Inline selectors register their trigger while mounted; the floating dock
@@ -128,10 +170,15 @@ export function LanguageSelector({
     [],
   );
 
+  const disabled = useDisabledLanguages(open);
+  const offered = useMemo(
+    () => (disabled.size ? ENTRIES.filter((entry) => !disabled.has(entry.code)) : ENTRIES),
+    [disabled],
+  );
   const folded = fold(query.trim());
   const matches = useMemo(
-    () => (folded ? ENTRIES.filter((entry) => entry.haystack.includes(folded)) : ENTRIES),
-    [folded],
+    () => (folded ? offered.filter((entry) => entry.haystack.includes(folded)) : offered),
+    [folded, offered],
   );
   const pinned = useMemo(() => {
     if (folded) return [];
@@ -139,9 +186,9 @@ export function LanguageSelector({
       (code, i, all): code is string => Boolean(code) && all.indexOf(code) === i,
     );
     return codes
-      .map((code) => ENTRIES.find((entry) => entry.code === code))
+      .map((code) => offered.find((entry) => entry.code === code))
       .filter((entry): entry is Entry => Boolean(entry));
-  }, [folded, lang, browser]);
+  }, [folded, lang, browser, offered]);
   // What the arrow keys move through, in display order.
   const flat = useMemo(() => [...pinned, ...matches], [pinned, matches]);
   const letters = useMemo(() => [...new Set(matches.map((entry) => entry.letter))], [matches]);

@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { pluralCategories } from "@/lib/i18n/format";
+import { useTranslation, type Translate } from "@/lib/i18n/use-translation";
 import { allMessages } from "@/lib/i18n/messages";
 import { SUPPORTED_LANGUAGE_COUNT } from "@/lib/i18n/registry";
 
@@ -115,6 +116,29 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 const act = (body: unknown) =>
   call<Record<string, unknown>>("/api/i18n/admin", { method: "POST", body: JSON.stringify(body) });
 
+type FailedJob = {
+  id: string;
+  source_text: string;
+  target_language: string;
+  namespace: string;
+  attempts: number;
+  last_error: string | null;
+  updated_at: string;
+};
+
+/** Rows on one page of the review queue (the API's default). */
+const REVIEW_PAGE = 50;
+/** Short strings the engine finishes per second in quality mode (README, measured). */
+const ENGINE_STRINGS_PER_SECOND = 0.5;
+
+/** An action's answer, readable: "queued 120 · languages 3". */
+function summarize(data: Record<string, unknown>, t: Translate): string {
+  const parts = Object.entries(data)
+    .filter(([, value]) => typeof value === "number" || typeof value === "string")
+    .map(([key, value]) => `${key.replace(/_/g, " ")} ${value}`);
+  return parts.length ? parts.join(" · ") : t("languages.done");
+}
+
 function Stat({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2">
@@ -125,10 +149,13 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 }
 
 export function LanguageManagerConsole() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [reviewLanguage, setReviewLanguage] = useState("");
   const [reviewStatus, setReviewStatus] = useState("needs_review");
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [reviewPage, setReviewPage] = useState(0);
+  const [confirmAll, setConfirmAll] = useState(false);
 
   const overview = useQuery({
     queryKey: ["i18n-overview"],
@@ -137,11 +164,16 @@ export function LanguageManagerConsole() {
   });
 
   const review = useQuery({
-    queryKey: ["i18n-review", reviewLanguage, reviewStatus],
+    queryKey: ["i18n-review", reviewLanguage, reviewStatus, reviewPage],
     queryFn: () =>
       call<{ rows: ReviewRow[]; total: number }>(
-        `/api/i18n/admin?view=review&status=${reviewStatus}${reviewLanguage ? `&language=${reviewLanguage}` : ""}`,
+        `/api/i18n/admin?view=review&status=${reviewStatus}&limit=${REVIEW_PAGE}&offset=${reviewPage * REVIEW_PAGE}${reviewLanguage ? `&language=${encodeURIComponent(reviewLanguage)}` : ""}`,
       ),
+  });
+
+  const failed = useQuery({
+    queryKey: ["i18n-failed-jobs"],
+    queryFn: () => call<{ rows: FailedJob[]; total: number }>("/api/i18n/admin?view=failed_jobs"),
   });
 
   const glossary = useQuery({
@@ -152,8 +184,9 @@ export function LanguageManagerConsole() {
   const run = useMutation({
     mutationFn: act,
     onSuccess: (data) => {
-      toast.success(`Done: ${JSON.stringify(data)}`);
+      toast.success(summarize(data, t));
       void queryClient.invalidateQueries({ queryKey: ["i18n-overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["i18n-failed-jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["i18n-review"] });
       void queryClient.invalidateQueries({ queryKey: ["i18n-glossary"] });
     },
@@ -177,6 +210,9 @@ export function LanguageManagerConsole() {
     acc[row.status] = (acc[row.status] ?? 0) + Number(row.jobs);
     return acc;
   }, {});
+  const translatableCount = languages.filter((l) => l.translatable && l.enabled).length;
+  const catalogueJobs = (overview.data?.catalogueSize ?? 0) * translatableCount;
+  const catalogueHours = Math.round(catalogueJobs / ENGINE_STRINGS_PER_SECOND / 3600);
   const withMemory = languages.filter(
     (l) => (l.memory?.verified ?? 0) + (l.memory?.machine ?? 0) > 0,
   ).length;
@@ -241,16 +277,37 @@ export function LanguageManagerConsole() {
         </TabsList>
 
         <TabsContent value="languages" className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() =>
-                run.mutate({ action: "enqueue_catalogue", languages: "all", refresh: false })
-              }
-              disabled={run.isPending}
-            >
-              Pre-translate the catalogue into every language
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {confirmAll ? (
+              <>
+                <span className="text-sm">
+                  {t("languages.pretranslate_confirm", {
+                    count: catalogueJobs.toLocaleString(),
+                    hours: catalogueHours,
+                  })}
+                </span>
+                <Button
+                  onClick={() => {
+                    setConfirmAll(false);
+                    run.mutate({ action: "enqueue_catalogue", languages: "all", refresh: false });
+                  }}
+                  disabled={run.isPending}
+                >
+                  {t("languages.queue_them")}
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirmAll(false)}>
+                  {t("languages.cancel")}
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => setConfirmAll(true)}
+                disabled={run.isPending}
+              >
+                {t("languages.pretranslate_all")}
+              </Button>
+            )}
           </div>
           <Card className="overflow-hidden">
             <ScrollArea className="h-[60vh]">
@@ -342,7 +399,10 @@ export function LanguageManagerConsole() {
             <Input
               placeholder="Language code (e.g. hi)"
               value={reviewLanguage}
-              onChange={(event) => setReviewLanguage(event.target.value.trim())}
+              onChange={(event) => {
+                setReviewLanguage(event.target.value.trim());
+                setReviewPage(0);
+              }}
               className="w-56"
             />
             {["needs_review", "machine", "verified", "rejected"].map((status) => (
@@ -350,7 +410,10 @@ export function LanguageManagerConsole() {
                 key={status}
                 size="sm"
                 variant={reviewStatus === status ? "default" : "outline"}
-                onClick={() => setReviewStatus(status)}
+                onClick={() => {
+                  setReviewStatus(status);
+                  setReviewPage(0);
+                }}
               >
                 {status.replace("_", " ")}
               </Button>
@@ -463,6 +526,33 @@ export function LanguageManagerConsole() {
               </Card>
             )}
           </div>
+          {review.data && review.data.total > REVIEW_PAGE && (
+            <div className="flex items-center gap-2 text-sm">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setReviewPage((page) => Math.max(0, page - 1))}
+                disabled={reviewPage === 0 || review.isFetching}
+              >
+                {t("common.previous")}
+              </Button>
+              <span className="tabular-nums text-muted-foreground">
+                {t("languages.page_range", {
+                  from: reviewPage * REVIEW_PAGE + 1,
+                  to: Math.min((reviewPage + 1) * REVIEW_PAGE, review.data.total),
+                  total: review.data.total,
+                })}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setReviewPage((page) => page + 1)}
+                disabled={(reviewPage + 1) * REVIEW_PAGE >= review.data.total || review.isFetching}
+              >
+                {t("common.next")}
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="glossary" className="space-y-3">
@@ -585,6 +675,69 @@ export function LanguageManagerConsole() {
                 </tbody>
               </table>
             </ScrollArea>
+          </Card>
+          <Card className="space-y-2 p-4 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-semibold">
+                {t("languages.failed_jobs")} {failed.data?.total ? `(${failed.data.total})` : ""}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => run.mutate({ action: "sync_messages" })}
+                  disabled={run.isPending}
+                >
+                  {t("languages.sync_messages")}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => run.mutate({ action: "requeue_failed", error_prefix: null })}
+                  disabled={run.isPending || !failed.data?.total}
+                >
+                  {t("languages.requeue_failed")}
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("languages.failed_help")}</p>
+            {failed.error && (
+              <div className="text-destructive">{(failed.error as Error).message}</div>
+            )}
+            {failed.data && failed.data.rows.length === 0 && (
+              <span className="text-muted-foreground">{t("languages.no_failed_jobs")}</span>
+            )}
+            {failed.data && failed.data.rows.length > 0 && (
+              <ScrollArea className="max-h-64">
+                <table className="w-full text-xs">
+                  <thead className="text-left text-muted-foreground">
+                    <tr>
+                      <th className="p-1">{t("languages.column_language")}</th>
+                      <th className="p-1">{t("languages.column_text")}</th>
+                      <th className="p-1">{t("languages.column_attempts")}</th>
+                      <th className="p-1">{t("languages.column_error")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {failed.data.rows.map((job) => (
+                      <tr key={job.id} className="border-t border-border/60 align-top">
+                        <td className="p-1 font-mono">{job.target_language}</td>
+                        <td
+                          className="max-w-xs truncate p-1"
+                          title={job.source_text}
+                          data-no-translate
+                        >
+                          {job.source_text}
+                        </td>
+                        <td className="p-1 tabular-nums">{job.attempts}</td>
+                        <td className="p-1 text-muted-foreground" data-no-translate>
+                          {job.last_error ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </ScrollArea>
+            )}
           </Card>
         </TabsContent>
       </Tabs>

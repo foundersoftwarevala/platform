@@ -3,9 +3,9 @@ import { createFileRoute } from "@tanstack/react-router";
 /**
  * Language Manager API (admin and boss only).
  *
- * GET  ?view=overview | metrics | review | glossary | revisions&id=
+ * GET  ?view=overview | metrics | review | glossary | revisions&id= | failed_jobs
  * POST { action: enqueue_catalogue | enqueue_texts | run_jobs | review |
- *        set_language_enabled | glossary_save, ... }
+ *        set_language_enabled | glossary_save | sync_messages | requeue_failed, ... }
  */
 
 function failure(error: unknown) {
@@ -39,6 +39,8 @@ export const Route = createFileRoute("/api/i18n/admin")({
               return Response.json(await admin.glossaryList());
             case "revisions":
               return Response.json(await admin.revisions(params.get("id") ?? ""));
+            case "failed_jobs":
+              return Response.json(await admin.failedJobs());
             default:
               return Response.json({ error: "Unknown view." }, { status: 400 });
           }

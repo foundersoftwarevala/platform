@@ -249,3 +249,37 @@ describe("quality of ICU messages", () => {
     );
   });
 });
+
+describe("quality: terminology and script share", () => {
+  const hi = getLanguage("hi")!;
+
+  it("refuses a translation that uses a forbidden term", () => {
+    const result = assessTranslation({
+      source: "Your Cart",
+      translated: "आपकी गाड़ी",
+      target: hi,
+      terminologyIssues: ["glossary_forbidden:गाड़ी"],
+    });
+    expect(result.accepted).toBe(false);
+    expect(result.errors).toContain("glossary_forbidden:गाड़ी");
+  });
+
+  it("refuses English with one word of the target script added", () => {
+    const result = assessTranslation({
+      source: "Apply now for the program",
+      translated: "Apply now for the program अभी",
+      target: hi,
+    });
+    expect(result.errors).toContain("wrong_script");
+  });
+
+  it("accepts a translation that keeps a brand name in Latin letters", () => {
+    const result = assessTranslation({
+      source: "Welcome to Software Vala",
+      translated: "Software Vala में आपका स्वागत है",
+      target: hi,
+      keptTerms: ["Software Vala"],
+    });
+    expect(result.errors).toEqual([]);
+  });
+});
