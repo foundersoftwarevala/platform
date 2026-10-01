@@ -18,10 +18,15 @@ import { deploymentSetting } from "@/lib/seo/seo-store.server";
  */
 
 export type Announcement = {
-  id: string;
+  id: string | null;
   user_id: string | null;
   event: string | null;
-  ledger_id: string | null;
+  /** For an AMS recognition: its ledger line. */
+  ledger_id?: string | null;
+  /** For a chat change ("chat.message", "chat.receipt", ...): its conversation. */
+  conversation_id?: string | null;
+  /** For a new chat message: who sent it. */
+  sender_id?: string | null;
 };
 
 type Listener = (a: Announcement) => void;
@@ -48,16 +53,39 @@ function deliver(raw: string) {
 }
 
 /**
+ * The platform database - the one PostgREST serves and user_notifications
+ * lives in, sv_platform. A NOTIFY is only heard on the database it was sent in.
+ *
+ * SV_PLATFORM_DATABASE_URL when it is set. Otherwise the server's existing
+ * VPS_DATABASE_URL connection (same server, same user) pointed at sv_platform:
+ * that setting names the SEO store's database, softwarevala, and used as it is
+ * would listen where nothing is ever announced. Either way ensureListening()
+ * checks at runtime that the database reached is the one that announces.
+ */
+const PLATFORM_DATABASE = "sv_platform";
+
+function platformDatabaseUrl(): string {
+  const explicit = deploymentSetting("SV_PLATFORM_DATABASE_URL");
+  if (explicit) return explicit;
+  const vps = deploymentSetting("VPS_DATABASE_URL");
+  if (!vps) return "";
+  try {
+    const u = new URL(vps);
+    u.pathname = `/${PLATFORM_DATABASE}`;
+    return u.toString();
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Start listening, once per process. False when this server has no database
  * connection configured, and the browser falls back to asking periodically.
  */
 export function ensureListening(): Promise<boolean> {
   if (connection) return Promise.resolve(true);
   if (starting) return starting;
-  // The platform database - the one PostgREST serves and user_notifications
-  // lives in. Not VPS_DATABASE_URL: that is the SEO store's database, and a
-  // NOTIFY is only heard by listeners on the database it was sent in.
-  const url = deploymentSetting("SV_PLATFORM_DATABASE_URL");
+  const url = platformDatabaseUrl();
   if (!url) return Promise.resolve(false);
 
   starting = (async () => {
@@ -65,14 +93,16 @@ export function ensureListening(): Promise<boolean> {
     const sql = postgres(url, { max: 1, idle_timeout: 0, connect_timeout: 10, onnotice: () => {} });
     // Listening to a database that never announces would look healthy and
     // deliver nothing, so the database must be the one with the announcer.
-    const [{ announces }] = await sql<{ announces: boolean }[]>`
-      select to_regproc('public.sv_announce_user_notification') is not null as announces`;
+    const [{ announces, db }] = await sql<{ announces: boolean; db: string }[]>`
+      select to_regproc('public.sv_announce_user_notification') is not null as announces,
+             current_database() as db`;
     if (!announces) {
       await sql.end({ timeout: 1 });
-      throw new Error("SV_PLATFORM_DATABASE_URL is not the database that announces notifications");
+      throw new Error(`SV_PLATFORM_DATABASE_URL reaches ${db}, which does not announce notifications`);
     }
     // The driver re-establishes LISTEN by itself when the connection drops.
     await sql.listen("sv_user_notification", deliver);
+    console.info(`[notification-hub] listening: current_database=${db}`);
     connection = sql;
     return true;
   })().catch((error) => {

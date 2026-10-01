@@ -61,7 +61,7 @@ export const Route = createFileRoute("/api/notifications/stream")({
             };
             send(`event: ready\ndata: {}\n\n`);
             const unsubscribe = subscribe(user.id, (a) => {
-              send(`event: notification\ndata: ${JSON.stringify({ id: a.id, event: a.event, ledger_id: a.ledger_id })}\n\n`);
+              send(`event: notification\ndata: ${JSON.stringify({ id: a.id, event: a.event, ledger_id: a.ledger_id ?? null, conversation_id: a.conversation_id ?? null, sender_id: a.sender_id ?? null })}\n\n`);
             });
             // A comment line every so often keeps proxies from closing an idle stream.
             const beat = setInterval(() => send(`: ping\n\n`), HEARTBEAT_MS);

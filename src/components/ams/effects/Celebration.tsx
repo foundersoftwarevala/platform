@@ -570,24 +570,48 @@ function presentationOf(group: Recognition[]): { payload: CelebrationPayload; pr
 // ──────────────────────────────────────────────────────────────
 
 /**
- * `ledgerIds` marks a real recognition: it is claimed on the server as it
- * begins (the claim is the seen-marker), and skipped if another tab already
- * showed it. A preview has none and needs no claim.
+ * A queued presentation. `recs` marks a real recognition: its ledger lines are
+ * claimed on the server as it begins (the claim is the seen-marker), and what
+ * another tab already showed is left out. `key` is the moment (role and the
+ * instant the engine granted it), so later arrivals of the same moment join it
+ * rather than becoming a second presentation. A preview has neither.
  */
-type Queued = { seq: number; priority: number; payload: CelebrationPayload; ledgerIds?: string[] };
+type Queued = {
+  seq: number;
+  priority: number;
+  payload: CelebrationPayload;
+  key?: string;
+  recs?: Recognition[];
+  attempts?: number;
+};
 
 /** The pause between one presentation and the next. */
 const COOLDOWN_MS = 700;
+/** A claim the server did not answer is tried this many times in this tab. */
+const CLAIM_ATTEMPTS = 3;
 
-async function claimRecognitions(ids: string[]): Promise<Recognition[]> {
-  // The server takes 50 ids a call; a jump of several stages grants more.
+const momentOf = (r: Recognition) => `${r.role}|${r.created_at}`;
+
+/**
+ * Claim ledger lines in the server's 50-id chunks. Returns what this tab won
+ * and the ids whose claim failed - those were not marked seen and are still
+ * owed a presentation. A chunk that failed never takes a chunk that succeeded
+ * down with it.
+ */
+async function claimRecognitions(ids: string[]): Promise<{ won: Recognition[]; failed: string[] }> {
   const won: Recognition[] = [];
+  const failed: string[] = [];
   for (let i = 0; i < ids.length; i += 50) {
-    const { data, error } = await supabase.rpc("ams_recognition_claim" as never, { p_ledger_ids: ids.slice(i, i + 50) } as never);
-    if (error) throw error;
-    won.push(...((data as { claimed?: Recognition[] } | null)?.claimed ?? []).filter(Boolean));
+    const chunk = ids.slice(i, i + 50);
+    try {
+      const { data, error } = await supabase.rpc("ams_recognition_claim" as never, { p_ledger_ids: chunk } as never);
+      if (error) throw error;
+      won.push(...((data as { claimed?: Recognition[] } | null)?.claimed ?? []).filter(Boolean));
+    } catch {
+      failed.push(...chunk);
+    }
   }
-  return won;
+  return { won, failed };
 }
 
 export function CelebrationProvider({ children }: { children: React.ReactNode }) {
@@ -598,6 +622,8 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
   const seen = useRef(new Set<string>());
   const cooling = useRef(false);
   const advancing = useRef(false);
+  const queueRef = useRef<Queued[]>([]);
+  queueRef.current = queue;
   const [wake, setWake] = useState(0);
   const qc = useQueryClient();
 
@@ -616,58 +642,75 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
   }, []);
   const setSoundOn = useCallback((b: boolean) => setSoundPrefs({ enabled: b }), []);
 
-  const enqueue = useCallback((items: { priority: number; payload: CelebrationPayload; ledgerIds?: string[] }[]) => {
-    if (items.length === 0) return;
-    setQueue((q) => {
-      const next = [...q, ...items.map((i) => ({ ...i, seq: ++seq.current }))];
-      // Highest priority first; among equals, first come first served.
-      next.sort((a, b) => b.priority - a.priority || a.seq - b.seq);
-      return next;
-    });
-  }, []);
+  const sorted = (q: Queued[]) =>
+    // Highest priority first; among equals, first come first served.
+    [...q].sort((a, b) => b.priority - a.priority || a.seq - b.seq);
 
   const celebrate = useCallback((p: CelebrationPayload) => {
-    enqueue([{ priority: 0, payload: p }]);
-  }, [enqueue]);
+    setQueue((q) => sorted([...q, { seq: ++seq.current, priority: 0, payload: p }]));
+  }, []);
 
   const presentRecognitions = useCallback((items: Recognition[]) => {
     const fresh = items.filter((r) => r && r.ledger_id && !seen.current.has(r.ledger_id));
     fresh.forEach((r) => seen.current.add(r.ledger_id));
     if (fresh.length === 0) return;
 
-    // Everything one evaluation granted for one role arrives stamped with the
-    // same moment; that is one presentation, led by its rarest recognition.
+    // Everything one evaluation granted for one role carries the same moment;
+    // that is one presentation, led by its rarest recognition. A part of a
+    // moment that arrives later joins its presentation if that is still
+    // waiting.
     const groups = new Map<string, Recognition[]>();
-    for (const r of fresh) {
-      const key = `${r.role}|${r.created_at}`;
-      groups.set(key, [...(groups.get(key) ?? []), r]);
-    }
-    enqueue([...groups.values()].map((group) => ({
-      ...presentationOf(group),
-      ledgerIds: group.map((r) => r.ledger_id),
-    })));
-  }, [enqueue]);
+    for (const r of fresh) groups.set(momentOf(r), [...(groups.get(momentOf(r)) ?? []), r]);
+    setQueue((q) => {
+      const next = [...q];
+      for (const [key, group] of groups) {
+        const at = next.findIndex((x) => x.key === key);
+        const recs = at >= 0 ? [...(next[at].recs ?? []), ...group] : group;
+        const built = presentationOf(recs);
+        const item: Queued = { seq: at >= 0 ? next[at].seq : ++seq.current, priority: built.priority, payload: built.payload, key, recs };
+        if (at >= 0) next[at] = item;
+        else next.push(item);
+      }
+      return sorted(next);
+    });
+  }, []);
 
   // One presentation at a time, with a short pause between them. A real
-  // recognition is claimed as it begins; what this tab wins is what it shows.
+  // recognition is claimed as it begins, and only in a visible tab; what this
+  // tab wins is what it shows.
   useEffect(() => {
     if (current || cooling.current || advancing.current || queue.length === 0) return;
     if (document.visibilityState !== "visible") return;
     const [head, ...rest] = queue;
-    if (!head.ledgerIds?.length) {
+    if (!head.recs?.length) {
       setQueue(rest);
       setCurrent(head);
       return;
     }
     advancing.current = true;
-    const ids = head.ledgerIds;
-    claimRecognitions(ids)
-      .then((won) => {
-        setQueue((q) => q.filter((x) => x.seq !== head.seq));
-        if (won.length === 0) return; // shown elsewhere already
+    let retryIn = 0;
+    claimRecognitions(head.recs.map((r) => r.ledger_id))
+      .then(({ won, failed }) => {
+        const failedRecs = head.recs!.filter((r) => failed.includes(r.ledger_id));
+        const attempts = (head.attempts ?? 0) + 1;
+        setQueue((q) => {
+          const next = q.filter((x) => x.seq !== head.seq);
+          // Not claimed is not seen: try again shortly, then leave it unseen
+          // on the server for the next visit.
+          if (failedRecs.length && attempts < CLAIM_ATTEMPTS) {
+            const built = presentationOf(failedRecs);
+            next.push({ seq: head.seq, priority: built.priority, payload: built.payload, key: head.key, recs: failedRecs, attempts });
+          }
+          return sorted(next);
+        });
+        if (failedRecs.length) {
+          if (attempts < CLAIM_ATTEMPTS) retryIn = 3000 * attempts;
+          else failedRecs.forEach((r) => seen.current.delete(r.ledger_id));
+        }
+        if (won.length === 0) return; // shown elsewhere already, or not claimed yet
         void qc.invalidateQueries({ queryKey: ["ams"] });
         void qc.invalidateQueries({ queryKey: ["notification-bell"] });
-        const shown = { ...head, payload: presentationOf(won).payload };
+        const shown: Queued = { ...head, recs: won, payload: presentationOf(won).payload };
         if (!getSoundPrefs().celebrations) {
           // Celebrations are off: say it plainly, once, without the show.
           const p = shown.payload;
@@ -678,14 +721,13 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
         }
         setCurrent(shown);
       })
-      .catch(() => {
-        // Not claimed, so still unseen on the server: a later visit shows it.
-        setQueue((q) => q.filter((x) => x.seq !== head.seq));
-        ids.forEach((id) => seen.current.delete(id));
-      })
       .finally(() => {
-        advancing.current = false;
-        setWake((w) => w + 1);
+        const release = () => {
+          advancing.current = false;
+          setWake((w) => w + 1);
+        };
+        if (retryIn) setTimeout(release, retryIn);
+        else release();
       });
   }, [queue, current, wake, qc]);
 
@@ -698,13 +740,13 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
     }, COOLDOWN_MS);
   }, []);
 
-  // Skipping is the person dismissing them: they count as seen.
+  // "Skip N more" is the person choosing not to watch the rest: the skipped
+  // recognitions count as seen and are not presented again on a later visit.
+  // They stay in the notification bell and in AMS history.
   const skipAll = useCallback(() => {
-    setQueue((q) => {
-      const ids = q.flatMap((x) => x.ledgerIds ?? []);
-      if (ids.length) void claimRecognitions(ids).catch(() => undefined);
-      return [];
-    });
+    const ids = queueRef.current.flatMap((x) => (x.recs ?? []).map((r) => r.ledger_id));
+    setQueue([]);
+    if (ids.length) void claimRecognitions(ids);
     close();
   }, [close]);
 
