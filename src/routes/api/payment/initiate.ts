@@ -119,6 +119,33 @@ export const Route = createFileRoute("/api/payment/initiate")({
           );
         }
 
+        // What the order is for, and in which currency each line was priced. An
+        // order whose lines are in another currency than the order itself
+        // (one historical order is INR 2490 made of USD lines) cannot be
+        // charged correctly in either, so it is refused rather than guessed.
+        let lines: { product_name: string | null; currency: string | null }[] = [];
+        try {
+          const lineResponse = await fetch(
+            `${url()}/rest/v1/marketplace_order_items?select=product_name,currency` +
+              `&order_id=eq.${encodeURIComponent(orderId)}`,
+            { headers: admin() },
+          );
+          if (lineResponse.ok) lines = (await lineResponse.json()) as typeof lines;
+        } catch {
+          lines = [];
+        }
+        if (lines.some((line) => line.currency && line.currency.toUpperCase() !== orderCurrency)) {
+          await logPaymentEvent(orderId, "payment_refused_mixed_currency", {
+            order_currency: orderCurrency,
+            line_currencies: [...new Set(lines.map((line) => line.currency))],
+          });
+          return Response.json(
+            // i18n-ignore: an API error message; this API answers in English.
+            { error: "This order mixes currencies and cannot be paid online. Please contact support." },
+            { status: 409 },
+          );
+        }
+
         // A transaction id is used once at PayU. The same attempt keeps its id
         // and the amount it was quoted, so a customer who comes back does not
         // create a second transaction or get a different price; an attempt
@@ -168,20 +195,7 @@ export const Route = createFileRoute("/api/payment/initiate")({
         // The description the customer sees on the PayU page, and one of the
         // fields hashed into the request. It comes from the order line, because
         // order.metadata is empty on every order this table holds.
-        let lineName: string | null = null;
-        try {
-          const lineResponse = await fetch(
-            `${url()}/rest/v1/marketplace_order_items?select=product_name` +
-              `&order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
-            { headers: admin() },
-          );
-          if (lineResponse.ok) {
-            const rows = (await lineResponse.json()) as { product_name: string | null }[];
-            lineName = rows[0]?.product_name ?? null;
-          }
-        } catch {
-          lineName = null;
-        }
+        const lineName = lines.find((line) => line.product_name)?.product_name ?? null;
         const productinfo = String(
           (order.metadata as { product_name?: string })?.product_name ??
             lineName ??
@@ -189,10 +203,16 @@ export const Route = createFileRoute("/api/payment/initiate")({
         ).slice(0, 100);
         const firstname = String(body.firstname ?? user.email.split("@")[0] ?? "Customer").slice(0, 60);
 
-        // Only while the order is still unpaid: a webhook that settled it in
-        // the meantime must not be undone by a second tab starting to pay.
+        // Only while the order is still unpaid - a webhook that settled it in
+        // the meantime must not be undone by a second tab starting to pay -
+        // and only if no other start changed the attempt since it was read.
+        // Two simultaneous starts used to mint two transaction ids, and the one
+        // whose write lost was never findable when its payment came back.
+        const sameAttempt = previousTxnid
+          ? `&txnid=eq.${encodeURIComponent(previousTxnid)}`
+          : "&txnid=is.null";
         const started = await fetch(
-          `${url()}/rest/v1/marketplace_orders?id=eq.${encodeURIComponent(orderId)}&status=eq.pending_payment`,
+          `${url()}/rest/v1/marketplace_orders?id=eq.${encodeURIComponent(orderId)}&status=eq.pending_payment${sameAttempt}`,
           {
             method: "PATCH",
             headers: { ...admin(), Prefer: "return=representation" },
@@ -223,8 +243,11 @@ export const Route = createFileRoute("/api/payment/initiate")({
           return Response.json({ error: "The payment could not be started. Please try again." }, { status: 502 });
         }
         if (startedRows.length === 0) {
+          // Paid, closed, or another window started this attempt first. Trying
+          // again reads the order afresh and reuses that attempt.
+          await logPaymentEvent(orderId, "payment_initiate_lost_race", { txnid, previous: previousTxnid || null });
           // i18n-ignore: an API error message; this API answers in English.
-          return Response.json({ error: "That order can no longer be paid" }, { status: 409 });
+          return Response.json({ error: "This order changed while the payment was starting. Please try again." }, { status: 409 });
         }
         await recordPaymentIntent(orderId, { status: "pending", txnid, amount: converted.amount });
 

@@ -208,6 +208,51 @@ describe("settling a PayU result", () => {
     expect(fulfilOrder).not.toHaveBeenCalled();
   });
 
+  it("ignores a failure that arrives after the success, intent included", async () => {
+    payu.T2 = { status: "success", amt: "20750.00", mihpayid: "M1" };
+    await settlePayuCallback(config, callback({ txnid: "T2", status: "success", amount: "20750.00" }), "webhook");
+    payu.T2 = { status: "failure", amt: "20750.00", mihpayid: "M1" };
+    const late = await settlePayuCallback(config, callback({ txnid: "T2", status: "failure", amount: "20750.00" }), "webhook");
+    expect(late.httpStatus).toBe(200);
+    expect(orders[0]).toMatchObject({ status: "paid", payu_status: "success" });
+    expect(intents[0].status).toBe("succeeded");
+    expect(fulfilOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles a success that follows a failure of the same attempt", async () => {
+    payu.T2 = { status: "failure", amt: "20750.00", mihpayid: "M1" };
+    await settlePayuCallback(config, callback({ txnid: "T2", status: "failure", amount: "20750.00" }), "webhook");
+    await settlePayuCallback(config, callback({ txnid: "T2", status: "failure", amount: "20750.00" }), "webhook");
+    expect(orders[0].status).toBe("pending_payment");
+    expect(fulfilOrder).not.toHaveBeenCalled();
+    payu.T2 = { status: "success", amt: "20750.00", mihpayid: "M1" };
+    await settlePayuCallback(config, callback({ txnid: "T2", status: "success", amount: "20750.00" }), "webhook");
+    expect(orders[0].status).toBe("paid");
+    expect(intents[0].status).toBe("succeeded");
+    expect(fulfilOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("never lets a simultaneous failure undo or block a success (25 runs)", async () => {
+    for (let run = 0; run < 25; run++) {
+      orders[0] = { ...orders[0], status: "pending_payment", payu_status: undefined, txnid: "T2", amount_inr: 20750 };
+      intents[0] = { id: "i1", order_id: "o1", status: "pending" };
+      fulfilOrder.mockClear();
+      paidTransitions = 0;
+      // PayU itself reports success; a forged-looking failure races it.
+      payu.T2 = { status: "success", amt: "20750.00", mihpayid: "M1" };
+      const calls = [
+        settlePayuCallback(config, callback({ txnid: "T2", status: "success", amount: "20750.00" }), "webhook"),
+        settlePayuCallback(config, callback({ txnid: "T2", status: "failure", amount: "20750.00" }), "return"),
+      ];
+      if (run % 2) calls.reverse();
+      await Promise.all(calls);
+      expect(orders[0].status).toBe("paid");
+      expect(paidTransitions).toBe(1);
+      expect(intents[0].status).toBe("succeeded");
+      expect(fulfilOrder).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it("answers 404 for a transaction no order has", async () => {
     const out = await settlePayuCallback(config, callback({ txnid: "NOPE", status: "success", amount: "1.00" }), "webhook");
     expect(out.httpStatus).toBe(404);
