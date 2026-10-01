@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { internalPath } from "@/lib/auth/internal-path";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -47,8 +48,9 @@ function AuthPage() {
       typeof window === "undefined"
         ? ""
         : (new URLSearchParams(window.location.search).get("redirect") ?? "");
-    if (asked.startsWith("/") && !asked.startsWith("//")) {
-      window.location.assign(asked);
+    const safe = internalPath(asked);
+    if (safe) {
+      window.location.assign(safe);
       return;
     }
     void navigate({ to: "/chat" });

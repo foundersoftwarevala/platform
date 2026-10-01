@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireAuthorizedAiCaller } from "@/lib/ai-request-auth.server";
 import { aiComplete } from "@/lib/ai-gateway.server";
 
 type GenInput = { topic?: string; count?: number; category?: string };
@@ -19,6 +20,9 @@ Answers must be 1-3 sentences, factual, no marketing fluff, no invented metrics.
 export const generateFaqs = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => (d ?? {}) as GenInput)
   .handler(async ({ data }): Promise<GenOutput> => {
+    // Held to the same callers as the other manager AI tools, so the public
+    // cannot spend the platform AI credit through this endpoint.
+    await requireAuthorizedAiCaller();
     // `key` was never defined here, so every call threw a ReferenceError
     // before reaching the model. The gateway resolves and checks the
     // credential itself and throws a described error when there is none,

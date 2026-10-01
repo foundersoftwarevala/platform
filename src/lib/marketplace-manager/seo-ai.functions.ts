@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { aiComplete } from "@/lib/ai-gateway.server";
+import { requireAuthorizedAiCaller } from "@/lib/ai-request-auth.server";
 
 type SeoInput = {
   topic: string;
@@ -65,6 +66,9 @@ function fallback(input: SeoInput, reason: string): SeoOutput {
 export const generateSeo = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as SeoInput)
   .handler(async ({ data }): Promise<SeoOutput> => {
+    // Anyone could call this endpoint and spend the platform AI credit; it is
+    // held to the same callers as the manager chat beside it.
+    await requireAuthorizedAiCaller();
     // There was a guard here — `if (!key) return fallback(data)` — left over
     // from when this file held its own provider credential. `key` was never
     // declared after that credential moved into the AI API Manager, so every

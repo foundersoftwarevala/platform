@@ -51,6 +51,12 @@ export interface Demo {
   relatedDetails?: string;
   /** The notice that this describes a category, not a commercial product. */
   disclaimer?: string;
+  /**
+   * The product's own address when the card comes from a catalogue row. A
+   * slug worked out from the name is not always the row's slug, and a card
+   * that guessed it opened "Product not found".
+   */
+  slug?: string;
 }
 
 type DemoCopy = Pick<

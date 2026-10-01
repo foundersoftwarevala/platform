@@ -149,9 +149,13 @@ interface Demo {
   softwareType?: string;
   relatedDetails?: string;
   disclaimer?: string;
+  /** The catalogue row's own slug, when the card comes from one. */
+  slug?: string;
 }
 
-const allDemos: Demo[] = [
+// Exported so a card's product page can be built from it on the server
+// (lib/marketplace/home-catalogue.server.ts).
+export const allDemos: Demo[] = [
   // ============= FEATURED ACTIVE DEMOS (First 20 with Live Routes) =============
   {
     id: "school-management",
@@ -3812,7 +3816,7 @@ const DemoCard = memo(
     const navigate = useNavigate();
     // The page this card opens. An author's upload takes the same address, so
     // the card keeps working when the real product arrives behind it.
-    const productSlug = catalogueSlug(demo.name);
+    const productSlug = demo.slug ?? catalogueSlug(demo.name);
     const productHref = `/marketplace/product/${productSlug}`;
     // The router writes search values as JSON, so a string arrives quoted -
     // ?buy=%221%22 - and the product page, which looks for exactly "1", never

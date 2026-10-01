@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Clock, XCircle } from "lucide-react";
 import "@/styles/marketplace-home.css";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Where the customer lands after PayU (/payment/success and /payment/fail).
@@ -48,7 +49,13 @@ export function PaymentStatusPage() {
     let cancelled = false;
     const ask = async () => {
       try {
-        const response = await fetch(`/api/payment/status?txnid=${encodeURIComponent(txnid)}`);
+        // Signed in, the buyer is shown their licence key; the server only
+        // hands it to the owner of the order, so it needs to know who asks.
+        const { data: session } = await supabase.auth.getSession().catch(() => ({ data: null }));
+        const token = session?.session?.access_token;
+        const response = await fetch(`/api/payment/status?txnid=${encodeURIComponent(txnid)}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         const data = (await response.json()) as Outcome;
         if (cancelled) return;
         setOutcome(data);
@@ -108,7 +115,7 @@ export function PaymentStatusPage() {
             {t("payment.back")}
           </a>
           <a
-            href="/support"
+            href="/contact"
             className="rounded-xl border border-white/15 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10"
           >
             {t("payment.contact_support")}

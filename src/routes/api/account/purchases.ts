@@ -91,6 +91,26 @@ export const Route = createFileRoute("/api/account/purchases")({
             }
           }
 
+          // What each order was for. Checkout records it on the order lines,
+          // not in order.metadata, so without this every purchase was named
+          // "Software Vala licence".
+          const names = new Map<string, string[]>();
+          if (ids.length) {
+            const lineResponse = await fetch(
+              `${url()}/rest/v1/marketplace_order_items?select=order_id,product_name` +
+                `&order_id=in.(${ids.join(",")})&order=created_at.asc`,
+              { headers: admin() },
+            );
+            if (lineResponse.ok) {
+              for (const row of (await lineResponse.json()) as { order_id: string; product_name: string | null }[]) {
+                if (!row.product_name) continue;
+                const list = names.get(row.order_id) ?? [];
+                if (!list.includes(row.product_name)) list.push(row.product_name);
+                names.set(row.order_id, list);
+              }
+            }
+          }
+
           // Invoices for the same orders, matched on the meta they carry.
           const invoices = new Map<string, { id: string; no: string }>();
           if (ids.length) {
@@ -115,7 +135,9 @@ export const Route = createFileRoute("/api/account/purchases")({
             return {
               id: String(order.id),
               order_no: order.order_no ?? order.order_number ?? null,
-              product: metadata.product_name ?? "Software Vala licence",
+              product:
+                metadata.product_name ??
+                (names.get(String(order.id))?.join(", ") || "Software Vala licence"),
               status: PORTAL_STATUS[String(order.status).toLowerCase()] ?? String(order.status),
               amount: Number(order.amount_inr ?? order.total ?? 0),
               currency: order.currency_charged ?? order.currency ?? "USD",

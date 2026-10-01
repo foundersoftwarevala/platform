@@ -51,6 +51,33 @@ function dropRowsCache() {
   rowsCache = null;
 }
 
+/**
+ * Written to marketplace_audit_logs as the operator who made the change, the
+ * way the other marketplace console writes are. Hiding or reordering a
+ * storefront row was the one change here that left no record of who did it.
+ */
+async function audit(request: Request, action: string, entityId: string | null, before: unknown, after: unknown) {
+  try {
+    const authorization = request.headers.get("authorization");
+    const anon =
+      process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
+    const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+    const asOperator = Boolean(authorization && anon);
+    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+      method: "POST",
+      headers: asOperator
+        ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
+        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        p_action: action, p_entity_type: "marketplace_category", p_entity_id: entityId,
+        p_before: before, p_after: after, p_reason: null,
+      }),
+    });
+  } catch (error) {
+    console.error("[rows] audit failed", error);
+  }
+}
+
 export const Route = createFileRoute("/api/marketplace/rows")({
   server: {
     handlers: {
@@ -156,6 +183,11 @@ export const Route = createFileRoute("/api/marketplace/rows")({
           return Response.json({ error: "Nothing to change" }, { status: 400 });
         }
 
+        const previous = await fetch(
+          `${url()}/rest/v1/marketplace_categories?select=sort_order,is_hidden,is_featured&id=eq.${encodeURIComponent(id)}`,
+          { headers: admin() },
+        );
+        const before = previous.ok ? (((await previous.json()) as unknown[])[0] ?? null) : null;
         const response = await fetch(
           `${url()}/rest/v1/marketplace_categories?id=eq.${encodeURIComponent(id)}`,
           { method: "PATCH", headers: { ...admin(), Prefer: "return=representation" }, body: JSON.stringify(patch) },
@@ -166,6 +198,7 @@ export const Route = createFileRoute("/api/marketplace/rows")({
         }
         dropRowsCache();
         const rows = (await response.json()) as Record<string, unknown>[];
+        await audit(request, "storefront_row_updated", id, before, patch);
         return Response.json({ ok: true, row: rows[0] ?? null });
       },
 
@@ -196,6 +229,7 @@ export const Route = createFileRoute("/api/marketplace/rows")({
           if (response.ok) saved++;
         }
         dropRowsCache();
+        await audit(request, "storefront_rows_reordered", null, null, { order, saved });
         return Response.json({ ok: saved === order.length, saved, of: order.length });
       },
     },

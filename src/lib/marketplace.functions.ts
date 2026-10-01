@@ -7,7 +7,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
-import { catalogueEntries } from "@/data/catalogue";
+import { catalogueEntries, type CatalogueEntry } from "@/data/catalogue";
 import { LIFETIME_PRICE } from "@/lib/site-content/constants";
 
 export type ProductDemoBinding = {
@@ -229,7 +229,11 @@ function slugify(value: string) {
  * this is never reached - the page is built from the catalogue entry itself.
  */
 function buildHomeCatalogFallback(): PublicProduct[] {
-  return catalogueEntries.map((entry) => ({
+  return catalogueEntries.map(fallbackFromEntry);
+}
+
+function fallbackFromEntry(entry: CatalogueEntry): PublicProduct {
+  return {
     id: entry.slug,
     slug: entry.slug,
     name: entry.name,
@@ -249,7 +253,7 @@ function buildHomeCatalogFallback(): PublicProduct[] {
     content_status: "published",
     demo_count: 0,
     demo_urls: [],
-  }));
+  };
 }
 
 function buildSuppliedCatalogFallback(): PublicProduct[] {
@@ -278,11 +282,17 @@ function buildSuppliedCatalogFallback(): PublicProduct[] {
 }
 
 /** The product page for a slug no author has uploaded yet, if there is one. */
-function findFallbackProduct(slug: string): PublicProduct | undefined {
-  return (
+async function findFallbackProduct(slug: string): Promise<PublicProduct | undefined> {
+  const known =
     buildSuppliedCatalogFallback().find((product) => product.slug === slug) ??
-    buildHomeCatalogFallback().find((product) => product.slug === slug)
-  );
+    buildHomeCatalogFallback().find((product) => product.slug === slug);
+  if (known) return known;
+  // The home page's own card list. Its cards link here by the same slug, but
+  // only the extraDemos part was known to this page, so most of them opened
+  // "Product not found". Read on the server only.
+  const { homeCatalogueEntry } = await import("@/lib/marketplace/home-catalogue.server");
+  const entry = homeCatalogueEntry(slug);
+  return entry ? fallbackFromEntry(entry) : undefined;
 }
 
 function toProduct(r: any): MarketProduct {
@@ -451,7 +461,7 @@ export const getPublicProduct = createServerFn({ method: "GET" })
       const { row: productRow } = await loadPublicProductBySlugFromSupabase(sb, data.slug);
 
       if (!productRow) {
-        const fallbackProduct = findFallbackProduct(data.slug);
+        const fallbackProduct = await findFallbackProduct(data.slug);
         if (fallbackProduct) {
           return {
             product: fallbackProduct,
@@ -483,7 +493,7 @@ export const getPublicProduct = createServerFn({ method: "GET" })
       };
     } catch (err) {
       console.error("getPublicProduct error:", err);
-      const fallbackProduct = findFallbackProduct(data.slug);
+      const fallbackProduct = await findFallbackProduct(data.slug);
       if (fallbackProduct) {
         return {
           product: fallbackProduct,
@@ -496,6 +506,21 @@ export const getPublicProduct = createServerFn({ method: "GET" })
   });
 
 
+
+/**
+ * What makes a product public: the same filters the product page applies. A
+ * category listing a product the product page then refuses sends the visitor
+ * to "Product not found" - which is what the ten draft products did.
+ */
+function onSale<Q extends { eq: Function; or: Function }>(query: Q): Q {
+  const nowIso = new Date().toISOString();
+  return query
+    .eq("visible", true)
+    .eq("moderation_status", "approved")
+    .or("content_status.is.null,content_status.eq.published")
+    .or(`publish_at.is.null,publish_at.lte.${nowIso}`)
+    .or(`unpublish_at.is.null,unpublish_at.gt.${nowIso}`) as Q;
+}
 
 export const getPublicProductsByCategory = createServerFn({ method: "GET" })
   .validator((v) => z.object({ category_slug: z.string().min(1) }).parse(v ?? {}))
@@ -516,12 +541,9 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
       }
       
       // Get products in this category
-      const { data: productRows, error: prodError } = await sb
-        .from("marketplace_products")
-        .select(PRODUCT_COLS)
-        .eq("category_id", categoryData.id)
-        .eq("visible", true)
-        .order("sort_order");
+      const { data: productRows, error: prodError } = await onSale(
+        sb.from("marketplace_products").select(PRODUCT_COLS).eq("category_id", categoryData.id),
+      ).order("sort_order");
       
       if (prodError || !productRows) {
         return { category: categoryData as Category, products: [] };
@@ -566,12 +588,9 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
         ];
 
         if (extraIds.length) {
-          const { data: liveRows, error: liveError } = await sb
-            .from("marketplace_products")
-            .select(PRODUCT_COLS)
-            .in("id", extraIds)
-            .eq("visible", true)
-            .order("sort_order");
+          const { data: liveRows, error: liveError } = await onSale(
+            sb.from("marketplace_products").select(PRODUCT_COLS).in("id", extraIds),
+          ).order("sort_order");
           if (!liveError && Array.isArray(liveRows)) {
             catalogRows = [...catalogRows, ...(liveRows as unknown as CatalogRow[])];
           }
@@ -1125,7 +1144,12 @@ export const searchProducts = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       const sb = publicClient();
-      const searchTerm = `%${data.query}%`;
+      // Escaped as the admin searches are: a comma, parenthesis or quote would
+      // otherwise be read as PostgREST filter syntax, letting a caller add
+      // conditions of their own to a service-role query.
+      const term = data.query.replace(/[%,()"*\\]/g, " ").trim();
+      if (!term) return [];
+      const searchTerm = `%${term}%`;
       const { data: results, error } = await sb
         .from("marketplace_products")
         .select(PRODUCT_COLS)

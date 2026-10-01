@@ -118,6 +118,7 @@ export function railCardToDemo(card: RailCard, shelf: string, color: string): De
   return {
     id: `catalogue-${card.id}`,
     name: card.name,
+    slug: card.slug,
     category: card.subcategory || card.industry || shelf,
     masterCategory: shelf,
     description: card.description ?? "",
