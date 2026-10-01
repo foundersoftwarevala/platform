@@ -222,8 +222,14 @@ export async function settlePayuCallback(
   const orderId = String(order.id);
   const orderStatus = String(order.status ?? "").toLowerCase();
 
-  // Already settled? Make sure access exists, without settling twice.
-  if (orderStatus === "paid") return fulfil(orderId, txnid, true);
+  // Already settled? A repeated success makes sure access exists, without
+  // settling twice. Anything else for a paid order changes nothing at all.
+  if (orderStatus === "paid") {
+    if (status === "success") return fulfil(orderId, txnid, true);
+    await logPaymentEvent(orderId, "payu_failure_ignored", { txnid, status, reason: "order already paid" },
+      { provider: "payu" });
+    return { httpStatus: 200, message: "Already recorded", txnid };
+  }
 
   // ---- 3. the amount --------------------------------------------------------
   const charged = chargedFor(order, txnid);
@@ -270,7 +276,7 @@ export async function settlePayuCallback(
         `&status=eq.pending_payment&txnid=eq.${encodeURIComponent(txnid)}`,
       {
         method: "PATCH",
-        headers: { ...admin(), Prefer: "return=minimal" },
+        headers: { ...admin(), Prefer: "return=representation" },
         body: JSON.stringify({
           payu_status: status || "failure",
           payu_txn_id: payuId,
@@ -283,9 +289,15 @@ export async function settlePayuCallback(
       await logPaymentEvent(orderId, "order_update_failed", { txnid, stage: "failed", status: failed.status });
       return { httpStatus: 500, message: "Could not record the result", txnid };
     }
-    if (order.txnid === txnid) {
-      await recordPaymentIntent(orderId, { status: "failed", txnid, amount: charged }, event);
+    const marked = (await failed.json()) as unknown[];
+    if (marked.length === 0) {
+      // The order was settled (or moved to a newer attempt) in the meantime.
+      // A failure arriving after a success changes nothing, intent included.
+      await logPaymentEvent(orderId, "payu_failure_ignored", { txnid, status, reason: "order no longer awaiting this attempt" },
+        { provider: "payu" });
+      return { httpStatus: 200, message: "Recorded as failed", txnid };
     }
+    await recordPaymentIntent(orderId, { status: "failed", txnid, amount: charged }, event);
     await logPaymentEvent(orderId, "payment_failed", { txnid, status, reason: verified.reason },
       { provider: "payu" });
     return { httpStatus: 200, message: "Recorded as failed", txnid };

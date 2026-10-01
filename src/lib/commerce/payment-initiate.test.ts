@@ -25,6 +25,7 @@ type Row = Record<string, unknown>;
 let order: Row;
 let intents: Row[];
 let fxCalls: number;
+let lines: Row[];
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -45,6 +46,7 @@ beforeEach(() => {
   };
   intents = [{ id: "i1", order_id: "o1", status: "pending" }];
   fxCalls = 0;
+  lines = [{ product_name: "School ERP", currency: "USD" }];
 
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = new URL(String(input));
@@ -56,7 +58,7 @@ beforeEach(() => {
     }
     if (url.pathname === "/auth/v1/user") return json({ id: "u1", email: "buyer@test" });
     const table = url.pathname.replace("/rest/v1/", "");
-    if (table === "marketplace_order_items") return json([{ product_name: "School ERP" }]);
+    if (table === "marketplace_order_items") return json(lines);
     if (table === "marketplace_payment_intents") {
       if (method === "PATCH") {
         Object.assign(intents[0], JSON.parse(String(init?.body)));
@@ -67,8 +69,12 @@ beforeEach(() => {
     if (table === "marketplace_orders") {
       if (method === "GET") return json([order]);
       if (method === "PATCH") {
+        // The same filters PostgREST applies: status, and the attempt's txnid.
         const wantStatus = url.searchParams.get("status")?.replace("eq.", "");
         if (wantStatus && order.status !== wantStatus) return json([]);
+        const wantTxn = url.searchParams.get("txnid");
+        if (wantTxn === "is.null" && order.txnid != null) return json([]);
+        if (wantTxn?.startsWith("eq.") && order.txnid !== wantTxn.slice(3)) return json([]);
         Object.assign(order, JSON.parse(String(init?.body)));
         return json([order]);
       }
@@ -122,6 +128,7 @@ describe("starting a payment", () => {
   it("charges a rupee order as it is, without a rate lookup", async () => {
     order.currency = "INR";
     order.total = 4999;
+    lines = [{ product_name: "School ERP", currency: "INR" }];
     const body = (await (await start()).json()) as { fields: Record<string, string> };
     expect(body.fields.amount).toBe("4999.00");
     expect(fxCalls).toBe(0);
@@ -145,6 +152,51 @@ describe("starting a payment", () => {
     const response = await start();
     expect(response.status).toBe(409);
     expect(order.status).toBe("paid");
+  });
+
+  it("charges a rupee order the same amount again on a retry", async () => {
+    order.currency = "INR";
+    order.total = 4999;
+    lines = [{ product_name: "School ERP", currency: "INR" }];
+    const first = (await (await start()).json()) as { fields: Record<string, string> };
+    const second = (await (await start()).json()) as { fields: Record<string, string> };
+    expect([first.fields.amount, second.fields.amount]).toEqual(["4999.00", "4999.00"]);
+    expect(second.fields.txnid).toBe(first.fields.txnid);
+  });
+
+  it("refuses a currency it cannot charge", async () => {
+    order.currency = "EUR";
+    lines = [{ product_name: "School ERP", currency: "EUR" }];
+    expect((await start()).status).toBe(409);
+    expect(order.txnid).toBeNull();
+  });
+
+  it("refuses an order whose lines are priced in another currency", async () => {
+    order.currency = "INR";
+    order.total = 2490;
+    lines = [{ product_name: "School ERP", currency: "USD" }];
+    expect((await start()).status).toBe(409);
+    expect(order.txnid).toBeNull();
+  });
+
+  it("lets only one of two simultaneous starts mint the transaction", async () => {
+    // Both read the order before either writes: the second write must lose,
+    // or its transaction id would never be found when PayU answers.
+    const [a, b] = await Promise.all([start(), start()]);
+    const statuses = [a.status, b.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    const winner = (await (a.status === 200 ? a : b).json()) as { fields: Record<string, string> };
+    expect(order.txnid).toBe(winner.fields.txnid);
+    // Trying again reuses the winner's attempt.
+    const again = (await (await start()).json()) as { fields: Record<string, string> };
+    expect(again.fields.txnid).toBe(winner.fields.txnid);
+  });
+
+  it("keeps the same attempt after a timeout with no answer from PayU", async () => {
+    const first = (await (await start()).json()) as { fields: Record<string, string> };
+    // No callback ever arrived: payu_status is still empty.
+    const retry = (await (await start()).json()) as { fields: Record<string, string> };
+    expect(retry.fields).toMatchObject({ txnid: first.fields.txnid, amount: first.fields.amount });
   });
 
   it("refuses someone else's order", async () => {
