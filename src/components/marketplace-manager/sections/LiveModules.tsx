@@ -149,14 +149,14 @@ export function AuthorsLive() {
       Icon={PenTool}
       tabs={[
         { label: "All", resource: "authors" },
-        { label: "Verified", resource: "authors", filter: { status: "verified" } },
+        { label: "Verified", resource: "authors", filter: { status: "approved" } },
         { label: "Products", resource: "products" },
         { label: "Earnings", resource: "partner_commissions" },
         { label: "Payouts", resource: "partner_payouts" },
       ]}
       counters={[
         { label: "Authors", resource: "authors" },
-        { label: "Verified", resource: "authors", filter: { status: "verified" }, tone: "success" },
+        { label: "Verified", resource: "authors", filter: { status: "approved" }, tone: "success" },
         { label: "Products", resource: "products" },
         { label: "Payouts", resource: "partner_payouts" },
       ]}
@@ -174,13 +174,13 @@ export function VendorsLive() {
       Icon={Store}
       tabs={[
         { label: "All", resource: "vendors" },
-        { label: "Verified", resource: "vendors", filter: { status: "verified" } },
+        { label: "Verified", resource: "vendors", filter: { verified: "true" } },
         { label: "Commission", resource: "partner_commissions" },
         { label: "Payouts", resource: "partner_payouts" },
       ]}
       counters={[
         { label: "Vendors", resource: "vendors" },
-        { label: "Verified", resource: "vendors", filter: { status: "verified" }, tone: "success" },
+        { label: "Verified", resource: "vendors", filter: { verified: "true" }, tone: "success" },
         { label: "Commission", resource: "partner_commissions" },
         { label: "Payouts", resource: "partner_payouts" },
       ]}

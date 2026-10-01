@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { orderForTxnid } from "@/lib/commerce/payu-settle";
 
 /**
  * What actually happened to a payment.
@@ -47,6 +48,9 @@ const PORTAL_STATUS: Record<string, "paid" | "pending" | "failed"> = {
   cancelled: "failed",
 };
 
+/** PayU's answers that end an attempt without the money. */
+const FAILED_ATTEMPT = new Set(["failure", "failed", "usercancelled", "cancelled", "dropped", "bounced"]);
+
 export const Route = createFileRoute("/api/payment/status")({
   server: {
     handlers: {
@@ -59,17 +63,21 @@ export const Route = createFileRoute("/api/payment/status")({
         if (!txnid) return Response.json({ status: "unknown" });
 
         try {
-          const response = await fetch(
-            `${url()}/rest/v1/marketplace_orders` +
-              `?select=id,order_no,order_number,status,buyer_id,user_id,amount_inr,total,currency_charged` +
-              `&txnid=eq.${encodeURIComponent(txnid)}&limit=1`,
-            { headers: admin() },
+          // The transaction may be the order's current attempt or an earlier one.
+          const order = await orderForTxnid(
+            txnid,
+            "id,order_no,order_number,status,buyer_id,user_id,amount_inr,total,currency_charged,txnid,payu_status",
           );
-          const orders = response.ok ? ((await response.json()) as Record<string, unknown>[]) : [];
-          const order = orders[0];
           if (!order) return Response.json({ status: "unknown" });
 
-          const status = PORTAL_STATUS[String(order.status ?? "").toLowerCase()] ?? "pending";
+          // An unpaid order stays pending_payment after a failed attempt (the
+          // table has no failed status); PayU's answer for that attempt is kept
+          // in payu_status, and a failure is shown as one.
+          const orderStatus = String(order.status ?? "").toLowerCase();
+          const attemptFailed =
+            orderStatus === "pending_payment" &&
+            (order.txnid !== txnid || FAILED_ATTEMPT.has(String(order.payu_status ?? "").toLowerCase()));
+          const status = attemptFailed ? "failed" : PORTAL_STATUS[orderStatus] ?? "pending";
           const payload: Record<string, unknown> = {
             status,
             order_no: order.order_no ?? order.order_number ?? null,

@@ -66,13 +66,21 @@ export function LiveTable({
   title,
   columns: preferred,
   description,
+  filter,
 }: {
   resource: string;
   title?: string;
   /** Columns to show first; the rest follow. */
   columns?: string[];
   description?: string;
+  /** Rows to keep, column -> value, applied by the server (a tab such as "Verified"). */
+  filter?: Record<string, string>;
 }) {
+  const filterQuery = filter
+    ? Object.entries(filter)
+        .map(([column, value]) => `&filter=${encodeURIComponent(`${column}.eq.${value}`)}`)
+        .join("")
+    : "";
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -111,7 +119,8 @@ export function LiveTable({
         const response = await fetch(
           `/api/manager/resource?resource=${encodeURIComponent(resource)}` +
             `&limit=${PAGE}&offset=${offset}&search=${encodeURIComponent(term)}` +
-            (sortBy ? `&sort=${encodeURIComponent(sortBy)}&dir=${sortDir}` : ""),
+            (sortBy ? `&sort=${encodeURIComponent(sortBy)}&dir=${sortDir}` : "") +
+            filterQuery,
           { headers: await authHeaders() },
         );
         const payload = (await response.json()) as Payload;
@@ -130,7 +139,7 @@ export function LiveTable({
         setData(null);
       }
     },
-    [resource, sortBy, sortDir],
+    [resource, sortBy, sortDir, filterQuery],
   );
 
   useEffect(() => {

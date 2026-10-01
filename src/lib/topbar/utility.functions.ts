@@ -307,30 +307,29 @@ const STOP = new Set([
 async function searchCatalogueForChat(
   terms: string,
 ): Promise<{ name: string; slug: string; price: string | null; industry: string | null }[]> {
-  const base = process.env.SUPABASE_URL?.trim();
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ??
-    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ??
-    "";
-  if (!base || !key || !terms) return [];
-  const pattern = encodeURIComponent(`*${terms}*`);
+  // This runs in the visitor's browser. It used to read SUPABASE_URL and the
+  // service-role key from process.env, which the browser does not have, so
+  // the assistant either threw (leaving the box on "Thinking…") or found
+  // nothing. The public search endpoint is same-origin, published-only and
+  // rate limited, and is the one this comment always described.
+  if (!terms) return [];
   try {
     const response = await fetch(
-      `${base}/rest/v1/marketplace_products` +
-        `?select=name,slug,price_label,industry_label` +
-        `&visible=eq.true&content_status=eq.published` +
-        `&or=(name.ilike.${pattern},industry_label.ilike.${pattern},description.ilike.${pattern})` +
-        `&limit=5`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}` } },
+      `/api/marketplace/search?q=${encodeURIComponent(terms)}&limit=5`,
     );
     if (!response.ok) return [];
-    const rows = (await response.json()) as Record<string, unknown>[];
-    return rows.map((r) => ({
-      name: String(r.name ?? ""),
-      slug: String(r.slug ?? ""),
-      price: (r.price_label as string) ?? null,
-      industry: (r.industry_label as string) ?? null,
-    }));
+    const payload = (await response.json()) as { products?: Record<string, unknown>[] };
+    return (payload.products ?? []).slice(0, 5).map((r) => {
+      const pricing = r.pricing as { amount?: number; currency?: string } | null | undefined;
+      return {
+        name: String(r.name ?? ""),
+        slug: String(r.slug ?? ""),
+        price: pricing?.amount
+          ? `${pricing.currency ?? "USD"} ${pricing.amount}`
+          : ((r.price_label as string) ?? null),
+        industry: (r.industry_label as string) ?? null,
+      };
+    });
   } catch {
     return [];
   }

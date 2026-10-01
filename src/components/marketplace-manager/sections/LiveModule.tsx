@@ -75,17 +75,16 @@ export function LiveModule({
         const found: Record<string, number> = {};
         await Promise.all(
           wanted.map(async (counter) => {
-            const query = new URLSearchParams({ resource: counter.resource!, limit: "500" });
+            // Counted by the server, filter included. Counting the first 500
+            // rows here undercounted every table larger than that.
+            const query = new URLSearchParams({ resource: counter.resource!, limit: "1" });
+            for (const [column, value] of Object.entries(counter.filter ?? {})) {
+              query.append("filter", `${column}.eq.${value}`);
+            }
             const res = await fetch(`/api/manager/resource?${query}`, { headers });
             if (!res.ok) throw new Error(String(res.status));
             const payload = (await res.json()) as { rows?: Record<string, unknown>[]; total?: number };
-            const rows = payload.rows ?? [];
-            const narrowed = counter.filter
-              ? rows.filter((row) =>
-                  Object.entries(counter.filter!).every(([k, v]) => String(row[k] ?? "") === v),
-                )
-              : null;
-            found[counter.label] = narrowed ? narrowed.length : (payload.total ?? rows.length);
+            found[counter.label] = payload.total ?? (payload.rows ?? []).length;
           }),
         );
         if (alive) setFigures(found);
@@ -128,6 +127,7 @@ export function LiveModule({
             resource={current.resource}
             title={current.label}
             {...(current.columns ? { columns: current.columns } : {})}
+            {...(current.filter ? { filter: current.filter } : {})}
             description={`Reading ${current.label.toLowerCase()}…`}
           />
         ) : (

@@ -67,7 +67,7 @@ function CoursePage() {
                 Apply as a {course.appliesTo}
               </a>
             )}
-            <a href="/support" className="rounded-xl border border-white/15 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
+            <a href="/contact" className="rounded-xl border border-white/15 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
               Ask a question
             </a>
           </div>

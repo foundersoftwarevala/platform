@@ -1,3 +1,4 @@
+import { internalPath } from "@/lib/auth/internal-path";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, CheckCircle2, Eye, EyeOff, Fingerprint, Globe, LockKeyhole, Mail, Mic, MicOff, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -55,8 +56,9 @@ export function CanonicalLogin({ redirectTo }: Props) {
   }, [assistantLine, language.locale, voice]);
 
   const routeAfterAuth = async () => {
-    if (redirectTo?.startsWith("/")) {
-      window.location.assign(redirectTo);
+    const safe = internalPath(redirectTo);
+    if (safe) {
+      window.location.assign(safe);
       return;
     }
     const { data } = await supabase.auth.getUser();
@@ -115,8 +117,9 @@ export function CanonicalLogin({ redirectTo }: Props) {
     setOwlState("hide");
     // Carry the destination across the provider round trip, or the visitor
     // comes back signed in and lands somewhere they never asked for.
-    const back = redirectTo?.startsWith("/") && !redirectTo.startsWith("//")
-      ? `${window.location.origin}/login?redirect=${encodeURIComponent(redirectTo)}`
+    const safe = internalPath(redirectTo);
+    const back = safe
+      ? `${window.location.origin}/login?redirect=${encodeURIComponent(safe)}`
       : `${window.location.origin}/login`;
     const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: back } });
     if (error) {
