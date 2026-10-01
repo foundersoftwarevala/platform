@@ -12,11 +12,25 @@ import {
   toggleReaction,
 } from "@/services/chat/chat-service";
 import { uploadToBucket } from "@/services/chat/upload";
+import { subscribeNotificationStream } from "@/lib/realtime/notification-stream";
 import { mediaKindFor, type ChatMessage, type DraftAttachment } from "@/services/chat/types";
 
 export type ConnectionState = "connecting" | "live" | "reconnecting" | "offline";
 
 export function useConversations(userId: string | null) {
+  const queryClient = useQueryClient();
+  // The conversation list follows chat changes live. They arrive on the
+  // platform's notification stream: the /realtime socket below goes to the
+  // hosted project, which never sees this database's writes, so its
+  // postgres_changes never fire here.
+  useEffect(() => {
+    if (!userId) return;
+    return subscribeNotificationStream((e) => {
+      if (e.type === "open" || (e.type === "notification" && e.event?.startsWith("chat."))) {
+        void queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
+      }
+    });
+  }, [userId, queryClient]);
   return useQuery({
     queryKey: ["conversations", userId],
     enabled: !!userId,
@@ -101,7 +115,19 @@ export function useConversationRealtime(options: {
         }
       });
 
+    // Messages, reactions, receipts and attachments of this conversation, live,
+    // from the platform's notification stream (see useConversations). The
+    // channel above still carries typing and presence, which do not depend on
+    // database writes.
+    const unsubscribe = subscribeNotificationStream((e) => {
+      if (e.type === "open") return refresh();
+      if (e.type !== "notification" || e.conversation_id !== conversationId || !e.event?.startsWith("chat.")) return;
+      if (e.event === "chat.message" && e.sender_id && e.sender_id !== userId) incomingRef.current?.(e.sender_id);
+      refresh();
+    });
+
     return () => {
+      unsubscribe();
       void supabase.removeChannel(channel);
       channelRef.current = null;
       setTypingUsers([]);

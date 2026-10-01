@@ -1,3 +1,4 @@
+import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { motion } from "framer-motion";
 import { 
   Search, 
@@ -95,6 +96,9 @@ const DemoManagerTopBar = ({
           <Activity className="w-4 h-4 text-neon-green animate-pulse" />
           <span className="text-xs font-mono text-neon-green">99.9% UPTIME</span>
         </div>
+
+        {/* Internal chat */}
+        <ChatAppButton className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" />
 
         {/* Global Notification Header */}
         <GlobalNotificationHeader

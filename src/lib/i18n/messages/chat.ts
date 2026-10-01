@@ -225,4 +225,7 @@ export const CHAT_MESSAGES = {
   ],
   "chat.media.file": ["file", "fallback when a file has no known type"],
   "chat.media.download": "Download {name}",
+  // The chat button in every top bar.
+  "chat.app_button.label": ["Chat", "top-bar button that opens the internal chat"],
+  "chat.app_button.open": "Open internal chat",
 } as const;

@@ -1,3 +1,4 @@
+import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage, LANGUAGES } from "@/lib/language-catalog";
 import { Link } from "@tanstack/react-router";
@@ -1312,6 +1313,7 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
       <DashboardsMenu key="dashboards" t={t} roles={dashboardRoles} />,
       <CurrencyPicker key="cur" t={t} />,
       <Notifications key="notif" t={t} />,
+      <ChatAppButton key="chat" className={`${TRIGGER} relative`} iconClassName="h-3.5 w-3.5" label={t("Chat")} />,
       <Favorites key="fav" count={favoritesCount} />,
       <AiChat key="ai" t={t} />,
     ],
