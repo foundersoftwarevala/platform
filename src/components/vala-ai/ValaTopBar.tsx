@@ -1,3 +1,4 @@
+import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import { Bell, Bug, Cpu, FileText, Menu, MoreHorizontal, Plus, RotateCcw, Search, Settings, Wallet } from "lucide-react";
@@ -56,6 +57,7 @@ export function ValaTopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
               <TooltipContent side="bottom">{t("Search prompts")}</TooltipContent>
             </Tooltip>
 
+            <ChatAppButton className={ICON_BTN} iconClassName="h-[18px] w-[18px]" />
             <IconAction icon={Bell} label={t("Error Detection")} to="/errors" />
             {ACTIONS.map((a) => (
               <IconAction key={a.label} icon={a.icon} label={t(a.label)} to={a.to} className="hidden xl:grid" />

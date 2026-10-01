@@ -1,3 +1,4 @@
+import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { LanguageSelector } from "@/components/i18n/LanguageSelector";
 import { Link } from "@tanstack/react-router";
 import { Bell, Search, Sparkles, Zap, ChevronDown, User2, Settings, Menu, Trophy } from "lucide-react";
@@ -49,6 +50,7 @@ export function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
             <Bell className="h-[18px] w-[18px]" />
             <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
           </Link>
+          <ChatAppButton className={cn(ICON_BTN, "hidden sm:grid")} iconClassName="h-[18px] w-[18px]" />
           <Link to="/ams/ai" className={cn(ICON_BTN, "hidden sm:grid")} aria-label="AI Center">
             <Sparkles className="h-[18px] w-[18px]" />
           </Link>

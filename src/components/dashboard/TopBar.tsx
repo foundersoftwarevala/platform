@@ -1,3 +1,4 @@
+import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { Search, MessageSquare, Sparkles, Wallet, Trophy, Zap, ChevronDown, Store, User, Settings, LogOut, Repeat, Check, Plus, Award, Hourglass, Coins, TrendingUp, Link2, QrCode, BadgeCheck } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { useEffect, useRef, useState } from "react";
@@ -88,15 +89,13 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
         <kbd aria-hidden className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted-foreground border border-border">⌘K</kbd>
       </div>
 
-      {/* Connect Chat — same central chat ecosystem for every dashboard role */}
-      <button
-        onClick={() => navigate({ to: "/chat" })}
-        aria-label="Open internal chat"
+      {/* Connect Chat — same central chat ecosystem for every dashboard role,
+          shown to the roles Chat Manager allows to send messages */}
+      <ChatAppButton
+        label="Chat"
+        iconClassName="h-3.5 w-3.5"
         className="inline-flex items-center gap-2 rounded-lg bg-surface px-2.5 py-2 text-xs font-medium text-foreground/90 border border-border hover:bg-surface-2 transition md:px-3"
-      >
-        <MessageSquare className="h-3.5 w-3.5" />
-        <span className="hidden md:inline">Chat</span>
-      </button>
+      />
 
       {/* AI Chat */}
       <button
