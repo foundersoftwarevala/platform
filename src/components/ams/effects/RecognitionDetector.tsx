@@ -52,16 +52,22 @@ export function RecognitionDetector() {
       timer.current = null;
       if (!alive || reading.current || pending.current.size === 0) return;
       if (document.visibilityState !== "visible") return; // resumed on visibilitychange
-      const ids = [...pending.current].slice(0, 50);
+      // Everything waiting, read in the server's 50-id chunks and handed over
+      // together, so one moment that granted more than 50 lines is still one
+      // presentation.
+      const ids = [...pending.current];
       ids.forEach((id) => {
         pending.current.delete(id);
         handled.current.add(id);
       });
       reading.current = true;
       try {
-        const { data, error } = await supabase.rpc("ams_recognition_peek" as never, { p_ledger_ids: ids } as never);
-        if (error) throw error;
-        const unseen = ((data as { recognitions?: Recognition[] } | null)?.recognitions ?? []).filter(Boolean);
+        const unseen: Recognition[] = [];
+        for (let i = 0; i < ids.length; i += 50) {
+          const { data, error } = await supabase.rpc("ams_recognition_peek" as never, { p_ledger_ids: ids.slice(i, i + 50) } as never);
+          if (error) throw error;
+          unseen.push(...((data as { recognitions?: Recognition[] } | null)?.recognitions ?? []).filter(Boolean));
+        }
         if (unseen.length > 0) presentRecognitions(unseen);
       } catch {
         // Not read, so not lost: the next catch-up finds them again.

@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 export type StreamEvent =
   | { type: "open" }
   | { type: "unavailable" }
-  | { type: "notification"; id: string; event: string | null; ledger_id: string | null };
+  | { type: "notification"; id: string | null; event: string | null; ledger_id: string | null; conversation_id: string | null; sender_id: string | null };
 
 type Listener = (e: StreamEvent) => void;
 
@@ -124,8 +124,8 @@ async function connect() {
         if (name === "ready") emit({ type: "open" });
         else if (name === "notification") {
           try {
-            const d = JSON.parse(data) as { id: string; event: string | null; ledger_id: string | null };
-            emit({ type: "notification", id: d.id, event: d.event, ledger_id: d.ledger_id });
+            const d = JSON.parse(data) as { id: string | null; event: string | null; ledger_id?: string | null; conversation_id?: string | null; sender_id?: string | null };
+            emit({ type: "notification", id: d.id, event: d.event, ledger_id: d.ledger_id ?? null, conversation_id: d.conversation_id ?? null, sender_id: d.sender_id ?? null });
           } catch {
             /* a malformed event is skipped */
           }

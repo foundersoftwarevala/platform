@@ -90,7 +90,8 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
   useEffect(() => {
     if (!userId) return;
     return subscribeNotificationStream((e) => {
-      if (e.type === "notification" || e.type === "open") {
+      // Chat traffic travels the same stream; it is not a notification.
+      if ((e.type === "notification" && !e.event?.startsWith("chat.")) || e.type === "open") {
         void qc.invalidateQueries({ queryKey: ["notification-bell", userId] });
       }
     });
