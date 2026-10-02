@@ -2004,6 +2004,9 @@ const RESOURCES: Record<string, Resource> = {
       "publish_at",
       "unpublish_at",
       "updated_at",
+      // When the product was added: Product Manager's list and its
+      // "recent" panel print and sort by it, and it was never selected.
+      "created_at",
     ],
     // `search_keywords` is what the product's own meta tags and its country
     // targeting are built from. It had no way in from any screen, so the terms
@@ -2051,6 +2054,9 @@ const RESOURCES: Record<string, Resource> = {
       "category_id",
       "description",
       "search_keywords",
+      // Product Manager's Add Product form offers features; the storefront
+      // already reads the column.
+      "features",
     ],
     required: ["name", "slug"],
     archive: { visible: false, content_status: "archived" },
@@ -4062,7 +4068,12 @@ export const Route = createFileRoute("/api/manager/resource")({
         const askedSort = inward(resource, (params.get("sort") ?? "").trim());
         const sortable = resource.select.includes(askedSort) ? askedSort : null;
         const direction = params.get("dir") === "desc" ? "desc" : "asc";
-        const order = sortable ? `${sortable}.${direction}` : resource.order;
+        const primary = sortable ? `${sortable}.${direction}` : resource.order;
+        // A unique last key, so a page boundary falls in the same place every
+        // time. sort_order is shared by many rows; ordered by it alone, paging
+        // repeated some rows and never showed others.
+        const order =
+          resource.select.includes("id") && !/(^|,)id\./.test(primary) ? `${primary},id.asc` : primary;
 
         // Section 4. Same rule: a filter names a column the resource exposes,
         // an operator from a fixed list, and a value that is clipped. Anything
