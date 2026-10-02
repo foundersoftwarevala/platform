@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const PAGE = 100;
 
@@ -47,6 +47,10 @@ const ProductList = () => {
   // Dates and numbers in the viewer's language (they were English only).
   const { t, formatDate, formatNumber } = useTranslation();
   const [viewingProduct, setViewingProduct] = useState<any>(null);
+  // The dialog is opened from code, not from a DialogTrigger, so Radix does not
+  // know where focus came from: closing it left a keyboard user on the page
+  // body. The View button that opened it is remembered and given focus back.
+  const openedFrom = useRef<HTMLElement | null>(null);
 
   /**
    * Products, and the demo count beside each, from the VPS.
@@ -194,7 +198,10 @@ const ProductList = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setViewingProduct(product)}
+                          onClick={(e) => {
+                            openedFrom.current = e.currentTarget;
+                            setViewingProduct(product);
+                          }}
                           className="text-cyan-400 hover:text-cyan-300"
                         >
                           <Eye className="w-4 h-4 mr-1" />
@@ -212,7 +219,13 @@ const ProductList = () => {
 
       {/* View Product Dialog */}
       <Dialog open={!!viewingProduct} onOpenChange={() => setViewingProduct(null)}>
-        <DialogContent className="bg-slate-900 border-slate-700 max-w-lg">
+        <DialogContent
+          className="bg-slate-900 border-slate-700 max-w-lg"
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            openedFrom.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Package className="w-5 h-5 text-violet-400" />
