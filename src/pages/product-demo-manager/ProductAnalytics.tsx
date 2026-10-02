@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart3, Lock, TrendingUp, Eye } from "lucide-react";
 import { useResource } from "@/lib/manager/use-resource";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 /**
  * Demo activity, counted on the VPS.
@@ -16,6 +17,7 @@ import { useResource } from "@/lib/manager/use-resource";
  * own count now, so they stay right however large the log grows.
  */
 const ProductAnalytics = () => {
+  const { t } = useTranslation();
   const all = useResource("demo_audit", { limit: 1 });
   /**
    * "Demo Engagement" counted audit entries with the action `demo_url.test`,
@@ -27,21 +29,22 @@ const ProductAnalytics = () => {
    */
   const opens = useResource("demo_clicks", { limit: 1 });
   const isLoading = all.loading || opens.loading;
-  const audit = { length: all.total };
-  const checks = opens.total;
+  // A count that could not be read is a dash, not 0.
+  const audit = { length: all.failed ? "—" : all.total };
+  const checks = opens.failed ? "—" : opens.total;
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-pink-400" />
-            Analytics
+            {t("manager.products.analytics_title")}
           </h1>
-          <p className="text-slate-400 text-sm">Read-only analytics and reports</p>
+          <p className="text-slate-400 text-sm">{t("manager.products.analytics_subtitle")}</p>
         </div>
         <Badge variant="outline" className="border-amber-500/50 text-amber-400">
           <Eye className="w-3 h-3 mr-1" />
-          View Only
+          {t("manager.products.view_only")}
         </Badge>
       </div>
 
@@ -54,7 +57,7 @@ const ProductAnalytics = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold text-white">{isLoading ? "..." : checks}</p>
-                <p className="text-xs text-slate-400">Demo Engagement</p>
+                <p className="text-xs text-slate-400">{t("manager.products.demo_engagement")}</p>
               </div>
             </div>
           </CardContent>
@@ -68,7 +71,7 @@ const ProductAnalytics = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold text-white">{isLoading ? "..." : audit.length}</p>
-                <p className="text-xs text-slate-400">Tracked actions</p>
+                <p className="text-xs text-slate-400">{t("manager.products.tracked_actions")}</p>
               </div>
             </div>
           </CardContent>
@@ -82,7 +85,7 @@ const ProductAnalytics = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold text-white">-</p>
-                <p className="text-xs text-slate-400">Growth unavailable</p>
+                <p className="text-xs text-slate-400">{t("manager.products.growth_unavailable")}</p>
               </div>
             </div>
           </CardContent>
@@ -93,12 +96,12 @@ const ProductAnalytics = () => {
         <CardHeader>
           <CardTitle className="text-white text-sm flex items-center gap-2">
             <Lock className="w-4 h-4 text-amber-400" />
-            Analytics Data (Read Only)
+            {t("manager.products.analytics_data")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-64 flex items-center justify-center border border-dashed border-slate-700 rounded-lg">
-            <p className="text-slate-400">No chart data is available yet.</p>
+            <p className="text-slate-400">{t("manager.products.no_chart_data")}</p>
           </div>
         </CardContent>
       </Card>

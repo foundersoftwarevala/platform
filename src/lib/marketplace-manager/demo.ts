@@ -216,7 +216,8 @@ async function checkOnce(url: string) {
   }
 }
 
-async function runCheck(row: DemoUrl) {
+/** One address checked and its result stored against it - the Health Check tab uses it too. */
+export async function runCheck(row: DemoUrl) {
   const r = await checkOnce(row.url);
   const patch = {
     last_checked_at: now(),

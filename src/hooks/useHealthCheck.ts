@@ -39,7 +39,61 @@ export const useHealthCheck = () => {
     setSummary(null);
 
     try {
-      // Get all demo IDs if not provided
+      /**
+       * Every live demo, from the table the storefront serves.
+       *
+       * With no ids this read the legacy `demos` table through the browser
+       * Supabase client - the hosted project - and asked a hosted edge function
+       * to check those. The demos visitors open are product_demo_urls on the
+       * VPS, so the panel checked a list nobody uses and stored nothing where
+       * the studio reads it. It now checks the real addresses with the Demo
+       * Manager's own check, one at a time, and the result is saved against
+       * each address.
+       */
+      if (!demoIds || demoIds.length === 0) {
+        const { listDemoUrls, runCheck } = await import("@/lib/marketplace-manager/demo");
+        const active = (await listDemoUrls()).filter((d) => d.status === "active");
+        const batches = Math.max(1, Math.ceil(active.length / batchSize));
+        setTotalBatches(batches);
+        const checked: HealthCheckResult[] = [];
+        const tally: HealthCheckSummary = { total: 0, healthy: 0, unhealthy: 0, error: 0 };
+        for (let i = 0; i < active.length; i++) {
+          setCurrentBatch(Math.floor(i / batchSize) + 1);
+          const row = active[i];
+          try {
+            const r = await runCheck(row);
+            const status: HealthCheckResult["status"] =
+              r.last_result === "offline" ? (r.last_http_status ? "unhealthy" : "error") : "healthy";
+            checked.push({
+              id: row.id,
+              url: row.url,
+              status,
+              http_status: r.last_http_status ?? null,
+              response_time_ms: r.last_response_ms ?? null,
+            });
+            tally[status] += 1;
+          } catch (e) {
+            checked.push({
+              id: row.id,
+              url: row.url,
+              status: "error",
+              http_status: null,
+              response_time_ms: null,
+              error: e instanceof Error ? e.message : String(e),
+            });
+            tally.error += 1;
+          }
+          tally.total += 1;
+          setProgress(Math.round(((i + 1) / active.length) * 100));
+          setResults([...checked]);
+          setSummary({ ...tally });
+        }
+        if (!active.length) setProgress(100);
+        toast.success(`Health check completed! ${tally.healthy}/${tally.total} healthy`);
+        return { results: checked, summary: tally };
+      }
+
+      // Specific ids (the broken-demo alerts) keep their own path.
       let idsToCheck = demoIds;
       
       if (!idsToCheck || idsToCheck.length === 0) {

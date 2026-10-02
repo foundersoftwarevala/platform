@@ -440,13 +440,16 @@ export async function readResourceRows(
 
   const clause = where.length ? `where ${where.join(" and ")}` : "";
 
-  const [column, direction] = query.order.split(".");
-  const by = identifier(column ?? "id");
-  const dir = direction === "desc" ? "desc" : "asc";
+  // The order may name a tie-breaker after the main key ("score.desc,id.asc");
+  // each key is read on its own, so the direction of the first is kept.
+  const keys = query.order.split(",").map((key) => {
+    const [column, direction] = key.split(".");
+    return `${identifier(column || "id")} ${direction === "desc" ? "desc" : "asc"} nulls last`;
+  });
 
   const rows = (await sql.unsafe(
     `select ${columns} from public.${table} ${clause}
-      order by ${by} ${dir} nulls last
+      order by ${keys.join(", ")}
       limit ${Math.min(Math.max(Math.trunc(query.limit) || 50, 1), 200)}
       offset ${Math.max(Math.trunc(query.offset) || 0, 0)}`,
     params as never[],
