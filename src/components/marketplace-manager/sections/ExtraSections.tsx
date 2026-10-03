@@ -26,6 +26,7 @@ import { Card, EmptyHint, PageHeader, PillButton, SubNav } from "../ui";
 import { notBuilt } from "@/lib/ui/not-built";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import {
   listTopBarModules,
   configureTopBarModule,
@@ -47,6 +48,7 @@ function Switch({ on = false }: { on?: boolean }) {
 
 // ---------- STOREFRONT TOPBAR MANAGER ----------
 export function StorefrontTopBarSection() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("Navigation");
   const qc = useQueryClient();
 
@@ -61,9 +63,9 @@ export function StorefrontTopBarSection() {
       configureTopBarModule({ data: v as never }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["marketplace", "topbar"] });
-      toast.success("Top bar updated");
+      toast.success(t("storeadmin.extra.topbar_updated"));
     },
-    onError: (e: Error) => toast.error("That change was refused", { description: e.message }),
+    onError: (e: Error) => toast.error(t("storeadmin.extra.change_refused"), { description: e.message }),
   });
 
   const modules = data?.modules ?? [];
@@ -75,9 +77,9 @@ export function StorefrontTopBarSection() {
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
-        eyebrow="Storefront Top Bar"
-        title="Public Top Bar Manager"
-        description="What customers see at the top of the marketplace storefront. Reads the same registry as Top Bar, so both screens and the header agree."
+        eyebrow={t("storeadmin.extra.topbar_eyebrow")}
+        title={t("storeadmin.extra.topbar_title")}
+        description={t("storeadmin.extra.topbar_description")}
       />
 
       <SubNav
@@ -96,19 +98,19 @@ export function StorefrontTopBarSection() {
       <Card className="mb-6">
         <div className="mb-2 flex items-center justify-between">
           <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Live preview
+            {t("storeadmin.extra.live_preview")}
           </div>
           <div className="text-[11px] text-muted-foreground">
             {isLoading
-              ? "loading…"
-              : `${rendered.filter((m) => m.status === "live").length} live on the storefront`}
+              ? t("storeadmin.extra.loading")
+              : t("storeadmin.extra.live_count", { count: rendered.filter((m) => m.status === "live").length })}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/60 px-4 py-3 text-xs">
-          {isLoading && <span className="text-muted-foreground">Reading the registry…</span>}
+          {isLoading && <span className="text-muted-foreground">{t("storeadmin.extra.reading_registry")}</span>}
           {!isLoading && rendered.filter((m) => m.status === "live").length === 0 && (
             <span className="text-muted-foreground">
-              No module is live, so the header would be empty.
+              {t("storeadmin.extra.none_live")}
             </span>
           )}
           {rendered
@@ -124,9 +126,7 @@ export function StorefrontTopBarSection() {
         </div>
         {planned.length > 0 && (
           <div className="mt-2 text-[11px] text-muted-foreground">
-            {planned.length} module{planned.length === 1 ? " is" : "s are"} registered but not
-            rendered by the header yet, so {planned.length === 1 ? "it does" : "they do"} not appear
-            above.
+            {t("storeadmin.extra.planned_note", { count: planned.length })}
           </div>
         )}
       </Card>
@@ -193,11 +193,12 @@ function ModuleGrid({
   save: { mutate: (v: { key: string; patch: Record<string, unknown> }) => void };
   loading: boolean;
 }) {
+  const { t } = useTranslation();
   if (loading) {
-    return <div className="text-xs text-muted-foreground">Reading the registry…</div>;
+    return <div className="text-xs text-muted-foreground">{t("storeadmin.extra.reading_registry")}</div>;
   }
   if (modules.length === 0) {
-    return <div className="text-xs text-muted-foreground">No module in this group.</div>;
+    return <div className="text-xs text-muted-foreground">{t("storeadmin.extra.no_module_in_group")}</div>;
   }
   return (
     <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -215,13 +216,13 @@ function ModuleGrid({
               <div className="mt-1 text-[10px] text-muted-foreground">
                 {m.rendered
                   ? `${m.component} · ${m.status}`
-                  : `not rendered yet — ${m.blocked_reason ?? "no component"}`}
+                  : t("storeadmin.extra.not_rendered", { reason: m.blocked_reason ?? t("storeadmin.extra.no_component") })}
               </div>
             </div>
             <button
               type="button"
               disabled={!m.rendered}
-              title={m.rendered ? "Toggle on the storefront" : "Nothing renders this module yet"}
+              title={m.rendered ? t("storeadmin.extra.toggle_title") : t("storeadmin.extra.nothing_renders")}
               onClick={() =>
                 save.mutate({
                   key: m.module_key,
@@ -236,7 +237,7 @@ function ModuleGrid({
                     : "bg-muted/50 text-muted-foreground"
               }`}
             >
-              {m.rendered ? (m.status === "live" ? "Live" : "Hidden") : "Planned"}
+              {m.rendered ? (m.status === "live" ? t("storeadmin.extra.status_live") : t("storeadmin.extra.status_hidden")) : t("storeadmin.extra.status_planned")}
             </button>
           </div>
         );
@@ -253,6 +254,7 @@ function ModuleGrid({
 export { FooterSection } from "./StorefrontChrome";
 
 export function FooterSectionStatic() {
+  const { t } = useTranslation();
   const columns = [
     ["Company", ["About", "Careers", "Blog", "Press", "Contact"]],
     ["Marketplace", ["All Products", "Categories", "Top Selling", "New Launches", "Offers"]],
@@ -271,15 +273,15 @@ export function FooterSectionStatic() {
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
-        eyebrow="Footer Manager"
-        title="Storefront Footer"
-        description="Columns, links, newsletter, social handles, payment & trust strip — visible on every public page."
-        actions={<PillButton variant="primary">Publish Footer</PillButton>}
+        eyebrow={t("storeadmin.extra.footer_eyebrow")}
+        title={t("storeadmin.extra.footer_title")}
+        description={t("storeadmin.extra.footer_description")}
+        actions={<PillButton variant="primary">{t("storeadmin.extra.publish_footer")}</PillButton>}
       />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <Card>
-          <h3 className="mb-3 text-base font-bold">Link columns</h3>
+          <h3 className="mb-3 text-base font-bold">{t("storeadmin.extra.link_columns")}</h3>
           <div className="grid gap-3 md:grid-cols-2">
             {columns.map(([title, links]) => (
               <div key={title} className="rounded-xl border border-border bg-background/40 p-3">
@@ -292,7 +294,7 @@ export function FooterSectionStatic() {
                     onClick={() => notBuilt("+ Link")}
                     className="text-[11px] text-muted-foreground hover:text-foreground"
                   >
-                    + Link
+                    {t("storeadmin.extra.add_link")}
                   </button>
                 </div>
                 <ul className="space-y-1.5 text-sm text-muted-foreground">
@@ -312,23 +314,23 @@ export function FooterSectionStatic() {
 
         <div className="space-y-4">
           <Card>
-            <h3 className="mb-2 text-sm font-bold">Newsletter</h3>
+            <h3 className="mb-2 text-sm font-bold">{t("storeadmin.extra.newsletter")}</h3>
             <div className="flex items-center gap-2 rounded-lg border border-border bg-background/40 p-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
               <input
-                placeholder="Subscribe heading…"
+                placeholder={t("storeadmin.extra.subscribe_placeholder")}
                 defaultValue="Get marketplace updates"
                 className="flex-1 bg-transparent text-sm focus:outline-none"
               />
             </div>
             <div className="mt-2 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Show on footer</span>
+              <span className="text-xs text-muted-foreground">{t("storeadmin.extra.show_on_footer")}</span>
               <Switch on />
             </div>
           </Card>
 
           <Card>
-            <h3 className="mb-2 text-sm font-bold">Social handles</h3>
+            <h3 className="mb-2 text-sm font-bold">{t("storeadmin.extra.social_handles")}</h3>
             <div className="space-y-2">
               {socials.map(([n, I]) => (
                 <div key={n} className="flex items-center gap-2">
@@ -344,8 +346,8 @@ export function FooterSectionStatic() {
           </Card>
 
           <Card>
-            <h3 className="mb-2 text-sm font-bold">Trust strip</h3>
-            <EmptyHint text="Payment icons, ISO badges and SSL marks shown in footer." />
+            <h3 className="mb-2 text-sm font-bold">{t("storeadmin.extra.trust_strip")}</h3>
+            <EmptyHint text={t("storeadmin.extra.trust_strip_hint")} />
           </Card>
         </div>
       </div>
@@ -389,16 +391,17 @@ export function FiltersSectionStatic() {
     ["Rating", ["5★", "4★+", "3★+", "Any"]],
     ["License", ["Single", "Multi", "Lifetime", "Subscription"]],
   ] as const;
+  const { t } = useTranslation();
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
-        eyebrow="Filter Manager"
-        title="Storefront Filters"
-        description="Faceted filters for category, deployment, platform, tags, price, rating & license."
+        eyebrow={t("storeadmin.extra.filters_eyebrow")}
+        title={t("storeadmin.extra.filters_title")}
+        description={t("storeadmin.extra.filters_description")}
         actions={
           <PillButton variant="primary">
             <span className="inline-flex items-center gap-1.5">
-              <Plus className="h-3.5 w-3.5" /> New Filter
+              <Plus className="h-3.5 w-3.5" /> {t("storeadmin.extra.new_filter")}
             </span>
           </PillButton>
         }
@@ -449,6 +452,7 @@ export function FiltersSectionStatic() {
  * to where its release is scheduled. Neither button was removed.
  */
 export function UpcomingSection() {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<Record<string, unknown>[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -483,22 +487,22 @@ export function UpcomingSection() {
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
-        eyebrow="Upcoming & Waitlist"
-        title="Coming Soon Manager"
-        description="Pre-launch products with countdowns, Notify-Me capture and waitlist tracking."
-        actions={<PillButton variant="premium">+ Upcoming Product</PillButton>}
+        eyebrow={t("storeadmin.extra.upcoming_eyebrow")}
+        title={t("storeadmin.extra.upcoming_title")}
+        description={t("storeadmin.extra.upcoming_description")}
+        actions={<PillButton variant="premium">{t("storeadmin.extra.upcoming_product")}</PillButton>}
       />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {loading && <EmptyHint text="Reading the catalogue…" />}
-        {failed && <EmptyHint text={`The catalogue could not be read (${failed}).`} />}
+        {loading && <EmptyHint text={t("storeadmin.extra.reading_catalogue")} />}
+        {failed && <EmptyHint text={t("storeadmin.extra.catalogue_failed", { reason: failed })} />}
         {!loading && !failed && upcoming.length === 0 && (
-          <EmptyHint text="Nothing is waiting to launch — every product in the catalogue is published." />
+          <EmptyHint text={t("storeadmin.extra.nothing_upcoming")} />
         )}
         {upcoming.map((p, i) => (
           <Card key={String(p.id ?? i)} className="overflow-hidden">
             <div className="relative h-28 rounded-lg bg-gradient-to-br from-primary/40 via-surface to-accent/40">
               <span className="absolute left-2 top-2 rounded bg-background/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent backdrop-blur">
-                Coming Soon
+                {t("storeadmin.extra.coming_soon")}
               </span>
               <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded bg-background/60 px-2 py-0.5 text-[10px] font-bold text-premium backdrop-blur">
                 <Clock className="h-3 w-3" /> {30 + i}d
@@ -506,13 +510,13 @@ export function UpcomingSection() {
             </div>
             <div className="mt-3">
               <div className="text-sm font-bold">
-                {String(p.name ?? p.slug ?? "unnamed product")}
+                {String(p.name ?? p.slug ?? t("storeadmin.extra.unnamed_product"))}
               </div>
               <div className="text-[11px] text-muted-foreground">
-                Release:{" "}
+                {t("storeadmin.extra.release")}{" "}
                 {p.publish_at
                   ? new Date(String(p.publish_at)).toLocaleDateString()
-                  : "not scheduled"}
+                  : t("storeadmin.extra.not_scheduled")}
                 {"  ·  "}
                 {String(p.content_status ?? "draft")}
               </div>
@@ -524,7 +528,7 @@ export function UpcomingSection() {
                   }
                   className="flex-1 rounded-md bg-gradient-to-r from-primary to-accent px-2 py-1.5 text-[11px] font-bold text-primary-foreground"
                 >
-                  Open product
+                  {t("storeadmin.extra.open_product")}
                 </button>
                 <button
                   type="button"
@@ -536,7 +540,7 @@ export function UpcomingSection() {
                   }
                   className="rounded-md border border-border bg-background/60 px-2 py-1.5 text-[11px]"
                 >
-                  Schedule
+                  {t("storeadmin.extra.schedule")}
                 </button>
               </div>
             </div>
@@ -557,12 +561,13 @@ export function NotificationsSection() {
     ["Web Push", "Browser push for offers and launches"],
     ["Telegram", "Channel broadcasts"],
   ] as const;
+  const { t } = useTranslation();
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
-        eyebrow="Notifications"
-        title="Notification Channels"
-        description="What the storefront can send and where it shows up."
+        eyebrow={t("storeadmin.extra.notifications_eyebrow")}
+        title={t("storeadmin.extra.notifications_title")}
+        description={t("storeadmin.extra.notifications_description")}
       />
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {channels.map(([n, d]) => (

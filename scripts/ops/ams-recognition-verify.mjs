@@ -396,14 +396,14 @@ try {
   await page.close();
   one(ingest("lead.captured", "h1"));
   const hIds = sql(`select id from ${linesOf(["h1"])} x`).slice(1);
-  const race = await Promise.all([0, 1].map(() => fetch(`${ops.SV_API_BASE ?? "https://softwarevala.net"}/rest/v1/rpc/ams_recognition_claim`, {
+  const race = await Promise.all([0, 1].map(() => fetch(`${process.env.SV_API_BASE ?? ops.SV_API_BASE ?? "https://softwarevala.net"}/rest/v1/rpc/ams_recognition_claim`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, apikey: ops.SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json" },
     body: JSON.stringify({ p_ledger_ids: hIds }),
   }).then((r) => r.json())));
   const wins = race.map((r) => r.claimed?.length ?? -1);
   check("H  two claims at once: one wins every line, the other none", wins.sort().join(",") === `0,${hIds.length}`, wins.join(" / "));
-  const arbitrary = await fetch(`${ops.SV_API_BASE ?? "https://softwarevala.net"}/rest/v1/rpc/ams_recognition_peek`, {
+  const arbitrary = await fetch(`${process.env.SV_API_BASE ?? ops.SV_API_BASE ?? "https://softwarevala.net"}/rest/v1/rpc/ams_recognition_peek`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, apikey: ops.SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json" },
     body: JSON.stringify({ p_ledger_ids: ["00000000-0000-4000-8000-000000000000", crypto.randomUUID()] }),
@@ -502,7 +502,7 @@ try {
   /* ---------------------------------------------------------- T: writes and reads through the public API */
   // As the signed-in reseller, and as anon, straight at PostgREST: every write
   // to AMS state must be refused, and nothing of another person readable.
-  const API = ops.SV_API_BASE ?? "https://softwarevala.net";
+  const API = process.env.SV_API_BASE ?? ops.SV_API_BASE ?? "https://softwarevala.net";
   const asUser = { Authorization: `Bearer ${token}`, apikey: ops.SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json", Prefer: "return=representation" };
   const asAnon = { apikey: ops.SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json", Prefer: "return=representation" };
   const me = one(`select id from auth.users where email='test.reseller@softwarevala.test'`);
@@ -778,7 +778,7 @@ try {
   await page.goto(`${BASE}/verify/${encodeURIComponent("SV-CRT-%27;drop--")}`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(4000);
   check("24 a malformed number is simply not recognised", (await page.locator("[data-certificate-verify]").getAttribute("data-certificate-verify")) === "invalid");
-  const pub = await fetch(`${ops.SV_API_BASE ?? "https://softwarevala.net"}/rest/v1/rpc/ams_verify_certificate`, {
+  const pub = await fetch(`${process.env.SV_API_BASE ?? ops.SV_API_BASE ?? "https://softwarevala.net"}/rest/v1/rpc/ams_verify_certificate`, {
     method: "POST", headers: { apikey: ops.SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json" },
     body: JSON.stringify({ p_certificate_no: revokedNo }),
   }).then((r) => r.json());
@@ -888,7 +888,7 @@ try {
     const history = await fetch(`${base}/rest/v1/rpc/ams_recognitions`, { method: "POST", headers: h, body: JSON.stringify({ p_role: "author", p_user_id: foreignOwner, p_limit: 10 }) });
     const peek = await fetch(`${base}/rest/v1/ams_recognition_presentations?select=ledger_id&ledger_id=eq.${foreignId}`, { headers: h });
     return { inserted: ins.status, claim: await claim.json(), read: await peekRpc.json(), history: await history.json(), peek: await peek.json() };
-  }, { t: token, foreignId: foreign, foreignOwner, run: RUN, base: ops.SV_API_BASE ?? "https://softwarevala.net", key: ops.SUPABASE_PUBLISHABLE_KEY });
+  }, { t: token, foreignId: foreign, foreignOwner, run: RUN, base: process.env.SV_API_BASE ?? ops.SV_API_BASE ?? "https://softwarevala.net", key: ops.SUPABASE_PUBLISHABLE_KEY });
   check("18 a user cannot claim someone else's recognition", Array.isArray(forged.claim?.claimed) && forged.claim.claimed.length === 0, JSON.stringify(forged.claim).slice(0, 80));
   check("18 nor read it before it is shown", Array.isArray(forged.read?.recognitions) && forged.read.recognitions.length === 0, JSON.stringify(forged.read).slice(0, 80));
   check("18 nor read their history", forged.history?.reason === "not_permitted", JSON.stringify(forged.history).slice(0, 80));

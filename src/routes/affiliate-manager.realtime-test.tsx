@@ -49,18 +49,18 @@ function RealtimeTestHarness() {
       .channel(`realtime-test-${sessionId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "activity_log" },
-        (payload) => ingest("activity_log", payload),
+        { event: "*", schema: "public", table: "activity_logs" },
+        (payload) => ingest("activity_logs", payload),
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "affiliates" },
-        (payload) => ingest("affiliates", payload),
+        { event: "*", schema: "public", table: "marketplace_affiliate_partners" },
+        (payload) => ingest("marketplace_affiliate_partners", payload),
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "commissions" },
-        (payload) => ingest("commissions", payload),
+        { event: "*", schema: "public", table: "partner_commissions", filter: "partner_kind=eq.affiliate" },
+        (payload) => ingest("partner_commissions", payload),
       )
       .on(
         "postgres_changes",
@@ -69,8 +69,8 @@ function RealtimeTestHarness() {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "payouts" },
-        (payload) => ingest("payouts", payload),
+        { event: "*", schema: "public", table: "partner_payouts", filter: "partner_kind=eq.affiliate" },
+        (payload) => ingest("partner_payouts", payload),
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") setRunning(true);

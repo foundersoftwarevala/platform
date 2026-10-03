@@ -161,6 +161,24 @@ export function useAuditTrail(params: {
   });
 }
 
+/**
+ * Every audit entry matching the screen's search and module filter, for the
+ * CSV export: read page by page through the same operator-only server
+ * function, so the file holds the whole filtered trail, not the visible page.
+ */
+export function useAuditTrailExport() {
+  const fetchAudit = useServerFn(getAuditTrail);
+  return async (params: { search: string; module: string }): Promise<AuditTrailDTO["entries"]> => {
+    const pageSize = 200;
+    const all: AuditTrailDTO["entries"] = [];
+    for (let page = 1; ; page++) {
+      const result = await fetchAudit({ data: { ...params, page, pageSize } });
+      all.push(...result.entries);
+      if (result.entries.length < pageSize || all.length >= result.total) return all;
+    }
+  };
+}
+
 export const REGISTRY_QUERY_KEY = ["dev-manager", "registry"] as const;
 
 /** Live developer registry (real rows from the backend). */

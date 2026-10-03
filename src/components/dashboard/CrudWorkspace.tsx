@@ -318,7 +318,7 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
 
         <div className="flex items-center gap-0.5 rounded-lg bg-surface border border-border p-0.5">
           {([["table", TableIcon], ["grid", LayoutGrid], ["list", ListIcon]] as const).map(([v, I]) => (
-            <button key={v} onClick={() => setView(v)} title={v}
+            <button key={v} onClick={() => setView(v)} title={v} aria-pressed={view === v}
               className={`grid place-items-center rounded-md h-7 w-7 transition ${view === v ? "bg-surface-2 text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
               <I className="h-3.5 w-3.5" />
             </button>

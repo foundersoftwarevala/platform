@@ -33,6 +33,33 @@ const rows = async <T,>(promise: PromiseLike<{ data: T[] | null; error: unknown 
 };
 
 /**
+ * Demo actions are recorded in demo_url_audit_log, the demo estate's own audit
+ * table (demo_url_id is a product_demo_urls id, the same ids the overview
+ * returns). Its policy lets a signed-in operator insert rows as themselves, so
+ * actor_id must be the caller. Renewals and one-click actions used to go to
+ * demo_renewal_logs and demo_report_cards, which were never created.
+ */
+const RENEW_ACTION = "demo_url.renew";
+// Automated monitor pings and syncs are thousands of rows; the trail shows people's actions.
+const AUTOMATED_ACTIONS = "(demo_url.monitor,demo_url.sync)";
+
+const logDemoAction = async (demoUrlId: string | null, action: string, metadata: Record<string, unknown>) => {
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) throw new Error("Sign in to record this action");
+  const { error } = await supabase.from("demo_url_audit_log").insert({
+    demo_url_id: demoUrlId,
+    action,
+    actor_id: data.user.id,
+    actor_email: data.user.email ?? null,
+    metadata: metadata as never,
+  });
+  if (error) throw error;
+};
+
+const meta = (value: unknown): Record<string, any> =>
+  value && typeof value === "object" ? (value as Record<string, any>) : {};
+
+/**
  * The operations centre's overview, from the tables that hold the demos.
  *
  * Every panel here read `demos`, which has 0 rows, while seventeen demos run in
@@ -167,10 +194,25 @@ export const useOpsDeployments = () =>
 export const useOpsRenewals = () =>
   useQuery({
     queryKey: [OPS, "renewals"],
-    queryFn: () =>
-      rows<Record<string, unknown>>(
-        supabase.from("demo_renewal_logs").select("*").order("created_at", { ascending: false }).limit(200) as never,
-      ),
+    queryFn: async () => {
+      const logs = await rows<Record<string, any>>(
+        supabase
+          .from("demo_url_audit_log")
+          .select("id, demo_url_id, metadata, created_at")
+          .eq("action", RENEW_ACTION)
+          .order("created_at", { ascending: false })
+          .limit(200) as never,
+      );
+      return logs.map((l) => ({
+        id: l.id as string,
+        demo_id: l.demo_url_id as string | null,
+        previous_expiry: (meta(l.metadata).previous_expiry as string | null) ?? null,
+        new_expiry: (meta(l.metadata).new_expiry as string | null) ?? null,
+        auto_renewed: meta(l.metadata).auto_renewed === true,
+        notes: (meta(l.metadata).notes as string | null) ?? null,
+        created_at: l.created_at as string,
+      }));
+    },
   });
 
 export const useOpsAuditTrail = () =>
@@ -179,34 +221,40 @@ export const useOpsAuditTrail = () =>
     queryFn: async () => {
       const [logs, cards] = await Promise.all([
         rows<Record<string, any>>(
-          supabase.from("audit_logs").select("*").order("timestamp", { ascending: false }).limit(150) as never,
+          supabase
+            .from("audit_logs")
+            .select("id, occurred_at, actor, action, entity_type")
+            .order("occurred_at", { ascending: false })
+            .limit(150) as never,
         ),
         rows<Record<string, any>>(
           supabase
-            .from("demo_report_cards")
-            .select("*")
-            .order("action_timestamp", { ascending: false })
+            .from("demo_url_audit_log")
+            .select("id, demo_url_id, action, actor_id, actor_email, metadata, created_at")
+            .not("action", "in", AUTOMATED_ACTIONS)
+            .order("created_at", { ascending: false })
             .limit(150) as never,
         ),
       ]);
       const merged = [
         ...logs.map((l) => ({
           id: `audit-${l.id}`,
-          at: l.timestamp as string,
-          actor: (l.user_id as string) ?? "system",
-          role: (l.role as string) ?? "—",
+          at: l.occurred_at as string,
+          actor: (l.actor as string) ?? "system",
+          // audit_logs has no role column.
+          role: "—",
           action: l.action as string,
-          scope: (l.module as string) ?? "platform",
+          scope: (l.entity_type as string) ?? "platform",
           source: "audit_logs",
         })),
         ...cards.map((c) => ({
           id: `card-${c.id}`,
-          at: (c.action_timestamp as string) ?? (c.created_at as string),
-          actor: (c.performed_by as string) ?? "system",
-          role: (c.performed_by_role as string) ?? "—",
-          action: `${c.action_type}${c.demo_name ? ` · ${c.demo_name}` : ""}`,
+          at: c.created_at as string,
+          actor: (c.actor_email as string) ?? (c.actor_id as string) ?? "system",
+          role: (meta(c.metadata).performed_by_role as string) ?? "—",
+          action: `${meta(c.metadata).action_type ?? c.action}${meta(c.metadata).demo_name ? ` · ${meta(c.metadata).demo_name}` : ""}`,
           scope: "demo",
-          source: "demo_report_cards",
+          source: "demo_url_audit_log",
         })),
       ];
       return merged.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
@@ -225,10 +273,22 @@ export const useOpsAccessibility = () =>
 export const useOpsBackups = () =>
   useQuery({
     queryKey: [OPS, "backups"],
-    queryFn: () =>
-      rows<Record<string, any>>(
-        supabase.from("server_backups").select("*").order("created_at", { ascending: false }).limit(100) as never,
-      ),
+    queryFn: async () => {
+      // Backup runs live in server_backup_jobs; server_backups was never created.
+      const jobs = await rows<Record<string, any>>(
+        supabase
+          .from("server_backup_jobs")
+          .select("id, job_name, backup_type, schedule, status, size_gb, created_at")
+          .order("created_at", { ascending: false })
+          .limit(100) as never,
+      );
+      return jobs.map((j) => ({
+        ...j,
+        backup_name: j.job_name,
+        // A job with a schedule was started by its schedule, not by hand.
+        is_auto_backup: Boolean(j.schedule),
+      }));
+    },
   });
 
 /* ------------------------------------------------------------------ */
@@ -284,7 +344,7 @@ export const useOpsKpis = () => {
       if (score !== null && score < 70) performanceIssues += 1;
     }
 
-    const activeAlerts = (alerts.data ?? []).filter((a) => a.is_active !== false);
+    const activeAlerts = (alerts.data ?? []).filter((a) => a.is_resolved !== true);
     const openEscalations = (escalations.data ?? []).filter((e) => e.status !== "resolved");
     const weakCredentials = (credentials.data ?? []).filter((c) =>
       ["admin", "admin123", "password", "password123", "123456", "demo", "demo123"].includes(
@@ -400,16 +460,14 @@ export const useOpsActions = () => {
         if (error) throw error;
       }
 
-      const { error: logError } = await supabase.from("demo_report_cards").insert({
-        demo_id: demo.id,
+      await logDemoAction(demo.id, `demo_url.ops.${action}`, {
         demo_name: demo.title,
         action_type: ACTION_LABEL[action],
         demo_status: demo.status,
         sector: demo.category,
         workflow_status: "completed",
         performed_by_role: "demo_manager",
-      } as never);
-      if (logError) throw logError;
+      });
       return { ok: true };
     },
     onSuccess: (_data, variables) => {
@@ -420,14 +478,14 @@ export const useOpsActions = () => {
   });
 
   const acknowledgeAlert = useMutation({
-    mutationFn: async ({ alertId, action }: { alertId: string; action: string }) => {
+    mutationFn: async ({ alertId }: { alertId: string; action: string }) => {
       const { error } = await supabase
         .from("demo_alerts")
+        // demo_alerts records acknowledgement as resolution; it has no column for the action note.
         .update({
-          acknowledged_at: new Date().toISOString(),
-          action_taken: action,
-          is_active: false,
-        } as never)
+          is_resolved: true,
+          resolved_at: new Date().toISOString(),
+        })
         .eq("id", alertId);
       if (error) throw error;
     },
@@ -452,11 +510,10 @@ export const useOpsActions = () => {
     }) => {
       const { error } = await supabase.from("demo_escalations").insert({
         demo_id: demoId,
-        escalated_to_role: role,
+        role,
         reason,
-        escalation_level: level,
+        level,
         status: "open",
-        auto_escalated: false,
       } as never);
       if (error) throw error;
     },
@@ -473,7 +530,7 @@ export const useOpsActions = () => {
         .from("demo_escalations")
         .update({
           status,
-          resolution_notes: notes ?? null,
+          resolution: notes ?? null,
           resolved_at: status === "resolved" ? new Date().toISOString() : null,
         } as never)
         .eq("id", id);
@@ -495,14 +552,12 @@ export const useOpsActions = () => {
         .update({ expiry_date: next, status: "active", lifecycle_status: "active" } as never)
         .eq("id", demo.id);
       if (error) throw error;
-      const { error: logError } = await supabase.from("demo_renewal_logs").insert({
-        demo_id: demo.id,
+      await logDemoAction(demo.id, RENEW_ACTION, {
         previous_expiry: demo.expiry_date,
         new_expiry: next,
         auto_renewed: false,
         notes: `Renewed ${days} days from Operations Center`,
-      } as never);
-      if (logError) throw logError;
+      });
       return next;
     },
     onSuccess: () => {

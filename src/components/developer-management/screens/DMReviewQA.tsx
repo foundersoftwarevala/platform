@@ -11,10 +11,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckCircle, XCircle, RotateCcw, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCodeSubmissions, useEscalateTask, useReviewSubmission } from '@/hooks/useDevManagerData';
+import { richText, useTranslation } from '@/lib/i18n/use-translation';
+import { useDMPrompt } from '../DMPromptDialog';
 
 const STATUS: Record<string, string> = { submitted: 'pending', approved: 'passed', changes_requested: 'failed' };
 
+const DATE_TIME: Intl.DateTimeFormatOptions = { dateStyle: 'short', timeStyle: 'medium' };
+
+/**
+ * The words of a sentence built with richText(), in the muted colour they had
+ * as separate spans; the data placed in it (elements) keeps its own markup.
+ */
+const muteWords = (nodes: React.ReactNode[]) =>
+  nodes.map((node, index) => {
+    if (!React.isValidElement<{ children?: React.ReactNode }>(node)) return node;
+    const words = node.props.children;
+    if (typeof words !== 'string') return node;
+    return words ? <span key={index} className="text-muted-foreground">{words}</span> : null;
+  });
+
 export const DMReviewQA: React.FC = () => {
+  const { t, formatDate } = useTranslation();
+  const prompt = useDMPrompt();
   const [activeTab, setActiveTab] = useState('all');
   // The review queue is developer_code_submissions. The three reviews here
   // were typed in and every button only showed a message; approving and
@@ -29,41 +47,55 @@ export const DMReviewQA: React.FC = () => {
     id: s.id.slice(0, 8).toUpperCase(),
     uuid: s.id,
     taskId: s.taskId,
-    submission: s.commitMessage || s.type || 'Submission',
+    submission: s.commitMessage || s.type || t('devmanager.review.submission_default'),
     dev: s.developer,
     task: s.taskTitle,
     status: STATUS[s.status] ?? s.status,
     reason: s.reviewNotes,
-    time: new Date(s.createdAt).toLocaleString(),
+    time: formatDate(s.createdAt, DATE_TIME),
   }));
-  const decide = (id: string, decision: 'approved' | 'changes_requested') => {
-    const notes = window.prompt(decision === 'approved' ? 'Review note for the developer:' : 'What needs to change?')?.trim();
-    if (!notes) { toast.error('A review note is required.'); return; }
+  const decide = async (id: string, decision: 'approved' | 'changes_requested') => {
+    const answer = await prompt.ask({
+      title: decision === 'approved' ? t('devmanager.review.approve_prompt') : t('devmanager.review.send_back_prompt'),
+      reasonLabel: t('devmanager.prompt.note'),
+      minLength: 1,
+      confirmLabel: decision === 'approved' ? t('devmanager.common.approve') : t('devmanager.review.send_back'),
+    });
+    if (!answer) return;
+    const notes = answer.reason?.trim();
+    if (!notes) { toast.error(t('devmanager.review.note_required')); return; }
     reviewMutation.mutate({ id, decision, notes });
   };
-  const escalateTask = (taskId: string) => {
-    const reason = window.prompt('Why is it being escalated? (at least 5 characters)')?.trim();
-    if (!reason || reason.length < 5) { toast.error('A reason of at least 5 characters is needed.'); return; }
+  const escalateTask = async (taskId: string) => {
+    const answer = await prompt.ask({
+      title: t('devmanager.common.escalate_prompt'),
+      reasonLabel: t('devmanager.prompt.reason'),
+      minLength: 5,
+      confirmLabel: t('devmanager.common.escalate'),
+    });
+    if (!answer) return;
+    const reason = answer.reason?.trim();
+    if (!reason || reason.length < 5) { toast.error(t('devmanager.prompt.reason_too_short')); return; }
     escalate.mutate({ taskId, reason });
   };
 
-  const filteredReviews = reviews.filter(rev => 
+  const filteredReviews = reviews.filter(rev =>
     activeTab === 'all' || rev.status === activeTab
   );
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Review & QA</h1>
-        <p className="text-muted-foreground">Code review and quality assurance</p>
+        <h1 className="text-2xl font-bold">{t('devmanager.review.title')}</h1>
+        <p className="text-muted-foreground">{t('devmanager.review.subtitle')}</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="pending">Pending Review</TabsTrigger>
-          <TabsTrigger value="failed">QA Failed</TabsTrigger>
-          <TabsTrigger value="passed">QA Passed</TabsTrigger>
+          <TabsTrigger value="all">{t('devmanager.common.all')}</TabsTrigger>
+          <TabsTrigger value="pending">{t('devmanager.review.tab_pending')}</TabsTrigger>
+          <TabsTrigger value="failed">{t('devmanager.review.qa_failed')}</TabsTrigger>
+          <TabsTrigger value="passed">{t('devmanager.review.qa_passed')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-4">
@@ -71,18 +103,27 @@ export const DMReviewQA: React.FC = () => {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <CheckCircle className="h-5 w-5" />
-                Review Queue
+                {t('devmanager.review.queue')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {(query.isLoading || query.isError || filteredReviews.length === 0) && (
-                  <p className="text-sm text-muted-foreground">
-                    {query.isLoading ? 'Loading reviews…' : query.isError ? `Reviews could not be read: ${(query.error as Error).message}` : 'Nothing here.'}
+                  <p
+                    className="text-sm text-muted-foreground"
+                    role={query.isError ? 'alert' : 'status'}
+                    aria-live={query.isError ? undefined : 'polite'}
+                    aria-busy={query.isLoading || undefined}
+                  >
+                    {query.isLoading
+                      ? t('devmanager.review.loading')
+                      : query.isError
+                        ? t('devmanager.review.load_error', { error: (query.error as Error).message })
+                        : t('devmanager.review.empty')}
                   </p>
                 )}
                 {filteredReviews.map((review) => (
-                  <div 
+                  <div
                     key={review.id}
                     className={`p-4 rounded-lg border ${
                       review.status === 'failed' ? 'bg-red-500/5 border-red-500/30' :
@@ -98,49 +139,53 @@ export const DMReviewQA: React.FC = () => {
                           review.status === 'failed' ? 'bg-red-500/20 text-red-500' :
                           'bg-amber-500/20 text-amber-500'
                         }>
-                          {review.status === 'passed' ? 'QA Passed' : 
-                           review.status === 'failed' ? 'QA Failed' : 'Pending'}
+                          {review.status === 'passed' ? t('devmanager.review.qa_passed') :
+                           review.status === 'failed' ? t('devmanager.review.qa_failed') : t('devmanager.status.pending')}
                         </Badge>
                       </div>
                       <span className="text-xs text-muted-foreground">{review.time}</span>
                     </div>
                     <div className="text-sm mb-3">
-                      <span className="font-mono">{review.submission}</span>
-                      <span className="text-muted-foreground"> • </span>
-                      <span className="font-mono">{review.task}</span>
-                      <span className="text-muted-foreground"> by </span>
-                      <span className="font-mono">{review.dev}</span>
+                      {muteWords(richText(t('devmanager.review.submission_line'), {
+                        submission: <span className="font-mono">{review.submission}</span>,
+                        task: <span className="font-mono">{review.task}</span>,
+                        dev: <span className="font-mono">{review.dev}</span>,
+                      }))}
                     </div>
                     {review.status !== 'pending' && review.reason && (
-                      <p className={`text-sm mb-3 ${review.status === 'failed' ? 'text-red-500' : 'text-muted-foreground'}`}>{review.status === 'failed' ? 'Reason' : 'Note'}: {review.reason}</p>
+                      <p className={`text-sm mb-3 ${review.status === 'failed' ? 'text-red-500' : 'text-muted-foreground'}`}>
+                        {review.status === 'failed'
+                          ? t('devmanager.review.reason_line', { text: review.reason })
+                          : t('devmanager.review.note_line', { text: review.reason })}
+                      </p>
                     )}
                     <div className="flex items-center gap-2">
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         className="bg-green-600 hover:bg-green-700"
                         disabled={review.status !== 'pending' || reviewPending}
-                        onClick={() => decide(review.uuid, 'approved')}
+                        onClick={() => void decide(review.uuid, 'approved')}
                       >
                         <CheckCircle className="h-4 w-4 mr-1" />
-                        Approve
+                        {t('devmanager.common.approve')}
                       </Button>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="outline"
                         disabled={review.status !== 'pending' || reviewPending}
-                        onClick={() => decide(review.uuid, 'changes_requested')}
+                        onClick={() => void decide(review.uuid, 'changes_requested')}
                       >
                         <RotateCcw className="h-4 w-4 mr-1" />
-                        Send Back
+                        {t('devmanager.review.send_back')}
                       </Button>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="destructive"
                         disabled={escalate.isPending}
-                        onClick={() => escalateTask(review.taskId)}
+                        onClick={() => void escalateTask(review.taskId)}
                       >
                         <AlertTriangle className="h-4 w-4 mr-1" />
-                        Escalate
+                        {t('devmanager.common.escalate')}
                       </Button>
                     </div>
                   </div>
@@ -150,6 +195,7 @@ export const DMReviewQA: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+      {prompt.dialog}
     </div>
   );
 };

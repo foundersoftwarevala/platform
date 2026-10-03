@@ -5,12 +5,14 @@ import { toast } from "sonner";
 // stores a dashboard banner or logo yet. Every change says so rather than
 // looking saved and vanishing on reload.
 const NOT_SAVED = "Shown until you reload - saving a banner or logo is not connected yet.";
+const NAME_NOT_SAVED = "Shown until you reload - renaming the account here is not connected yet.";
 import {
   Camera, ImageIcon, ShieldCheck, Pencil, Crown, Layers, Briefcase, Trophy,
   Target as TargetIcon, Gauge, TrendingUp, RotateCcw, Trash2, Upload,
 } from "lucide-react";
 import defaultLogoAsset from "@/assets/dashboardLogoAsset";
 import defaultBannerAsset from "@/assets/dashboardBannerAsset";
+import { useResellerOverview } from "@/hooks/useResellerOverview";
 
 type ResellerProfile = {
   name: string;
@@ -18,7 +20,7 @@ type ResellerProfile = {
   bannerUrl: string | null;
   verified: boolean;
   membershipPlan: string;        // e.g. Free / Starter / Pro / Elite
-  whiteLabelActive: boolean;
+  whiteLabelActive: boolean | null; // null: nothing records it
   partnerTier: string;           // Bronze / Silver / Gold / Platinum
   leaderboardRank: number | null;
   salesTarget: number | null;    // % of monthly target reached
@@ -46,7 +48,7 @@ export function ResellerProfileHero({
     bannerUrl: defaultBannerAsset.url,
     verified: false,
     membershipPlan: "—",
-    whiteLabelActive: false,
+    whiteLabelActive: null,
     partnerTier: "—",
     leaderboardRank: null,
     salesTarget: null,
@@ -56,6 +58,30 @@ export function ResellerProfileHero({
   };
   const [profile, setProfile] = useState<ResellerProfile>(EMPTY);
   const [editing, setEditing] = useState(false);
+  // A name typed here is shown until reload; nothing stores it.
+  const [nameEdited, setNameEdited] = useState(false);
+  // On the reseller's dashboard the chips are read from their own reseller
+  // record, membership and leaderboard place (getResellerOverview). Every
+  // other role keeps the dashes it had: nothing reads those yet.
+  const { overview } = useResellerOverview(roleName === "Reseller");
+  const reseller = overview?.reseller ?? null;
+  const shown: ResellerProfile = reseller
+    ? {
+        ...profile,
+        name: nameEdited ? profile.name : reseller.name,
+        // Verification is whatever the reseller record says (kyc_status), never a click.
+        verified: reseller.verified,
+        membershipPlan: overview?.membership
+          ? overview.membership.planName ?? overview.membership.planCode
+          : "None",
+        partnerTier: reseller.tier ? reseller.tier.charAt(0).toUpperCase() + reseller.tier.slice(1) : "—",
+        leaderboardRank: overview?.rank ?? null,
+      }
+    : profile;
+  function finishNameEdit() {
+    setEditing(false);
+    if (nameEdited) toast.info(NAME_NOT_SAVED);
+  }
   const [menuOpen, setMenuOpen] = useState<null | "logo" | "banner">(null);
   const defaultGradient =
     "linear-gradient(120deg, oklch(0.26 0.06 175), oklch(0.32 0.16 160), oklch(0.42 0.22 150))";
@@ -95,7 +121,7 @@ export function ResellerProfileHero({
       <div
         className="relative h-40 md:h-52 w-full overflow-hidden"
         style={
-          profile.bannerUrl === defaultBannerAsset.url
+          shown.bannerUrl === defaultBannerAsset.url
             ? {
                 // Professional composition: brand gradient + tiled checker watermark
                 backgroundColor: "oklch(0.32 0.16 260)",
@@ -107,13 +133,13 @@ export function ResellerProfileHero({
                 backgroundRepeat: "no-repeat, repeat",
                 backgroundBlendMode: "normal, soft-light",
               }
-            : profile.bannerUrl
-              ? { background: `center/cover no-repeat url(${profile.bannerUrl})` }
+            : shown.bannerUrl
+              ? { background: `center/cover no-repeat url(${shown.bannerUrl})` }
               : { background: bannerBg }
         }
       >
         <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/20 to-black/55" />
-        {profile.bannerUrl === defaultBannerAsset.url && (
+        {shown.bannerUrl === defaultBannerAsset.url && (
           <div className="absolute inset-0 flex items-center">
             <div className="pl-6 md:pl-10 max-w-[70%]">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 backdrop-blur px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90">
@@ -136,9 +162,9 @@ export function ResellerProfileHero({
             title="Upload banner"
           >
             <Upload className="h-3.5 w-3.5" />
-            {profile.bannerUrl ? "Change" : "Upload"}
+            {shown.bannerUrl ? "Change" : "Upload"}
           </button>
-          {profile.bannerUrl && profile.bannerUrl !== defaultBannerAsset.url && (
+          {shown.bannerUrl && shown.bannerUrl !== defaultBannerAsset.url && (
             <button
               onClick={() => resetImage("bannerUrl")}
               className="inline-flex items-center gap-1 rounded-lg bg-black/50 hover:bg-black/70 backdrop-blur border border-white/20 px-2 py-1.5 text-[11px] font-medium text-white transition"
@@ -147,7 +173,7 @@ export function ResellerProfileHero({
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
           )}
-          {profile.bannerUrl && (
+          {shown.bannerUrl && (
             <button
               onClick={() => removeImage("bannerUrl")}
               className="inline-flex items-center gap-1 rounded-lg bg-black/50 hover:bg-[oklch(0.55_0.22_25)]/80 backdrop-blur border border-white/20 px-2 py-1.5 text-[11px] font-medium text-white transition"
@@ -167,8 +193,8 @@ export function ResellerProfileHero({
               className="logo-3d relative h-24 w-24 shrink-0 rounded-full border-4 border-background bg-white grid place-items-center group"
               title="Manage logo"
             >
-              {profile.logoUrl ? (
-                <img src={profile.logoUrl} alt={`${roleName} logo`} className="h-full w-full rounded-full object-cover" />
+              {shown.logoUrl ? (
+                <img src={shown.logoUrl} alt={`${roleName} logo`} className="h-full w-full rounded-full object-cover" />
               ) : (
                 <ImageIcon className="h-8 w-8 text-muted-foreground" />
               )}
@@ -211,14 +237,14 @@ export function ResellerProfileHero({
               {editing ? (
                 <input
                   autoFocus
-                  value={profile.name}
-                  onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
-                  onBlur={() => setEditing(false)}
-                  onKeyDown={(e) => { if (e.key === "Enter") setEditing(false); }}
+                  value={shown.name}
+                  onChange={(e) => { const name = e.target.value; setNameEdited(true); setProfile((p) => ({ ...p, name })); }}
+                  onBlur={finishNameEdit}
+                  onKeyDown={(e) => { if (e.key === "Enter") finishNameEdit(); }}
                   className="bg-surface-2 border border-border rounded-md px-2 py-1 text-lg font-bold outline-none focus:ring-2 focus:ring-ring"
                 />
               ) : (
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{profile.name}</h1>
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{shown.name}</h1>
               )}
               <button
                 onClick={() => setEditing((v) => !v)}
@@ -230,15 +256,14 @@ export function ResellerProfileHero({
 
               <Chip
                 icon={ShieldCheck}
-                label={profile.verified ? "Verified" : "Unverified"}
-                tone={profile.verified ? "success" : "muted"}
+                label={shown.verified ? "Verified" : "Unverified"}
+                tone={shown.verified ? "success" : "muted"}
                 title="Verification Status"
-                onClick={() => setProfile((p) => ({ ...p, verified: !p.verified }))}
               />
-              <Chip icon={Crown}    label={`Plan · ${profile.membershipPlan}`}   tone="violet"  title="Membership Plan" />
-              <Chip icon={Layers}   label={profile.whiteLabelActive ? "White-label ON" : "White-label OFF"} tone={profile.whiteLabelActive ? "success" : "muted"} title="White Label Status" />
-              <Chip icon={Briefcase} label={`Tier · ${profile.partnerTier}`}    tone="cyan"    title="Partner Tier" />
-              <Chip icon={Trophy}   label={profile.leaderboardRank == null ? "Rank · —" : `Rank · #${profile.leaderboardRank}`} tone="warning" title="Leaderboard Rank" />
+              <Chip icon={Crown}    label={`Plan · ${shown.membershipPlan}`}   tone="violet"  title="Membership Plan" />
+              <Chip icon={Layers}   label={shown.whiteLabelActive == null ? "White-label · —" : shown.whiteLabelActive ? "White-label ON" : "White-label OFF"} tone={shown.whiteLabelActive ? "success" : "muted"} title="White Label Status" />
+              <Chip icon={Briefcase} label={`Tier · ${shown.partnerTier}`}    tone="cyan"    title="Partner Tier" />
+              <Chip icon={Trophy}   label={shown.leaderboardRank == null ? "Rank · —" : `Rank · #${shown.leaderboardRank}`} tone="warning" title="Leaderboard Rank" />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {centerText} · Configure your profile, plan and white-label kit to get started.
@@ -247,10 +272,10 @@ export function ResellerProfileHero({
         </div>
 
         <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-          <ScoreCard icon={TargetIcon} label="Sales Target"      value={profile.salesTarget}  suffix="%" tone="brand" />
-          <ScoreCard icon={Gauge}      label="Performance Score" value={profile.performance}  suffix="%" tone="success" />
-          <ScoreCard icon={TrendingUp} label="Conversion Score"  value={profile.conversion}   suffix="%" tone="cyan" />
-          <ScoreCard icon={RotateCcw}  label="Renewal Score"     value={profile.renewalScore} suffix="%" tone="violet" />
+          <ScoreCard icon={TargetIcon} label="Sales Target"      value={shown.salesTarget}  suffix="%" tone="brand" />
+          <ScoreCard icon={Gauge}      label="Performance Score" value={shown.performance}  suffix="%" tone="success" />
+          <ScoreCard icon={TrendingUp} label="Conversion Score"  value={shown.conversion}   suffix="%" tone="cyan" />
+          <ScoreCard icon={RotateCcw}  label="Renewal Score"     value={shown.renewalScore} suffix="%" tone="violet" />
         </div>
       </div>
     </section>

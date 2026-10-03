@@ -46,6 +46,13 @@ const insertSchema = z.object({
   accessToken: z.string().min(1),
 });
 
+const creditWalletSchema = z.object({
+  walletId: z.string().uuid(),
+  amount: z.number().positive().max(10_000_000),
+  description: z.string().min(1).max(200),
+  accessToken: z.string().min(1),
+});
+
 const deleteSchema = z.object({
   table: z.string().refine(isManagerTable, "Unknown table"),
   id: z.string().uuid(),
@@ -127,6 +134,29 @@ function requireCentralAiManager(context: ManagerContext, tables: Iterable<strin
   ) {
     throw new Error("Finance role cannot access AI/API Manager governance data.");
   }
+}
+
+// Order money has workflows of its own: a refund is requested through
+// mm_refund_request and settled by the provider, commission is recorded and
+// reversed by the settlement code, payouts move through their own steps. A
+// row written here by hand would skip all of that - an order "refunded" with
+// no request, a commission that never existed, a payout removed from the
+// ledger. These tables stay readable for Finance, and are never written here.
+const WORKFLOW_ONLY_TABLES = new Set([
+  "marketplace_orders",
+  "marketplace_order_items",
+  "marketplace_payment_intents",
+  "marketplace_payment_events",
+  "marketplace_order_refunds",
+  "marketplace_commissions",
+  "marketplace_commission_reversals",
+  "marketplace_payouts",
+]);
+
+async function refuseWorkflowTable(context: ManagerContext, table: string, action: string, id: string | null) {
+  if (!WORKFLOW_ONLY_TABLES.has(table)) return;
+  await writeAudit(context, `${table}.direct_${action}_refused`, table, id, {}, "warning");
+  throw new Error(`${table} is changed only through its own workflow (orders, refunds and payouts), not edited directly.`);
 }
 
 type ListInput = z.infer<typeof listSchema>;
@@ -272,6 +302,7 @@ export const updateRecord = createServerFn({ method: "POST" })
     const context = await requireManager(data.accessToken);
     const db = context.client;
     requireCentralAiManager(context, [data.table]);
+    await refuseWorkflowTable(context, data.table, "update", data.id);
     if (
       (data.table === "api_services" || data.table === "ai_providers") &&
       "credential_env" in data.values
@@ -304,6 +335,32 @@ export const updateRecord = createServerFn({ method: "POST" })
       redactValues(data.table, data.values),
     );
     return redactRows(data.table, [row as Row])[0] as Row;
+  });
+
+/**
+ * Add money to a wallet in one atomic step: the database adds the amount to
+ * the balance it holds and records the transaction with the resulting
+ * balance, together (wallet_credit_atomic). The browser used to compute the
+ * new balance from its own copy and write it separately, so concurrent
+ * top-ups lost money and a half-failed pair left the two out of step.
+ */
+export const creditWallet = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => creditWalletSchema.parse(data))
+  .handler(async ({ data }) => {
+    const context = await requireManager(data.accessToken);
+    const reference = `TOPUP-${Date.now()}`;
+    const { data: wallet, error } = await context.client.rpc("wallet_credit_atomic" as never, {
+      p_wallet_id: data.walletId,
+      p_amount: data.amount,
+      p_description: data.description,
+      p_reference: reference,
+    } as never);
+    if (error) throw new Error(error.message);
+    await writeAudit(context, "wallets.credited", "wallets", data.walletId, {
+      amount: data.amount,
+      reference,
+    });
+    return wallet as unknown as Row;
   });
 
 export const checkApiServiceHealth = createServerFn({ method: "POST" })
@@ -464,6 +521,7 @@ export const insertRecord = createServerFn({ method: "POST" })
     const context = await requireManager(data.accessToken);
     const db = context.client;
     requireCentralAiManager(context, [data.table]);
+    await refuseWorkflowTable(context, data.table, "insert", null);
     if (
       (data.table === "api_services" || data.table === "ai_providers") &&
       "credential_env" in values
@@ -497,6 +555,7 @@ export const deleteRecord = createServerFn({ method: "POST" })
     const context = await requireManager(data.accessToken);
     const db = context.client;
     requireCentralAiManager(context, [data.table]);
+    await refuseWorkflowTable(context, data.table, "delete", data.id);
     const { error } = await db.from(data.table).delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     await writeAudit(context, `${data.table}.deleted`, data.table, data.id, {}, "warning");

@@ -1,5 +1,5 @@
 import { useTranslation } from "@/lib/i18n/use-translation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Banknote, Copy, Download, Info, Link2, RefreshCw, Search, Timer,
@@ -73,7 +73,11 @@ function exportCsv(rows: ResellerRow[]) {
     head
       .map((k) => {
         const v = (r as unknown as Record<string, unknown>)[k];
-        const s = v === null || v === undefined ? "" : String(v);
+        const raw = v === null || v === undefined ? "" : String(v);
+        // A cell starting with = + - @ (or a tab or carriage return) is run as a
+        // formula by spreadsheet software. Names, emails and codes come from
+        // applicants, so such a cell is prefixed to be read as text.
+        const s = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
         return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
       })
       .join(","),
@@ -91,6 +95,7 @@ function exportCsv(rows: ResellerRow[]) {
 /* --------------------------------------------------------------- profile */
 
 function ResellerProfile({ id, onBack }: { id: string; onBack: () => void }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [note, setNote] = useState<string | null>(null);
   const [reference, setReference] = useState<Record<string, string>>({});
@@ -123,7 +128,17 @@ function ResellerProfile({ id, onBack }: { id: string; onBack: () => void }) {
 
   const release = useMutation({
     mutationFn: () => releaseResellerEarnings({ data: { id } }),
-    onSuccess: settled,
+    onSuccess: (res) => {
+      settled(res);
+      // A release that moves nothing is a real answer, so it is said.
+      if (res.ok) {
+        setNote(
+          res.released
+            ? t("reseller.manager.released", { count: res.released })
+            : t("reseller.manager.nothing_to_release"),
+        );
+      }
+    },
     onError: (e: Error) => setNote(e.message),
   });
   const payout = useMutation({
@@ -239,7 +254,12 @@ function ResellerProfile({ id, onBack }: { id: string; onBack: () => void }) {
                       {c.active ? "active" : "off"}
                     </span>
                     <button
-                      onClick={() => navigator.clipboard?.writeText(String(c.url))}
+                      onClick={() =>
+                        void navigator.clipboard
+                          ?.writeText(String(c.url))
+                          .then(() => setNote(t("reseller.manager.link_copied", { url: String(c.url) })))
+                          .catch(() => setNote(t("reseller.manager.link_copy_failed")))
+                      }
                       className="inline-flex items-center gap-1 text-[11px] font-semibold hover:underline"
                     >
                       <Copy className="h-3 w-3" /> Copy
@@ -453,15 +473,25 @@ export function ResellerManager() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  // The search is sent once typing pauses, not on every keystroke.
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const [status, setStatus] = useState<"" | ResellerStatus>("");
   const [tab, setTab] = useState<"all" | "active" | "commission" | "payouts">("all");
   const [open, setOpen] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // mm_resellers returns the newest rows up to a limit (at most 500). Rows past
+  // it were silently absent; now the list says when it may be cut short and
+  // can be extended.
+  const [limit, setLimit] = useState(100);
 
   const q = useQuery({
-    queryKey: ["marketplace", "resellers", search, status],
+    queryKey: ["marketplace", "resellers", query, status, limit],
     queryFn: () =>
-      getResellers({ data: { search: search || undefined, status: status || undefined } }),
+      getResellers({ data: { search: query || undefined, status: status || undefined, limit } }),
     staleTime: 15_000,
   });
 
@@ -484,8 +514,34 @@ export function ResellerManager() {
     onError: (e: Error) => setNote(e.message),
   });
   const schedule = useMutation({
-    mutationFn: (v: { reseller_id: string; cadence: "weekly" | "biweekly" | "monthly" }) =>
-      setResellerSchedule({ data: v }),
+    // mm_reseller_schedule_set fills every field it is not sent with its
+    // default, so sending the cadence alone reset the holding days, minimum,
+    // approval rule and currency. The reseller's current schedule is read
+    // first and sent back unchanged alongside the new cadence.
+    mutationFn: async (v: { reseller_id: string; cadence: "weekly" | "biweekly" | "monthly" }) => {
+      const detail = (await getResellerDetail({ data: { id: v.reseller_id } })) as {
+        ok?: boolean; reason?: string;
+        schedule?: {
+          holding_days?: number; minimum_amount?: number | string; currency?: string;
+          requires_approval?: boolean; payment_method?: string | null;
+        };
+      };
+      if (detail?.ok === false || !detail?.schedule) {
+        return { ok: false, reason: detail?.reason ?? "schedule_unreadable" };
+      }
+      const s = detail.schedule;
+      return setResellerSchedule({
+        data: {
+          reseller_id: v.reseller_id,
+          cadence: v.cadence,
+          ...(typeof s.holding_days === "number" ? { holding_days: s.holding_days } : {}),
+          ...(s.minimum_amount != null ? { minimum_amount: Number(s.minimum_amount) } : {}),
+          ...(s.currency ? { currency: s.currency } : {}),
+          ...(typeof s.requires_approval === "boolean" ? { requires_approval: s.requires_approval } : {}),
+          ...(s.payment_method ? { payment_method: s.payment_method } : {}),
+        },
+      });
+    },
     onSuccess: settled,
     onError: (e: Error) => setNote(e.message),
   });
@@ -590,6 +646,7 @@ export function ResellerManager() {
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
+              aria-pressed={tab === t.key}
               className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
                 tab === t.key ? "bg-foreground text-background" : "hover:bg-muted"
               }`}
@@ -689,17 +746,71 @@ export function ResellerManager() {
                       Approve
                     </button>
                   ) : (
+                    <>
+                      {/* Pausing stops the referral links without the record a
+                          suspension carries; mm_reseller_status does not ask
+                          for a reason, so one is optional here. */}
+                      <button
+                        onClick={() => {
+                          const reason = window.prompt(
+                            t("reseller.manager.pause_prompt"),
+                          );
+                          if (reason !== null)
+                            decide.mutate({
+                              id: r.id, status: "paused", ...(reason.trim() ? { reason: reason.trim() } : {}),
+                            });
+                        }}
+                        className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"
+                      >
+                        {t("reseller.manager.pause")}
+                      </button>
+                      <button
+                        onClick={() => {
+                          const reason = window.prompt(
+                            t("reseller.manager.suspend_prompt"),
+                          );
+                          if (reason && reason.trim())
+                            decide.mutate({ id: r.id, status: "suspended", reason });
+                        }}
+                        className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-rose-500 hover:bg-muted"
+                      >
+                        {t("reseller.manager.suspend")}
+                      </button>
+                    </>
+                  )}
+                  {/* An application that is declined is rejected, with the
+                      reason the database requires and sends to the applicant. */}
+                  {r.status === "pending" && (
                     <button
                       onClick={() => {
                         const reason = window.prompt(
-                          "Why is this reseller being suspended? Their referral links stop attributing and this is recorded.",
+                          t("reseller.manager.reject_prompt"),
                         );
                         if (reason && reason.trim())
-                          decide.mutate({ id: r.id, status: "suspended", reason });
+                          decide.mutate({ id: r.id, status: "rejected", reason });
                       }}
                       className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-rose-500 hover:bg-muted"
                     >
-                      Suspend
+                      {t("reseller.manager.reject")}
+                    </button>
+                  )}
+                  {/* Termination is final, so it asks for a reason and then
+                      for confirmation. */}
+                  {["active", "paused", "suspended"].includes(r.status) && (
+                    <button
+                      onClick={() => {
+                        const reason = window.prompt(
+                          t("reseller.manager.terminate_prompt"),
+                        );
+                        if (
+                          reason && reason.trim() &&
+                          window.confirm(t("reseller.manager.terminate_confirm", { name: String(r.name) }))
+                        )
+                          decide.mutate({ id: r.id, status: "terminated", reason });
+                      }}
+                      className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-rose-500 hover:bg-muted"
+                    >
+                      {t("reseller.manager.terminate")}
                     </button>
                   )}
                 </div>
@@ -715,7 +826,11 @@ export function ResellerManager() {
                     {d?.plans?.map((p) => (
                       <button
                         key={p.code}
-                        onClick={() => assignPlan.mutate({ id: r.id, plan: p.code })}
+                        onClick={() => {
+                          // A plan sets the margin on every sale: asked, not taken from one click.
+                          if (!window.confirm(t("reseller.manager.plan_confirm", { name: String(r.name), plan: String(p.name), percent: String(p.profit_percent) }))) return;
+                          assignPlan.mutate({ id: r.id, plan: p.code });
+                        }}
                         className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-background"
                       >
                         {p.name} {p.profit_percent}%
@@ -757,6 +872,22 @@ export function ResellerManager() {
                 )}
               </div>
             ))}
+            {(d?.resellers?.length ?? 0) >= limit && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-2.5 py-1.5">
+                <span className="text-[11px] text-muted-foreground">
+                  {t("reseller.manager.list_capped", { limit })}
+                  {limit >= 500 ? ` ${t("reseller.manager.list_narrow")}` : ""}
+                </span>
+                {limit < 500 && (
+                  <button
+                    onClick={() => setLimit((n) => Math.min(500, n + 100))}
+                    className="text-[11px] font-semibold hover:underline"
+                  >
+                    {t("reseller.manager.show_more")}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Card>

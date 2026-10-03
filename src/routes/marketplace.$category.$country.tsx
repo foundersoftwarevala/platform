@@ -33,6 +33,10 @@ export const Route = createFileRoute("/marketplace/$category/$country")({
       const slot = await getCardSlot({
         data: { category: params.category, country: params.country },
       });
+      // The lookup worked and there is no such slot: 404, not a soft 200.
+      if (!slot && typeof window === "undefined") {
+        (await import("@/lib/seo/not-found.server")).respondNotFound();
+      }
       return { slot };
     } catch (error) {
       console.error("[slot page] could not load", params.category, params.country, error);

@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useTranslation, type Translate } from "@/lib/i18n/use-translation";
 
 import {
   Card,
@@ -244,18 +245,19 @@ const STATUS_SOURCE: Record<string, string[]> = {
 };
 
 /** How long ago, as a reader reads it rather than as a timestamp. */
-function ago(at: string | null | undefined): string {
-  if (!at) return "unknown";
+function ago(at: string | null | undefined, t: Translate): string {
+  if (!at) return t("storeadmin.gov.unknown");
   const then = new Date(at).getTime();
-  if (!Number.isFinite(then)) return "unknown";
+  if (!Number.isFinite(then)) return t("storeadmin.gov.unknown");
   const s = Math.round((Date.now() - then) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86_400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86_400)}d ago`;
+  if (s < 60) return t("storeadmin.gov.just_now");
+  if (s < 3600) return t("storeadmin.gov.minutes_ago", { count: Math.floor(s / 60) });
+  if (s < 86_400) return t("storeadmin.gov.hours_ago", { count: Math.floor(s / 3600) });
+  return t("storeadmin.gov.days_ago", { count: Math.floor(s / 86_400) });
 }
 
 export function AuthorApprovalSection() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("All Submissions");
   const qc = useQueryClient();
 
@@ -280,13 +282,13 @@ export function AuthorApprovalSection() {
     }): Promise<Decision> => (await moderateProduct({ data: v as never })) as Decision,
     onSuccess: (r: Decision) => {
       if (!r?.ok) {
-        toast.error("That decision was refused", { description: String(r?.reason ?? "") });
+        toast.error(t("storeadmin.gov.decision_refused"), { description: String(r?.reason ?? "") });
         return;
       }
       void qc.invalidateQueries({ queryKey: MODERATION_KEY });
-      toast.success(String(r.message ?? "Recorded"));
+      toast.success(String(r.message ?? t("storeadmin.gov.recorded")));
     },
-    onError: (e: Error) => toast.error("That decision was refused", { description: e.message }),
+    onError: (e: Error) => toast.error(t("storeadmin.gov.decision_refused"), { description: e.message }),
   });
 
   const rows = view.data?.products ?? [];
@@ -297,19 +299,19 @@ export function AuthorApprovalSection() {
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
-        eyebrow="Governance · Author Approval"
-        title="Author Approval Workflow"
-        description="Every author submission is reviewed, verified and approved by the Marketplace Manager before going public."
+        eyebrow={t("storeadmin.gov.approval_eyebrow")}
+        title={t("storeadmin.gov.approval_title")}
+        description={t("storeadmin.gov.approval_description")}
         actions={
           <>
             <PillButton variant="ghost">
               <span className="inline-flex items-center gap-1.5">
-                <History className="h-3.5 w-3.5" /> Approval History
+                <History className="h-3.5 w-3.5" /> {t("storeadmin.gov.approval_history")}
               </span>
             </PillButton>
             <PillButton variant="primary">
               <span className="inline-flex items-center gap-1.5">
-                <ClipboardCheck className="h-3.5 w-3.5" /> Review Next
+                <ClipboardCheck className="h-3.5 w-3.5" /> {t("storeadmin.gov.review_next")}
               </span>
             </PillButton>
           </>
@@ -337,7 +339,7 @@ export function AuthorApprovalSection() {
           <StatCard
             key={s.id}
             label={s.label}
-            value={view.isLoading ? "—" : view.isError ? "unavailable" : String(counted(s.id))}
+            value={view.isLoading ? "—" : view.isError ? t("storeadmin.gov.unavailable") : String(counted(s.id))}
             tone={s.tone === "muted" ? "default" : s.tone === "info" ? "default" : (s.tone as any)}
           />
         ))}
@@ -347,43 +349,42 @@ export function AuthorApprovalSection() {
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             <ClipboardCheck className="h-4 w-4 text-accent" />
-            <span className="text-sm font-bold">Submission Queue</span>
+            <span className="text-sm font-bold">{t("storeadmin.gov.submission_queue")}</span>
             <Tone tone="info">
               {view.isLoading
-                ? "counting…"
+                ? t("storeadmin.gov.counting")
                 : view.isError
-                  ? "queue unavailable"
-                  : `${rows.length} in queue`}
+                  ? t("storeadmin.gov.queue_unavailable")
+                  : t("storeadmin.gov.in_queue", { count: rows.length })}
             </Tone>
           </div>
           <div className="flex items-center gap-1.5">
-            <IconBtn icon={CheckCircle2} label="Bulk Approve" tone="success" />
-            <IconBtn icon={XCircle} label="Bulk Reject" tone="danger" />
-            <IconBtn icon={Ban} label="Suspend" tone="danger" />
-            <IconBtn icon={Archive} label="Archive" />
+            <IconBtn icon={CheckCircle2} label={t("storeadmin.gov.bulk_approve")} tone="success" />
+            <IconBtn icon={XCircle} label={t("storeadmin.gov.bulk_reject")} tone="danger" />
+            <IconBtn icon={Ban} label={t("storeadmin.gov.suspend")} tone="danger" />
+            <IconBtn icon={Archive} label={t("storeadmin.gov.archive")} />
           </div>
         </div>
         <div className="divide-y divide-border">
           {view.isLoading && (
             <div className="px-4 py-6 text-sm text-muted-foreground">
-              Reading the submission queue…
+              {t("storeadmin.gov.reading_queue")}
             </div>
           )}
           {view.isError && (
             <div className="px-4 py-6">
               <LoadFailure
                 error={view.error}
-                what="the submission queue"
+                what={t("storeadmin.gov.what_queue")}
                 onRetry={() => void view.refetch()}
               />
             </div>
           )}
           {!view.isLoading && !view.isError && rows.length === 0 && (
             <div className="px-4 py-6 text-sm text-muted-foreground">
-              Nothing is awaiting review
               {typeof view.data?.total_catalog === "number"
-                ? ` — all ${new Intl.NumberFormat().format(view.data.total_catalog)} product(s) in the catalogue have been decided.`
-                : "."}
+                ? t("storeadmin.gov.nothing_awaiting_total", { total: new Intl.NumberFormat().format(view.data.total_catalog) })
+                : t("storeadmin.gov.nothing_awaiting")}
             </div>
           )}
           {rows.map((r) => {
@@ -401,18 +402,18 @@ export function AuthorApprovalSection() {
                 <div className="col-span-4">
                   <div className="text-sm font-bold">{r.name}</div>
                   <div className="text-[11px] text-muted-foreground">
-                    by <span className="text-foreground/80">{r.owner ?? "unassigned"}</span> ·{" "}
+                    {t("storeadmin.gov.by")} <span className="text-foreground/80">{r.owner ?? t("storeadmin.gov.unassigned")}</span> ·{" "}
                     <span className="font-mono tabular">{r.slug}</span>
                   </div>
                 </div>
                 <div className="col-span-1">
-                  <Tone tone={kind === "New" ? "premium" : "info"}>{kind}</Tone>
+                  <Tone tone={kind === "New" ? "premium" : "info"}>{kind === "New" ? t("storeadmin.gov.kind_new") : t("storeadmin.gov.kind_update")}</Tone>
                 </div>
                 <div className="col-span-2 text-[11px] text-muted-foreground">
-                  Submitted {ago(r.created_at)}
+                  {t("storeadmin.gov.submitted", { when: ago(r.created_at, t) })}
                 </div>
                 <div className="col-span-1 text-[11px] text-muted-foreground">
-                  {r.category ?? "no category"}
+                  {r.category ?? t("storeadmin.gov.no_category")}
                 </div>
                 <div className="col-span-1">
                   <Tone tone={st.tone === "muted" ? "muted" : (st.tone as any)}>{st.label}</Tone>
@@ -420,23 +421,23 @@ export function AuthorApprovalSection() {
                 <div className="col-span-2 flex items-center justify-end gap-1">
                   <IconBtn
                     icon={Eye}
-                    label="Review"
+                    label={t("storeadmin.gov.review")}
                     tone="accent"
                     onClick={() => window.open(`/marketplace/product/${r.slug}`, "_blank")}
                   />
                   <IconBtn
                     icon={CheckCircle2}
-                    label={busy ? "Working…" : "Approve"}
+                    label={busy ? t("storeadmin.gov.working") : t("storeadmin.gov.approve")}
                     tone="success"
                     onClick={() => decide.mutate({ id: r.id, status: "approved", lock: r.lock })}
                   />
                   <IconBtn
                     icon={XCircle}
-                    label="Reject"
+                    label={t("storeadmin.gov.reject")}
                     tone="danger"
                     onClick={() => {
                       // A rejection the author cannot act on is not a review.
-                      const reason = window.prompt("Why is this being rejected?")?.trim();
+                      const reason = window.prompt(t("storeadmin.gov.reject_prompt"))?.trim();
                       if (!reason) return;
                       decide.mutate({ id: r.id, status: "rejected", lock: r.lock, reason });
                     }}
@@ -451,34 +452,34 @@ export function AuthorApprovalSection() {
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <Card>
           <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-            Approval Rules
+            {t("storeadmin.gov.approval_rules")}
           </div>
           <div className="space-y-2">
-            <Toggle on label="Require manual review for new authors" />
-            <Toggle on label="Auto-verify updates from trusted authors" />
-            <Toggle label="Skip review for security-only patches" />
-            <Toggle on label="Notify author on status change" />
+            <Toggle on label={t("storeadmin.gov.rule_manual_review")} />
+            <Toggle on label={t("storeadmin.gov.rule_auto_verify")} />
+            <Toggle label={t("storeadmin.gov.rule_skip_security")} />
+            <Toggle on label={t("storeadmin.gov.rule_notify_author")} />
           </div>
         </Card>
         <Card>
           <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-            SLA & Escalation
+            {t("storeadmin.gov.sla_escalation")}
           </div>
           <div className="space-y-2">
-            <Field label="Response SLA">
+            <Field label={t("storeadmin.gov.response_sla")}>
               <Input value="24 hours" mono />
             </Field>
-            <Field label="Escalate after">
+            <Field label={t("storeadmin.gov.escalate_after")}>
               <Input value="48 hours" mono />
             </Field>
-            <Field label="Auto-reject stale drafts after">
+            <Field label={t("storeadmin.gov.auto_reject_after")}>
               <Input value="30 days" mono />
             </Field>
           </div>
         </Card>
         <Card>
           <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-            Trusted Authors
+            {t("storeadmin.gov.trusted_authors")}
           </div>
           <div className="space-y-1.5">
             {["Byteforge Labs", "MintStack", "Neon Works", "ForgeIT"].map((n) => (
@@ -487,7 +488,7 @@ export function AuthorApprovalSection() {
                 className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2"
               >
                 <div className="text-[12px] font-semibold">{n}</div>
-                <Tone tone="success">Verified</Tone>
+                <Tone tone="success">{t("storeadmin.gov.verified")}</Tone>
               </div>
             ))}
           </div>
@@ -537,23 +538,24 @@ const MOD_ROWS = [
 ];
 
 export function ModerationSection() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("Queue");
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
-        eyebrow="Governance · Moderation"
-        title="Product Moderation Center"
-        description="Approve, reject, suspend, archive, restore, clone, merge duplicates and run bulk operations across every listing."
+        eyebrow={t("storeadmin.gov.moderation_eyebrow")}
+        title={t("storeadmin.gov.moderation_title")}
+        description={t("storeadmin.gov.moderation_description")}
         actions={
           <>
             <PillButton variant="ghost">
               <span className="inline-flex items-center gap-1.5">
-                <GitMerge className="h-3.5 w-3.5" /> Duplicate Scanner
+                <GitMerge className="h-3.5 w-3.5" /> {t("storeadmin.gov.duplicate_scanner")}
               </span>
             </PillButton>
             <PillButton variant="primary">
               <span className="inline-flex items-center gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" /> Run Full Audit
+                <ShieldCheck className="h-3.5 w-3.5" /> {t("storeadmin.gov.run_full_audit")}
               </span>
             </PillButton>
           </>
@@ -567,25 +569,25 @@ export function ModerationSection() {
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
-          label="Awaiting Moderation"
+          label={t("storeadmin.gov.awaiting_moderation")}
           value="14"
           tone="warning"
           icon={<ShieldAlert className="h-3.5 w-3.5" />}
         />
         <StatCard
-          label="Duplicates Detected"
+          label={t("storeadmin.gov.duplicates_detected")}
           value="6"
           tone="destructive"
           icon={<GitMerge className="h-3.5 w-3.5" />}
         />
         <StatCard
-          label="Reported This Week"
+          label={t("storeadmin.gov.reported_this_week")}
           value="9"
           tone="warning"
           icon={<AlertTriangle className="h-3.5 w-3.5" />}
         />
         <StatCard
-          label="Clean Listings"
+          label={t("storeadmin.gov.clean_listings")}
           value="1,284"
           tone="success"
           icon={<CheckCircle2 className="h-3.5 w-3.5" />}
@@ -596,16 +598,16 @@ export function ModerationSection() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-accent" />
-            <span className="text-sm font-bold">Bulk Operations</span>
+            <span className="text-sm font-bold">{t("storeadmin.gov.bulk_operations")}</span>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <IconBtn icon={CheckCircle2} label="Bulk Approve" tone="success" />
-            <IconBtn icon={XCircle} label="Bulk Reject" tone="danger" />
-            <IconBtn icon={Rocket} label="Bulk Publish" tone="accent" />
-            <IconBtn icon={Pause} label="Bulk Unpublish" />
-            <IconBtn icon={Layers} label="Bulk Category" />
-            <IconBtn icon={Users} label="Bulk Author" />
-            <IconBtn icon={Trash2} label="Bulk Delete" tone="danger" />
+            <IconBtn icon={CheckCircle2} label={t("storeadmin.gov.bulk_approve")} tone="success" />
+            <IconBtn icon={XCircle} label={t("storeadmin.gov.bulk_reject")} tone="danger" />
+            <IconBtn icon={Rocket} label={t("storeadmin.gov.bulk_publish")} tone="accent" />
+            <IconBtn icon={Pause} label={t("storeadmin.gov.bulk_unpublish")} />
+            <IconBtn icon={Layers} label={t("storeadmin.gov.bulk_category")} />
+            <IconBtn icon={Users} label={t("storeadmin.gov.bulk_author")} />
+            <IconBtn icon={Trash2} label={t("storeadmin.gov.bulk_delete")} tone="danger" />
           </div>
         </div>
         <div className="divide-y divide-border">
@@ -618,11 +620,11 @@ export function ModerationSection() {
               <div className="col-span-4">
                 <div className="text-sm font-bold">{r.name}</div>
                 <div className="text-[11px] text-muted-foreground">
-                  by {r.author} · <span className="font-mono tabular">{r.id}</span>
+                  {t("storeadmin.gov.by")} {r.author} · <span className="font-mono tabular">{r.id}</span>
                   {r.dup ? (
                     <>
                       {" "}
-                      · <span className="text-warning">{r.dup} duplicates</span>
+                      · <span className="text-warning">{t("storeadmin.gov.duplicates_count", { count: r.dup })}</span>
                     </>
                   ) : null}
                 </div>
@@ -631,14 +633,14 @@ export function ModerationSection() {
                 <Tone tone={r.tone as any}>{r.flag}</Tone>
               </div>
               <div className="col-span-4 flex items-center justify-end gap-1">
-                <IconBtn icon={CheckCircle2} label="Approve" tone="success" />
-                <IconBtn icon={XCircle} label="Reject" tone="danger" />
-                <IconBtn icon={Ban} label="Suspend" tone="danger" />
-                <IconBtn icon={Archive} label="Archive" />
-                <IconBtn icon={RotateCcw} label="Restore" />
-                <IconBtn icon={Copy} label="Clone" />
-                <IconBtn icon={GitMerge} label="Merge" tone="accent" />
-                <IconBtn icon={Trash2} label="Delete" tone="danger" />
+                <IconBtn icon={CheckCircle2} label={t("storeadmin.gov.approve")} tone="success" />
+                <IconBtn icon={XCircle} label={t("storeadmin.gov.reject")} tone="danger" />
+                <IconBtn icon={Ban} label={t("storeadmin.gov.suspend")} tone="danger" />
+                <IconBtn icon={Archive} label={t("storeadmin.gov.archive")} />
+                <IconBtn icon={RotateCcw} label={t("storeadmin.gov.restore")} />
+                <IconBtn icon={Copy} label={t("storeadmin.gov.clone")} />
+                <IconBtn icon={GitMerge} label={t("storeadmin.gov.merge")} tone="accent" />
+                <IconBtn icon={Trash2} label={t("storeadmin.gov.delete")} tone="danger" />
               </div>
             </div>
           ))}
@@ -649,7 +651,7 @@ export function ModerationSection() {
         <Card>
           <div className="mb-3 flex items-center gap-2">
             <GitMerge className="h-4 w-4 text-accent" />
-            <div className="text-sm font-bold">Duplicate Product Merger</div>
+            <div className="text-sm font-bold">{t("storeadmin.gov.duplicate_merger")}</div>
           </div>
           <div className="space-y-2">
             {[
@@ -662,12 +664,12 @@ export function ModerationSection() {
                   <div className="text-[12px] font-semibold">
                     {d.a} <span className="text-muted-foreground">↔</span> {d.b}
                   </div>
-                  <Tone tone={d.score > 85 ? "danger" : "warning"}>{d.score}% match</Tone>
+                  <Tone tone={d.score > 85 ? "danger" : "warning"}>{t("storeadmin.gov.percent_match", { score: d.score })}</Tone>
                 </div>
                 <div className="mt-2 flex items-center gap-1.5">
-                  <IconBtn icon={GitMerge} label="Merge" tone="accent" />
-                  <IconBtn icon={Eye} label="Compare" />
-                  <IconBtn icon={XCircle} label="Not a duplicate" tone="muted" />
+                  <IconBtn icon={GitMerge} label={t("storeadmin.gov.merge")} tone="accent" />
+                  <IconBtn icon={Eye} label={t("storeadmin.gov.compare")} />
+                  <IconBtn icon={XCircle} label={t("storeadmin.gov.not_duplicate")} tone="muted" />
                 </div>
               </div>
             ))}
@@ -676,13 +678,13 @@ export function ModerationSection() {
         <Card>
           <div className="mb-3 flex items-center gap-2">
             <Trash2 className="h-4 w-4 text-destructive" />
-            <div className="text-sm font-bold">Deletion Policy</div>
+            <div className="text-sm font-bold">{t("storeadmin.gov.deletion_policy")}</div>
           </div>
           <div className="space-y-2">
-            <Toggle on label="Soft delete first — 30 day recovery window" />
-            <Toggle label="Require dual approval for permanent delete" />
-            <Toggle on label="Preserve orders and licenses on deletion" />
-            <Toggle label="Auto-purge soft deleted after 90 days" />
+            <Toggle on label={t("storeadmin.gov.policy_soft_delete")} />
+            <Toggle label={t("storeadmin.gov.policy_dual_approval")} />
+            <Toggle on label={t("storeadmin.gov.policy_preserve")} />
+            <Toggle label={t("storeadmin.gov.policy_auto_purge")} />
           </div>
         </Card>
       </div>

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getRequestIP } from "@tanstack/react-start/server";
 
 import { SlidingWindowLimiter, clientAddress } from "@/lib/i18n/limits";
 import { SOURCE_LANGUAGE, getLanguage, resolveLanguage } from "@/lib/i18n/registry";
@@ -16,10 +17,24 @@ import { SOURCE_LANGUAGE, getLanguage, resolveLanguage } from "@/lib/i18n/regist
  * The response is built from translation memory: text only from servable
  * rows (machine, verified) of the "ui" namespace, plus the strings held for
  * review listed under `withheld` without text, so the page stops asking for
- * them. It is kept in the server process for five minutes and marked
- * cacheable so browsers and any shared cache in front can keep it too. It
- * contains nothing that is not already public: the same text the page shows.
+ * them. It is kept in the server process for a minute and marked cacheable for
+ * a minute; after that a browser revalidates with its ETag and gets a 304 when
+ * nothing changed, so a reviewer's decision reaches visitors within about a
+ * minute on every instance. It contains nothing that is not already public:
+ * the same text the page shows.
+ *
+ * A language an operator has switched off (i18n_languages.enabled = false) is
+ * refused with 400 and reason "language_disabled".
  */
+
+/** The address the request's socket came from, not what its headers claim. */
+function socketPeer(): string | null {
+  try {
+    return getRequestIP() ?? null;
+  } catch {
+    return null;
+  }
+}
 
 const limiter = new SlidingWindowLimiter(60_000);
 const REQUESTS_PER_MINUTE = 120;
@@ -59,7 +74,7 @@ export const Route = createFileRoute("/api/i18n/pack")({
             ),
           );
         }
-        if (limiter.hit(clientAddress(request.headers), REQUESTS_PER_MINUTE)) {
+        if (limiter.hit(clientAddress(request.headers, socketPeer()), REQUESTS_PER_MINUTE)) {
           return finish(
             Response.json(
               { error: "Too many requests.", reason: "rate_limited" },
@@ -68,9 +83,20 @@ export const Route = createFileRoute("/api/i18n/pack")({
           );
         }
 
+        const { db, disabledLanguages } = await import("@/lib/i18n/service.server");
+        if ((await disabledLanguages(db())).has(language.code)) {
+          return finish(
+            Response.json(
+              // i18n-ignore: an API error message; the client reads `reason`.
+              { error: "This language is switched off.", reason: "language_disabled" },
+              { status: 400, headers: { "Cache-Control": "public, max-age=60" } },
+            ),
+          );
+        }
+
         const headers = {
           "Content-Type": "application/json; charset=utf-8",
-          "Cache-Control": "public, max-age=300, stale-while-revalidate=600",
+          "Cache-Control": "public, max-age=60, stale-while-revalidate=60",
         };
         if (EMPTY_SOURCE.has(language.code) || isSourceVariety(language.code)) {
           return finish(

@@ -218,7 +218,8 @@ export async function loadAutomations(degraded: Degraded): Promise<CEOAutomation
     {
       table: "marketing_automations",
       select: "*",
-      order: "created_at.desc",
+      // marketing_automations has no created_at; most recently run first.
+      order: "last_run_at.desc.nullslast",
       name: "name",
       trigger: ["trigger_type", "trigger", "trigger_event"],
       action: ["action_type", "action"],
@@ -256,7 +257,7 @@ export async function loadAutomations(degraded: Degraded): Promise<CEOAutomation
             trigger: spec.trigger.map((key) => str(row, key)).find(Boolean) ?? null,
             action: spec.action.map((key) => str(row, key)).find(Boolean) ?? null,
             enabled: bool(row, "enabled", "is_enabled", "active"),
-            runCount: num(row, "run_count") ?? num(row, "runs_count"),
+            runCount: num(row, "run_count") ?? num(row, "runs_count") ?? num(row, "runs"),
             lastRunAt: str(row, "last_run_at"),
             source: spec.table,
           }));

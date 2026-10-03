@@ -2,6 +2,7 @@ import { rateLimited } from "@/lib/server/rate-limit";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { toCard } from "@/lib/marketplace/catalog-card";
+import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
 
 /**
  * Catalogue search for the marketplace tools.
@@ -25,6 +26,8 @@ import { toCard } from "@/lib/marketplace/catalog-card";
 
 const CACHE_MS = 60_000;
 const cache = new Map<string, { at: number; payload: unknown }>();
+// A product hidden in the Manager stops appearing in search now, not in a minute.
+onCatalogueChange(() => cache.clear());
 
 /** Words that carry no signal when matching a requirement to a product. */
 const STOPWORDS = new Set([
@@ -44,7 +47,10 @@ const SELECT =
   "price_label,price_period,description,tech_stack,features,modules,deployment," +
   "license,version,is_featured,is_trending,is_best_seller,is_new_release,category_id," +
   // What a product card also reads (format=cards).
-  "search_keywords,subcategory,product_demo_urls(url,status)";
+  "search_keywords,search_text,subcategory,product_demo_urls(url,status)";
+
+/** Deterministic, so a page of 200 is the same 200 every time it is asked for. */
+const ORDER = "&order=is_featured.desc,sort_order.asc,id.asc";
 
 type ProductRow = Record<string, unknown>;
 
@@ -54,7 +60,13 @@ function terms(query: string): string[] {
     new Set(
       query
         .toLowerCase()
-        .replace(/[^a-z0-9\s+#.-]/g, " ")
+        // Latin accents fold away ("café" finds "cafe"); every other script
+        // is kept. This used to delete anything outside a-z0-9, so a Hindi
+        // query became no words at all and "café" became "caf".
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .normalize("NFC")
+        .replace(/[^\p{L}\p{M}\p{N}\s+#.-]/gu, " ")
         .split(/\s+/)
         // Two letters is enough for "AI", "HR", "QR"; the short English
         // words are all stopwords.
@@ -71,9 +83,12 @@ function escapeForFilter(value: string) {
 /** How well a product answers the requirement, and why. */
 function score(product: ProductRow, words: string[]) {
   const name = String(product.name ?? "").toLowerCase();
+  // search_text and search_keywords are what the database matched on; leaving
+  // them out scored those rows 0 and threw them away after fetching them.
   const haystack = [
     product.name, product.industry_label, product.description,
     product.tech_stack, product.features, product.modules, product.deployment,
+    product.search_text, product.search_keywords,
   ]
     .map((v) => (Array.isArray(v) ? v.join(" ") : String(v ?? "")))
     .join(" ")
@@ -90,8 +105,10 @@ function score(product: ProductRow, words: string[]) {
       matched.push(word);
     }
   }
-  if (product.is_best_seller) points += 0.5;
-  if (product.is_featured) points += 0.25;
+  // A tie-break among matches, never a reason to show a product that matched
+  // nothing.
+  if (matched.length && product.is_best_seller) points += 0.5;
+  if (matched.length && product.is_featured) points += 0.25;
   return { points, matched };
 }
 
@@ -130,6 +147,7 @@ function stripDemoUrls(rows: ProductRow[]): ProductRow[] {
      * them there.
      */
     delete rest.search_keywords;
+    delete rest.search_text;
 
     return { ...rest, has_demo: liveDemos.length > 0 || Boolean(demo_url) };
   });
@@ -193,6 +211,16 @@ async function answer(request: Request): Promise<Response> {
           );
           const found = categoryResponse.ok ? ((await categoryResponse.json()) as ProductRow[]) : [];
           if (found[0]?.id) categoryFilter = `&category_id=eq.${String(found[0].id)}`;
+          // An unknown category narrows to nothing. It used to be ignored, so
+          // the answer looked filtered and was not.
+          else if (categoryResponse.ok) {
+            return Response.json(
+              asCards
+                ? { cards: [], terms: [], reason: "unknown_category" }
+                : { products: [], terms: [], reason: "unknown_category" },
+              { status: 404 },
+            );
+          }
         }
 
         try {
@@ -232,14 +260,14 @@ async function answer(request: Request): Promise<Response> {
             // Real interest first; the marketplace's own best sellers fill any gap.
             let rows: ProductRow[] = [];
             if (ranked.length) {
-              const response = await fetch(`${base}&id=in.(${ranked.join(",")})`, { headers: admin() });
+              const response = await fetch(`${base}${categoryFilter}&id=in.(${ranked.join(",")})`, { headers: admin() });
               if (response.ok) rows = (await response.json()) as ProductRow[];
               rows.sort((a, b) => ranked.indexOf(String(a.id)) - ranked.indexOf(String(b.id)));
               rows = rows.map((r) => ({ ...r, reason: "Most opened on the marketplace" }));
             }
             if (rows.length < limit) {
               const response = await fetch(
-                `${base}${categoryFilter}&is_best_seller=eq.true&limit=${limit - rows.length}`,
+                `${base}${categoryFilter}&is_best_seller=eq.true${ORDER}&limit=${limit - rows.length}`,
                 { headers: admin() },
               );
               if (response.ok) {
@@ -258,7 +286,10 @@ async function answer(request: Request): Promise<Response> {
           const words = terms(query);
           if (!words.length) {
             if (asCards) return Response.json({ cards: [], terms: [] });
-            const response = await fetch(`${base}&is_featured=eq.true&limit=${limit}`, { headers: admin() });
+            // Something was typed and none of it is searchable: that is no
+            // match, not a request for the featured list.
+            if (query) return Response.json({ products: [], terms: [], reason: "no_searchable_words" });
+            const response = await fetch(`${base}${categoryFilter}&is_featured=eq.true${ORDER}&limit=${limit}`, { headers: admin() });
             const rows = response.ok ? ((await response.json()) as ProductRow[]) : [];
             return Response.json({ products: await withPricing(url, rows), terms: [] });
           }
@@ -270,16 +301,36 @@ async function answer(request: Request): Promise<Response> {
             })
             .join(",");
 
-          const response = await fetch(
-            `${base}&or=(${encodeURIComponent(or)})&limit=200`,
-            { headers: admin() },
-          );
-          if (!response.ok) {
-            console.error("[search] failed", response.status, await response.text());
+          // Two reads. Products whose name carries a word come first and are
+          // never crowded out: the broad read below caps at 200 rows, and for
+          // a common word ("management") those 200 were an arbitrary slice
+          // that left out products named for exactly what was searched.
+          const byName = words
+            .map((w) => `name.ilike.*${encodeURIComponent(escapeForFilter(w))}*`)
+            .join(",");
+          const [named, broad] = await Promise.all([
+            fetch(`${base}${categoryFilter}&or=(${byName})${ORDER}&limit=200`, { headers: admin() }),
+            fetch(`${base}${categoryFilter}&or=(${encodeURIComponent(or)})${ORDER}&limit=200`, {
+              headers: admin(),
+            }),
+          ]);
+          if (!named.ok || !broad.ok) {
+            const failed = named.ok ? broad : named;
+            console.error("[search] failed", failed.status, await failed.text());
             return Response.json({ products: [], terms: words }, { status: 502 });
           }
 
-          const rows = (await response.json()) as ProductRow[];
+          const seen = new Set<string>();
+          const rows: ProductRow[] = [];
+          for (const row of [
+            ...((await named.json()) as ProductRow[]),
+            ...((await broad.json()) as ProductRow[]),
+          ]) {
+            const id = String(row.id);
+            if (seen.has(id)) continue;
+            seen.add(id);
+            rows.push(row);
+          }
           const ranked = rows
             .map((row) => ({ row, ...score(row, words) }))
             .filter((r) => r.points > 0)

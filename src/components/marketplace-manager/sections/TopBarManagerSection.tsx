@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 import { PageHeader, PillButton, StatCard, Card, EmptyHint } from "../ui";
 import {
@@ -168,6 +169,7 @@ function exportRegistry(rows: TopBarModule[], total: number) {
 }
 
 export function TopBarManagerSection() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [tab, setTab] = useState("All");
   const [search, setSearch] = useState("");
@@ -186,17 +188,18 @@ export function TopBarManagerSection() {
     void qc.invalidateQueries({ queryKey: KEY });
     toast.success(msg);
   };
-  const fail = (e: Error) => toast.error("That change was refused", { description: e.message });
+  const fail = (e: Error) =>
+    toast.error(t("manager.topbar.change_refused"), { description: e.message });
 
   const configure = useMutation({
     mutationFn: (v: { key: string; patch: Record<string, unknown> }) =>
       configureTopBarModule({ data: v as never }),
-    onSuccess: (r) => done(String(r.message ?? "Updated")),
+    onSuccess: (r) => done(String(r.message ?? t("manager.topbar.updated"))),
     onError: fail,
   });
   const reorder = useMutation({
     mutationFn: (keys: string[]) => reorderTopBarModules({ data: { keys } }),
-    onSuccess: () => done("Top bar reordered"),
+    onSuccess: () => done(t("manager.topbar.reordered")),
     onError: fail,
   });
 
@@ -264,11 +267,11 @@ export function TopBarManagerSection() {
       <PageHeader
         eyebrow={
           isLoading
-            ? "Storefront top bar"
-            : `Storefront top bar · ${modules.length} module${modules.length === 1 ? "" : "s"}`
+            ? t("manager.topbar.eyebrow")
+            : t("manager.topbar.eyebrow_count", { count: modules.length })
         }
-        title="Storefront Top Bar Manager"
-        description="Every element of the storefront header. Hiding, reordering or changing the device rules of a module the utility strip renders changes the storefront; a module marked NOT ON THE PAGE says what is missing before it could."
+        title={t("manager.topbar.title")}
+        description={t("manager.topbar.description")}
       />
 
       {isError && (
@@ -276,7 +279,7 @@ export function TopBarManagerSection() {
           <div className="flex items-start gap-3 p-4 text-sm">
             <AlertTriangle className="mt-0.5 h-4 w-4 text-destructive" />
             <div>
-              <div className="font-medium text-destructive">Could not load the top bar modules</div>
+              <div className="font-medium text-destructive">{t("manager.topbar.load_failed")}</div>
               <div className="text-muted-foreground">{(error as Error)?.message}</div>
             </div>
           </div>
@@ -284,11 +287,22 @@ export function TopBarManagerSection() {
       )}
 
       <div className="mb-6 mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Modules" value={isLoading ? "—" : String(modules.length)} />
-        <StatCard label="Live" value={isLoading ? "—" : String(live)} tone="success" />
-        <StatCard label="Draft" value={isLoading ? "—" : String(draft)} tone="warning" />
         <StatCard
-          label="On the storefront"
+          label={t("manager.topbar.modules")}
+          value={isLoading ? "—" : String(modules.length)}
+        />
+        <StatCard
+          label={t("manager.topbar.live")}
+          value={isLoading ? "—" : String(live)}
+          tone="success"
+        />
+        <StatCard
+          label={t("manager.topbar.draft")}
+          value={isLoading ? "—" : String(draft)}
+          tone="warning"
+        />
+        <StatCard
+          label={t("manager.topbar.on_storefront")}
           value={isLoading ? "—" : String(onPage)}
           tone="premium"
         />
@@ -296,7 +310,7 @@ export function TopBarManagerSection() {
 
       {!isLoading && hidden > 0 && (
         <div className="mb-3 text-[11px] text-muted-foreground">
-          {hidden} module{hidden === 1 ? " is" : "s are"} hidden and not rendered.
+          {t("manager.topbar.hidden_count", { count: hidden })}
         </div>
       )}
 
@@ -322,7 +336,7 @@ export function TopBarManagerSection() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, key, category or status"
+            placeholder={t("manager.topbar.search_placeholder")}
             className="w-full rounded-lg border border-border bg-background/60 py-1.5 pl-8 pr-3 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
@@ -331,7 +345,7 @@ export function TopBarManagerSection() {
           onChange={(e) => setStatusFilter(e.target.value as "" | Status)}
           className="rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent"
         >
-          <option value="">Any status</option>
+          <option value="">{t("manager.topbar.any_status")}</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
               {s}
@@ -343,9 +357,9 @@ export function TopBarManagerSection() {
           onChange={(e) => setPlacement(e.target.value as "" | "on" | "off")}
           className="rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-accent"
         >
-          <option value="">Anywhere</option>
-          <option value="on">On the storefront</option>
-          <option value="off">Not on the page</option>
+          <option value="">{t("manager.topbar.anywhere")}</option>
+          <option value="on">{t("manager.topbar.on_storefront")}</option>
+          <option value="off">{t("manager.topbar.not_on_page")}</option>
         </select>
         <select
           value={sort}
@@ -354,7 +368,7 @@ export function TopBarManagerSection() {
         >
           {SORTS.map((s) => (
             <option key={s.key} value={s.key}>
-              Sort · {s.label}
+              {t("manager.topbar.sort_by", { label: s.label })}
             </option>
           ))}
         </select>
@@ -370,23 +384,23 @@ export function TopBarManagerSection() {
             }}
             className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground"
           >
-            Clear
+            {t("manager.topbar.clear")}
           </button>
         )}
         {modules.length > 0 && (
           <button
             type="button"
             onClick={() => exportRegistry(list, modules.length)}
-            title="Download the rows shown, exactly as the registry returned them"
+            title={t("manager.topbar.export_hint")}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground"
           >
-            <Download className="h-3.5 w-3.5" /> Export
+            <Download className="h-3.5 w-3.5" /> {t("manager.topbar.export")}
           </button>
         )}
       </div>
 
-      {isLoading && <EmptyHint text="Reading the top bar registry…" />}
-      {!isLoading && list.length === 0 && <EmptyHint text="No module matches these filters." />}
+      {isLoading && <EmptyHint text={t("manager.topbar.reading")} />}
+      {!isLoading && list.length === 0 && <EmptyHint text={t("manager.topbar.no_match")} />}
 
       <div className="space-y-2">
         {list.map((m: TopBarModule, i) => {
@@ -401,7 +415,7 @@ export function TopBarManagerSection() {
                     className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
                     onClick={() => nudge(m.module_key, -1)}
                     disabled={!orderable || i === 0 || reorder.isPending}
-                    aria-label={`Move ${m.name} up`}
+                    aria-label={t("manager.topbar.move_named_up", { name: m.name })}
                   >
                     <ChevronUp className="h-3.5 w-3.5" />
                   </button>
@@ -409,7 +423,7 @@ export function TopBarManagerSection() {
                     className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
                     onClick={() => nudge(m.module_key, 1)}
                     disabled={!orderable || i === list.length - 1 || reorder.isPending}
-                    aria-label={`Move ${m.name} down`}
+                    aria-label={t("manager.topbar.move_named_down", { name: m.name })}
                   >
                     <ChevronDown className="h-3.5 w-3.5" />
                   </button>
@@ -439,17 +453,17 @@ export function TopBarManagerSection() {
                         }`}
                         title={
                           rendered
-                            ? "The header reads this row, so changing it changes the storefront."
+                            ? t("manager.topbar.rendered_hint")
                             : onStorefront
-                              ? "Visible on the storefront, but this manager does not control it yet."
-                              : "The header has no such element."
+                              ? t("manager.topbar.visible_uncontrolled_hint")
+                              : t("manager.topbar.no_element_hint")
                         }
                       >
                         {rendered
-                          ? "Controls the page"
+                          ? t("manager.topbar.controls_page")
                           : onStorefront
-                            ? "On the storefront"
-                            : "Not on the page"}
+                            ? t("manager.topbar.on_storefront")
+                            : t("manager.topbar.not_on_page")}
                       </span>
                     )}
                     {m.featured && <Star className="h-3 w-3 shrink-0 fill-warning text-warning" />}
@@ -462,10 +476,9 @@ export function TopBarManagerSection() {
                     <div className="mt-1 flex items-start gap-1.5 text-[11px] text-warning">
                       <Info className="mt-0.5 h-3 w-3 shrink-0" />
                       <span>
-                        Needs {needs}
                         {controlledBy && controlledBy !== "Top Bar Manager"
-                          ? ` · controlled by ${controlledBy}`
-                          : ""}
+                          ? t("manager.topbar.needs_controlled", { needs, who: controlledBy })
+                          : t("manager.topbar.needs", { needs })}
                       </span>
                     </div>
                   )}
@@ -485,7 +498,7 @@ export function TopBarManagerSection() {
                     ) : (
                       <EyeOff className="h-3.5 w-3.5" />
                     )}
-                    {m.status === "live" ? "Visible" : "Hidden"}
+                    {m.status === "live" ? t("manager.topbar.visible") : t("manager.topbar.hidden")}
                   </PillButton>
                   <PillButton
                     onClick={() =>
@@ -495,7 +508,8 @@ export function TopBarManagerSection() {
                       })
                     }
                   >
-                    <Monitor className="h-3.5 w-3.5" /> {m.desktop_enabled ? "on" : "off"}
+                    <Monitor className="h-3.5 w-3.5" />{" "}
+                    {m.desktop_enabled ? t("manager.topbar.on") : t("manager.topbar.off")}
                   </PillButton>
                   <PillButton
                     onClick={() =>
@@ -505,7 +519,8 @@ export function TopBarManagerSection() {
                       })
                     }
                   >
-                    <Tablet className="h-3.5 w-3.5" /> {m.tablet_enabled ? "on" : "off"}
+                    <Tablet className="h-3.5 w-3.5" />{" "}
+                    {m.tablet_enabled ? t("manager.topbar.on") : t("manager.topbar.off")}
                   </PillButton>
                   <PillButton
                     onClick={() =>
@@ -515,7 +530,8 @@ export function TopBarManagerSection() {
                       })
                     }
                   >
-                    <Smartphone className="h-3.5 w-3.5" /> {m.mobile_enabled ? "on" : "off"}
+                    <Smartphone className="h-3.5 w-3.5" />{" "}
+                    {m.mobile_enabled ? t("manager.topbar.on") : t("manager.topbar.off")}
                   </PillButton>
                   <PillButton
                     onClick={() =>
@@ -525,10 +541,11 @@ export function TopBarManagerSection() {
                       })
                     }
                   >
-                    <PinIcon className="h-3.5 w-3.5" /> {m.featured ? "Featured" : "Feature"}
+                    <PinIcon className="h-3.5 w-3.5" />{" "}
+                    {m.featured ? t("manager.topbar.featured") : t("manager.topbar.feature")}
                   </PillButton>
                   <PillButton onClick={() => setConfiguring(m)}>
-                    <Settings2 className="h-3.5 w-3.5" /> Configure
+                    <Settings2 className="h-3.5 w-3.5" /> {t("manager.topbar.configure")}
                   </PillButton>
                 </div>
               </div>
@@ -539,8 +556,7 @@ export function TopBarManagerSection() {
 
       {!orderable && list.length > 1 && (
         <div className="mt-3 text-[11px] text-muted-foreground">
-          Reordering is available on the All tab with no search, no filter and the Position sort,
-          because order is a property of the whole bar.
+          {t("manager.topbar.reorder_note")}
         </div>
       )}
 
@@ -593,6 +609,7 @@ function MenuEditor({
   pattern: string;
   initial: TopBarItem[];
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [rows, setRows] = useState<TopBarItem[]>(initial);
 
@@ -600,10 +617,11 @@ function MenuEditor({
     mutationFn: (items: TopBarItem[]) =>
       setTopBarItems({ data: { key: m.module_key, items } as never }),
     onSuccess: (r) => {
-      toast.success(String(r.message ?? "Menu saved"));
+      toast.success(String(r.message ?? t("manager.topbar.menu_saved")));
       void qc.invalidateQueries({ queryKey: KEY });
     },
-    onError: (e: Error) => toast.error("That menu was refused", { description: e.message }),
+    onError: (e: Error) =>
+      toast.error(t("manager.topbar.menu_refused"), { description: e.message }),
   });
 
   const set = (i: number, patch: Partial<TopBarItem>) =>
@@ -625,14 +643,11 @@ function MenuEditor({
     <div className="space-y-2 rounded-lg border border-border bg-background/40 p-3">
       <div className="flex items-center justify-between">
         <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-          Menu items
+          {t("manager.topbar.menu_items")}
         </div>
         <code className="text-[10px] text-muted-foreground">{pattern}</code>
       </div>
-      <div className="text-[10px] text-muted-foreground">
-        The header renders these, in this order. Each key is substituted into the route above, so it
-        has to be one that route accepts.
-      </div>
+      <div className="text-[10px] text-muted-foreground">{t("manager.topbar.menu_note")}</div>
 
       {rows.map((r, i) => (
         <div key={i} className="space-y-1 rounded-lg border border-border bg-background/60 p-2">
@@ -640,20 +655,20 @@ function MenuEditor({
             <input
               value={r.key}
               onChange={(e) => set(i, { key: e.target.value })}
-              placeholder="key"
+              placeholder={t("manager.topbar.item_key")}
               className="w-28 shrink-0 rounded border border-border bg-background/60 px-2 py-1 font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-accent"
             />
             <input
               value={r.label}
               onChange={(e) => set(i, { label: e.target.value })}
-              placeholder="label"
+              placeholder={t("manager.topbar.item_label")}
               className="min-w-0 flex-1 rounded border border-border bg-background/60 px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-accent"
             />
             <button
               type="button"
               onClick={() => move(i, -1)}
               disabled={i === 0}
-              aria-label="Move up"
+              aria-label={t("manager.topbar.move_up")}
               className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
             >
               <ChevronUp className="h-3.5 w-3.5" />
@@ -662,7 +677,7 @@ function MenuEditor({
               type="button"
               onClick={() => move(i, 1)}
               disabled={i === rows.length - 1}
-              aria-label="Move down"
+              aria-label={t("manager.topbar.move_down")}
               className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
             >
               <ChevronDown className="h-3.5 w-3.5" />
@@ -670,7 +685,7 @@ function MenuEditor({
             <button
               type="button"
               onClick={() => setRows((rs) => rs.filter((_, n) => n !== i))}
-              aria-label="Remove item"
+              aria-label={t("manager.topbar.remove_item")}
               className="rounded p-0.5 text-muted-foreground hover:text-destructive"
             >
               <X className="h-3.5 w-3.5" />
@@ -679,23 +694,21 @@ function MenuEditor({
           <input
             value={r.blurb ?? ""}
             onChange={(e) => set(i, { blurb: e.target.value })}
-            placeholder="blurb (optional)"
+            placeholder={t("manager.topbar.item_blurb")}
             className="w-full rounded border border-border bg-background/60 px-2 py-1 text-[11px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
       ))}
 
       {rows.length === 0 && (
-        <div className="text-[11px] text-muted-foreground">
-          This menu is empty. The header falls back to the list compiled into it until an item is
-          added here.
-        </div>
+        <div className="text-[11px] text-muted-foreground">{t("manager.topbar.menu_empty")}</div>
       )}
 
       {(blank || repeated) && (
         <div className="text-[10px] text-destructive">
-          {blank ? "Every item needs a key and a label. " : ""}
-          {repeated ? "Two items share a key." : ""}
+          {blank ? t("manager.topbar.items_need_key_label") : ""}
+          {blank && repeated ? " " : ""}
+          {repeated ? t("manager.topbar.items_share_key") : ""}
         </div>
       )}
 
@@ -706,7 +719,7 @@ function MenuEditor({
           disabled={rows.length >= 40}
           className="rounded-full border border-border px-3 py-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-40"
         >
-          Add item
+          {t("manager.topbar.add_item")}
         </button>
         <button
           type="button"
@@ -716,7 +729,7 @@ function MenuEditor({
           disabled={save.isPending || blank || repeated}
           className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-accent disabled:opacity-50"
         >
-          {save.isPending ? "Saving…" : "Save menu"}
+          {save.isPending ? t("manager.topbar.saving") : t("manager.topbar.save_menu")}
         </button>
         <span className="text-[10px] text-muted-foreground">{rows.length} / 40</span>
       </div>
@@ -735,6 +748,7 @@ function ConfigureDrawer({
   onClose: () => void;
   onSave: (patch: Record<string, unknown>) => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(m.name);
   const [status, setStatus] = useState<Status>(m.status);
   const [order, setOrder] = useState(String(m.sort_order));
@@ -803,14 +817,14 @@ function ConfigureDrawer({
         <header className="flex items-start gap-3 border-b border-border p-4">
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
-              Configure
+              {t("manager.topbar.configure")}
             </div>
             <div className="truncate text-[15px] font-bold">{m.name}</div>
             <code className="text-[10px] text-muted-foreground">{m.module_key}</code>
           </div>
           <button
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common.close")}
             className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-destructive/40 hover:text-destructive"
           >
             <X className="h-4 w-4" />
@@ -829,19 +843,23 @@ function ConfigureDrawer({
               }`}
             >
               {rendered
-                ? "The header reads this row. What you change here changes the storefront."
+                ? t("manager.topbar.drawer_rendered")
                 : onStorefront
-                  ? "This element is on the storefront, but nothing here controls it yet. Changes below are recorded against the row and will not move the page."
-                  : "The header does not render this, and nothing here will put it on the page."}
-              {controlledBy && <div className="mt-1">Controlled by: {controlledBy}</div>}
-              {needs && <div className="mt-1">Needs: {needs}</div>}
-              {source && <div className="mt-1">Source: {source}</div>}
+                  ? t("manager.topbar.drawer_uncontrolled")
+                  : t("manager.topbar.drawer_not_rendered")}
+              {controlledBy && (
+                <div className="mt-1">
+                  {t("manager.topbar.controlled_by", { who: controlledBy })}
+                </div>
+              )}
+              {needs && <div className="mt-1">{t("manager.topbar.needs_label", { needs })}</div>}
+              {source && <div className="mt-1">{t("manager.topbar.source", { source })}</div>}
             </div>
           )}
 
           <div>
             <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              Name
+              {t("manager.topbar.name")}
             </div>
             <input
               value={name}
@@ -854,7 +872,7 @@ function ConfigureDrawer({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                Status
+                {t("manager.topbar.status")}
               </div>
               <select
                 value={status}
@@ -870,7 +888,7 @@ function ConfigureDrawer({
             </div>
             <div>
               <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                Position
+                {t("manager.topbar.position")}
               </div>
               <input
                 value={order}
@@ -884,23 +902,43 @@ function ConfigureDrawer({
               />
               {!orderValid && (
                 <div className="mt-1 text-[10px] text-destructive">
-                  Position is a whole number from 1 to 99.
+                  {t("manager.topbar.position_invalid")}
                 </div>
               )}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Row label="Desktop" on={desktop} set={setDesktop} hint="Rendered on wide screens" />
-            <Row label="Tablet" on={tablet} set={setTablet} hint="Rendered on medium screens" />
-            <Row label="Mobile" on={mobile} set={setMobile} hint="Rendered on small screens" />
             <Row
-              label="Sticky"
+              label={t("manager.topbar.desktop")}
+              on={desktop}
+              set={setDesktop}
+              hint={t("manager.topbar.desktop_hint")}
+            />
+            <Row
+              label={t("manager.topbar.tablet")}
+              on={tablet}
+              set={setTablet}
+              hint={t("manager.topbar.tablet_hint")}
+            />
+            <Row
+              label={t("manager.topbar.mobile")}
+              on={mobile}
+              set={setMobile}
+              hint={t("manager.topbar.mobile_hint")}
+            />
+            <Row
+              label={t("manager.topbar.sticky")}
               on={sticky}
               set={setSticky}
-              hint="Stored against the module. The utility strip does not read this yet, so it changes the record and not the page."
+              hint={t("manager.topbar.sticky_hint")}
             />
-            <Row label="Featured" on={featured} set={setFeatured} hint="Pinned for operators" />
+            <Row
+              label={t("manager.topbar.featured")}
+              on={featured}
+              set={setFeatured}
+              hint={t("manager.topbar.featured_hint")}
+            />
           </div>
 
           {routePattern ? <MenuEditor module={m} pattern={routePattern} initial={items} /> : null}
@@ -911,7 +949,7 @@ function ConfigureDrawer({
             onClick={onClose}
             className="rounded-full border border-border bg-background/60 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
           >
-            Cancel
+            {t("manager.topbar.cancel")}
           </button>
           <button
             type="button"
@@ -919,7 +957,7 @@ function ConfigureDrawer({
             disabled={saving || !orderValid}
             className="rounded-full bg-gradient-to-r from-primary to-accent px-5 py-2 text-[11px] font-bold uppercase tracking-wider text-primary-foreground shadow-[var(--shadow-glow)] disabled:opacity-60"
           >
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? t("manager.topbar.saving") : t("manager.topbar.save_changes")}
           </button>
         </footer>
       </aside>

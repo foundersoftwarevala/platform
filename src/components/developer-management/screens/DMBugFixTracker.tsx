@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Bug, UserPlus, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAllDeveloperTasks, useDeveloperRegistry, useReassignTask } from '@/hooks/useDevManagerData';
+import { useTranslation, type Translate } from '@/lib/i18n/use-translation';
+import { useDMPrompt } from '../DMPromptDialog';
 
 // developer_tasks.status, in this tracker's words.
 const FIX_STATUS: Record<string, string> = {
@@ -18,22 +20,22 @@ const FIX_STATUS: Record<string, string> = {
   submitted: 'fixed', review: 'fixed', testing: 'fixed', completed: 'verified',
 };
 
-const getSeverityBadge = (severity: string) => {
+const getSeverityBadge = (severity: string, t: Translate) => {
   switch (severity) {
-    case 'critical': return <Badge variant="destructive">Critical</Badge>;
-    case 'high': return <Badge className="bg-red-500/20 text-red-500">High</Badge>;
-    case 'medium': return <Badge className="bg-amber-500/20 text-amber-500">Medium</Badge>;
-    case 'low': return <Badge variant="secondary">Low</Badge>;
+    case 'critical': return <Badge variant="destructive">{t('devmanager.level.critical')}</Badge>;
+    case 'high': return <Badge className="bg-red-500/20 text-red-500">{t('devmanager.level.high')}</Badge>;
+    case 'medium': return <Badge className="bg-amber-500/20 text-amber-500">{t('devmanager.level.medium')}</Badge>;
+    case 'low': return <Badge variant="secondary">{t('devmanager.level.low')}</Badge>;
     default: return <Badge>{severity}</Badge>;
   }
 };
 
-const getStatusBadge = (status: string) => {
+const getStatusBadge = (status: string, t: Translate) => {
   switch (status) {
-    case 'open': return <Badge className="bg-blue-500/20 text-blue-500">Open</Badge>;
-    case 'in_progress': return <Badge className="bg-amber-500/20 text-amber-500">In Progress</Badge>;
-    case 'fixed': return <Badge className="bg-green-500/20 text-green-500">Fixed</Badge>;
-    case 'verified': return <Badge className="bg-emerald-500/20 text-emerald-500">Verified</Badge>;
+    case 'open': return <Badge className="bg-blue-500/20 text-blue-500">{t('devmanager.bugs.status_open')}</Badge>;
+    case 'in_progress': return <Badge className="bg-amber-500/20 text-amber-500">{t('devmanager.status.in_progress')}</Badge>;
+    case 'fixed': return <Badge className="bg-green-500/20 text-green-500">{t('devmanager.bugs.status_fixed')}</Badge>;
+    case 'verified': return <Badge className="bg-emerald-500/20 text-emerald-500">{t('devmanager.bugs.status_verified')}</Badge>;
     default: return <Badge>{status}</Badge>;
   }
 };
@@ -45,6 +47,8 @@ const getStatusBadge = (status: string) => {
  * in Review & QA, so those two buttons say so.
  */
 export const DMBugFixTracker: React.FC = () => {
+  const { t } = useTranslation();
+  const prompt = useDMPrompt();
   const tasks = useAllDeveloperTasks();
   const registry = useDeveloperRegistry();
   const reassign = useReassignTask();
@@ -62,39 +66,59 @@ export const DMBugFixTracker: React.FC = () => {
     assignee: nameOf(t.developerId),
     status: FIX_STATUS[t.status] ?? t.status,
   }));
-  const assignFix = (taskId: string, current: string | null) => {
+  const assignFix = async (taskId: string, current: string | null) => {
     const choices = devs.filter((d) => (d.valaId || d.fullName) !== current);
-    if (!choices.length) { toast.error('No other active developer is registered.'); return; }
-    const answer = window.prompt(`Assign the fix to which developer?\n${choices.map((d, i) => `${i + 1}. ${d.fullName} (${d.activeTasks} open)`).join('\n')}`);
-    const developer = choices[Number(answer) - 1];
+    if (!choices.length) { toast.error(t('devmanager.bugs.no_other_developer')); return; }
+    const answer = await prompt.ask({
+      title: t('devmanager.bugs.assign_prompt'),
+      choiceLabel: t('devmanager.prompt.developer'),
+      choices: choices.map((d) => ({
+        value: d.id,
+        label: t('devmanager.prompt.developer_option', { name: d.fullName, count: d.activeTasks }),
+      })),
+      reasonLabel: t('devmanager.common.reason_why_developer'),
+      minLength: 5,
+      confirmLabel: t('devmanager.bugs.assign_fix'),
+    });
+    if (!answer) return;
+    const developer = choices.find((d) => d.id === answer.choice);
     if (!developer) return;
-    const reason = window.prompt('Why this developer? (at least 5 characters)')?.trim();
-    if (!reason || reason.length < 5) { toast.error('A reason of at least 5 characters is needed.'); return; }
+    const reason = answer.reason?.trim();
+    if (!reason || reason.length < 5) { toast.error(t('devmanager.prompt.reason_too_short')); return; }
     reassign.mutate({ taskId, newDeveloperId: developer.id, reason });
   };
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Bug & Fix Tracker</h1>
-        <p className="text-muted-foreground">Track bugs and their resolution status</p>
+        <h1 className="text-2xl font-bold">{t('devmanager.bugs.title')}</h1>
+        <p className="text-muted-foreground">{t('devmanager.bugs.subtitle')}</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Bug className="h-5 w-5" />
-            Bug List
+            {t('devmanager.bugs.bug_list')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {(tasks.isLoading || tasks.isError || bugs.length === 0) && (
-              <p className="text-sm text-muted-foreground">
-                {tasks.isLoading ? 'Loading…' : tasks.isError ? `Bugs could not be read: ${(tasks.error as Error).message}` : 'No task is filed as a bug.'}
+              <p
+                className="text-sm text-muted-foreground"
+                role={tasks.isError ? 'alert' : 'status'}
+                aria-live={tasks.isError ? undefined : 'polite'}
+                aria-busy={tasks.isLoading || undefined}
+              >
+                {tasks.isLoading
+                  ? t('devmanager.common.loading')
+                  : tasks.isError
+                    ? t('devmanager.bugs.load_error', { error: (tasks.error as Error).message })
+                    : t('devmanager.bugs.empty')}
               </p>
             )}
             {bugs.map((bug) => (
-              <div 
+              <div
                 key={bug.uuid}
                 className={`p-4 rounded-lg border ${
                   bug.severity === 'critical' ? 'bg-red-500/5 border-red-500/30' : 'bg-muted/30'
@@ -103,8 +127,8 @@ export const DMBugFixTracker: React.FC = () => {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <span className="font-mono font-medium">{bug.id}</span>
-                    {getSeverityBadge(bug.severity)}
-                    {getStatusBadge(bug.status)}
+                    {getSeverityBadge(bug.severity, t)}
+                    {getStatusBadge(bug.status, t)}
                   </div>
                   {bug.assignee && (
                     <span className="font-mono text-sm">{bug.assignee}</span>
@@ -112,33 +136,33 @@ export const DMBugFixTracker: React.FC = () => {
                 </div>
                 <div className="mb-3">
                   <p className="text-sm">{bug.description}</p>
-                  <p className="text-xs text-muted-foreground">Linked Task: {bug.task}</p>
+                  <p className="text-xs text-muted-foreground">{t('devmanager.bugs.linked_task', { task: bug.task })}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     variant="outline"
                     disabled={reassign.isPending || bug.status === 'verified'}
-                    onClick={() => assignFix(bug.uuid, bug.assignee)}
+                    onClick={() => void assignFix(bug.uuid, bug.assignee)}
                   >
                     <UserPlus className="h-4 w-4 mr-1" />
-                    Assign Fix
+                    {t('devmanager.bugs.assign_fix')}
                   </Button>
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     variant="outline"
-                    onClick={() => toast.info('A fix is verified by approving its code submission in Review & QA.')}
+                    onClick={() => toast.info(t('devmanager.bugs.verify_info'))}
                   >
                     <CheckCircle className="h-4 w-4 mr-1" />
-                    Verify Fix
+                    {t('devmanager.bugs.verify_fix')}
                   </Button>
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     variant="outline"
-                    onClick={() => toast.info('A bug closes when its fix is approved in Review & QA.')}
+                    onClick={() => toast.info(t('devmanager.bugs.close_info'))}
                   >
                     <XCircle className="h-4 w-4 mr-1" />
-                    Close Bug
+                    {t('devmanager.bugs.close_bug')}
                   </Button>
                 </div>
               </div>
@@ -146,6 +170,7 @@ export const DMBugFixTracker: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+      {prompt.dialog}
     </div>
   );
 };

@@ -15,6 +15,9 @@ export function internalPath(asked: string | null | undefined): string | undefin
     const base = "https://internal.invalid";
     const resolved = new URL(value, base);
     if (resolved.origin !== base) return undefined;
+    // "/.//evil.com" resolves here to the path "//evil.com", which the
+    // browser would follow as a protocol-relative address to another site.
+    if (resolved.pathname.startsWith("//")) return undefined;
     return `${resolved.pathname}${resolved.search}${resolved.hash}`;
   } catch {
     return undefined;

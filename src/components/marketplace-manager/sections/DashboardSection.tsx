@@ -21,6 +21,7 @@ import { Card, EmptyHint, LoadFailure, PageHeader, PillButton, SectionRow, StatC
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import {
   marketplaceControlSummary,
   marketplaceRevenueSeries,
@@ -66,6 +67,8 @@ function useControlRoom() {
     queryKey: ["marketplace", "control-room"],
     queryFn: () => marketplaceControlSummary(),
     staleTime: 30_000,
+    // The feed says "Refreshed every 30s"; nothing refreshed it until now.
+    refetchInterval: 30_000,
   });
 }
 
@@ -158,6 +161,7 @@ function money(v: number | null | undefined, currency: string, loading: boolean)
 }
 
 export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => void } = {}) {
+  const { t } = useTranslation();
   const room = useControlRoom();
   const d = room.data;
   const loading = room.isLoading;
@@ -185,7 +189,11 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
   // the walls strip would have read .length and .slice off an object and
   // rendered nothing. Typecheck caught it; the build had not.
   const walls = useQuery<HomepageRow[]>({
-    queryKey: ["marketplace", "rows"],
+    // Its own key under the same prefix: Homepage Rows caches the { ok, rows }
+    // envelope at ["marketplace","rows"], and this array under the same key
+    // crashed whichever screen read the other's shape. Invalidating the prefix
+    // still refreshes both.
+    queryKey: ["marketplace", "rows", "dashboard-walls"],
     queryFn: async (): Promise<HomepageRow[]> => {
       const answer = (await listHomepageRows()) as { ok?: boolean; rows?: HomepageRow[] };
       return answer?.rows ?? [];
@@ -206,19 +214,19 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
         </div>
       ) : null}
       <PageHeader
-        eyebrow="Marketplace Control Center"
-        title="Welcome back to your marketplace"
-        description="One control room for products, walls, banners, offers, partners and revenue across the Software Vala marketplace."
+        eyebrow={t("manager.dashboard.eyebrow")}
+        title={t("manager.dashboard.welcome")}
+        description={t("manager.dashboard.description")}
         actions={
           <>
             <PillButton variant="ghost" onClick={() => window.open("/marketplace", "_blank")}>
               <span className="inline-flex items-center gap-1.5">
-                <ArrowUpRight className="h-3.5 w-3.5" /> View Storefront
+                <ArrowUpRight className="h-3.5 w-3.5" /> {t("manager.dashboard.view_storefront")}
               </span>
             </PillButton>
             <PillButton variant="primary" onClick={() => go("products")}>
               <span className="inline-flex items-center gap-1.5">
-                <Plus className="h-3.5 w-3.5" /> Add Product
+                <Plus className="h-3.5 w-3.5" /> {t("manager.dashboard.add_product")}
               </span>
             </PillButton>
           </>
@@ -242,26 +250,28 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[oklch(0.80_0.13_192/0.30)] bg-[oklch(0.80_0.13_192/0.10)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-accent">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent shadow-[0_0_8px_currentColor]" />
-              Slide 1 of 10 · Operator Console
+              {t("manager.dashboard.slide_label")}
             </div>
             <h2 className="text-[40px] font-bold leading-[1.05] tracking-tight md:text-[56px]">
-              Run the <span className="text-gradient">entire marketplace</span>
+              {t("manager.dashboard.hero_run_the")}{" "}
+              <span className="text-gradient">
+                {t("manager.dashboard.hero_entire_marketplace")}
+              </span>
               <br />
-              from one operator console.
+              {t("manager.dashboard.hero_from_console")}
             </h2>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base">
-              Manage 20 categories, 18 homepage walls, 20 banner slots, offers, partners and
-              approvals. Every dial hooked to live Software Vala data — no mock numbers.
+              {t("manager.dashboard.hero_body")}
             </p>
             <div className="mt-7 flex flex-wrap gap-2.5">
               <PillButton variant="primary" onClick={() => go("homepage-rows")}>
-                Open Homepage Manager
+                {t("manager.dashboard.open_homepage_manager")}
               </PillButton>
               <PillButton variant="ghost" onClick={() => go("marketing")}>
-                Launch Campaign
+                {t("manager.dashboard.launch_campaign")}
               </PillButton>
               <PillButton variant="premium" onClick={() => go("analytics")}>
-                Boost Revenue
+                {t("manager.dashboard.boost_revenue")}
               </PillButton>
             </div>
           </div>
@@ -330,54 +340,58 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
       </div>
 
       {/* KPI Zone */}
-      <SectionRow title="Marketplace KPIs" cta="Open Analytics" onCta={() => go("analytics")}>
+      <SectionRow
+        title={t("manager.dashboard.kpis")}
+        cta={t("manager.dashboard.open_analytics")}
+        onCta={() => go("analytics")}
+      >
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <StatCard
-            label="Total Products"
+            label={t("manager.dashboard.total_products")}
             value={num(d?.products.total, loading)}
             delta={`${num(d?.products.categories, loading)} categories`}
             icon={<Package className="h-4 w-4" />}
           />
           <StatCard
-            label="Active"
+            label={t("manager.dashboard.active")}
             value={num(d?.products.published, loading)}
             tone="success"
             icon={<CheckCircle2 className="h-4 w-4" />}
           />
           <StatCard
-            label="Pending"
+            label={t("manager.dashboard.pending")}
             value={num(d?.products.draft, loading)}
             tone="warning"
-            delta="draft or unpublished"
+            delta={t("manager.dashboard.draft_or_unpublished")}
             icon={<Clock3 className="h-4 w-4" />}
           />
           {/* There is no authors table in this database. Sellers is the real
               equivalent the catalogue records, so it is labelled as such
               rather than dressed up as an author count. */}
           <StatCard
-            label="Sellers"
+            label={t("manager.dashboard.sellers")}
             value={num(d?.products.sellers, loading)}
             icon={<Users2 className="h-4 w-4" />}
           />
           <StatCard
-            label="With a demo"
+            label={t("manager.dashboard.with_demo")}
             value={num(d?.products.with_demo, loading)}
             tone={d && d.products.with_demo === 0 ? "destructive" : "default"}
             icon={<Store className="h-4 w-4" />}
           />
           <StatCard
-            label="Orders"
+            label={t("manager.dashboard.orders")}
             value={num(d?.commerce.orders, loading)}
             delta={`${num(d?.commerce.paid, loading)} paid`}
             icon={<ShoppingCart className="h-4 w-4" />}
           />
           <StatCard
-            label="Downloads"
+            label={t("manager.dashboard.downloads")}
             value={num(d?.commerce.downloads, loading)}
             icon={<Download className="h-4 w-4" />}
           />
           <StatCard
-            label="Revenue"
+            label={t("manager.dashboard.revenue")}
             value={
               d && !d.revenue.has_transactions
                 ? "No transactions yet"
@@ -387,14 +401,14 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
             icon={<DollarSign className="h-4 w-4" />}
           />
           <StatCard
-            label="Refunds"
+            label={t("manager.dashboard.refunds")}
             value={num(d?.commerce.refunds, loading)}
             tone="destructive"
             delta={d ? money(d.revenue.refunded, d.revenue.currency, loading) : undefined}
             icon={<RotateCcw className="h-4 w-4" />}
           />
           <StatCard
-            label="Net revenue"
+            label={t("manager.dashboard.net_revenue")}
             value={money(d?.revenue.net, d?.revenue.currency ?? "INR", loading)}
             icon={<TrendingUp className="h-4 w-4" />}
           />
@@ -404,7 +418,7 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
               the records it counted, rather than reporting how many checks
               exist. */}
           <StatCard
-            label="Health checks"
+            label={t("manager.dashboard.health_checks")}
             value={num(d?.health?.length, loading)}
             tone={worst && worst.severity === "critical" ? "destructive" : "success"}
             delta={
@@ -413,14 +427,14 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
                 : worst
                   ? `${worst.label} · ${new Intl.NumberFormat().format(worst.count)}`
                   : d
-                    ? "every check is clean"
+                    ? t("manager.dashboard.every_check_clean")
                     : undefined
             }
             href={worst?.destination}
             icon={<Activity className="h-4 w-4" />}
           />
           <StatCard
-            label="MP Score"
+            label={t("manager.dashboard.mp_score")}
             value={
               loading
                 ? "—"
@@ -435,7 +449,11 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
       </SectionRow>
 
       {/* Quick actions */}
-      <SectionRow title="Quick Actions" cta="Customize" onCta={() => go("homepage-rows")}>
+      <SectionRow
+        title={t("manager.dashboard.quick_actions")}
+        cta={t("manager.dashboard.customize")}
+        onCta={() => go("homepage-rows")}
+      >
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           {[
             { l: "Add Product", i: Plus, id: "products" as NavId },
@@ -468,14 +486,16 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
 
       {/* Product Walls (Netflix horizontal) */}
       <SectionRow
-        title="Product Walls"
+        title={t("manager.dashboard.product_walls")}
         count={walls.data?.length}
-        cta="Open Wall Manager"
+        cta={t("manager.dashboard.open_wall_manager")}
         onCta={() => go("homepage-rows")}
       >
         <div className="space-y-6">
           {walls.isLoading && (
-            <div className="text-sm text-muted-foreground">Reading the walls…</div>
+            <div className="text-sm text-muted-foreground">
+              {t("manager.dashboard.reading_walls")}
+            </div>
           )}
           {walls.isError && (
             <LoadFailure
@@ -490,7 +510,7 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
             <ProductWallRow key={row.key} row={row} onEdit={() => go("homepage-rows")} />
           ))}
           {!walls.isLoading && !walls.isError && (walls.data ?? []).length === 0 && (
-            <EmptyHint text="No product walls are configured yet" />
+            <EmptyHint text={t("manager.dashboard.no_walls")} />
           )}
         </div>
       </SectionRow>
@@ -499,17 +519,21 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
       <div className="grid gap-6 lg:grid-cols-3">
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-lg font-bold">Approval Center</h3>
+            <h3 className="text-lg font-bold">{t("manager.dashboard.approval_center")}</h3>
             <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning">
-              Live queue
+              {t("manager.dashboard.live_queue")}
             </span>
           </div>
           <ul className="divide-y divide-border">
             {loading && (
-              <li className="py-3 text-sm text-muted-foreground">Counting the queues…</li>
+              <li className="py-3 text-sm text-muted-foreground">
+                {t("manager.dashboard.counting_queues")}
+              </li>
             )}
             {!loading && (d?.queues ?? []).length === 0 && (
-              <li className="py-3 text-sm text-muted-foreground">Nothing is waiting for review.</li>
+              <li className="py-3 text-sm text-muted-foreground">
+                {t("manager.dashboard.nothing_waiting")}
+              </li>
             )}
             {(d?.queues ?? []).map((q) => (
               <li key={q.key} className="flex items-center justify-between py-3">
@@ -531,7 +555,7 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
                       q.count > 0 ? "text-accent hover:text-cyan-glow" : "text-muted-foreground"
                     }`}
                   >
-                    Review
+                    {t("manager.dashboard.review")}
                   </a>
                 </div>
               </li>
@@ -541,8 +565,10 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
 
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-lg font-bold">Revenue Center</h3>
-            <span className="text-xs text-muted-foreground">INR · live</span>
+            <h3 className="text-lg font-bold">{t("manager.dashboard.revenue_center")}</h3>
+            <span className="text-xs text-muted-foreground">
+              {t("manager.dashboard.currency_live", { currency: "INR" })}
+            </span>
           </div>
           <div className="space-y-2">
             {/* Each line is the figure mm_dashboard counted, and opens the
@@ -571,7 +597,7 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
           </div>
           {!loading && d?.revenue && !d.revenue.has_transactions ? (
             <div className="mt-4 rounded-lg border border-dashed border-border/60 bg-background/40 p-3">
-              <EmptyHint text="No transactions yet" />
+              <EmptyHint text={t("manager.dashboard.no_transactions")} />
             </div>
           ) : (
             <RevenueGraph currency={d?.revenue?.currency ?? "INR"} />
@@ -580,24 +606,28 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
 
         <Card>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-lg font-bold">Activity Feed</h3>
+            <h3 className="text-lg font-bold">{t("manager.dashboard.activity_feed")}</h3>
             {/* What it actually is. The events are read with the rest of the
                 control room every 30 seconds; calling that "real time" would
                 be a claim the transport does not make. */}
             <span className="text-xs text-muted-foreground">
               {room.isFetching
-                ? "Refreshing…"
+                ? t("manager.dashboard.refreshing")
                 : room.isError
-                  ? "Stream unavailable"
-                  : "Refreshed every 30s"}
+                  ? t("manager.dashboard.stream_unavailable")
+                  : t("manager.dashboard.refreshed_every_30s")}
             </span>
           </div>
           <ul className="space-y-3">
             {loading && (
-              <li className="text-sm text-muted-foreground">Reading the event stream…</li>
+              <li className="text-sm text-muted-foreground">
+                {t("manager.dashboard.reading_events")}
+              </li>
             )}
             {!loading && (d?.activity ?? []).length === 0 && (
-              <li className="text-sm text-muted-foreground">No recent activity</li>
+              <li className="text-sm text-muted-foreground">
+                {t("manager.dashboard.no_activity")}
+              </li>
             )}
             {(d?.activity ?? []).slice(0, 8).map((e, i) => {
               // detail carries the record's own path when the event has one,
@@ -636,8 +666,8 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
 
       {/* AI Insights */}
       <SectionRow
-        title="AI Marketplace Insights"
-        cta="Open AI Assistant"
+        title={t("manager.dashboard.ai_insights")}
+        cta={t("manager.dashboard.open_ai_assistant")}
         onCta={() =>
           askVala(
             `From the Marketplace control room. ${d?.products?.total ?? 0} product(s), ` +
@@ -651,7 +681,7 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
           {ASSISTANTS.map((c) => (
             <Card key={c.t} className="border-accent/20">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary/20 to-accent/20 px-2.5 py-1 text-xs font-semibold text-accent">
-                <Sparkles className="h-3 w-3" /> AI
+                <Sparkles className="h-3 w-3" /> {t("manager.dashboard.ai_badge")}
               </div>
               <h4 className="text-base font-bold">{c.t}</h4>
               <p className="mt-1 text-sm text-muted-foreground">{c.d}</p>
@@ -663,7 +693,7 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
                 onClick={() => askVala(c.seed(d))}
                 className="mt-4 text-sm font-semibold text-accent hover:text-cyan-glow"
               >
-                Ask now →
+                {t("manager.dashboard.ask_now")}
               </button>
             </Card>
           ))}
@@ -690,6 +720,7 @@ function LayoutGridIcon(props: { className?: string }) {
  * shipped, and they agree to the cent.
  */
 function RevenueGraph({ currency }: { currency: string }) {
+  const { t } = useTranslation();
   const [range, setRange] = useState<"today" | "week" | "month" | "year">("month");
   const series = useQuery<RevenueSeries>({
     queryKey: ["marketplace", "revenue-series", range],
@@ -730,10 +761,10 @@ function RevenueGraph({ currency }: { currency: string }) {
         </div>
         <span className="text-[11px] text-muted-foreground">
           {series.isLoading
-            ? "counting…"
+            ? t("manager.dashboard.counting")
             : series.isError
-              ? "unavailable"
-              : `net ${money(total, currency, false)}`}
+              ? t("manager.dashboard.unavailable")
+              : t("manager.dashboard.net_total", { amount: money(total, currency, false) })}
         </span>
       </div>
 
@@ -741,25 +772,25 @@ function RevenueGraph({ currency }: { currency: string }) {
         {series.isError ? (
           <div className="flex h-full flex-col items-center justify-center gap-1">
             <span className="text-xs text-muted-foreground">
-              The revenue series could not be read.
+              {t("manager.dashboard.series_failed")}
             </span>
             <button
               type="button"
               onClick={() => void series.refetch()}
               className="text-[11px] font-semibold text-accent hover:text-cyan-glow"
             >
-              Try again
+              {t("manager.dashboard.try_again")}
             </button>
           </div>
         ) : series.isLoading ? (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-            Counting the transactions…
+            {t("manager.dashboard.counting_transactions")}
           </div>
         ) : peak === 0 ? (
           // Every bucket empty. Not the same as never having sold anything,
           // which the panel above says instead.
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-            Nothing was taken in this {unit === "hour" ? "day" : range}.
+            {t("manager.dashboard.nothing_taken", { period: unit === "hour" ? "day" : range })}
           </div>
         ) : (
           <div className="flex h-full items-end gap-[2px]">
@@ -791,6 +822,7 @@ function RevenueGraph({ currency }: { currency: string }) {
  * positions are waiting.
  */
 function ProductWallRow({ row, onEdit }: { row: HomepageRow; onEdit?: () => void }) {
+  const { t } = useTranslation();
   const filled = Number(row.filled_slots ?? 0);
   const capacity = Number(row.max_products ?? 60);
   const eligible = Number(row.eligible_products ?? 0);
@@ -812,7 +844,7 @@ function ProductWallRow({ row, onEdit }: { row: HomepageRow; onEdit?: () => void
             onClick={onEdit}
             className="text-xs font-semibold text-accent hover:text-cyan-glow"
           >
-            Edit wall →
+            {t("manager.dashboard.edit_wall")}
           </button>
         </div>
       </div>
@@ -829,7 +861,7 @@ function ProductWallRow({ row, onEdit }: { row: HomepageRow; onEdit?: () => void
               <div className="relative flex h-full flex-col justify-between p-4">
                 <div className="flex items-center justify-between">
                   <span className="rounded bg-background/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent backdrop-blur">
-                    Slot {i + 1}
+                    {t("manager.dashboard.slot", { n: i + 1 })}
                   </span>
                   <span
                     className={`rounded px-2 py-0.5 text-[10px] font-bold ${
@@ -840,21 +872,27 @@ function ProductWallRow({ row, onEdit }: { row: HomepageRow; onEdit?: () => void
                           : "bg-premium/20 text-premium"
                     }`}
                   >
-                    {placed ? "Placed" : auto ? "Auto-filled" : "Empty"}
+                    {placed
+                      ? t("manager.dashboard.slot_placed")
+                      : auto
+                        ? t("manager.dashboard.slot_auto")
+                        : t("manager.dashboard.slot_empty")}
                   </span>
                 </div>
                 <div>
                   <div className="text-sm font-bold">
                     {placed
-                      ? "Placed by hand"
+                      ? t("manager.dashboard.placed_by_hand")
                       : auto
-                        ? `Filled by ${row.auto_rule ?? "the row rule"}`
-                        : "Assign a product"}
+                        ? row.auto_rule
+                          ? t("manager.dashboard.filled_by", { rule: row.auto_rule })
+                          : t("manager.dashboard.filled_by_row_rule")
+                        : t("manager.dashboard.assign_product")}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {placed || auto
-                      ? "Open Homepage Rows to change it"
-                      : "Drag from catalog or auto-fill"}
+                      ? t("manager.dashboard.open_rows_to_change")
+                      : t("manager.dashboard.drag_or_autofill")}
                   </div>
                 </div>
               </div>

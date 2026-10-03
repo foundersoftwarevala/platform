@@ -3,11 +3,25 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type EntityFilter = {
   column: string;
-  op?: "eq" | "ilike" | "in" | "gte" | "lte";
+  /** `not_null` ignores `value` and keeps rows where `column` is set. */
+  op?: "eq" | "neq" | "ilike" | "in" | "gt" | "gte" | "lt" | "lte" | "not_null";
   value: unknown;
 };
 
-export type EntityListOptions = {
+/** Apply filters to a PostgREST query. Blank / "all" values are skipped. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyFilters(q: any, filters: EntityFilter[]): any {
+  for (const f of filters) {
+    if (f.op === "not_null") { q = q.not(f.column, "is", null); continue; }
+    if (f.value == null || f.value === "" || f.value === "all") continue;
+    const op = f.op ?? "eq";
+    // dynamic filter dispatch (types loosened via client cast)
+    q = q[op](f.column, f.value);
+  }
+  return q;
+}
+
+export type EntityListOptions<T = Record<string, unknown>> = {
   table: string;
   select?: string;
   search?: { q?: string; columns: string[] };
@@ -22,6 +36,13 @@ export type EntityListOptions = {
    * are opt-in per wall.
    */
   countMode?: "estimated" | "exact";
+  /** False skips the request entirely (the wall has no source for it). */
+  enabled?: boolean;
+  /**
+   * Turns the stored rows into the shape the wall renders. Runs after the
+   * page is fetched, so it may read related records for that page.
+   */
+  mapRows?: (rows: Record<string, unknown>[]) => T[] | Promise<T[]>;
 };
 
 export type EntityListResult<T = Record<string, unknown>> = {
@@ -40,7 +61,7 @@ export type EntityListResult<T = Record<string, unknown>> = {
  * search, and stable query keys so realtime invalidations coalesce
  * per-table.
  */
-export function useEntityList<T = Record<string, unknown>>(opts: EntityListOptions) {
+export function useEntityList<T = Record<string, unknown>>(opts: EntityListOptions<T>) {
   const {
     table,
     select = "*",
@@ -50,10 +71,13 @@ export function useEntityList<T = Record<string, unknown>>(opts: EntityListOptio
     page = 1,
     pageSize = 25,
     countMode = "estimated",
+    enabled = true,
+    mapRows,
   } = opts;
 
   return useQuery<EntityListResult<T>>({
     queryKey: ["entity", table, { select, search, filters, order, page, pageSize, countMode }],
+    enabled,
     staleTime: 15_000,
     gcTime: 5 * 60_000,
     // Keep the previous page on screen while the next one loads instead of
@@ -72,12 +96,7 @@ export function useEntityList<T = Record<string, unknown>>(opts: EntityListOptio
         .order(order.column, { ascending: !!order.ascending })
         .range((page - 1) * pageSize, page * pageSize - 1);
 
-      for (const f of filters) {
-        if (f.value == null || f.value === "" || f.value === "all") continue;
-        const op = f.op ?? "eq";
-        // dynamic filter dispatch (types loosened via client cast)
-        q = q[op](f.column, f.value);
-      }
+      q = applyFilters(q, filters);
       if (search?.q && search.columns.length) {
         const or = search.columns.map((c) => `${c}.ilike.%${search.q}%`).join(",");
         q = q.or(or);
@@ -86,8 +105,9 @@ export function useEntityList<T = Record<string, unknown>>(opts: EntityListOptio
       const { data, error, count } = await q.abortSignal(signal);
       if (error) throw error;
       const total = count ?? 0;
+      const stored = (data ?? []) as Record<string, unknown>[];
       return {
-        rows: (data ?? []) as T[],
+        rows: mapRows ? await mapRows(stored) : (stored as T[]),
         count: total,
         countIsEstimate: countMode === "estimated" && total > 1000,
         page,
@@ -103,9 +123,13 @@ export function useEntityCount(
   table: string,
   filters: EntityFilter[] = [],
   countMode: "estimated" | "exact" = "estimated",
+  enabled = true,
+  /** The select the list uses, when its filters reach into an embedded table. */
+  select = "*",
 ) {
   return useQuery({
-    queryKey: ["entity-count", table, filters, countMode],
+    queryKey: ["entity-count", table, filters, countMode, select],
+    enabled,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -115,12 +139,7 @@ export function useEntityCount(
           select: (s: string, o: { count: "exact" | "estimated"; head: true }) => any;
         };
       };
-      let q = client.from(table).select("*", { count: countMode, head: true });
-      for (const f of filters) {
-        if (f.value == null || f.value === "" || f.value === "all") continue;
-        const op = f.op ?? "eq";
-        q = q[op](f.column, f.value);
-      }
+      const q = applyFilters(client.from(table).select(select, { count: countMode, head: true }), filters);
       const { count, error } = await q;
       if (error) throw error;
       return count ?? 0;

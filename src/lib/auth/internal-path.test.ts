@@ -15,6 +15,8 @@ describe("where signing in may send you", () => {
     "//evil.com",
     "/\\evil.com",
     "/\\/evil.com",
+    "/.//evil.com",
+    "/a/..//evil.com",
     "https://evil.com",
     "javascript:alert(1)",
     "/\tevil",

@@ -1,6 +1,7 @@
 import { SingleFlightCache } from "@/lib/server/single-flight-cache";
 import { CARD_FIELDS, toCard, type CatalogCard } from "./catalog-card";
 import { RAIL_COUNTRIES, RAIL_COUNTRY_BY_MARKER } from "./rail-countries";
+import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
 
 /**
  * The marketplace catalogue as the home page shows it: category rows (and the
@@ -66,6 +67,13 @@ const PUBLISHED = "&visible=eq.true&content_status=eq.published";
 const registryCache = new SingleFlightCache<RegistryRow[]>(30_000, 4);
 const configuredCache = new SingleFlightCache<Set<string>>(30_000, 4);
 const orderCache = new SingleFlightCache<string[]>(60_000, 500);
+// A Manager write empties all three, so what it saved is what the next
+// visitor sees (catalogue-invalidation.ts).
+onCatalogueChange(() => {
+  registryCache.clear();
+  configuredCache.clear();
+  orderCache.clear();
+});
 
 class Unavailable extends Error {}
 
@@ -170,13 +178,24 @@ async function categoryCards(categoryId: string, offset: number, limit: number) 
   const response = await fetch(
     `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}${PUBLISHED}` +
       `&category_id=eq.${encodeURIComponent(categoryId)}` +
-      `&order=sort_order.asc,name.asc&limit=${limit}&offset=${offset}`,
+      `&order=sort_order.asc,name.asc,id.asc&limit=${limit}&offset=${offset}`,
     { headers: { ...admin(), Prefer: "count=exact" } },
   );
+  // A page past the end is an empty page, not a failure. PostgREST answers it
+  // with 416 and the total ("*/131"); treated as an error it surfaced as
+  // "No such category" for a category that exists.
+  if (response.status === 416) {
+    return { cards: [], total: totalFromRange(response.headers.get("content-range")) ?? 0 };
+  }
   if (!response.ok) return null;
   const rows = (await response.json()) as Row[];
   const range = response.headers.get("content-range") ?? "";
   return { cards: rows.map(toCard), total: Number(range.split("/")[1]) || rows.length };
+}
+
+function totalFromRange(range: string | null): number | null {
+  const total = Number(String(range ?? "").split("/")[1]);
+  return Number.isFinite(total) ? total : null;
 }
 
 /**
@@ -215,11 +234,14 @@ export async function readCatalogRows(options: {
   const { rowOffset, rowCount, perRow } = options;
   const categoryResponse = await fetch(
     `${url()}/rest/v1/marketplace_categories?select=id,name,slug,icon,sort_order` +
-      `&is_hidden=eq.false&order=sort_order.asc&limit=${rowCount}&offset=${rowOffset}`,
+      `&is_hidden=eq.false&order=sort_order.asc,id.asc&limit=${rowCount}&offset=${rowOffset}`,
     { headers: { ...admin(), Prefer: "count=exact" } },
   );
-  if (!categoryResponse.ok) return null;
-  const categories = (await categoryResponse.json()) as Row[];
+  // Rows past the last category are an empty page (416 from PostgREST), not a
+  // catalogue that could not be read.
+  const pastEnd = categoryResponse.status === 416;
+  if (!categoryResponse.ok && !pastEnd) return null;
+  const categories = pastEnd ? [] : ((await categoryResponse.json()) as Row[]);
   const range = categoryResponse.headers.get("content-range") ?? "";
   const totalRows = Number(range.split("/")[1]) || categories.length;
 
@@ -367,7 +389,7 @@ export async function readCountryRow(
   const response = await fetch(
     `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}${PUBLISHED}` +
       `&category_id=eq.${encodeURIComponent(String(category.id))}` +
-      `&order=sort_order.asc,name.asc&limit=${ceiling}`,
+      `&order=sort_order.asc,name.asc,id.asc&limit=${ceiling}`,
     { headers: { ...admin(), Prefer: "count=exact" } },
   );
   if (!response.ok) return null;

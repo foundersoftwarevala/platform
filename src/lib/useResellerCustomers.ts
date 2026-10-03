@@ -6,9 +6,10 @@
 // dashboard is therefore the same row the Reseller Manager's Customers wall
 // reads, which is what "connected" has to mean.
 //
-// What the table has no column for - a comment thread, attachments, an audit
-// trail - is not pretended into existence here. Those arrays stay empty and
-// the screen says so where it offers them.
+// What the table has no column for - notes, a website, a comment thread,
+// attachments, an audit trail - is not pretended into existence here. Those
+// stay empty and the screen says so where it offers them. A client's
+// purchases and follow-ups are read separately (listResellerClientActivity).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useServerFn } from "@/lib/serverFn";
@@ -74,8 +75,16 @@ function toColumns(patch: Partial<CrudRecord>) {
   if ("phone" in extra) columns.phone = String(extra.phone ?? "");
   if ("industry" in extra) columns.industry = String(extra.industry ?? "");
   if ("location" in extra) columns.country = String(extra.location ?? "");
-  if ("health" in extra) columns.health_score = Number(extra.health ?? 0);
+  if ("health" in extra) columns.health_score = Math.round(Math.min(100, Math.max(0, Number(extra.health ?? 0) || 0)));
   return columns;
+}
+
+/** Only the columns whose value differs from what the row already holds. */
+function changedColumns(patch: Partial<CrudRecord>, current: CrudRecord | undefined) {
+  const next = toColumns(patch);
+  if (!current) return next;
+  const before = toColumns(current);
+  return Object.fromEntries(Object.entries(next).filter(([k, v]) => before[k] !== v));
 }
 
 export function useResellerCustomers() {
@@ -100,8 +109,13 @@ export function useResellerCustomers() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (input: { id: string; patch: Partial<CrudRecord> }) =>
-      update({ data: { id: input.id, patch: toColumns(input.patch) } as never }),
+    mutationFn: async (input: { id: string; patch: Partial<CrudRecord> }) => {
+      const current = (query.data ?? []).find((r) => r.id === input.id);
+      const columns = changedColumns(input.patch, current);
+      // Nothing changed: there is nothing to save, and nothing failed.
+      if (!Object.keys(columns).length) return null;
+      return update({ data: { id: input.id, patch: columns } as never });
+    },
     onSuccess: refresh,
   });
 
@@ -115,6 +129,7 @@ export function useResellerCustomers() {
     loading: query.isLoading,
     error: query.error instanceof Error ? query.error.message : null,
     create: (patch: Partial<CrudRecord>) => createMutation.mutateAsync(patch),
+    /** Resolves once the row is saved (null when nothing changed); rejects with the reason otherwise. */
     update: (id: string, patch: Partial<CrudRecord>) => updateMutation.mutateAsync({ id, patch }),
     remove: (id: string) => removeMutation.mutateAsync(id),
     saving: createMutation.isPending || updateMutation.isPending || removeMutation.isPending,

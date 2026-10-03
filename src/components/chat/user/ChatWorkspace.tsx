@@ -174,18 +174,31 @@ export function ChatWorkspace() {
     [askAi, queryClient, t],
   );
 
-  const onSend = async (body: string, mentions: string[]) => {
+  // Messages typed while an earlier one is still sending are queued, not
+  // dropped: each send waits for the one before it, so they are stored in the
+  // order they were typed, and each shows at once as pending. Enter used to be
+  // ignored while a send was in flight.
+  const sendQueue = useRef<Promise<void>>(Promise.resolve());
+  const inFlight = useRef(0);
+  const onSend = (body: string, mentions: string[]) => {
+    const parent = replyTo;
+    setReplyTo(null);
+    inFlight.current += 1;
     setSending(true);
-    try {
-      await send({ body, parentId: replyTo?.id ?? null, mentions });
-      setReplyTo(null);
-      playCue("sent", prefs.sound);
-      if (activeId && active?.ai_enabled && !replyTo) void runAiTurn(activeId);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("chat.send_failed"));
-    } finally {
-      setSending(false);
-    }
+    const run = async () => {
+      try {
+        await send({ body, parentId: parent?.id ?? null, mentions });
+        playCue("sent", prefs.sound);
+        if (activeId && active?.ai_enabled && !parent) void runAiTurn(activeId);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : t("chat.send_failed"));
+      } finally {
+        inFlight.current -= 1;
+        if (inFlight.current === 0) setSending(false);
+      }
+    };
+    sendQueue.current = sendQueue.current.then(run, run);
+    return sendQueue.current;
   };
 
   const mobilePane = useRef<HTMLDivElement>(null);

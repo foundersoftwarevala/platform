@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Layers, Code2, FolderKanban, Brain } from 'lucide-react';
 import { useAllDeveloperTasks, useDeveloperRegistry } from '@/hooks/useDevManagerData';
+import { useTranslation } from '@/lib/i18n/use-translation';
 
 /**
  * Skills, from the developers' own skill tags and the tech stack of their
@@ -19,6 +20,7 @@ import { useAllDeveloperTasks, useDeveloperRegistry } from '@/hooks/useDevManage
  * match model, so that score is not shown as a number.
  */
 export const DMRoleSkillMapping: React.FC = () => {
+  const { t } = useTranslation();
   const registry = useDeveloperRegistry();
   const tasks = useAllDeveloperTasks();
   const devs = (registry.data ?? []).filter((d) => d.status !== 'exited');
@@ -31,13 +33,17 @@ export const DMRoleSkillMapping: React.FC = () => {
   const skillMatrix = [...counts.values()].sort((a, b) => b.n - a.n).map((c) => ({
     skill: c.label,
     developers: c.n,
-    level: c.n >= 5 ? 'Strong' : c.n >= 2 ? 'Covered' : 'Single',
+    level: c.n >= 5
+      ? t('devmanager.skills.level_strong')
+      : c.n >= 2
+        ? t('devmanager.skills.level_covered')
+        : t('devmanager.skills.level_single'),
     coverage: devs.length ? Math.round((c.n / devs.length) * 100) : 0,
   }));
   const stackOf = (t: { techStack: string[] }) => t.techStack;
   const openTasks = (tasks.data ?? []).filter((t) => t.status !== 'completed');
   const techStack = [
-    { name: 'Developer skills', techs: skillMatrix.map((s) => s.skill) },
+    { name: t('devmanager.skills.developer_skills'), techs: skillMatrix.map((s) => s.skill) },
   ].filter((g) => g.techs.length);
   const projectEligibility = openTasks.filter((t) => stackOf(t).length).slice(0, 10).map((t) => {
     const required = stackOf(t);
@@ -50,8 +56,8 @@ export const DMRoleSkillMapping: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Role & Skill Mapping</h1>
-        <p className="text-muted-foreground">Developer skills and project eligibility</p>
+        <h1 className="text-2xl font-bold">{t('devmanager.skills.title')}</h1>
+        <p className="text-muted-foreground">{t('devmanager.skills.subtitle')}</p>
       </div>
 
       {/* Skill Matrix */}
@@ -59,13 +65,20 @@ export const DMRoleSkillMapping: React.FC = () => {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Layers className="h-5 w-5" />
-            Skill Matrix
+            {t('devmanager.skills.matrix')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {skillMatrix.length === 0 && (
-              <p className="text-sm text-muted-foreground">{registry.isLoading ? 'Loading…' : 'No developer has skill tags yet.'}</p>
+              <p
+                className="text-sm text-muted-foreground"
+                role="status"
+                aria-live="polite"
+                aria-busy={registry.isLoading || undefined}
+              >
+                {registry.isLoading ? t('devmanager.common.loading') : t('devmanager.skills.matrix_empty')}
+              </p>
             )}
             {skillMatrix.map((skill) => (
               <div key={skill.skill} className="flex items-center gap-4">
@@ -73,10 +86,10 @@ export const DMRoleSkillMapping: React.FC = () => {
                   <span className="font-medium">{skill.skill}</span>
                 </div>
                 <div className="flex-1">
-                  <Progress value={skill.coverage} className="h-2" />
+                  <Progress value={skill.coverage} className="h-2" aria-label={skill.skill} />
                 </div>
                 <div className="w-20 text-right">
-                  <span className="text-sm text-muted-foreground">{skill.developers} devs</span>
+                  <span className="text-sm text-muted-foreground">{t('devmanager.skills.devs', { count: skill.developers })}</span>
                 </div>
                 <Badge variant="outline">{skill.level}</Badge>
               </div>
@@ -91,12 +104,16 @@ export const DMRoleSkillMapping: React.FC = () => {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Code2 className="h-5 w-5" />
-              Tech Stack Mapping
+              {t('devmanager.skills.tech_stack')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {techStack.length === 0 && <p className="text-sm text-muted-foreground">No skill recorded yet.</p>}
+              {techStack.length === 0 && (
+                <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+                  {t('devmanager.skills.tech_stack_empty')}
+                </p>
+              )}
               {techStack.map((stack) => (
                 <div key={stack.name}>
                   <p className="font-medium mb-2">{stack.name}</p>
@@ -116,13 +133,20 @@ export const DMRoleSkillMapping: React.FC = () => {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <FolderKanban className="h-5 w-5" />
-              Project Eligibility
+              {t('devmanager.skills.eligibility')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {projectEligibility.length === 0 && (
-                <p className="text-sm text-muted-foreground">{tasks.isLoading ? 'Loading…' : 'No open task names a tech stack.'}</p>
+                <p
+                  className="text-sm text-muted-foreground"
+                  role="status"
+                  aria-live="polite"
+                  aria-busy={tasks.isLoading || undefined}
+                >
+                  {tasks.isLoading ? t('devmanager.common.loading') : t('devmanager.skills.eligibility_empty')}
+                </p>
               )}
               {projectEligibility.map((project) => (
                 <div key={project.project} className="p-3 bg-muted/50 rounded-lg">
@@ -133,7 +157,7 @@ export const DMRoleSkillMapping: React.FC = () => {
                         <Badge key={skill} variant="outline" className="text-xs">{skill}</Badge>
                       ))}
                     </div>
-                    <span className="text-sm text-muted-foreground">{project.eligible} eligible</span>
+                    <span className="text-sm text-muted-foreground">{t('devmanager.skills.eligible', { count: project.eligible })}</span>
                   </div>
                 </div>
               ))}
@@ -147,13 +171,13 @@ export const DMRoleSkillMapping: React.FC = () => {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2 text-purple-500">
             <Brain className="h-5 w-5" />
-            AI Skill Match Score
+            {t('devmanager.skills.ai_match')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center">
             <div className="text-5xl font-bold text-purple-500 mb-2">—</div>
-            <p className="text-sm text-muted-foreground">No AI matching model is connected, so no alignment score is claimed.</p>
+            <p className="text-sm text-muted-foreground">{t('devmanager.skills.ai_match_none')}</p>
           </div>
         </CardContent>
       </Card>

@@ -3454,7 +3454,8 @@ export function PaymentsSection() {
 
   const live = (gateways.rows ?? []).map((row) => {
     const status = String(row.status ?? "");
-    const on = /active|live|enabled/i.test(status);
+    // Whole words: "inactive" contains "active" and read as switched on.
+    const on = /^(active|live|enabled)$/i.test(status.trim());
     const code = String(row.code ?? "");
     // The icon follows what the gateway is, from its own code.
     const icon = /upi|phonepe|gpay|google/i.test(code)

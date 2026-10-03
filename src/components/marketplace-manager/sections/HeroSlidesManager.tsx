@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import {
   Plus, Calendar, Eye, Edit3, Trash2, ChevronUp, ChevronDown, Save, X,
   CheckCircle2, Clock, FileText, Archive, Power, Loader2, ArrowRight,
@@ -42,6 +43,7 @@ const EMPTY: Partial<HeroSlideRow> = {
 
 export function HeroBannerSection() {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("All");
   const [editing, setEditing] = useState<HeroSlideRow | null>(null);
   const [creating, setCreating] = useState(false);
@@ -160,7 +162,15 @@ export function HeroBannerSection() {
               onPublish={() => setStatus(s, "published")}
               onDraft={() => setStatus(s, "draft")}
               onArchive={() => setStatus(s, "archived")}
-              onToggle={() => updateMut.mutate({ id: s.id, patch: { enabled: !s.enabled } })}
+              onToggle={() => {
+                // Switching an archived slide on put it back on the live homepage
+                // while it still read Archived here. It is restored first.
+                if (s.status === "archived") {
+                  toast.error(t("manager.hero.archived_cannot_enable"));
+                  return;
+                }
+                updateMut.mutate({ id: s.id, patch: { enabled: !s.enabled } });
+              }}
             />
           ))}
         </div>

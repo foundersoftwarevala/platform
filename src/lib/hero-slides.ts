@@ -184,9 +184,17 @@ function toDb(patch: Partial<HeroSlideRow>): Record<string, unknown> {
     // a different question from whether a slide is archived.
     if (patch.status === "archived") out.archived_at = new Date().toISOString();
     if (patch.status !== "archived") out.archived_at = null;
-    if (patch.status === "published") out.unpublish_at = null;
+    // Publishing now clears a stale end date - unless this same save sets one.
+    // The editor always sends the status, so saving a published slide with an
+    // unpublish date used to erase the date it had just been given.
+    if (patch.status === "published" && patch.unpublish_at === undefined) out.unpublish_at = null;
   }
-  if (patch.enabled !== undefined) out.visible = patch.enabled; // explicit toggle wins
+  // The on/off toggle wins only for a slide that is meant to be showing. A
+  // draft or archived slide saved with "enabled" still ticked used to come
+  // back on the live homepage while the manager called it Draft or Archived.
+  if (patch.enabled !== undefined && patch.status !== "draft" && patch.status !== "archived") {
+    out.visible = patch.enabled;
+  }
   return out;
 }
 
@@ -221,6 +229,10 @@ export async function createHeroSlide(input: HeroSlideInsert): Promise<HeroSlide
     cta_primary: input.cta_label ?? "Learn more",
     cta_secondary: input.secondary_label ?? "",
     cta_link: input.cta_href ?? "/marketplace",
+    // Typed into New Slide and then dropped: the secondary link and the
+    // archived state were never written on create.
+    cta_secondary_link: input.secondary_href ?? null,
+    ...(input.status === "archived" ? { archived_at: new Date().toISOString() } : {}),
     gradient: input.bg_gradient ?? "",
     icon_name: input.icon ?? "Sparkles",
     accent: input.accent_class ?? "text-cyan-300",

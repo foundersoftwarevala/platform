@@ -173,7 +173,10 @@ function DrawerBody({
     return (
       <div className="space-y-3">
         <div className="rounded-xl border border-border bg-background/40 p-4">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div
+            className="text-[10px] uppercase tracking-wider text-muted-foreground"
+            data-no-translate
+          >
             softwarevala.com
           </div>
           <div className="mt-1 text-[16px] font-bold text-[hsl(210_100%_75%)]">
@@ -608,6 +611,10 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
 
   return (
     <div
+      // Clicks inside the drawer are the drawer's own. Bubbling to the
+      // workspace's open-a-drawer-for-any-button handler replaced it: the AI
+      // Assistant's Generate unmounted the assistant, Cancel re-opened itself.
+      data-skip-drawer
       className={`fixed inset-0 z-[80] transition-opacity ${state.open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
       aria-hidden={!state.open}
     >
@@ -1704,7 +1711,10 @@ function DashboardModule() {
               </div>
               <div className="mt-0.5 text-sm font-bold">{t("seo.clicks_vs_impressions")}</div>
             </div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <div
+              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+              data-no-translate
+            >
               seo_performance_metrics
             </div>
           </div>
@@ -1813,7 +1823,10 @@ function DashboardModule() {
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
               {t("seo.busiest_pages")}
             </div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <div
+              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+              data-no-translate
+            >
               seo_page_behavior
             </div>
           </div>
@@ -1857,7 +1870,10 @@ function DashboardModule() {
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
               {t("seo.top_ranking_keywords")}
             </div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <div
+              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+              data-no-translate
+            >
               seo_keywords
             </div>
           </div>
@@ -2104,7 +2120,11 @@ function Pager({
   const last = Math.max(0, Math.floor(Math.max(total - 1, 0) / page) * page);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 py-2 text-[11px] text-muted-foreground">
+    // Paging is not an action to open a drawer for.
+    <div
+      data-skip-drawer
+      className="flex flex-wrap items-center justify-between gap-2 py-2 text-[11px] text-muted-foreground"
+    >
       <span>
         {loading
           ? "Reading…"
@@ -2166,7 +2186,13 @@ function CardTagAction({ slotUrl }: { slotUrl: string }) {
       const payload = (await response.json().catch(() => ({}))) as {
         state?: string;
         reason?: string;
+        error?: string;
       };
+      // A refusal is a refusal, not "No answer".
+      if (!response.ok && !payload.state) {
+        setState(`REFUSED: ${payload.error ?? `HTTP ${response.status}`}`);
+        return;
+      }
       setState(payload.state ? `${payload.state}: ${payload.reason ?? ""}`.trim() : "No answer");
     } catch (error) {
       setState(`PROVIDER_ERROR: ${error instanceof Error ? error.message : String(error)}`);
@@ -2184,7 +2210,8 @@ function CardTagAction({ slotUrl }: { slotUrl: string }) {
         : "destructive";
 
   return (
-    <div className="flex items-center gap-2">
+    // Generate runs here; it is not a request for the generic drawer.
+    <div data-skip-drawer className="flex items-center gap-2">
       <button
         type="button"
         onClick={run}
@@ -2218,6 +2245,7 @@ function CardTagAction({ slotUrl }: { slotUrl: string }) {
  * search engines before it is ready.
  */
 function LanguageSeoModule() {
+  const { t } = useTranslation();
   const [offset, setOffset] = useState(0);
   const search = useTableQuery();
   const languages = useResource("i18n_languages", {
@@ -2251,76 +2279,72 @@ function LanguageSeoModule() {
     <div className="space-y-4">
       <Card>
         <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
-          Language SEO
+          {t("seo.language_seo")}
         </div>
-        <div className="mt-1 text-[12px] text-muted-foreground">
-          Every enabled language is an hreflang target and a localized URL on every page of the
-          catalogue. A language that is enabled while its strings are still queued is advertised to
-          search engines before it is ready, which is the one thing this screen exists to show.
-        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">{t("seo.language_seo_note")}</div>
       </Card>
 
-      <Toolbar title="Languages" count={all.total} />
+      <Toolbar title={t("seo.languages")} count={all.total} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <StatCard
-          label="Registered"
+          label={t("seo.registered")}
           value={figure(all.total, all)}
           tone="default"
           delta="i18n_languages"
           icon={<Languages className="h-4 w-4" />}
         />
         <StatCard
-          label="Enabled"
+          label={t("seo.enabled")}
           value={figure(enabled.total, enabled)}
           tone="success"
-          delta="served to visitors"
+          delta={t("seo.served_to_visitors")}
           icon={<Globe2 className="h-4 w-4" />}
         />
         <StatCard
-          label="Machine only"
+          label={t("seo.machine_only")}
           value={figure(machine.total, machine)}
           tone="warning"
-          delta="not reviewed"
+          delta={t("seo.not_reviewed")}
           icon={<Bot className="h-4 w-4" />}
         />
         <StatCard
-          label="Partial"
+          label={t("seo.partial")}
           value={figure(partial.total, partial)}
           tone="warning"
           icon={<Clock className="h-4 w-4" />}
         />
         <StatCard
-          label="Retired"
+          label={t("seo.retired")}
           value={figure(retired.total, retired)}
           tone="default"
-          delta="not served"
+          delta={t("seo.not_served")}
           icon={<EyeOff className="h-4 w-4" />}
         />
       </div>
 
-      <Toolbar title="Translation queue" count={queued.total} />
+      <Toolbar title={t("seo.translation_queue")} count={queued.total} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
-          label="Translated"
+          label={t("seo.translated")}
           value={figure(done.total, done)}
           tone="success"
           icon={<CheckCircle2 className="h-4 w-4" />}
         />
         <StatCard
-          label="Waiting"
+          label={t("seo.waiting")}
           value={figure(queued.total, queued)}
           tone="warning"
-          delta="not on the site yet"
+          delta={t("seo.not_on_the_site_yet")}
           icon={<Clock className="h-4 w-4" />}
         />
         <StatCard
-          label="Running"
+          label={t("seo.running")}
           value={figure(running.total, running)}
           tone="premium"
           icon={<Activity className="h-4 w-4" />}
         />
         <StatCard
-          label="Failed"
+          label={t("seo.failed")}
           value={figure(failed.total, failed)}
           tone="destructive"
           icon={<AlertTriangle className="h-4 w-4" />}
@@ -2367,7 +2391,7 @@ function LanguageSeoModule() {
             {text(row, "region")}
           </span>,
           <Chip key="e" tone={row.enabled ? "success" : "default"}>
-            {row.enabled ? "yes" : "no"}
+            {row.enabled ? t("seo.yes") : t("seo.no")}
           </Chip>,
           <Chip key="t" tone={TRANSLATION_TONE[text(row, "translation_status")] ?? "warning"}>
             {text(row, "translation_status")}
@@ -2375,7 +2399,9 @@ function LanguageSeoModule() {
         ])}
       />
       {languages.loading && (
-        <div className="text-[11px] text-muted-foreground">Reading the language registry…</div>
+        <div className="text-[11px] text-muted-foreground">
+          {t("seo.reading_the_language_registry")}
+        </div>
       )}
     </div>
   );
@@ -2398,6 +2424,7 @@ const TRANSLATION_TONE: Record<string, "default" | "success" | "warning" | "prem
  * recorded; nothing showed them, so nobody could tell whether it had ever run.
  */
 function IndexNowModule() {
+  const { t } = useTranslation();
   const [offset, setOffset] = useState(0);
   const subs = useResource("indexnow", { limit: PAGE_SIZE, offset });
   const all = useResource("indexnow", { limit: 1 });
@@ -2406,36 +2433,36 @@ function IndexNowModule() {
   return (
     <div className="space-y-4">
       <Card>
-        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+        <div
+          className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent"
+          data-no-translate
+        >
           IndexNow
         </div>
-        <div className="mt-1 text-[12px] text-muted-foreground">
-          The free, official way to tell Bing, Yandex, Seznam and Naver that a URL changed rather
-          than waiting to be crawled. Every submission, and the answer it got.
-        </div>
+        <div className="mt-1 text-[12px] text-muted-foreground">{t("seo.indexnow_note")}</div>
       </Card>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <StatCard
-          label="Submissions"
+          label={t("seo.submissions")}
           value={figure(all.total, all)}
           tone="default"
           delta="indexnow_submissions"
           icon={<Send className="h-4 w-4" />}
         />
         <StatCard
-          label="Accepted"
+          label={t("seo.accepted")}
           value={figure(ok.total, ok)}
           tone="success"
           icon={<CheckCircle2 className="h-4 w-4" />}
         />
         <StatCard
-          label="URLs in the newest"
+          label={t("seo.urls_in_the_newest")}
           value={subs.rows[0] ? String(num(subs.rows[0], "url_count")) : "—"}
           tone="premium"
           icon={<LinkIcon className="h-4 w-4" />}
         />
       </div>
-      <Toolbar title="Submissions" count={subs.total} />
+      <Toolbar title={t("seo.submissions")} count={subs.total} />
       <Pager
         offset={offset}
         page={PAGE_SIZE}
@@ -2463,7 +2490,7 @@ function IndexNowModule() {
       />
       {!subs.loading && subs.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
-          Nothing has been submitted to IndexNow yet.
+          {t("seo.nothing_submitted_to_indexnow")}
         </div>
       )}
     </div>

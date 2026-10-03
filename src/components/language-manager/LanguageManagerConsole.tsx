@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { pluralCategories } from "@/lib/i18n/format";
 import { allMessages } from "@/lib/i18n/messages";
 import { SUPPORTED_LANGUAGE_COUNT } from "@/lib/i18n/registry";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 /**
  * Language Manager.
@@ -125,6 +126,7 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 }
 
 export function LanguageManagerConsole() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [reviewLanguage, setReviewLanguage] = useState("");
   const [reviewStatus, setReviewStatus] = useState("needs_review");
@@ -252,6 +254,9 @@ export function LanguageManagerConsole() {
               Pre-translate the catalogue into every language
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground" role="note">
+            {t("common.language_change_delay")}
+          </p>
           <Card className="overflow-hidden">
             <ScrollArea className="h-[60vh]">
               <table className="w-full text-sm">

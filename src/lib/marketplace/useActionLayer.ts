@@ -18,9 +18,12 @@ type Config = { actions: ActionConfig[]; paymentConfigured: boolean; configured:
 
 let inflight: Promise<Config> | null = null;
 let held: Config | null = null;
+// Kept for five minutes, not for the life of the tab: an open page never saw a
+// button the Manager switched off. A failed read is retried after a minute.
+let heldUntil = 0;
 
 async function fetchConfig(): Promise<Config> {
-  if (held) return held;
+  if (held && Date.now() < heldUntil) return held;
   if (!inflight) {
     inflight = fetch("/api/actions/config")
       .then(async (r) => {
@@ -33,11 +36,13 @@ async function fetchConfig(): Promise<Config> {
           paymentConfigured: Boolean(payload.paymentConfigured),
           configured: Boolean(payload.configured),
         };
+        heldUntil = Date.now() + 5 * 60_000;
         return held;
       })
       .catch(() => {
         // A failed read must not take the buttons away.
         held = { actions: DEFAULT_ACTIONS, paymentConfigured: false, configured: false };
+        heldUntil = Date.now() + 60_000;
         return held;
       })
       .finally(() => {

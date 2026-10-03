@@ -4,9 +4,11 @@ import { useNavigate } from "@tanstack/react-router";
 import logoAsset from "@/assets/dashboardLogoAsset";
 import type { RoleConfig } from "@/lib/roles";
 import { signOut } from "@/lib/auth-bridge";
+import { useQueryClient } from "@tanstack/react-query";
 import { notifyPending } from "@/lib/ui-actions";
 import { cn } from "@/lib/utils";
 import { RESELLER_CENTER_ORDER, RESELLER_CENTERS } from "@/lib/reseller-extras";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 type Props = {
   role: RoleConfig;
@@ -16,9 +18,17 @@ type Props = {
 
 function SidebarBase({ role, activeModule, onSelectModule }: Props) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
   async function handleLogout() {
-    await signOut();
-    navigate({ to: "/", replace: true });
+    // Cached records belong to the signed-out user; clear them even if
+    // signing out fails, so the next person on this tab never sees them.
+    try {
+      await signOut();
+    } finally {
+      queryClient.clear();
+      navigate({ to: "/", replace: true });
+    }
   }
 
   const isReseller = role.key === "reseller";
@@ -30,44 +40,49 @@ function SidebarBase({ role, activeModule, onSelectModule }: Props) {
           <span className="logo-3d h-11 w-11 shrink-0 block">
             <img
               src={logoAsset.url}
-              alt="Software Vala"
+              alt={"Software Vala" /* i18n-ignore: brand name */}
               className="h-full w-full rounded-full object-cover"
               draggable={false}
             />
           </span>
           <div className="min-w-0">
             <div className="text-sm font-bold tracking-tight leading-tight truncate">
+              {/* i18n-ignore: brand name */}
               Software Vala<span className="text-[oklch(0.55_0.22_25)]">™</span>
             </div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground truncate">
-              {role.title}
+              {role.titleKey ? t(role.titleKey) : role.title}
             </div>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4 space-y-6" aria-label="Dashboard navigation">
-        <Section title="Menu">
-          <NavItem icon={Home} label="Dashboard" active={activeModule === null} onClick={() => onSelectModule(null)} />
+      <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4 space-y-6" aria-label={t("dashboard.sidebar.navigation")}>
+        <Section id="menu" title={t("dashboard.sidebar.menu")}>
+          <NavItem icon={Home} label={t("dashboard.sidebar.dashboard")} active={activeModule === null} onClick={() => onSelectModule(null)} />
           {isReseller && (
-            <NavItem icon={Calculator} label="Pricing Engine" active={activeModule === "pricing"} onClick={() => onSelectModule("pricing")} accent />
+            <NavItem icon={Calculator} label={t("dashboard.sidebar.pricing_engine")} active={activeModule === "pricing"} onClick={() => onSelectModule("pricing")} accent />
           )}
-          <NavItem icon={Sparkles} label="AI Chat" active={activeModule === "ai-chat"} onClick={() => onSelectModule("ai-chat")} accent />
-          <NavItem icon={Compass} label="Explore" onClick={() => navigate({ to: "/" })} />
-          <NavItem icon={Layers} label="Marketplace" onClick={() => navigate({ to: "/" })} />
+          <NavItem icon={Sparkles} label={t("dashboard.sidebar.ai_chat")} active={activeModule === "ai-chat"} onClick={() => onSelectModule("ai-chat")} accent />
+          <NavItem icon={Compass} label={t("dashboard.sidebar.explore")} onClick={() => navigate({ to: "/" })} />
+          {/* Explore is the home page; Marketplace is the catalogue itself. */}
+          <NavItem icon={Layers} label={t("dashboard.sidebar.marketplace")} onClick={() => navigate({ to: "/marketplace" })} />
           <NavItem
             icon={FolderOpen}
-            label="Library"
+            label={t("dashboard.sidebar.library")}
             onClick={() => onSelectModule(role.modules[0]?.key ?? null)}
           />
         </Section>
 
-        <Section title={`${role.name} Modules`}>
+        <Section
+          id={`${role.name} Modules`}
+          title={t("dashboard.sidebar.role_modules", { role: role.nameKey ? t(role.nameKey) : role.name })}
+        >
           {role.modules.map((m) => (
             <NavItem
               key={m.key}
               icon={m.icon}
-              label={m.label}
+              label={m.labelKey ? t(m.labelKey) : m.label}
               active={activeModule === m.key}
               onClick={() => onSelectModule(m.key)}
             />
@@ -75,7 +90,7 @@ function SidebarBase({ role, activeModule, onSelectModule }: Props) {
         </Section>
 
         {isReseller && (
-          <Section title="Reseller Centers">
+          <Section id="Reseller Centers" title={t("dashboard.sidebar.reseller_centers")}>
             {RESELLER_CENTER_ORDER.map((k) => {
               const c = RESELLER_CENTERS[k];
               const key = `center:${k}`;
@@ -92,47 +107,70 @@ function SidebarBase({ role, activeModule, onSelectModule }: Props) {
           </Section>
         )}
 
-        <Section title="Account">
+        <Section id="Account" title={t("dashboard.sidebar.account")}>
+          {/* A reseller has no "settings" module, so Settings found nothing and
+              went home; theirs is the Settings Center. Support used to open the
+              AI chat, which answers with canned text, so for a reseller it now
+              says plainly that there is no support desk on this dashboard. */}
           <NavItem
             icon={Settings}
-            label="Settings"
+            label={t("dashboard.sidebar.settings")}
+            active={isReseller && activeModule === "center:settings"}
             onClick={() =>
               onSelectModule(
-                role.modules.find((m) => /setting|config|profile/i.test(m.label))?.key ?? null,
+                isReseller
+                  ? "center:settings"
+                  : role.modules.find((m) => /setting|config|profile/i.test(m.label))?.key ?? null,
               )
             }
           />
           <NavItem
             icon={LifeBuoy}
-            label="Support"
+            label={t("dashboard.sidebar.support")}
             onClick={() =>
-              onSelectModule(
-                role.modules.find((m) => /support|ticket|help/i.test(m.label))?.key ?? "ai-chat",
-              )
+              isReseller
+                ? notifyPending(t("dashboard.sidebar.support"), t("dashboard.sidebar.support_unavailable"))
+                : onSelectModule(
+                    // The role's own ticket desk (AMS — Support Requests) when it
+                    // has one; the AI chat only for roles without a desk.
+                    role.modules.find((m) => /support|ticket|help/i.test(m.label))?.key ??
+                      role.modules.find((m) => m.key === "ams")?.key ??
+                      "ai-chat",
+                  )
             }
           />
-          <NavItem icon={LogOut} label="Logout" onClick={handleLogout} />
+          <NavItem icon={LogOut} label={t("dashboard.sidebar.logout")} onClick={handleLogout} />
         </Section>
       </nav>
 
       <div className="m-3 rounded-xl bg-gradient-brand p-4 text-brand-foreground shadow-glow">
-        <div className="text-xs uppercase tracking-wider opacity-80">Upgrade</div>
-        <div className="mt-1 font-semibold">Go Pro</div>
-        <p className="mt-1 text-xs opacity-80">Unlock advanced analytics & AI tools.</p>
+        <div className="text-xs uppercase tracking-wider opacity-80">{t("dashboard.sidebar.upgrade")}</div>
+        <div className="mt-1 font-semibold">{t("dashboard.sidebar.go_pro")}</div>
+        <p className="mt-1 text-xs opacity-80">{t("dashboard.sidebar.upgrade_pitch")}</p>
         <button
           type="button"
-          onClick={() => notifyPending("Upgrade to Pro", "Plan upgrades run through your existing Software Vala billing account.")}
+          onClick={() =>
+            // A reseller upgrades by buying a membership plan, which is a real
+            // screen of their own.
+            isReseller
+              ? onSelectModule("membership")
+              : notifyPending(t("dashboard.sidebar.upgrade_to_pro"), t("dashboard.sidebar.upgrade_billing"))
+          }
           className="press-3d focus-ring mt-3 w-full rounded-lg bg-white/15 hover:bg-white/25 transition text-xs font-medium py-2"
         >
-          Upgrade now
+          {t("dashboard.sidebar.upgrade_now")}
         </button>
       </div>
     </aside>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const id = `sv-nav-${title.replace(/\s+/g, "-").toLowerCase()}`;
+/**
+ * `id` is the section's English heading: the element id is made from it, so it
+ * stays the same in every language while the heading itself is translated.
+ */
+function Section({ id: name, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  const id = `sv-nav-${name.replace(/\s+/g, "-").toLowerCase()}`;
   return (
     <section aria-labelledby={id}>
       <h2 id={id} className="px-3 pb-2 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">

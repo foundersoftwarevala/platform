@@ -13,7 +13,8 @@ import { z } from "zod";
  * its own ledger so no event is ever settled twice.
  */
 
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+/** A database client that acts as the signed-in caller, never as the service. */
+async function userClient() {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) throw new Error("Unauthorized: sign in required");
@@ -22,10 +23,14 @@ async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise
   const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
   const key =
     process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
+  return createClient(base, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
+}
+
+async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+  const client = await userClient();
   const { data, error } = await client.rpc(fn, args);
   if (error) throw new Error(error.message);
   return data as T;
@@ -120,11 +125,47 @@ export const getResellers = createServerFn({ method: "GET" })
     callAsUser("mm_resellers", { p_query: data }),
   );
 
+/**
+ * One reseller, with the decisions on their payouts in its audit history.
+ *
+ * mm_reseller_detail lists the audit rows keyed to the reseller. A payout
+ * decision is recorded against the payout (entity reseller_payout), so
+ * approvals, payments, failures and reversals never showed in the reseller's
+ * history. They are read here, as the caller - row level security on
+ * marketplace_audit_logs still decides what the caller may see - and merged
+ * in date order. A failed read leaves the history as the database gave it.
+ */
 export const getResellerDetail = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
-    callAsUser("mm_reseller_detail", { p_id: data.id }),
-  );
+  .handler(async ({ data }): Promise<Record<string, unknown>> => {
+    const detail = await callAsUser<Record<string, unknown>>("mm_reseller_detail", { p_id: data.id });
+    const payouts = Array.isArray(detail?.payouts) ? (detail.payouts as { id?: unknown }[]) : [];
+    const ids = payouts.map((p) => String(p.id ?? "")).filter(Boolean);
+    if (detail?.ok === false || !ids.length) return detail;
+
+    try {
+      const client = await userClient();
+      const since = new Date(Date.now() - 180 * 24 * 3600 * 1000).toISOString();
+      const { data: rows, error } = await client
+        .from("marketplace_audit_logs")
+        .select("action, created_at, actor_id, reason, before_state, after_state")
+        .eq("entity_type", "reseller_payout")
+        .in("entity_id", ids)
+        .gt("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error || !rows?.length) return detail;
+      const extra = rows.map((a) => ({
+        action: a.action, at: a.created_at, actor: a.actor_id,
+        reason: a.reason, before: a.before_state, after: a.after_state,
+      }));
+      const audit = [...((detail.audit as Record<string, unknown>[] | undefined) ?? []), ...extra]
+        .sort((x, y) => String(y.at ?? "").localeCompare(String(x.at ?? "")));
+      return { ...detail, audit };
+    } catch {
+      return detail;
+    }
+  });
 
 /** Approve, pause, suspend, reject or reactivate. */
 export const setResellerStatus = createServerFn({ method: "POST" })

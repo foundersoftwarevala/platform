@@ -21,5 +21,13 @@ async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise
 }
 
 export const getMarketingSummary = createServerFn({ method: "GET" }).handler(
-  async (): Promise<Record<string, unknown>> => callAsUser("mm_marketing_summary", {}),
+  async (): Promise<Record<string, unknown>> => {
+    const summary = await callAsUser<Record<string, unknown>>("mm_marketing_summary", {});
+    // The RPC answers a refusal as { ok: false } rather than an error, and the
+    // screen showed it as a row of zero counts.
+    if (summary && summary.ok === false) {
+      throw new Error(summary.reason === "not_permitted" ? "not_permitted" : String(summary.reason ?? "refused"));
+    }
+    return summary;
+  },
 );

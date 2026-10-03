@@ -12,6 +12,7 @@ export const Route = createFileRoute("/affiliate-manager/products")({
       description="Marketplace products, featured products, pricing, discount and SEO promotion."
       crumbLabel="Products"
       table="marketing_assets"
+      unavailable="Affiliate product promotions are not recorded on the platform yet."
       searchColumns={["name"]}
       searchPlaceholder="Search products…"
       filters={["Featured", "Campaign", "Status"]}

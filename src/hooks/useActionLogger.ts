@@ -4,10 +4,82 @@
  * Every button click = 1 DB action minimum
  * 
  * DEBUG FIX: Enhanced with retry logic, fail-safe, and complete traceability
+ *
+ * Actions are recorded in audit_logs. There is no action_logs table, and
+ * audit_logs is not writable from the browser, so entries go through the
+ * recordAuditEvent server function, which records the signed-in user as the
+ * actor from their verified token rather than from anything the page sends.
  */
 import { useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import type { Json } from '@/integrations/supabase/types';
+import { createServerFn } from '@tanstack/react-start';
+import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
+
+const AUDIT_SEVERITIES = ['info', 'low', 'medium', 'high', 'warning', 'critical'] as const;
+
+export interface AuditEventInput {
+  action: string;
+  entityType: string;
+  entityId?: string | null | undefined;
+  severity?: (typeof AUDIT_SEVERITIES)[number] | undefined;
+  metadata?: Record<string, unknown> | undefined;
+}
+
+/** Writes one audit_logs row for the signed-in user. Throws when it was not written. */
+export const recordAuditEvent = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: AuditEventInput) => {
+    const text = (value: unknown, field: string, max: number) => {
+      if (typeof value !== 'string' || !value.trim()) throw new Error(`${field} is required`);
+      return value.trim().slice(0, max);
+    };
+    return {
+      action: text(input?.action, 'action', 200),
+      entityType: text(input?.entityType, 'entityType', 100),
+      entityId: input?.entityId ? String(input.entityId).slice(0, 200) : null,
+      severity: AUDIT_SEVERITIES.includes(input?.severity as never) ? input.severity! : 'info',
+      metadata: input?.metadata && typeof input.metadata === 'object' ? input.metadata : {},
+    };
+  })
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const email = (context.claims as { email?: string } | undefined)?.email;
+    const { error } = await supabaseAdmin.from('audit_logs').insert({
+      actor: email ?? context.userId,
+      action: data.action,
+      entity_type: data.entityType,
+      entity_id: data.entityId,
+      severity: data.severity,
+      metadata: { ...data.metadata, actor_user_id: context.userId, source: 'client' } as never,
+    });
+    if (error) throw new Error(`Audit log write failed: ${error.message}`);
+    return { ok: true as const };
+  });
+
+/** The audit_logs entry for a button action: the module is the entity type. */
+function buttonActionEvent(params: {
+  buttonId: string;
+  moduleName: string;
+  actionType: ActionType;
+  actionResult: ActionResult;
+  responseTimeMs?: number | null | undefined;
+  errorMessage?: string | null | undefined;
+  metadata?: Record<string, unknown> | null | undefined;
+}): AuditEventInput {
+  return {
+    action: `${params.moduleName}.${params.actionType.toLowerCase()}`,
+    entityType: params.moduleName,
+    severity: params.actionResult === 'failure' ? 'warning' : 'info',
+    metadata: {
+      ...(params.metadata ?? {}),
+      button_id: params.buttonId,
+      action_type: params.actionType,
+      action_result: params.actionResult,
+      response_time_ms: params.responseTimeMs ?? null,
+      error_message: params.errorMessage ?? null,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+    },
+  };
+}
 
 export type ActionType = 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'PROCESS' | 'NAVIGATE';
 export type ActionResult = 'success' | 'failure' | 'retry' | 'blocked';
@@ -37,25 +109,7 @@ export function useActionLogger(): UseActionLoggerReturn {
     
     const attemptLog = async (): Promise<void> => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        const insertData = {
-          user_id: user?.id || null,
-          button_id: params.buttonId,
-          module_name: params.moduleName,
-          action_type: params.actionType,
-          action_result: params.actionResult,
-          response_time_ms: params.responseTimeMs || null,
-          error_message: params.errorMessage || null,
-          metadata: (params.metadata || null) as Json,
-          user_agent: navigator.userAgent,
-        };
-
-        const { error } = await supabase.from('action_logs').insert(insertData);
-        
-        if (error) {
-          throw error;
-        }
+        await recordAuditEvent({ data: buttonActionEvent(params) });
       } catch (error) {
         retryCount++;
         if (retryCount < maxRetries) {
@@ -129,23 +183,11 @@ export function withActionLogging<T extends (...args: unknown[]) => Promise<unkn
       // Log asynchronously without blocking - with retry
       const logWithRetry = async (retries = 2) => {
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          const insertData = {
-            user_id: user?.id || null,
-            button_id: buttonId,
-            module_name: moduleName,
-            action_type: actionType,
-            action_result: result,
-            response_time_ms: responseTimeMs,
-            error_message: errorMessage || null,
-            user_agent: navigator.userAgent,
-          };
-          
-          const { error } = await supabase.from('action_logs').insert(insertData);
-          if (error && retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            return logWithRetry(retries - 1);
-          }
+          await recordAuditEvent({
+            data: buttonActionEvent({
+              buttonId, moduleName, actionType, actionResult: result, responseTimeMs, errorMessage,
+            }),
+          });
         } catch (err) {
           if (retries > 0) {
             await new Promise(resolve => setTimeout(resolve, 100));

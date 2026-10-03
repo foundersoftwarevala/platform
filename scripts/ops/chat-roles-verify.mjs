@@ -67,10 +67,24 @@ try {
 
   // Everyone signs in, opens their own dashboard, and takes the chat button there.
   for (const [login, role] of MEMBERS) {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+    // Each member in a browser of their own, as real users are. Contexts of one
+    // browser share its connection pool: over HTTP/1.1 to a local server, the
+    // seventh long-lived notification stream waits for a free socket and that
+    // member never hears live messages. The live site is HTTP/2, where this
+    // limit does not exist.
+    const ownBrowser = await chromium.launch();
+    const context = await ownBrowser.newContext({ viewport: { width: 1280, height: 860 } });
     const page = await context.newPage();
     const errors = [];
+    const consoleErrors = [];
+    const streams = [];
     page.on("pageerror", (e) => errors.push(String(e.message ?? e)));
+    page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text().slice(0, 140)); });
+    page.on("response", (r) => { if (r.url().includes("/api/notifications/stream")) streams.push(r.status()); });
+    const pending = new Map();
+    page.on("request", (r) => { if (/\/rest\/v1\/|_serverFn|\/api\//.test(r.url())) pending.set(r, Date.now()); });
+    page.on("requestfinished", async (r) => { const res = await r.response().catch(() => null); if (res && res.status() >= 400) consoleErrors.push(`HTTP ${res.status()} ${new URL(r.url()).pathname}`); pending.delete(r); });
+    page.on("requestfailed", (r) => { consoleErrors.push(`failed ${new URL(r.url()).pathname} ${r.failure()?.errorText ?? ""}`); pending.delete(r); });
     await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await page.waitForTimeout(2500);
     await page.fill('input[type="email"]', ops[`SV_LOGIN_${login}`]);
@@ -79,6 +93,7 @@ try {
     await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
     await page.goto(`${BASE}/dashboard/${role}`, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(5000);
+    console.log(`  ..    ${role} dashboard opened`);
     const btn = page.locator("[data-chat-app-button]");
     const hasButton = (await btn.count()) === 1;
     if (hasButton) await btn.first().click();
@@ -87,7 +102,7 @@ try {
     await page.getByRole("button", { name: new RegExp(SUBJECT) }).first().click({ timeout: 20_000 }).catch(() => undefined);
     await page.waitForTimeout(1500);
     const composer = page.getByPlaceholder(/Type a message/);
-    people.push({ login, role, context, page, errors, hasButton, ready: (await composer.count()) > 0 });
+    people.push({ login, role, browser: ownBrowser, context, page, errors, consoleErrors, streams, pending, hasButton, ready: (await composer.count()) > 0 });
   }
   for (const p of people) {
     check(`${p.role.padEnd(10)} dashboard: chat button there, opens the group ready to type`, p.hasButton && p.ready, `button ${p.hasButton}, composer ${p.ready}`);
@@ -122,6 +137,17 @@ try {
   for (const p of people) {
     const missing = people.filter((q) => !seen[p.role].has(q.role)).map((q) => q.role);
     check(`${p.role.padEnd(10)} sees every member's message live, no reload`, missing.length === 0, missing.length ? `missing: ${missing.join(",")}` : `${seen[p.role].size}/${people.length}`);
+    if (missing.length) {
+      // What that member's page actually shows, not just whether a composer exists.
+      const view = await p.page.evaluate((subject) => ({
+        url: location.pathname + location.search,
+        rendered: document.querySelectorAll("[data-message-id]").length,
+        open: [...document.querySelectorAll("h1,h2,h3,header *")].map((e) => e.textContent?.trim() ?? "").find((t) => t.includes(subject)) ?? null,
+        texts: [...document.querySelectorAll("[data-message-id]")].slice(-3).map((e) => (e.textContent ?? "").trim().slice(0, 50)),
+        pane: (document.querySelector("main")?.innerText ?? "").replace(/s+/g, " ").slice(0, 200),
+      }), SUBJECT).catch((e) => ({ error: String(e) }));
+      console.log(`  ..    ${p.role}: ${JSON.stringify(view)} stream HTTP ${p.streams.join(",") || "none"} console errors ${p.consoleErrors.slice(0, 4).join(" | ") || "none"} pending ${[...p.pending.entries()].filter(([r]) => !r.url().includes("notifications/stream")).map(([r, t]) => `${new URL(r.url()).pathname.split("/").pop()} ${Math.round((Date.now() - t) / 1000)}s`).join(", ") || "none"}`);
+    }
   }
   const stored = sql(`select m.body || ' | ' || coalesce((select string_agg(ur.role::text, ',') from user_roles ur where ur.user_id = m.sender_id), '?') from messages m where m.conversation_id='${GROUP}' order by m.created_at`).slice(1);
   const rightSender = people.filter((p) => p.ready).every((p) => stored.some((l) => l.startsWith(`hello from ${p.role} ${RUN} |`) && l.split("|").pop().trim().split(",").includes(p.role)));
@@ -155,9 +181,12 @@ try {
   await opCtx.close();
 } catch (error) {
   failed += 1;
-  console.log(`  FAIL  the run stopped: ${error instanceof Error ? error.message.slice(0, 400) : error}`);
+  console.log(`  FAIL  the run stopped: ${error instanceof Error ? error.message.slice(0, 3000) : error}`);
 } finally {
-  for (const p of people) await p.context.close().catch(() => undefined);
+  for (const p of people) {
+    await p.context.close().catch(() => undefined);
+    await p.browser?.close().catch(() => undefined);
+  }
   if (created) {
     sql(`begin;
       alter table messages disable trigger messages_immutable_delete;

@@ -244,9 +244,10 @@ export function OrdersSection() {
       (await requestRefund({ data: v })) as Outcome,
     onSuccess: (r: Outcome) => {
       refresh();
-      toast.success(String(r?.message ?? "Refund requested"));
+      toast.success(String(r?.message ?? t("manager.orders.refund_requested")));
     },
-    onError: (e: Error) => toast.error("The refund was refused", { description: e.message }),
+    onError: (e: Error) =>
+      toast.error(t("manager.orders.refund_refused"), { description: e.message }),
   });
 
   const dispute = useMutation({
@@ -254,9 +255,10 @@ export function OrdersSection() {
       (await openDispute({ data: v })) as Outcome,
     onSuccess: (r: Outcome) => {
       refresh();
-      toast.success(String(r?.message ?? "Dispute opened"));
+      toast.success(String(r?.message ?? t("manager.orders.dispute_opened")));
     },
-    onError: (e: Error) => toast.error("The dispute was refused", { description: e.message }),
+    onError: (e: Error) =>
+      toast.error(t("manager.orders.dispute_refused"), { description: e.message }),
   });
 
   type Export = { csv?: string; filename?: string; rows?: number };
@@ -275,9 +277,10 @@ export function OrdersSection() {
       a.download = String(r?.filename ?? "orders.csv");
       a.click();
       URL.revokeObjectURL(url);
-      toast.success(`Exported ${r?.rows ?? 0} order(s)`);
+      toast.success(t("manager.orders.exported", { count: r?.rows ?? 0 }));
     },
-    onError: (e: Error) => toast.error("The export was refused", { description: e.message }),
+    onError: (e: Error) =>
+      toast.error(t("manager.orders.export_refused"), { description: e.message }),
   });
 
   const figure = (value: number | undefined) =>
@@ -297,12 +300,13 @@ export function OrdersSection() {
           <>
             <PillButton variant="ghost" onClick={refresh}>
               <span className="inline-flex items-center gap-1.5">
-                <RefreshCw className="h-3.5 w-3.5" /> Refresh
+                <RefreshCw className="h-3.5 w-3.5" /> {t("manager.orders.refresh")}
               </span>
             </PillButton>
             <PillButton variant="primary" onClick={() => csv.mutate()}>
               <span className="inline-flex items-center gap-1.5">
-                <Download className="h-3.5 w-3.5" /> {csv.isPending ? "Exporting…" : "Export"}
+                <Download className="h-3.5 w-3.5" />{" "}
+                {csv.isPending ? t("manager.orders.exporting") : t("manager.orders.export")}
               </span>
             </PillButton>
           </>
@@ -335,11 +339,15 @@ export function OrdersSection() {
                 <input
                   value={typed}
                   onChange={(e) => setTyped(e.target.value)}
-                  placeholder="Order number, customer email, payment reference, invoice…"
+                  placeholder={t("manager.orders.search_placeholder")}
                   className="flex-1 bg-transparent text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none"
                 />
                 {typed && (
-                  <button type="button" onClick={() => setTyped("")} aria-label="Clear search">
+                  <button
+                    type="button"
+                    onClick={() => setTyped("")}
+                    aria-label={t("manager.orders.clear_search")}
+                  >
                     <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
                   </button>
                 )}
@@ -352,8 +360,10 @@ export function OrdersSection() {
                 }}
                 className="rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[12px]"
               >
-                <option value="">Any order status</option>
-                {["pending_payment", "paid", "failed", "refunded", "cancelled"].map((s) => (
+                <option value="">{t("manager.orders.any_order_status")}</option>
+                {/* The statuses an order can actually hold (marketplace_orders_status_check).
+                    "failed" is not one, and five real ones were missing. */}
+                {["pending_payment", "paid", "processing", "fulfilled", "completed", "cancelled", "refunded", "disputed"].map((s) => (
                   <option key={s} value={s}>
                     {s.replace(/_/g, " ")}
                   </option>
@@ -367,10 +377,13 @@ export function OrdersSection() {
                 }}
                 className="rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[12px]"
               >
-                <option value="">Any payment status</option>
-                {["pending", "captured", "failed", "refunded"].map((s) => (
+                <option value="">{t("manager.orders.any_payment_status")}</option>
+                {/* What the filter compares: the gateway's own answer (success,
+                    failure), or the order's state before any answer. "captured"
+                    and "pending" are never stored, so they always matched nothing. */}
+                {["success", "failure", "pending_payment"].map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {s.replace(/_/g, " ")}
                   </option>
                 ))}
               </select>
@@ -399,14 +412,16 @@ export function OrdersSection() {
                 />
               </div>
             ) : orders.isLoading ? (
-              <div className="p-6 text-sm text-muted-foreground">Reading the orders…</div>
+              <div className="p-6 text-sm text-muted-foreground">
+                {t("manager.orders.reading_orders")}
+              </div>
             ) : rows.length === 0 ? (
               <div className="p-6">
                 <EmptyHint
                   text={
                     search || status || paymentStatus
-                      ? "No orders match that search."
-                      : "No orders yet."
+                      ? t("manager.orders.no_match")
+                      : t("manager.orders.none_yet")
                   }
                 />
               </div>
@@ -416,15 +431,15 @@ export function OrdersSection() {
                   <table className="w-full text-left text-[12px]">
                     <thead className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">
                       <tr>
-                        <th className="px-4 py-2">Order</th>
-                        <th className="px-4 py-2">Customer</th>
-                        <th className="px-4 py-2">Items</th>
-                        <th className="px-4 py-2">Amount</th>
-                        <th className="px-4 py-2">Payment</th>
-                        <th className="px-4 py-2">Status</th>
-                        <th className="px-4 py-2">Invoice</th>
-                        <th className="px-4 py-2">Created</th>
-                        <th className="px-4 py-2 text-right">Actions</th>
+                        <th className="px-4 py-2">{t("manager.orders.order")}</th>
+                        <th className="px-4 py-2">{t("manager.orders.customer")}</th>
+                        <th className="px-4 py-2">{t("manager.orders.items")}</th>
+                        <th className="px-4 py-2">{t("manager.orders.amount")}</th>
+                        <th className="px-4 py-2">{t("manager.orders.payment")}</th>
+                        <th className="px-4 py-2">{t("manager.orders.status")}</th>
+                        <th className="px-4 py-2">{t("manager.orders.invoice")}</th>
+                        <th className="px-4 py-2">{t("manager.orders.created")}</th>
+                        <th className="px-4 py-2 text-right">{t("manager.orders.actions")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -439,7 +454,7 @@ export function OrdersSection() {
                           <td className="px-4 py-2">
                             <Pill value={o.payment_status} />
                             <div className="mt-0.5 text-[10px] text-muted-foreground">
-                              {o.payment_gateway ?? "no gateway"}
+                              {o.payment_gateway ?? t("manager.orders.no_gateway")}
                             </div>
                           </td>
                           <td className="px-4 py-2">
@@ -464,35 +479,72 @@ export function OrdersSection() {
                                 onClick={() => setOpenOrder(o.id)}
                                 className="rounded border border-border px-2 py-0.5 text-[11px] hover:border-accent/50 hover:text-accent"
                               >
-                                View
+                                {t("manager.orders.view")}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => {
                                   const reason = window
                                     .prompt(
-                                      `Refund ${money(o.total, o.currency)} for ${o.order_number}. Why?`,
+                                      t("manager.orders.refund_prompt", {
+                                        amount: money(o.total, o.currency),
+                                        order: o.order_number,
+                                      }),
                                     )
                                     ?.trim();
                                   if (!reason) return;
-                                  refund.mutate({ orderId: o.id, amount: Number(o.total), reason });
+                                  // The amount is asked for, defaulting to the full total.
+                                  // It was always the full total, so a partial refund was
+                                  // impossible and any refund after one was refused.
+                                  const asked = window
+                                    .prompt(
+                                      t("manager.orders.refund_amount_prompt", {
+                                        total: money(o.total, o.currency),
+                                        order: o.order_number,
+                                      }),
+                                      String(o.total),
+                                    )
+                                    ?.trim();
+                                  if (!asked) return;
+                                  const amount = Number(asked);
+                                  if (!Number.isFinite(amount) || amount <= 0 || amount > Number(o.total)) {
+                                    toast.error(
+                                      t("manager.orders.refund_amount_invalid", {
+                                        total: money(o.total, o.currency),
+                                      }),
+                                    );
+                                    return;
+                                  }
+                                  refund.mutate({ orderId: o.id, amount, reason });
                                 }}
-                                className="rounded border border-border px-2 py-0.5 text-[11px] hover:border-warning/50 hover:text-warning"
+                                // One request at a time: a second click while the first is
+                                // in flight would ask for the same refund again. An order
+                                // nobody paid has nothing to refund.
+                                disabled={
+                                  refund.isPending ||
+                                  ["pending_payment", "cancelled", "refunded"].includes(String(o.status))
+                                }
+                                className="rounded border border-border px-2 py-0.5 text-[11px] hover:border-warning/50 hover:text-warning disabled:opacity-50"
                               >
-                                Refund
+                                {t("manager.orders.refund")}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => {
                                   const reason = window
-                                    .prompt(`Open a dispute on ${o.order_number}. Why?`)
+                                    .prompt(
+                                      t("manager.orders.dispute_prompt", { order: o.order_number }),
+                                    )
                                     ?.trim();
                                   if (!reason) return;
                                   dispute.mutate({ orderId: o.id, reason });
                                 }}
+                                // Same as refund: one at a time, so a double click does
+                                // not open the same dispute twice.
+                                disabled={dispute.isPending}
                                 className="rounded border border-border px-2 py-0.5 text-[11px] hover:border-destructive/50 hover:text-destructive"
                               >
-                                Dispute
+                                {t("manager.orders.dispute")}
                               </button>
                             </div>
                           </td>
@@ -503,7 +555,11 @@ export function OrdersSection() {
                 </div>
                 <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
                   <span>
-                    {page * PAGE + 1}–{Math.min((page + 1) * PAGE, total)} of {total}
+                    {t("manager.orders.range", {
+                      from: page * PAGE + 1,
+                      to: Math.min((page + 1) * PAGE, total),
+                      total,
+                    })}
                   </span>
                   <div className="flex gap-1">
                     <button
@@ -512,7 +568,7 @@ export function OrdersSection() {
                       onClick={() => setPage((p) => Math.max(0, p - 1))}
                       className="rounded border border-border px-2 py-0.5 disabled:opacity-40"
                     >
-                      Previous
+                      {t("common.previous")}
                     </button>
                     <button
                       type="button"
@@ -520,7 +576,7 @@ export function OrdersSection() {
                       onClick={() => setPage((p) => p + 1)}
                       className="rounded border border-border px-2 py-0.5 disabled:opacity-40"
                     >
-                      Next
+                      {t("common.next")}
                     </button>
                   </div>
                 </div>
@@ -535,10 +591,10 @@ export function OrdersSection() {
               {active}
               <span className="ml-2 text-[11px] font-normal text-muted-foreground">
                 {docs.isLoading
-                  ? "counting…"
+                  ? t("manager.orders.counting")
                   : docs.isError
-                    ? "unavailable"
-                    : `${docs.data?.total ?? 0} record(s)`}
+                    ? t("manager.orders.unavailable")
+                    : t("manager.orders.records", { count: docs.data?.total ?? 0 })}
               </span>
             </div>
             {docs.isError ? (
@@ -547,11 +603,11 @@ export function OrdersSection() {
               </div>
             ) : docs.isLoading ? (
               <div className="p-6 text-sm text-muted-foreground">
-                Reading {active.toLowerCase()}…
+                {t("manager.orders.reading_tab", { tab: active.toLowerCase() })}
               </div>
             ) : docRows.length === 0 ? (
               <div className="p-6">
-                <EmptyHint text={`No ${active.toLowerCase()} yet.`} />
+                <EmptyHint text={t("manager.orders.no_tab_yet", { tab: active.toLowerCase() })} />
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -667,6 +723,7 @@ function OrderDetail({
   onRetry: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const order = data?.order ?? {};
   const currency = String(order.currency ?? "INR");
 
@@ -679,11 +736,11 @@ function OrderDetail({
         <div className="mb-4 flex items-start justify-between">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              Order
+              {t("manager.orders.order")}
             </div>
             <div className="font-mono text-sm font-bold">{String(order.order_number ?? "…")}</div>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close">
+          <button type="button" onClick={onClose} aria-label={t("common.close")}>
             <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
           </button>
         </div>
@@ -691,19 +748,37 @@ function OrderDetail({
         {error ? (
           <LoadFailure error={error} what="this order" onRetry={onRetry} />
         ) : loading ? (
-          <div className="text-sm text-muted-foreground">Reading the order…</div>
+          <div className="text-sm text-muted-foreground">{t("manager.orders.reading_order")}</div>
         ) : (
           <div className="space-y-5">
             <div className="grid grid-cols-2 gap-3 text-[12px]">
-              <Detail label="Customer" value={String(data?.customer?.email ?? "—")} />
-              <Detail label="Total" value={money(Number(order.total ?? 0), currency)} />
-              <Detail label="Payment" value={String(order.payment_status ?? "—")} />
-              <Detail label="Gateway" value={String(order.payment_gateway ?? "—")} />
-              <Detail label="Reference" value={String(order.payment_reference ?? "—")} />
-              <Detail label="Invoice" value={String(data?.invoice?.invoice_no ?? "not issued")} />
+              <Detail
+                label={t("manager.orders.customer")}
+                value={String(data?.customer?.email ?? "—")}
+              />
+              <Detail
+                label={t("manager.orders.total")}
+                value={money(Number(order.total ?? 0), currency)}
+              />
+              <Detail
+                label={t("manager.orders.payment")}
+                value={String(order.payment_status ?? "—")}
+              />
+              <Detail
+                label={t("manager.orders.gateway")}
+                value={String(order.payment_gateway ?? "—")}
+              />
+              <Detail
+                label={t("manager.orders.reference")}
+                value={String(order.payment_reference ?? "—")}
+              />
+              <Detail
+                label={t("manager.orders.invoice")}
+                value={String(data?.invoice?.invoice_no ?? t("manager.orders.not_issued"))}
+              />
             </div>
 
-            <Block title={`Items (${data?.items?.length ?? 0})`}>
+            <Block title={t("manager.orders.items_count", { count: data?.items?.length ?? 0 })}>
               {(data?.items ?? []).map((it, i) => (
                 <div key={i} className="flex items-center justify-between py-1 text-[12px]">
                   <span>{String(it.name ?? it.product_id ?? "—")}</span>
@@ -718,23 +793,25 @@ function OrderDetail({
                 carried it and no screen showed it. An order with no partner
                 says so rather than rendering nothing, so the reader knows it
                 was looked at. */}
-            <Block title="Partner credit">
+            <Block title={t("manager.orders.partner_credit")}>
               {partnersLoading ? (
-                <div className="text-[12px] text-muted-foreground">Reading the attribution…</div>
+                <div className="text-[12px] text-muted-foreground">
+                  {t("manager.orders.reading_attribution")}
+                </div>
               ) : partners.length === 0 ? (
                 <div className="text-[12px] text-muted-foreground">
-                  Direct order — no reseller, affiliate or influencer was credited.
+                  {t("manager.orders.direct_order")}
                 </div>
               ) : (
                 partners.map((a) => {
                   const who = a.reseller ?? a.affiliate ?? a.influencer;
                   const kind = a.reseller
-                    ? "Reseller"
+                    ? t("manager.orders.partner_reseller")
                     : a.affiliate
-                      ? "Affiliate"
+                      ? t("manager.orders.partner_affiliate")
                       : a.influencer
-                        ? "Influencer"
-                        : "Unattributed";
+                        ? t("manager.orders.partner_influencer")
+                        : t("manager.orders.partner_unattributed");
                   return (
                     <div key={a.id} className="flex items-center justify-between py-1 text-[12px]">
                       <span>
@@ -747,8 +824,10 @@ function OrderDetail({
                         ) : null}
                       </span>
                       <span className="text-[11px] text-muted-foreground">
-                        {a.method ? a.method.replace(/_/g, " ") : "unknown method"} ·{" "}
-                        {when(a.attributed_at)}
+                        {a.method
+                          ? a.method.replace(/_/g, " ")
+                          : t("manager.orders.unknown_method")}{" "}
+                        · {when(a.attributed_at)}
                         {who?.status ? ` · ${who.status}` : ""}
                       </span>
                     </div>
@@ -757,10 +836,10 @@ function OrderDetail({
               )}
             </Block>
 
-            <Block title="Timeline">
+            <Block title={t("manager.orders.timeline")}>
               {(data?.timeline ?? []).length === 0 ? (
                 <div className="text-[12px] text-muted-foreground">
-                  Nothing has been recorded yet.
+                  {t("manager.orders.nothing_recorded")}
                 </div>
               ) : (
                 (data?.timeline ?? []).map((e, i) => (
@@ -778,7 +857,7 @@ function OrderDetail({
             </Block>
 
             {(data?.refunds ?? []).length > 0 && (
-              <Block title="Refunds">
+              <Block title={t("manager.orders.refunds")}>
                 {(data?.refunds ?? []).map((r, i) => (
                   <div key={i} className="flex items-center justify-between py-1 text-[12px]">
                     <span>{String(r.reason ?? "—")}</span>
@@ -792,7 +871,7 @@ function OrderDetail({
             )}
 
             {(data?.disputes ?? []).length > 0 && (
-              <Block title="Disputes">
+              <Block title={t("manager.orders.disputes")}>
                 {(data?.disputes ?? []).map((d, i) => (
                   <div key={i} className="flex items-center justify-between py-1 text-[12px]">
                     <span>{String(d.reason ?? "—")}</span>

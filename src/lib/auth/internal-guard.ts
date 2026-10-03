@@ -92,8 +92,8 @@ export async function requireInternalOperator(input: RequestLike): Promise<Guard
     // never existed there: PostgREST answered 400, the list came back empty and
     // every signed-in operator was refused. Only the shared token worked, which
     // is why the refusal went unnoticed. `user_roles` is the authoritative
-    // table and is asked first; the profile column is still consulted after it,
-    // so a deployment that does carry one keeps working.
+    // table and the only one asked: profiles has no role column, and a role
+    // that cannot be read is a refusal, never a guess.
     const service = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
     const held: string[] = [];
 
@@ -101,24 +101,14 @@ export async function requireInternalOperator(input: RequestLike): Promise<Guard
       `${url}/rest/v1/user_roles?select=role&user_id=eq.${encodeURIComponent(user.id)}`,
       { headers: service },
     );
-    if (rolesResponse.ok) {
-      const rows = (await rolesResponse.json()) as { role?: string }[];
-      for (const row of rows) {
-        const value = String(row?.role ?? "").toLowerCase().trim();
-        if (value) held.push(value);
-      }
+    if (!rolesResponse.ok) {
+      console.error("[internal guard] user_roles lookup failed", rolesResponse.status);
+      return deny("Could not verify your access.", 503);
     }
-
-    if (held.length === 0) {
-      const profileResponse = await fetch(
-        `${url}/rest/v1/profiles?select=role&id=eq.${encodeURIComponent(user.id)}&limit=1`,
-        { headers: service },
-      );
-      if (profileResponse.ok) {
-        const profiles = (await profileResponse.json()) as { role?: string }[];
-        const value = String(profiles[0]?.role ?? "").toLowerCase().trim();
-        if (value) held.push(value);
-      }
+    const rows = (await rolesResponse.json()) as { role?: string }[];
+    for (const row of rows) {
+      const value = String(row?.role ?? "").toLowerCase().trim();
+      if (value) held.push(value);
     }
 
     const role = held.find((value) => OPERATOR_ROLES.has(value));

@@ -4,10 +4,23 @@ import {
   ArrowLeft, Plus, Search, Target, BarChart3, CalendarClock, ListChecks,
   Video, FileText, ClipboardList, Trash2, Inbox, TrendingUp,
 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type CrudRecord } from "@/lib/crud-store";
-import { useResellerLeads } from "@/lib/useResellerLeads";
+import { useResellerLeads, type LeadStage } from "@/lib/useResellerLeads";
+import { useServerFn } from "@/lib/serverFn";
+import {
+  addResellerLeadFollowUp,
+  listResellerLeadFollowUps,
+  setResellerLeadFollowUpDone,
+} from "@/lib/reseller-dashboard.functions";
+import { LocalOnlyNotice } from "./LocalOnlyNotice";
 
-type Stage = "new" | "contacted" | "qualified" | "proposal" | "won" | "lost";
+type Stage = LeadStage;
+
+/** The reason a save failed, as the server said it. */
+function reason(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 type Tab = "pipeline" | "analytics";
 type DetailTab = "source" | "followup" | "tasks" | "meetings" | "quotes" | "proposals";
 
@@ -50,11 +63,16 @@ export function ResellerLeadsWorkspace({ onBack }: { onBack: () => void }) {
 
   const active = activeId ? crud.records.find((r) => r.id === activeId) : null;
 
+  // Said only once the row is saved; a refused move says why and the card
+  // stays where the database has it.
   function setStage(id: string, stage: Stage) {
     const rec = crud.records.find((r) => r.id === id);
-    if (!rec) return;
-    void crud.update(id, { extra: { ...rec.extra, stage } });
-    toast.success(`Moved to ${stage}`);
+    if (!rec || rec.extra.stage === stage) return;
+    const label = STAGES.find((s) => s.key === stage)?.label ?? stage;
+    crud
+      .update(id, { extra: { ...rec.extra, stage } })
+      .then(() => toast.success(`Moved to ${label}`))
+      .catch((error: unknown) => toast.error(reason(error, `That lead was not moved to ${label}.`)));
   }
 
   return (
@@ -150,7 +168,8 @@ export function ResellerLeadsWorkspace({ onBack }: { onBack: () => void }) {
       {active && (
         <LeadDetail
           rec={active}
-          onPatch={(p) => void crud.update(active.id, p)}
+          onPatch={(p) => crud.update(active.id, p)}
+          onStage={(stage) => setStage(active.id, stage)}
           onDelete={() => {
             void crud
               .remove(active.id)
@@ -188,9 +207,11 @@ export function ResellerLeadsWorkspace({ onBack }: { onBack: () => void }) {
 
 /* ------------ Lead Detail ------------ */
 
+type Patch = (p: Partial<CrudRecord>) => Promise<unknown>;
+
 function LeadDetail({
-  rec, onPatch, onDelete,
-}: { rec: CrudRecord; onPatch: (p: Partial<CrudRecord>) => void; onDelete: () => void }) {
+  rec, onPatch, onStage, onDelete,
+}: { rec: CrudRecord; onPatch: Patch; onStage: (stage: Stage) => void; onDelete: () => void }) {
   const [tab, setTab] = useState<DetailTab>("source");
   const stage = String(rec.extra.stage ?? "new") as Stage;
 
@@ -207,7 +228,7 @@ function LeadDetail({
             <span>Value: <span className="text-foreground font-semibold">${Number(rec.extra.value ?? 0).toLocaleString()}</span></span>
           </div>
         </div>
-        <select value={stage} onChange={(e) => onPatch({ extra: { ...rec.extra, stage: e.target.value as Stage } })}
+        <select value={stage} onChange={(e) => onStage(e.target.value as Stage)}
           className="rounded-lg bg-surface border border-border px-2 py-2 text-xs">
           {STAGES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
         </select>
@@ -234,23 +255,35 @@ function LeadDetail({
 
       <div className="p-5">
         {tab === "source"    && <SourceTab rec={rec} onPatch={onPatch} />}
-        {tab === "followup"  && <ListTab rec={rec} onPatch={onPatch} keyName="followups" placeholder="Email re-engagement, call back Tue 3pm…" icon={CalendarClock} title="Follow-up" />}
-        {tab === "tasks"     && <ListTab rec={rec} onPatch={onPatch} keyName="leadTasks" placeholder="Prepare demo, send pricing sheet…" icon={ListChecks} title="Task" />}
-        {tab === "meetings"  && <ListTab rec={rec} onPatch={onPatch} keyName="meetings" placeholder="Discovery call · 30 min · Tue 4pm" icon={Video} title="Meeting" />}
-        {tab === "quotes"    && <QuoteTab rec={rec} onPatch={onPatch} />}
-        {tab === "proposals" && <ProposalTab rec={rec} onPatch={onPatch} />}
+        {tab === "followup"  && <FollowUpsTab leadId={rec.id} kind="followup" placeholder="Email re-engagement, call back Tue 3pm…" icon={CalendarClock} title="Follow-up" />}
+        {tab === "tasks"     && <ListTab placeholder="Prepare demo, send pricing sheet…" icon={ListChecks} title="Task" items={[]} unavailable="Lead tasks are not stored yet: the platform has no task list for leads, so nothing typed here would be kept. Use Follow-up for anything with a date." />}
+        {tab === "meetings"  && <FollowUpsTab leadId={rec.id} kind="meeting" placeholder="Discovery call · 30 min · Tue 4pm" icon={Video} title="Meeting" />}
+        {tab === "quotes"    && <QuoteTab />}
+        {tab === "proposals" && <ProposalTab />}
       </div>
     </div>
   );
 }
 
-function SourceTab({ rec, onPatch }: { rec: CrudRecord; onPatch: (p: Partial<CrudRecord>) => void }) {
+function SourceTab({ rec, onPatch }: { rec: CrudRecord; onPatch: Patch }) {
   const [v, setV] = useState({
     source: String(rec.extra.source ?? ""),
     campaign: String(rec.extra.campaign ?? ""),
     referrer: String(rec.extra.referrer ?? ""),
     utm: String(rec.extra.utm ?? ""),
   });
+  const [saving, setSaving] = useState(false);
+  async function save() {
+    setSaving(true);
+    try {
+      await onPatch({ extra: { ...rec.extra, ...v } });
+      toast.success("Source saved");
+    } catch (error) {
+      toast.error(reason(error, "The source was not saved."));
+    } finally {
+      setSaving(false);
+    }
+  }
   return (
     <div className="space-y-3">
       <div className="grid sm:grid-cols-2 gap-3">
@@ -259,6 +292,8 @@ function SourceTab({ rec, onPatch }: { rec: CrudRecord; onPatch: (p: Partial<Cru
           <select value={v.source} onChange={(e) => setV({ ...v, source: e.target.value })}
             className="mt-1 w-full rounded-lg bg-surface border border-border px-3 py-2 text-xs">
             <option value="">— Select —</option>
+            {/* A source recorded elsewhere (the marketplace, say) is shown as it is. */}
+            {v.source && !SOURCES.includes(v.source) && <option value={v.source}>{v.source}</option>}
             {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -267,45 +302,110 @@ function SourceTab({ rec, onPatch }: { rec: CrudRecord; onPatch: (p: Partial<Cru
         <Field label="UTM tag" value={v.utm} onChange={(x) => setV({ ...v, utm: x })} />
       </div>
       <div className="flex justify-end">
-        <button onClick={() => { onPatch({ extra: { ...rec.extra, ...v } }); toast.success("Source saved"); }}
-          className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">Save source</button>
+        <button onClick={() => void save()} disabled={saving}
+          className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-60">Save source</button>
       </div>
     </div>
   );
 }
 
-function ListTab({
-  rec, onPatch, keyName, placeholder, icon: I, title,
+type ListItem = { id: string; text: string; date: string; done: boolean };
+
+/**
+ * Follow-ups and meetings, kept in lead_follow_ups - the table Lead Manager
+ * schedules follow-ups in - so the company sees them too.
+ */
+function FollowUpsTab({
+  leadId, kind, placeholder, icon, title,
 }: {
-  rec: CrudRecord; onPatch: (p: Partial<CrudRecord>) => void;
-  keyName: string; placeholder: string; icon: React.ComponentType<{ className?: string }>; title: string;
+  leadId: string; kind: "followup" | "meeting"; placeholder: string;
+  icon: React.ComponentType<{ className?: string }>; title: string;
 }) {
-  type Item = { id: string; text: string; date: string; done: boolean };
-  const items: Item[] = Array.isArray((rec.extra as any)[keyName]) ? (rec.extra as any)[keyName] : [];
+  const queryClient = useQueryClient();
+  const list = useServerFn(listResellerLeadFollowUps);
+  const add = useServerFn(addResellerLeadFollowUp);
+  const setDone = useServerFn(setResellerLeadFollowUpDone);
+  const key = ["reseller", "lead-follow-ups", leadId];
+  const query = useQuery({ queryKey: key, queryFn: () => list({ data: { leadId } }) });
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: key });
+    // The lead's next follow-up date moves with them.
+    void queryClient.invalidateQueries({ queryKey: ["reseller", "leads"] });
+  };
+  const addMutation = useMutation({
+    mutationFn: (v: { text: string; date: string }) => add({ data: { leadId, kind, text: v.text, date: v.date } }),
+    onSuccess: refresh,
+  });
+  const toggleMutation = useMutation({
+    mutationFn: (v: { id: string; done: boolean }) => setDone({ data: v }),
+    onSuccess: refresh,
+  });
+  const items: ListItem[] = (query.data ?? [])
+    .filter((f) => (kind === "meeting" ? f.follow_up_type === "meeting" : f.follow_up_type !== "meeting"))
+    .map((f) => ({ id: f.id, text: f.notes ?? f.follow_up_type, date: f.scheduled_at.slice(0, 10), done: f.is_completed }));
+  return (
+    <ListTab
+      placeholder={placeholder}
+      icon={icon}
+      title={title}
+      items={items}
+      loading={query.isLoading}
+      loadError={query.error instanceof Error ? query.error.message : null}
+      onAdd={(text, date) => addMutation.mutateAsync({ text, date })}
+      onToggle={(id, done) => toggleMutation.mutateAsync({ id, done })}
+    />
+  );
+}
+
+function ListTab({
+  placeholder, icon: I, title, items, loading, loadError, onAdd, onToggle, unavailable,
+}: {
+  placeholder: string; icon: React.ComponentType<{ className?: string }>; title: string;
+  items: ListItem[];
+  loading?: boolean;
+  loadError?: string | null;
+  onAdd?: (text: string, date: string) => Promise<unknown>;
+  onToggle?: (id: string, done: boolean) => Promise<unknown>;
+  /** Set when nothing stores this list: the reason, shown instead of a fake save. */
+  unavailable?: string;
+}) {
   const [text, setText] = useState(""); const [date, setDate] = useState("");
-  function add() {
-    if (!text.trim()) return;
-    const next = [{ id: rid(), text, date: date || new Date().toISOString().slice(0, 10), done: false }, ...items];
-    onPatch({ extra: { ...rec.extra, [keyName]: next as any } });
-    setText(""); setDate("");
-    toast.success(`${title} added`);
+  const [busy, setBusy] = useState(false);
+  async function add() {
+    if (!text.trim() || !onAdd) return;
+    setBusy(true);
+    try {
+      await onAdd(text.trim(), date || new Date().toISOString().slice(0, 10));
+      setText(""); setDate("");
+      toast.success(`${title} added`);
+    } catch (error) {
+      toast.error(reason(error, `That ${title.toLowerCase()} was not saved.`));
+    } finally {
+      setBusy(false);
+    }
   }
-  function toggle(id: string) {
-    const next = items.map((it) => it.id === id ? { ...it, done: !it.done } : it);
-    onPatch({ extra: { ...rec.extra, [keyName]: next as any } });
+  function toggle(item: ListItem) {
+    if (!onToggle) return;
+    onToggle(item.id, !item.done).catch((error: unknown) =>
+      toast.error(reason(error, `That ${title.toLowerCase()} was not updated.`)),
+    );
   }
   return (
     <div className="space-y-3">
+      {unavailable && <LocalOnlyNotice text={unavailable} />}
       <div className="rounded-xl border border-border bg-surface p-3 grid sm:grid-cols-[1fr_180px_auto] gap-2 items-end">
         <Field label={title} value={text} onChange={setText} placeholder={placeholder} />
         <Field label="Date" value={date} onChange={setDate} type="date" />
-        <button onClick={add} className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">Add</button>
+        <button onClick={() => void add()} disabled={!!unavailable || busy || !onAdd} title={unavailable}
+          className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Add</button>
       </div>
-      {items.length === 0 ? <Empty icon={I} text={`No ${title.toLowerCase()} items yet.`} /> : (
+      {loading ? <Empty icon={I} text="Loading…" />
+        : loadError ? <Empty icon={I} text={loadError} />
+        : items.length === 0 ? <Empty icon={I} text={`No ${title.toLowerCase()} items yet.`} /> : (
         <ul className="divide-y divide-border rounded-xl border border-border overflow-hidden">
           {items.map((t) => (
             <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-xs">
-              <input type="checkbox" checked={t.done} onChange={() => toggle(t.id)} />
+              <input type="checkbox" checked={t.done} onChange={() => toggle(t)} disabled={!onToggle} />
               <span className={`flex-1 ${t.done ? "line-through text-muted-foreground" : ""}`}>{t.text}</span>
               <span className="text-muted-foreground">{t.date}</span>
             </li>
@@ -316,19 +416,19 @@ function ListTab({
   );
 }
 
-function QuoteTab({ rec, onPatch }: { rec: CrudRecord; onPatch: (p: Partial<CrudRecord>) => void }) {
-  type Quote = { id: string; product: string; amount: number; date: string; status: string };
-  const quotes: Quote[] = Array.isArray((rec.extra as any).quotes) ? (rec.extra as any).quotes : [];
+// Quotes and proposals for a lead have no table on the platform yet. The forms
+// stay, but they say so and save nothing, instead of reporting a save.
+const QUOTES_UNAVAILABLE =
+  "Quotes are not stored yet: the platform has no quote record for leads, so nothing entered here would be kept.";
+const PROPOSALS_UNAVAILABLE =
+  "Proposals are not stored yet: the platform has no proposal record for leads, so nothing written here would be kept.";
+
+function QuoteTab() {
+  const quotes: { id: string; product: string; amount: number; date: string; status: string }[] = [];
   const [v, setV] = useState({ product: "", amount: 0, status: "sent" });
-  function add() {
-    if (!v.product.trim()) return;
-    const next = [{ id: rid(), product: v.product, amount: v.amount, date: new Date().toISOString(), status: v.status }, ...quotes];
-    onPatch({ extra: { ...rec.extra, quotes: next as any } });
-    setV({ product: "", amount: 0, status: "sent" });
-    toast.success("Quote added");
-  }
   return (
     <div className="space-y-3">
+      <LocalOnlyNotice text={QUOTES_UNAVAILABLE} />
       <div className="rounded-xl border border-border bg-surface p-3 grid sm:grid-cols-[1fr_140px_140px_auto] gap-2 items-end">
         <Field label="Product / line" value={v.product} onChange={(x) => setV({ ...v, product: x })} />
         <Field label="Amount" value={String(v.amount)} onChange={(x) => setV({ ...v, amount: Number(x) || 0 })} type="number" />
@@ -339,34 +439,19 @@ function QuoteTab({ rec, onPatch }: { rec: CrudRecord; onPatch: (p: Partial<Crud
             <option value="draft">Draft</option><option value="sent">Sent</option><option value="accepted">Accepted</option><option value="declined">Declined</option>
           </select>
         </div>
-        <button onClick={add} className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">Add quote</button>
+        <button disabled title={QUOTES_UNAVAILABLE} className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Add quote</button>
       </div>
-      {quotes.length === 0 ? <Empty icon={ClipboardList} text="No quotes yet." /> : (
-        <div className="rounded-xl border border-border overflow-hidden">
-          <table className="w-full text-xs">
-            <thead className="bg-surface text-muted-foreground"><tr><th className="text-left p-2">Product</th><th className="text-left p-2">Date</th><th className="text-right p-2">Amount</th><th className="text-left p-2">Status</th></tr></thead>
-            <tbody>
-              {quotes.map((q) => (
-                <tr key={q.id} className="border-t border-border/60">
-                  <td className="p-2 font-medium">{q.product}</td>
-                  <td className="p-2 text-muted-foreground">{new Date(q.date).toLocaleDateString()}</td>
-                  <td className="p-2 text-right">${q.amount.toLocaleString()}</td>
-                  <td className="p-2 capitalize">{q.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {quotes.length === 0 ? <Empty icon={ClipboardList} text="No quotes yet." /> : null}
     </div>
   );
 }
 
-function ProposalTab({ rec, onPatch }: { rec: CrudRecord; onPatch: (p: Partial<CrudRecord>) => void }) {
-  const [title, setTitle] = useState(String(rec.extra.proposalTitle ?? ""));
-  const [body, setBody]   = useState(String(rec.extra.proposalBody ?? ""));
+function ProposalTab() {
+  const [title, setTitle] = useState("");
+  const [body, setBody]   = useState("");
   return (
     <div className="space-y-3">
+      <LocalOnlyNotice text={PROPOSALS_UNAVAILABLE} />
       <Field label="Proposal title" value={title} onChange={setTitle} placeholder="SalesIQ Pro — 12-month engagement" />
       <div>
         <label className="text-[11px] uppercase tracking-wider text-muted-foreground">Proposal body</label>
@@ -375,8 +460,8 @@ function ProposalTab({ rec, onPatch }: { rec: CrudRecord; onPatch: (p: Partial<C
           className="mt-1 w-full rounded-lg bg-surface border border-border p-3 text-sm outline-none focus:ring-2 focus:ring-ring resize-y" />
       </div>
       <div className="flex justify-end gap-2">
-        <button onClick={() => { onPatch({ extra: { ...rec.extra, proposalTitle: title, proposalBody: body } }); toast.success("Proposal saved"); }}
-          className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">Save proposal</button>
+        <button disabled title={PROPOSALS_UNAVAILABLE}
+          className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Save proposal</button>
       </div>
     </div>
   );
@@ -498,7 +583,7 @@ function CreateDialog({
 
 function TabBtn({ active, onClick, icon: I, label }: { active: boolean; onClick: () => void; icon: React.ComponentType<{ className?: string }>; label: string }) {
   return (
-    <button onClick={onClick}
+    <button onClick={onClick} aria-pressed={active}
       className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition ${active ? "bg-surface-2 text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
       <I className="h-3.5 w-3.5" />{label}
     </button>

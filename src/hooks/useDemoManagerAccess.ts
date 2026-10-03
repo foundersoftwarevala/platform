@@ -101,23 +101,30 @@ export function useDemoManagerAccess(): UseDemoManagerAccessReturn {
     checkAccess();
   }, [user, userRole]);
 
+  // Demo manager actions are recorded in demo_url_audit_log, the demo estate's
+  // audit table. A signed-in user may insert there only as themselves
+  // (actor_id = auth.uid()); audit_logs takes no browser writes, and
+  // demo_report_cards was never created. A report card is one row whose
+  // metadata.kind is 'report_card'; workflow changes are appended, not edited.
   const logUnauthorizedAttempt = useCallback(async (action: string, demoId?: string) => {
     if (!user) return;
 
     try {
-      await supabase.from('audit_logs').insert({
-        user_id: user.id,
-        action: 'unauthorized_demo_access_attempt',
-        module: 'demo_security',
-        role: (userRole || 'client') as AppRole,
-        meta_json: {
+      const { error } = await supabase.from('demo_url_audit_log').insert({
+        actor_id: user.id,
+        actor_email: user.email ?? null,
+        action: 'demo.unauthorized_access_attempt',
+        metadata: {
+          module: 'demo_security',
+          role: (userRole || 'client') as AppRole,
           action_attempted: action,
-          demo_id: demoId,
+          demo_id: demoId ?? null,
           blocked: true,
           flagged: true,
           timestamp: new Date().toISOString()
         }
       });
+      if (error) console.error('Error logging unauthorized attempt:', error);
 
       toast.error('Access Denied: Only Demo Manager can perform this action', {
         description: 'This attempt has been logged.'
@@ -140,47 +147,40 @@ export function useDemoManagerAccess(): UseDemoManagerAccessReturn {
 
     try {
       const startTime = Date.now();
-      
-      const { data, error } = await supabase
-        .from('demo_report_cards')
+      // The id is made here: the log's read policy is admin/boss only, so the
+      // inserted row cannot be returned to a demo manager.
+      const id = crypto.randomUUID();
+
+      const { error } = await supabase
+        .from('demo_url_audit_log')
         .insert({
-          demo_id: params.demoId,
-          demo_name: params.demoName,
-          sector: params.sector,
-          sub_category: params.subCategory,
-          action_type: params.actionType,
-          performed_by: user.id,
-          performed_by_role: DEMO_ACTION_ROLE,
-          demo_status: params.demoStatus,
-          uptime_state: params.uptimeState,
-          error_details: params.errorDetails,
-          fix_details: params.fixDetails,
-          old_values: params.oldValues,
-          new_values: params.newValues,
-          auto_registered: true,
-          workflow_status: 'submitted',
-          completion_time_seconds: Math.round((Date.now() - startTime) / 1000)
-        })
-        .select('id')
-        .single();
+          id,
+          actor_id: user.id,
+          actor_email: user.email ?? null,
+          action: `demo.${params.actionType}`,
+          metadata: {
+            kind: 'report_card',
+            demo_id: params.demoId ?? null,
+            demo_name: params.demoName,
+            sector: params.sector ?? null,
+            sub_category: params.subCategory ?? null,
+            action_type: params.actionType,
+            performed_by_role: DEMO_ACTION_ROLE,
+            demo_status: params.demoStatus ?? null,
+            uptime_state: params.uptimeState ?? null,
+            error_details: params.errorDetails ?? null,
+            fix_details: params.fixDetails ?? null,
+            old_values: params.oldValues ?? null,
+            new_values: params.newValues ?? null,
+            auto_registered: true,
+            workflow_status: 'submitted',
+            completion_time_seconds: Math.round((Date.now() - startTime) / 1000)
+          }
+        });
 
       if (error) throw error;
 
-      // Also log to audit_logs
-      await supabase.from('audit_logs').insert({
-        user_id: user.id,
-        action: params.actionType,
-        module: 'demo',
-        role: DEMO_ACTION_ROLE as AppRole,
-        meta_json: {
-          demo_id: params.demoId,
-          demo_name: params.demoName,
-          report_card_id: data.id,
-          auto_registered: true
-        }
-      });
-
-      return data.id;
+      return id;
     } catch (error: any) {
       console.error('Error creating report card:', error);
       toast.error('Failed to create report card');
@@ -192,14 +192,55 @@ export function useDemoManagerAccess(): UseDemoManagerAccessReturn {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('demo_report_cards')
-        .select('*')
-        .order('action_timestamp', { ascending: false })
-        .limit(100);
+      const [cards, workflow] = await Promise.all([
+        supabase
+          .from('demo_url_audit_log')
+          .select('id, actor_id, metadata, created_at')
+          .eq('metadata->>kind', 'report_card')
+          .order('created_at', { ascending: false })
+          .limit(100),
+        supabase
+          .from('demo_url_audit_log')
+          .select('metadata, created_at')
+          .eq('action', 'demo.report_card.workflow')
+          .order('created_at', { ascending: true })
+          .limit(1000)
+      ]);
 
-      if (error) throw error;
-      setReportCards((data ?? []) as unknown as DemoReportCard[]);
+      if (cards.error) throw cards.error;
+      if (workflow.error) throw workflow.error;
+
+      // Later workflow entries win.
+      const latestStatus = new Map<string, string>();
+      for (const row of workflow.data ?? []) {
+        const m = (row.metadata ?? {}) as Record<string, any>;
+        if (m.report_card_id && m.workflow_status) latestStatus.set(m.report_card_id, m.workflow_status);
+      }
+
+      setReportCards((cards.data ?? []).map((row) => {
+        const m = (row.metadata ?? {}) as Record<string, any>;
+        return {
+          id: row.id,
+          demo_id: m.demo_id,
+          demo_name: m.demo_name,
+          sector: m.sector,
+          sub_category: m.sub_category,
+          action_type: m.action_type,
+          performed_by: row.actor_id ?? '',
+          performed_by_role: m.performed_by_role,
+          action_timestamp: row.created_at,
+          demo_status: m.demo_status,
+          uptime_state: m.uptime_state,
+          error_details: m.error_details,
+          fix_details: m.fix_details,
+          completion_time_seconds: m.completion_time_seconds,
+          old_values: m.old_values,
+          new_values: m.new_values,
+          auto_registered: m.auto_registered === true,
+          workflow_status: latestStatus.get(row.id) ?? m.workflow_status,
+          created_at: row.created_at
+        } as DemoReportCard;
+      }));
     } catch (error) {
       console.error('Error fetching report cards:', error);
     }
@@ -210,16 +251,21 @@ export function useDemoManagerAccess(): UseDemoManagerAccessReturn {
       await logUnauthorizedAttempt('workflow_update');
       return false;
     }
+    if (!user) return false;
 
     try {
       const { error } = await supabase
-        .from('demo_report_cards')
-        .update({ workflow_status: status })
-        .eq('id', reportCardId);
+        .from('demo_url_audit_log')
+        .insert({
+          actor_id: user.id,
+          actor_email: user.email ?? null,
+          action: 'demo.report_card.workflow',
+          metadata: { kind: 'report_card_workflow', report_card_id: reportCardId, workflow_status: status }
+        });
 
       if (error) throw error;
 
-      setReportCards(prev => 
+      setReportCards(prev =>
         prev.map(rc => rc.id === reportCardId ? { ...rc, workflow_status: status } : rc)
       );
 
@@ -228,7 +274,7 @@ export function useDemoManagerAccess(): UseDemoManagerAccessReturn {
       console.error('Error updating workflow status:', error);
       return false;
     }
-  }, [isDemoManager, logUnauthorizedAttempt]);
+  }, [user, isDemoManager, logUnauthorizedAttempt]);
 
   return {
     isDemoManager,

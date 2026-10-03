@@ -4,6 +4,8 @@ import { Check, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { useServerFn } from "@/lib/serverFn";
+import { listResellerPaymentRails } from "@/lib/reseller-dashboard.functions";
 
 /**
  * Reseller dashboard → Membership & Plans.
@@ -16,15 +18,14 @@ import { useTranslation } from "@/lib/i18n/use-translation";
  * configured. Finance verifies the payment; activation follows on the server.
  *
  * The reseller's membership and orders are read back from the database, so
- * they survive a refresh and a new sign-in.
+ * they survive a refresh and a new sign-in. Both are filtered to the caller's
+ * own reseller record: row-level security also lets an operator read every
+ * reseller's rows, and an operator opening this screen used to see them all.
+ *
+ * The payment methods offered are the rails Finance has enabled
+ * (finance_payment_rails), not a fixed list: a fixed list offered four rails
+ * the server then refused, every time.
  */
-
-const paymentMethods = [
-  { code: "wise", label: "Wise" },
-  { code: "upi", label: "UPI" },
-  { code: "bank_transfer", label: "Bank Transfer" },
-  { code: "binance", label: "Binance" },
-] as const;
 
 type Plan = {
   id: string;
@@ -64,8 +65,9 @@ type PurchaseResult = {
 export function ResellerMembershipPlans() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const listRails = useServerFn(listResellerPaymentRails);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [method, setMethod] = useState<string>(paymentMethods[0].code);
+  const [method, setMethod] = useState<string>("");
   const [reference, setReference] = useState("");
   const [proofUrl, setProofUrl] = useState("");
   // One key per plan for this visit: pressing "Purchase" twice, or a retry
@@ -84,14 +86,41 @@ export function ResellerMembershipPlans() {
       return data ?? [];
     },
   });
-  const orders = useQuery({
-    queryKey: ["reseller-membership-orders"],
+  // The caller's own live reseller record; null for an account without one.
+  const self = useQuery({
+    queryKey: ["reseller-membership-self"],
     queryFn: async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return null;
+      const { data, error } = (await supabase
+        .from("resellers" as never)
+        .select("id")
+        .eq("user_id" as never, uid as never)
+        .neq("status" as never, "terminated" as never)
+        .limit(1)) as { data: { id: string }[] | null; error: Error | null };
+      if (error) throw error;
+      return data?.[0]?.id ?? null;
+    },
+  });
+  const resellerId = self.data ?? null;
+  const rails = useQuery({
+    queryKey: ["reseller-membership-rails"],
+    queryFn: () => listRails(),
+  });
+  const railList = rails.data ?? [];
+  const chosenRail = railList.some((r) => r.code === method) ? method : railList[0]?.code ?? "";
+  const orders = useQuery({
+    queryKey: ["reseller-membership-orders", resellerId],
+    enabled: self.isSuccess,
+    queryFn: async () => {
+      if (!resellerId) return [];
       const { data, error } = (await supabase
         .from("reseller_membership_orders" as never)
         .select(
           "id, order_number, amount_usd, currency, status, payment_status, proof_reference, created_at, plan_id, finance_invoices(invoice_no, status, total)",
         )
+        .eq("reseller_id" as never, resellerId as never)
         .order("created_at", { ascending: false })) as {
         data: Order[] | null;
         error: Error | null;
@@ -101,13 +130,16 @@ export function ResellerMembershipPlans() {
     },
   });
   const membership = useQuery({
-    queryKey: ["reseller-membership-current"],
+    queryKey: ["reseller-membership-current", resellerId],
+    enabled: self.isSuccess,
     queryFn: async () => {
+      if (!resellerId) return null;
       const { data, error } = (await supabase
         .from("reseller_memberships" as never)
         // Only the live reseller record's membership: a terminated record's
         // history is kept but is not the reseller's current membership.
         .select("id, plan_code, status, starts_at, expires_at, resellers!inner(status)")
+        .eq("reseller_id" as never, resellerId as never)
         .eq("status", "active")
         .neq("resellers.status" as never, "terminated")
         .order("activated_at", { ascending: false })
@@ -139,11 +171,12 @@ export function ResellerMembershipPlans() {
   const submitPayment = useMutation({
     mutationFn: async () => {
       if (!selectedOrderId) throw new Error(t("reseller.plans.choose_order"));
+      if (!chosenRail) throw new Error(t("reseller.plans.no_rails"));
       const { data, error } = (await supabase.rpc(
         "submit_reseller_membership_payment" as never,
         {
           p_order_id: selectedOrderId,
-          p_rail_code: method,
+          p_rail_code: chosenRail,
           p_reference: reference,
           p_proof: proofUrl || null,
         } as never,
@@ -318,11 +351,12 @@ export function ResellerMembershipPlans() {
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <select
-              value={method}
+              value={chosenRail}
               onChange={(event) => setMethod(event.target.value)}
+              disabled={!railList.length}
               className="border border-border bg-background px-3 py-2 text-sm"
             >
-              {paymentMethods.map((m) => (
+              {railList.map((m) => (
                 <option key={m.code} value={m.code}>
                   {m.label}
                 </option>
@@ -341,9 +375,14 @@ export function ResellerMembershipPlans() {
               className="border border-border bg-background px-3 py-2 text-sm"
             />
           </div>
+          {rails.isSuccess && !railList.length && (
+            <p className="mt-3 text-sm text-muted-foreground" data-no-rails>
+              {t("reseller.plans.no_rails")}
+            </p>
+          )}
           <button
             type="button"
-            disabled={!reference.trim() || submitPayment.isPending}
+            disabled={!reference.trim() || !chosenRail || submitPayment.isPending}
             onClick={() => submitPayment.mutate()}
             className="mt-4 inline-flex items-center gap-2 bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
           >

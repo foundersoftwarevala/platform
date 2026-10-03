@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { DMFullLayout } from "@/components/developer-management/DMFullLayout";
 import { Toaster } from "@/components/ui/sonner";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 /**
  * Developer Manager — the developer operations control tower.
@@ -49,21 +50,29 @@ export const Route = createFileRoute("/dev-manager")({
   }),
   component: DevManagerRoute,
   // One screen failing must never take the Control Panel down with it.
-  errorComponent: ({ error }) => (
-    <main className="grid min-h-dvh place-items-center bg-background px-6 text-center">
-      <section className="max-w-md space-y-3">
-        <h1 className="text-xl font-semibold">Developer Manager could not start</h1>
+  errorComponent: ({ error }) => <DevManagerError error={error} />,
+});
+
+function DevManagerError({ error }: { error: Error }) {
+  const { t } = useTranslation();
+  return (
+    <main
+      id="main-content"
+      className="grid min-h-dvh place-items-center bg-background px-6 text-center"
+    >
+      <section className="max-w-md space-y-3" role="alert">
+        <h1 className="text-xl font-semibold">{t("devmanager.route.could_not_start")}</h1>
         <p className="text-sm text-muted-foreground">{error.message}</p>
         <a
           href="/control-panel"
           className="inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
         >
-          Back to Control Panel
+          {t("devmanager.route.back_to_control_panel")}
         </a>
       </section>
     </main>
-  ),
-});
+  );
+}
 
 function DevManagerRoute() {
   return (

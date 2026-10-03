@@ -86,7 +86,12 @@ function toNumber(value: unknown): number {
 
 export const listAiRegistry = createServerFn({ method: "GET" }).handler(
   async (): Promise<AiRegistrySnapshot> => {
-    const sb = publicClient() as any;
+    // Registry contents (usage, cost, capabilities, approval state) are
+    // internal operational data. This endpoint used to answer anyone through
+    // the public client, relying on the screen's route guard, which only stops
+    // rendering in the browser. The caller's roles are now checked here.
+    const { db } = await authenticatedManager(MANAGER_VIEW_ROLES);
+    const sb = db as any;
 
     const [richServicesResult, providersResult, usageResult, capabilitiesResult] =
       await Promise.allSettled([
@@ -226,7 +231,10 @@ export const listAiRegistry = createServerFn({ method: "GET" }).handler(
   },
 );
 
-async function authenticatedManager() {
+/** Everyone the AI API Manager screen admits (RequireRole operators + finance). */
+const MANAGER_VIEW_ROLES = ["admin", "boss", "boss_owner", "super_admin", "founder", "owner", "finance"] as const;
+
+async function authenticatedManager(allowed: readonly string[] = ["admin", "boss"]) {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) throw new Error("Manager authentication required.");
@@ -242,12 +250,14 @@ async function authenticatedManager() {
   const caller = await userFromBearerToken(token);
   if (!caller) throw new Error("Manager authentication required.");
   const roles = await Promise.all(
-    ["admin", "boss"].map(async (role) => {
+    allowed.map(async (role) => {
       const result = await db.rpc("has_role", { _user_id: caller.id, _role: role });
       return result.data === true;
     }),
   );
-  if (!roles.some(Boolean)) throw new Error("Boss or admin permission required.");
+  if (!roles.some(Boolean)) {
+    throw new Error(allowed.length > 2 ? "AI API Manager access required." : "Boss or admin permission required.");
+  }
   return { db, user: caller };
 }
 

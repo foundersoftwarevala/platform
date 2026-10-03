@@ -7,9 +7,14 @@ import {
 } from "lucide-react";
 import { LocalOnlyNotice } from "./LocalOnlyNotice";
 import type { CrudRecord } from "@/lib/crud-store";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@/lib/serverFn";
-import { listResellerClientLicences } from "@/lib/reseller-dashboard.functions";
+import {
+  addResellerClientFollowUp,
+  listResellerClientActivity,
+  listResellerClientLicences,
+  setResellerClientFollowUpDone,
+} from "@/lib/reseller-dashboard.functions";
 import { useResellerCustomers } from "@/lib/useResellerCustomers";
 
 type Tab = "profile" | "purchases" | "licenses" | "notes" | "documents" | "followup" | "timeline";
@@ -148,7 +153,7 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
               tab={tab}
               setTab={setTab}
               licenses={clientLicenses}
-              onPatch={(p) => void crud.update(active.id, p)}
+              onPatch={(p) => crud.update(active.id, p)}
               onDelete={() => {
                 void crud
                   .remove(active.id)
@@ -204,15 +209,62 @@ function EmptyDetail({ onAdd }: { onAdd: () => void }) {
   );
 }
 
+type Patch = (p: Partial<CrudRecord>) => Promise<unknown>;
+
+/** The reason a save failed, as the server said it. */
+function reason(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+// What the platform has no store for. Each tab that offers it says so and
+// saves nothing, instead of reporting a save that never happened.
+const NOTES_UNAVAILABLE =
+  "Client notes are not stored yet: the client record has no notes field, so nothing written here would be kept.";
+const DOCS_UNAVAILABLE =
+  "Client documents are not stored yet: there is no document storage for reseller clients, so no file is uploaded.";
+const LOG_UNAVAILABLE =
+  "Logging a call or email is not stored yet: the client record has no communication log. The timeline below shows what is recorded.";
+const PURCHASE_MANUAL_UNAVAILABLE =
+  "Purchases are recorded when the client buys through you on the marketplace; a purchase cannot be typed in by hand.";
+const WEBSITE_UNAVAILABLE = "Not stored yet: the client record has no website field.";
+
+type ClientActivity = {
+  clientCreatedAt: string;
+  purchases: { id: string; number: string; products: string[]; amount: number; currency: string; status: string; date: string }[];
+  followUps: { id: string; title: string; due_at: string | null; status: string; created_at: string; updated_at: string }[];
+};
+
 function ClientDetail({
   record, tab, setTab, licenses, onPatch, onDelete,
 }: {
   record: CrudRecord;
   tab: Tab; setTab: (t: Tab) => void;
   licenses: CrudRecord[];
-  onPatch: (p: Partial<CrudRecord>) => void;
+  onPatch: Patch;
   onDelete: () => void;
 }) {
+  // The client's purchases (orders credited to this reseller that the client
+  // placed) and follow-ups (crm_tasks), read from the server.
+  const queryClient = useQueryClient();
+  const listActivity = useServerFn(listResellerClientActivity);
+  const addFollowUp = useServerFn(addResellerClientFollowUp);
+  const setFollowUpDone = useServerFn(setResellerClientFollowUpDone);
+  const activityKey = ["reseller", "client-activity", record.id];
+  const activity = useQuery({
+    queryKey: activityKey,
+    queryFn: () => listActivity({ data: { clientId: record.id } }) as Promise<ClientActivity>,
+  });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: activityKey });
+  const addMutation = useMutation({
+    mutationFn: (v: { title: string; due: string }) => addFollowUp({ data: { clientId: record.id, title: v.title, due: v.due } }),
+    onSuccess: refresh,
+  });
+  const toggleMutation = useMutation({
+    mutationFn: (v: { id: string; done: boolean }) => setFollowUpDone({ data: v }),
+    onSuccess: refresh,
+  });
+  const loadError = activity.error instanceof Error ? activity.error.message : null;
+
   return (
     <div className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
       {/* identity */}
@@ -254,12 +306,20 @@ function ClientDetail({
 
       <div className="p-5">
         {tab === "profile"   && <ProfileTab record={record} onPatch={onPatch} />}
-        {tab === "purchases" && <><LocalOnlyNotice /><PurchasesTab record={record} onPatch={onPatch} /></>}
+        {tab === "purchases" && <PurchasesTab purchases={activity.data?.purchases ?? []} loading={activity.isLoading} loadError={loadError} />}
         {tab === "licenses"  && <LicensesTab licenses={licenses} />}
-        {tab === "notes"     && <><LocalOnlyNotice /><NotesTab record={record} onPatch={onPatch} /></>}
-        {tab === "documents" && <><LocalOnlyNotice /><DocsTab record={record} onAttach={() => {}} /></>}
-        {tab === "followup"  && <><LocalOnlyNotice /><FollowupTab record={record} onPatch={onPatch} /></>}
-        {tab === "timeline"  && <><LocalOnlyNotice /><TimelineTab record={record} onComment={() => {}} /></>}
+        {tab === "notes"     && <><LocalOnlyNotice text={NOTES_UNAVAILABLE} /><NotesTab record={record} /></>}
+        {tab === "documents" && <><LocalOnlyNotice text={DOCS_UNAVAILABLE} /><DocsTab record={record} /></>}
+        {tab === "followup"  && (
+          <FollowupTab
+            tasks={activity.data?.followUps ?? []}
+            loading={activity.isLoading}
+            loadError={loadError}
+            onAdd={(title, due) => addMutation.mutateAsync({ title, due })}
+            onToggle={(id, done) => toggleMutation.mutateAsync({ id, done })}
+          />
+        )}
+        {tab === "timeline"  && <><LocalOnlyNotice text={LOG_UNAVAILABLE} /><TimelineTab activity={activity.data ?? null} loadError={loadError} /></>}
       </div>
     </div>
   );
@@ -267,7 +327,7 @@ function ClientDetail({
 
 /* ---------------- Tabs ---------------- */
 
-function ProfileTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Partial<CrudRecord>) => void }) {
+function ProfileTab({ record, onPatch }: { record: CrudRecord; onPatch: Patch }) {
   const [draft, setDraft] = useState({
     name: record.name,
     company: String(record.extra.company ?? ""),
@@ -276,11 +336,21 @@ function ProfileTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Part
     location: String(record.extra.location ?? ""),
     health: Number(record.extra.health ?? 0),
     industry: String(record.extra.industry ?? ""),
-    website: String(record.extra.website ?? ""),
+    website: "",
   });
-  function save() {
-    onPatch({ name: draft.name, extra: { ...record.extra, company: draft.company, email: draft.email, phone: draft.phone, location: draft.location, health: draft.health, industry: draft.industry, website: draft.website } });
-    toast.success("Profile updated");
+  const [saving, setSaving] = useState(false);
+  // Said only once the row is saved; a refusal says why.
+  async function save() {
+    if (!draft.name.trim()) return void toast.error("A name is required.");
+    setSaving(true);
+    try {
+      await onPatch({ name: draft.name.trim(), extra: { ...record.extra, company: draft.company, email: draft.email, phone: draft.phone, location: draft.location, health: draft.health, industry: draft.industry } });
+      toast.success("Profile updated");
+    } catch (error) {
+      toast.error(reason(error, "The profile was not saved."));
+    } finally {
+      setSaving(false);
+    }
   }
   return (
     <div className="space-y-4">
@@ -291,7 +361,7 @@ function ProfileTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Part
         <Field label="Phone"      value={draft.phone}    onChange={(v) => setDraft({ ...draft, phone: v })} />
         <Field label="Industry"   value={draft.industry} onChange={(v) => setDraft({ ...draft, industry: v })} />
         <Field label="Location"   value={draft.location} onChange={(v) => setDraft({ ...draft, location: v })} />
-        <Field label="Website"    value={draft.website}  onChange={(v) => setDraft({ ...draft, website: v })} />
+        <Field label="Website"    value={draft.website}  onChange={(v) => setDraft({ ...draft, website: v })} disabled placeholder={WEBSITE_UNAVAILABLE} />
         <div>
           <label className="text-[11px] uppercase tracking-wider text-muted-foreground">Customer health</label>
           <input
@@ -304,7 +374,7 @@ function ProfileTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Part
         </div>
       </div>
       <div className="flex justify-end">
-        <button onClick={save} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">
+        <button onClick={() => void save()} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-60">
           <Pencil className="h-3.5 w-3.5" /> Save profile
         </button>
       </div>
@@ -312,45 +382,23 @@ function ProfileTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Part
   );
 }
 
-function PurchasesTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Partial<CrudRecord>) => void }) {
-  type Purchase = { id: string; product: string; amount: number; date: string; status: string };
-  const purchases: Purchase[] = Array.isArray((record.extra as any).purchases) ? (record.extra as any).purchases : [];
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ product: "", amount: 0, status: "paid" });
-
-  function add() {
-    if (!form.product.trim()) return;
-    const next: Purchase[] = [{ id: rid(), product: form.product, amount: form.amount, date: new Date().toISOString(), status: form.status }, ...purchases];
-    onPatch({ extra: { ...record.extra, purchases: next as any } });
-    setOpen(false); setForm({ product: "", amount: 0, status: "paid" });
-    toast.success("Purchase added");
-  }
-
+function PurchasesTab({
+  purchases, loading, loadError,
+}: { purchases: ClientActivity["purchases"]; loading: boolean; loadError: string | null }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="text-xs text-muted-foreground">{purchases.length} purchase{purchases.length === 1 ? "" : "s"}</div>
-        <button onClick={() => setOpen((o) => !o)} className="inline-flex items-center gap-1 rounded-lg bg-surface border border-border px-2.5 py-1.5 text-xs hover:bg-surface-2">
+        <button disabled title={PURCHASE_MANUAL_UNAVAILABLE} className="inline-flex items-center gap-1 rounded-lg bg-surface border border-border px-2.5 py-1.5 text-xs hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed">
           <Plus className="h-3.5 w-3.5" /> Add purchase
         </button>
       </div>
-      {open && (
-        <div className="rounded-xl border border-border bg-surface p-3 grid sm:grid-cols-[1fr_140px_140px_auto] gap-2 items-end">
-          <Field label="Product" value={form.product} onChange={(v) => setForm({ ...form, product: v })} />
-          <Field label="Amount"  value={String(form.amount)} onChange={(v) => setForm({ ...form, amount: Number(v) || 0 })} type="number" />
-          <div>
-            <label className="text-[11px] uppercase tracking-wider text-muted-foreground">Status</label>
-            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="mt-1 w-full rounded-lg bg-surface border border-border px-2 py-2 text-xs">
-              <option value="paid">Paid</option>
-              <option value="pending">Pending</option>
-              <option value="refunded">Refunded</option>
-            </select>
-          </div>
-          <button onClick={add} className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">Save</button>
-        </div>
-      )}
-      {purchases.length === 0 ? (
+      <p className="text-[11px] text-muted-foreground">{PURCHASE_MANUAL_UNAVAILABLE}</p>
+      {loading ? (
+        <Empty icon={ShoppingCart} text="Loading…" />
+      ) : loadError ? (
+        <Empty icon={ShoppingCart} text={loadError} />
+      ) : purchases.length === 0 ? (
         <Empty icon={ShoppingCart} text="No purchases yet" />
       ) : (
         <div className="rounded-xl border border-border overflow-hidden">
@@ -361,10 +409,10 @@ function PurchasesTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Pa
             <tbody>
               {purchases.map((p) => (
                 <tr key={p.id} className="border-t border-border/60">
-                  <td className="p-2 font-medium">{p.product}</td>
+                  <td className="p-2 font-medium">{p.products.join(", ") || `Order ${p.number}`}</td>
                   <td className="p-2 text-muted-foreground">{new Date(p.date).toLocaleDateString()}</td>
-                  <td className="p-2 text-right">${p.amount.toLocaleString()}</td>
-                  <td className="p-2 capitalize">{p.status}</td>
+                  <td className="p-2 text-right">{p.currency === "USD" ? "$" : `${p.currency} `}{p.amount.toLocaleString()}</td>
+                  <td className="p-2 capitalize">{p.status.replace(/_/g, " ")}</td>
                 </tr>
               ))}
             </tbody>
@@ -398,7 +446,7 @@ function LicensesTab({ licenses }: { licenses: CrudRecord[] }) {
   );
 }
 
-function NotesTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Partial<CrudRecord>) => void }) {
+function NotesTab({ record }: { record: CrudRecord }) {
   const [text, setText] = useState(record.notes);
   return (
     <div className="space-y-3">
@@ -410,8 +458,8 @@ function NotesTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Partia
         className="w-full rounded-lg bg-surface border border-border p-3 text-sm outline-none focus:ring-2 focus:ring-ring resize-y"
       />
       <div className="flex justify-end">
-        <button onClick={() => { onPatch({ notes: text }); toast.success("Notes saved"); }}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">
+        <button disabled title={NOTES_UNAVAILABLE}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">
           <StickyNote className="h-3.5 w-3.5" /> Save notes
         </button>
       </div>
@@ -419,22 +467,12 @@ function NotesTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Partia
   );
 }
 
-function DocsTab({ record, onAttach }: { record: CrudRecord; onAttach: (name: string, size: number) => void }) {
-  function upload() {
-    const i = document.createElement("input");
-    i.type = "file"; i.multiple = true;
-    i.onchange = () => {
-      const files = Array.from(i.files || []);
-      files.forEach((f) => onAttach(f.name, f.size));
-      if (files.length) toast.success(`${files.length} document${files.length === 1 ? "" : "s"} attached`);
-    };
-    i.click();
-  }
+function DocsTab({ record }: { record: CrudRecord }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="text-xs text-muted-foreground">{record.attachments.length} document{record.attachments.length === 1 ? "" : "s"}</div>
-        <button onClick={upload} className="inline-flex items-center gap-1 rounded-lg bg-surface border border-border px-2.5 py-1.5 text-xs hover:bg-surface-2">
+        <button disabled title={DOCS_UNAVAILABLE} className="inline-flex items-center gap-1 rounded-lg bg-surface border border-border px-2.5 py-1.5 text-xs hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed">
           <Paperclip className="h-3.5 w-3.5" /> Upload
         </button>
       </div>
@@ -456,49 +494,78 @@ function DocsTab({ record, onAttach }: { record: CrudRecord; onAttach: (name: st
   );
 }
 
-function FollowupTab({ record, onPatch }: { record: CrudRecord; onPatch: (p: Partial<CrudRecord>) => void }) {
-  type Task = { id: string; title: string; due: string; done: boolean };
-  const tasks: Task[] = Array.isArray((record.extra as any).tasks) ? (record.extra as any).tasks : [];
+/** Follow-ups are crm_tasks rows for this client, owned by the reseller. */
+function FollowupTab({
+  tasks, loading, loadError, onAdd, onToggle,
+}: {
+  tasks: ClientActivity["followUps"];
+  loading: boolean;
+  loadError: string | null;
+  onAdd: (title: string, due: string) => Promise<unknown>;
+  onToggle: (id: string, done: boolean) => Promise<unknown>;
+}) {
   const [title, setTitle] = useState(""); const [due, setDue] = useState("");
-  function add() {
+  const [busy, setBusy] = useState(false);
+  async function add() {
     if (!title.trim()) return;
-    const next: Task[] = [{ id: rid(), title, due: due || new Date().toISOString().slice(0,10), done: false }, ...tasks];
-    onPatch({ extra: { ...record.extra, tasks: next as any } });
-    setTitle(""); setDue("");
-    toast.success("Follow-up scheduled");
+    setBusy(true);
+    try {
+      await onAdd(title.trim(), due || new Date().toISOString().slice(0, 10));
+      setTitle(""); setDue("");
+      toast.success("Follow-up scheduled");
+    } catch (error) {
+      toast.error(reason(error, "That follow-up was not saved."));
+    } finally {
+      setBusy(false);
+    }
   }
-  function toggle(id: string) {
-    const next = tasks.map((t) => t.id === id ? { ...t, done: !t.done } : t);
-    onPatch({ extra: { ...record.extra, tasks: next as any } });
+  function toggle(id: string, done: boolean) {
+    onToggle(id, done).catch((error: unknown) => toast.error(reason(error, "That follow-up was not updated.")));
   }
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-border bg-surface p-3 grid sm:grid-cols-[1fr_180px_auto] gap-2 items-end">
         <Field label="Follow-up task" value={title} onChange={setTitle} placeholder="e.g. Send renewal quote" />
         <Field label="Due date" value={due} onChange={setDue} type="date" />
-        <button onClick={add} className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">Schedule</button>
+        <button onClick={() => void add()} disabled={busy} className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-60">Schedule</button>
       </div>
-      {tasks.length === 0 ? <Empty icon={CalendarClock} text="No follow-ups scheduled." /> : (
+      {loading ? <Empty icon={CalendarClock} text="Loading…" />
+        : loadError ? <Empty icon={CalendarClock} text={loadError} />
+        : tasks.length === 0 ? <Empty icon={CalendarClock} text="No follow-ups scheduled." /> : (
         <ul className="divide-y divide-border rounded-xl border border-border overflow-hidden">
-          {tasks.map((t) => (
-            <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-xs">
-              <input type="checkbox" checked={t.done} onChange={() => toggle(t.id)} />
-              <span className={`flex-1 ${t.done ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
-              <span className="text-muted-foreground">{t.due}</span>
-            </li>
-          ))}
+          {tasks.map((t) => {
+            const done = t.status === "completed";
+            return (
+              <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-xs">
+                <input type="checkbox" checked={done} onChange={() => toggle(t.id, !done)} />
+                <span className={`flex-1 ${done ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
+                <span className="text-muted-foreground">{t.due_at ? t.due_at.slice(0, 10) : "—"}</span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
   );
 }
 
-function TimelineTab({ record, onComment }: { record: CrudRecord; onComment: (text: string) => void }) {
+/** What is recorded about the client: when it was added, its follow-ups and its purchases. */
+function TimelineTab({ activity, loadError }: { activity: ClientActivity | null; loadError: string | null }) {
   const [text, setText] = useState("");
-  const merged = [
-    ...record.comments.map((c) => ({ kind: "comment" as const, id: c.id, date: c.date, text: c.text, by: c.author })),
-    ...record.audit.map((a) => ({ kind: "audit" as const, id: a.id, date: a.date, text: a.action, by: a.by, detail: a.detail })),
-  ].sort((a, b) => b.date.localeCompare(a.date));
+  const merged = activity
+    ? [
+        { kind: "audit" as const, id: "created", date: activity.clientCreatedAt, text: "Client added", by: "you", detail: "" },
+        ...activity.followUps.map((t) => ({
+          kind: "audit" as const, id: `task-${t.id}`, date: t.created_at,
+          text: t.status === "completed" ? "Follow-up completed" : "Follow-up scheduled",
+          by: "you", detail: t.title,
+        })),
+        ...activity.purchases.map((p) => ({
+          kind: "audit" as const, id: `order-${p.id}`, date: p.date, text: `Order ${p.number}`,
+          by: "marketplace", detail: `${p.products.join(", ") || "Order"} · ${p.status.replace(/_/g, " ")}`,
+        })),
+      ].sort((a, b) => b.date.localeCompare(a.date))
+    : [];
   return (
     <div className="space-y-3">
       <div className="flex items-end gap-2">
@@ -507,18 +574,17 @@ function TimelineTab({ record, onComment }: { record: CrudRecord; onComment: (te
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Called, emailed, met for demo…"
             className="mt-1 w-full rounded-lg bg-surface border border-border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring" />
         </div>
-        <button onClick={() => { if (text.trim()) { onComment(text.trim()); setText(""); toast.success("Logged"); } }}
-          className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow">Log</button>
+        <button disabled title={LOG_UNAVAILABLE}
+          className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Log</button>
       </div>
-      {merged.length === 0 ? <Empty icon={Activity} text="No activity yet." /> : (
+      {loadError ? <Empty icon={Activity} text={loadError} /> : merged.length === 0 ? <Empty icon={Activity} text="No activity yet." /> : (
         <ol className="relative border-l border-border ml-3 space-y-3">
           {merged.map((e) => (
             <li key={e.id} className="ml-4">
-              <span className={`absolute -left-1.5 mt-1 h-3 w-3 rounded-full border-2 border-background ${e.kind === "comment" ? "bg-brand" : "bg-muted-foreground/40"}`} />
+              <span className="absolute -left-1.5 mt-1 h-3 w-3 rounded-full border-2 border-background bg-muted-foreground/40" />
               <div className="text-xs">
-                <span className="font-semibold capitalize">{e.kind === "comment" ? "Comment" : e.text}</span>
-                {e.kind === "comment" && <span> · {e.text}</span>}
-                {"detail" in e && e.detail ? <span className="text-muted-foreground"> — {e.detail}</span> : null}
+                <span className="font-semibold">{e.text}</span>
+                {e.detail ? <span className="text-muted-foreground"> — {e.detail}</span> : null}
               </div>
               <div className="text-[10px] text-muted-foreground">{new Date(e.date).toLocaleString()} · {e.by}</div>
             </li>
@@ -558,7 +624,7 @@ function ClientForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: (v
 
 /* ---------------- Utils ---------------- */
 
-function Field({ label, value, onChange, type = "text", placeholder }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {
+function Field({ label, value, onChange, type = "text", placeholder, disabled }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; disabled?: boolean }) {
   return (
     <div>
       <label className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</label>
@@ -566,8 +632,10 @@ function Field({ label, value, onChange, type = "text", placeholder }: { label: 
         type={type}
         value={value}
         placeholder={placeholder}
+        disabled={disabled}
+        title={disabled ? placeholder : undefined}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-lg bg-surface border border-border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+        className="mt-1 w-full rounded-lg bg-surface border border-border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
       />
     </div>
   );
@@ -587,6 +655,5 @@ function HealthDot({ score }: { score: number }) {
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase()).join("") || "?";
 }
-function rid() { return Math.random().toString(36).slice(2, 9); }
 // silence
 void Inbox; void Star;

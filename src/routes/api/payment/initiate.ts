@@ -276,6 +276,18 @@ export const Route = createFileRoute("/api/payment/initiate")({
                   selfReferral = rows[0]?.user_id === user.id;
                 }
               }
+              // The same for a reseller. The database already refuses the
+              // commission (reseller_commissions_for_order); the attribution is
+              // flagged here so the order shows why.
+              if (!selfReferral && attribution.resellerId) {
+                const reseller = await rest(
+                  `resellers?select=user_id&id=eq.${encodeURIComponent(attribution.resellerId)}&limit=1`,
+                );
+                if (reseller.ok) {
+                  const rows = (await reseller.json()) as { user_id: string | null }[];
+                  selfReferral = rows[0]?.user_id === user.id;
+                }
+              }
               const attributed = await attributeOrder(orderId, attribution, {
                 buyer_id: user.id,
                 order_total: orderTotal,
@@ -283,7 +295,9 @@ export const Route = createFileRoute("/api/payment/initiate")({
                 self_referral: selfReferral,
                 risk: selfReferral ? "REVIEW" : "NORMAL",
                 risk_reason: selfReferral
-                  ? "buyer owns the referring affiliate account"
+                  ? attribution.affiliatePartnerId
+                    ? "buyer owns the referring affiliate account"
+                    : "buyer owns the referring reseller account"
                   : null,
                 stamped_at: "payment_initiate",
               });

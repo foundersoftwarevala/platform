@@ -40,6 +40,13 @@ async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise
 
 type Outcome = { ok?: boolean; reason?: string; message?: string; [k: string]: unknown };
 
+/**
+ * Who may change a homepage section through the one write here that uses the
+ * service role. These are the roles both requireOperator and mm_is_operator()
+ * accept, so nobody gains a write they did not already have through the RPCs.
+ */
+const SECTION_WRITERS = new Set(["admin", "boss", "founder", "super_admin", "boss_owner"]);
+
 /** Turns a refusal into a sentence a person can act on. */
 function settle(result: Outcome | null, whenOk: string) {
   if (!result?.ok) {
@@ -62,6 +69,9 @@ function settle(result: Outcome | null, whenOk: string) {
           : String(result?.message ?? result?.reason ?? "The change was refused."),
     );
   }
+  // Every caller of settle() is a write that succeeded: the storefront caches
+  // what rows hold, so they are emptied now (catalogue-invalidation.ts).
+  void import("@/lib/marketplace/catalogue-invalidation").then((m) => m.catalogueChanged());
   return { ...result, ok: true as const, message: whenOk };
 }
 
@@ -271,6 +281,12 @@ export const searchRowProducts = createServerFn({ method: "GET" })
       .parse(i ?? {}),
   )
   .handler(async ({ data }) => {
+    // The service role reads past every policy, so only an operator may ask for
+    // drafts and hidden products. Anyone else gets the published catalogue.
+    if (data.onlyPublished === false) {
+      const { requireOperator } = await import("@/lib/auth/require-operator.server");
+      await requireOperator("Searching unpublished products");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let q = supabaseAdmin
       .from("marketplace_products")
@@ -282,7 +298,8 @@ export const searchRowProducts = createServerFn({ method: "GET" })
 
     if (data.categoryId) q = q.eq("category_id", data.categoryId);
     if (data.onlyPublished !== false) q = q.eq("visible", true).eq("content_status", "published");
-    if (data.query?.trim()) q = q.ilike("name", `%${data.query.trim()}%`);
+    // % and _ are wildcards to ilike; a search for "50%" means the characters.
+    if (data.query?.trim()) q = q.ilike("name", `%${data.query.trim().replace(/[\\%_]/g, "\\$&")}%`);
     if (data.subcategory) q = q.eq("subcategory", data.subcategory);
     if (data.industry) q = q.eq("industry_label", data.industry);
     if (data.sellerId) q = q.eq("seller_id", data.sellerId);
@@ -417,21 +434,38 @@ export const clearRowSlots = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }) => {
+    // Counted by what was actually removed. An empty or rule-filled slot
+    // answers ok with removed 0, and a refusal was counted as nothing yet still
+    // reported as success - "5 slot(s) cleared" when none were.
     let cleared = 0;
+    let unchanged = 0;
     for (const position of data.positions) {
-      const r = await callAsUser<Outcome>("mm_slot_remove", {
+      const r = await callAsUser<Outcome & { removed?: number }>("mm_slot_remove", {
         p_key: data.key,
         p_position: position,
       });
-      if (r?.ok) cleared += 1;
+      if (!r?.ok) settle(r, "The slots could not be cleared.");
+      const removed = Number(r?.removed ?? 1);
+      if (removed > 0) cleared += 1;
+      else unchanged += 1;
     }
-    return { ok: true as const, cleared, message: `${cleared} slot(s) cleared` };
+    return {
+      ok: true as const,
+      cleared,
+      message:
+        `${cleared} slot(s) cleared` +
+        (unchanged ? `; ${unchanged} held no hand-placed product and were left as they were` : ""),
+    };
   });
 
 /** The audit trail for a row — section 14. */
 export const getRowAudit = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ key: z.string().min(1) }).parse(i))
   .handler(async ({ data }) => {
+    // The trail carries operator e-mails and full before/after state, read with
+    // the service role, so it is for operators only.
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Reading the row history");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row } = await supabaseAdmin
       .from("marketplace_categories")
@@ -516,6 +550,14 @@ export const configureSection = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }) => {
+    // This writes with the service role, which bypasses every policy, so the
+    // caller is checked here: an operator who may change the front page. It
+    // used to accept any signed-in account, a customer included.
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    const operator = await requireOperator("Changing a homepage section");
+    if (!operator.roles.some((r) => SECTION_WRITERS.has(r))) {
+      throw new Error("Changing a homepage section needs marketplace operator rights.");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const allowed = [
       "status",
@@ -539,11 +581,28 @@ export const configureSection = createServerFn({ method: "POST" })
     }
     patch.updated_at = new Date().toISOString();
 
+    // An archived section is retired on purpose (archived_section_guard); it is
+    // not brought back by publishing it from here.
+    const { data: current, error: readError } = await supabaseAdmin
+      .from("marketplace_homepage_sections")
+      .select("status")
+      .eq("key", data.key)
+      .maybeSingle();
+    if (readError) throw new Error(readError.message);
+    if (!current) throw new Error("There is no homepage section with that key.");
+    // status is a real column (20260906210000); the generated types predate it.
+    const currentStatus = (current as unknown as { status?: string }).status;
+    if (currentStatus === "archived" && ("status" in patch || "enabled" in patch)) {
+      throw new Error("This section is archived. Restore it from Layout Order before publishing it.");
+    }
+
     const { error } = await supabaseAdmin
       .from("marketplace_homepage_sections")
       .update(patch)
       .eq("key", data.key);
     if (error) throw new Error(error.message);
+    const { catalogueChanged } = await import("@/lib/marketplace/catalogue-invalidation");
+    catalogueChanged();
     return { ok: true as const, message: "Section updated" };
   });
 

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Loader2, RefreshCcw } from "lucide-react";
 
 import { useOpsOverview } from "@/hooks/useDemoOps";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { OpsSection } from "./OpsPrimitives";
 
 /**
@@ -25,6 +26,7 @@ import { OpsSection } from "./OpsPrimitives";
  * category and product checks that go with it.
  */
 export function OpsReprocessPanel() {
+  const { t } = useTranslation();
   const overview = useOpsOverview();
   const qc = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
@@ -51,21 +53,21 @@ export function OpsReprocessPanel() {
         body: JSON.stringify({ action: "investigate", productId: demo.product_id, url: demo.url }),
       });
       const body = (await response.json()) as { error?: string; demo?: { processing_status?: string } };
-      if (!response.ok) throw new Error(body.error ?? "The pipeline refused it");
+      if (!response.ok) throw new Error(body.error ?? t("demo.reprocess.refused"));
 
       const state = body.demo?.processing_status ?? "unknown";
       setOutcome((o) => ({ ...o, [demo.id]: state }));
-      toast.success(`Re-processed ${demo.title}`, {
+      toast.success(t("demo.reprocess.done", { title: demo.title }), {
         description:
           state === "review"
-            ? "Branding recomputed. Activate it to put the new presentation live."
-            : `The pipeline left it at ${state}.`,
+            ? t("demo.reprocess.done_review")
+            : t("demo.reprocess.done_state", { state }),
       });
       await qc.invalidateQueries({ queryKey: ["demo-ops"] });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setOutcome((o) => ({ ...o, [demo.id]: `failed: ${message}` }));
-      toast.error(`Could not re-process ${demo.title}`, { description: message });
+      toast.error(t("demo.reprocess.failed", { title: demo.title }), { description: message });
     } finally {
       setBusy(null);
     }
@@ -74,16 +76,16 @@ export function OpsReprocessPanel() {
   return (
     <OpsSection
       icon={RefreshCcw}
-      title="Re-process"
-      description="Run a demo through the real pipeline again to apply the current branding. Stops at review; publishing stays a separate act."
-      badge={`${assigned.length} assigned`}
+      title={t("demo.reprocess.title")}
+      description={t("demo.reprocess.description")}
+      badge={t("demo.reprocess.assigned", { count: assigned.length })}
     >
       {overview.isLoading ? (
         <p className="flex items-center gap-2 p-4 text-sm text-slate-400">
-          <Loader2 className="h-4 w-4 animate-spin" /> Reading the demos
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("demo.reprocess.loading")}
         </p>
       ) : assigned.length === 0 ? (
-        <p className="p-4 text-sm text-slate-400">No demo has a product yet.</p>
+        <p className="p-4 text-sm text-slate-400">{t("demo.reprocess.empty")}</p>
       ) : (
         <ul className="divide-y divide-slate-800">
           {assigned.map((demo) => (
@@ -91,7 +93,7 @@ export function OpsReprocessPanel() {
               <div className="min-w-0">
                 <p className="truncate font-medium text-white">{demo.title}</p>
                 <p className="truncate text-xs text-slate-400">
-                  {demo.product_name ?? "product"} · {demo.status}/{demo.processing_status}
+                  {demo.product_name ?? t("demo.reprocess.product_fallback")} · {demo.status}/{demo.processing_status}
                   {outcome[demo.id] && <span className="ml-2 text-slate-300">→ {outcome[demo.id]}</span>}
                 </p>
               </div>
@@ -106,7 +108,7 @@ export function OpsReprocessPanel() {
                 ) : (
                   <RefreshCcw className="h-3.5 w-3.5" />
                 )}
-                Re-process
+                {t("demo.reprocess.title")}
               </button>
             </li>
           ))}

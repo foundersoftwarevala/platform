@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import {
-  ALL_PERMISSIONS, ROLE_PERMISSIONS, resolveAction,
+  ALL_PERMISSIONS, OWNER_LOCKED, OWNER_ONLY, OWNER_ROLES, ROLE_PERMISSIONS, resolveAction,
   type Permission,
 } from "@/lib/marketplace/permission-guard";
 import {
@@ -222,6 +222,11 @@ export const Route = createFileRoute("/api/marketplace/permissions")({
         const role = String(body.role ?? "").trim();
         const permission = String(body.permission ?? "").trim() as Permission;
         if (!role) return Response.json({ error: "A role is required" }, { status: 400 });
+        // Only a role the matrix knows. A typo such as "Admin" used to be
+        // stored as a new role that nobody holds.
+        if (!(role in ROLE_PERMISSIONS) && !(role in matrix)) {
+          return Response.json({ error: `"${role}" is not a role in the matrix.` }, { status: 400 });
+        }
         if (!ALL_PERMISSIONS.includes(permission)) {
           return Response.json(
             { error: `"${permission}" is not a Marketplace permission.` },
@@ -231,6 +236,22 @@ export const Route = createFileRoute("/api/marketplace/permissions")({
 
         const current = matrix[role] ?? [];
         const wanted = Boolean(body.granted);
+        if (wanted && OWNER_ONLY.includes(permission) && !OWNER_ROLES.includes(role)) {
+          return Response.json(
+            { ok: false, reason: "owner_only", message: `${permission} belongs to the owner tier only.` },
+            { status: 400 },
+          );
+        }
+        if (!wanted && OWNER_ROLES.includes(role) && OWNER_LOCKED.includes(permission)) {
+          return Response.json(
+            {
+              ok: false,
+              reason: "owner_locked",
+              message: `${role} keeps ${permission}; without it nobody could open or repair this matrix.`,
+            },
+            { status: 400 },
+          );
+        }
         const has = current.includes(permission);
         if (has === wanted) {
           // Section 43: doing the same thing twice must not become two events.

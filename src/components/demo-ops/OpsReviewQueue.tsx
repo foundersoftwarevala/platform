@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { AlertTriangle, Check, Inbox, Loader2, Search } from "lucide-react";
 
 import { useOpsOverview, type OpsReviewRow } from "@/hooks/useDemoOps";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { OpsSection } from "./OpsPrimitives";
 
 /**
@@ -18,6 +19,7 @@ import { OpsSection } from "./OpsPrimitives";
  * shown, the operator picks, and the decision is recorded as theirs.
  */
 export function OpsReviewQueue() {
+  const { t } = useTranslation();
   const overview = useOpsOverview();
   const qc = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export function OpsReviewQueue() {
       headers: await authHeaders(),
     });
     if (!response.ok) {
-      toast.error("The catalogue could not be searched");
+      toast.error(t("demo.review.search_failed"));
       return;
     }
     const body = (await response.json()) as { products?: { id: string; name: string; slug: string }[] };
@@ -77,11 +79,11 @@ export function OpsReviewQueue() {
         body: JSON.stringify({ action: "one", demoUrlId: row.id, commit: true }),
       });
       const body = (await response.json()) as { error?: string; row?: { state: string; reason: string } };
-      if (!response.ok) throw new Error(body.error ?? "The investigation did not run");
-      toast.success(body.row?.state ?? "Done", { description: body.row?.reason ?? "" });
+      if (!response.ok) throw new Error(body.error ?? t("demo.review.investigation_not_run"));
+      toast.success(body.row?.state ?? t("demo.review.done"), { description: body.row?.reason ?? "" });
       await qc.invalidateQueries({ queryKey: ["demo-ops"] });
     } catch (error) {
-      toast.error("Investigation failed", {
+      toast.error(t("demo.review.investigation_failed"), {
         description: error instanceof Error ? error.message : String(error),
       });
     } finally {
@@ -99,13 +101,13 @@ export function OpsReviewQueue() {
         body: JSON.stringify({ action: "resolve", demoUrlId: row.id, product: product.id }),
       });
       const body = (await response.json()) as { error?: string; productSlug?: string };
-      if (!response.ok) throw new Error(body.error ?? "That did not go through");
-      toast.success(`Assigned to ${product.name}`, {
-        description: "It is not live yet — investigate and activate it next.",
+      if (!response.ok) throw new Error(body.error ?? t("demo.review.assign_not_through"));
+      toast.success(t("demo.review.assigned", { product: product.name }), {
+        description: t("demo.review.assigned_next"),
       });
       await qc.invalidateQueries({ queryKey: ["demo-ops"] });
     } catch (error) {
-      toast.error("Not assigned", {
+      toast.error(t("demo.review.not_assigned"), {
         description: error instanceof Error ? error.message : String(error),
       });
     } finally {
@@ -117,17 +119,17 @@ export function OpsReviewQueue() {
     <div className="space-y-6">
       <OpsSection
         icon={Inbox}
-        title="Review queue"
-        description="Addresses taken in that the matcher would not place. Nothing here was guessed at."
-        badge={`${review.length} waiting`}
+        title={t("demo.review.title")}
+        description={t("demo.review.description")}
+        badge={t("demo.review.waiting", { count: review.length })}
       >
         {overview.isLoading ? (
           <p className="flex items-center gap-2 p-4 text-sm text-slate-400">
-            <Loader2 className="h-4 w-4 animate-spin" /> Reading the queue
+            <Loader2 className="h-4 w-4 animate-spin" /> {t("demo.review.loading")}
           </p>
         ) : review.length === 0 ? (
           <p className="p-4 text-sm text-slate-400">
-            Nothing is waiting for a product. Every address taken in has one.
+            {t("demo.review.empty")}
           </p>
         ) : (
           <ul className="divide-y divide-slate-800">
@@ -160,22 +162,22 @@ export function OpsReviewQueue() {
                     ) : null}
                     {row.investigation.ai_suggestion?.name ? (
                       <p className="text-xs text-blue-300">
-                        AI suggests {row.investigation.ai_suggestion.name}
+                        {t("demo.review.ai_suggests", { name: row.investigation.ai_suggestion.name })}
                         {row.investigation.ai_suggestion.confidence
-                          ? " (" + row.investigation.ai_suggestion.confidence + " confidence)"
+                          ? t("demo.review.ai_confidence", { confidence: row.investigation.ai_suggestion.confidence })
                           : ""}
-                        {" — confirm it below; it assigns nothing on its own."}
+                        {t("demo.review.ai_confirm_below")}
                       </p>
                     ) : null}
                     {row.investigation.ai_error ? (
-                      <p className="text-xs text-amber-300">AI unavailable: {row.investigation.ai_error}</p>
+                      <p className="text-xs text-amber-300">{t("demo.review.ai_unavailable")} {row.investigation.ai_error}</p>
                     ) : null}
                     <p className="text-[11px] text-slate-600">
-                      investigated {new Date(row.investigation.investigated_at).toLocaleString()}
+                      {t("demo.review.investigated_at", { when: new Date(row.investigation.investigated_at).toLocaleString() })}
                     </p>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500">Not investigated yet.</p>
+                  <p className="text-xs text-slate-500">{t("demo.review.not_investigated")}</p>
                 )}
 
                 <button
@@ -184,7 +186,7 @@ export function OpsReviewQueue() {
                   onClick={() => void reinvestigate(row)}
                   className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 disabled:opacity-50"
                 >
-                  {row.investigation ? "Investigate again" : "Investigate this page"}
+                  {row.investigation ? t("demo.review.investigate_again") : t("demo.review.investigate_page")}
                 </button>
 
                 {/* What it thought the candidates were, when it found several. */}
@@ -212,12 +214,12 @@ export function OpsReviewQueue() {
                     onClick={() => void suggest(row)}
                     className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300"
                   >
-                    Suggest products from the title
+                    {t("demo.review.suggest")}
                   </button>
                 ) : suggested[row.id].length > 0 ? (
                   <div className="space-y-1">
                     <p className="text-xs text-slate-500">
-                      Suggested from the title — confirm one, or search below.
+                      {t("demo.review.suggested")}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {suggested[row.id].map((c) => (
@@ -235,21 +237,21 @@ export function OpsReviewQueue() {
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500">
-                    Nothing in the catalogue is called "{row.title}".
+                    {t("demo.review.no_title_match", { title: row.title })}
                   </p>
                 )}
 
                 <div className="flex flex-wrap gap-2">
                   <input
                     value={term[row.id] ?? ""}
-                    onChange={(e) => setTerm((t) => ({ ...t, [row.id]: e.target.value }))}
+                    onChange={(e) => setTerm((prev) => ({ ...prev, [row.id]: e.target.value }))}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
                         void search(row);
                       }
                     }}
-                    placeholder="Search the catalogue"
+                    placeholder={t("demo.review.search_placeholder")}
                     className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-sm text-white"
                   />
                   <button
@@ -257,7 +259,7 @@ export function OpsReviewQueue() {
                     onClick={() => void search(row)}
                     className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200"
                   >
-                    <Search className="h-3.5 w-3.5" /> Search
+                    <Search className="h-3.5 w-3.5" /> {t("demo.review.search")}
                   </button>
                 </div>
 
@@ -278,7 +280,7 @@ export function OpsReviewQueue() {
                   </div>
                 )}
                 {hits[row.id] && hits[row.id].length === 0 && (
-                  <p className="text-xs text-slate-500">Nothing in the catalogue matched that.</p>
+                  <p className="text-xs text-slate-500">{t("demo.review.no_search_match")}</p>
                 )}
               </li>
             ))}
@@ -289,12 +291,12 @@ export function OpsReviewQueue() {
       {/* Shown, never acted on: taking a working demo down is the owner's call. */}
       <OpsSection
         icon={AlertTriangle}
-        title="Category mismatches"
-        description="Live demos whose detected category is not their product's. Listed for a decision, not changed."
-        badge={`${mismatches.length} to decide`}
+        title={t("demo.review.mismatch_title")}
+        description={t("demo.review.mismatch_description")}
+        badge={t("demo.review.mismatch_badge", { count: mismatches.length })}
       >
         {mismatches.length === 0 ? (
-          <p className="p-4 text-sm text-slate-400">No live demo is on a product of another category.</p>
+          <p className="p-4 text-sm text-slate-400">{t("demo.review.mismatch_empty")}</p>
         ) : (
           <ul className="divide-y divide-slate-800">
             {mismatches.map((m) => (
@@ -302,14 +304,14 @@ export function OpsReviewQueue() {
                 <div className="min-w-0">
                   <p className="truncate font-medium text-white">{m.title}</p>
                   <p className="truncate text-xs text-slate-400">
-                    on {m.product_name ?? "a product"}{" "}
+                    {t("demo.review.on_product", { product: m.product_name ?? t("demo.review.a_product") })}{" "}
                     <span className="font-mono text-slate-500">{m.product_slug}</span>
                   </p>
                 </div>
                 <p className="text-xs text-slate-300">
-                  <span className="text-amber-300">{m.detected_category ?? "unknown"}</span>
-                  {" vs "}
-                  <span className="text-slate-400">{m.product_category ?? "unknown"}</span>
+                  <span className="text-amber-300">{m.detected_category ?? t("demo.review.unknown")}</span>
+                  {` ${t("demo.review.versus")} `}
+                  <span className="text-slate-400">{m.product_category ?? t("demo.review.unknown")}</span>
                 </p>
               </li>
             ))}

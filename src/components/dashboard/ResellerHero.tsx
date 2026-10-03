@@ -82,6 +82,7 @@ export function ResellerHero({ onAction }: { onAction?: (key: string) => void })
             key={i}
             onClick={() => setIdx(i)}
             aria-label={`Banner ${i + 1}`}
+            aria-current={i === idx ? "true" : undefined}
             className="h-1.5 rounded-full transition-all"
             style={{
               width: i === idx ? 28 : 10,

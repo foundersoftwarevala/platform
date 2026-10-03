@@ -29,18 +29,30 @@ function admin() {
   return { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
 }
 
-async function count(path: string): Promise<number> {
+/**
+ * A count, or null when it could not be made. A failed read used to be 0,
+ * which read on screen as 0% coverage - a real measurement - when nothing had
+ * been measured. The screen already renders null as a dash.
+ */
+async function count(path: string): Promise<number | null> {
   try {
     const response = await fetch(`${url()}/rest/v1/${path}`, {
       headers: { ...admin(), Prefer: "count=exact", Range: "0-0" },
     });
-    if (!response.ok) return 0;
-    const range = response.headers.get("content-range") ?? "";
-    return Number(range.split("/")[1]) || 0;
+    if (!response.ok) return null;
+    const total = Number((response.headers.get("content-range") ?? "").split("/")[1]);
+    return Number.isFinite(total) ? total : null;
   } catch {
-    return 0;
+    return null;
   }
 }
+
+/**
+ * The products that have a public page: the storefront and the sitemap use
+ * visible AND published, so coverage is measured over the same set rather than
+ * over drafts that have no page at all.
+ */
+const PUBLIC = "visible=eq.true&content_status=eq.published&deleted_at=is.null";
 
 /** How many <loc> entries the site is actually publishing today. */
 async function sitemapUrls(base: string): Promise<{ total: number | null; parts: { url: string; urls: number }[] }> {
@@ -154,14 +166,17 @@ export const Route = createFileRoute("/api/seo/console")({
           categories, canonicalRows, schemaRows, keywords, issues,
           indexing, integrations, sitemap, robotsRules,
         ] = await Promise.all([
-          count("marketplace_products?select=id&visible=eq.true"),
-          count("marketplace_products?select=id&visible=eq.true&description=not.is.null"),
-          count("marketplace_products?select=id&visible=eq.true&search_keywords=not.is.null"),
-          count("marketplace_products?select=id&visible=eq.true&category_id=not.is.null"),
-          count("marketplace_products?select=id&visible=eq.true&price_label=not.is.null"),
+          count(`marketplace_products?select=id&${PUBLIC}`),
+          count(`marketplace_products?select=id&${PUBLIC}&description=not.is.null&description=neq.`),
+          // search_keywords and price_label are NOT NULL with empty defaults, so
+          // "not null" was every row and these two always read 100%.
+          count(`marketplace_products?select=id&${PUBLIC}&search_keywords=neq.{}`),
+          count(`marketplace_products?select=id&${PUBLIC}&category_id=not.is.null`),
+          count(`marketplace_products?select=id&${PUBLIC}&price_label=neq.`),
           count("marketplace_categories?select=id&is_hidden=eq.false"),
           count("product_urls?select=id&status=eq.active"),
-          count("seo_product_entries?select=id&structured_data=not.is.null"),
+          // structured_data is NOT NULL DEFAULT '{}': only a row that holds some.
+          count("seo_product_entries?select=id&structured_data=neq.{}"),
           count("seo_keywords?select=id"),
           count("seo_issues?select=id"),
           count("seo_indexing_records?select=id"),
@@ -172,12 +187,15 @@ export const Route = createFileRoute("/api/seo/console")({
 
         // Coverage per requirement. One percentage hides which requirement is
         // the one failing, so each is reported on its own with its own count.
-        const pct = (n: number) => (eligible > 0 ? Math.round((n / eligible) * 1000) / 10 : null);
+        const pct = (n: number | null) =>
+          n !== null && eligible !== null && eligible > 0 ? Math.round((n / eligible) * 1000) / 10 : null;
         const requirements = [
           { key: "description", label: "Meta description source", have: withDescription, pct: pct(withDescription) },
           { key: "keywords", label: "Keywords", have: withKeywords, pct: pct(withKeywords) },
           { key: "category", label: "Category (breadcrumb + schema)", have: withCategory, pct: pct(withCategory) },
-          { key: "price", label: "Offer price (schema)", have: withPrice, pct: pct(withPrice) },
+          // A price label on the product; the page's structured data carries no
+          // offer, so "(schema)" claimed something it does not emit.
+          { key: "price", label: "Price label", have: withPrice, pct: pct(withPrice) },
         ];
         const worst = requirements.reduce(
           (lowest, r) => (r.pct !== null && (lowest === null || r.pct < lowest) ? r.pct : lowest),

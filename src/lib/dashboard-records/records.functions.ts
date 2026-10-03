@@ -741,10 +741,33 @@ async function seoRecords(module: string, uid: string): Promise<Result> {
   return { records: [] };
 }
 
+/**
+ * The Task Manager member a signed-in user works as. tm_tasks.assigned_to
+ * points at tm_members.id, not at the user, so filtering it by the user id
+ * matched nothing.
+ */
+async function tmMemberOf(uid: string): Promise<string | null> {
+  const rows = await read(`tm_members?select=id&user_id=eq.${uid}&limit=1`);
+  return rows[0]?.id ? text(rows[0].id) : null;
+}
+
+const TM_CLOSED = "(approved,completed,cancelled,failed,closed)";
+
+/** How many rows match a filter, counted by the database (no rows returned). */
+async function countRows(path: string): Promise<number> {
+  const response = await rest(`${path}&limit=1`, { headers: { Prefer: "count=exact" } });
+  if (!response.ok) throw new Error(`${path.split("?")[0]} could not be counted (${response.status})`);
+  const total = Number(response.headers.get("content-range")?.split("/")[1]);
+  if (!Number.isFinite(total)) throw new Error(`${path.split("?")[0]} returned no count`);
+  return total;
+}
+
 async function developerRecords(module: string, uid: string): Promise<Result> {
   if (module === "bugs") {
+    const member = await tmMemberOf(uid);
+    if (!member) return unlinked("Task Manager membership");
     const rows = await read(
-      `tm_tasks?select=id,code,title,status,priority,severity,deadline,created_at&assigned_to=eq.${uid}&task_type=eq.bug&order=created_at.desc&limit=${CAP}`,
+      `tm_tasks?select=id,code,title,status,priority,severity,deadline,created_at&assigned_to=eq.${member}&task_type=eq.bug&order=created_at.desc&limit=${CAP}`,
     );
     return {
       records: rows.map((t) =>
@@ -842,4 +865,32 @@ export const listDashboardRecords = createServerFn({ method: "GET" })
         result.note ??
         (truncated ? `Showing the newest ${CAP.toLocaleString()} records.` : undefined),
     };
+  });
+
+/**
+ * The developer dashboard's KPI figures, for the signed-in developer only.
+ *
+ * Counted on the server from the same rows the Tasks and Bugs modules list.
+ * A KPI with no source on the platform (commits, coding hours, performance
+ * score, payout, ship streak) is left out, so the card reads "not tracked yet"
+ * instead of a generated number.
+ */
+export const getDeveloperMetrics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ linked: boolean; metrics: Record<string, number | null> }> => {
+    const developer = await partnerOf.developer(context.userId);
+    if (!developer) return { linked: false, metrics: {} };
+    const mine = `developer_tasks?select=id&developer_id=eq.${text(developer.id)}`;
+    const [open, done, member] = await Promise.all([
+      countRows(`${mine}&status=not.in.(completed,delivered,cancelled)`),
+      countRows(`${mine}&status=in.(completed,delivered)`),
+      tmMemberOf(context.userId),
+    ]);
+    const metrics: Record<string, number | null> = { "tasks-open": open, "tasks-done": done };
+    if (member) {
+      metrics["bugs-open"] = await countRows(
+        `tm_tasks?select=id&assigned_to=eq.${member}&task_type=eq.bug&status=not.in.${TM_CLOSED}`,
+      );
+    }
+    return { linked: true, metrics };
   });

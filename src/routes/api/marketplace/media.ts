@@ -556,7 +556,18 @@ export const Route = createFileRoute("/api/marketplace/media")({
         const path = rest.join(":");
         // Section 11: a path that tries to climb out is refused, not cleaned up
         // and followed anyway.
-        if (!bucket || !path || path.includes("..") || path.startsWith("/")) {
+        // The bucket is a plain name, and the path may not climb in any
+        // spelling: "%2e%2e" and "\" got past a check for ".." alone, and URL
+        // parsing then folded "a/%2e%2e/legal-documents/x" into the legal
+        // bucket this screen must never sign for.
+        if (
+          !bucket ||
+          !/^[a-z0-9][a-z0-9._-]*$/i.test(bucket) ||
+          !path ||
+          path.includes("..") ||
+          path.startsWith("/") ||
+          /%2e|%2f|%5c|\\/i.test(path)
+        ) {
           return Response.json({ ok: false, reason: "invalid_path" }, { status: 400 });
         }
         if (bucket === "legal-documents") {
@@ -571,7 +582,10 @@ export const Route = createFileRoute("/api/marketplace/media")({
           );
         }
 
-        const response = await fetch(`${url()}/storage/v1/object/sign/${bucket}/${path}`, {
+        // Each segment encoded, so "#" or "?" in a file name is part of the
+        // name rather than the end of the URL.
+        const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+        const response = await fetch(`${url()}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${encodedPath}`, {
           method: "POST", headers: admin(), body: JSON.stringify({ expiresIn: 300 }),
         });
         if (!response.ok) {

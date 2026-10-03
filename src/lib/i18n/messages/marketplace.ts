@@ -14,6 +14,10 @@ export const MARKETPLACE_MESSAGES = {
     "There is no card at that address.",
     "shown when the category and country in the URL are not a card",
   ],
+  "marketplace.footer.no_advance_payment": [
+    "No advance payment — you see the demo first.",
+    "footer promise: the buyer pays only after seeing the demo",
+  ],
   "marketplace.slot.back": ["Back to the marketplace", "link out of a card page"],
   "marketplace.slot.breadcrumb": ["Breadcrumb", "label of the trail of links above the heading"],
   "marketplace.slot.marketplace": ["Marketplace", "first step of the breadcrumb"],

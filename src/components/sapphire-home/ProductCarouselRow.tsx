@@ -42,9 +42,14 @@ export function ProductCarouselRow({
     const timer = window.setInterval(() => {
       const rail = railRef.current;
       if (!rail || pausedRef.current || draggingRef.current) return;
-      const nearEnd = rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 12;
+      // In a right-to-left language scrollLeft runs from 0 down to negative
+      // values, so the rail is read by distance and moved with the page's sign.
+      // Read as a plain number it clamped at 0 and the row never advanced.
+      const sign = getComputedStyle(rail).direction === "rtl" ? -1 : 1;
+      const travelled = Math.abs(rail.scrollLeft);
+      const nearEnd = travelled + rail.clientWidth >= rail.scrollWidth - 12;
       rail.scrollTo({
-        left: nearEnd ? 0 : rail.scrollLeft + Math.max(rail.clientWidth * 0.82, 300),
+        left: nearEnd ? 0 : sign * (travelled + Math.max(rail.clientWidth * 0.82, 300)),
         behavior: "smooth",
       });
     }, 4800);

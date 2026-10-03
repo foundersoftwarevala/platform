@@ -21,6 +21,7 @@ import type {
   UiStatus,
   RegistryDeveloperDTO,
 } from "./dev-manager.types";
+import { taskCode } from "./dev-manager.types";
 
 export type Db = SupabaseClient<Database>;
 
@@ -57,18 +58,39 @@ export async function writeAudit(
   meta: Record<string, unknown>,
   actor?: string,
 ): Promise<void> {
-  const { error } = await supabase.from("audit_logs").insert({
-    module,
+  await writeAuditMany(supabase, userId, module, action, [meta], actor);
+}
+
+/** The same audit rows as writeAudit, written in one request. */
+export async function writeAuditMany(
+  supabase: Db,
+  userId: string | null,
+  module: string,
+  action: string,
+  metas: Record<string, unknown>[],
+  actor?: string,
+): Promise<void> {
+  if (metas.length === 0) return;
+  // audit_logs: the module is the entity_type, the record acted on is the
+  // entity_id, and the acting user (or, without one, the acting role) is the
+  // actor. The role label and user id are kept in metadata as well.
+  const rows = metas.map((meta) => ({
+    entity_type: module,
+    entity_id:
+      (meta["task_id"] as string | undefined) ??
+      (meta["escalation_id"] as string | undefined) ??
+      (meta["developer_id"] as string | undefined) ??
+      (meta["note_id"] as string | undefined) ??
+      null,
     action,
-    user_id: userId,
-    meta_json: { ...meta, actor: actor ?? "host_module" } as never,
-  });
+    actor: userId ?? actor ?? "host_module",
+    metadata: { ...meta, actor: actor ?? "host_module", user_id: userId } as never,
+  }));
+  const { error } = await supabase.from("audit_logs").insert(rows);
   if (error) throw new Error(`Audit log write failed: ${error.message}`);
 }
 
-export function taskCode(id: string): string {
-  return `TSK-${id.replace(/-/g, "").slice(0, 4).toUpperCase()}`;
-}
+export { taskCode };
 
 function shortId(id: string): string {
   return `ESC-${id.replace(/-/g, "").slice(0, 4).toUpperCase()}`;
@@ -153,13 +175,15 @@ async function autoEscalate(
   const { data, error } = await supabase.from("developer_task_escalations").insert(pending).select("id, task_id");
   if (error) throw new Error(`Auto-escalation failed: ${error.message}`);
 
-  for (const row of data ?? []) {
-    openEscalationTaskIds.add(row.task_id ?? "");
-    await writeAudit(supabase, userId, "dev_manager.escalations", "AUTO_ESCALATE", {
-      escalation_id: row.id,
-      task_id: row.task_id,
-    });
-  }
+  // One audit request for the whole sweep, not one round trip per escalation.
+  for (const row of data ?? []) openEscalationTaskIds.add(row.task_id ?? "");
+  await writeAuditMany(
+    supabase,
+    userId,
+    "dev_manager.escalations",
+    "AUTO_ESCALATE",
+    (data ?? []).map((row) => ({ escalation_id: row.id, task_id: row.task_id })),
+  );
   return data?.length ?? 0;
 }
 
@@ -168,14 +192,19 @@ function buildPerformance(tasks: TaskRow[], devById: Map<string, DeveloperRow>, 
   const windowStart = now - 30 * 86_400_000;
   const halfway = now - 15 * 86_400_000;
 
+  // Completed tasks in the window, grouped once by developer (the per-developer
+  // filter over every task was developers x tasks work on each overview read).
+  const completedByDev = new Map<string, TaskRow[]>();
+  for (const t of tasks) {
+    if (!t.developer_id || t.status !== "completed" || t.completed_at === null) continue;
+    if (new Date(t.completed_at).getTime() < windowStart) continue;
+    const list = completedByDev.get(t.developer_id);
+    if (list) list.push(t);
+    else completedByDev.set(t.developer_id, [t]);
+  }
+
   for (const dev of devById.values()) {
-    const completed = tasks.filter(
-      (t) =>
-        t.developer_id === dev.id &&
-        t.status === "completed" &&
-        t.completed_at !== null &&
-        new Date(t.completed_at).getTime() >= windowStart,
-    );
+    const completed = completedByDev.get(dev.id) ?? [];
     if (completed.length === 0) continue;
 
     const onTime = completed.filter(
@@ -430,6 +459,26 @@ export async function reassignTaskInDb(
     reason,
   }, actor);
 
+  // The developer who receives the task hears about it (the bell reads
+  // user_notifications). A failed notice does not undo the reassignment.
+  const { data: dev } = await supabase
+    .from("developers" as never)
+    .select("user_id")
+    .eq("id" as never, newDeveloperId as never)
+    .maybeSingle();
+  const devUser = (dev as { user_id: string | null } | null)?.user_id;
+  if (devUser) {
+    await supabase.from("user_notifications" as never).insert({
+      user_id: devUser,
+      type: "info",
+      message: `A task was assigned to you: "${(task as { title?: string | null }).title ?? ""}".`,
+      event_type: "developer.task.assigned",
+      action_url: "/dashboard/developer?module=tasks",
+      dedupe_key: `developer.assign:${taskId}:${newDeveloperId}:${Date.now()}`,
+      data: { task_id: taskId, reason },
+    } as never);
+  }
+
   return { ok: true as const };
 }
 
@@ -487,7 +536,9 @@ export async function updateEscalationInDb(
   resolution: string | null,
   actor?: string,
 ) {
-  const patch: Database["public"]["Tables"]["escalations"]["Update"] = { status };
+  // The table is developer_task_escalations (there is no `escalations`); these
+  // are the columns this update writes.
+  const patch: { status: EscalationStatus; resolved_at?: string; resolution?: string | null } = { status };
   if (status === "resolved" || status === "rejected") {
     patch.resolved_at = new Date().toISOString();
     patch.resolution = resolution;
@@ -537,30 +588,45 @@ export async function loadAuditTrail(
   const from = (page - 1) * pageSize;
   let query = supabase
     .from("audit_logs")
-    .select("id, module, action, user_id, role, meta_json, timestamp", { count: "exact" })
-    .order("timestamp", { ascending: false });
+    .select("id, entity_type, entity_id, action, actor, metadata, occurred_at", { count: "exact" })
+    .order("occurred_at", { ascending: false });
 
-  if (moduleFilter && moduleFilter !== "all") query = query.eq("module", moduleFilter);
+  // The screen's filter names a group; the rows carry the entity_type their
+  // writer used (dev_manager.tasks, dev_manager.escalations, dev_manager.registry,
+  // dev_manager.notes, and developer_management from the registry screen).
+  if (moduleFilter === "dev_manager") {
+    query = query.or("entity_type.like.dev_manager.*,entity_type.eq.developer_management");
+  } else if (moduleFilter === "escalations" || moduleFilter === "tasks") {
+    query = query.eq("entity_type", `dev_manager.${moduleFilter}`);
+  } else if (moduleFilter === "auth") {
+    query = query.like("entity_type", "auth*");
+  } else if (moduleFilter && moduleFilter !== "all") {
+    query = query.eq("entity_type", moduleFilter);
+  }
   if (search.trim()) query = query.ilike("action", `%${search.trim()}%`);
 
   const { data, error, count } = await query.range(from, from + pageSize - 1);
   if (error) throw new Error(`Audit trail unavailable: ${error.message}`);
 
+  const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
   const entries = (data ?? []).map((row) => {
-    const meta = (row.meta_json ?? null) as Record<string, unknown> | null;
+    const meta = (row.metadata ?? null) as Record<string, unknown> | null;
     const target =
       (meta?.["taskCode"] as string | undefined) ??
       (meta?.["taskId"] as string | undefined) ??
       (meta?.["escalationId"] as string | undefined) ??
+      row.entity_id ??
       "—";
+    // The actor is a user id or a named actor (a role, an email, "system").
+    const roleLabel = meta?.["actor"] as string | undefined;
     return {
       id: row.id,
       shortId: `LOG-${row.id.slice(0, 8).toUpperCase()}`,
-      module: row.module,
+      module: row.entity_type,
       action: row.action,
-      actor: row.role ? `${row.role}` : (row.user_id ?? "system").slice(0, 8),
+      actor: uuidLike.test(row.actor) ? (roleLabel ?? row.actor.slice(0, 8)) : row.actor,
       target,
-      timestamp: row.timestamp,
+      timestamp: row.occurred_at,
       meta: meta ? JSON.stringify(meta) : null,
     };
   });
@@ -611,6 +677,7 @@ export async function setDeveloperStatusInDb(
   status: "active" | "suspended" | "probation" | "exited",
   reason: string,
   actor?: string,
+  userId: string | null = null,
 ) {
   const { data: before, error: readErr } = await supabase
     .from("developers")
@@ -627,7 +694,7 @@ export async function setDeveloperStatusInDb(
 
   await writeAudit(
     supabase,
-    null,
+    userId,
     "dev_manager.registry",
     `DEVELOPER_${status.toUpperCase()}`,
     { developer_id: developerId, vala_id: before.vala_id, from: before.status, to: status, reason },

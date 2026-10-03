@@ -54,6 +54,7 @@ export const Route = createFileRoute("/")({
           : "Live demos, full source code, 1 year free support and lifetime access.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: absoluteUrl("/") },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     };

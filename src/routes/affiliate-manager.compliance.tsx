@@ -12,6 +12,7 @@ export const Route = createFileRoute("/affiliate-manager/compliance")({
       description="Identity, tax, KYC, anti-fraud alerts and policy risk across every affiliate."
       crumbLabel="Compliance"
       table="compliance_alerts"
+      unavailable="Affiliate compliance alerts (identity, tax, KYC, fraud) are not recorded on the platform yet."
       searchColumns={["message"]}
       searchPlaceholder="Search alerts…"
       filters={["Severity", "Category", "Status", "Date"]}

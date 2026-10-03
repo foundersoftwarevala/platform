@@ -44,7 +44,12 @@ async function readAll<T>(table: string, select: string, filter = ""): Promise<T
     const response = await rest(
       `${table}?select=${select}${filter}&limit=${PAGE}&offset=${offset}&order=id`,
     );
-    if (!response.ok) break;
+    // A failed page is a failed audit. Stopping quietly here recorded a
+    // "completed" audit over part of the catalogue - or none of it - with a
+    // score computed from whatever had been read.
+    if (!response.ok) {
+      throw new CatalogueAuditError(`Could not read ${table}`, 502, `HTTP ${response.status} at offset ${offset}`);
+    }
     const rows = (await response.json()) as T[];
     out.push(...rows);
     if (rows.length < PAGE) break;
@@ -383,11 +388,17 @@ export async function runCatalogueAudit(): Promise<CatalogueAudit> {
   const capped = issues.slice(0, 500);
   const now = new Date().toISOString();
   if (capped.length) {
-    await rest("seo_issues", {
+    const written = await rest("seo_issues", {
       method: "POST",
       headers: { Prefer: "return=minimal" },
       body: JSON.stringify(capped.map((i) => ({ ...i, status: "open", detected_at: now }))),
     });
+    // The audit row is in; the issue rows are not. Said, rather than reported
+    // to the operator as a clean run.
+    if (!written.ok) {
+      const detail = await written.text();
+      throw new CatalogueAuditError("The audit was recorded but its issues were not", 502, detail.slice(0, 200));
+    }
   }
 
   return {

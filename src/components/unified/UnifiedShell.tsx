@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export type UnifiedNavItem = {
   id: string;
@@ -64,7 +65,7 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
   activeId,
   onSelect,
   onBack,
-  backLabel = "Back",
+  backLabel,
   onLogout,
   topbarRight,
   topbarTitle,
@@ -75,6 +76,8 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
   collapsible = true,
   defaultCollapsed = false,
 }) => {
+  const { t } = useTranslation();
+  const backText = backLabel ?? t("devmanager.shell.back");
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -96,10 +99,11 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
         <div className="px-3 pt-3 pb-2 border-b border-sidebar-border">
           <button
             onClick={onBack}
+            aria-label={collapsed ? backText : undefined}
             className="ams-nav-item w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground"
           >
             <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-            {!collapsed && <span>{backLabel}</span>}
+            {!collapsed && <span>{backText}</span>}
           </button>
         </div>
       )}
@@ -109,7 +113,7 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
           {BrandIcon ? (
             <BrandIcon className="h-5 w-5 text-brand-foreground" />
           ) : (
-            <span className="text-brand-foreground font-bold">SV</span>
+            <span className="text-brand-foreground font-bold" data-no-translate>SV</span>
           )}
         </div>
         {!collapsed && (
@@ -127,7 +131,10 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
         )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 py-4 space-y-5">
+      <nav
+        className="flex-1 overflow-y-auto scrollbar-thin px-2 py-4 space-y-5"
+        aria-label={t("devmanager.shell.navigation")}
+      >
         {visibleGroups.map((group) => (
           <div key={group.title}>
             {!collapsed && (
@@ -149,6 +156,8 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
                       setMobileOpen(false);
                     }}
                     title={collapsed ? item.label : undefined}
+                    aria-label={collapsed ? item.label : undefined}
+                    aria-current={active ? "page" : undefined}
                     className={cn(
                       "ams-nav-item ams-press group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm",
                       active
@@ -179,7 +188,9 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
           </div>
         ))}
         {visibleGroups.length === 0 && !collapsed && (
-          <p className="px-3 text-xs text-muted-foreground">No modules match “{query}”.</p>
+          <p className="px-3 text-xs text-muted-foreground" role="status" aria-live="polite">
+            {t("devmanager.shell.no_match", { query })}
+          </p>
         )}
       </nav>
 
@@ -187,11 +198,12 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
         <div className="p-3 border-t border-sidebar-border">
           <button
             onClick={onLogout}
-            title={collapsed ? "Secure Logout" : undefined}
+            title={collapsed ? t("devmanager.shell.logout") : undefined}
+            aria-label={collapsed ? t("devmanager.shell.logout") : undefined}
             className="ams-nav-item w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-destructive hover:bg-destructive/10"
           >
             <LogOut className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>Secure Logout</span>}
+            {!collapsed && <span>{t("devmanager.shell.logout")}</span>}
           </button>
         </div>
       )}
@@ -200,7 +212,10 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
         <button
           onClick={() => setCollapsed((c) => !c)}
           className="hidden lg:flex items-center justify-center h-8 border-t border-sidebar-border text-muted-foreground hover:text-foreground hover:bg-white/5"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={
+            collapsed ? t("devmanager.shell.expand_sidebar") : t("devmanager.shell.collapse_sidebar")
+          }
+          aria-expanded={!collapsed}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -241,6 +256,7 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
               <div className="flex justify-end p-2">
                 <button
                   onClick={() => setMobileOpen(false)}
+                  aria-label={t("devmanager.shell.close_menu")}
                   className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-white/5"
                 >
                   <X className="h-4 w-4" />
@@ -259,7 +275,8 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
             <button
               onClick={() => setMobileOpen(true)}
               className="lg:hidden h-9 w-9 rounded-lg bg-surface-2 border border-border flex items-center justify-center text-muted-foreground hover:text-foreground"
-              aria-label="Open menu"
+              aria-label={t("devmanager.shell.open_menu")}
+              aria-expanded={mobileOpen}
             >
               <Menu className="h-4 w-4" />
             </button>
@@ -274,8 +291,8 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search modules…"
-                  aria-label="Search modules"
+                  placeholder={t("devmanager.shell.search_placeholder")}
+                  aria-label={t("devmanager.shell.search_label")}
                   className="h-9 pl-9 text-xs"
                 />
               </div>
@@ -283,7 +300,9 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  aria-label={`Notifications (${notifications.length})`}
+                  aria-label={t("devmanager.shell.notifications_count", {
+                    count: notifications.length,
+                  })}
                   className="relative h-9 w-9 rounded-lg bg-surface-2 border border-border flex items-center justify-center text-muted-foreground hover:text-foreground"
                 >
                   <Bell className="h-4 w-4" />
@@ -295,10 +314,10 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("devmanager.shell.notifications")}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {notifications.length === 0 ? (
-                  <DropdownMenuItem disabled>Nothing needs attention</DropdownMenuItem>
+                  <DropdownMenuItem disabled>{t("devmanager.shell.nothing")}</DropdownMenuItem>
                 ) : (
                   notifications.map((n) => (
                     <DropdownMenuItem
@@ -320,7 +339,8 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto ams-section-enter">
+        {/* The skip link every page carries (SkipToContent in __root) lands here. */}
+        <main id="main-content" className="flex-1 overflow-auto ams-section-enter">
           <div className="p-4 md:p-6">{children}</div>
         </main>
 

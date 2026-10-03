@@ -41,6 +41,8 @@ export const RESELLER_MESSAGES = {
   "reseller.plans.submitted": "Payment submitted for finance verification.",
   "reseller.plans.choose_order": "Choose the order you are paying.",
   "reseller.plans.loading_short": "Loading…",
+  "reseller.plans.no_rails":
+    "No payment method is switched on yet, so a payment cannot be submitted. Software Vala Finance enables payment methods.",
 
   // Finance Manager → Reseller memberships
   "reseller.queue.tab": ["Reseller memberships", "Finance Manager tab"],
@@ -137,4 +139,23 @@ export const RESELLER_MESSAGES = {
   "reseller.licences.no_expiry": "No expiry",
   "reseller.local_only":
     "This module is not connected to server storage yet: entries stay in this browser tab only and are lost on reload.",
+  "reseller.manager.nothing_to_release": "Nothing to release: no commission line has passed its holding period.",
+  "reseller.manager.link_copied": ["Copied {url}", "confirmation after a referral link is copied"],
+  "reseller.manager.link_copy_failed": "The link could not be copied; select it and copy it by hand.",
+  "reseller.manager.pause_prompt": "Pause this reseller? Their referral links stop attributing until they are approved again. Reason (optional):",
+  "reseller.manager.suspend_prompt": "Why is this reseller being suspended? Their referral links stop attributing and this is recorded.",
+  "reseller.manager.reject_prompt": "Why is this application being rejected? This is recorded and sent to the applicant.",
+  "reseller.manager.terminate_prompt": "Why is this reseller being terminated? Termination is final: the reseller role is removed, referral links stop, and returning means a new application.",
+  "reseller.manager.terminate_confirm": ["Terminate {name}? This cannot be undone.", "confirmation before ending a reseller account"],
+  "reseller.walls.audience_recorded": ["Audience recorded:", "label before the audience a broadcast was saved for"],
+  "reseller.walls.not_delivered": "(not delivered from this wall)",
+  "reseller.manager.released": "{count, plural, one {# commission line released and now payable.} other {# commission lines released and now payable.}}",
+  "reseller.manager.list_capped": "Showing the newest {limit} matching resellers; there may be more.",
+  "reseller.manager.list_narrow": "Narrow the search or status to see the rest.",
+  "reseller.manager.pause": ["Pause", "button that pauses a reseller account"],
+  "reseller.manager.suspend": ["Suspend", "button that suspends a reseller account"],
+  "reseller.manager.reject": ["Reject", "button that rejects a reseller application"],
+  "reseller.manager.terminate": ["Terminate", "button that ends a reseller account for good"],
+  "reseller.manager.show_more": "Show more",
+  "reseller.manager.plan_confirm": ["Put {name} on the {plan} plan ({percent}% margin)? It sets what they earn on every sale.", "confirmation before assigning a reseller plan"],
 } as const;

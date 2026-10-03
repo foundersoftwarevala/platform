@@ -36,7 +36,13 @@ export const Route = createFileRoute("/marketplace/country/$country")({
   loader: async ({ params }): Promise<Loaded> => {
     try {
       const seo = await getCountrySeo({ data: { slug: params.country } });
-      if (!seo) return { seo: null, cards: [], total: 0, hasMore: false };
+      if (!seo) {
+        // No such country: 404 as well as noindex, not a soft 200.
+        if (typeof window === "undefined") {
+          (await import("@/lib/seo/not-found.server")).respondNotFound();
+        }
+        return { seo: null, cards: [], total: 0, hasMore: false };
+      }
 
       // The first page is fetched on the server rather than in the browser, so
       // the document itself carries the product links.

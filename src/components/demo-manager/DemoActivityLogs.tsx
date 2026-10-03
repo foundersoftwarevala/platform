@@ -69,11 +69,13 @@ const DemoActivityLogs = () => {
     queryKey: ['demo-manager', 'activity-logs'],
     queryFn: async (): Promise<ActivityLog[]> => {
       const [audit, validations] = await Promise.all([
+        // Demo manager actions are written to demo_url_audit_log; automated
+        // monitor pings and syncs are left out so people's actions show.
         supabase
-          .from('audit_logs')
-          .select('id, action, module, meta_json, timestamp')
-          .ilike('module', '%demo%')
-          .order('timestamp', { ascending: false })
+          .from('demo_url_audit_log')
+          .select('id, demo_url_id, action, metadata, created_at')
+          .not('action', 'in', '(demo_url.monitor,demo_url.sync)')
+          .order('created_at', { ascending: false })
           .limit(150),
         supabase
           .from('demo_validation_logs')
@@ -89,18 +91,19 @@ const DemoActivityLogs = () => {
       const entries: ActivityLog[] = [];
 
       (audit.data ?? []).forEach((row) => {
-        const ts = row.timestamp;
+        const ts = row.created_at;
+        const moduleName = readMeta(row.metadata, ['module']) ?? 'demo';
         entries.push({
           id: `audit-${row.id}`,
           action: actionFromString(row.action ?? ''),
           demoTitle:
-            readMeta(row.meta_json, ['title', 'demo_title', 'demo_name', 'name']) ?? row.module ?? 'Demo',
-          demoId: readMeta(row.meta_json, ['demo_id', 'id']) ?? '—',
+            readMeta(row.metadata, ['title', 'demo_title', 'demo_name', 'name']) ?? moduleName,
+          demoId: readMeta(row.metadata, ['demo_id', 'id']) ?? row.demo_url_id ?? '—',
           timestamp: relative(ts),
           sortKey: ts ? new Date(ts).getTime() : 0,
-          details: `${row.action} · module ${row.module}`,
-          previousValue: readMeta(row.meta_json, ['previous', 'old_value', 'from']),
-          newValue: readMeta(row.meta_json, ['next', 'new_value', 'to']),
+          details: `${row.action} · module ${moduleName}`,
+          previousValue: readMeta(row.metadata, ['previous', 'old_value', 'from']),
+          newValue: readMeta(row.metadata, ['next', 'new_value', 'to']),
         });
       });
 

@@ -176,7 +176,9 @@ export async function rolesOf(request: Request): Promise<{ roles: string[]; via:
       .then((r) => (r.ok ? r.json() : []))
       .catch(() => []);
     return {
-      roles: (rows as { role: string }[]).map((r) => String(r.role)),
+      // Lower-cased and trimmed, as the operator guard reads them: a row
+      // stored as "Admin" passed the guard and was then refused every action.
+      roles: (rows as { role: string }[]).map((r) => String(r.role).toLowerCase().trim()).filter(Boolean),
       via: `user:${user.id}`,
     };
   } catch {
