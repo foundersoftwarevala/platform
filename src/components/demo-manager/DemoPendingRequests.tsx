@@ -59,19 +59,21 @@ const DemoPendingRequests = () => {
     queryFn: async (): Promise<PendingRequest[]> => {
       const { data: rows, error: queryError } = await supabase
         .from('demo_requests')
-        .select('id, client_name, client_email, company_name, phone, interested_category, message, created_at')
+        .select('id, requester_name, requester_email, company, message, created_at, product:marketplace_products(name)')
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
         .limit(200);
       if (queryError) throw queryError;
 
+      // demo_requests has no phone or category column; the requested product
+      // names what the request is for.
       return (rows ?? []).map((row) => ({
         id: row.id,
-        requesterName: row.client_name,
-        company: row.company_name ?? '—',
-        email: row.client_email,
-        phone: row.phone,
-        category: row.interested_category ?? 'Unspecified',
+        requesterName: row.requester_name,
+        company: row.company ?? '—',
+        email: row.requester_email,
+        phone: null,
+        category: (row.product as { name: string } | null)?.name ?? 'Unspecified',
         requestedAt: relative(row.created_at),
         reason: row.message?.trim() || 'No message provided with this request.',
         priority: priorityFromAge(row.created_at),
@@ -85,17 +87,29 @@ const DemoPendingRequests = () => {
     setBusyId(id);
     try {
       const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) throw new Error('Sign in to respond to requests');
       const { error: updateError } = await supabase
         .from('demo_requests')
         .update({
           status,
-          responded_at: new Date().toISOString(),
-          responded_by: auth.user?.id ?? null,
-          ...(notes ? { notes } : {}),
+          updated_at: new Date().toISOString(),
         })
         .eq('id', id);
 
       if (updateError) throw updateError;
+
+      // demo_requests has no responder or notes columns: who responded, when,
+      // and the rejection reason are recorded in the demo audit log.
+      const { error: logError } = await supabase.from('demo_url_audit_log').insert({
+        actor_id: auth.user.id,
+        actor_email: auth.user.email ?? null,
+        action: `demo_request.${status}`,
+        metadata: { demo_request_id: id, status, ...(notes ? { reason: notes } : {}) },
+      });
+      if (logError) {
+        await queryClient.invalidateQueries({ queryKey: pendingKey });
+        throw new Error(`request ${status}, but its record could not be saved (${logError.message})`);
+      }
       await queryClient.invalidateQueries({ queryKey: pendingKey });
       await queryClient.invalidateQueries({ queryKey: ['demo-manager', 'demo-requests'] });
       toast.success(

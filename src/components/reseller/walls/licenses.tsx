@@ -2,7 +2,8 @@ import { KeyRound, CheckCircle2, XCircle, Clock, ShieldCheck, Activity } from "l
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
-const STATUSES = ["active", "revoked", "expired", "suspended"] as const;
+// The table's own vocabulary (licenses_status_check).
+const STATUSES = ["active", "revoked", "expired"] as const;
 
 /**
  * Licences, read and written on the licenses table.
@@ -54,7 +55,10 @@ export const config: WallConfig = {
   ],
   rowActions: [
     { key: "activate", label: "Reinstate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Clock, patch: { status: "suspended" } },
+    {
+      key: "suspend", label: "Suspend", icon: Clock,
+      unavailable: "A licence is active, revoked or expired; there is no suspended state to put it in.",
+    },
     { key: "revoke", label: "Revoke", icon: ShieldCheck, patch: { status: "revoked" }, destructive: true },
   ],
   formFields: [

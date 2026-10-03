@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { validZone, zonedBoundaries } from "@/lib/server/zoned-day";
 
 /**
  * Activity, audit and version history, from the records that exist.
@@ -44,17 +45,51 @@ async function read(path: string): Promise<Row[]> {
   }
 }
 
-/** Whether a table exists at all, rather than assuming it does. */
-async function exists(table: string): Promise<boolean> {
+/**
+ * Whether a table exists at all, rather than assuming it does. A 401 or 500
+ * is not an answer: it used to count as "exists", so an outage reported that
+ * a backup table was present.
+ */
+async function exists(table: string): Promise<"yes" | "no" | "unknown"> {
   try {
     const response = await fetch(`${url()}/rest/v1/${table}?select=*&limit=1`, { headers: admin() });
-    return response.status !== 404;
+    if (response.ok) return "yes";
+    return response.status === 404 ? "no" : "unknown";
   } catch {
-    return false;
+    return "unknown";
   }
 }
 
-const ROLLBACK = /rollback|restore|revert/i;
+/** A capability's state from what the probe could actually establish. */
+function capability(has: "yes" | "no" | "unknown", table: string, yes: string, no: string) {
+  if (has === "unknown") {
+    return { state: "UNKNOWN", detail: `Whether ${table} exists could not be read just now.` };
+  }
+  return has === "yes"
+    ? { state: "PARTIALLY_CONNECTED", detail: yes }
+    : { state: "NOT_IMPLEMENTED", detail: no };
+}
+
+/** A count made by the database over the whole table, or null. */
+async function countOf(path: string): Promise<number | null> {
+  try {
+    const response = await fetch(`${url()}/rest/v1/${path}&limit=1`, {
+      headers: { ...admin(), Prefer: "count=exact" },
+    });
+    if (!response.ok) return null;
+    const total = Number((response.headers.get("content-range") ?? "").split("/")[1]);
+    return Number.isFinite(total) ? total : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A rollback is an action that names one. "restore" alone also matched a hero
+ * slide being taken out of the archive, which is not a rollback.
+ */
+const ROLLBACK = /rollback|revert|layout[ ._]restore/i;
+const ROLLBACK_FILTER = "or=(action.ilike.*rollback*,action.ilike.*revert*,action.ilike.*layout*restore*)";
 
 export const Route = createFileRoute("/api/governance/console")({
   server: {
@@ -65,13 +100,12 @@ export const Route = createFileRoute("/api/governance/console")({
         if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
 
         const params = new URL(request.url).searchParams;
-        const timeZone = (params.get("tz") || "Asia/Kolkata").slice(0, 60);
-        const parts = new Intl.DateTimeFormat("en-CA", {
-          timeZone, year: "numeric", month: "2-digit", day: "2-digit",
-        }).formatToParts(new Date());
-        const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "01";
-        const startOfDay = new Date(`${get("year")}-${get("month")}-${get("day")}T00:00:00`).toISOString();
+        // The operator's own midnight, as a real instant (it was read in the
+        // server's zone), and a zone the runtime knows (an unknown one threw).
+        const timeZone = validZone(params.get("tz"));
+        const { startOfDay } = zonedBoundaries(timeZone);
         const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+        const nowIso = new Date().toISOString();
 
         const [events, versions, scheduledPublish, scheduledUnpublish, hasBackups, hasSchedules, hasApprovals, hasBulk] =
           await Promise.all([
@@ -80,14 +114,27 @@ export const Route = createFileRoute("/api/governance/console")({
                 "reason,module,request_id,created_at,before_state,after_state&order=created_at.desc&limit=500",
             ),
             read("marketplace_product_versions?select=*&order=created_at.desc&limit=50"),
-            read("marketplace_products?select=id,name,slug,publish_at,visible&publish_at=not.is.null&order=publish_at.asc&limit=100"),
-            read("marketplace_products?select=id,name,slug,unpublish_at,visible&unpublish_at=not.is.null&order=unpublish_at.asc&limit=100"),
+            // Only what is still to come, and only products still in the
+            // catalogue: a publish date last month is history, not a schedule.
+            read(`marketplace_products?select=id,name,slug,publish_at,visible&publish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null&order=publish_at.asc&limit=100`),
+            read(`marketplace_products?select=id,name,slug,unpublish_at,visible&unpublish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null&order=unpublish_at.asc&limit=100`),
             exists("marketplace_backups"),
             exists("marketplace_schedules"),
             exists("marketplace_approvals"),
             exists("marketplace_bulk_operations"),
           ]);
 
+        // Counted by the database over the whole trail. These were counted
+        // from the newest 500 rows, so a busy week stopped at 500 and an old
+        // rollback dropped out of "Rollbacks".
+        const [todayCount, weekCount, rollbackCount, scheduledPublishCount, scheduledUnpublishCount] =
+          await Promise.all([
+            countOf(`marketplace_audit_logs?select=id&created_at=gte.${encodeURIComponent(startOfDay)}`),
+            countOf(`marketplace_audit_logs?select=id&created_at=gte.${encodeURIComponent(weekAgo)}`),
+            countOf(`marketplace_audit_logs?select=id&${ROLLBACK_FILTER}`),
+            countOf(`marketplace_products?select=id&publish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null`),
+            countOf(`marketplace_products?select=id&unpublish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null`),
+          ]);
         const today = events.filter((e) => String(e.created_at ?? "") >= startOfDay);
         const week = events.filter((e) => String(e.created_at ?? "") >= weekAgo);
         const rollbacks = events.filter((e) => ROLLBACK.test(String(e.action ?? "")));
@@ -108,14 +155,17 @@ export const Route = createFileRoute("/api/governance/console")({
           ok: true,
           timezone: timeZone,
           metrics: {
-            events_today: today.length,
-            events_7d: week.length,
+            events_today: todayCount ?? today.length,
+            events_7d: weekCount ?? week.length,
             events_held: events.length,
             // Counted from the audit trail itself: an action naming a rollback,
             // restore or revert. Zero means none was ever recorded.
-            rollbacks: rollbacks.length,
+            rollbacks: rollbackCount ?? rollbacks.length,
             versions: versions.length,
-            scheduled: scheduledPublish.length + scheduledUnpublish.length,
+            scheduled:
+              scheduledPublishCount !== null && scheduledUnpublishCount !== null
+                ? scheduledPublishCount + scheduledUnpublishCount
+                : scheduledPublish.length + scheduledUnpublish.length,
           },
           activity: events.slice(0, 60).map((e) => ({
             id: e.id,
@@ -165,25 +215,27 @@ export const Route = createFileRoute("/api/governance/console")({
                 ? `${versions.length} version record(s) held.`
                 : "marketplace_product_versions exists and is empty. No product change has ever written a version, so there is nothing to diff or roll back to.",
             },
-            backups: {
-              state: hasBackups ? "PARTIALLY_CONNECTED" : "NOT_IMPLEMENTED",
-              detail: hasBackups
-                ? "A backup table exists."
-                : "There is no backup system. marketplace_backups does not exist, nothing has ever taken a backup, and no restore is possible. This is reported rather than shown as a number because a backup count is what somebody relies on the day they need a restore.",
+            backups: capability(
+              hasBackups,
+              "marketplace_backups",
+              "A backup table exists.",
+              "There is no backup system. marketplace_backups does not exist, nothing has ever taken a backup, and no restore is possible. This is reported rather than shown as a number because a backup count is what somebody relies on the day they need a restore.",
+            ),
+            approvals: capability(
+              hasApprovals,
+              "marketplace_approvals",
+              "An approvals table exists.",
+              "marketplace_approvals does not exist. Author submissions have their own approval workflow with a real state machine; this module has none of its own.",
+            ),
+            bulk_operations: capability(
+              hasBulk,
+              "marketplace_bulk_operations",
+              "A bulk operations table exists.",
+              "marketplace_bulk_operations does not exist, so a bulk run has no operation id to group its audit rows under.",
+            ),
+            schedule_table: {
+              state: hasSchedules === "unknown" ? "UNKNOWN" : hasSchedules === "yes" ? "PRESENT" : "ABSENT",
             },
-            approvals: {
-              state: hasApprovals ? "PARTIALLY_CONNECTED" : "NOT_IMPLEMENTED",
-              detail: hasApprovals
-                ? "An approvals table exists."
-                : "marketplace_approvals does not exist. Author submissions have their own approval workflow with a real state machine; this module has none of its own.",
-            },
-            bulk_operations: {
-              state: hasBulk ? "PARTIALLY_CONNECTED" : "NOT_IMPLEMENTED",
-              detail: hasBulk
-                ? "A bulk operations table exists."
-                : "marketplace_bulk_operations does not exist, so a bulk run has no operation id to group its audit rows under.",
-            },
-            schedule_table: { state: hasSchedules ? "PRESENT" : "ABSENT" },
           },
         });
       },

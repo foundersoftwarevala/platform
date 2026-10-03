@@ -201,9 +201,9 @@ function Field({ label, hint, children }: {
 /** Where a section's content is actually managed. */
 const OWNER_ROUTE: Record<string, { label: string; href: string }> = {
   "marketplace-manager": { label: "Marketplace Manager", href: "/marketplace-manager" },
-  "hero-slides-manager": { label: "Hero Slides", href: "/marketplace-manager?section=hero-banner" },
+  "hero-slides-manager": { label: "Hero Slides", href: "/marketplace-manager?section=hero" },
   "marketing-manager":   { label: "Marketing Manager", href: "/marketing" },
-  "content-studio":      { label: "Content Studio", href: "/marketplace-manager?section=product-content" },
+  "content-studio":      { label: "Content Studio", href: "/marketplace-manager?section=Product%20Content" },
   "ai-manager":          { label: "AI Manager", href: "/ams/ai" },
   "ams-manager":         { label: "AMS Manager", href: "/ams-manager" },
 };

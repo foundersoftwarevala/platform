@@ -202,6 +202,10 @@ export const Route = createFileRoute("/api/actions/registry")({
           }),
         }).catch((error) => console.error("[actions] audit failed", error));
 
+        // The storefront holds the action config for a minute; empty it so a
+        // button switched off here is gone for the next visitor.
+        const { catalogueChanged } = await import("@/lib/marketplace/catalogue-invalidation");
+        catalogueChanged();
         return Response.json({ ok: true, actions: clean });
       },
     },

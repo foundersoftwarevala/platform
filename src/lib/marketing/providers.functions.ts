@@ -44,6 +44,10 @@ function hasAny(...names: string[]): { ok: boolean; present: string[] } {
 
 export const getMarketingProviders = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ providers: ProviderStatus[]; connected: number; total: number }> => {
+    // Which credentials this server holds is for the people who run it. This
+    // had no check, so anyone could ask and read the list of names.
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Reading the marketing channels", { alsoAllow: ["marketing", "seo"] });
     const email = hasAny("SMTP_HOST", "SENDGRID_API_KEY", "RESEND_API_KEY", "POSTMARK_TOKEN");
     const sms = hasAny("TWILIO_ACCOUNT_SID", "SMS_PROVIDER_KEY", "MSG91_KEY");
     const whatsapp = hasAny("WHATSAPP_TOKEN", "WHATSAPP_PHONE_ID", "META_WA_TOKEN");

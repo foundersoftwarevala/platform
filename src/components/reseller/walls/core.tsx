@@ -3,7 +3,7 @@ import {
   ShoppingCart, Trash2, TrendingUp, UserCheck, Users,
 } from "lucide-react";
 
-import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
+import { StatusPill, type WallConfig, type WallRow } from "@/components/manager-suite/wall";
 
 const TIERS = ["bronze", "silver", "gold", "platinum"] as const;
 const RS_STATUS = ["pending", "active", "suspended", "rejected"] as const;
@@ -75,14 +75,33 @@ export const customersConfig: WallConfig = {
   subField: "company_name",
 };
 
-const OR_STATUS = ["pending", "paid", "failed", "cancelled", "refunded"] as const;
+// The table's own vocabulary (marketplace_orders_status_check).
+const OR_STATUS = [
+  "pending_payment", "paid", "processing", "fulfilled", "completed", "cancelled", "refunded", "disputed",
+] as const;
+
+const orderIs = (status: string) => (row: WallRow) => row.status === status;
+
+/** A sum per currency, because rupees and dollars do not add up. */
+const orderTotals = (rows: { currency?: unknown; total?: unknown }[]) => {
+  const totals = new Map<string, number>();
+  for (const r of rows) {
+    const c = String(r.currency ?? "");
+    totals.set(c, (totals.get(c) ?? 0) + Number(r.total ?? 0));
+  }
+  return [...totals].map(([c, v]) => `${c} ${v.toLocaleString()}`.trim()).join(" · ");
+};
 
 /**
  * Orders, read on marketplace_orders.
  *
  * An order is created by a purchase, never by an operator typing one in, and
  * its money is not editable from a screen. What this wall carries is the one
- * decision an operator has: cancelling an order, or reinstating it.
+ * decision an operator has: cancelling an order that was never paid, or
+ * reinstating a cancelled one to await payment again. A paid order is ended by
+ * a refund, which settles the money, the licence and the commission together;
+ * cancelling it did none of that, so it is not offered, and the endpoint and
+ * the database both refuse it.
  */
 export const ordersConfig: WallConfig = {
   resource: "orders",
@@ -117,27 +136,28 @@ export const ordersConfig: WallConfig = {
   kpis: [
     { label: "Total Orders", icon: ShoppingCart, compute: (r) => (r.length ? r.length : "—") },
     { label: "Paid", icon: CheckCircle2, compute: (r) => (r.length ? r.filter((x) => x.status === "paid").length : "—") },
-    { label: "Awaiting Payment", icon: Clock, compute: (r) => (r.length ? r.filter((x) => x.status === "pending").length : "—") },
+    { label: "Awaiting Payment", icon: Clock, compute: (r) => (r.length ? r.filter((x) => x.status === "pending_payment").length : "—") },
     {
       label: "Revenue", hint: "Paid orders", icon: DollarSign,
       compute: (r) => {
         const paid = r.filter((x) => x.status === "paid");
-        return paid.length ? `₹${paid.reduce((s, x) => s + Number(x.total ?? x.amount_inr ?? 0), 0).toLocaleString()}` : "—";
+        return paid.length ? orderTotals(paid) : "—";
       },
     },
   ],
   bulkActions: [
     {
       key: "cancel", label: "Cancel", icon: Pause, patch: { status: "cancelled" }, variant: "destructive",
+      when: orderIs("pending_payment"),
       confirmTitle: "Cancel these orders?",
-      confirmDescription: "The order stops being fulfilled. Nothing is refunded by this on its own.",
+      confirmDescription: "Only orders still awaiting payment are cancelled. A paid order is ended by a refund.",
     },
   ],
   rowActions: [
-    { key: "cancel", label: "Cancel", icon: Pause, patch: { status: "cancelled" }, destructive: true },
-    { key: "reinstate", label: "Reinstate", icon: CheckCircle2, patch: { status: "pending" } },
+    { key: "cancel", label: "Cancel", icon: Pause, patch: { status: "cancelled" }, destructive: true, when: orderIs("pending_payment") },
+    { key: "reinstate", label: "Reinstate", icon: CheckCircle2, patch: { status: "pending_payment" }, when: orderIs("cancelled") },
   ],
-  formFields: [{ key: "status", label: "Status", type: "select", options: OR_STATUS }],
+  formFields: [{ key: "status", label: "Status", type: "select", options: ["pending_payment", "cancelled"] }],
   searchFields: ["order_no", "order_number", "txnid", "status"],
   primaryField: "order_no",
   subField: "status",

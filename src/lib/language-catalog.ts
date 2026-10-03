@@ -29,6 +29,7 @@ import {
   type TextDirection,
 } from "@/lib/i18n/registry";
 import { formatMessage, type MessageValues } from "@/lib/i18n/format";
+import { TIER_LIMITS } from "@/lib/i18n/limits";
 import { looksLikeProductName } from "@/lib/i18n/names";
 import { messageContext, messageText } from "@/lib/i18n/messages";
 import { UI_DICTIONARY } from "@/lib/i18n/ui-dictionary";
@@ -145,13 +146,41 @@ function noteRendered(code: string, output: string, raw: string) {
  */
 const BATCH = 36;
 
+/*
+ * The request limits of the caller this browser is (src/lib/i18n/limits.ts):
+ * a batch never carries more items or characters than the endpoint accepts
+ * from it, and a string longer than one item may be is never sent. Signed in
+ * means the "user" limits (an operator's are larger still); otherwise the
+ * anonymous ones. Learned from the session whenever a request is made, and
+ * the strict anonymous limits until then.
+ */
+let signedIn = false;
+
+function requestLimits() {
+  return TIER_LIMITS[signedIn ? "user" : "anonymous"];
+}
+
+/** How often the language pack is checked again while the page is open. */
+const PACK_REFRESH_MS = 5 * 60_000;
+
 type RemoteState = {
   /** source string -> translation, for one language. */
   held: Record<string, string>;
   /** Strings asked for and not yet answered. */
   pending: Set<string>;
-  /** Strings the service answered without a usable translation this session. */
+  /**
+   * Strings the service answered without a usable translation. Cleared when a
+   * changed language pack arrives, so a string a reviewer has since approved
+   * is shown without a reload.
+   */
   unavailable: Set<string>;
+  /**
+   * Strings the endpoint refuses for their size (or a request it found
+   * invalid). Never sent again in this session, whatever the pack says.
+   */
+  refusedShape: Set<string>;
+  /** ETag of the last language pack applied. */
+  packTag: string | null;
   /** The service refused this language. */
   refused: boolean;
   /** No requests before this time (rate limit, quota, transient failure). */
@@ -178,14 +207,26 @@ const PACK_WAIT_MS = 4000;
  * `held`. Null when the pack is not available; the page then asks the
  * translation endpoint for what it needs, as before.
  */
-async function fetchLanguagePack(
-  code: string,
-): Promise<{ entries: Record<string, string>; withheld: string[]; locked: string[] } | null> {
+type LanguagePack = {
+  entries: Record<string, string>;
+  withheld: string[];
+  locked: string[];
+  tag: string | null;
+};
+
+async function fetchLanguagePack(code: string): Promise<LanguagePack | "disabled" | null> {
   try {
     const response = await fetch(`/api/i18n/pack?lang=${encodeURIComponent(code)}`, {
       headers: { Accept: "application/json" },
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      // An operator switched the language off: nothing for it will be served.
+      if (response.status === 400) {
+        const payload = (await response.json().catch(() => ({}))) as { reason?: string };
+        if (payload.reason === "language_disabled") return "disabled";
+      }
+      return null;
+    }
     const payload = (await response.json()) as {
       entries?: Record<string, string>;
       withheld?: string[];
@@ -198,6 +239,7 @@ async function fetchLanguagePack(
       locked: Array.isArray(payload.locked)
         ? payload.locked.filter((t): t is string => typeof t === "string" && t.length > 0)
         : [],
+      tag: response.headers.get("etag"),
     };
   } catch {
     return null;
@@ -255,8 +297,11 @@ type FetchOutcome = {
   translations: Record<string, string>;
   /** Strings answered without a usable translation. */
   unavailable: string[];
-  /** The engine is not configured anywhere: stop asking for every language. */
-  serviceDown: boolean;
+  /**
+   * The endpoint found the request itself invalid (400/413 invalid_request):
+   * asking again would be refused the same way, so the batch is not re-sent.
+   */
+  invalidRequest: boolean;
   /**
    * The engine did not answer this time (busy, timed out, restarting). The
    * batch is asked again after a back-off; nothing is given up for the session.
@@ -274,6 +319,7 @@ async function authorizationHeader(): Promise<Record<string, string>> {
     const { supabase } = await import("@/integrations/supabase/client");
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
+    signedIn = Boolean(token);
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch {
     return {};
@@ -289,7 +335,7 @@ async function fetchTranslations(
   const empty: FetchOutcome = {
     translations: {},
     unavailable: [],
-    serviceDown: false,
+    invalidRequest: false,
     engineUnavailable: false,
     refused: false,
     retryAfter: null,
@@ -319,11 +365,14 @@ async function fetchTranslations(
 
     if (!response.ok) {
       const reason = payload.reason ?? null;
+      if (reason === "invalid_request" && (response.status === 400 || response.status === 413)) {
+        // Refused for its shape (too long, too many): not a pause, no retry.
+        return { ...empty, invalidRequest: true, reason: payload.error ?? "Request refused." };
+      }
       return {
         ...empty,
         // "engine_unavailable" is also what a busy or restarting engine
         // answers, so it is a pause, not the end of translation for the visit.
-        serviceDown: reason === "ai_not_configured",
         engineUnavailable: reason === "engine_unavailable",
         refused: reason === "invalid_language",
         retryAfter: retryAfter ?? (response.status === 429 ? 60 : 30),
@@ -406,14 +455,45 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [version, setVersion] = useState(0);
 
   const remote = useRef<Record<string, RemoteState>>({});
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // One timer per language. A single shared timer let a new string for one
+  // language cancel another language's pending retry.
+  const timers = useRef(new Map<string, { handle: ReturnType<typeof setTimeout>; due: number }>());
   // drain is defined below; the language pack loader in stateFor calls it through this.
   const drainRef = useRef<((code: string) => void) | null>(null);
   const [service, setService] = useState<{ ready: boolean; reason: string | null }>({
     ready: true,
     reason: null,
   });
-  const serviceDown = useRef(false);
+
+  /**
+   * Run drain for a language after `delay` ms. A timer already due sooner is
+   * left alone, so a stream of new strings never keeps postponing a send.
+   */
+  const schedule = useCallback((code: string, delay: number) => {
+    const due = Date.now() + Math.max(0, delay);
+    const existing = timers.current.get(code);
+    if (existing && existing.due <= due) return;
+    if (existing) clearTimeout(existing.handle);
+    const handle = setTimeout(() => {
+      timers.current.delete(code);
+      drainRef.current?.(code);
+    }, Math.max(0, delay));
+    timers.current.set(code, { handle, due });
+  }, []);
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const { handle } of pending.values()) clearTimeout(handle);
+      pending.clear();
+    };
+  }, []);
+
+  // The session decides which request limits apply; learn it early, so the
+  // first batch is already built within the right ones.
+  useEffect(() => {
+    if (typeof window !== "undefined") void authorizationHeader();
+  }, []);
 
   const sync = useCallback(() => {
     const current = getCurrentLanguageFromService();
@@ -450,167 +530,241 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     setVersion((v) => v + 1);
   }, []);
 
-  const stateFor = useCallback((code: string): RemoteState => {
-    let state = remote.current[code];
-    if (!state) {
-      state = {
-        held: loadRemote(code),
-        pending: new Set(),
-        unavailable: new Set(),
-        refused: false,
-        blockedUntil: 0,
-        engineFailures: 0,
-        packUntil: typeof window === "undefined" ? 0 : Date.now() + PACK_WAIT_MS,
-        inFlight: new Set(),
-        locked: [],
-      };
-      remote.current[code] = state;
-      if (typeof window !== "undefined") {
-        const created = state;
-        void fetchLanguagePack(code).then((pack) => {
-          created.packUntil = 0;
-          if (pack) {
-            created.locked = pack.locked;
-            // Held for review on the server: shown in the fallback, not asked for.
-            for (const key of pack.withheld) {
-              if (typeof key !== "string" || created.held[key]) continue;
-              created.unavailable.add(key);
-              created.pending.delete(key);
-            }
-            let added = 0;
-            for (const [key, text] of Object.entries(pack.entries)) {
-              if (typeof text !== "string" || !text) continue;
-              if (created.held[key] !== text) {
-                created.held[key] = text;
-                added += 1;
-              }
-              created.pending.delete(key);
-            }
-            if (added > 0) {
-              saveRemote(code, created.held);
-              setVersion((v) => v + 1);
-            }
-          }
-          // Whatever the pack did not contain is asked for now.
-          if (created.pending.size > 0) {
-            if (timer.current) clearTimeout(timer.current);
-            timer.current = setTimeout(() => drainRef.current?.(code), 0);
-          }
-        });
+  /**
+   * Apply a language pack to a language's state. The pack is the server's
+   * current word: a string it holds back for review is taken out of what this
+   * browser remembers, and a string it serves replaces what is remembered.
+   * When the pack has changed since the last one, strings marked unavailable
+   * are asked about again (a reviewer may have approved them since).
+   */
+  const applyPack = useCallback(
+    (code: string, state: RemoteState, pack: LanguagePack | "disabled" | null) => {
+      state.packUntil = 0;
+      if (pack === "disabled") {
+        state.refused = true;
+        state.pending.clear();
+        return;
       }
-    }
-    return state;
-  }, []);
+      if (pack) {
+        let changed = false;
+        if (pack.tag !== state.packTag) {
+          if (state.packTag !== null) state.unavailable.clear();
+          state.packTag = pack.tag;
+        }
+        state.locked = pack.locked;
+        // Held for review or refused on the server: shown in the fallback and
+        // not asked for, and no longer served from this browser's memory.
+        for (const key of pack.withheld) {
+          if (typeof key !== "string") continue;
+          if (key in state.held) {
+            delete state.held[key];
+            changed = true;
+          }
+          state.unavailable.add(key);
+          state.pending.delete(key);
+        }
+        for (const [key, text] of Object.entries(pack.entries)) {
+          if (typeof text !== "string" || !text) continue;
+          if (state.held[key] !== text) {
+            state.held[key] = text;
+            changed = true;
+          }
+          state.unavailable.delete(key);
+          state.pending.delete(key);
+        }
+        if (changed) {
+          saveRemote(code, state.held);
+          setVersion((v) => v + 1);
+        }
+      }
+      // Whatever the pack did not contain is asked for now.
+      if (state.pending.size > 0) schedule(code, 0);
+    },
+    [schedule],
+  );
+
+  const stateFor = useCallback(
+    (code: string): RemoteState => {
+      let state = remote.current[code];
+      if (!state) {
+        state = {
+          held: loadRemote(code),
+          pending: new Set(),
+          unavailable: new Set(),
+          refusedShape: new Set(),
+          packTag: null,
+          refused: false,
+          blockedUntil: 0,
+          engineFailures: 0,
+          packUntil: typeof window === "undefined" ? 0 : Date.now() + PACK_WAIT_MS,
+          inFlight: new Set(),
+          locked: [],
+        };
+        remote.current[code] = state;
+        if (typeof window !== "undefined") {
+          const created = state;
+          void fetchLanguagePack(code).then((pack) => applyPack(code, created, pack));
+        }
+      }
+      return state;
+    },
+    [applyPack],
+  );
+
+  // While a language is shown, its pack is checked again now and then. The
+  // request is revalidated with its ETag, so an unchanged pack costs a 304.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const language = getLanguage(lang);
+    if (!language || language.code === DEFAULT_LANGUAGE || isSourceVariety(language)) return;
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      const state = remote.current[language.code];
+      if (!state || state.refused) return;
+      void fetchLanguagePack(language.code).then((pack) => {
+        if (pack) applyPack(language.code, state, pack);
+      });
+    }, PACK_REFRESH_MS);
+    return () => clearInterval(interval);
+  }, [lang, applyPack]);
 
   /**
    * Send whatever has piled up for a language. Runs on a short timer so a
    * screenful of strings becomes one or two requests.
    */
-  const drain = useCallback((code: string) => {
-    const state = remote.current[code];
-    if (!state || state.refused || serviceDown.current || state.pending.size === 0) return;
-    // The language pack usually answers everything; wait for it briefly.
-    if (state.packUntil > Date.now()) {
-      timer.current = setTimeout(() => drain(code), Math.min(200, state.packUntil - Date.now()));
-      return;
-    }
-    let answeredHere = false;
-    for (const entry of state.pending) {
-      if (state.held[entry]) {
-        state.pending.delete(entry);
-        continue;
-      }
-      // Only brand names ("Software Vala™"): shown as they are.
-      const text = entry.slice(entry.indexOf(SEPARATOR) + 1);
-      if (onlyLockedTerms(text, state.locked)) {
-        state.held[entry] = text;
-        state.pending.delete(entry);
-        answeredHere = true;
-      }
-    }
-    if (answeredHere) setVersion((v) => v + 1);
-    if (state.pending.size === 0) return;
-    const wait = state.blockedUntil - Date.now();
-    if (wait > 0) {
-      timer.current = setTimeout(() => drain(code), wait);
-      return;
-    }
-
-    // Strings are kept as `contexttext`; one request carries one context.
-    const first = state.pending.values().next().value as string;
-    const context = first.slice(0, first.indexOf(SEPARATOR));
-    const keys = Array.from(state.pending)
-      .filter((entry) => entry.startsWith(`${context}${SEPARATOR}`))
-      .slice(0, BATCH);
-    keys.forEach((entry) => {
-      state.pending.delete(entry);
-      state.inFlight.add(entry);
-    });
-    const batch = keys.map((entry) => entry.slice(context.length + 1));
-
-    void fetchTranslations(batch, code, context || null).then((outcome) => {
-      for (const entry of keys) state.inFlight.delete(entry);
-      const current = remote.current[code];
-      if (!current) return;
-
-      if (outcome.serviceDown) {
-        serviceDown.current = true;
-        current.pending.clear();
-        setService({ ready: false, reason: outcome.reason });
+  const drain = useCallback(
+    (code: string) => {
+      const state = remote.current[code];
+      if (!state || state.refused || state.pending.size === 0) return;
+      // The language pack usually answers everything; wait for it briefly.
+      if (state.packUntil > Date.now()) {
+        schedule(code, Math.min(200, state.packUntil - Date.now()));
         return;
       }
-      if (outcome.refused) {
-        current.refused = true;
-        current.pending.clear();
-        return;
-      }
-      if (outcome.engineUnavailable) {
-        current.engineFailures += 1;
-        outcome.retryAfter = Math.max(
-          outcome.retryAfter ?? 0,
-          engineBackoffSeconds(current.engineFailures),
-        );
-        setService({ ready: false, reason: outcome.reason });
-      } else if (!outcome.reason) {
-        if (current.engineFailures > 0) setService({ ready: true, reason: null });
-        current.engineFailures = 0;
-      }
-
-      const cacheKey = (text: string) => `${context}${SEPARATOR}${text}`;
-      let changed = false;
-      for (const [source, translated] of Object.entries(outcome.translations)) {
-        if (translated && translated !== current.held[cacheKey(source)]) {
-          current.held[cacheKey(source)] = translated;
-          changed = true;
+      let answeredHere = false;
+      for (const entry of state.pending) {
+        if (state.held[entry]) {
+          state.pending.delete(entry);
+          continue;
+        }
+        // Only brand names ("Software Vala™"): shown as they are.
+        const text = entry.slice(entry.indexOf(SEPARATOR) + 1);
+        if (onlyLockedTerms(text, state.locked)) {
+          state.held[entry] = text;
+          state.pending.delete(entry);
+          answeredHere = true;
         }
       }
-      for (const text of outcome.unavailable) current.unavailable.add(cacheKey(text));
+      if (answeredHere) setVersion((v) => v + 1);
+      if (state.pending.size === 0) return;
+      const wait = state.blockedUntil - Date.now();
+      if (wait > 0) {
+        schedule(code, wait);
+        return;
+      }
 
-      // Anything in the batch that came back with nothing is asked again
-      // later, not on every render.
-      if (outcome.retryAfter) {
-        current.blockedUntil = Date.now() + outcome.retryAfter * 1000;
-        for (const text of batch) {
-          if (!current.held[cacheKey(text)] && !current.unavailable.has(cacheKey(text))) {
-            current.pending.add(cacheKey(text));
+      // Strings are kept as `context<separator>text`; one request carries one
+      // context, and never more than the endpoint accepts from this caller.
+      const limits = requestLimits();
+      const maxItems = Math.min(BATCH, limits.maxItems);
+      const first = state.pending.values().next().value as string;
+      const context = first.slice(0, first.indexOf(SEPARATOR));
+      const prefix = `${context}${SEPARATOR}`;
+      const keys: string[] = [];
+      let characters = 0;
+      for (const entry of state.pending) {
+        if (!entry.startsWith(prefix)) continue;
+        const length = entry.slice(prefix.length).trim().length;
+        if (length > limits.maxItemChars) {
+          // Longer than one item may be: it would make the whole batch fail.
+          // Shown in English, never sent.
+          state.pending.delete(entry);
+          state.refusedShape.add(entry);
+          state.unavailable.add(entry);
+          continue;
+        }
+        if (keys.length >= maxItems || characters + length > limits.maxTotalChars) break;
+        keys.push(entry);
+        characters += length;
+      }
+      if (keys.length === 0) {
+        if (state.pending.size > 0) schedule(code, 0);
+        return;
+      }
+      keys.forEach((entry) => {
+        state.pending.delete(entry);
+        state.inFlight.add(entry);
+      });
+      const batch = keys.map((entry) => entry.slice(prefix.length));
+
+      void fetchTranslations(batch, code, context || null).then((outcome) => {
+        for (const entry of keys) state.inFlight.delete(entry);
+        const current = remote.current[code];
+        if (!current) return;
+
+        if (outcome.refused) {
+          current.refused = true;
+          current.pending.clear();
+          return;
+        }
+        const cacheKey = (text: string) => `${context}${SEPARATOR}${text}`;
+        if (outcome.invalidRequest) {
+          // Asking again would be refused the same way: these strings stay in
+          // English for the visit instead of being re-sent every 30 seconds.
+          for (const text of batch) {
+            current.refusedShape.add(cacheKey(text));
+            current.unavailable.add(cacheKey(text));
+          }
+          if (current.pending.size > 0) schedule(code, 200);
+          return;
+        }
+        if (outcome.engineUnavailable) {
+          current.engineFailures += 1;
+          outcome.retryAfter = Math.max(
+            outcome.retryAfter ?? 0,
+            engineBackoffSeconds(current.engineFailures),
+          );
+          setService({ ready: false, reason: outcome.reason });
+        } else if (!outcome.reason) {
+          if (current.engineFailures > 0) setService({ ready: true, reason: null });
+          current.engineFailures = 0;
+        }
+
+        let changed = false;
+        for (const [source, translated] of Object.entries(outcome.translations)) {
+          if (translated && translated !== current.held[cacheKey(source)]) {
+            current.held[cacheKey(source)] = translated;
+            changed = true;
           }
         }
-      } else {
-        for (const text of batch) {
-          if (!current.held[cacheKey(text)]) current.unavailable.add(cacheKey(text));
-        }
-      }
+        for (const text of outcome.unavailable) current.unavailable.add(cacheKey(text));
 
-      if (changed) {
-        saveRemote(code, current.held);
-        setVersion((v) => v + 1);
-      }
-      if (current.pending.size > 0) {
-        const delay = Math.max(200, current.blockedUntil - Date.now());
-        timer.current = setTimeout(() => drain(code), delay);
-      }
-    });
-  }, []);
+        // Anything in the batch that came back with nothing is asked again
+        // later, not on every render.
+        if (outcome.retryAfter) {
+          current.blockedUntil = Date.now() + outcome.retryAfter * 1000;
+          for (const text of batch) {
+            if (!current.held[cacheKey(text)] && !current.unavailable.has(cacheKey(text))) {
+              current.pending.add(cacheKey(text));
+            }
+          }
+        } else {
+          for (const text of batch) {
+            if (!current.held[cacheKey(text)]) current.unavailable.add(cacheKey(text));
+          }
+        }
+
+        if (changed) {
+          saveRemote(code, current.held);
+          setVersion((v) => v + 1);
+        }
+        if (current.pending.size > 0) {
+          schedule(code, Math.max(200, current.blockedUntil - Date.now()));
+        }
+      });
+    },
+    [schedule],
+  );
   drainRef.current = drain;
 
   const translate = useCallback(
@@ -641,15 +795,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       if (held) return shown(held);
 
       if (
-        !serviceDown.current &&
         !state.refused &&
         !state.pending.has(cacheKey) &&
         !state.inFlight.has(cacheKey) &&
-        !state.unavailable.has(cacheKey)
+        !state.unavailable.has(cacheKey) &&
+        !state.refusedShape.has(cacheKey)
       ) {
         state.pending.add(cacheKey);
-        if (timer.current) clearTimeout(timer.current);
-        timer.current = setTimeout(() => drain(language.code), 120);
+        schedule(language.code, 120);
       }
 
       // While waiting, the language's own fallbacks (pt-BR shows pt).
@@ -662,7 +815,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     },
     // `version` re-creates translate so consumers re-render when text arrives.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lang, drain, stateFor, version],
+    [lang, schedule, stateFor, version],
   );
 
   const value = useMemo<LanguageContextValue>(() => {

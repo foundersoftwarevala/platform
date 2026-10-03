@@ -154,19 +154,23 @@ export function ResellerPricingWorkspace({ onBack }: Props) {
             setAsked(product.trim());
           }}
         >
-          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border px-2.5 py-1.5">
+          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-ring/60">
             <Search className="h-4 w-4 text-muted-foreground" />
             <input
               value={product}
               onChange={(e) => setProduct(e.target.value)}
               placeholder={t("reseller.pricing.quote_placeholder")}
+              aria-label={t("reseller.pricing.quote_placeholder")}
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
               data-quote-input
             />
           </label>
+          {/* Nothing to price until a product is named: the button says so by
+              being disabled, rather than accepting a click that does nothing. */}
           <button
             type="submit"
-            className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground"
+            disabled={!product.trim()}
+            className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
             data-quote-submit
           >
             {t("reseller.pricing.quote_button")}

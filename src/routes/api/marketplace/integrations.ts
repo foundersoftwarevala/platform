@@ -113,18 +113,29 @@ const daysSince = (value: unknown): number | null => {
 /** Anything older than this has not been checked recently enough to be called live. */
 const STALE_DAYS = 3;
 
+/**
+ * Whether this application serves the webhook path a connector declares.
+ *
+ * webhook_url is an editable column, and it was appended straight to the
+ * origin: "@169.254.169.254/x" turned the probe into a request to another host,
+ * with its status shown on screen. Only a path on this application is probed
+ * now, and with OPTIONS rather than an empty POST, so looking at the page no
+ * longer fires every declared webhook handler.
+ */
 async function probeWebhook(origin: string, path: string): Promise<number | null> {
+  if (!/^\/api\/[A-Za-z0-9/_-]+$/.test(path)) return null;
   try {
-    const response = await fetch(`${origin}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "{}",
-    });
+    const target = new URL(path, origin);
+    if (target.origin !== new URL(origin).origin) return null;
+    const response = await fetch(target, { method: "OPTIONS", redirect: "manual" });
     return response.status;
   } catch {
     return null;
   }
 }
+
+/** Only "no such route" means not served; a route that refuses OPTIONS exists. */
+const served = (status: number | null) => status !== null && status !== 404;
 
 async function collect(origin: string): Promise<{ connectors: Connector[]; missing: typeof SCREEN_CONNECTORS }> {
   const [integrations, seo, gateways, providers] = await Promise.all([
@@ -168,13 +179,17 @@ async function collect(origin: string): Promise<{ connectors: Connector[]; missi
     const credential = credentialFor(String(row.name).split(" ")[0].toLowerCase());
     const findings: string[] = [];
 
-    if (webhook && status !== null && status >= 400) {
+    if (webhook && status === null && !/^\/api\/[A-Za-z0-9/_-]+$/.test(webhook)) {
+      findings.push(
+        `Its webhook is declared as ${webhook}, which is not a path on this application, so it was not probed.`,
+      );
+    } else if (webhook && status !== null && !served(status)) {
       findings.push(
         `It declares an inbound webhook at ${webhook} and that path answers ${status}. No such route is served by this application, so nothing could ever be delivered to it.`,
       );
     }
     if (age !== null && age > STALE_DAYS) {
-      findings.push(`Its last sync was ${age} days ago, so "connected" describes August rather than now.`);
+      findings.push(`Its last sync was ${age} days ago, so "connected" describes then rather than now.`);
     }
     if (errors > 0) findings.push(`${errors} error(s) recorded against it.`);
     if (credential.env && credential.present === false) {
@@ -453,7 +468,7 @@ export const Route = createFileRoute("/api/marketplace/integrations")({
         if (connector.webhook_url) {
           const status = await probeWebhook(origin, connector.webhook_url);
           const latency = Date.now() - started;
-          const ok = status !== null && status < 400;
+          const ok = served(status);
           await audit(request, "Integration connection tested",
             { connector: connector.name, webhook: connector.webhook_url, status, latency_ms: latency, correlation },
             `${connector.name} was tested: its webhook path answered ${status ?? "nothing"}.`);

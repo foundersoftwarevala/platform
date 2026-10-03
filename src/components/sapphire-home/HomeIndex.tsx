@@ -3627,109 +3627,118 @@ const Index = () => {
 
       <FeatureStrip />
 
-      <HeroCarousel />
+      {/* The page's content, as a landmark the skip link and screen readers can reach. */}
+      <main id="main-content" tabIndex={-1} className="focus:outline-none">
+        <HeroCarousel />
 
-      {/* Industry Grid */}
-      <div className="max-w-7xl mx-auto">
-        <IndustryGrid />
-      </div>
-
-      {/* Category Slider (auto-scroll) */}
-      <CategorySlider />
-
-      {/* Category Filter - Master Categories */}
-      <div className="bg-[#0d1e36]/80 backdrop-blur-sm border-b border-cyan-500/20 py-4 px-4 sticky top-0 z-40">
+        {/* Industry Grid */}
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Search software..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-[#1a2d4a] border-cyan-500/30 text-white placeholder:text-gray-400"
-              />
+          <IndustryGrid />
+        </div>
+
+        {/* Category Slider (auto-scroll) */}
+        <CategorySlider />
+
+        {/* Category Filter - Master Categories */}
+        <div className="bg-[#0d1e36]/80 backdrop-blur-sm border-b border-cyan-500/20 py-4 px-4 sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <Input
+                  placeholder="Search software..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-[#1a2d4a] border-cyan-500/30 text-white placeholder:text-gray-400"
+                />
+              </div>
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                {filteredDemos.length} Products
+              </Badge>
             </div>
-            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-              {filteredDemos.length} Products
-            </Badge>
           </div>
         </div>
-      </div>
 
-      {/* Netflix-style product rows */}
-      <section className="py-8 px-4">
-        <div className="max-w-7xl mx-auto">
-          {/* Group by Master Category when "All" is selected */}
-          {activeCategory === "All" ? (
-            masterCategories.slice(1).map((masterCat) => {
-              const categoryDemos = filteredDemos.filter((d) => d.masterCategory === masterCat);
-              if (categoryDemos.length === 0) return null;
-              // The shelf's own cards are repeated only as far as the real
-              // catalogue cards do not already fill the rail: a country card
-              // takes the place of a duplicate, never of a real one.
-              const added = addedByShelf[masterCat] ?? 0;
-              const rowDemos = searchQuery.trim()
-                ? categoryDemos
-                : fillProductRail(categoryDemos, Math.max(PRODUCTS_PER_ROW - added, 0));
+        {/* Netflix-style product rows */}
+        <section className="py-8 px-4">
+          <div className="max-w-7xl mx-auto">
+            {/* Group by Master Category when "All" is selected */}
+            {activeCategory === "All" ? (
+              masterCategories.slice(1).map((masterCat) => {
+                const categoryDemos = filteredDemos.filter((d) => d.masterCategory === masterCat);
+                if (categoryDemos.length === 0) return null;
+                // The shelf's own cards are repeated only as far as the real
+                // catalogue cards do not already fill the rail: a country card
+                // takes the place of a duplicate, never of a real one.
+                const added = addedByShelf[masterCat] ?? 0;
+                const rowDemos = searchQuery.trim()
+                  ? categoryDemos
+                  : fillProductRail(categoryDemos, Math.max(PRODUCTS_PER_ROW - added, 0));
 
-              return (
-                <ProductCarouselRow key={masterCat} title={masterCat} count={rowDemos.length + added}>
-                  {rowDemos.map((demo, index) => (
+                return (
+                  // The rail repeats its cards to fill the row; the count says
+                  // how many different products it holds, not how many tiles.
+                  <ProductCarouselRow
+                    key={masterCat}
+                    title={masterCat}
+                    count={new Set(rowDemos.map((d) => d.id)).size + added}
+                  >
+                    {rowDemos.map((demo, index) => (
+                      <DemoCard
+                        key={`${masterCat}-${demo.id}-${index}`}
+                        demo={demo}
+                        index={index}
+                        isFavorite={favorites.includes(catalogueSlug(demo.name))}
+                        onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
+                      />
+                    ))}
+                    {!searchQuery.trim() && (
+                      <CountryRailCards
+                        shelf={masterCat}
+                        colour={shelfColour(categoryDemos)}
+                        already={categoryDemos.map((d) => catalogueSlug(d.name)).join(",")}
+                        favorites={favorites}
+                        onToggleFavorite={toggleFavorite}
+                        onLoaded={noteAdded}
+                      />
+                    )}
+                  </ProductCarouselRow>
+                );
+              })
+            ) : (
+              <ProductCarouselRow
+                title={activeCategory}
+                count={new Set(filteredDemos.map((d) => d.id)).size}
+              >
+                {(searchQuery.trim() ? filteredDemos : fillProductRail(filteredDemos)).map(
+                  (demo, index) => (
                     <DemoCard
-                      key={`${masterCat}-${demo.id}-${index}`}
+                      key={`${activeCategory}-${demo.id}-${index}`}
                       demo={demo}
                       index={index}
                       isFavorite={favorites.includes(catalogueSlug(demo.name))}
                       onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
                     />
-                  ))}
-                  {!searchQuery.trim() && (
-                    <CountryRailCards
-                      shelf={masterCat}
-                      colour={shelfColour(categoryDemos)}
-                      already={categoryDemos.map((d) => catalogueSlug(d.name)).join(",")}
-                      favorites={favorites}
-                      onToggleFavorite={toggleFavorite}
-                      onLoaded={noteAdded}
-                    />
-                  )}
-                </ProductCarouselRow>
-              );
-            })
-          ) : (
-            <ProductCarouselRow
-              title={activeCategory}
-              count={(searchQuery.trim() ? filteredDemos : fillProductRail(filteredDemos)).length}
-            >
-              {(searchQuery.trim() ? filteredDemos : fillProductRail(filteredDemos)).map(
-                (demo, index) => (
-                  <DemoCard
-                    key={`${activeCategory}-${demo.id}-${index}`}
-                    demo={demo}
-                    index={index}
-                    isFavorite={favorites.includes(catalogueSlug(demo.name))}
-                    onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
-                  />
-                ),
-              )}
-            </ProductCarouselRow>
-          )}
-        </div>
-      </section>
+                  ),
+                )}
+              </ProductCarouselRow>
+            )}
+          </div>
+        </section>
 
-      {/* Reference marketplace sections (added below product grid, keeping design intact) */}
-      <div className="max-w-7xl mx-auto">
-        <AIZone />
-        <SuccessStories />
-        <AwardsRow />
-        <LiveActivity />
-        <ValaTV />
-        <ValaAcademy />
-        <PartnerEcosystem />
-        <FaqSection />
-        <EnterpriseCTA />
-      </div>
+        {/* Reference marketplace sections (added below product grid, keeping design intact) */}
+        <div className="max-w-7xl mx-auto">
+          <AIZone />
+          <SuccessStories />
+          <AwardsRow />
+          <LiveActivity />
+          <ValaTV />
+          <ValaAcademy />
+          <PartnerEcosystem />
+          <FaqSection />
+          <EnterpriseCTA />
+        </div>
+      </main>
 
       {/* Footer */}
       <footer className="bg-[#0a1628] border-t border-cyan-500/20 py-8 px-4">

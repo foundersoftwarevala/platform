@@ -140,3 +140,8 @@ export interface RegistryDeveloperDTO {
   onboardingCompleted: boolean;
   joinedAt: string | null;
 }
+
+/** The short code a developer task is shown by (server and screens alike). */
+export function taskCode(id: string): string {
+  return `TSK-${id.replace(/-/g, "").slice(0, 4).toUpperCase()}`;
+}

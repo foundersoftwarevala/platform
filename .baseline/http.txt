@@ -1,0 +1,6 @@
+  /                                        200
+  /marketplace                             200
+  /marketplace-manager                     200
+  /marketplace/product/routemasterpt       200
+  /demo/routemasterpt                      200
+  /finance-manager                         200

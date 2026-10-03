@@ -12,6 +12,7 @@ export const Route = createFileRoute("/affiliate-manager/customers")({
       description="Every customer acquired by every affiliate with purchase history and licenses."
       crumbLabel="Customers"
       table="customers"
+      unavailable="Customers are not recorded against affiliates. Orders attributed to affiliates are on the Orders page; a customer directory needs a decision on how their buyers are grouped."
       searchColumns={["email"]}
       searchPlaceholder="Search customers by email…"
       filters={["Affiliate", "Product", "Date"]}

@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { listDemoHealth, type DemoHealth } from "@/lib/marketplace-demo.functions";
+import { useTranslation, type Translate } from "@/lib/i18n/use-translation";
 
 /**
  * Demo Status Grid — the demos that exist, as they have actually behaved.
@@ -74,21 +75,25 @@ function toneIcon(tone: Tone) {
   return <XCircle className="w-4 h-4 text-neon-red" />;
 }
 
-function sinceLabel(iso: string | null): string {
-  if (!iso) return "never checked";
+function sinceLabel(iso: string | null, t: Translate): string {
+  if (!iso) return t("demo.status.never_checked");
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (!Number.isFinite(mins)) return "never checked";
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
+  if (!Number.isFinite(mins)) return t("demo.status.never_checked");
+  if (mins < 1) return t("demo.status.just_now");
+  if (mins < 60) return t("demo.status.minutes_ago", { count: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} h ago`;
-  return `${Math.round(hours / 24)} d ago`;
+  if (hours < 24) return t("demo.status.hours_ago", { count: hours });
+  return t("demo.status.days_ago", { count: Math.round(hours / 24) });
 }
 
 /** A figure with no source says so, in the slot where the number used to be. */
-const NOT_RECORDED = <span className="text-muted-foreground/70">not recorded</span>;
+function NotRecorded() {
+  const { t } = useTranslation();
+  return <span className="text-muted-foreground/70">{t("demo.status.not_recorded")}</span>;
+}
 
 const DemoStatusGrid = () => {
+  const { t } = useTranslation();
   const [statusFilter, setStatusFilter] = useState("all");
   const [windowDays, setWindowDays] = useState("30");
 
@@ -112,20 +117,20 @@ const DemoStatusGrid = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-mono font-bold text-foreground">Demo Status Grid</h1>
+          <h1 className="text-2xl font-mono font-bold text-foreground">{t("demo.status.title")}</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Every demo that exists, measured from the monitor&apos;s own checks
+            {t("demo.status.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Badge className="bg-neon-green/20 text-neon-green border-neon-green/50 px-3 py-1">
-            <CheckCircle className="w-3 h-3 mr-1" /> {activeCount} Active
+            <CheckCircle className="w-3 h-3 mr-1" /> {t("demo.status.count_active", { count: activeCount })}
           </Badge>
           <Badge className="bg-neon-orange/20 text-neon-orange border-neon-orange/50 px-3 py-1">
-            <AlertTriangle className="w-3 h-3 mr-1" /> {degradedCount} Degraded
+            <AlertTriangle className="w-3 h-3 mr-1" /> {t("demo.status.count_degraded", { count: degradedCount })}
           </Badge>
           <Badge className="bg-neon-red/20 text-neon-red border-neon-red/50 px-3 py-1">
-            <XCircle className="w-3 h-3 mr-1" /> {offlineCount} Offline
+            <XCircle className="w-3 h-3 mr-1" /> {t("demo.status.count_offline", { count: offlineCount })}
           </Badge>
         </div>
       </div>
@@ -134,23 +139,23 @@ const DemoStatusGrid = () => {
       <div className="flex items-center gap-4">
         <Select value={windowDays} onValueChange={setWindowDays}>
           <SelectTrigger className="w-48 bg-secondary/50 border-border/50">
-            <SelectValue placeholder="Window" />
+            <SelectValue placeholder={t("demo.status.window")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="7">Last 7 days</SelectItem>
-            <SelectItem value="30">Last 30 days</SelectItem>
-            <SelectItem value="90">Last 90 days</SelectItem>
+            <SelectItem value="7">{t("demo.status.last_days", { count: 7 })}</SelectItem>
+            <SelectItem value="30">{t("demo.status.last_days", { count: 30 })}</SelectItem>
+            <SelectItem value="90">{t("demo.status.last_days", { count: 90 })}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-40 bg-secondary/50 border-border/50">
-            <SelectValue placeholder="Status" />
+            <SelectValue placeholder={t("demo.status.status")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="degraded">Degraded</SelectItem>
-            <SelectItem value="offline">Offline</SelectItem>
+            <SelectItem value="all">{t("demo.status.all_status")}</SelectItem>
+            <SelectItem value="active">{t("demo.status.active")}</SelectItem>
+            <SelectItem value="degraded">{t("demo.status.degraded")}</SelectItem>
+            <SelectItem value="offline">{t("demo.status.offline")}</SelectItem>
           </SelectContent>
         </Select>
         <Button
@@ -161,32 +166,31 @@ const DemoStatusGrid = () => {
           disabled={isFetching}
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
-          {isFetching ? "Reading…" : "Refresh"}
+          {isFetching ? t("demo.status.reading") : t("demo.status.refresh")}
         </Button>
       </div>
 
       {isError && (
         <div className="glass-panel p-4 text-sm text-neon-red">
-          The demo health could not be read. {(error as Error)?.message}
+          {t("demo.status.read_failed")} {(error as Error)?.message}
         </div>
       )}
 
       {isLoading && (
         <div className="glass-panel p-4 text-sm text-muted-foreground">
-          Counting the monitor&apos;s checks…
+          {t("demo.status.loading")}
         </div>
       )}
 
       {!isLoading && !isError && demos.length === 0 && (
         <div className="glass-panel p-4 text-sm text-muted-foreground">
-          No demo is registered. Demos are added in the Demo URL Center; this screen reports on the
-          ones that exist rather than listing any it could imagine.
+          {t("demo.status.empty")}
         </div>
       )}
 
       {!isLoading && !isError && demos.length > 0 && filtered.length === 0 && (
         <div className="glass-panel p-4 text-sm text-muted-foreground">
-          No demo matches that status.
+          {t("demo.status.no_match")}
         </div>
       )}
 
@@ -208,10 +212,10 @@ const DemoStatusGrid = () => {
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-mono font-semibold text-foreground truncate">
-                    {demo.demo_name ?? "Untitled demo"}
+                    {demo.demo_name ?? t("demo.status.untitled")}
                   </h3>
                   <div className="text-xs text-muted-foreground truncate">
-                    {demo.product_name ?? "not linked to a product"}
+                    {demo.product_name ?? t("demo.status.not_linked")}
                   </div>
                 </div>
               </div>
@@ -224,24 +228,24 @@ const DemoStatusGrid = () => {
             {/* Stats Grid */}
             <div className="grid grid-cols-3 gap-2 mb-3 text-center">
               <div className="p-2 rounded-lg bg-secondary/50">
-                <div className="text-xs text-muted-foreground">Uptime</div>
+                <div className="text-xs text-muted-foreground">{t("demo.status.uptime")}</div>
                 <div
                   className={`font-mono font-bold text-sm ${tone === "active" ? "text-neon-green" : "text-muted-foreground"}`}
                   title={
                     demo.checks
-                      ? `${demo.checks} checks in the last ${windowDays} days`
-                      : "the monitor has not run in this window"
+                      ? t("demo.status.checks_in_window", { checks: demo.checks, days: windowDays })
+                      : t("demo.status.no_checks_in_window")
                   }
                 >
                   {demo.uptime_percent === null ? "—" : `${demo.uptime_percent}%`}
                 </div>
               </div>
               <div className="p-2 rounded-lg bg-secondary/50">
-                <div className="text-xs text-muted-foreground">Visits</div>
+                <div className="text-xs text-muted-foreground">{t("demo.status.visits")}</div>
                 <div className="font-mono font-bold text-sm text-primary">{demo.clicks}</div>
               </div>
               <div className="p-2 rounded-lg bg-secondary/50">
-                <div className="text-xs text-muted-foreground">Load</div>
+                <div className="text-xs text-muted-foreground">{t("demo.status.load")}</div>
                 <div className="font-mono font-bold text-sm text-neon-cyan">
                   {demo.avg_response_ms === null ? "—" : `${demo.avg_response_ms}ms`}
                 </div>
@@ -252,10 +256,10 @@ const DemoStatusGrid = () => {
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
               <div
                 className="flex items-center gap-1"
-                title={demo.unavailable?.region ?? "not recorded"}
+                title={demo.unavailable?.region ?? t("demo.status.not_recorded")}
               >
                 <Globe className="w-3 h-3" />
-                {NOT_RECORDED}
+                <NotRecorded />
               </div>
               <div className="flex items-center gap-1">
                 {demo.ssl_valid === null ? null : demo.ssl_valid ? (
@@ -263,31 +267,32 @@ const DemoStatusGrid = () => {
                     className="inline-flex items-center gap-1 text-neon-green"
                     title={
                       demo.ssl_days_left === null
-                        ? "certificate valid"
-                        : `${demo.ssl_days_left} days left on the certificate`
+                        ? t("demo.status.cert_valid")
+                        : t("demo.status.cert_days_left", { count: demo.ssl_days_left })
                     }
                   >
                     <ShieldCheck className="w-3 h-3" />
-                    {demo.ssl_days_left === null ? "SSL" : `${demo.ssl_days_left}d`}
+                    {demo.ssl_days_left === null ? "SSL" /* i18n-ignore: protocol name */ : `${demo.ssl_days_left}d`}
                   </span>
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 text-neon-red"
-                    title="certificate invalid"
+                    title={t("demo.status.cert_invalid")}
                   >
+                    {/* i18n-ignore: protocol name */}
                     <ShieldAlert className="w-3 h-3" /> SSL
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-1" title={demo.last_checked_at ?? ""}>
                 <Clock className="w-3 h-3" />
-                {sinceLabel(demo.last_checked_at)}
+                {sinceLabel(demo.last_checked_at, t)}
               </div>
             </div>
 
             {/* The address it actually points at, which is the thing an operator checks. */}
             <div className="text-[10px] text-muted-foreground mb-3 font-mono bg-secondary/30 px-2 py-1 rounded truncate">
-              {demo.url || "no address"}
+              {demo.url || t("demo.status.no_address")}
             </div>
 
             {/* Actions */}
@@ -300,7 +305,7 @@ const DemoStatusGrid = () => {
                 onClick={() => demo.url && window.open(demo.url, "_blank", "noopener,noreferrer")}
               >
                 <Eye className="w-3 h-3 mr-1" />
-                Preview
+                {t("demo.status.preview")}
               </Button>
               <Button
                 size="sm"
@@ -317,7 +322,7 @@ const DemoStatusGrid = () => {
                 }
               >
                 <ExternalLink className="w-3 h-3 mr-1" />
-                Product
+                {t("demo.status.product")}
               </Button>
             </div>
           </motion.div>

@@ -100,6 +100,9 @@ export function resolveProductActions(
 
       if (!a.enabled) return off("Turned off in the Action Layer.");
       if (a.visibility === "HIDDEN") return off("Hidden in the Action Layer.");
+      // DISABLED is shown but not usable. Without this line it fell through to
+      // the cases below and came back available, so the setting did nothing.
+      if (a.visibility === "DISABLED") return off("Disabled in the Action Layer.");
 
       switch (a.key) {
         case "LIVE_DEMO":

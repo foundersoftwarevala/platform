@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getRequestIP } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 import {
@@ -73,6 +74,15 @@ function fail(status: number, reason: string, error: string, headers?: Record<st
   return Response.json({ error, reason }, { status, headers });
 }
 
+/** The address the request's socket came from, not what its headers claim. */
+function socketPeer(): string | null {
+  try {
+    return getRequestIP() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export const Route = createFileRoute("/api/marketplace/translate")({
   server: {
     handlers: {
@@ -116,7 +126,8 @@ async function handleTranslate(request: Request): Promise<Response> {
   const { resolveCaller, translateForCaller } = await import("@/lib/i18n/service.server");
   const { ensureJobWorker } = await import("@/lib/i18n/jobs.server");
   ensureJobWorker();
-  const address = clientAddress(request.headers);
+  // Forwarding headers count only when the socket peer is the trusted proxy.
+  const address = clientAddress(request.headers, socketPeer());
   const caller = await resolveCaller(
     request.headers.get("authorization"),
     address,

@@ -48,6 +48,43 @@ const ENTRIES: Entry[] = [...SUPPORTED_LANGUAGES]
     ),
   }));
 
+/* ------------------------------------------------------ switched-off list */
+
+// Languages an operator has switched off (GET /api/i18n/languages). Fetched
+// once per page load and shared by every selector on the page; until it
+// arrives, or if it cannot be read, every language is offered as before.
+let disabledCodes: ReadonlySet<string> = new Set();
+let disabledRequested = false;
+const disabledListeners = new Set<() => void>();
+
+function loadDisabledLanguages() {
+  if (disabledRequested || typeof window === "undefined") return;
+  disabledRequested = true;
+  void fetch("/api/i18n/languages", { headers: { Accept: "application/json" } })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((payload: { disabled?: unknown } | null) => {
+      const list = Array.isArray(payload?.disabled)
+        ? payload.disabled.filter((code): code is string => typeof code === "string")
+        : [];
+      if (list.length === 0) return;
+      disabledCodes = new Set(list);
+      disabledListeners.forEach((listener) => listener());
+    })
+    .catch(() => undefined);
+}
+
+function useDisabledLanguages(): ReadonlySet<string> {
+  return useSyncExternalStore(
+    (listener) => {
+      disabledListeners.add(listener);
+      loadDisabledLanguages();
+      return () => disabledListeners.delete(listener);
+    },
+    () => disabledCodes,
+    () => disabledCodes,
+  );
+}
+
 /* ------------------------------------------------------------ registration */
 
 // Inline selectors register their trigger while mounted; the floating dock
@@ -105,7 +142,12 @@ export function LanguageSelector({
   side = "bottom",
   register = true,
 }: LanguageSelectorProps) {
-  const { t, lang, language, setLanguage } = useTranslation();
+  const { t, lang, language, setLanguage, serviceReady } = useTranslation();
+  const disabled = useDisabledLanguages();
+  const offered = useMemo(
+    () => (disabled.size ? ENTRIES.filter((entry) => !disabled.has(entry.code)) : ENTRIES),
+    [disabled],
+  );
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -130,8 +172,8 @@ export function LanguageSelector({
 
   const folded = fold(query.trim());
   const matches = useMemo(
-    () => (folded ? ENTRIES.filter((entry) => entry.haystack.includes(folded)) : ENTRIES),
-    [folded],
+    () => (folded ? offered.filter((entry) => entry.haystack.includes(folded)) : offered),
+    [folded, offered],
   );
   const pinned = useMemo(() => {
     if (folded) return [];
@@ -139,9 +181,9 @@ export function LanguageSelector({
       (code, i, all): code is string => Boolean(code) && all.indexOf(code) === i,
     );
     return codes
-      .map((code) => ENTRIES.find((entry) => entry.code === code))
+      .map((code) => offered.find((entry) => entry.code === code))
       .filter((entry): entry is Entry => Boolean(entry));
-  }, [folded, lang, browser]);
+  }, [folded, lang, browser, offered]);
   // What the arrow keys move through, in display order.
   const flat = useMemo(() => [...pinned, ...matches], [pinned, matches]);
   const letters = useMemo(() => [...new Set(matches.map((entry) => entry.letter))], [matches]);
@@ -312,6 +354,13 @@ export function LanguageSelector({
               spellCheck={false}
             />
           </label>
+          {!serviceReady && (
+            // The engine did not answer the last request: the page stays in
+            // English (or the language's fallback) until it does, and says so.
+            <p role="status" className="mt-2 text-xs text-muted-foreground">
+              {t("common.translation_paused")}
+            </p>
+          )}
           {letters.length > 1 && (
             <div className="mt-2 flex flex-wrap gap-0.5" aria-label={t("common.language_jump")}>
               {letters.map((letter) => (

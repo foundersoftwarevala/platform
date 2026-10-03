@@ -253,4 +253,32 @@ export const SEO_MESSAGES = {
   "seo.words": "Words",
   "seo.x_preview": "X preview",
   "seo.last_sync": ["Last sync {on}", "when an integration last brought data in"],
+
+  // Language SEO.
+  "seo.language_seo": "Language SEO",
+  "seo.language_seo_note": "Every enabled language is an hreflang target and a localized URL on every page of the catalogue. A language that is enabled while its strings are still queued is advertised to search engines before it is ready, which is the one thing this screen exists to show.",
+  "seo.languages": "Languages",
+  "seo.registered": ["Registered", "languages in the registry"],
+  "seo.enabled": ["Enabled", "languages switched on"],
+  "seo.served_to_visitors": "served to visitors",
+  "seo.machine_only": ["Machine only", "languages translated by machine and not reviewed"],
+  "seo.not_reviewed": "not reviewed",
+  "seo.partial": ["Partial", "languages only partly translated"],
+  "seo.retired": ["Retired", "languages no longer served"],
+  "seo.not_served": "not served",
+  "seo.translation_queue": "Translation queue",
+  "seo.translated": ["Translated", "translation jobs that finished"],
+  "seo.waiting": ["Waiting", "translation jobs still queued"],
+  "seo.not_on_the_site_yet": "not on the site yet",
+  "seo.running": ["Running", "translation jobs in progress"],
+  "seo.failed": ["Failed", "translation jobs that failed"],
+  "seo.yes": "yes",
+  "seo.no": "no",
+  "seo.reading_the_language_registry": "Reading the language registry…",
+
+  // IndexNow.
+  "seo.indexnow_note": "The free, official way to tell Bing, Yandex, Seznam and Naver that a URL changed rather than waiting to be crawled. Every submission, and the answer it got.",
+  "seo.submissions": ["Submissions", "URL batches sent to IndexNow"],
+  "seo.urls_in_the_newest": ["URLs in the newest", "URLs in the most recent submission"],
+  "seo.nothing_submitted_to_indexnow": "Nothing has been submitted to IndexNow yet.",
 } as const;

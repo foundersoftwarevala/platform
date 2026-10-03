@@ -372,4 +372,11 @@ export const generateSlotTags = createServerFn({ method: "POST" })
   .validator((v) =>
     z.object({ slotUrl: z.string().min(1), dryRun: z.boolean().optional() }).parse(v ?? {}),
   )
-  .handler(async ({ data }): Promise<TagGenerationResult> => generateTagsForSlot(data));
+  .handler(async ({ data }): Promise<TagGenerationResult> => {
+    // A paid AI call and a change request, so the same people as the
+    // /api/seo/generate-tags route that does this work for the console. This
+    // export had no check of its own.
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Generating card tags", { alsoAllow: ["seo", "marketing"] });
+    return generateTagsForSlot(data);
+  });

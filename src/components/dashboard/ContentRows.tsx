@@ -2,9 +2,13 @@ import { memo } from "react";
 import { Inbox, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { RoleConfig } from "@/lib/roles";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: string) => void }) {
+  const { t } = useTranslation();
+  const label = (m: RoleConfig["modules"][number]) => (m.labelKey ? t(m.labelKey) : m.label);
   const firstModule = role.modules[0];
+  const firstLabel = firstModule ? label(firstModule) : undefined;
   const open = (k?: string) => { if (k && onOpen) onOpen(k); };
   const settingsModule =
     role.modules.find((m) => /setting|profile|account/i.test(m.label)) ?? firstModule;
@@ -12,22 +16,22 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
     <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4">
       <div className="space-y-4">
         <Card
-          title={`Recent ${firstModule?.label ?? "Activity"}`}
-          action="See all"
+          title={firstLabel ? t("dashboard.rows.recent", { module: firstLabel }) : t("dashboard.rows.recent_activity")}
+          action={t("dashboard.rows.see_all")}
           onAction={() => open(firstModule?.key)}
         >
           <EmptyBlock
-            label={`No ${firstModule?.label.toLowerCase() ?? "items"} yet`}
-            sub="Items from your account will appear here once available."
-            cta={`Create ${firstModule?.label.replace(/s$/, "") ?? "item"}`}
+            label={firstLabel ? t("dashboard.rows.none_yet", { module: firstLabel.toLowerCase() }) : t("dashboard.rows.no_items_yet")}
+            sub={t("dashboard.rows.items_note")}
+            cta={firstLabel ? t("dashboard.rows.create", { item: firstModule?.labelKey ? firstLabel : firstLabel.replace(/s$/, "") }) : t("dashboard.rows.create_item")}
             onCta={() => open(firstModule?.key)}
           />
         </Card>
 
         <div className="grid md:grid-cols-2 gap-4">
           <Card
-            title="Quick Actions"
-            action="Customize"
+            title={t("dashboard.rows.quick_actions")}
+            action={t("dashboard.rows.customize")}
             onAction={() => open(settingsModule?.key)}
           >
             <div className="grid grid-cols-2 gap-2">
@@ -41,8 +45,8 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
                     <m.icon className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold truncate">{m.label}</div>
-                    <div className="text-[11px] text-muted-foreground">Open module</div>
+                    <div className="text-sm font-semibold truncate">{label(m)}</div>
+                    <div className="text-[11px] text-muted-foreground">{t("dashboard.rows.open_module")}</div>
                   </div>
                 </button>
               ))}
@@ -50,11 +54,13 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
           </Card>
 
           <Card
-            title="Activity Feed"
-            action="Mark all read"
+            title={t("dashboard.rows.activity_feed")}
+            action={t("dashboard.rows.mark_all_read")}
+            // Nothing feeds this card yet, so it cannot know whether anything is
+            // unread; it used to report "already clear" regardless.
             onAction={() =>
-              toast.success("Activity feed is already clear", {
-                description: "No unread events in this workspace.",
+              toast.info(t("dashboard.rows.feed_not_connected"), {
+                description: t("dashboard.rows.feed_bell"),
               })
             }
           >
@@ -62,8 +68,8 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
               <div className="grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-muted-foreground">
                 <Inbox className="h-4 w-4" />
               </div>
-              <div className="mt-3 text-sm font-semibold">All caught up</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">Recent events from your workspace will appear here.</div>
+              <div className="mt-3 text-sm font-semibold">{t("dashboard.rows.all_caught_up")}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">{t("dashboard.rows.events_note")}</div>
             </div>
           </Card>
         </div>
@@ -71,15 +77,15 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
 
       {/* Right column: role-specific spotlight */}
       <aside className="rounded-2xl border border-border bg-card p-5 depth-3d flex flex-col">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Workspace</div>
-        <div className="mt-2 text-lg font-bold">{role.title}</div>
-        <div className="text-xs text-muted-foreground">{role.tagline}</div>
+        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{t("dashboard.rows.workspace")}</div>
+        <div className="mt-2 text-lg font-bold">{role.titleKey ? t(role.titleKey) : role.title}</div>
+        <div className="text-xs text-muted-foreground">{role.taglineKey ? t(role.taglineKey) : role.tagline}</div>
 
         <div className="mt-4 rounded-xl border border-dashed border-border bg-surface/40 p-4">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Benchmark</div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{t("dashboard.rows.benchmark")}</div>
           <div className="mt-1 text-sm font-semibold">{role.benchmarks.join(" + ")}</div>
           <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">
-            This dashboard is modeled after best-in-class tooling for {role.name.toLowerCase()}s.
+            {t("dashboard.rows.modeled_after", { role: (role.nameKey ? t(role.nameKey) : role.name).toLowerCase() })}
           </p>
         </div>
 
@@ -94,10 +100,10 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
                 <m.icon className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold">{m.label}</div>
-                <div className="text-[10px] text-muted-foreground">Ready · no data</div>
+                <div className="text-xs font-semibold">{label(m)}</div>
+                <div className="text-[10px] text-muted-foreground">{t("dashboard.rows.ready_no_data")}</div>
               </div>
-              <span className="text-[10px] text-muted-foreground">Open →</span>
+              <span className="text-[10px] text-muted-foreground">{t("dashboard.rows.open")}</span>
             </button>
           ))}
         </div>

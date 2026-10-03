@@ -413,18 +413,25 @@ export async function readResourceRows(
 
   for (const filter of query.filters) {
     const column = identifier(filter.column);
-    if (filter.operator === "is") {
+    if (filter.operator === "is" || filter.operator === "not.is") {
       // PostgREST spells these is.null, is.true and is.false; anything else is
       // dropped rather than guessed at.
       const word = filter.value.toLowerCase();
-      if (word === "null") where.push(`${column} is null`);
-      else if (word === "true") where.push(`${column} is true`);
-      else if (word === "false") where.push(`${column} is false`);
+      const is = filter.operator === "is" ? "is" : "is not";
+      if (word === "null") where.push(`${column} ${is} null`);
+      else if (word === "true") where.push(`${column} ${is} true`);
+      else if (word === "false") where.push(`${column} ${is} false`);
       continue;
     }
     const operator = SQL_OPERATOR[filter.operator];
     if (!operator) continue;
-    params.push(filter.value);
+    // PostgREST reads * as the LIKE wildcard; bound literally here it matched
+    // nothing, so the same filter answered differently on this store.
+    params.push(
+      filter.operator === "like" || filter.operator === "ilike"
+        ? filter.value.replace(/\*/g, "%")
+        : filter.value,
+    );
     where.push(`${column}::text ${operator} $${params.length}`);
   }
 

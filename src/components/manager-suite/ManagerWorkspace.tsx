@@ -61,17 +61,21 @@ export function ManagerWorkspace({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <CreatorTopBar onOpenMenu={() => setMobileOpen(true)} />
-        <PageShell>
-          {isDashboard ? <ExecutiveBanner role={role} onNavigate={select} /> : null}
-          {entry && typeof entry === "function" ? (
-            (() => {
-              const Section = entry as ComponentType<{ onNavigate?: (id: string) => void }>;
-              return <Section onNavigate={select} />;
-            })()
-          ) : entry ? (
-            <ManagerWall key={(entry as WallConfig).scope} config={entry as WallConfig} />
-          ) : null}
-        </PageShell>
+        {/* The page's own content, as a landmark: screen readers and keyboard
+            users can jump to it past the sidebar and top bar. */}
+        <main id="main-content" tabIndex={-1} className="min-w-0 focus:outline-none">
+          <PageShell>
+            {isDashboard ? <ExecutiveBanner role={role} onNavigate={select} /> : null}
+            {entry && typeof entry === "function" ? (
+              (() => {
+                const Section = entry as ComponentType<{ onNavigate?: (id: string) => void }>;
+                return <Section onNavigate={select} />;
+              })()
+            ) : entry ? (
+              <ManagerWall key={(entry as WallConfig).scope} config={entry as WallConfig} />
+            ) : null}
+          </PageShell>
+        </main>
       </div>
 
       <button

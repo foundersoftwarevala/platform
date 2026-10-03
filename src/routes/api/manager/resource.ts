@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { STOREFRONT_TABLES, catalogueChanged } from "@/lib/marketplace/catalogue-invalidation";
 import { readResourceRows, storeOwns } from "@/lib/seo/seo-store.server";
 
 /**
@@ -65,6 +66,19 @@ type Resource = {
    * safe. Only rows on the way out and changes on the way in are translated.
    */
   rename?: Record<string, string>;
+  /**
+   * The only changes a screen may make to one state column: each target value
+   * names the values it may be reached from. Any other target is refused, and
+   * the write itself is conditional on the row still being in one of those
+   * states, so a row that moved on in the meantime is not overwritten.
+   */
+  transitions?: { column: string; allowed: Record<string, string[]>; refused?: string };
+  /**
+   * Columns stamped with the time of a transition, by target value: a licence
+   * that becomes revoked records when, so the screen cannot leave revoked_at
+   * empty beside a revoked status.
+   */
+  stampOn?: Record<string, string[]>;
 };
 
 /** The name a screen uses for a real column. Unrenamed columns pass through. */
@@ -189,6 +203,14 @@ async function recordAudit(
     console.error("[manager] audit threw", error);
   }
 }
+
+/**
+ * system_settings rows that belong to a console of their own, each with its own
+ * permission check and validation. Shown in the generic Settings and System
+ * tables they could be rewritten around both - the permission matrix included.
+ */
+const RESERVED_SETTINGS =
+  "key=not.in.(marketplace_role_permissions,marketplace_action_layer,marketplace_micro_interactions,marketplace_colour_palette)";
 
 const RESOURCES: Record<string, Resource> = {
   // Customer stories and awards shown on the home page. Nothing appears there
@@ -462,21 +484,22 @@ const RESOURCES: Record<string, Resource> = {
       "plan_code",
       "last_active_at",
     ],
+    // Status, plan and referral code have their own audited functions
+    // (mm_reseller_status, mm_reseller_plan, mm_reseller_code_create), which
+    // grant or withdraw the reseller role, switch referral links off, refuse a
+    // self-action and notify the reseller. Written here they skipped all of it.
     editable: [
       "name",
-      "code",
       "email",
       "phone",
       "region",
       "tier",
-      "status",
       "kyc_status",
       "company_name",
       "legal_name",
       "gst_number",
       "pan_number",
       "notes",
-      "plan_code",
     ],
     searchable: ["name", "code", "email", "status"],
     order: "created_at.desc",
@@ -1027,7 +1050,11 @@ const RESOURCES: Record<string, Resource> = {
   system: {
     table: "system_settings",
     select: ["id", "key", "label", "value", "value_type", "category", "description", "updated_at"],
-    editable: ["key", "label", "value", "value_type", "category", "description"],
+    // The keys with their own console stay with it (see RESERVED_SETTINGS), and
+    // a key is not renamed from a table: renaming one silently resets whatever
+    // read it back to its defaults.
+    scope: RESERVED_SETTINGS,
+    editable: ["label", "value", "value_type", "category", "description"],
     searchable: ["label", "category"],
     order: "id.asc",
     label: "System",
@@ -1035,7 +1062,8 @@ const RESOURCES: Record<string, Resource> = {
   settings: {
     table: "system_settings",
     select: ["id", "key", "label", "value", "value_type", "category", "description", "updated_at"],
-    editable: ["key", "label", "value", "value_type", "category", "description"],
+    scope: RESERVED_SETTINGS,
+    editable: ["label", "value", "value_type", "category", "description"],
     searchable: ["label", "category"],
     order: "id.asc",
     label: "Settings",
@@ -1099,7 +1127,9 @@ const RESOURCES: Record<string, Resource> = {
       "server_instance_id",
       "deployment_id",
       "deployment_version",
-      "password_hash",
+      // password_hash is not sent to a browser. It is a bcrypt hash written by
+      // the demo password RPC; typing into it stored plain text and locked the
+      // demo for every visitor.
       "password_set_at",
       "password_protected",
       "allow_indexing",
@@ -1121,7 +1151,6 @@ const RESOURCES: Record<string, Resource> = {
       "ssl_status",
       "ssl_issuer",
       "deployment_version",
-      "password_hash",
       "password_protected",
       "allow_indexing",
     ],
@@ -1537,6 +1566,9 @@ const RESOURCES: Record<string, Resource> = {
     required: ["plan_code"],
     order: "priority.asc",
     retirable: true,
+    // A retired rule stops applying to new orders. Commission already earned
+    // keeps the rate recorded on it, so nothing is deleted.
+    archive: { active: false },
     label: "Commission rule",
   },
 
@@ -1579,8 +1611,11 @@ const RESOURCES: Record<string, Resource> = {
       "completed_at",
       "created_at",
     ],
-    // Only the decision is editable from a screen; the amounts are not.
-    editable: ["status", "payment_method", "failure_reason"],
+    // A payout changes state only through mm_reseller_payout_status, which
+    // requires a provider reference to pay and a reason to fail or reverse,
+    // releases or settles the commission lines and writes the ledger. Setting
+    // status here skipped every one of those.
+    editable: ["payment_method"],
     searchable: ["status", "currency", "provider_reference"],
     order: "created_at.desc",
     retirable: false,
@@ -1593,6 +1628,7 @@ const RESOURCES: Record<string, Resource> = {
       "id",
       "reseller_id",
       "plan_code",
+      "status",
       "membership_state",
       "order_id",
       "activated_at",
@@ -1600,8 +1636,15 @@ const RESOURCES: Record<string, Resource> = {
       "renewal_at",
       "created_at",
     ],
-    editable: ["membership_state", "expires_at", "renewal_at"],
-    searchable: ["plan_code", "membership_state"],
+    // Read only. Entitlement (reseller_pricing_for) and the attention counts
+    // read status and expires_at; a membership is opened, replaced and expired
+    // by activate_reseller_membership, which also writes the entitlements, the
+    // plan on the reseller and the event. Editing membership_state changed
+    // nothing real, and editing status or the dates here would grant or end a
+    // paid entitlement with none of that. There is no operator function to
+    // pause or cancel one yet.
+    editable: [],
+    searchable: ["plan_code", "status", "membership_state"],
     order: "created_at.desc",
     retirable: false,
     label: "Reseller membership",
@@ -1621,12 +1664,14 @@ const RESOURCES: Record<string, Resource> = {
       "created_at",
       "updated_at",
     ],
-    editable: ["audience", "type", "title", "body", "status", "scheduled_at"],
+    // Read only. Nothing on the platform reads this table: a reseller is told
+    // things through user_notifications (mm_notify), which only the database's
+    // own functions may write. A broadcast saved or "published" here reached
+    // nobody, so it is no longer accepted.
+    editable: [],
     searchable: ["title", "body", "audience"],
-    creatable: ["audience", "type", "title", "body", "status", "scheduled_at"],
-    required: ["title", "body"],
     order: "created_at.desc",
-    retirable: true,
+    retirable: false,
     label: "Reseller notification",
   },
 
@@ -2506,6 +2551,16 @@ const RESOURCES: Record<string, Resource> = {
     ],
     // An operator may cancel or reinstate an order, never edit its money.
     editable: ["status"],
+    // Cancelling is for an order that was never paid. A paid order is ended by
+    // a refund (marketplace_order_refunds), which settles the money, revokes the
+    // licence and reverses the commission together; setting it to cancelled
+    // here did none of that. Reinstating returns a cancelled order to awaiting
+    // payment, the one state marketplace_order_status_guard lets it go back to.
+    transitions: {
+      column: "status",
+      allowed: { cancelled: ["pending_payment"], pending_payment: ["cancelled"] },
+      refused: "A paid order is ended by a refund, not cancelled.",
+    },
     searchable: ["order_no", "order_number", "txnid", "status"],
     order: "created_at.desc",
     label: "Orders",
@@ -2525,6 +2580,14 @@ const RESOURCES: Record<string, Resource> = {
       "activation_count",
     ],
     editable: ["status", "revoked_reason"],
+    // A licence is revoked by hand, never reinstated by hand: a licence the
+    // refund settlement revoked came back to life when set to active here.
+    transitions: {
+      column: "status",
+      allowed: { revoked: ["active"] },
+      refused: "A revoked or expired licence is reissued through a new order, not reactivated.",
+    },
+    stampOn: { revoked: ["revoked_at"] },
     searchable: ["license_key", "status"],
     order: "issued_at.desc",
     label: "Licences",
@@ -2546,6 +2609,14 @@ const RESOURCES: Record<string, Resource> = {
       "processed_at",
     ],
     editable: ["status", "reason"],
+    // processed fires marketplace_refund_settle - the order is refunded, its
+    // licences revoked and commissions reversed - so it is reached only when
+    // the provider confirms the money went back, never typed in here.
+    transitions: {
+      column: "status",
+      allowed: { approved: ["pending"], cancelled: ["pending", "approved"] },
+      refused: "A refund becomes processed or failed from the payment provider's answer.",
+    },
     searchable: ["status", "provider", "provider_refund_id"],
     order: "created_at.desc",
     retirable: false,
@@ -2581,7 +2652,18 @@ const RESOURCES: Record<string, Resource> = {
       "approved_at",
     ],
     editable: ["status"],
-    searchable: ["partner_kind", "status", "currency"],
+    // An operator approves or rejects a pending commission. Paid comes from a
+    // payout, and a reversal is a second row (partner_earnings migration), so
+    // neither is set by hand.
+    transitions: {
+      column: "status",
+      allowed: { approved: ["pending"], rejected: ["pending"] },
+      refused: "Paid is set by the payout and a reversal is recorded as its own row.",
+    },
+    stampOn: { approved: ["approved_at"] },
+    // partner_kind is an enum and cannot be searched with ilike - the read
+    // failed with 502 for every search term.
+    searchable: ["status", "currency"],
     order: "earned_at.desc",
     retirable: false,
     label: "Partner commissions",
@@ -2607,7 +2689,22 @@ const RESOURCES: Record<string, Resource> = {
       "completed_at",
     ],
     editable: ["status", "payment_method", "provider", "provider_reference", "failure_reason"],
-    searchable: ["partner_kind", "status", "provider_reference"],
+    // requested -> approved -> processing -> completed, or failed / cancelled
+    // on the way. Nothing goes backwards, and completed is not reached in one
+    // jump from a request.
+    transitions: {
+      column: "status",
+      allowed: {
+        approved: ["requested"],
+        processing: ["approved"],
+        completed: ["processing"],
+        failed: ["approved", "processing"],
+        cancelled: ["requested", "approved"],
+      },
+      refused: "A payout moves requested, approved, processing, completed.",
+    },
+    stampOn: { approved: ["approved_at"], completed: ["completed_at"] },
+    searchable: ["status", "provider_reference"],
     order: "requested_at.desc",
     retirable: false,
     label: "Partner payouts",
@@ -3340,6 +3437,13 @@ const RESOURCES: Record<string, Resource> = {
       "created_at",
     ],
     editable: ["status"],
+    // Only a failed message is queued again. Setting a sent one back to
+    // pending sent the customer the same e-mail a second time.
+    transitions: {
+      column: "status",
+      allowed: { pending: ["failed"] },
+      refused: "Only a failed message can be sent again.",
+    },
     searchable: ["to_email", "subject", "status"],
     order: "created_at.desc",
     label: "Outbound mail",
@@ -4085,8 +4189,22 @@ export const Route = createFileRoute("/api/manager/resource")({
         // for those the clause has to be built as SQL instead of as PostgREST.
         const parsedFilters: { column: string; operator: string; value: string }[] = [];
         for (const raw of params.getAll("filter")) {
-          const [asked, operator, ...rest] = String(raw).split(".");
+          const [asked, first, ...tail] = String(raw).split(".");
+          // "column.not.is.null" is the one negated form the screens send. It
+          // used to parse as operator "not", be dropped, and leave the count
+          // unfiltered - so "with a keyword" showed every row.
+          const negated = first === "not" && tail[0] === "is";
+          const operator = negated ? "not.is" : first;
+          const rest = negated ? tail.slice(1) : tail;
           const value = rest.join(".");
+          if (negated) {
+            const column = inward(resource, asked);
+            if (!resource.select.includes(column)) continue;
+            if (!["null", "true", "false"].includes(value)) continue;
+            filters.push(`${column}=not.is.${value}`);
+            parsedFilters.push({ column, operator, value });
+            continue;
+          }
           const column = inward(resource, asked);
           if (!resource.select.includes(column)) continue;
           if (!OPERATORS.has(operator)) continue;
@@ -4243,6 +4361,9 @@ export const Route = createFileRoute("/api/manager/resource")({
             );
           }
           const rows = (await response.json()) as Record<string, unknown>[];
+          // The storefront caches what this table holds; empty them so the saved
+          // change is what the next visitor sees (catalogue-invalidation.ts).
+          if (STOREFRONT_TABLES.has(resource.table)) catalogueChanged();
           await recordAudit(request, {
             action: `${resource.label} created`,
             entityType: String(body.resource ?? ""),
@@ -4302,6 +4423,15 @@ export const Route = createFileRoute("/api/manager/resource")({
             return Response.json({ error: "That row was not retired" }, { status: 502 });
           }
           const rows = (await response.json()) as Record<string, unknown>[];
+          if (!rows.length) {
+            return Response.json(
+              { error: `${resource.label}: that row is no longer here, so nothing was retired.` },
+              { status: 404 },
+            );
+          }
+          // The storefront caches what this table holds; empty them so the saved
+          // change is what the next visitor sees (catalogue-invalidation.ts).
+          if (STOREFRONT_TABLES.has(resource.table)) catalogueChanged();
           await recordAudit(request, {
             action: `${resource.label} retired`,
             entityType: String(params.get("resource") ?? ""),
@@ -4367,6 +4497,27 @@ export const Route = createFileRoute("/api/manager/resource")({
           );
         }
 
+        // A state column with named transitions only moves along them.
+        let fromFilter = "";
+        const rule = resource.transitions;
+        if (rule && rule.column in changes) {
+          const to = String(changes[rule.column] ?? "");
+          const from = rule.allowed[to];
+          if (!from) {
+            return Response.json(
+              {
+                error:
+                  `${resource.label}: ${to || "that"} cannot be set here.` +
+                  (rule.refused ? ` ${rule.refused}` : ""),
+              },
+              { status: 403 },
+            );
+          }
+          fromFilter = `&${rule.column}=in.(${from.map(encodeURIComponent).join(",")})`;
+          const now = new Date().toISOString();
+          for (const column of resource.stampOn?.[to] ?? []) changes[column] = now;
+        }
+
         try {
           // Read before the change, so before_state is the row as it actually
           // was rather than a guess reconstructed from the request.
@@ -4384,7 +4535,7 @@ export const Route = createFileRoute("/api/manager/resource")({
 
           const response = await fetch(
             `${url()}/rest/v1/${resource.table}?id=eq.${encodeURIComponent(id)}${resource.scope ? `&${resource.scope}` : ""}` +
-              `&select=${resource.select.join(",")}`,
+              `${fromFilter}&select=${resource.select.join(",")}`,
             {
               method: "PATCH",
               headers: { ...admin(), Prefer: "return=representation" },
@@ -4397,6 +4548,32 @@ export const Route = createFileRoute("/api/manager/resource")({
             return Response.json({ error: "That change was not saved" }, { status: 502 });
           }
           const rows = (await response.json()) as Record<string, unknown>[];
+          // Nothing matched: the row was removed or moved out of this screen's
+          // scope since it was loaded. Answering ok with row:null blanked the
+          // table, which then crashed reading the id of a row that was not there.
+          if (!rows.length && !(rule && fromFilter)) {
+            return Response.json(
+              { error: `${resource.label}: that row is no longer here. Refresh and try again.` },
+              { status: 404 },
+            );
+          }
+          // The write was conditional on the state it may come from. Nothing
+          // matched, so the row is not (or is no longer) in one of them.
+          if (rule && fromFilter && !rows.length) {
+            const was = before ? String(before[rule.column] ?? "") : "";
+            return Response.json(
+              {
+                error:
+                  `${resource.label}: this row is ${was || "not in a state that allows this"}, ` +
+                  `so it cannot become ${String(changes[rule.column])}.` +
+                  (rule.refused ? ` ${rule.refused}` : ""),
+              },
+              { status: 409 },
+            );
+          }
+          // The storefront caches what this table holds; empty them so the saved
+          // change is what the next visitor sees (catalogue-invalidation.ts).
+          if (STOREFRONT_TABLES.has(resource.table)) catalogueChanged();
           await recordAudit(request, {
             action: `${resource.label} updated`,
             entityType: String(body.resource ?? ""),

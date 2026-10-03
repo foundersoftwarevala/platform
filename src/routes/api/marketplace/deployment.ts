@@ -45,6 +45,20 @@ function admin(): Record<string, string> {
   return { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
 }
 
+/** A count made by the database, or null when it could not be made. */
+async function countRows(path: string): Promise<number | null> {
+  try {
+    const response = await fetch(`${url()}/rest/v1/${path}`, {
+      headers: { ...admin(), Prefer: "count=exact", Range: "0-0" },
+    });
+    if (!response.ok) return null;
+    const total = Number((response.headers.get("content-range") ?? "").split("/")[1]);
+    return Number.isFinite(total) ? total : null;
+  } catch {
+    return null;
+  }
+}
+
 async function rows<T = Record<string, unknown>>(path: string): Promise<T[]> {
   try {
     const response = await fetch(`${url()}/rest/v1/${path}`, { headers: admin() });
@@ -448,7 +462,8 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
 
         const panel = new URL(request.url).searchParams.get("panel");
         if (panel === "logs") {
-          const lines = Math.min(500, Math.max(20, Number(new URL(request.url).searchParams.get("lines") ?? 120)));
+          // ?lines=abc was NaN, and slice(-NaN) returned the whole process log.
+          const lines = Math.min(500, Math.max(20, Math.trunc(Number(new URL(request.url).searchParams.get("lines") ?? 120)) || 120));
           return Response.json({
             ok: true,
             source: "pm2",
@@ -459,6 +474,13 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
           });
         }
 
+        // The figures are counts made by the database. They were the lengths of
+        // reads capped at 5, 1 and 1, so "Preview builds" could only be 0 or 1.
+        const [instanceCount, deploymentCount, demoDeploymentCount] = await Promise.all([
+          countRows("server_instances?select=id"),
+          countRows("server_deployments?select=id"),
+          countRows("demo_deployments?select=id"),
+        ]);
         const [repo, instances, deployments, demoDeployments, demoDomains, history, health, buildConfig, requiredEnv] =
           await Promise.all([
             repository(),
@@ -500,14 +522,19 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
         return Response.json({
           ok: true,
           metrics: {
-            production_instances: instances.length,
-            preview_builds: demoDeployments.length,
-            build_records: deployments.length,
+            production_instances: instanceCount,
+            preview_builds: demoDeploymentCount,
+            build_records: deploymentCount,
             health: health.every((h) => h.state === "healthy") ? "healthy"
               : health.some((h) => h.state === "failed") ? "failed" : "degraded",
             average_build_time_ms: null,
+            // Said from the counts, not written in advance.
             average_build_note:
-              "server_deployments and demo_deployments are both empty. No build has ever been recorded here, so there is no average to report.",
+              deploymentCount === null || demoDeploymentCount === null
+                ? "The build records could not be counted just now."
+                : deploymentCount + demoDeploymentCount === 0
+                  ? "server_deployments and demo_deployments are both empty. No build has ever been recorded here, so there is no average to report."
+                  : `${deploymentCount + demoDeploymentCount} build record(s) exist, but none records a duration, so there is no average to report.`,
           },
           pipeline: {
             what:

@@ -18,7 +18,40 @@ export type KpiSpec = {
   tone?: "default" | "primary" | "success" | "warning" | "destructive";
   filter?: EntityFilter[]; // extra head-count filters against `table`
   formatter?: (n: number) => string;
+  /** Count a different stored table instead; `filter` is then on that table. */
+  table?: string;
+  /** Nothing records this figure: the card shows "—" and asks for nothing. */
+  unavailable?: boolean;
 };
+
+/**
+ * Where a wall's records really live, when the page was written against a
+ * table of a different name or shape. The page keeps its own field names; the
+ * source translates its filters, sort and search onto the stored table and
+ * turns stored rows back into the page's shape. A field with no stored
+ * equivalent translates to null, and anything that depends on it shows as
+ * empty rather than as invented values.
+ */
+export type EntitySource<T> = {
+  table: string;
+  select?: string;
+  /** Always applied, e.g. scoping a shared ledger to its affiliate rows. */
+  fixed?: EntityFilter[];
+  /** A filter on a page field, as filters on the stored table; null if it has no source. */
+  filter: (f: EntityFilter) => EntityFilter[] | null;
+  /** The stored column for a page field, for sorting; null if it has no source. */
+  sortColumn: (field: string) => string | null;
+  /** Stored columns the search box matches; none means search has no source. */
+  searchColumns?: string[];
+  order: { column: string; ascending?: boolean };
+  toRows: (rows: Record<string, unknown>[]) => T[] | Promise<T[]>;
+};
+
+/** A source filter that renames page fields to stored columns; unlisted fields have no source. */
+export function renameFilter(columns: Record<string, string>) {
+  return (f: EntityFilter): EntityFilter[] | null =>
+    columns[f.column] ? [{ ...f, column: columns[f.column] }] : null;
+}
 
 export type EntityWallProps<T extends Record<string, unknown>> = {
   title: string;
@@ -41,7 +74,27 @@ export type EntityWallProps<T extends Record<string, unknown>> = {
   primaryActionLabel?: string;
   onPrimaryAction?: () => void;
   order?: { column: string; ascending?: boolean };
+  /** The stored table and mapping, when it is not `table` itself. */
+  source?: EntitySource<T>;
+  /**
+   * The platform records nothing this wall could show. The reason is shown in
+   * place of the table and no request is made.
+   */
+  unavailable?: string;
 };
+
+/** Translate page filters through a source: null when any of them has no source. */
+function translate<T>(source: EntitySource<T> | undefined, filters: EntityFilter[]): EntityFilter[] | null {
+  if (!source) return filters;
+  const out: EntityFilter[] = [...(source.fixed ?? [])];
+  for (const f of filters) {
+    if (f.value == null || f.value === "" || f.value === "all") continue;
+    const mapped = source.filter(f);
+    if (!mapped) return null;
+    out.push(...mapped);
+  }
+  return out;
+}
 
 /* ---------------------------------------------------------------- selection */
 
@@ -86,20 +139,38 @@ export function EntityWall<T extends Record<string, unknown>>(p: EntityWallProps
     [applied],
   );
 
+  // With a source, the page's filters, search and sort are carried onto the
+  // stored table. One that has no stored equivalent leaves nothing to show.
+  const source = p.source;
+  const storedFilters = translate(source, [...tabFilters, ...appliedFilters]);
+  const searchColumns = source ? source.searchColumns ?? [] : p.searchColumns ?? [];
+  const searchUnsourced = !!source && !!q && searchColumns.length === 0;
+  const unsourced = storedFilters === null || searchUnsourced;
+  const storedSortColumn = source ? source.sortColumn(sort.column) : sort.column;
+  const storedOrder = source && !storedSortColumn
+    ? source.order
+    : { column: storedSortColumn ?? sort.column, ascending: sort.ascending };
+
+  const listEnabled = !p.unavailable && !unsourced;
   const list = useEntityList<T>({
-    table: p.table,
-    select: p.select,
-    search: p.searchColumns && p.searchColumns.length > 0 ? { q, columns: p.searchColumns } : undefined,
-    filters: [...tabFilters, ...appliedFilters],
-    order: sort,
+    table: source?.table ?? p.table,
+    select: source?.select ?? p.select,
+    search: searchColumns.length > 0 ? { q, columns: searchColumns } : undefined,
+    filters: storedFilters ?? [],
+    order: storedOrder,
     page,
     pageSize,
+    enabled: listEnabled,
+    mapRows: source?.toRows,
   });
 
-  const totalPages = list.data?.totalPages ?? 1;
-  const count = list.data?.count ?? 0;
-  const countIsEstimate = !!list.data?.countIsEstimate;
-  const rows = list.data?.rows ?? [];
+  // A disabled query can still hold the previous view's page as placeholder
+  // data; a view with no source shows nothing instead.
+  const shown = listEnabled ? list.data : undefined;
+  const totalPages = shown?.totalPages ?? 1;
+  const count = shown?.count ?? 0;
+  const countIsEstimate = !!shown?.countIsEstimate;
+  const rows = shown?.rows ?? [];
 
   const reset = () => { setPage(1); setSelected(new Set()); };
 
@@ -152,7 +223,7 @@ export function EntityWall<T extends Record<string, unknown>>(p: EntityWallProps
       <WallShell>
         <KpiGrid>
           {p.kpis.map((k) => (
-            <KpiCounter key={k.label} table={p.table} spec={k} />
+            <KpiCounter key={k.label} table={p.table} spec={k} source={source} unavailable={!!p.unavailable} />
           ))}
         </KpiGrid>
 
@@ -213,11 +284,15 @@ export function EntityWall<T extends Record<string, unknown>>(p: EntityWallProps
               ) : null
             }
             emptyIcon={p.emptyIcon}
-            emptyTitle={list.isError ? "Failed to load" : p.emptyTitle}
+            emptyTitle={p.unavailable ? "Not available yet" : list.isError ? "Failed to load" : p.emptyTitle}
             emptyDescription={
-              list.isError
+              p.unavailable
+                ? p.unavailable
+                : list.isError
                 ? (list.error instanceof Error ? list.error.message : "Please retry.")
-                : q
+                : unsourced
+                  ? "This view filters on something the platform does not record yet, so there is nothing to show."
+                  : q
                   ? `No results for “${q}”. Try a different query or clear the filters.`
                   : p.emptyDescription
             }
@@ -250,9 +325,18 @@ export function EntityWall<T extends Record<string, unknown>>(p: EntityWallProps
   );
 }
 
-function KpiCounter({ table, spec }: { table: string; spec: KpiSpec }) {
-  const c = useEntityCount(table, spec.filter);
-  const value = c.isLoading
+function KpiCounter<T>({
+  table, spec, source, unavailable,
+}: { table: string; spec: KpiSpec; source?: EntitySource<T>; unavailable?: boolean }) {
+  // A KPI counted on its own table takes its filters as stored filters; one on
+  // the wall's table goes through the wall's source like the list does.
+  const own = !!spec.table;
+  const filters = own ? spec.filter ?? [] : translate(source, spec.filter ?? []);
+  const countTable = spec.table ?? source?.table ?? table;
+  const noSource = unavailable || !!spec.unavailable || filters === null;
+  const c = useEntityCount(countTable, filters ?? [], "estimated", !noSource, own ? "*" : source?.select ?? "*");
+  const value = noSource ? "—"
+    : c.isLoading
     ? <span className="inline-block h-6 w-16 animate-pulse rounded bg-muted align-middle" />
     : c.isError ? "—"
     : spec.formatter ? spec.formatter(c.data ?? 0)

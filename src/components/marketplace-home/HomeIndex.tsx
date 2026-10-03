@@ -4377,7 +4377,7 @@ export const DemoCard = memo(
       const a = layerActions.find((x) => x.key === key);
       // Unknown to the registry means "not governed here" — the card keeps its
       // existing behaviour rather than losing a button to a missing entry.
-      return a ? a.enabled && a.visibility !== "HIDDEN" : true;
+      return a ? a.enabled && a.visibility !== "HIDDEN" && a.visibility !== "DISABLED" : true;
     };
 
     const Icon = demo.icon;
@@ -4600,11 +4600,13 @@ export const DemoCard = memo(
                             </Button>
                           </a>
                         )}
-                        <a href={buyHref} className="flex-1">
-                          <Button className="sv-btn sv-btn-emerald w-full">
-                            <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
-                          </Button>
-                        </a>
+                        {allowed("BUY_NOW") && (
+                          <a href={buyHref} className="flex-1">
+                            <Button className="sv-btn sv-btn-emerald w-full">
+                              <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
+                            </Button>
+                          </a>
+                        )}
                       </>
                     )}
                   </div>

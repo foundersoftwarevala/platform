@@ -284,6 +284,7 @@ import { Route as ApiFinanceResellerMembershipRouteImport } from './routes/api/f
 import { Route as ApiGovernanceConsoleRouteImport } from './routes/api/governance/console'
 import { Route as ApiI18nAdminRouteImport } from './routes/api/i18n/admin'
 import { Route as ApiI18nJobsRouteImport } from './routes/api/i18n/jobs'
+import { Route as ApiI18nLanguagesRouteImport } from './routes/api/i18n/languages'
 import { Route as ApiI18nPackRouteImport } from './routes/api/i18n/pack'
 import { Route as ApiInfluencerApplicationsRouteImport } from './routes/api/influencer/applications'
 import { Route as ApiInfluencerApplyRouteImport } from './routes/api/influencer/apply'
@@ -1768,6 +1769,11 @@ const ApiI18nJobsRoute = ApiI18nJobsRouteImport.update({
   path: '/api/i18n/jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiI18nLanguagesRoute = ApiI18nLanguagesRouteImport.update({
+  id: '/api/i18n/languages',
+  path: '/api/i18n/languages',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiI18nPackRoute = ApiI18nPackRouteImport.update({
   id: '/api/i18n/pack',
   path: '/api/i18n/pack',
@@ -2461,6 +2467,7 @@ export interface FileRoutesByFullPath {
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
   '/api/i18n/admin': typeof ApiI18nAdminRoute
   '/api/i18n/jobs': typeof ApiI18nJobsRoute
+  '/api/i18n/languages': typeof ApiI18nLanguagesRoute
   '/api/i18n/pack': typeof ApiI18nPackRoute
   '/api/influencer/applications': typeof ApiInfluencerApplicationsRoute
   '/api/influencer/apply': typeof ApiInfluencerApplyRoute
@@ -2809,6 +2816,7 @@ export interface FileRoutesByTo {
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
   '/api/i18n/admin': typeof ApiI18nAdminRoute
   '/api/i18n/jobs': typeof ApiI18nJobsRoute
+  '/api/i18n/languages': typeof ApiI18nLanguagesRoute
   '/api/i18n/pack': typeof ApiI18nPackRoute
   '/api/influencer/applications': typeof ApiInfluencerApplicationsRoute
   '/api/influencer/apply': typeof ApiInfluencerApplyRoute
@@ -3168,6 +3176,7 @@ export interface FileRoutesById {
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
   '/api/i18n/admin': typeof ApiI18nAdminRoute
   '/api/i18n/jobs': typeof ApiI18nJobsRoute
+  '/api/i18n/languages': typeof ApiI18nLanguagesRoute
   '/api/i18n/pack': typeof ApiI18nPackRoute
   '/api/influencer/applications': typeof ApiInfluencerApplicationsRoute
   '/api/influencer/apply': typeof ApiInfluencerApplyRoute
@@ -3528,6 +3537,7 @@ export interface FileRouteTypes {
     | '/api/governance/console'
     | '/api/i18n/admin'
     | '/api/i18n/jobs'
+    | '/api/i18n/languages'
     | '/api/i18n/pack'
     | '/api/influencer/applications'
     | '/api/influencer/apply'
@@ -3876,6 +3886,7 @@ export interface FileRouteTypes {
     | '/api/governance/console'
     | '/api/i18n/admin'
     | '/api/i18n/jobs'
+    | '/api/i18n/languages'
     | '/api/i18n/pack'
     | '/api/influencer/applications'
     | '/api/influencer/apply'
@@ -4234,6 +4245,7 @@ export interface FileRouteTypes {
     | '/api/governance/console'
     | '/api/i18n/admin'
     | '/api/i18n/jobs'
+    | '/api/i18n/languages'
     | '/api/i18n/pack'
     | '/api/influencer/applications'
     | '/api/influencer/apply'
@@ -4433,6 +4445,7 @@ export interface RootRouteChildren {
   ApiGovernanceConsoleRoute: typeof ApiGovernanceConsoleRoute
   ApiI18nAdminRoute: typeof ApiI18nAdminRoute
   ApiI18nJobsRoute: typeof ApiI18nJobsRoute
+  ApiI18nLanguagesRoute: typeof ApiI18nLanguagesRoute
   ApiI18nPackRoute: typeof ApiI18nPackRoute
   ApiInfluencerApplicationsRoute: typeof ApiInfluencerApplicationsRoute
   ApiInfluencerApplyRoute: typeof ApiInfluencerApplyRoute
@@ -6429,6 +6442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiI18nJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/i18n/languages': {
+      id: '/api/i18n/languages'
+      path: '/api/i18n/languages'
+      fullPath: '/api/i18n/languages'
+      preLoaderRoute: typeof ApiI18nLanguagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/i18n/pack': {
       id: '/api/i18n/pack'
       path: '/api/i18n/pack'
@@ -7586,6 +7606,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGovernanceConsoleRoute: ApiGovernanceConsoleRoute,
   ApiI18nAdminRoute: ApiI18nAdminRoute,
   ApiI18nJobsRoute: ApiI18nJobsRoute,
+  ApiI18nLanguagesRoute: ApiI18nLanguagesRoute,
   ApiI18nPackRoute: ApiI18nPackRoute,
   ApiInfluencerApplicationsRoute: ApiInfluencerApplicationsRoute,
   ApiInfluencerApplyRoute: ApiInfluencerApplyRoute,

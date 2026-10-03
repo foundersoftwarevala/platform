@@ -35,6 +35,12 @@ export type AiApiManagerProviderConfig = {
   complete: CompleteFn;
   /** Requests sent at once. */
   concurrency?: number;
+  /**
+   * Whether AI API Manager has a usable service. The server passes a cached
+   * check (src/lib/i18n/service.server.ts, externalConfigured); without one the
+   * adapter is tried and a failure moves the engine on.
+   */
+  isConfigured?: () => boolean;
 };
 
 export function buildTranslationPrompt(request: EngineRequest, segment: TranslationSegment) {
@@ -79,8 +85,8 @@ export function createAiApiManagerProvider(
     id: AI_API_MANAGER_PROVIDER_ID,
     kind: "external",
     // Whether AI API Manager has an active, approved service with a credential
-    // is only known when it is asked; a failure moves the engine on.
-    isConfigured: () => true,
+    // comes from the injected check; without one it is only known when asked.
+    isConfigured: () => (config.isConfigured ? config.isConfigured() : true),
     supports: () => true,
     async translate(request: EngineRequest): Promise<EngineResponse> {
       const results: EngineSegmentResult[] = [];

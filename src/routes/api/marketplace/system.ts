@@ -253,8 +253,14 @@ export const Route = createFileRoute("/api/marketplace/system")({
           "30d": summarise(history, 24 * 30),
         };
 
+        // Counted by the database; the length of a 100-row read stopped at 100.
+        const queueTotal = await count("email_queue?select=id");
+
+        // A component this platform does not run (cache, queue worker) says
+        // so on its own row; it is not a fault of what does run. Ranked above
+        // healthy, it made the overall state impossible to ever read healthy.
         const worst = checks.reduce((acc, c) => {
-          const rank = { critical: 4, degraded: 3, unknown: 2, not_connected: 1, healthy: 0 } as const;
+          const rank = { critical: 4, degraded: 3, unknown: 2, not_connected: 0, healthy: 0 } as const;
           return rank[c.status] > rank[acc] ? c.status : acc;
         }, "healthy" as Check["status"]);
 
@@ -269,7 +275,7 @@ export const Route = createFileRoute("/api/marketplace/system")({
             // Section 5: computed from real samples over a real window.
             uptime_pct: windows["24h"].uptime_pct,
             uptime_window: "24h",
-            queues: emailQueue.length,
+            queues: queueTotal ?? emailQueue.length,
             storage_pct: host ? Number(host.disk_usage ?? 0) : null,
             errors_24h: windows["24h"].errors,
           },
@@ -311,7 +317,7 @@ export const Route = createFileRoute("/api/marketplace/system")({
             runner: "NOT CONNECTED",
             runner_reason:
               "One process runs here and it serves HTTP. Nothing drains a queue. The scheduled work that does run is cron calling database functions directly, and it is shown in the Automation console.",
-            email_queue: { total: emailQueue.length, by_status: emailByStatus },
+            email_queue: { total: queueTotal ?? emailQueue.length, by_status: emailByStatus },
             job_records: {
               demo_sandbox_jobs: jobTables[0],
               demo_provision_jobs: jobTables[1],

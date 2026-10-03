@@ -224,11 +224,16 @@ function FeatureDetail({ feature, accent, centerKey }: { feature: CenterFeature;
         <div className="grid h-14 w-14 place-items-center rounded-full bg-surface-2 text-muted-foreground">
           <Inbox className="h-5 w-5" />
         </div>
-        <div className="mt-4 text-base font-semibold">No records yet</div>
+        {/* "No records yet" was a claim this screen cannot make: it reads
+            nothing, so a reseller with pending leads or commissions was told
+            they had none. It now says the feature is not connected. */}
+        <div className="mt-4 text-base font-semibold">
+          Not available yet
+        </div>
         <div className="text-xs text-muted-foreground mt-1 max-w-md">
           {centerKey === "referral" && COUPON_FEATURES.has(feature.key)
             ? "Coupons are issued and managed by Software Vala only; resellers do not create or edit them. Your price is the rate set by your reseller plan."
-            : "This screen is ready to be wired to your existing Reseller API endpoint. When connected, real records will appear here in real time — nothing is faked."}
+            : "This feature is not connected to your records yet, so nothing is shown here. Nothing is faked."}
         </div>
       </div>
       )}

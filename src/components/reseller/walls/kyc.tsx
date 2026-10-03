@@ -3,7 +3,8 @@ import { ShieldCheck, ShieldAlert, BadgeCheck, FileSearch, CheckCircle2, XCircle
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
 const KYC = ["unverified", "submitted", "verified", "rejected"] as const;
-const STATUSES = ["pending", "active", "suspended", "rejected"] as const;
+// The table's own vocabulary (resellers status CHECK). Shown, not set, here.
+const STATUSES = ["pending", "active", "paused", "suspended", "rejected", "terminated"] as const;
 
 /**
  * KYC, read and written on the resellers table.

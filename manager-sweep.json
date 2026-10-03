@@ -1,0 +1,409 @@
+[
+  {
+    "path": "/affiliate-manager",
+    "chars": 1285,
+    "controls": 36,
+    "rows": 0,
+    "broken": true,
+    "gated": false,
+    "heading": "Global Affiliate Overview",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "state": "BROKEN"
+  },
+  {
+    "path": "/ai-ceo",
+    "chars": 4694,
+    "controls": 39,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "AI CEO Dashboard",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/ams-manager",
+    "chars": 3743,
+    "controls": 20,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Operator",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/assist-manager",
+    "chars": 696,
+    "controls": 23,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Assist Dashboard",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/chat",
+    "chars": 172,
+    "controls": 14,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Conversations",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 400 ()",
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "state": "ERRORS"
+  },
+  {
+    "path": "/chat-manager",
+    "chars": 1010,
+    "controls": 26,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Chat Command Console",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/control-panel",
+    "chars": 10245,
+    "controls": 180,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Control Panel",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/creator-manager",
+    "chars": 2394,
+    "controls": 54,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Creator Manager",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/demo-manager",
+    "chars": 464,
+    "controls": 14,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Demo Dashboard",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/demo-ops",
+    "chars": 1023,
+    "controls": 27,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Operations Center",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "state": "ERRORS"
+  },
+  {
+    "path": "/demo-workspace",
+    "chars": 647,
+    "controls": 29,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Demo Dashboard",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/dev-manager",
+    "chars": 871,
+    "controls": 22,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Developer Dashboard",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/finance-manager",
+    "chars": 297,
+    "controls": 13,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Billing Engine",
+    "errors": [],
+    "state": "EMPTY"
+  },
+  {
+    "path": "/franchise-manager",
+    "chars": 2430,
+    "controls": 40,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Franchise Manager",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/influencer-manager",
+    "chars": 2511,
+    "controls": 50,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Influencer Manager",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/keywords",
+    "chars": 117926,
+    "controls": 2024,
+    "rows": 1001,
+    "broken": false,
+    "gated": false,
+    "heading": "Keyword Manager",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/language-manager",
+    "chars": 407,
+    "controls": 8,
+    "rows": 1,
+    "broken": false,
+    "gated": false,
+    "heading": "Language Manager",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/lead-manager",
+    "chars": 3534,
+    "controls": 52,
+    "rows": 9,
+    "broken": false,
+    "gated": false,
+    "heading": "Lead Dashboard",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/legal-manager",
+    "chars": 1380,
+    "controls": 32,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Legal Manager",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 400 ()"
+    ],
+    "state": "ERRORS"
+  },
+  {
+    "path": "/marketing",
+    "chars": 2470,
+    "controls": 28,
+    "rows": 7,
+    "broken": false,
+    "gated": false,
+    "heading": "Marketing Overview",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/marketplace-manager",
+    "chars": 5457,
+    "controls": 67,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Welcome back to your marketplace",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/marketplace-recovery",
+    "chars": 61,
+    "controls": 1,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Restoring Marketplace Data",
+    "errors": [],
+    "state": "EMPTY"
+  },
+  {
+    "path": "/pages",
+    "chars": 12470,
+    "controls": 101,
+    "rows": 80,
+    "broken": false,
+    "gated": false,
+    "heading": "Page Optimization",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/product-demo-manager",
+    "chars": 853,
+    "controls": 11,
+    "rows": 0,
+    "broken": true,
+    "gated": false,
+    "heading": "Product & Demo Studio",
+    "errors": [],
+    "state": "BROKEN"
+  },
+  {
+    "path": "/promise-tracker",
+    "chars": 2124,
+    "controls": 17,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Promise Tracker Overview",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/reseller-manager",
+    "chars": 2565,
+    "controls": 41,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Reseller Manager",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/sales-crm",
+    "chars": 574,
+    "controls": 4,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Sales Dashboard",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/sales-support-manager",
+    "chars": 2631,
+    "controls": 11,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Sales & Support Manager Dashboard",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/seo-manager",
+    "chars": 2438,
+    "controls": 45,
+    "rows": 12,
+    "broken": false,
+    "gated": false,
+    "heading": "",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "state": "ERRORS"
+  },
+  {
+    "path": "/server-manager",
+    "chars": 784,
+    "controls": 18,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Live Overview",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/support",
+    "chars": 572,
+    "controls": 4,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Good afternoon, Support Team",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/support-agent",
+    "chars": 1503,
+    "controls": 18,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Support Command",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/task-manager",
+    "chars": 2963,
+    "controls": 58,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Task Dashboard",
+    "errors": [],
+    "state": "OK"
+  },
+  {
+    "path": "/vala-ai",
+    "chars": 355,
+    "controls": 32,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Execution Logs",
+    "errors": [],
+    "state": "EMPTY"
+  },
+  {
+    "path": "/vala-tv",
+    "chars": 108,
+    "controls": 2,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Vala TV",
+    "errors": [],
+    "state": "EMPTY"
+  },
+  {
+    "path": "/vendor-manager",
+    "chars": 182,
+    "controls": 3,
+    "rows": 0,
+    "broken": false,
+    "gated": false,
+    "heading": "Vendor Manager",
+    "errors": [],
+    "state": "EMPTY"
+  }
+]

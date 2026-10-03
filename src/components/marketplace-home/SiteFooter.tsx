@@ -3,6 +3,7 @@ import { Facebook, Globe, Instagram, Linkedin, Twitter, Youtube } from "lucide-r
 
 import { useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
 import { SITE_STATS } from "@/lib/site-content/constants";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { phrase, type HomeStats } from "@/lib/marketplace/home-stats";
 import type { FooterSnapshot } from "@/lib/storefront/chrome.functions";
 
@@ -211,6 +212,7 @@ function useFooterStats() {
 }
 
 export const SiteFooter = () => {
+  const { t } = useTranslation();
   const published = usePublishedFooter();
   const { solutions: liveSolutions, categories: liveCategories } = useFooterStats();
 
@@ -367,7 +369,7 @@ export const SiteFooter = () => {
         )}
 
         <p className="mt-6 text-center text-[13px] font-semibold text-white/80">
-          No advance payment — you see the demo first.
+          {t("marketplace.footer.no_advance_payment")}
         </p>
 
         <div className="mt-4 border-t border-white/10 pt-6 text-center">

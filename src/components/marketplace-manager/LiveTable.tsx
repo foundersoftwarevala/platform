@@ -52,6 +52,40 @@ function humanise(column: string): string {
   return column.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * What a cell edit actually sends. A JSON column used to be drafted as
+ * String(object) - "[object Object]" - and saved that way, destroying the rule
+ * or content it held. A number column turned a cleared cell into 0 and text
+ * into NaN, which serialises as null.
+ */
+function draftOf(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function parseDraft(value: unknown, draft: string): { ok: true; value: unknown } | { ok: false; message: string } {
+  if (value !== null && typeof value === "object") {
+    try {
+      const parsed: unknown = JSON.parse(draft);
+      if (parsed === null || typeof parsed !== "object") {
+        return { ok: false, message: "This field holds structured data; enter valid JSON." };
+      }
+      return { ok: true, value: parsed };
+    } catch {
+      return { ok: false, message: "That is not valid JSON, so nothing was saved." };
+    }
+  }
+  if (typeof value === "number") {
+    const n = Number(draft.trim());
+    if (draft.trim() === "" || !Number.isFinite(n)) {
+      return { ok: false, message: "Enter a number, so nothing was saved." };
+    }
+    return { ok: true, value: n };
+  }
+  return { ok: true, value: draft };
+}
+
 function display(value: unknown): string {
   if (value === null || value === undefined) return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -145,6 +179,13 @@ export function LiveTable({
   useEffect(() => {
     void load(search, page * PAGE);
   }, [load, page]);
+
+  // A selection belongs to the rows on screen. Kept across a page, search or
+  // sort change, "Retire selected" acted on rows nobody could see any more.
+  useEffect(() => {
+    setPicked([]);
+    setPlan(null);
+  }, [page, search, sortBy, sortDir, filterQuery]);
 
   // Typing filters the real table, not just what is on screen.
   useEffect(() => {
@@ -252,10 +293,14 @@ export function LiveTable({
         );
         return;
       }
-      // Take the server's copy of the row, never the optimistic one.
+      // Take the server's copy of the row, never the optimistic one - and if
+      // there is none, keep the row rather than put a hole in the table.
       setData((current) =>
         current
-          ? { ...current, rows: current.rows.map((r) => (String(r.id) === id ? payload.row : r)) }
+          ? {
+              ...current,
+              rows: current.rows.map((r) => (String(r.id) === id && payload.row ? payload.row : r)),
+            }
           : current,
       );
       setNotice(`Saved · ${humanise(column)}`);
@@ -718,7 +763,9 @@ export function LiveTable({
                                 onChange={(e) => setDraft(e.target.value)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
-                                    void save(id, column, typeof value === "number" ? Number(draft) : draft);
+                                    const parsed = parseDraft(value, draft);
+                                    if (parsed.ok) void save(id, column, parsed.value);
+                                    else setNotice(parsed.message);
                                   }
                                   if (e.key === "Escape") setEditing(null);
                                 }}
@@ -726,7 +773,11 @@ export function LiveTable({
                               />
                               <button
                                 type="button"
-                                onClick={() => void save(id, column, typeof value === "number" ? Number(draft) : draft)}
+                                onClick={() => {
+                                  const parsed = parseDraft(value, draft);
+                                  if (parsed.ok) void save(id, column, parsed.value);
+                                  else setNotice(parsed.message);
+                                }}
                                 aria-label="Save"
                                 className="grid h-6 w-6 place-items-center rounded border border-border text-accent"
                               >
@@ -752,7 +803,7 @@ export function LiveTable({
                               type="button"
                               onClick={() => {
                                 setEditing({ id, column });
-                                setDraft(value === null || value === undefined ? "" : String(value));
+                                setDraft(draftOf(value));
                               }}
                               className="max-w-[220px] truncate rounded px-1 text-left hover:bg-white/[0.06] hover:text-accent"
                               title="Click to edit"

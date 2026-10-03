@@ -1,6 +1,7 @@
 import { rateLimited } from "@/lib/server/rate-limit";
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
 
 /**
  * The home page's category rows, as the marketplace actually has them.
@@ -50,6 +51,8 @@ let rowsCache: { at: number; rows: RowSummary[] } | null = null;
 function dropRowsCache() {
   rowsCache = null;
 }
+// ...and by any other Manager write to the catalogue.
+onCatalogueChange(dropRowsCache);
 
 /**
  * Written to marketplace_audit_logs as the operator who made the change, the

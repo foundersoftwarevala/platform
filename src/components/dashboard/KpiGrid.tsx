@@ -3,6 +3,7 @@ import { ArrowDownRight, ArrowUpRight, MoreVertical } from "lucide-react";
 import type { Kpi } from "@/lib/roles";
 import { Sparkline } from "@/components/charts/Charts";
 import { fmtValue, metricFor } from "@/lib/metrics";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 const toneStyle: Record<Kpi["tone"], { bg: string; fg: string; ring: string; line: string }> = {
   brand:   { bg: "bg-brand/15", fg: "text-[oklch(0.72_0.2_265)]", ring: "hover:border-[oklch(0.62_0.22_265)]/60", line: "oklch(0.72 0.2 265)" },
@@ -26,6 +27,7 @@ function KpiCardBase({
    */
   value?: number | null;
 }) {
+  const { t: translate } = useTranslation();
   const t = toneStyle[kpi.tone];
   const m = metricFor(roleKey, kpi);
   const isReal = value !== undefined;
@@ -54,13 +56,13 @@ function KpiCardBase({
             : fmtValue(m.value, m.unit)}
         </span>
       </div>
-      <div className="mt-1 text-xs text-muted-foreground truncate">{kpi.label}</div>
+      <div className="mt-1 text-xs text-muted-foreground truncate">{kpi.labelKey ? translate(kpi.labelKey) : kpi.label}</div>
       <div className="mt-1.5 flex items-end justify-between gap-2">
         {isReal ? (
           // A real figure gets no invented trend line and no invented delta.
           // When there is nothing to report yet, say so plainly.
           <span className="text-[10px] font-medium text-muted-foreground">
-            {value === null ? "not tracked yet" : "live"}
+            {value === null ? translate("dashboard.kpi.not_tracked") : translate("dashboard.kpi.live")}
           </span>
         ) : (
           <>

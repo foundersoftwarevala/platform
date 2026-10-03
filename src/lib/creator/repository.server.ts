@@ -108,10 +108,12 @@ function normalizeAnalytics(raw: unknown, range: TimeRange): DashboardAnalytics 
 /**
  * The modules the platform can answer for itself, from its own database.
  *
- * Only influencer is wired so far, through influencer_programme_summary(),
- * which counts the whole programme in SQL. The others return null and fall back
- * to the empty snapshot, which is the honest answer until each has a summary of
- * its own - the same mistake would be to make a number up for them here.
+ * Influencer is wired through influencer_programme_summary(), which counts the
+ * whole programme in SQL, and reseller through the reseller console's own
+ * functions (fetchResellerFromPlatform below). The others return null and fall
+ * back to the empty snapshot, which is the honest answer until each has a
+ * summary of its own - the same mistake would be to make a number up for them
+ * here.
  *
  * This reads with the service-role key against the VPS gateway, because it runs
  * on the server for an operator console that row level security has already let
@@ -120,6 +122,7 @@ function normalizeAnalytics(raw: unknown, range: TimeRange): DashboardAnalytics 
 async function fetchFromPlatform(
   params: FetchAnalyticsParams,
 ): Promise<DashboardAnalytics | null> {
+  if (params.module === "reseller") return fetchResellerFromPlatform(params);
   if (params.module !== "influencer") return null;
 
   const url = process.env["SUPABASE_URL"]?.trim();
@@ -165,6 +168,126 @@ async function fetchFromPlatform(
       ...base,
       connected: true,
       source: "platform:influencer_programme_summary",
+      generatedAt: new Date().toISOString(),
+      metrics,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The Reseller Manager's tiles, from the reseller tables.
+ *
+ * The caller is admitted by the database, not by this code: mm_resellers and
+ * mm_reseller_attention are called with the caller's own token, and both answer
+ * not_permitted to anyone who is not a reseller operator - in which case the
+ * empty, "not connected" snapshot is returned. Only then are the per-currency
+ * sums and the ticket count read with the service key.
+ *
+ * Every tile is a count or a sum from the database, over all time (there is no
+ * per-range history to compare against, so no delta is claimed). A money tile
+ * is shown only when its lines are in one currency - rupees and dollars do not
+ * add up - and otherwise, like Leads, which no reseller table records, it is
+ * marked unavailable and shows "—" rather than a zero.
+ */
+async function fetchResellerFromPlatform(
+  params: FetchAnalyticsParams,
+): Promise<DashboardAnalytics | null> {
+  const url = process.env["SUPABASE_URL"]?.trim()?.replace(/\/+$/, "");
+  const anon =
+    process.env["SUPABASE_ANON_KEY"]?.trim() || process.env["VITE_SUPABASE_PUBLISHABLE_KEY"]?.trim();
+  const service = process.env["SUPABASE_SERVICE_ROLE_KEY"]?.trim();
+  if (!url || !anon || !service) return null;
+
+  let token: string | null = null;
+  try {
+    const { getRequestHeader } = await import("@tanstack/react-start/server");
+    const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
+    token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  } catch {
+    token = null;
+  }
+  if (!token) return null;
+
+  const asCaller = async (fn: string, body: unknown) => {
+    const response = await fetch(`${url}/rest/v1/rpc/${fn}`, {
+      method: "POST",
+      headers: { apikey: anon, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as Record<string, unknown>;
+  };
+
+  try {
+    const [overview, attention] = await Promise.all([
+      asCaller("mm_resellers", { p_query: { limit: 1 } }),
+      asCaller("mm_reseller_attention", {}),
+    ]);
+    if (!overview || overview.ok !== true || !attention || attention.ok !== true) return null;
+
+    const asService = (path: string, extra: Record<string, string> = {}) =>
+      fetch(`${url}/rest/v1/${path}`, {
+        headers: { apikey: service, Authorization: `Bearer ${service}`, ...extra },
+      });
+
+    // Commission lines that still count (not reversed), for referred revenue.
+    const LINES_CAP = 10000;
+    const linesResponse = await asService(
+      `reseller_commissions?select=currency,gross_amount&status=neq.reversed&limit=${LINES_CAP + 1}`,
+    );
+    const lines = linesResponse.ok
+      ? ((await linesResponse.json()) as { currency: string; gross_amount: number | string }[])
+      : null;
+
+    const ticketsResponse = await asService("reseller_support_tickets?select=id&limit=1", {
+      Prefer: "count=exact",
+    });
+    const ticketRange = ticketsResponse.ok ? ticketsResponse.headers.get("content-range") : null;
+    const tickets = ticketRange ? Number(ticketRange.split("/")[1]) : NaN;
+
+    const base = emptyDashboardAnalytics(params.range);
+    const metrics = { ...base.metrics };
+    const set = (k: MetricKey, value: number, unit?: string) => {
+      metrics[k] = { ...metrics[k], key: k, value, previousValue: 0, deltaPct: null, series: [] };
+      if (unit !== undefined) metrics[k].unit = unit;
+    };
+    const unavailable = (k: MetricKey) => {
+      metrics[k] = { ...metrics[k], key: k, value: 0, previousValue: 0, deltaPct: null, series: [], unavailable: true };
+    };
+    const n = (v: unknown) => Number(v ?? 0) || 0;
+
+    set("resellers", n(overview.total));
+    // Orders attributed to a reseller's referral link.
+    set("orders", n(overview.conversions));
+    // Memberships whose paid year ends within 30 days.
+    set("renewals", n(attention.memberships_expiring_30d));
+    if (Number.isFinite(tickets)) set("tickets", tickets);
+    else unavailable("tickets");
+    unavailable("leads");
+
+    // Referred revenue: one currency, or nothing.
+    if (lines && lines.length <= LINES_CAP) {
+      const currencies = new Set(lines.map((l) => l.currency));
+      if (currencies.size === 0) set("revenue", 0);
+      else if (currencies.size === 1) {
+        set("revenue", lines.reduce((sum, l) => sum + n(l.gross_amount), 0), [...currencies][0]);
+      } else unavailable("revenue");
+    } else unavailable("revenue");
+
+    // Commission released and payable - the balance card's "Commission payable".
+    const payable = Array.isArray(attention.commission_available)
+      ? (attention.commission_available as { currency: string; amount: number | string }[])
+      : [];
+    if (payable.length === 0) set("commissions", 0);
+    else if (payable.length === 1) set("commissions", n(payable[0]!.amount), payable[0]!.currency);
+    else unavailable("commissions");
+
+    return {
+      ...base,
+      connected: true,
+      source: "platform:mm_resellers",
       generatedAt: new Date().toISOString(),
       metrics,
     };

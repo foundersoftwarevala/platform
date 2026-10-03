@@ -71,12 +71,12 @@ export const reassignTask = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    await requireDevManager();
+    const callerId = await requireDevManager();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { reassignTaskInDb } = await import("./dev-manager.server");
     return reassignTaskInDb(
       supabaseAdmin,
-      null,
+      callerId,
       data.taskId,
       data.newDeveloperId,
       data.reason,
@@ -95,10 +95,10 @@ export const escalateTask = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    await requireDevManager();
+    const callerId = await requireDevManager();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { escalateTaskInDb } = await import("./dev-manager.server");
-    return escalateTaskInDb(supabaseAdmin, null, data.taskId, data.reason, data.actor);
+    return escalateTaskInDb(supabaseAdmin, callerId, data.taskId, data.reason, data.actor);
   });
 
 export const updateEscalation = createServerFn({ method: "POST" })
@@ -113,12 +113,12 @@ export const updateEscalation = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    await requireDevManager();
+    const callerId = await requireDevManager();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { updateEscalationInDb } = await import("./dev-manager.server");
     return updateEscalationInDb(
       supabaseAdmin,
-      null,
+      callerId,
       data.escalationId,
       data.status,
       data.resolution,
@@ -137,10 +137,10 @@ export const addInternalNote = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    await requireDevManager();
+    const callerId = await requireDevManager();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { addInternalNoteInDb } = await import("./dev-manager.server");
-    return addInternalNoteInDb(supabaseAdmin, null, data.taskId, data.content, data.actor);
+    return addInternalNoteInDb(supabaseAdmin, callerId, data.taskId, data.content, data.actor);
   });
 
 export const getAuditTrail = createServerFn({ method: "GET" })
@@ -182,7 +182,7 @@ export const setDeveloperStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    await requireDevManager();
+    const callerId = await requireDevManager();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { setDeveloperStatusInDb } = await import("./dev-manager.server");
     return setDeveloperStatusInDb(
@@ -191,6 +191,7 @@ export const setDeveloperStatus = createServerFn({ method: "POST" })
       data.status,
       data.reason,
       data.actor,
+      callerId,
     );
   });
 
@@ -209,4 +210,29 @@ export const completeDeveloperOnboarding = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { completeDeveloperOnboardingInDb } = await import("./dev-manager.server");
     return completeDeveloperOnboardingInDb(supabaseAdmin, reviewerId, data.developerId, data.note, data.actor);
+  });
+
+/**
+ * Registry "Escalate": a developer-level escalation recorded in the audit
+ * trail by the operator who raised it (the verified caller, not a name the
+ * page sends). There is no developer-level escalation table; task
+ * escalations are escalateTask.
+ */
+export const escalateDeveloper = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ developerId: z.string().uuid(), actor: actorSchema }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const callerId = await requireDevManager();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { writeAudit } = await import("./dev-manager.server");
+    await writeAudit(
+      supabaseAdmin,
+      callerId,
+      "dev_manager.registry",
+      "DEVELOPER_ESCALATED",
+      { developer_id: data.developerId, severity: "high" },
+      data.actor,
+    );
+    return { ok: true as const };
   });

@@ -14,6 +14,7 @@ import { RouteAccessGate } from "@/components/auth/RouteAccessGate";
 import { LanguageProvider } from "@/lib/language-catalog";
 import { PageTranslator } from "@/components/i18n/PageTranslator";
 import { LanguageDock } from "@/components/i18n/LanguageSelector";
+import { SkipToContent } from "@/components/a11y/SkipToContent";
 import { AuthProvider } from "@/hooks/useAuth";
 import { DEFAULT_LANGUAGE, buildLanguageBootScript } from "@/lib/i18n/language-service";
 import { getLanguage } from "@/lib/i18n/registry";
@@ -158,6 +159,8 @@ function RootComponent() {
         engine. Renders nothing and rewrites no markup.
       */}
       <PageTranslator />
+      {/* The first Tab stop on every page: past the menus to its <main>. */}
+      <SkipToContent />
       {/* The language selector on every screen whose header has none. */}
       <LanguageDock />
       <TooltipProvider>

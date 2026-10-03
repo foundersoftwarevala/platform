@@ -51,6 +51,11 @@ export interface MetricSnapshot {
   deltaPct: number | null;
   series: MetricSeriesPoint[];
   unit?: string;
+  /**
+   * The platform has no honest figure for this metric (nothing records it, or
+   * its amounts are in more than one currency). Shown as "—", never as a zero.
+   */
+  unavailable?: boolean;
 }
 
 export interface DashboardAnalytics {

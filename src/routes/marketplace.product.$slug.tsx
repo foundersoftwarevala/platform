@@ -83,9 +83,28 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
       !productResult.value?.product &&
       seoResult.status === "fulfilled" &&
       !seoResult.value;
+    // noindex alone left it a 200 - a soft 404. The page still renders.
+    if (missing && typeof window === "undefined") {
+      (await import("@/lib/seo/not-found.server")).respondNotFound();
+    }
     try {
       const seo = seoResult.status === "fulfilled" ? seoResult.value : null;
-      if (!seo) return { product, missing };
+      if (!seo) {
+        // A product the page body found without a catalogue SEO row - one of
+        // the marketplace's own listed demos - is named for what it is. It
+        // used to share one generic title, with no canonical, across every
+        // such page.
+        const shown = (product as { product?: { name?: string; description?: string | null; industry_label?: string | null } | null } | null)?.product;
+        if (shown?.name) {
+          return {
+            name: shown.name,
+            description: shown.description ?? shown.industry_label ?? null,
+            slug: params.slug,
+            product,
+          };
+        }
+        return { product, missing };
+      }
       // What the SEO Manager says about this page, if anything. A record it has
       // never been given simply resolves to null and the product speaks for
       // itself, exactly as before.
@@ -179,6 +198,8 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
     if (override?.noindex) {
       meta.push({ name: "robots", content: "noindex, follow" });
     }
+    // og:url names the page a share points at; it was missing on every product.
+    meta.push({ property: "og:url", content: canonical });
     const schema = {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",

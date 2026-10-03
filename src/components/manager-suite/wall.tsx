@@ -45,7 +45,33 @@ export type WallKpi = {
   compute: (rows: any[]) => string | number;
 };
 
-export type WallBulkAction = {
+/**
+ * What an action with its own handler reports. `null` means nothing was
+ * attempted for that row.
+ */
+export type WallActionOutcome = { ok: boolean; message?: string; reason?: string } | null;
+
+/**
+ * Optional behaviour shared by bulk and row actions.
+ *
+ * Some tables accept a change only through a dedicated, audited server function
+ * - a payout is paid only with the provider's reference, a reseller is
+ * suspended only with a reason - so a plain column patch is refused for them.
+ * Such an action names a `run` handler instead of a `patch`; the wall still
+ * owns selection, the prompt, the toast and the re-read.
+ */
+type WallActionHooks = {
+  /** Called once per row instead of patching the row. */
+  run?: (row: WallRow, answer?: string) => Promise<WallActionOutcome>;
+  /** Asked once before `run`. An empty or dismissed answer attempts nothing. */
+  ask?: string;
+  /** The rows this action applies to. Others are not offered it, or skipped in bulk. */
+  when?: (row: WallRow) => boolean;
+  /** Set when nothing on the platform can carry this action; shown disabled with this reason. */
+  unavailable?: string;
+};
+
+export type WallBulkAction = WallActionHooks & {
   key: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -55,7 +81,7 @@ export type WallBulkAction = {
   confirmDescription?: string;
 };
 
-export type WallRowAction = {
+export type WallRowAction = WallActionHooks & {
   key: string;
   label: string;
   icon?: React.ComponentType<{ className?: string }>;
@@ -87,6 +113,12 @@ export type WallConfig = {
   creatable?: boolean;
   /** Shown but never changed here - the records are worked on another screen. */
   readOnly?: boolean;
+  /**
+   * Why nothing on this wall can be changed, when the table is real but no
+   * write to it reaches anyone. Every control stays where it is, disabled, and
+   * this reason is shown above the table and on each control.
+   */
+  unavailable?: string;
   seed: any[];
   columns: WallColumn[];
   filters: WallFilterDef[];
@@ -148,7 +180,7 @@ function Field({
   onChange: (v: any) => void;
 }) {
   const base =
-    "w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] text-foreground outline-none transition focus:border-accent/50";
+    "w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] text-foreground outline-none transition focus:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/40";
   return (
     <label className="block">
       <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -203,6 +235,9 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
   // "nothing here yet", which is a different and much worse claim.
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(remote));
+  // Whether the endpoint can retire a row of this resource, as it says itself.
+  // Where it cannot, Delete is shown disabled rather than offered and refused.
+  const [retirable, setRetirable] = useState<boolean | null>(null);
 
   /** Read the real rows. Only used when the wall names a resource. */
   const reload = useCallback(async () => {
@@ -221,6 +256,7 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
         return;
       }
       setRows((payload.rows ?? []) as WallRow[]);
+      if (typeof payload.retirable === "boolean") setRetirable(payload.retirable);
     } catch (cause) {
       setLoadError(cause instanceof Error ? cause.message : "Could not reach the server.");
       setRows([]);
@@ -431,6 +467,77 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
     setSelected(new Set());
   };
 
+  /**
+   * One bulk or row action, applied to the rows it fits.
+   *
+   * An action with a `when` is applied only to the rows it fits; the rest are
+   * counted as skipped rather than sent to be refused. An action with a `run`
+   * handler goes through that handler one row at a time, so a server function
+   * with its own rules decides each one and says why it refused.
+   */
+  const act = async (
+    action: WallActionHooks & {
+      key: string;
+      label: string;
+      patch?: Record<string, any>;
+      destructive?: boolean;
+      variant?: "default" | "destructive";
+      confirmTitle?: string;
+      confirmDescription?: string;
+    },
+    ids: string[],
+  ) => {
+    if (action.unavailable) {
+      toast.info(action.unavailable);
+      return;
+    }
+    const fits = rows.filter((r) => ids.includes(r.id) && (!action.when || action.when(r)));
+    const skipped = ids.length - fits.length;
+    if (!fits.length) {
+      toast.info(`${action.label} does not apply to the selected ${config.entity}(s).`);
+      return;
+    }
+    // A destructive change is confirmed first, on a row or in bulk: one stray
+    // click must not cancel an order or retire a record. The bulk configs
+    // carried a confirmation title and description that nothing ever showed.
+    if (action.destructive || action.variant === "destructive") {
+      const question = [action.confirmTitle ?? `${action.label} ${fits.length} ${config.entity}(s)?`, action.confirmDescription]
+        .filter(Boolean)
+        .join("\n\n");
+      if (!window.confirm(question)) return;
+    }
+    if (!action.run) {
+      applyPatch(fits.map((r) => r.id), action.patch, action.key === "delete");
+      if (skipped) toast.info(`${skipped} ${config.entity}(s) skipped: ${action.label} does not apply to them.`);
+      return;
+    }
+
+    let answer: string | undefined;
+    if (action.ask) {
+      const given = window.prompt(action.ask);
+      if (!given || !given.trim()) return;
+      answer = given.trim();
+    }
+
+    let done = 0;
+    const refused: string[] = [];
+    for (const row of fits) {
+      try {
+        const outcome = await action.run(row, answer);
+        if (!outcome) continue;
+        if (outcome.ok) done += 1;
+        else refused.push(outcome.message ?? `Refused (${outcome.reason ?? "unknown"})`);
+      } catch (cause) {
+        refused.push(cause instanceof Error ? cause.message : "That change did not reach the server.");
+      }
+    }
+    if (done) toast.success(`${action.label}: ${done} ${config.entity}(s) done`);
+    if (refused.length) toast.error([...new Set(refused)].join(" · "));
+    if (skipped) toast.info(`${skipped} ${config.entity}(s) skipped: ${action.label} does not apply to them.`);
+    setSelected(new Set());
+    await reload();
+  };
+
   const toggle = (id: string) =>
     setSelected((s) => {
       const n = new Set(s);
@@ -438,6 +545,14 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
       else n.add(id);
       return n;
     });
+
+  /** Why an action cannot be taken here, or undefined when it can. */
+  const blockedReason = (a: { key: string; run?: unknown; unavailable?: string }) =>
+    config.unavailable ??
+    a.unavailable ??
+    (remote && a.key === "delete" && !a.run && retirable === false
+      ? `${cap(config.entity)} records cannot be retired here.`
+      : undefined);
 
   const Icon = config.icon;
 
@@ -463,7 +578,7 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
               Export
             </PillButton>
             {config.creatable !== false && (
-              <PillButton variant="primary" onClick={openCreate}>
+              <PillButton variant="primary" onClick={openCreate} disabled={Boolean(config.unavailable)}>
                 <span className="inline-flex items-center gap-1.5">
                   <Plus className="h-3.5 w-3.5" /> {config.primaryLabel}
                 </span>
@@ -476,6 +591,12 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
       {noTable && (
         <div className="mb-4 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           Not connected: no table on the platform holds {config.entity} records yet, so nothing is kept here.
+        </div>
+      )}
+
+      {!noTable && config.unavailable && (
+        <div className="mb-4 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          {config.unavailable}
         </div>
       )}
 
@@ -503,7 +624,7 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                 setPage(1);
               }}
               placeholder={`Search ${config.entity}s…`}
-              className="w-full rounded-lg border border-border bg-background/60 py-2 pl-9 pr-3 text-[12px] outline-none transition focus:border-accent/50"
+              className="w-full rounded-lg border border-border bg-background/60 py-2 pl-9 pr-3 text-[12px] outline-none transition focus:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/40"
             />
           </div>
           {config.filters.map((f) => (
@@ -515,7 +636,7 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                 setFilters((s) => ({ ...s, [f.key]: e.target.value }));
                 setPage(1);
               }}
-              className="rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] outline-none focus:border-accent/50"
+              className="rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] outline-none focus:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/40"
             >
               <option value="">{f.label}: All</option>
               {f.options.map((o) => (
@@ -539,8 +660,10 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
             {config.bulkActions.map((b) => (
               <button
                 key={b.key}
-                onClick={() => applyPatch([...selected], b.patch, b.key === "delete")}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition ${
+                onClick={() => void act(b, [...selected])}
+                disabled={Boolean(blockedReason(b))}
+                title={blockedReason(b) ?? b.label}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
                   b.variant === "destructive"
                     ? "border-destructive/40 text-destructive hover:bg-destructive/10"
                     : "border-border text-foreground hover:border-accent/40 hover:text-accent"
@@ -576,12 +699,17 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                 {config.columns.map((c) => (
                   <th
                     key={c.key}
-                    onClick={() => setSortKey(c.key)}
-                    className={`cursor-pointer px-4 py-3 font-bold transition hover:text-accent ${
-                      c.align === "right" ? "text-right" : ""
-                    }`}
+                    aria-sort={sortKey === c.key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
+                    className={`px-4 py-3 font-bold ${c.align === "right" ? "text-right" : ""}`}
                   >
-                    {c.header}
+                    {/* A button, so the column can be sorted from the keyboard too. */}
+                    <button
+                      type="button"
+                      onClick={() => setSortKey(c.key)}
+                      className="cursor-pointer font-bold uppercase tracking-wider transition hover:text-accent focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {c.header}
+                    </button>
                   </th>
                 ))}
                 <th className="px-4 py-3 text-right font-bold">Actions</th>
@@ -602,7 +730,20 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                 </tr>
               )}
               {paged.map((r) => (
-                <tr key={r.id} className="border-b border-border/60 transition hover:bg-white/[0.03]">
+                <tr
+                  key={r.id}
+                  // The cells open the record on click; the row does the same from the
+                  // keyboard, so the detail is not mouse-only.
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setDetail(r);
+                    }
+                  }}
+                  className="border-b border-border/60 transition hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                >
                   <td className="px-4 py-3">
                     <input type="checkbox" aria-label="Select this row" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
                   </td>
@@ -617,12 +758,13 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                   ))}
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex flex-wrap justify-end gap-1">
-                      {(config.rowActions ?? []).map((a) => (
+                      {(config.rowActions ?? []).filter((a) => !a.when || a.when(r)).map((a) => (
                         <button
                           key={a.key}
-                          onClick={() => applyPatch([r.id], a.patch)}
-                          title={a.label}
-                          className={`rounded-md border border-border p-1.5 transition hover:border-accent/40 ${
+                          onClick={() => void act(a, [r.id])}
+                          disabled={Boolean(blockedReason(a))}
+                          title={blockedReason(a) ?? a.label}
+                          className={`rounded-md border border-border p-1.5 transition hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-40 ${
                             a.destructive ? "text-destructive" : "text-muted-foreground hover:text-accent"
                           }`}
                         >
@@ -633,15 +775,18 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                         <>
                           <button
                             onClick={() => openEdit(r)}
-                            className="rounded-md border border-border px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground transition hover:border-accent/40 hover:text-accent"
+                            disabled={Boolean(config.unavailable)}
+                            title={config.unavailable ?? "Edit"}
+                            className="rounded-md border border-border px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground transition hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => applyPatch([r.id], undefined, true)}
-                            title="Delete"
+                            disabled={Boolean(blockedReason({ key: "delete" }))}
+                            title={blockedReason({ key: "delete" }) ?? "Delete"}
                             aria-label={`Delete ${String(r[config.primaryField] ?? r.id)}`}
-                            className="rounded-md border border-border p-1.5 text-destructive transition hover:bg-destructive/10"
+                            className="rounded-md border border-border p-1.5 text-destructive transition hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -764,6 +909,7 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
               <PillButton onClick={() => setDetail(null)}>Close</PillButton>
               <PillButton
                 variant="primary"
+                disabled={readOnly || Boolean(config.unavailable)}
                 onClick={() => {
                   openEdit(detail);
                   setDetail(null);

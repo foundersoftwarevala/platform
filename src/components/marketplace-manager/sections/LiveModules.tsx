@@ -151,14 +151,14 @@ export function AuthorsLive() {
         { label: "All", resource: "authors" },
         { label: "Verified", resource: "authors", filter: { status: "approved" } },
         { label: "Products", resource: "products" },
-        { label: "Earnings", resource: "partner_commissions" },
-        { label: "Payouts", resource: "partner_payouts" },
+        { label: "Earnings", resource: "partner_commissions", filter: { partner_kind: "author" } },
+        { label: "Payouts", resource: "partner_payouts", filter: { partner_kind: "author" } },
       ]}
       counters={[
         { label: "Authors", resource: "authors" },
         { label: "Verified", resource: "authors", filter: { status: "approved" }, tone: "success" },
         { label: "Products", resource: "products" },
-        { label: "Payouts", resource: "partner_payouts" },
+        { label: "Payouts", resource: "partner_payouts", filter: { partner_kind: "author" } },
       ]}
       footnote={ENDPOINT}
     />
@@ -175,14 +175,14 @@ export function VendorsLive() {
       tabs={[
         { label: "All", resource: "vendors" },
         { label: "Verified", resource: "vendors", filter: { verified: "true" } },
-        { label: "Commission", resource: "partner_commissions" },
-        { label: "Payouts", resource: "partner_payouts" },
+        { label: "Commission", resource: "partner_commissions", filter: { partner_kind: "vendor" } },
+        { label: "Payouts", resource: "partner_payouts", filter: { partner_kind: "vendor" } },
       ]}
       counters={[
         { label: "Vendors", resource: "vendors" },
         { label: "Verified", resource: "vendors", filter: { verified: "true" }, tone: "success" },
-        { label: "Commission", resource: "partner_commissions" },
-        { label: "Payouts", resource: "partner_payouts" },
+        { label: "Commission", resource: "partner_commissions", filter: { partner_kind: "vendor" } },
+        { label: "Payouts", resource: "partner_payouts", filter: { partner_kind: "vendor" } },
       ]}
       footnote={ENDPOINT}
     />
@@ -223,15 +223,15 @@ export function AffiliateLive() {
       tabs={[
         { label: "Partners", resource: "affiliate" },
         { label: "Clicks", resource: "affiliate_clicks" },
-        { label: "Commission", resource: "partner_commissions" },
-        { label: "Payouts", resource: "partner_payouts" },
+        { label: "Commission", resource: "partner_commissions", filter: { partner_kind: "affiliate" } },
+        { label: "Payouts", resource: "partner_payouts", filter: { partner_kind: "affiliate" } },
         { label: "QR", resource: "qr_system" },
       ]}
       counters={[
         { label: "Affiliates", resource: "affiliate" },
         { label: "Clicks", resource: "affiliate_clicks" },
-        { label: "Commission", resource: "partner_commissions" },
-        { label: "Payouts", resource: "partner_payouts" },
+        { label: "Commission", resource: "partner_commissions", filter: { partner_kind: "affiliate" } },
+        { label: "Payouts", resource: "partner_payouts", filter: { partner_kind: "affiliate" } },
       ]}
       footnote={ENDPOINT}
     />
@@ -247,11 +247,11 @@ export function InfluencerLive() {
       Icon={Users}
       tabs={[
         { label: "Creators", resource: "influencer" },
-        { label: "Approved", resource: "influencer", filter: { status: "approved" } },
+        { label: "Approved", resource: "influencer", filter: { status: "active" } },
       ]}
       counters={[
         { label: "Creators", resource: "influencer" },
-        { label: "Approved", resource: "influencer", filter: { status: "approved" }, tone: "success" },
+        { label: "Approved", resource: "influencer", filter: { status: "active" }, tone: "success" },
         { label: "Campaigns", absent: "There is no campaigns table on this platform yet." },
         { label: "Payouts", absent: "Creator payouts are held in the Influencer Manager, not here." },
       ]}

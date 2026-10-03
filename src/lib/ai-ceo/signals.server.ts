@@ -96,7 +96,9 @@ export async function computeMetrics(degraded: Degraded): Promise<EcosystemMetri
     safe("marketplace_events", degraded, async () => {
       const [events, usage] = await Promise.all([
         countSince("marketplace_events", "created_at", since24h),
-        countSince("usage_events", "created_at", since24h).catch(() => 0),
+        // usage_events is timestamped by occurred_at. A failure is reported as
+        // degraded instead of being counted as no usage.
+        safe("usage_events", degraded, () => countSince("usage_events", "occurred_at", since24h), 0),
       ]);
       return events + usage;
     }, null as number | null),

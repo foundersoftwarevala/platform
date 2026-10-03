@@ -1,3 +1,4 @@
+import { Msg } from "@/lib/i18n/use-translation";
 import { Bell, CheckCheck, Send, Trash2, Megaphone, AlertTriangle, Info } from "lucide-react";
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
@@ -8,10 +9,16 @@ const STATUSES = ["scheduled", "active", "expired"] as const;
 const AUDIENCES = ["all", "resellers", "customers", "admins"] as const;
 
 export const config: WallConfig = {
-  // Reads and writes reseller_notifications, whose columns are exactly the
-  // five this wall renders. Empty today, and a notification written here is
-  // now a real row rather than one entry in one operator's browser.
+  // Reads reseller_notifications, whose columns are exactly the five this wall
+  // renders. Nothing on the platform reads that table: a reseller sees what is
+  // in user_notifications, written only by the database's own mm_notify. A
+  // broadcast created or published here was saved and reached nobody, so the
+  // controls stay, disabled, and say why.
   resource: "reseller_notifications",
+  unavailable:
+    "Broadcasts are not delivered from here. Resellers are notified through the platform's " +
+    "notification system (user_notifications), which no operator screen can write to yet, " +
+    "and nothing reads the rows on this wall.",
   scope: "notifications", entity: "notification", route: "/notifications",
   eyebrow: "Broadcast", title: "Notifications Wall",
   subtitle: "Announcements, alerts and system messages across every audience.",
@@ -61,7 +68,7 @@ export const config: WallConfig = {
         {r.body || <span className="text-muted-foreground">No message body.</span>}
       </p>
       <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
-        <Info className="h-3 w-3" /> Broadcast delivered to <span className="font-semibold text-foreground">{r.audience}</span>
+        <Info className="h-3 w-3" /> <Msg k="reseller.walls.audience_recorded" /> <span className="font-semibold text-foreground">{r.audience}</span> <Msg k="reseller.walls.not_delivered" />
       </div>
     </>
   ),

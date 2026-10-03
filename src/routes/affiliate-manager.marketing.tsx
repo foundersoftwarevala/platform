@@ -12,6 +12,7 @@ export const Route = createFileRoute("/affiliate-manager/marketing")({
       description="Email, SMS, WhatsApp and Push campaigns with automation and analytics."
       crumbLabel="Marketing"
       table="marketing_broadcasts"
+      unavailable="Affiliate broadcasts are not recorded on the platform yet."
       searchColumns={["subject", "body"]}
       searchPlaceholder="Search broadcasts…"
       filters={["Channel", "Status", "Audience", "Date"]}

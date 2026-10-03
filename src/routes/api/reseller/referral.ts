@@ -128,7 +128,9 @@ export const Route = createFileRoute("/api/reseller/referral")({
 
         if (action === "create-link") {
           const countResponse = await rest(
-            `marketplace_referral_codes?select=id` +
+            // Active links only: the message below tells the reseller to
+            // deactivate one, which only helps if inactive links do not count.
+            `marketplace_referral_codes?select=id&active=is.true` +
               `&reseller_id=eq.${encodeURIComponent(gate.reseller.id)}&limit=${MAX_LINKS}`,
           );
           const count = countResponse.ok ? ((await countResponse.json()) as unknown[]).length : 0;

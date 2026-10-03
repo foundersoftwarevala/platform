@@ -176,10 +176,15 @@ export interface CreateAssistInput {
 
 export async function createAssistSession(input: CreateAssistInput) {
   const sessionCode = randomCode("SVL");
+  // assist_sessions_insert admits a row only when created_by is the signed-in
+  // user; the column has no default, so leaving it out refused every session.
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error("Sign in to start an assist session.");
   const inserted = await supabase
     .from("assist_sessions")
     .insert({
       session_code: sessionCode,
+      created_by: auth.user.id,
       end_user_id: input.endUserId,
       agent_id: input.agentId,
       assist_type: input.assistType,

@@ -48,9 +48,17 @@ const CategorySlider = () => {
     if (reduce) return;
     const timer = window.setInterval(() => {
       if (pausedRef.current || draggingRef.current) return;
+      // Distance travelled, with the page's direction as the sign: in a
+      // right-to-left language scrollLeft is negative, and read as a plain
+      // number the loop clamped at 0 and the strip stood still.
+      const sign = getComputedStyle(viewport).direction === "rtl" ? -1 : 1;
       const half = viewport.scrollWidth / 2;
-      if (viewport.scrollLeft >= half - 2) viewport.scrollLeft -= half;
-      viewport.scrollTo({ left: viewport.scrollLeft + 180, behavior: "auto" });
+      let travelled = Math.abs(viewport.scrollLeft);
+      if (travelled >= half - 2) {
+        travelled -= half;
+        viewport.scrollLeft = sign * travelled;
+      }
+      viewport.scrollTo({ left: sign * (travelled + 180), behavior: "auto" });
     }, 2200);
     return () => window.clearInterval(timer);
   }, []);

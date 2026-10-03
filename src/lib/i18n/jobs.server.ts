@@ -9,10 +9,12 @@ import {
   type LanguageDefinition,
 } from "./registry";
 import {
+  QUALITY_ATTEMPTED_MODE,
   createSupabaseGlossaryStore,
   createSupabaseMemoryStore,
   db,
   disabledLanguages,
+  engineReachable,
   getTranslationEngine,
   log,
 } from "./service.server";
@@ -181,7 +183,9 @@ export async function syncMessageCatalogue(options: { requestedBy?: string | nul
         .eq("namespace", "ui")
         .in("context", contexts)
         .eq("status", "machine")
-        .or("metadata->>mode.is.null,metadata->>mode.neq.quality")
+        // Not quality yet, and no quality refresh already tried and kept
+        // back by the gate (pipeline: markQualityAttempted).
+        .or(`metadata->>mode.is.null,metadata->>mode.not.in.(quality,${QUALITY_ATTEMPTED_MODE})`)
         .range(from, from + 999);
       if (error) {
         log("[i18n] finding realtime translations to upgrade failed", error.message);
@@ -268,6 +272,13 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
   const engine = getTranslationEngine();
   if (!engine.isAvailable())
     return { claimed: 0, done: 0, retried: 0, skipped: true, reason: "no engine" };
+  // Configured is not the same as reachable. Claiming jobs while the engine is
+  // down spends one of their attempts each, and three spent attempts fail a
+  // job for good; so nothing is claimed until the engine answers /ready.
+  if (!(await engineReachable())) {
+    count("jobs.paused_engine_unreachable");
+    return { claimed: 0, done: 0, retried: 0, skipped: true, reason: "engine not reachable" };
+  }
 
   running = true;
   try {
@@ -432,6 +443,27 @@ async function pruneIfDue() {
   count("quota.windows_pruned", Number(row?.quota_windows_deleted ?? 0));
 }
 
+const REQUEUE_EVERY_MS = 60 * 60_000;
+let lastRequeue = 0;
+
+/**
+ * Hourly: jobs that failed only because the engine was unavailable go back in
+ * the queue (public.i18n_requeue_engine_failures). They did nothing wrong, and
+ * nothing else would ever retry them before the prune deletes them.
+ */
+async function requeueEngineFailuresIfDue() {
+  if (Date.now() - lastRequeue < REQUEUE_EVERY_MS) return;
+  lastRequeue = Date.now();
+  const client = db();
+  if (!client) return;
+  const { data, error } = await client.rpc("i18n_requeue_engine_failures");
+  if (error) {
+    if (!schemaMissing(error.message)) log("[i18n] requeue of engine failures failed", error.message);
+    return;
+  }
+  count("jobs.requeued_engine_failures", Number(data ?? 0));
+}
+
 let synced = false;
 /** Seconds after start before the message catalogue is synced. */
 const SYNC_AFTER_SECONDS = 120;
@@ -451,6 +483,7 @@ async function workerTick() {
       }
     }
     await pruneIfDue();
+    await requeueEngineFailuresIfDue();
     const [oneMinute = 0] = loadavg();
     if (oneMinute > hostBusyThreshold()) {
       count("jobs.paused_host_busy");

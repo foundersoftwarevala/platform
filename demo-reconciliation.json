@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-09-23T21:36:41.581Z",
+  "products": 5535,
+  "demo_records": 1,
+  "green": 1,
+  "yellow": 1,
+  "red": 5533,
+  "gray": 0,
+  "with_demo": [
+    {
+      "id": "98c2c632-948e-4676-870c-a4f6be66c9a3",
+      "slug": "author-live-proof-erp-20260912-2238",
+      "name": "Author Live Proof ERP 2026",
+      "status": "YELLOW",
+      "note": "demo_url set on the product (https://demo.softwarevala.net/author-live-proof-erp) but no Demo Manager record behind it"
+    },
+    {
+      "id": "93e794a3-528e-4127-9f1d-7db0976287a9",
+      "slug": "routemasterpt",
+      "name": "RouteMasterPT",
+      "status": "GREEN",
+      "note": "https://delhi-ride-ui.lovable.app/ (checked 200 in 375ms)"
+    }
+  ],
+  "orphan_demo_records": []
+}

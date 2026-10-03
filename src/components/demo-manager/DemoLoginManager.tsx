@@ -72,14 +72,22 @@ function DemoLoginManagerContent() {
 
   const fetchLoginRoles = useCallback(async (demoId: string) => {
     try {
+      // Login roles are stored in demo_login_credentials (role_type, password);
+      // demo_login_roles was never created.
       const { data, error } = await supabase
-        .from('demo_login_roles')
-        .select('*')
+        .from('demo_login_credentials')
+        .select('id, role_type, username, password, is_active')
         .eq('demo_id', demoId)
-        .order('display_order');
+        .order('created_at');
 
       if (error) throw error;
-      setLoginRoles((data ?? []) as unknown as LoginRole[]);
+      setLoginRoles((data ?? []).map((row) => ({
+        id: row.id,
+        role_name: row.role_type,
+        username: row.username,
+        password_encrypted: row.password,
+        is_active: row.is_active,
+      })));
     } catch (error) {
       console.error('Error fetching login roles:', error);
     }

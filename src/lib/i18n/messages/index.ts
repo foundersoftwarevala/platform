@@ -33,6 +33,7 @@ import { BLOG_MESSAGES } from "./blog";
 import { CEO_MESSAGES } from "./ceo";
 import { CHAT_MESSAGES } from "./chat";
 import { CHECKOUT_MESSAGES } from "./checkout";
+import { DASHBOARD_MESSAGES } from "./dashboard";
 import { COMMON_MESSAGES } from "./common";
 import { EMAIL_MESSAGES } from "./email";
 import { MANAGER_MESSAGES } from "./manager";
@@ -41,6 +42,9 @@ import { MARKETPLACE_MESSAGES } from "./marketplace";
 import { NOTIFICATIONS_MESSAGES } from "./notifications";
 import { PAYMENT_MESSAGES } from "./payment";
 import { RESELLER_MESSAGES } from "./reseller";
+import { DEMO_MESSAGES } from "./demo";
+import { DEVMANAGER_MESSAGES } from "./devmanager";
+import { STOREADMIN_MESSAGES } from "./storeadmin";
 
 export type MessageSource = string | readonly [text: string, description: string];
 
@@ -53,6 +57,7 @@ export const MODULES = {
   ceo: CEO_MESSAGES,
   chat: CHAT_MESSAGES,
   checkout: CHECKOUT_MESSAGES,
+  dashboard: DASHBOARD_MESSAGES,
   common: COMMON_MESSAGES,
   email: EMAIL_MESSAGES,
   manager: MANAGER_MESSAGES,
@@ -62,6 +67,9 @@ export const MODULES = {
   payment: PAYMENT_MESSAGES,
   reseller: RESELLER_MESSAGES,
   seo: SEO_MESSAGES,
+  demo: DEMO_MESSAGES,
+  devmanager: DEVMANAGER_MESSAGES,
+  storeadmin: STOREADMIN_MESSAGES,
 } as const;
 
 type Modules = typeof MODULES;

@@ -6,6 +6,7 @@ import {
   type CatalogPage,
   type CatalogRow,
 } from "./catalog.server";
+import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
 
 /**
  * The home page's first page of catalogue rows, rendered on the server so the
@@ -25,6 +26,10 @@ const PER_ROW = 12;
 // rather than on every visit.
 const CACHE_MS = 60_000;
 let cached: { at: number; payload: HomeCatalogSeed } | null = null;
+// Emptied by a Manager write (catalogue-invalidation.ts), not only by time.
+onCatalogueChange(() => {
+  cached = null;
+});
 
 export type SeededRow = CatalogRow;
 export type HomeCatalogSeed = CatalogPage | null;

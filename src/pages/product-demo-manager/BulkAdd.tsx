@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { listDemoCategories } from "@/lib/demo-manager/demos.functions";
 import { authHeaders } from "@/lib/auth/operator-fetch";
+import { richText, useTranslation } from "@/lib/i18n/use-translation";
 
 /**
  * Bulk Add — for the twelve thousand demo URLs that are waiting to go in.
@@ -189,6 +190,7 @@ function parseDemosCsv(text: string, categories: string[]): Parsed {
 }
 
 const BulkAdd = () => {
+  const { t } = useTranslation();
   const [uploadType, setUploadType] = useState<"products" | "demos" | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -236,17 +238,17 @@ const BulkAdd = () => {
         const text = await file.text();
         const result = parseDemosCsv(text, categories);
         setParsed(result);
-        toast.success(`${file.name} read`, {
-          description: `${result.rows.length} row(s) ready, ${result.rejected.length} skipped`,
+        toast.success(t("demo.bulk_add.file_read", { name: file.name }), {
+          description: t("demo.bulk_add.file_read_detail", { ready: result.rows.length, skipped: result.rejected.length }),
         });
       } catch (problem) {
         setParsed(null);
-        toast.error("The file could not be read", {
-          description: problem instanceof Error ? problem.message : "unknown error",
+        toast.error(t("demo.bulk_add.file_unreadable"), {
+          description: problem instanceof Error ? problem.message : t("demo.bulk_add.unknown_error"),
         });
       }
     },
-    [uploadType, categories],
+    [uploadType, categories, t],
   );
 
   const handleDrop = (e: React.DragEvent) => {
@@ -254,7 +256,7 @@ const BulkAdd = () => {
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
     if (file && /\.(csv|txt)$/i.test(file.name)) void readFile(file);
-    else toast.error("Invalid file", { description: "Please upload a .csv or .txt file" });
+    else toast.error(t("demo.bulk_add.invalid_file"), { description: t("demo.bulk_add.invalid_file_detail") });
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -315,7 +317,7 @@ const BulkAdd = () => {
           totals?: Record<string, number>;
           rows?: { state: string; reason: string }[];
         };
-        if (!response.ok) throw new Error(report.error ?? "The batch was refused");
+        if (!response.ok) throw new Error(report.error ?? t("demo.bulk_add.batch_refused"));
 
         inserted += report.totals?.ASSIGNED ?? 0;
         already += report.totals?.ALREADY_ASSIGNED ?? 0;
@@ -332,7 +334,7 @@ const BulkAdd = () => {
       detail = [...new Set(refusals)].slice(0, 6).join("; ");
       setOutcome({ inserted, alreadyThere: already, failed: 0, detail });
     } catch (problem) {
-      detail = problem instanceof Error ? problem.message : "unknown error";
+      detail = problem instanceof Error ? problem.message : t("demo.bulk_add.unknown_error");
       failed = parsed.rows.length - inserted;
     } finally {
       setIsWorking(false);
@@ -342,10 +344,10 @@ const BulkAdd = () => {
     if (failed > 0) setOutcome({ inserted, alreadyThere, failed, detail });
 
     if (failed > 0) {
-      toast.error(`${inserted} added, ${failed} could not be`, { description: detail.slice(0, 160) });
+      toast.error(t("demo.bulk_add.partial", { inserted, failed }), { description: detail.slice(0, 160) });
     } else {
-      toast.success(`${inserted} demo(s) added`, {
-        description: alreadyThere ? `${alreadyThere} were already in the catalogue` : "none were already there",
+      toast.success(t("demo.bulk_add.added", { count: inserted }), {
+        description: alreadyThere ? t("demo.bulk_add.already_there", { count: alreadyThere }) : t("demo.bulk_add.none_already"),
       });
       setUploadedFile(null);
       setParsed(null);
@@ -360,21 +362,21 @@ const BulkAdd = () => {
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Upload className="w-6 h-6 text-emerald-400" />
-          Bulk Add
+          {t("demo.bulk_add.title")}
         </h1>
-        <p className="text-slate-400 text-sm">Upload CSV files to add multiple products or demos</p>
+        <p className="text-slate-400 text-sm">{t("demo.bulk_add.subtitle")}</p>
       </div>
 
       {/* Warning Banner */}
       <div className="p-4 bg-amber-900/20 border border-amber-500/30 rounded-lg flex items-start gap-3">
         <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm text-amber-400 font-medium">Bulk Upload Rules</p>
+          <p className="text-sm text-amber-400 font-medium">{t("demo.bulk_add.rules_title")}</p>
           <ul className="text-xs text-amber-400/70 mt-1 space-y-1">
-            <li>• The file is checked before anything is written, and you see what will happen first</li>
-            <li>• A demo URL already in the catalogue is skipped, not duplicated</li>
-            <li>• A row with no URL, or a category that is not one of the {categories.length || "—"}, is skipped and named</li>
-            <li>• Nothing existing is overwritten</li>
+            <li>{t("demo.bulk_add.rule_checked")}</li>
+            <li>{t("demo.bulk_add.rule_duplicate")}</li>
+            <li>{t("demo.bulk_add.rule_category", { count: categories.length || "—" })}</li>
+            <li>{t("demo.bulk_add.rule_no_overwrite")}</li>
           </ul>
         </div>
       </div>
@@ -388,8 +390,8 @@ const BulkAdd = () => {
           >
             <CardContent className="p-6 text-center">
               <FileSpreadsheet className="w-12 h-12 text-violet-400 mx-auto mb-3" />
-              <p className="text-white font-medium">Bulk Add Products</p>
-              <p className="text-xs text-slate-400 mt-1">Upload products CSV</p>
+              <p className="text-white font-medium">{t("demo.bulk_add.products_title")}</p>
+              <p className="text-xs text-slate-400 mt-1">{t("demo.bulk_add.products_subtitle")}</p>
             </CardContent>
           </Card>
 
@@ -399,8 +401,8 @@ const BulkAdd = () => {
           >
             <CardContent className="p-6 text-center">
               <FileSpreadsheet className="w-12 h-12 text-blue-400 mx-auto mb-3" />
-              <p className="text-white font-medium">Bulk Add Demos</p>
-              <p className="text-xs text-slate-400 mt-1">Upload demos CSV</p>
+              <p className="text-white font-medium">{t("demo.bulk_add.demos_title")}</p>
+              <p className="text-xs text-slate-400 mt-1">{t("demo.bulk_add.demos_subtitle")}</p>
             </CardContent>
           </Card>
         </div>
@@ -412,18 +414,17 @@ const BulkAdd = () => {
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-              Upload {uploadType === "products" ? "Products" : "Demos"} CSV
+              {uploadType === "products" ? t("demo.bulk_add.upload_products") : t("demo.bulk_add.upload_demos")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {uploadType === "products" ? (
               <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-lg space-y-2">
-                <p className="text-sm text-amber-300 font-medium">Products are not loaded from here.</p>
+                <p className="text-sm text-amber-300 font-medium">{t("demo.bulk_add.products_not_here")}</p>
                 <p className="text-xs text-slate-400">
-                  The public marketplace carries demos, not product source — that is deliberate, so the
-                  catalogue cannot be scraped and copied. Use <span className="text-white">Bulk Add Demos</span>{" "}
-                  for the demo URLs. This panel is left in place rather than removed, and it will not
-                  pretend to have uploaded anything.
+                  {richText(t("demo.bulk_add.products_explained"), {
+                    link: <span className="text-white">{t("demo.bulk_add.demos_title")}</span>,
+                  })}
                 </p>
               </div>
             ) : (
@@ -444,13 +445,13 @@ const BulkAdd = () => {
                   <div className="space-y-2">
                     <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
                     <p className="text-white font-medium">{uploadedFile.name}</p>
-                    <p className="text-xs text-slate-400">{(uploadedFile.size / 1024).toFixed(2)} KB</p>
+                    <p className="text-xs text-slate-400">{t("demo.bulk_add.size_kb", { size: (uploadedFile.size / 1024).toFixed(2) })}</p>
                   </div>
                 ) : (
                   <>
                     <Upload className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-                    <p className="text-white">Drag &amp; drop your CSV file here</p>
-                    <p className="text-xs text-slate-400 mt-1">or click to browse</p>
+                    <p className="text-white">{t("demo.bulk_add.drop_here")}</p>
+                    <p className="text-xs text-slate-400 mt-1">{t("demo.bulk_add.click_browse")}</p>
                     <input
                       type="file"
                       accept=".csv,.txt"
@@ -465,21 +466,18 @@ const BulkAdd = () => {
             {/* What the file has to contain */}
             {uploadType === "demos" && (
               <div className="p-4 bg-slate-800/50 rounded-lg space-y-1">
-                <p className="text-sm text-slate-300 font-medium">Columns</p>
+                <p className="text-sm text-slate-300 font-medium">{t("demo.bulk_add.columns")}</p>
                 <p className="text-xs text-slate-400">
-                  <span className="text-white">url</span> and <span className="text-white">category</span> are
-                  required; <span className="text-white">title</span>,{" "}
-                  <span className="text-white">demo_type</span> and{" "}
-                  <span className="text-white">description</span> are optional. A header row is optional, and a
-                  file that is just a list of URLs is accepted — but then every row needs a category, so a
-                  header with one is the easier file.
+                  {richText(t("demo.bulk_add.columns_help"), {
+                    // i18n-ignore: CSV column names
+                    url: <span className="text-white">url</span>, category: <span className="text-white">category</span>, title: <span className="text-white">title</span>, demo_type: <span className="text-white">demo_type</span>, description: <span className="text-white">description</span>,
+                  })}
                 </p>
                 <p className="text-xs text-slate-400">
-                  A missing title is taken from the URL. demo_type is one of {DEMO_TYPES.join(", ")} and
-                  defaults to web.
+                  {t("demo.bulk_add.columns_defaults", { types: DEMO_TYPES.join(", ") })}
                 </p>
                 {categoriesError && (
-                  <p className="text-xs text-red-400">Categories could not be loaded: {categoriesError}</p>
+                  <p className="text-xs text-red-400">{t("demo.bulk_add.categories_failed")} {categoriesError}</p>
                 )}
               </div>
             )}
@@ -488,9 +486,9 @@ const BulkAdd = () => {
             {parsed && (
               <div className="p-4 bg-slate-800/50 rounded-lg space-y-2">
                 <p className="text-sm text-white font-medium">
-                  {ready} row{ready === 1 ? "" : "s"} will be added
-                  {parsed.duplicatesInFile > 0 && ` · ${parsed.duplicatesInFile} repeated inside the file, counted once`}
-                  {parsed.rejected.length > 0 && ` · ${parsed.rejected.length} skipped`}
+                  {t("demo.bulk_add.rows_will_add", { count: ready })}
+                  {parsed.duplicatesInFile > 0 && ` · ${t("demo.bulk_add.repeated_in_file", { count: parsed.duplicatesInFile })}`}
+                  {parsed.rejected.length > 0 && ` · ${t("demo.bulk_add.skipped", { count: parsed.rejected.length })}`}
                 </p>
                 {preview.length > 0 && (
                   <ul className="text-xs text-slate-400 space-y-0.5">
@@ -499,17 +497,17 @@ const BulkAdd = () => {
                         <span className="text-slate-200">{row.title}</span> — {row.category} — {row.url.slice(0, 54)}
                       </li>
                     ))}
-                    {ready > preview.length && <li>…and {ready - preview.length} more</li>}
+                    {ready > preview.length && <li>{t("demo.bulk_add.and_more", { count: ready - preview.length })}</li>}
                   </ul>
                 )}
                 {parsed.rejected.length > 0 && (
                   <ul className="text-xs text-amber-400/80 space-y-0.5">
                     {parsed.rejected.slice(0, 4).map((r) => (
                       <li key={`${r.line}-${r.reason}`}>
-                        line {r.line}: {r.reason} — {r.sample}
+                        {t("demo.bulk_add.line", { line: r.line })}: {r.reason} — {r.sample}
                       </li>
                     ))}
-                    {parsed.rejected.length > 4 && <li>…and {parsed.rejected.length - 4} more skipped</li>}
+                    {parsed.rejected.length > 4 && <li>{t("demo.bulk_add.and_more_skipped", { count: parsed.rejected.length - 4 })}</li>}
                   </ul>
                 )}
               </div>
@@ -519,8 +517,8 @@ const BulkAdd = () => {
             {outcome && (
               <div className="p-4 bg-slate-800/50 rounded-lg">
                 <p className="text-sm text-white font-medium">
-                  {outcome.inserted} added · {outcome.alreadyThere} already in the catalogue
-                  {outcome.failed > 0 && ` · ${outcome.failed} failed`}
+                  {t("demo.bulk_add.outcome", { inserted: outcome.inserted, already: outcome.alreadyThere })}
+                  {outcome.failed > 0 && ` · ${t("demo.bulk_add.outcome_failed", { count: outcome.failed })}`}
                 </p>
                 {outcome.detail && <p className="text-xs text-red-400 mt-1">{outcome.detail}</p>}
               </div>
@@ -538,7 +536,7 @@ const BulkAdd = () => {
                 className="flex-1"
                 disabled={isWorking}
               >
-                Cancel
+                {t("demo.bulk_add.cancel")}
               </Button>
               <Button
                 onClick={handleUpload}
@@ -548,12 +546,12 @@ const BulkAdd = () => {
                 {isWorking ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Adding {ready}…
+                    {t("demo.bulk_add.adding", { count: ready })}
                   </>
                 ) : (
                   <>
                     <Upload className="w-4 h-4 mr-2" />
-                    {ready > 0 ? `Add ${ready} demo${ready === 1 ? "" : "s"}` : "Upload & Process"}
+                    {ready > 0 ? t("demo.bulk_add.add_demos", { count: ready }) : t("demo.bulk_add.upload_process")}
                   </>
                 )}
               </Button>

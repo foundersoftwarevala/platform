@@ -160,7 +160,9 @@ export function AiContentGenerator() {
 
   const console_ = useQuery({
     queryKey: ["mm", "ai-content", product?.id ?? null],
-    queryFn: () => getAiContentConsole({ data: { product_id: product?.id, limit: 60 } }),
+    // An empty id is no product, not an invalid one: "" failed the uuid check
+    // and replaced the whole module with an error.
+    queryFn: () => getAiContentConsole({ data: { product_id: product?.id || undefined, limit: 60 } }),
     staleTime: 8_000,
   });
   const d = console_.data as ConsoleView | undefined;
@@ -201,7 +203,10 @@ export function AiContentGenerator() {
   );
 
   const gen = useMutation({
-    mutationFn: () => generateContent({ data: { product_id: product!.id, types: chosen } }),
+    // Regenerate passes the card's own type. Reading `chosen` from the render
+    // that queued the click regenerated whatever had been ticked before.
+    mutationFn: (types?: ContentType[]) =>
+      generateContent({ data: { product_id: product!.id, types: types ?? chosen } }),
     onSuccess: (res) =>
       settled(
         res,
@@ -271,8 +276,14 @@ export function AiContentGenerator() {
 
   const openHistory = async (id: string) => {
     setHistory({ id });
-    const data = await getItemVersions({ data: { item_id: id } });
-    setHistory({ id, data });
+    try {
+      const data = await getItemVersions({ data: { item_id: id } });
+      setHistory({ id, data });
+    } catch (e) {
+      // It sat on "Loading…" for good when the read failed.
+      setHistory(null);
+      setNote(e instanceof Error ? e.message : String(e));
+    }
   };
 
   /* 28. Bulk runs a batch at a time from here, so the browser never fires
@@ -294,8 +305,27 @@ export function AiContentGenerator() {
     if (!bulkRun?.running) return;
     let cancelled = false;
     void (async () => {
-      const res = await runBulkBatch({ data: { job_id: bulkRun.job, batch: 5 } });
+      // The batch size is the one saved in Settings; it was always 5 here, so
+      // the setting did nothing.
+      const batch = Math.min(Math.max(Number(settings.bulk_batch_size ?? 5) || 5, 1), 25);
+      let res: Awaited<ReturnType<typeof runBulkBatch>>;
+      try {
+        res = await runBulkBatch({ data: { job_id: bulkRun.job, batch } });
+      } catch (e) {
+        if (cancelled) return;
+        setBulkRun((prev) => (prev && prev.job === bulkRun.job ? { ...prev, running: false } : prev));
+        setNote(e instanceof Error ? e.message : String(e));
+        return;
+      }
       if (cancelled) return;
+      // A refused batch (cancelled job, permission) stops the run. It used to
+      // leave it "running" forever, because nothing it watched changed.
+      if (!res.ok) {
+        setBulkRun((prev) => (prev && prev.job === bulkRun.job ? { ...prev, running: false } : prev));
+        setNote(`The bulk run stopped (${String(res.reason ?? "refused")}).`);
+        refresh();
+        return;
+      }
       const lines = (res.results ?? []).map(
         (x) => `${x.ok ? "ok" : "failed"} — ${x.product}${x.detail ? `: ${x.detail}` : ""}`,
       );
@@ -497,7 +527,7 @@ export function AiContentGenerator() {
                 <PillButton
                   variant="primary"
                   disabled={!product || chosen.length === 0 || gen.isPending}
-                  onClick={() => gen.mutate()}
+                  onClick={() => gen.mutate(undefined)}
                 >
                   <span className="inline-flex items-center gap-1.5">
                     {gen.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
@@ -732,7 +762,7 @@ export function AiContentGenerator() {
                         <PillButton onClick={() => act.archive.mutate(id)}>Archive</PillButton>
                       )}
                       <PillButton
-                        onClick={() => { setChosen([type as ContentType]); gen.mutate(); }}
+                        onClick={() => gen.mutate([type as ContentType])}
                       >
                         <span className="inline-flex items-center gap-1.5"><RefreshCw className="h-3.5 w-3.5" /> Regenerate</span>
                       </PillButton>
@@ -770,7 +800,14 @@ export function AiContentGenerator() {
                   <div className="text-[12px] text-muted-foreground">{String(q.preview ?? "")}</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <PillButton
-                      onClick={() => { setProduct({ id: String(q.product_id ?? ""), name: String(q.product) }); setTab("Generate"); }}
+                      onClick={() => {
+                        if (!q.product_id) {
+                          setNote(`"${String(q.product)}" does not carry its product id here; pick it from the product list.`);
+                          return;
+                        }
+                        setProduct({ id: String(q.product_id), name: String(q.product) });
+                        setTab("Generate");
+                      }}
                     >
                       <span className="inline-flex items-center gap-1.5">Open <ChevronRight className="h-3.5 w-3.5" /></span>
                     </PillButton>
@@ -845,7 +882,19 @@ export function AiContentGenerator() {
                 </div>
                 {!bulkRun.running && (
                   <div className="mt-2 flex gap-2">
-                    <PillButton onClick={() => { void retryBulkJob({ data: { job_id: bulkRun.job } }).then(() => setBulkRun({ ...bulkRun, running: true })); }}>
+                    <PillButton
+                      onClick={() => {
+                        void retryBulkJob({ data: { job_id: bulkRun.job } })
+                          .then((r) => {
+                            if (r && (r as { ok?: boolean }).ok === false) {
+                              setNote(`Retry refused (${String((r as { reason?: string }).reason ?? "refused")}).`);
+                              return;
+                            }
+                            setBulkRun({ ...bulkRun, running: true });
+                          })
+                          .catch((e: Error) => setNote(e.message));
+                      }}
+                    >
                       Retry failures
                     </PillButton>
                     <PillButton onClick={() => setBulkRun(null)}>Close</PillButton>
@@ -886,7 +935,18 @@ export function AiContentGenerator() {
                     )}
                     <div className="mt-2 flex gap-2">
                       {Number(j.failed) > 0 && (
-                        <PillButton onClick={() => void retryBulkJob({ data: { job_id: String(j.id) } }).then(refresh)}>
+                        <PillButton
+                          onClick={() =>
+                            void retryBulkJob({ data: { job_id: String(j.id) } })
+                              .then((r) => {
+                                if (r && (r as { ok?: boolean }).ok === false) {
+                                  setNote(`Retry refused (${String((r as { reason?: string }).reason ?? "refused")}).`);
+                                }
+                                refresh();
+                              })
+                              .catch((e: Error) => setNote(e.message))
+                          }
+                        >
                           Retry {num(j.failed)} failures
                         </PillButton>
                       )}
@@ -895,7 +955,18 @@ export function AiContentGenerator() {
                           <PillButton onClick={() => setBulkRun({ job: String(j.id), processed: 0, running: true, log: ["Resumed."] })}>
                             Resume
                           </PillButton>
-                          <PillButton onClick={() => void cancelBulkJob({ data: { job_id: String(j.id), reason: "Cancelled from the console." } }).then(refresh)}>
+                          <PillButton
+                            onClick={() =>
+                              void cancelBulkJob({ data: { job_id: String(j.id), reason: "Cancelled from the console." } })
+                                .then((r) => {
+                                  if (r && (r as { ok?: boolean }).ok === false) {
+                                    setNote(`Cancel refused (${String((r as { reason?: string }).reason ?? "refused")}).`);
+                                  }
+                                  refresh();
+                                })
+                                .catch((e: Error) => setNote(e.message))
+                            }
+                          >
                             Cancel
                           </PillButton>
                         </>
@@ -971,7 +1042,17 @@ export function AiContentGenerator() {
                 <input
                   type="number"
                   defaultValue={Number(settings.daily_request_cap ?? 500)}
-                  onBlur={(e) => act.settings.mutate({ daily_request_cap: Number(e.target.value), reason: "Cap changed." })}
+                  onBlur={(e) => {
+                    // Empty is not zero: clearing the field stopped every
+                    // generation. And an unchanged value is not a change.
+                    const next = Number(e.target.value);
+                    if (e.target.value.trim() === "" || !Number.isFinite(next) || next < 1) {
+                      setNote("The daily cap must be at least 1; it was not changed.");
+                      return;
+                    }
+                    if (next === Number(settings.daily_request_cap ?? 500)) return;
+                    act.settings.mutate({ daily_request_cap: next, reason: "Cap changed." });
+                  }}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12px]"
                 />
               </div>
@@ -980,7 +1061,15 @@ export function AiContentGenerator() {
                 <input
                   type="number"
                   defaultValue={Number(settings.bulk_batch_size ?? 10)}
-                  onBlur={(e) => act.settings.mutate({ bulk_batch_size: Number(e.target.value), reason: "Batch size changed." })}
+                  onBlur={(e) => {
+                    const next = Number(e.target.value);
+                    if (e.target.value.trim() === "" || !Number.isFinite(next) || next < 1 || next > 25) {
+                      setNote("The batch size must be between 1 and 25; it was not changed.");
+                      return;
+                    }
+                    if (next === Number(settings.bulk_batch_size ?? 10)) return;
+                    act.settings.mutate({ bulk_batch_size: next, reason: "Batch size changed." });
+                  }}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12px]"
                 />
               </div>

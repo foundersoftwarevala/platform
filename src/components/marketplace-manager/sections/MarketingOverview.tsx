@@ -46,7 +46,15 @@ function ProviderRow({ p }: { p: ProviderStatus }) {
       <p className="mt-1 text-[11px] text-muted-foreground">{p.note}</p>
       {!p.connected && (
         <p className="mt-1 text-[10px] text-muted-foreground">
-          Needs one of: <code>{p.requires.join("</code>, <code>")}</code>
+          {/* Each name in its own code element: the joined string printed the
+              tags themselves as text. */}
+          Needs one of:{" "}
+          {p.requires.map((name, i) => (
+            <span key={name}>
+              {i ? ", " : ""}
+              <code>{name}</code>
+            </span>
+          ))}
         </p>
       )}
     </div>
@@ -76,7 +84,9 @@ export function MarketingSection() {
   } | undefined;
 
   const p = providers.data;
-  const n = (v?: number) => (summary.isLoading ? "…" : String(v ?? 0));
+  // A refused or failed summary is not a row of zeros.
+  const n = (v?: number) =>
+    summary.isLoading ? "…" : summary.isError || v === undefined || v === null ? "—" : String(v);
 
   return (
     <div className="px-4 py-8 md:px-8">

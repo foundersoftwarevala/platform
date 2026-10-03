@@ -9,9 +9,19 @@ import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useDialogA11y } from "@/hooks/use-dialog-a11y";
 import { playSound } from "@/lib/ams/ui-sound";
+import { subscribeNotificationStream } from "@/lib/realtime/notification-stream";
 import { cn } from "@/lib/utils";
 
 import { notBuilt } from "@/lib/ui/not-built";
+
+/*
+ * Channels here are platform chat conversations: `conversations` (subject,
+ * department), `conversation_participants` (who is in it, with the role they
+ * joined as) and `messages`. Row-level security lets a member read and post in
+ * the conversations they belong to, so the roles shown for a channel are the
+ * roles its members joined with, and posting follows membership. Live delivery
+ * arrives on the platform notification stream (chat.* events).
+ */
 type ConvId = string;
 type Conversation = {
   id: ConvId;
@@ -19,7 +29,37 @@ type Conversation = {
   module: string;
   allowed_roles: string[];
   updated_at: string;
+  member: boolean;
 };
+type ConversationRowData = {
+  id: string;
+  subject: string;
+  kind: string;
+  department: string | null;
+  last_message_at: string;
+  conversation_participants: { user_id: string; role_label: string | null }[] | null;
+};
+const MESSAGE_COLUMNS = "id,conversation_id,sender_id,body,created_at";
+const CONVERSATION_COLUMNS =
+  "id,subject,kind,department,last_message_at,conversation_participants(user_id,role_label)";
+
+function toConversation(row: ConversationRowData, userId: string): Conversation {
+  const members = row.conversation_participants ?? [];
+  return {
+    id: row.id,
+    title: row.subject,
+    module: row.department ?? row.kind,
+    allowed_roles: Array.from(
+      new Set(members.map((p) => p.role_label).filter((r): r is string => !!r)),
+    ),
+    updated_at: row.last_message_at,
+    member: members.some((p) => p.user_id === userId),
+  };
+}
+
+function toMessage(row: Omit<Message, "metadata">): Message {
+  return { ...row, metadata: {} };
+}
 type Message = {
   id: string;
   conversation_id: string;
@@ -53,7 +93,6 @@ export function ChatScreen() {
   const [error, setError] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const activeChannelRef = useRef<RealtimeChannel | null>(null);
-  const inboxChannelRef = useRef<RealtimeChannel | null>(null);
   const typingSentAtRef = useRef<number>(0);
 
   // Bootstrap: current user + role
@@ -77,26 +116,39 @@ export function ChatScreen() {
 
   // Load conversations + subscribe to inbox-level realtime
   const loadConversations = useCallback(async () => {
+    if (!me) return;
+    // The inbox is the conversations this person belongs to. A chat manager can
+    // read every conversation, so membership is resolved first rather than
+    // listing whatever row-level security happens to allow.
+    const { data: memberships, error: memberError } = await supabase
+      .from("conversation_participants")
+      .select("conversation_id")
+      .eq("user_id", me.id);
+    if (memberError) { setLoadingInbox(false); setError(memberError.message); return; }
+    const ids = (memberships ?? []).map((m) => m.conversation_id as string);
+    if (ids.length === 0) { setLoadingInbox(false); setConversations([]); return; }
     const { data, error } = await supabase
-      .from("chat_conversations")
-      .select("id,title,module,allowed_roles,updated_at")
-      .order("updated_at", { ascending: false });
+      .from("conversations")
+      .select(CONVERSATION_COLUMNS)
+      .in("id", ids)
+      .order("last_message_at", { ascending: false });
     setLoadingInbox(false);
     if (error) { setError(error.message); return; }
-    setConversations((data ?? []) as Conversation[]);
-  }, []);
+    setConversations(((data ?? []) as unknown as ConversationRowData[]).map((row) => toConversation(row, me.id)));
+  }, [me]);
 
   useEffect(() => {
     if (!me) return;
     loadConversations();
-    const ch = supabase
-      .channel(`inbox:${me.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "chat_conversations" }, () => {
+    // Conversation, membership and message changes are announced on the
+    // notification stream; a reconnect ("open") means something may have been
+    // missed, so the inbox is reloaded then too.
+    const stop = subscribeNotificationStream((e) => {
+      if (e.type === "open" || (e.type === "notification" && e.event?.startsWith("chat."))) {
         loadConversations();
-      })
-      .subscribe();
-    inboxChannelRef.current = ch;
-    return () => { supabase.removeChannel(ch); inboxChannelRef.current = null; };
+      }
+    });
+    return () => { stop(); };
   }, [me, loadConversations]);
 
   // Load messages + subscribe to realtime for active conversation
@@ -105,33 +157,50 @@ export function ChatScreen() {
     let cancelled = false;
     setLoadingMessages(true);
 
-    (async () => {
+    const loadMessages = async () => {
       const { data, error } = await supabase
-        .from("chat_messages")
-        .select("id,conversation_id,sender_id,body,created_at,metadata")
+        .from("messages")
+        .select(MESSAGE_COLUMNS)
         .eq("conversation_id", activeId)
         .order("created_at", { ascending: true });
       if (cancelled) return;
       setLoadingMessages(false);
       if (error) { setError(error.message); return; }
-      setMessagesByConv((prev) => ({ ...prev, [activeId]: (data ?? []) as Message[] }));
-    })();
+      const loaded = ((data ?? []) as Omit<Message, "metadata">[]).map(toMessage);
+      setMessagesByConv((prev) => {
+        // Keep any message still being sent from this tab.
+        const pending = (prev[activeId] ?? []).filter((m) => m.id.startsWith("tmp-"));
+        return { ...prev, [activeId]: [...loaded, ...pending] };
+      });
+    };
+    void loadMessages();
+
+    // A new message arrives as a chat.message event carrying its id; it is read
+    // back under the viewer's own permissions.
+    const stopStream = subscribeNotificationStream((e) => {
+      if (e.type === "open") { void loadMessages(); return; }
+      if (e.type !== "notification" || e.event !== "chat.message") return;
+      if (e.conversation_id !== activeId || !e.id) return;
+      const messageId = e.id;
+      void (async () => {
+        const { data, error } = await supabase
+          .from("messages")
+          .select(MESSAGE_COLUMNS)
+          .eq("id", messageId)
+          .maybeSingle();
+        if (cancelled || error || !data) return;
+        const m = toMessage(data as Omit<Message, "metadata">);
+        setMessagesByConv((prev) => {
+          const list = prev[activeId] ?? [];
+          if (list.some((x) => x.id === m.id)) return prev;
+          if (m.sender_id !== me.id) playSound("message");
+          return { ...prev, [activeId]: [...list, m] };
+        });
+      })();
+    });
 
     const ch = supabase
       .channel(`conv:${activeId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${activeId}` },
-        (payload) => {
-          const m = payload.new as Message;
-          setMessagesByConv((prev) => {
-            const list = prev[activeId] ?? [];
-            if (list.some((x) => x.id === m.id)) return prev;
-            if (m.sender_id !== me.id) playSound("message");
-            return { ...prev, [activeId]: [...list, m] };
-          });
-        },
-      )
       .on("broadcast", { event: "typing" }, ({ payload }) => {
         const { userId, label } = payload as { userId: string; label: string };
         if (userId === me.id) return;
@@ -153,6 +222,7 @@ export function ChatScreen() {
 
     return () => {
       cancelled = true;
+      stopStream();
       supabase.removeChannel(ch);
       activeChannelRef.current = null;
     };
@@ -165,11 +235,12 @@ export function ChatScreen() {
   const messages = active ? messagesByConv[active.id] ?? [] : [];
   const typing = active ? typingByConv[active.id] ?? [] : [];
 
+  // Posting is decided by the database: a member of the conversation may post,
+  // anyone else (including an admin who is not a member) may not.
   const canPostHere = useMemo(() => {
     if (!active) return false;
-    if (myRole === "admin" || myRole === "super_admin") return true;
-    return active.allowed_roles.includes(myRole);
-  }, [active, myRole]);
+    return active.member;
+  }, [active]);
 
   const filtered = useMemo(() => {
     return conversations.filter((c) => {
@@ -199,9 +270,9 @@ export function ChatScreen() {
     setMessagesByConv((prev) => ({ ...prev, [active.id]: [...(prev[active.id] ?? []), optimistic] }));
     setComposer("");
     const { data, error } = await supabase
-      .from("chat_messages")
-      .insert({ conversation_id: active.id, sender_id: me.id, body: text })
-      .select("id,conversation_id,sender_id,body,created_at,metadata")
+      .from("messages")
+      .insert({ conversation_id: active.id, sender_id: me.id, body: text, kind: "text" })
+      .select(MESSAGE_COLUMNS)
       .single();
     setSending(false);
     if (error) {
@@ -217,10 +288,17 @@ export function ChatScreen() {
       return;
     }
     playSound("save");
-    setMessagesByConv((prev) => ({
-      ...prev,
-      [active.id]: (prev[active.id] ?? []).map((m) => (m.id === optimistic.id ? (data as Message) : m)),
-    }));
+    const saved = toMessage(data as Omit<Message, "metadata">);
+    setMessagesByConv((prev) => {
+      const list = prev[active.id] ?? [];
+      // The live stream may already have delivered the saved message.
+      return {
+        ...prev,
+        [active.id]: list.some((m) => m.id === saved.id)
+          ? list.filter((m) => m.id !== optimistic.id)
+          : list.map((m) => (m.id === optimistic.id ? saved : m)),
+      };
+    });
   }
 
   function handleComposerChange(v: string) {
@@ -240,18 +318,27 @@ export function ChatScreen() {
     if (!me) return;
     setShowNew(false);
     setError(null);
+    // A channel is a platform conversation in the AMS department; its creator
+    // joins with their role. Conversations have no per-channel role list, so the
+    // roles picked in the dialog cannot be stored: who may post is decided by
+    // membership.
+    void allowedRoles;
     const { data: conv, error: convErr } = await supabase
-      .from("chat_conversations")
-      .insert({ title, module: "AMS", allowed_roles: allowedRoles, created_by: me.id })
-      .select("id,title,module,allowed_roles,updated_at")
+      .from("conversations")
+      .insert({ subject: title, kind: "channel", department: "AMS", created_by: me.id })
+      .select("id,subject,kind,department,last_message_at")
       .single();
     if (convErr || !conv) { setError(convErr?.message ?? "Failed to create channel"); return; }
     const { error: partErr } = await supabase
-      .from("chat_participants")
-      .insert({ conversation_id: conv.id, user_id: me.id, role: myRole });
+      .from("conversation_participants")
+      .insert({ conversation_id: conv.id, user_id: me.id, role_label: myRole });
     if (partErr) { setError(partErr.message); return; }
-    setConversations((c) => [conv as Conversation, ...c.filter((x) => x.id !== conv.id)]);
-    setActiveId(conv.id);
+    const created = toConversation(
+      { ...(conv as Omit<ConversationRowData, "conversation_participants">), conversation_participants: [{ user_id: me.id, role_label: myRole }] },
+      me.id,
+    );
+    setConversations((c) => [created, ...c.filter((x) => x.id !== created.id)]);
+    setActiveId(created.id);
   }
 
   if (!me) {

@@ -390,8 +390,9 @@ export function SecurityCenter() {
                       {String(a.severity ?? "")} {a.status ? `· ${String(a.status)}` : ""}
                     </span>
                   </div>
-                  {a.created_at ? (
-                    <div className="text-[11px] text-muted-foreground">{when(String(a.created_at))}</div>
+                  {/* security_alerts records detected_at; it has no created_at, so no time ever showed. */}
+                  {a.detected_at ?? a.created_at ? (
+                    <div className="text-[11px] text-muted-foreground">{when(String(a.detected_at ?? a.created_at))}</div>
                   ) : null}
                 </div>
               ))}

@@ -101,6 +101,14 @@ export interface TranslationMemoryStore {
     sourceHashes: string[];
   }): Promise<Map<string, MemoryEntry>>;
   save(records: MemoryRecord[]): Promise<void>;
+  /**
+   * Record that a quality-mode refresh was tried for these machine rows and
+   * did not pass the quality gate, so the realtime translation was kept. The
+   * catalogue sync does not queue them for an upgrade again.
+   */
+  markQualityAttempted?(
+    rows: { sourceHash: string; sourceLanguage: string; targetLanguage: string; contextHash: string }[],
+  ): Promise<void>;
 }
 
 export interface GlossaryStore {
@@ -115,6 +123,11 @@ export type PipelineDeps = {
   memory?: TranslationMemoryStore | null;
   glossary?: GlossaryStore | null;
   quota?: QuotaGuard | null;
+  /**
+   * Give back units `quota` reserved for engine work that never happened (the
+   * engine was unavailable), so an outage does not use up a caller's allowance.
+   */
+  refundQuota?: ((units: number) => void) | null;
   /** Operator overrides from i18n_languages; false disables a language. */
   isLanguageEnabled?: (code: string) => boolean;
   log?: (message: string, detail?: unknown) => void;
@@ -375,6 +388,7 @@ export async function runTranslationPipeline(
   // 6. Cost control, for the text that really goes to the engine. Brand and
   // product names answered above cost nothing, and charging them meant a
   // quota round trip to the database on every page batch that contained one.
+  let charged = 0;
   if (deps.quota) {
     const units = segments.reduce((sum, segment) => sum + segment.text.length, 0);
     if (!(await deps.quota(units))) {
@@ -382,6 +396,7 @@ export async function runTranslationPipeline(
         throw new PipelineError("quota_exceeded", "Translation limit reached.");
       return result({ pendingReason: "quota_exceeded" });
     }
+    charged = units;
   }
 
   // 7. Engine.
@@ -397,6 +412,8 @@ export async function runTranslationPipeline(
   } catch (error) {
     if (!(error instanceof EngineUnavailableError)) throw error;
     log("[i18n] engine unavailable", error.attempts);
+    // Nothing was translated, so nothing is charged.
+    if (charged > 0) deps.refundQuota?.(charged);
     if (byText.size === 0) {
       throw new PipelineError("engine_unavailable", "No translation engine is available.");
     }
@@ -406,6 +423,7 @@ export async function runTranslationPipeline(
   // 8. Validate, score, collect for storage.
   const answers = new Map(response.segments.map((segment) => [segment.id, segment]));
   const records: MemoryRecord[] = [];
+  const qualityAttempted: { sourceHash: string; sourceLanguage: string; targetLanguage: string; contextHash: string }[] = [];
   for (const [index, text] of misses.entries()) {
     const id = String(index);
     const answer = answers.get(id);
@@ -432,6 +450,16 @@ export async function runTranslationPipeline(
         qualityScore: previous.qualityScore,
         issues,
       });
+      // A quality refresh that did not pass the gate is recorded on the kept
+      // row, so it is not queued for the same upgrade on every restart.
+      if (request.mode === "quality" && persist && source) {
+        qualityAttempted.push({
+          sourceHash: hashes.get(text)!,
+          sourceLanguage: source.code,
+          targetLanguage: target.code,
+          contextHash: ctxHash,
+        });
+      }
       continue;
     }
     byText.set(text, {
@@ -473,6 +501,13 @@ export async function runTranslationPipeline(
       await deps.memory.save(storable);
     } catch (error) {
       log("[i18n] memory save failed", error);
+    }
+  }
+  if (deps.memory?.markQualityAttempted && qualityAttempted.length > 0) {
+    try {
+      await deps.memory.markQualityAttempted(qualityAttempted);
+    } catch (error) {
+      log("[i18n] marking quality attempts failed", error);
     }
   }
 

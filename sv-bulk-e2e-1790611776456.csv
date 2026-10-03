@@ -1,0 +1,7 @@
+title,category,demo_type,url,description
+"E2E Bulk One, with a comma",Education / Coaching Management,web,https://demo-e2e-1790611776456-1.example.com/login,first
+E2E Bulk Two,Public Transport,mobile,https://DEMO-E2E-1790611776456-2.example.com/Login/,second
+
+E2E Bulk Bad,Education / Coaching Management,web,not-a-url,should be skipped
+E2E Bulk Unknown Category,No Such Category Xyz,web,https://demo-e2e-1790611776456-3.example.com/,should be skipped
+E2E Bulk Repeat,Education / Coaching Management,web,https://demo-e2e-1790611776456-1.example.com/login/,repeat of the first

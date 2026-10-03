@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   deleteRecord,
   checkApiServiceHealth,
+  creditWallet,
   testApiService,
   insertRecord,
   listManyRecords,
@@ -81,6 +82,21 @@ export function useUpdateRecord(successMessage = "Saved") {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (vars: { table: ManagerTable; id: string; values: Record<string, unknown> }) =>
+      withAccessToken(vars).then((data) => fn({ data })),
+    onSuccess: () => {
+      invalidate();
+      toast.success(successMessage);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Credit a wallet atomically on the server; see creditWallet. */
+export function useCreditWallet(successMessage = "Money added") {
+  const fn = useServerFn(creditWallet);
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (vars: { walletId: string; amount: number; description: string }) =>
       withAccessToken(vars).then((data) => fn({ data })),
     onSuccess: () => {
       invalidate();

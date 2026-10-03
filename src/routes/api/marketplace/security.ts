@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { csvCell, orSearchTerm } from "@/lib/postgrest-safe";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { ALL_PERMISSIONS } from "@/lib/marketplace/permission-guard";
 import { resolveAction } from "@/lib/marketplace/permission-guard";
@@ -42,6 +43,28 @@ async function rows<T = Record<string, unknown>>(path: string): Promise<T[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Every row an export covers, a thousand at a time, or an error. rows() turns a
+ * failed read into an empty list, which for an export became a header-only
+ * file reported as "exported"; and one read of 5,000 cut off the rest without
+ * saying so.
+ */
+async function exportRows(path: string): Promise<{ rows: Record<string, unknown>[]; truncated: boolean }> {
+  const PAGE = 1000;
+  const CAP = 100_000;
+  const out: Record<string, unknown>[] = [];
+  for (let offset = 0; offset < CAP; offset += PAGE) {
+    const response = await fetch(`${url()}/rest/v1/${path}&offset=${offset}&limit=${PAGE}`, {
+      headers: admin(),
+    });
+    if (!response.ok) throw new Error(`The export read failed (${response.status}).`);
+    const page = (await response.json()) as Record<string, unknown>[];
+    out.push(...page);
+    if (page.length < PAGE) return { rows: out, truncated: false };
+  }
+  return { rows: out, truncated: true };
 }
 
 async function count(path: string): Promise<number | null> {
@@ -169,7 +192,8 @@ export const Route = createFileRoute("/api/marketplace/security")({
         let filter = "";
         if (entity !== "all") filter += `&entity_type=eq.${encodeURIComponent(entity)}`;
         if (result === "denied") filter += "&action=like.*denied*";
-        if (q) filter += `&or=(action.ilike.*${encodeURIComponent(q)}*,actor.ilike.*${encodeURIComponent(q)}*,reason.ilike.*${encodeURIComponent(q)}*)`;
+        const term = orSearchTerm(q);
+        if (term) filter += `&or=(action.ilike.*${term}*,actor.ilike.*${term}*,reason.ilike.*${term}*)`;
 
         const [auditRows, auditTotal] = await Promise.all([
           rows<Record<string, unknown>>(
@@ -195,11 +219,12 @@ export const Route = createFileRoute("/api/marketplace/security")({
           sessionsSupported(),
           rows<{ role: string; user_id: string }>("user_roles?select=role,user_id"),
           rows<Record<string, unknown>>(
-            "security_alerts?select=*&limit=25",
+            "security_alerts?select=*&order=detected_at.desc&limit=25",
           ),
           count("security_events?select=id"),
           count("server_login_history?select=id"),
-          count("payment_blacklist?select=id"),
+          // payment_blacklist is keyed by user_id; it has no id column.
+          count("payment_blacklist?select=user_id"),
           count("marketplace_audit_logs?select=id&action=like.*denied*"),
         ]);
 
@@ -339,23 +364,31 @@ export const Route = createFileRoute("/api/marketplace/security")({
           );
         }
 
-        const list = await rows<Record<string, unknown>>(
-          "marketplace_audit_logs?select=created_at,action,actor,actor_role,entity_type,entity_id,reason&order=created_at.desc&limit=5000",
-        );
-        const cell = (v: unknown) => {
-          const t = v === null || v === undefined ? "" : String(v);
-          return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
-        };
+        let list: Record<string, unknown>[];
+        let truncated: boolean;
+        try {
+          ({ rows: list, truncated } = await exportRows(
+            "marketplace_audit_logs?select=created_at,action,actor,actor_role,entity_type,entity_id,reason&order=created_at.desc,id.desc",
+          ));
+        } catch (error) {
+          return Response.json(
+            { ok: false, reason: "read_failed", message: error instanceof Error ? error.message : String(error) },
+            { status: 502 },
+          );
+        }
+        const cell = csvCell;
         const lines = ["created_at,action,actor,actor_role,entity_type,entity_id,reason"];
         for (const r of list) {
           lines.push([
             r.created_at, r.action, r.actor, r.actor_role, r.entity_type, r.entity_id, r.reason,
           ].map(cell).join(","));
         }
-        await audit(request, "Security audit exported", { rows: list.length },
-          `${list.length} audit rows were exported from the Security screen.`);
+        await audit(request, "Security audit exported", { rows: list.length, truncated },
+          `${list.length} audit rows were exported from the Security screen${truncated ? " (stopped at the export ceiling)" : ""}.`);
         return new Response(lines.join("\n"), {
           headers: {
+            "X-Export-Rows": String(list.length),
+            "X-Export-Truncated": String(truncated),
             "Content-Type": "text/csv; charset=utf-8",
             "Content-Disposition": `attachment; filename="security-audit-${new Date().toISOString().slice(0, 10)}.csv"`,
           },

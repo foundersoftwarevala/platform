@@ -204,3 +204,26 @@ describe("starting a payment", () => {
     expect((await start()).status).toBe(403);
   });
 });
+
+describe("crediting the referrer when the payment starts", () => {
+  async function attributedWith(resellerOwner: string | null) {
+    const core = await import("@/lib/affiliate/core");
+    (core as unknown as { readCookie: unknown }).readCookie = () => "session-key";
+    vi.mocked(core.attributionForSession).mockResolvedValue({ resellerId: "r1" } as never);
+    vi.mocked(core.rest).mockResolvedValue(json([{ user_id: resellerOwner }]) as never);
+    vi.mocked(core.attributeOrder).mockClear().mockResolvedValue({ created: true } as never);
+    expect((await start()).status).toBe(200);
+    (core as unknown as { readCookie: unknown }).readCookie = () => null;
+    return vi.mocked(core.attributeOrder).mock.calls[0]?.[2] as Record<string, unknown>;
+  }
+
+  it("flags a reseller buying through their own link", async () => {
+    const meta = await attributedWith("u1");
+    expect(meta).toMatchObject({ self_referral: true, risk: "REVIEW", risk_reason: "buyer owns the referring reseller account" });
+  });
+
+  it("credits a reseller normally when someone else buys", async () => {
+    const meta = await attributedWith("another-user");
+    expect(meta).toMatchObject({ self_referral: false, risk: "NORMAL", risk_reason: null });
+  });
+});

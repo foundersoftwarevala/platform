@@ -51,6 +51,10 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
     if (seo.status === "rejected") {
       console.error("[category head] could not load", params.slug, seo.reason);
     }
+    // A slug with no category is a 404 as well as noindex, not a soft 200.
+    if (seo.status === "fulfilled" && !seo.value && typeof window === "undefined") {
+      (await import("@/lib/seo/not-found.server")).respondNotFound();
+    }
     return {
       seo: seo.status === "fulfilled" ? seo.value : null,
       /**

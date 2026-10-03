@@ -9,6 +9,9 @@ import {
 } from "@/components/affiliate/AffiliateProfile";
 import { supabase } from "@/integrations/supabase/client";
 
+// The partner tables are not in the generated database types.
+const untyped = (table: string) => (supabase as any).from(table);
+
 export const Route = createFileRoute("/affiliate-manager/affiliates/$id")({
   head: () => ({
     meta: [
@@ -29,13 +32,39 @@ function AffiliateDetailPage() {
   const affiliate = useQuery({
     queryKey: ["affiliate", "detail", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("affiliates")
-        .select("id, display_name, email, code, country, status, health_score, risk_score, created_at")
+      // The affiliate is a marketplace_affiliate_partners row. Its email lives on
+      // the partner's profile and its code in marketplace_referral_codes; the
+      // partner record holds no country, health or risk score, so those stay empty.
+      const { data, error } = await untyped("marketplace_affiliate_partners")
+        .select("id, user_id, display_name, status, created_at")
         .eq("id", id)
         .maybeSingle();
       if (error) throw error;
-      return (data ?? null) as AffiliateRecord | null;
+      if (!data) return null;
+      const [profile, code] = await Promise.all([
+        data.user_id
+          ? supabase.from("profiles").select("email").eq("id", data.user_id).maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+        untyped("marketplace_referral_codes")
+          .select("code")
+          .eq("affiliate_partner_id", data.id)
+          .eq("active", true)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (code.error) throw code.error;
+      return {
+        id: data.id,
+        display_name: data.display_name ?? "",
+        email: (profile.data as { email: string | null } | null)?.email ?? null,
+        code: code.data?.code ?? null,
+        country: null,
+        status: data.status,
+        health_score: null,
+        risk_score: null,
+        created_at: data.created_at,
+      } satisfies AffiliateRecord;
     },
   });
 

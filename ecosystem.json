@@ -1,0 +1,3191 @@
+{
+  "generated_at": "2026-09-24T02:50:52.976Z",
+  "rows": [
+    {
+      "table": "i18n_translation_jobs",
+      "rows": 182475,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_translations",
+      "rows": 107318,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_activity_log",
+      "rows": 8099,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_url_audit_log",
+      "rows": 5649,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_products",
+      "rows": 5545,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "server_metrics_history",
+      "rows": 4987,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_product_pricing",
+      "rows": 3714,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_keywords",
+      "rows": 3689,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_issues",
+      "rows": 2679,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_keyword_rankings",
+      "rows": 2160,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "i18n_translation_revisions",
+      "rows": 2121,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_health",
+      "rows": 869,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_activity_heat",
+      "rows": 672,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_page_behavior",
+      "rows": 420,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_transactions",
+      "rows": 420,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "api_service_capabilities",
+      "rows": 371,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_communications",
+      "rows": 270,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "tm_activity",
+      "rows": 250,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_ai_api_usage",
+      "rows": 225,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "role_permissions",
+      "rows": 214,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "registry_countries",
+      "rows": 198,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_audit_logs",
+      "rows": 189,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "api_services",
+      "rows": 188,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_wallet_transactions",
+      "rows": 186,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "registry_languages",
+      "rows": 183,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_daily_metrics",
+      "rows": 181,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "awards",
+      "rows": 181,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "trophies",
+      "rows": 180,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "ams_role_stages",
+      "rows": 180,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "badges",
+      "rows": 180,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "achievements",
+      "rows": 180,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "i18n_languages",
+      "rows": 145,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "affiliate_role_permissions",
+      "rows": 143,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "finance_audit_logs",
+      "rows": 140,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "leads",
+      "rows": 139,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_invoices",
+      "rows": 131,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_audit_logs",
+      "rows": 125,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_scores",
+      "rows": 121,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_notes",
+      "rows": 120,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_assignments",
+      "rows": 113,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "profiles",
+      "rows": 93,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_categories",
+      "rows": 91,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_performance_metrics",
+      "rows": 90,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_subscriptions",
+      "rows": 90,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_commissions",
+      "rows": 80,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_pages",
+      "rows": 79,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_alerts",
+      "rows": 76,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_expenses",
+      "rows": 72,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_events",
+      "rows": 71,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_payouts",
+      "rows": 70,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "user_notifications",
+      "rows": 67,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_card_fields",
+      "rows": 65,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "user_roles",
+      "rows": 64,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_follow_ups",
+      "rows": 63,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "tm_escalations",
+      "rows": 61,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_automation_runs",
+      "rows": 56,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_refunds",
+      "rows": 45,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "error_events",
+      "rows": 45,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_fraud_alerts",
+      "rows": 38,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_approvals",
+      "rows": 36,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_wallets",
+      "rows": 31,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_kpi_snapshots",
+      "rows": 30,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "tm_tasks",
+      "rows": 30,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "faqs",
+      "rows": 28,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_audits",
+      "rows": 25,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_cart_items",
+      "rows": 24,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_order_items",
+      "rows": 24,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_tax_records",
+      "rows": 24,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_homepage_sections",
+      "rows": 24,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "audit_logs",
+      "rows": 23,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "promise_subcategories",
+      "rows": 21,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "xp_rules",
+      "rows": 21,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "marketplace_orders",
+      "rows": 21,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "email_outbox",
+      "rows": 21,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "storefront_footer_links",
+      "rows": 20,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "home_hero_slides",
+      "rows": 20,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "promise_health_events",
+      "rows": 20,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "security_alerts",
+      "rows": 17,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "assist_settings",
+      "rows": 16,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "reseller_membership_events",
+      "rows": 16,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "influencer_audit_logs",
+      "rows": 16,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_topbar_modules",
+      "rows": 16,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "lead_settings",
+      "rows": 15,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "resellers",
+      "rows": 15,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_reserved_slugs",
+      "rows": 15,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "ai_content_legal_rules",
+      "rows": 14,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "registry_search_engines",
+      "rows": 14,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "promise_audit_logs",
+      "rows": 13,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "team_members",
+      "rows": 13,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "system_settings",
+      "rows": 13,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "sales_leads",
+      "rows": 12,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_escalations",
+      "rows": 12,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_technical_checks",
+      "rows": 12,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_sellers",
+      "rows": 11,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "support_tickets",
+      "rows": 11,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "xp_sources",
+      "rows": 11,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "seo_indexing_records",
+      "rows": 11,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "chat_messages",
+      "rows": 11,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "influencer_profiles",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_licenses",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_entitlements",
+      "rows": 10,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "ranks",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "levels",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_competitor_gaps",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_alerts",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_audit_logs",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_locations",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_leads",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_seo_keywords",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "developer_tasks",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_campaigns",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_backlinks",
+      "rows": 10,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "storefront_published_config",
+      "rows": 9,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "lead_sources",
+      "rows": 9,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "legal_jurisdictions",
+      "rows": 9,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "crm_customers",
+      "rows": 9,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "ai_content_templates",
+      "rows": 9,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "demo_clicks",
+      "rows": 9,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_ad_groups",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_creatives",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "reseller_notifications",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "prompt_versions",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_leads",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_integrations",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "legal_regulations",
+      "rows": 8,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "seo_ai_suggestions",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_lead_sources",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_agents",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "reseller_membership_orders",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_payment_intents",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_schedules",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_filter_groups",
+      "rows": 8,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "finance_invoice_items",
+      "rows": 8,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_referral_sessions",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "sales_deals",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "assist_privacy_controls",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "faq_categories",
+      "rows": 7,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "promise_rules",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "data_governance_rules",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_offers",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_content_items",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_automations",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "bot_languages",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "promise_categories",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "safety_policies",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "crm_tasks",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_content_items",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "call_logs",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "i18n_glossary_terms",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "emergency_controls",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_seo_pages",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "server_plans",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_approvals",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "brand_assets",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "influencer_applications",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_channel_performance",
+      "rows": 7,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "prompts",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_reports",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_affiliate_partners",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_templates",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "storefront_trust_items",
+      "rows": 6,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "server_regions",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_spam_events",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_alerts",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "bot_conversation_logs",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_automations",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_carts",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_ad_campaigns",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "automation_rules",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_ai_recommendations",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "trust_badges",
+      "rows": 6,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "lead_integration_events",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "ams_events",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_routing_rules",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "wiki_articles",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_regions",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "sales_commissions",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "influencer_payouts",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_social_posts",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_gateways",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_referral_codes",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_payment_intents",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_recommendation_configs",
+      "rows": 6,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "bot_training_documents",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "product_short_link_events",
+      "rows": 6,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "seo_alerts",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_budgets",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_compliance_records",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_influencers",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "vala_tv_categories",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketing_messages",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "email_queue",
+      "rows": 6,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_meta_rules",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_integrations",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_product_entries",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_social_comments",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_plans",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_competitors",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_social_posts",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_commission_rules",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "fine_tuning_jobs",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_stories",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "finance_ai_controls",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "brand_enforcement_rules",
+      "rows": 5,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "marketing_regions",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "chat_sessions",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "usage_events",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_inbox_messages",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_email_campaigns",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "franchises",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_reports",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "support_escalations",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_order_status_history",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_automation_flows",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "lead_automation_rules",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "on_device_models",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "canned_responses",
+      "rows": 5,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "author_approval_history",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_row_config",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "storefront_floating_elements",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "author_approval_rules",
+      "rows": 4,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "storefront_social_links",
+      "rows": 4,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "payment_audit_logs",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "territories",
+      "rows": 4,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "finance_payment_rails",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "seo_reels",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "franchise_applications",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_order_attributions",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "storefront_footer_columns",
+      "rows": 4,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "marketplace_commissions",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_sandbox_jobs",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "chatbots",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "assist_access_modes",
+      "rows": 4,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "ai_content_audit_logs",
+      "rows": 3,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "reseller_membership_plans",
+      "rows": 3,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "franchise_compliance",
+      "rows": 3,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "franchise_settings",
+      "rows": 3,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "franchise_contracts",
+      "rows": 3,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "franchise_royalties",
+      "rows": 3,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "franchise_notifications",
+      "rows": 3,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_provider_configs",
+      "rows": 3,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "franchise_documents",
+      "rows": 3,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "influencer_activity",
+      "rows": 3,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "ams_comments",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "api_keys",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "security_provider_configs",
+      "rows": 2,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "ai_content_generations",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_sandbox_credentials",
+      "rows": 2,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "franchise_performance",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "influencer_earnings",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "ai_content_items",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "conversations",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_saved_products",
+      "rows": 2,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "franchise_fraud_alerts",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "influencer_social_accounts",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "influencer_campaign_assignments",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_domain_events",
+      "rows": 2,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "demo_sandbox_cleanup_jobs",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "franchise_escalations",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "franchise_audit_logs",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "partner_commissions",
+      "rows": 2,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "influencer_agreements",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "product_moderation_policy",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "brand_protection_events",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "missions",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_alerts",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "ai_content_usage",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "product_urls",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "conversation_participants",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "product_qr_events",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "product_demo_urls",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "product_short_links",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "developers",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "payment_controls",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "demo_access_settings",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "ams_chat_messages",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_sandboxes",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_sandbox_snapshots",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "payments",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "author_submissions",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "server_instances",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "payment_methods",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "badge_collections",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "achievement_categories",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "demo_sandbox_activity",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "demo_sandbox_resets",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "ai_content_settings",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "messages",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "influencer_compensation_rules",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "author_approval_sla",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "franchise_leads",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "ams_tickets",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_qr_codes",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "i18n_request_quota",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "ai_prompts",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "product_url_route_prefixes",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "brand_enforcement_runs",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "demo_domains",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_order_refunds",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "product_url_settings",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "demo_sandbox_settings",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "promise_settings",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "tm_settings",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "brand_protection_settings",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "storefront_footer_settings",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "influencer_notifications",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "quests",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "product_qr_codes",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "influencer_invoices",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "brand_violation_cases",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "marketplace_commission_reversals",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "payment_intents",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "security_scanner_settings",
+      "rows": 1,
+      "read": false,
+      "state": "HELD, UNREAD"
+    },
+    {
+      "table": "demo_provision_jobs",
+      "rows": 1,
+      "read": true,
+      "state": "LIVE"
+    },
+    {
+      "table": "leaderboard_definitions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "invoices",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "finance_payment_webhooks",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "ams_passports",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "product_duplicate_candidates",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "assist_session_requests",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "review_votes",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "server_rolling_updates",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "promise_ledger",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "cost_recommendations",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "security_dmca_queue",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "leaderboard_entries",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "reseller_payouts",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "finance_provider_transactions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "challenges",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "tm_approvals",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "model_versions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "vala_tv_views",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "security_quarantine",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "notifications",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "reseller_payout_schedules",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "api_request_logs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "rewards",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "analytics_events",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "claims",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "product_purge_requests",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "demo_ssl_certificates",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "user_achievements",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "assist_sessions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "demos",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_incidents",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "legal_policies",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "demo_escalations",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "promise_ai_insights",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "seo_benchmark_runs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "vala_tv_videos",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_invoices",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "review_media",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "rate_limits",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "brand_asset_versions",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "legal_alerts",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_backup_schedules",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "safe_assist_sessions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_row_slots",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "safe_assist_notifications",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "notification_rules",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "user_xp",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_settings",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "demo_login_credentials",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_alerts",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "legal_acceptances",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "product_url_jobs",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "server_network_events",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "xp_transactions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "ai_content_jobs",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "demo_categories",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "security_events",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "tm_reviews",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "product_apis",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "legal_product_bindings",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "ai_content_reviews",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "tm_notifications",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "activity_logs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "demo_dns_records",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "brand_whitelist_exceptions",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "api_integrations",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_ssh_keys",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "product_share_events",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "product_reports",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "assist_chat_messages",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "router_rules",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_maintenance_windows",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "brand_replacement_history",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "legal_logs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "developer_code_submissions",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "ai_agents",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "role_api_permissions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "safe_assist_events",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "reseller_membership_entitlements",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "legal_agreements",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "entitlements",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "assist_control_state",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "ams_certificates",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "legal_misuse_alerts",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "legal_records",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_payout_schedules",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "developer_activity_logs",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "demo_requests",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_disputes",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "promise_escalations",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "events",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "user_awards",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "finance_customers",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "payment_logs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "failover_events",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "assist_session_windows",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "security_assets",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "legal_violations",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "assist_file_transfers",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "blackbox_events",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "tm_automations",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_ai_insights",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "legal_documents",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "demo_sandbox_health_checks",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "tm_subtasks",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "finance_ledger_entries",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "security_scan_jobs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "demo_sandbox_sessions",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "server_purchases",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "cache_entries",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "campaigns",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "ai_content_job_items",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "tm_attachments",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "review_replies",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "demo_analytics",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "safe_assist_alerts",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "server_logs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "ams_attachments",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "ai_decision_logs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "tm_time_logs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "user_badges",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "developer_messages",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "author_approval_evidence",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "product_merge_operations",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "quick_support_requests",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "reseller_commissions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_downloads",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "demo_expiry_events",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "message_mentions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "billing_plans",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "reward_wallets",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "message_reactions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "model_evaluations",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_vendors",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "message_receipts",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "ai_models",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_coupon_redemptions",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "marketplace_payment_events",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "seasons",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "ai_providers",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "legal_trademark_assets",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "assist_emergency_stops",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_audit_logs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "assist_ai_suggestions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "safe_assist_ai_logs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "affiliate_clicks",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "finance_payments",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "assist_agents",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_network_traffic",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "notification_templates",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "incidents",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "user_streaks",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "wallets",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "tm_comments",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "review_reports",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "server_backup_jobs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "partner_payouts",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "faq_versions",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "promise_links",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "finance_payment_events",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketing_consents",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "server_restore_points",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "site_notifications",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "franchise_branches",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "seo_error_events",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_reviews",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_seller_users",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "assist_audit_logs",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "promises",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "assist_end_users",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "tm_members",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "reseller_memberships",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "user_trophies",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_services",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_sla_breaches",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_ledger_entries",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "reseller_commission_rules",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_awards",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_payouts",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "usage_daily",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "marketplace_product_variants",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "ai_content_versions",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "payment_event_outbox",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "marketplace_product_versions",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "marketplace_coupons",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "legal_agreement_versions",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "assist_approvals",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "franchise_employees",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "legal_ai_requests",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "message_bookmarks",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "demo_technologies",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "demo_validation_logs",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "trust_audit_logs",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "finance_reconciliation_records",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "ams_activity_events",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "message_attachments",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "auth_qr_sessions",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "user_mission_progress",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "ams_award_ledger",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "developer_task_internal_notes",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_login_history",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "developer_task_escalations",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "franchise_users",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "demo_sandbox_expiry_events",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "server_deployments",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "product_demo_mappings",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "product_url_history",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "license_keys",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "payment_blacklist",
+      "rows": 0,
+      "read": false,
+      "state": "UNUSED"
+    },
+    {
+      "table": "security_findings",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "chat_conversations",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "demo_deployments",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "licenses",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "server_firewall_rules",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "wallet_transactions",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "chat_participants",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    },
+    {
+      "table": "tm_dependencies",
+      "rows": 0,
+      "read": true,
+      "state": "READ, EMPTY"
+    }
+  ]
+}
