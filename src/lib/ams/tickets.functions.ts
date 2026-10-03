@@ -50,6 +50,33 @@ async function isAmsStaff(sb: SupabaseClient<Database>, uid: string): Promise<bo
   return (data ?? []).some((r) => AMS_STAFF_ROLES.includes(String(r.role)));
 }
 
+/** Platform operators: the only staff who may work a ticket they raised themselves. */
+const AMS_OPERATOR_ROLES = ["admin", "super_admin", "boss", "boss_owner", "founder", "owner"];
+async function isAmsOperator(sb: SupabaseClient<Database>, uid: string): Promise<boolean> {
+  const { data } = await sb.from("user_roles").select("role").eq("user_id", uid);
+  return (data ?? []).some((r) => AMS_OPERATOR_ROLES.includes(String(r.role)));
+}
+
+type TicketParties = { status: string; created_by: string | null; assignee_id: string | null };
+async function ticketParties(sb: SupabaseClient<Database>, id: string): Promise<TicketParties> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = (await (sb as any).from("ams_tickets").select("status, created_by, assignee_id").eq("id", id).maybeSingle()) as
+    { data: TicketParties | null };
+  if (!data) throw new Error("Ticket not found");
+  return data;
+}
+
+/**
+ * Whether the caller works this ticket as staff. The person who raised it does
+ * not, even when their role is a staff role (a developer raising their own
+ * ticket), unless it is assigned to them by the team or they are an operator.
+ */
+async function worksTicket(sb: SupabaseClient<Database>, uid: string, t: TicketParties): Promise<boolean> {
+  if (t.assignee_id === uid && t.created_by !== uid) return true;
+  if (await isAmsOperator(sb, uid)) return true;
+  return t.created_by !== uid && (await isAmsStaff(sb, uid));
+}
+
 // ---------- list ----------
 export const listTickets = createServerFn({ method: "GET" })
   .inputValidator((d: { status?: AmsStatus | "all"; priority?: AmsPriority; q?: string; assignee?: "me" | "any"; mine?: boolean }) => d)
@@ -155,11 +182,8 @@ export const changeStatus = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
     if (!AMS_STATUSES.includes(data.to)) throw new Error("Unknown status");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: prev } = (await (sb as any).from("ams_tickets").select("status, created_by, assignee_id").eq("id", data.id).single()) as
-      { data: { status: string; created_by: string | null; assignee_id: string | null } | null };
-    if (!prev) throw new Error("Ticket not found");
-    if (!(await isAmsStaff(sb, uid)) && prev.assignee_id !== uid) {
+    const prev = await ticketParties(sb, data.id);
+    if (!(await worksTicket(sb, uid, prev))) {
       if (!requesterMayMove(prev.status as AmsStatus, data.to)) {
         throw new Error(`A ticket cannot be moved from ${prev.status} to ${data.to} by the person who raised it.`);
       }
@@ -183,8 +207,9 @@ export const assignTicket = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
     // Who works a ticket is the support team's decision, not the requester's.
-    if (!(await isAmsStaff(sb, uid))) throw new Error("Only the support team can assign a ticket.");
-    const { data: prev } = await sb.from("ams_tickets").select("assignee_id, status").eq("id", data.id).single();
+    const parties = await ticketParties(sb, data.id);
+    if (!(await worksTicket(sb, uid, parties))) throw new Error("Only the support team can assign a ticket.");
+    const prev = parties;
     const patch: Record<string, unknown> = { assignee_id: data.assignee_id };
     if (data.assignee_id && prev?.status === "submitted") patch.status = "assigned";
     const { error } = await sb.from("ams_tickets").update(patch as never).eq("id", data.id);
@@ -202,6 +227,11 @@ export const archiveTicket = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string }) => d)
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
+    const parties = await ticketParties(sb, data.id);
+    // The requester may withdraw their own ticket; anyone else must work it.
+    if (parties.created_by !== uid && !(await worksTicket(sb, uid, parties))) {
+      throw new Error("Only the requester or the support team can archive a ticket.");
+    }
     const { error } = await sb.from("ams_tickets").update({ deleted_at: new Date().toISOString(), status: "archived" }).eq("id", data.id);
     if (error) throw new Error(error.message);
     await sb.from("ams_events").insert({ ticket_id: data.id, actor_id: uid, kind: "archived" });
@@ -212,6 +242,13 @@ export const restoreTicket = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string }) => d)
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
+    const parties = await ticketParties(sb, data.id);
+    // Restoring reopens the ticket: the requester for an archived ticket of
+    // their own, otherwise the team.
+    const ownArchived = parties.created_by === uid && parties.status === "archived";
+    if (!ownArchived && !(await worksTicket(sb, uid, parties))) {
+      throw new Error("Only the requester or the support team can restore a ticket.");
+    }
     const { error } = await sb.from("ams_tickets").update({ deleted_at: null, status: "submitted" }).eq("id", data.id);
     if (error) throw new Error(error.message);
     await sb.from("ams_events").insert({ ticket_id: data.id, actor_id: uid, kind: "restored" });
@@ -224,6 +261,9 @@ export const addComment = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
     if (!data.body?.trim()) throw new Error("Empty comment");
+    if (data.is_internal && !(await worksTicket(sb, uid, await ticketParties(sb, data.ticket_id)))) {
+      throw new Error("Internal notes are for the support team.");
+    }
     const { data: row, error } = await sb.from("ams_comments").insert({
       ticket_id: data.ticket_id, author_id: uid, body: data.body.trim(), is_internal: !!data.is_internal,
     }).select("*").single();
@@ -252,8 +292,16 @@ export const postChatMessage = createServerFn({ method: "POST" })
 export const toggleChatPin = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string; pinned: boolean }) => d)
   .handler(async ({ data }) => {
-    const { sb } = await requireUser();
-    await sb.from("ams_chat_messages").update({ pinned: data.pinned }).eq("id", data.id);
+    const { sb, uid } = await requireUser();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: msg } = (await (sb as any).from("ams_chat_messages").select("ticket_id").eq("id", data.id).maybeSingle()) as
+      { data: { ticket_id: string } | null };
+    if (!msg) throw new Error("Message not found");
+    if (!(await worksTicket(sb, uid, await ticketParties(sb, msg.ticket_id)))) {
+      throw new Error("Only the support team can pin messages.");
+    }
+    const { error } = await sb.from("ams_chat_messages").update({ pinned: data.pinned }).eq("id", data.id);
+    if (error) throw new Error(error.message);
     return { ok: true };
   });
 

@@ -13,6 +13,7 @@ import {
   BadgeCheck, ClipboardX, CheckCircle2, Flame, MessageSquare,
   type LucideIcon,
 } from "lucide-react";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 const ACHV = { key: "achievements", label: "Achievements", icon: Award };
 const AMS  = { key: "ams",          label: "AMS",          icon: LifeBuoy };
@@ -27,6 +28,8 @@ export type RoleKey =
 export type Kpi = {
   key: string;
   label: string;
+  /** Catalogue key of `label`; the dashboard shows t(labelKey) where set, `label` otherwise. */
+  labelKey?: MessageKey;
   icon: LucideIcon;
   tone: "brand" | "success" | "warning" | "danger" | "violet" | "cyan";
   unit?: string; // "$" | "%" | "" - hint only
@@ -39,6 +42,11 @@ export type RoleBanner = {
   cta: string;           // primary action
   gradient: string;      // css gradient
   accent: string;        // accent color token
+  // Catalogue keys of the copy above; where set the dashboard shows t(key).
+  eyebrowKey?: MessageKey;
+  headlineKey?: MessageKey;
+  subKey?: MessageKey;
+  ctaKey?: MessageKey;
 };
 
 export type RoleConfig = {
@@ -47,9 +55,14 @@ export type RoleConfig = {
   title: string;         // "Author Dashboard"
   tagline: string;
   benchmarks: string[];
-  modules: { key: string; label: string; icon: LucideIcon }[];
+  modules: { key: string; label: string; labelKey?: MessageKey; icon: LucideIcon }[];
   kpis: Kpi[];
   banner: RoleBanner;
+  // Catalogue keys of name, title and tagline; where set the dashboard shows
+  // t(key). The English fields stay: code matches on them.
+  nameKey?: MessageKey;
+  titleKey?: MessageKey;
+  taglineKey?: MessageKey;
 };
 
 // Banners — each role gets a unique gradient + copy. NOT generic.
@@ -125,6 +138,10 @@ const banners: Record<RoleKey, RoleBanner> = {
     cta: "Open Command Center",
     gradient: "linear-gradient(120deg, oklch(0.24 0.05 260) 0%, oklch(0.30 0.14 250) 55%, oklch(0.40 0.18 230) 100%)",
     accent: "oklch(0.78 0.16 250)",
+    eyebrowKey: "dashboard.role.developer.eyebrow",
+    headlineKey: "dashboard.role.developer.headline",
+    subKey: "dashboard.role.developer.sub",
+    ctaKey: "dashboard.role.developer.cta",
   },
   "dev-manager": {
     eyebrow: "Developer Management",
@@ -377,29 +394,32 @@ export const ROLES: Record<RoleKey, RoleConfig> = {
   developer: {
     key:"developer", name:"Developer", title:"Developer Dashboard",
     tagline:"Command center for shipping code",
+    nameKey:"dashboard.role.developer.name",
+    titleKey:"dashboard.role.developer.title",
+    taglineKey:"dashboard.role.developer.tagline",
     benchmarks:["Linear Dev", "GitHub Projects"],
     modules:[
-      { key:"command-center", label:"Command Center", icon:Sparkles },
-      { key:"tasks", label:"Tasks", icon:ClipboardList },
-      { key:"bugs", label:"Bugs & Issues", icon:Bug },
-      { key:"code-submission", label:"Code Submission", icon:Code2 },
-      { key:"timer", label:"Timer & Productivity", icon:Timer },
-      { key:"ai", label:"AI Assistant", icon:Brain },
-      { key:"performance", label:"Performance", icon:BarChart3 },
-      { key:"wallet", label:"Wallet & Payout", icon:Wallet },
-      { key:"chat", label:"Team Chat", icon:MessageSquare },
-      { key:"settings", label:"Settings", icon:SettingsIcon },
+      { key:"command-center", label:"Command Center", labelKey:"dashboard.role.developer.module.command_center", icon:Sparkles },
+      { key:"tasks", label:"Tasks", labelKey:"dashboard.role.developer.module.tasks", icon:ClipboardList },
+      { key:"bugs", label:"Bugs & Issues", labelKey:"dashboard.role.developer.module.bugs", icon:Bug },
+      { key:"code-submission", label:"Code Submission", labelKey:"dashboard.role.developer.module.code_submission", icon:Code2 },
+      { key:"timer", label:"Timer & Productivity", labelKey:"dashboard.role.developer.module.timer", icon:Timer },
+      { key:"ai", label:"AI Assistant", labelKey:"dashboard.role.developer.module.ai", icon:Brain },
+      { key:"performance", label:"Performance", labelKey:"dashboard.role.developer.module.performance", icon:BarChart3 },
+      { key:"wallet", label:"Wallet & Payout", labelKey:"dashboard.role.developer.module.wallet", icon:Wallet },
+      { key:"chat", label:"Team Chat", labelKey:"dashboard.role.developer.module.chat", icon:MessageSquare },
+      { key:"settings", label:"Settings", labelKey:"dashboard.role.developer.module.settings", icon:SettingsIcon },
       ACHV, AMS, AMSC,
     ],
     kpis:[
-      { key:"tasks-open", label:"Open Tasks", icon:ClipboardList, tone:"brand" },
-      { key:"tasks-done", label:"Tasks Completed", icon:CheckCircle2, tone:"success" },
-      { key:"bugs-open", label:"Open Bugs", icon:Bug, tone:"danger" },
-      { key:"commits", label:"Commits This Week", icon:GitBranch, tone:"cyan" },
-      { key:"code-hours", label:"Coding Hours", icon:Timer, tone:"warning" },
-      { key:"performance", label:"Performance Score", icon:BarChart3, tone:"violet", unit:"%" },
-      { key:"payout", label:"Payout Pending", icon:Wallet, tone:"warning", unit:"$" },
-      { key:"streak", label:"Ship Streak", icon:Flame, tone:"warning" },
+      { key:"tasks-open", label:"Open Tasks", labelKey:"dashboard.role.developer.kpi.tasks_open", icon:ClipboardList, tone:"brand" },
+      { key:"tasks-done", label:"Tasks Completed", labelKey:"dashboard.role.developer.kpi.tasks_done", icon:CheckCircle2, tone:"success" },
+      { key:"bugs-open", label:"Open Bugs", labelKey:"dashboard.role.developer.kpi.bugs_open", icon:Bug, tone:"danger" },
+      { key:"commits", label:"Commits This Week", labelKey:"dashboard.role.developer.kpi.commits", icon:GitBranch, tone:"cyan" },
+      { key:"code-hours", label:"Coding Hours", labelKey:"dashboard.role.developer.kpi.code_hours", icon:Timer, tone:"warning" },
+      { key:"performance", label:"Performance Score", labelKey:"dashboard.role.developer.kpi.performance", icon:BarChart3, tone:"violet", unit:"%" },
+      { key:"payout", label:"Payout Pending", labelKey:"dashboard.role.developer.kpi.payout", icon:Wallet, tone:"warning", unit:"$" },
+      { key:"streak", label:"Ship Streak", labelKey:"dashboard.role.developer.kpi.streak", icon:Flame, tone:"warning" },
     ],
     banner: banners.developer,
   },

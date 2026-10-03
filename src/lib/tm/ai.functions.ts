@@ -4,6 +4,12 @@ import { z } from "zod";
 import { executeAiRequest } from "@/lib/ai-api.functions";
 
 /**
+ * Who may ask for suggestions: the roles RouteAccessGate lets into
+ * /task-manager, where the AI Task Generator lives, on top of the operators.
+ */
+const TASK_MANAGER_ROLES = ["developer", "support", "sales"] as const;
+
+/**
  * The AI Task Generator of section 18.
  *
  * This used to call the Lovable AI gateway directly on a LOVABLE_API_KEY.
@@ -90,6 +96,12 @@ function extractJson(text: string): unknown {
 export const generateTasks = createServerFn({ method: "POST" })
   .inputValidator((data) => inputSchema.parse(data))
   .handler(async ({ data }): Promise<AITaskSuggestion[]> => {
+    // Every generation is a metered provider call, and nothing checked who was
+    // asking, so anyone who could reach /_serverFn could spend the platform's AI
+    // credit. The caller must now be signed in and hold a Task Manager role.
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("The AI Task Generator", { alsoAllow: [...TASK_MANAGER_ROLES] });
+
     const prompt = [
       `Brief: ${data.brief}`,
       `Produce exactly ${data.count} tasks.`,

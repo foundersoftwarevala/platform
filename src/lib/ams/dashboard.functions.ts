@@ -115,7 +115,9 @@ export const getCommandCenter = createServerFn({ method: "GET" }).handler(async 
   const roleDef = pickDef("role");
   const territoryDef = pickDef("territory");
 
-  const entrySelect = "rank, score, user_id, profiles(display_name, avatar_url, country, role_title)";
+  // profiles has no avatar_url, country or role_title; asking for them made
+  // PostgREST refuse the whole leaderboard. The screen renders display_name.
+  const entrySelect = "rank, score, user_id, profiles(display_name)";
   const fetchEntries = async (defId: string | undefined, limit: number) => {
     if (!defId) return [];
     const r = await supabase.from("leaderboard_entries").select(entrySelect).eq("definition_id", defId).order("rank").limit(limit);
@@ -206,7 +208,7 @@ export const getLeaderboard = createServerFn({ method: "GET" })
     if (!def.data) return { entries: [] as any[] };
     const entries = await supabase
       .from("leaderboard_entries")
-      .select("rank, score, user_id, profiles(display_name, avatar_url, country, role_title)")
+      .select("rank, score, user_id, profiles(display_name)")
       .eq("definition_id", def.data.id)
       .order("rank")
       .limit(10);

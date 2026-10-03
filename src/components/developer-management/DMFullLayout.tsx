@@ -11,6 +11,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { ChatAppButton } from '@/components/chat/ChatAppButton';
 import { useCodeSubmissions, useDeliveryOverview, useDeveloperRegistry } from '@/hooks/useDevManagerData';
 import {
   LayoutDashboard, Users, UserPlus, Layers, ListTodo, Target, Hammer,
@@ -193,6 +194,7 @@ export const DMFullLayout: React.FC = () => {
       onBack={() => void navigate({ to: '/control-panel' })}
       backLabel={t('devmanager.nav.back_label')}
       notifications={notifications}
+      topbarRight={<ChatAppButton />}
     >
       {renderScreen()}
     </UnifiedShell>

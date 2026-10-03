@@ -65,6 +65,12 @@ function fallback(input: SeoInput, reason: string): SeoOutput {
 export const generateSeo = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as SeoInput)
   .handler(async ({ data }): Promise<SeoOutput> => {
+    // A metered provider call that nothing gated: any caller who could POST to
+    // /_serverFn could spend the platform's AI credit here. Its only caller,
+    // generateWithAi in seo.functions.ts, makes the same check first.
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Generating SEO content", { alsoAllow: ["seo", "marketing"] });
+
     // There was a guard here — `if (!key) return fallback(data)` — left over
     // from when this file held its own provider credential. `key` was never
     // declared after that credential moved into the AI API Manager, so every

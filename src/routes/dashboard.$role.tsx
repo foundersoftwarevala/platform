@@ -16,6 +16,7 @@ import { ResellerProfileHero } from "@/components/dashboard/ResellerProfileHero"
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { useSellerMetrics } from "@/hooks/useSellerMetrics";
 import { useInfluencerMetrics } from "@/hooks/useInfluencerMetrics";
+import { useDeveloperMetrics } from "@/lib/dashboard-records/use-dashboard-records";
 import { ContentRows } from "@/components/dashboard/ContentRows";
 import { Breadcrumbs } from "@/components/dashboard/Breadcrumbs";
 import { KpiToolbar, type KpiSort, type KpiTone } from "@/components/dashboard/KpiToolbar";
@@ -61,6 +62,8 @@ import { RESELLER_CENTER_ORDER, type CenterKey } from "@/lib/reseller-extras";
 const dashboardSearchSchema = z.object({
   kpiTone: fallback(z.string(), "all").default("all"),
   kpiSort: fallback(z.string(), "default").default("default"),
+  // The open module, so a refresh, Back/Forward or a shared link lands on it.
+  module: fallback(z.string().max(80).optional(), undefined),
 });
 
 export const Route = createFileRoute("/dashboard/$role")({
@@ -99,7 +102,9 @@ const DASHBOARD_ROLE_REQUIREMENT: Record<string, string[]> = {
   seo: ["seo"],
   admin: [],
   developer: ["developer"],
-  "dev-manager": ["developer"],
+  // Developer management is an operator console; a developer's own work is
+  // the developer dashboard.
+  "dev-manager": [],
   "promise-tracker": [],
 };
 
@@ -134,6 +139,24 @@ const RESELLER_HERO_CENTER: Record<string, string> = {
   "Open generator": "link",
   "How coupons work": "gen",
 };
+/**
+ * Reseller KPI cards whose figure is a slice of a module: the card opens that
+ * module. These keys are not modules themselves, so the click did nothing.
+ */
+const RESELLER_KPI_MODULES: Record<string, string> = {
+  "trial-clients": "clients",
+  "expired-licenses": "renewals",
+  "leads-won": "leads",
+  "leads-lost": "leads",
+  "leads-pending": "leads",
+  "payout-pending": "commissions",
+};
+/** Developer KPI cards open the module their figure is counted from. */
+const DEVELOPER_KPI_MODULES: Record<string, string> = {
+  "tasks-open": "tasks",
+  "tasks-done": "tasks",
+  "bugs-open": "bugs",
+};
 /** Reseller hero buttons whose destination is the marketplace itself. */
 const RESELLER_HERO_MARKETPLACE = new Set(["Browse catalog", "Open marketplace", "See top 50"]);
 
@@ -150,11 +173,22 @@ function DashboardPage() {
   const { role } = Route.useParams();
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState<string | null>(null);
   // The Referral & Coupon Center feature a hero button asked for, if any.
   const [centerFeature, setCenterFeature] = useState<string | null>(null);
   const cfg = ROLES[role as RoleKey];
   const perms = usePermissions(role as RoleKey);
+  // The open module lives in the URL (?module=) and passes the same
+  // permission gate as a click; anything else shows the dashboard home.
+  const activeModule = search.module && perms.canOpen(search.module) ? search.module : null;
+  const setActiveModule = useCallback(
+    (key: string | null) =>
+      navigate({
+        to: "/dashboard/$role",
+        params: { role },
+        search: (prev: Record<string, unknown>) => ({ ...prev, module: key ?? undefined }),
+      }),
+    [navigate, role],
+  );
   // Vendors and authors both sell on the marketplace, so both dashboards
   // read their figures from the database instead of the sample engine.
   const sellerMetrics = useSellerMetrics(role);
@@ -162,17 +196,21 @@ function DashboardPage() {
   // Influencer Manager operates. Each hook answers only for its own roles and
   // returns undefined otherwise, so at most one of these is ever a value.
   const influencerMetrics = useInfluencerMetrics(role);
-  const metricValues = sellerMetrics.values ?? influencerMetrics.values;
+  // A developer's own open and completed tasks and open bugs, counted on the
+  // server (getDeveloperMetrics).
+  const developerMetrics = useDeveloperMetrics(role);
+  const metricValues =
+    sellerMetrics.values ?? influencerMetrics.values ?? developerMetrics.values;
   const openModule = useCallback(
     (key: string | null) => {
       // A module whose job another module on this dashboard does (an "AI"
       // entry, say) opens that module.
       const source = key ? sourceFor(role, key) : null;
       const target = source?.kind === "module" ? source.key : key;
-      setActiveModule(target && perms.canOpen(target) ? target : null);
+      void setActiveModule(target && perms.canOpen(target) ? target : null);
       setCenterFeature(null);
     },
-    [perms, role],
+    [perms, role, setActiveModule],
   );
   const openHero = useCallback(() => {
     const target = PARTNER_HERO[role];
@@ -181,9 +219,9 @@ function DashboardPage() {
     if (target.notice) notBuilt(cfg.banner.cta, target.notice);
   }, [cfg, openModule, role]);
   const closeModule = useCallback(() => {
-    setActiveModule(null);
+    void setActiveModule(null);
     setCenterFeature(null);
-  }, []);
+  }, [setActiveModule]);
   const kpiTone = search.kpiTone as KpiTone;
   const kpiSort = search.kpiSort as KpiSort;
   const setKpiTone = (t: KpiTone) =>
@@ -203,7 +241,7 @@ function DashboardPage() {
 
   const switchRoleUnchecked = useCallback(
     (next: RoleKey) => {
-      setActiveModule(null);
+      setCenterFeature(null);
       navigate({ to: "/dashboard/$role", params: { role: next } });
     },
     [navigate],
@@ -211,10 +249,10 @@ function DashboardPage() {
   const switchRole = useCallback(
     (next: RoleKey) => {
       if (!perms.accessibleRoles.includes(next)) return;
-      closeModule();
+      setCenterFeature(null);
       navigate({ to: "/dashboard/$role", params: { role: next } });
     },
-    [closeModule, navigate, perms.accessibleRoles],
+    [navigate, perms.accessibleRoles],
   );
 
   const isAIChat = activeModule === "ai-chat";
@@ -259,7 +297,7 @@ function DashboardPage() {
       <Sidebar role={cfg} activeModule={activeModule} onSelectModule={openModule} />
       <div className="flex-1 min-w-0 flex flex-col">
         <TopBar role={cfg} onSwitchRole={switchRole} onOpenAIChat={() => openModule("ai-chat")} onOpenModule={openModule} allowedRoles={perms.accessibleRoles} />
-        <main className="flex-1 px-4 md:px-6 py-5 space-y-5 overflow-x-hidden">
+        <main id="main-content" tabIndex={-1} className="flex-1 px-4 md:px-6 py-5 space-y-5 overflow-x-hidden focus:outline-none">
           <Breadcrumbs items={crumbs} />
           {!perms.allowedHere ? (
             <AccessDenied
@@ -337,7 +375,13 @@ function DashboardPage() {
               <KpiGrid
                 items={filteredKpis}
                 roleKey={role}
-                onOpen={openModule}
+                onOpen={
+                  role === "reseller"
+                    ? (k) => openModule(RESELLER_KPI_MODULES[k] ?? k)
+                    : role === "developer"
+                      ? (k) => openModule(DEVELOPER_KPI_MODULES[k] ?? k)
+                      : openModule
+                }
                 {...(metricValues ? { values: metricValues } : {})}
               />
               {role === "franchise" ? (

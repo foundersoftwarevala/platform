@@ -459,6 +459,26 @@ export async function reassignTaskInDb(
     reason,
   }, actor);
 
+  // The developer who receives the task hears about it (the bell reads
+  // user_notifications). A failed notice does not undo the reassignment.
+  const { data: dev } = await supabase
+    .from("developers" as never)
+    .select("user_id")
+    .eq("id" as never, newDeveloperId as never)
+    .maybeSingle();
+  const devUser = (dev as { user_id: string | null } | null)?.user_id;
+  if (devUser) {
+    await supabase.from("user_notifications" as never).insert({
+      user_id: devUser,
+      type: "info",
+      message: `A task was assigned to you: "${(task as { title?: string | null }).title ?? ""}".`,
+      event_type: "developer.task.assigned",
+      action_url: "/dashboard/developer?module=tasks",
+      dedupe_key: `developer.assign:${taskId}:${newDeveloperId}:${Date.now()}`,
+      data: { task_id: taskId, reason },
+    } as never);
+  }
+
   return { ok: true as const };
 }
 

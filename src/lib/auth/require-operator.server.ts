@@ -36,7 +36,15 @@ export type Operator = { userId: string; email: string; roles: string[] };
  * not an operator" from the caller's point of view - it says what is needed
  * without confirming to an anonymous prober that a resource exists.
  */
-export async function requireOperator(action = "This"): Promise<Operator> {
+export async function requireOperator(
+  action = "This",
+  /**
+   * Roles admitted for this one action on top of the operators: the SEO
+   * console's own functions also serve the seo and marketing staff the route
+   * gate already lets in. Nothing else is widened.
+   */
+  options: { alsoAllow?: string[] } = {},
+): Promise<Operator> {
   const { getRequestHeader } = await import("@tanstack/react-start/server");
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
@@ -53,7 +61,8 @@ export async function requireOperator(action = "This"): Promise<Operator> {
     .eq("user_id", caller.id);
 
   const roles = (rows ?? []).map((r) => String(r.role));
-  if (!roles.some((r) => OPERATOR_ROLES.has(r))) {
+  const also = new Set(options.alsoAllow ?? []);
+  if (!roles.some((r) => OPERATOR_ROLES.has(r) || also.has(r))) {
     throw new Error(`${action} needs operator rights.`);
   }
 

@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { Search, MessageSquare, Sparkles, Wallet, Trophy, Zap, ChevronDown, Store, User, Settings, LogOut, Repeat, Check, Plus, Award, Hourglass, Coins, TrendingUp, Link2, QrCode, BadgeCheck } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
@@ -6,8 +7,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { LogoButton } from "./LogoButton";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { signOut } from "@/lib/auth-bridge";
+import { useQueryClient } from "@tanstack/react-query";
 import { copyToClipboard, notifyPending, readPref, writePref } from "@/lib/ui-actions";
 import { authHeaders } from "@/lib/auth/operator-fetch";
+import { useTranslation, type Translate } from "@/lib/i18n/use-translation";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 /**
  * The reseller's own referral link, from /api/reseller/referral.
@@ -16,23 +20,70 @@ import { authHeaders } from "@/lib/auth/operator-fetch";
  * one's code, so a visit through it was credited to nobody. It now copies the
  * reseller's newest active link, and with none it opens the generator.
  */
-async function copyResellerLink(onOpenModule?: (k: string) => void) {
+async function newestResellerLink(t: Translate) {
+  const response = await fetch("/api/reseller/referral", { headers: await authHeaders() });
+  const body = (await response.json().catch(() => ({}))) as { links?: { code: string; url: string; active: boolean }[]; error?: string };
+  if (!response.ok) throw new Error(body.error ?? t("dashboard.topbar.referral_links_unreadable"));
+  return (body.links ?? []).find((l) => l.active) ?? null;
+}
+
+async function copyResellerLink(t: Translate, onOpenModule?: (k: string) => void) {
   try {
-    const response = await fetch("/api/reseller/referral", { headers: await authHeaders() });
-    const body = (await response.json().catch(() => ({}))) as { links?: { url: string; active: boolean }[]; error?: string };
-    if (!response.ok) throw new Error(body.error ?? "Your referral links could not be read");
-    const link = (body.links ?? []).find((l) => l.active);
-    if (link) return copyToClipboard(`${window.location.origin}${link.url}`, "Referral link copied");
-    notifyPending("No referral link yet", "Create one in the Referral Link Generator, then copy it from here.");
+    const link = await newestResellerLink(t);
+    if (link) return copyToClipboard(`${window.location.origin}${link.url}`, t("dashboard.topbar.referral_link_copied"));
+    notifyPending(t("dashboard.topbar.no_referral_link"), t("dashboard.topbar.no_referral_link_copy"));
     onOpenModule?.("center:referral");
   } catch (error) {
-    notifyPending("Referral link", error instanceof Error ? error.message : String(error));
+    notifyPending(t("dashboard.topbar.referral_link"), error instanceof Error ? error.message : String(error));
   }
+}
+
+/**
+ * A QR code of the same link the copy button copies, saved as a PNG. It used
+ * to be a toast saying QR codes would come later.
+ */
+async function downloadResellerQr(t: Translate, onOpenModule?: (k: string) => void) {
+  try {
+    const link = await newestResellerLink(t);
+    if (!link) {
+      notifyPending(t("dashboard.topbar.no_referral_link"), t("dashboard.topbar.no_referral_link_qr"));
+      onOpenModule?.("center:referral");
+      return;
+    }
+    const { default: QRCode } = await import("qrcode");
+    const dataUrl = await QRCode.toDataURL(`${window.location.origin}${link.url}`, { width: 512, margin: 2 });
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `referral-${link.code}.png`;
+    a.click();
+    toast.success(t("dashboard.topbar.referral_qr_saved"), {
+      description: t("dashboard.topbar.referral_code", { code: link.code }),
+    });
+  } catch (error) {
+    notifyPending(t("dashboard.topbar.referral_qr"), error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
+ * Dollars for a top-bar pill, at most two decimals, in the interface
+ * language's number format; a dash when there is no figure.
+ */
+function pillUsd(value: number | null | undefined, formatNumber: (value: number) => string) {
+  if (value == null) return "—";
+  return formatNumber(Math.round(value * 100) / 100);
 }
 import { ROLES, ROLE_ORDER, type RoleConfig, type RoleKey } from "@/lib/roles";
 
 export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowedRoles }: { role: RoleConfig; onSwitchRole: (r: RoleKey) => void; onOpenAIChat?: () => void; onOpenModule?: (k: string) => void; allowedRoles?: RoleKey[] }) {
   const navigate = useNavigate();
+  const { t, formatNumber } = useTranslation();
+  const roleName = role.nameKey ? t(role.nameKey) : role.name;
+  // The reseller's rank and commission figures come with the reseller
+  // overview release; until then every pill is a dash, never a number.
+  const reseller = null as null | {
+    rank: number | null;
+    earnings: { available: number; pending: number; lifetime: number };
+  };
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -50,13 +101,18 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
   function runSearch() {
     const q = query.trim();
     if (!q) return;
-    const hit = role.modules.find((m) => m.label.toLowerCase().includes(q.toLowerCase()));
+    // The English name and the name shown in the interface language both match.
+    const hit = role.modules.find(
+      (m) =>
+        m.label.toLowerCase().includes(q.toLowerCase()) ||
+        (m.labelKey ? t(m.labelKey).toLowerCase().includes(q.toLowerCase()) : false),
+    );
     if (hit && onOpenModule) {
       onOpenModule(hit.key);
       setQuery("");
       return;
     }
-    notifyPending(`No ${role.name} module matches “${q}”`, "Try a module name such as Orders, Leads or Analytics.");
+    notifyPending(t("dashboard.topbar.search_no_match", { role: roleName, query: q }), t("dashboard.topbar.search_hint"));
   }
 
   return (
@@ -70,7 +126,7 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
         className="press-3d hidden md:inline-flex shrink-0 items-center gap-2 rounded-lg bg-surface px-3 py-2 text-xs font-medium text-foreground/90 hover:bg-surface-2 transition border border-border"
       >
         <Store className="h-3.5 w-3.5" />
-        Marketplace
+        {t("dashboard.topbar.marketplace")}
       </button>
 
       {/* Search */}
@@ -81,20 +137,21 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
-          aria-label="Search products, orders, users and licenses"
+          aria-label={t("dashboard.topbar.search_label")}
           type="search"
-          placeholder="Search products, orders, users, licenses…"
+          placeholder={t("dashboard.topbar.search_placeholder")}
           className="w-full rounded-xl bg-surface pl-10 pr-20 py-2.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring border border-border"
         />
+        {/* i18n-ignore: keyboard shortcut */}
         <kbd aria-hidden className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted-foreground border border-border">⌘K</kbd>
       </div>
 
       {/* Connect Chat — same central chat ecosystem for every dashboard role,
           shown to the roles Chat Manager allows to send messages */}
       <ChatAppButton
-        label="Chat"
+        label={t("dashboard.topbar.chat")}
         iconClassName="h-3.5 w-3.5"
-        className="inline-flex items-center gap-2 rounded-lg bg-surface px-2.5 py-2 text-xs font-medium text-foreground/90 border border-border hover:bg-surface-2 transition md:px-3"
+        className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-surface px-2.5 py-2 text-xs font-medium text-foreground/90 border border-border hover:bg-surface-2 transition md:px-3"
       />
 
       {/* AI Chat */}
@@ -103,7 +160,7 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
         className="hidden md:inline-flex items-center gap-2 rounded-lg bg-gradient-brand px-3 py-2 text-xs font-medium text-brand-foreground shadow-glow hover:opacity-95 transition"
       >
         <Sparkles className="h-3.5 w-3.5" />
-        AI Chat
+        {t("dashboard.topbar.ai_chat")}
       </button>
 
 
@@ -112,8 +169,12 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
           (130 px on the reseller's), and at 1024 px 440 px, so the dashboard
           scrolled sideways;
           search, chat, theme, notifications and the profile menu stay. */}
-      <div className={role.key === "reseller" ? "hidden 2xl:contents" : "hidden xl:contents"}>
-      <SelectChip prefKey="currency" ariaLabel="Display currency" label="USD" options={["USD","INR","EUR","GBP","AED"]} />
+      {/* From 1280 px the header is only 1024 px beside the sidebar; showing these
+          there squeezed the search box to nothing and its input lay over the Chat
+          button. Every role now shows them from 2xl, as the reseller already did. */}
+      <div className="hidden 2xl:contents">
+      {/* i18n-ignore: currency codes */}
+      <SelectChip prefKey="currency" ariaLabel={t("dashboard.topbar.display_currency")} label="USD" options={["USD","INR","EUR","GBP","AED"]} />
 
       <Divider />
 
@@ -121,20 +182,20 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
 
       {role.key === "reseller" ? (
         <>
-          <Pill wide icon={Trophy}     label="—" tone="warning" title="Reseller Rank" />
-          <Pill wide icon={BadgeCheck} label="—" tone="violet"  title="Reseller Level" />
-          <Pill wide icon={Zap}        label="—" tone="violet"  title="XP / Achievements" />
-          <Pill wide icon={Wallet}     label="—" tone="success" title="Wallet Balance" />
-          <Pill wide icon={Coins}      label="—" tone="success" title="Available Commission" />
-          <Pill wide icon={Hourglass}  label="—" tone="warning" title="Pending Commission" />
-          <Pill wide icon={TrendingUp} label="—" tone="success" title="Lifetime Earnings" />
+          <Pill wide icon={Trophy}     label={reseller?.rank != null ? `#${reseller.rank}` : "—"} tone="warning" title={t("dashboard.topbar.reseller_rank")} />
+          <Pill wide icon={BadgeCheck} label="—" tone="violet"  title={t("dashboard.topbar.reseller_level")} />
+          <Pill wide icon={Zap}        label="—" tone="violet"  title={t("dashboard.topbar.xp_achievements")} />
+          <Pill wide icon={Wallet}     label="—" tone="success" title={t("dashboard.topbar.wallet_balance")} />
+          <Pill wide icon={Coins}      label={pillUsd(reseller?.earnings.available, formatNumber)} tone="success" title={t("dashboard.topbar.available_commission")} />
+          <Pill wide icon={Hourglass}  label={pillUsd(reseller?.earnings.pending, formatNumber)} tone="warning" title={t("dashboard.topbar.pending_commission")} />
+          <Pill wide icon={TrendingUp} label={pillUsd(reseller?.earnings.lifetime, formatNumber)} tone="success" title={t("dashboard.topbar.lifetime_earnings")} />
         </>
       ) : (
         <>
-          <Pill icon={Trophy}    label="—" tone="warning" title={`${role.name} Rank · Level —`} />
-          <Pill icon={Zap}       label="—" tone="violet"  title="XP / Achievements" />
-          <Pill icon={Wallet}    label="—" tone="success" title="Wallet Balance" />
-          <Pill icon={Hourglass} label="—" tone="warning" title="Pending Payout" />
+          <Pill icon={Trophy}    label="—" tone="warning" title={t("dashboard.topbar.role_rank_level", { role: roleName })} />
+          <Pill icon={Zap}       label="—" tone="violet"  title={t("dashboard.topbar.xp_achievements")} />
+          <Pill icon={Wallet}    label="—" tone="success" title={t("dashboard.topbar.wallet_balance")} />
+          <Pill icon={Hourglass} label="—" tone="warning" title={t("dashboard.topbar.pending_payout")} />
         </>
       )}
 
@@ -145,40 +206,48 @@ export function TopBar({ role, onSwitchRole, onOpenAIChat, onOpenModule, allowed
         <>
           <IconBtn
             icon={Link2}
-            title="Copy referral link"
-            onClick={() => void copyResellerLink(onOpenModule)}
+            title={t("dashboard.topbar.copy_referral_link")}
+            onClick={() => void copyResellerLink(t, onOpenModule)}
           />
           <IconBtn
             icon={QrCode}
-            title="Referral QR code"
-            onClick={() => notifyPending("Referral QR code", "QR codes are generated from your referral link once the referral service is connected.")}
+            title={t("dashboard.topbar.referral_qr")}
+            onClick={() => void downloadResellerQr(t, onOpenModule)}
           />
         </>
       )}
-      <IconBtn icon={Award} title="Achievement badges" onClick={() => onOpenModule?.("ams")} />
+      <IconBtn icon={Award} title={t("dashboard.topbar.achievement_badges")} onClick={() => onOpenModule?.("achievements")} />
       </div>
       <ThemeToggle />
-      <IconBtn icon={MessageSquare} title="Messages" onClick={() => onOpenAIChat?.()} />
+      <IconBtn icon={MessageSquare} title={t("dashboard.topbar.messages")} onClick={() => onOpenAIChat?.()} />
       <NotificationBell buttonClassName="press-3d relative grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface hover:bg-surface-2 border border-border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
 
-      <ProfileMenu role={role} onSwitchRole={onSwitchRole} allowedRoles={allowedRoles} />
+      <ProfileMenu role={role} onSwitchRole={onSwitchRole} allowedRoles={allowedRoles} onOpenModule={onOpenModule} />
 
 
     </header>
   );
 }
 
-function ProfileMenu({ role, onSwitchRole, allowedRoles }: { role: RoleConfig; onSwitchRole: (r: RoleKey) => void; allowedRoles?: RoleKey[] }) {
+function ProfileMenu({ role, onSwitchRole, allowedRoles, onOpenModule }: { role: RoleConfig; onSwitchRole: (r: RoleKey) => void; allowedRoles?: RoleKey[]; onOpenModule?: (k: string) => void }) {
   const roleOptions = allowedRoles && allowedRoles.length ? allowedRoles : ROLE_ORDER;
   const navigate = useNavigate();
+  const { t } = useTranslation();
+  const nameOf = (r: RoleConfig) => (r.nameKey ? t(r.nameKey) : r.name);
   const [open, setOpen] = useState(false);
   const [showRoles, setShowRoles] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   async function handleLogout() {
     setOpen(false);
-    await signOut();
-    navigate({ to: "/", replace: true });
+    // See Sidebar: cached records belong to the signed-out user.
+    try {
+      await signOut();
+    } finally {
+      queryClient.clear();
+      navigate({ to: "/", replace: true });
+    }
   }
 
 
@@ -196,10 +265,11 @@ function ProfileMenu({ role, onSwitchRole, allowedRoles }: { role: RoleConfig; o
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 rounded-xl bg-surface px-2 py-1.5 hover:bg-surface-2 transition border border-border"
       >
+        {/* i18n-ignore: brand initials */}
         <div className="h-7 w-7 rounded-lg bg-gradient-brand grid place-items-center text-[11px] font-bold text-brand-foreground">SV</div>
         <div className="hidden xl:block text-left leading-tight">
-          <div className="text-xs font-semibold">Your account</div>
-          <div className="text-[10px] text-muted-foreground">{role.name} · Active</div>
+          <div className="text-xs font-semibold">{t("dashboard.topbar.your_account")}</div>
+          <div className="text-[10px] text-muted-foreground">{t("dashboard.topbar.role_active", { role: nameOf(role) })}</div>
         </div>
         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
       </button>
@@ -208,28 +278,33 @@ function ProfileMenu({ role, onSwitchRole, allowedRoles }: { role: RoleConfig; o
         <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-border bg-popover/95 backdrop-blur shadow-2xl overflow-hidden animate-scale-in origin-top-right">
           <div className="p-4 border-b border-border">
             <div className="flex items-center gap-3">
+              {/* i18n-ignore: brand initials */}
               <div className="h-10 w-10 rounded-xl bg-gradient-brand grid place-items-center text-sm font-bold text-brand-foreground">SV</div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold truncate">Your account</div>
-                <div className="text-[11px] text-muted-foreground">Signed in as {role.name}</div>
+                <div className="text-sm font-semibold truncate">{t("dashboard.topbar.your_account")}</div>
+                <div className="text-[11px] text-muted-foreground">{t("dashboard.topbar.signed_in_as", { role: nameOf(role) })}</div>
               </div>
             </div>
           </div>
 
           {!showRoles ? (
             <div className="p-1.5">
-              <MenuItem icon={User} label="Profile" onClick={() => { setOpen(false); notifyPending("Profile", "Profile details come from your existing account system."); }} />
-              <MenuItem icon={Repeat} label="Switch role" onClick={() => setShowRoles(true)} chevron />
-              <MenuItem icon={Wallet} label="Wallet & Earnings" onClick={() => { setOpen(false); notifyPending("Wallet & earnings", "Balances are read from your existing payouts service."); }} />
-              <MenuItem icon={Settings} label="Account settings" onClick={() => { setOpen(false); notifyPending("Account settings", "Managed by your existing Software Vala account system."); }} />
+              {/* On the reseller's dashboard each of these opens the reseller's
+                  own screen for it: the profile is the home screen's profile
+                  card (an empty module key closes any open module), earnings
+                  are the Commissions ledger, settings the Settings Center. */}
+              <MenuItem icon={User} label={t("dashboard.topbar.profile")} onClick={() => { setOpen(false); if (role.key === "reseller" && onOpenModule) return onOpenModule(""); notifyPending(t("dashboard.topbar.profile"), t("dashboard.topbar.profile_detail")); }} />
+              <MenuItem icon={Repeat} label={t("dashboard.topbar.switch_role")} onClick={() => setShowRoles(true)} chevron />
+              <MenuItem icon={Wallet} label={t("dashboard.topbar.wallet_earnings")} onClick={() => { setOpen(false); if (role.key === "reseller" && onOpenModule) return onOpenModule("commissions"); notifyPending(t("dashboard.topbar.wallet_earnings_notice"), t("dashboard.topbar.wallet_detail")); }} />
+              <MenuItem icon={Settings} label={t("dashboard.topbar.account_settings")} onClick={() => { setOpen(false); if (role.key === "reseller" && onOpenModule) return onOpenModule("center:settings"); notifyPending(t("dashboard.topbar.account_settings"), t("dashboard.topbar.account_settings_detail")); }} />
               <div className="my-1.5 h-px bg-border" />
-              <MenuItem icon={LogOut} label="Sign out" onClick={handleLogout} />
+              <MenuItem icon={LogOut} label={t("dashboard.topbar.sign_out")} onClick={handleLogout} />
             </div>
           ) : (
             <div className="p-1.5">
               <div className="px-3 py-2 flex items-center justify-between">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Active roles</div>
-                <button className="text-[11px] text-muted-foreground hover:text-foreground" onClick={() => setShowRoles(false)}>Back</button>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{t("dashboard.topbar.active_roles")}</div>
+                <button className="text-[11px] text-muted-foreground hover:text-foreground" onClick={() => setShowRoles(false)}>{t("dashboard.topbar.back")}</button>
               </div>
               <div className="max-h-72 overflow-y-auto scrollbar-thin">
                 {roleOptions.map((k) => {
@@ -243,11 +318,11 @@ function ProfileMenu({ role, onSwitchRole, allowedRoles }: { role: RoleConfig; o
                     >
                       <div className="h-7 w-7 rounded-lg grid place-items-center text-[10px] font-bold text-white"
                            style={{ background: r.banner.gradient }}>
-                        {r.name[0]}
+                        {nameOf(r)[0]}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium truncate">{r.name}</div>
-                        <div className="text-[10px] text-muted-foreground truncate">{r.tagline}</div>
+                        <div className="text-sm font-medium truncate">{nameOf(r)}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">{r.taglineKey ? t(r.taglineKey) : r.tagline}</div>
                       </div>
                       {active && <Check className="h-4 w-4 text-success" />}
                     </button>
@@ -311,7 +386,22 @@ function IconBtn({ icon: Icon, title, onClick }: { icon: any; title?: string; on
   );
 }
 
+/** The shown text of each fixed quick-create entry, by its English label. */
+const QUICK_CREATE_TEXT: Record<string, MessageKey> = {
+  "New Product": "dashboard.topbar.new_product",
+  "New Order": "dashboard.topbar.new_order",
+  "New Customer": "dashboard.topbar.new_customer",
+  "New Client": "dashboard.topbar.new_client",
+  "New Campaign": "dashboard.topbar.new_campaign",
+  "New Coupon": "dashboard.topbar.new_coupon",
+  "New Invoice": "dashboard.topbar.new_invoice",
+  "New Lead": "dashboard.topbar.new_lead",
+  "New License": "dashboard.topbar.new_license",
+  "New Ticket": "dashboard.topbar.new_ticket",
+};
+
 function QuickCreate({ role, onOpenModule }: { role: RoleConfig; onOpenModule?: (k: string) => void }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -336,6 +426,10 @@ function QuickCreate({ role, onOpenModule }: { role: RoleConfig; onOpenModule?: 
   const list = items.length > 0
     ? items
     : role.modules.slice(0, 6).map(m => `New ${m.label.replace(/s$/, "")}`);
+  const shown = (label: string) =>
+    QUICK_CREATE_TEXT[label]
+      ? t(QUICK_CREATE_TEXT[label])
+      : t("dashboard.topbar.new_item", { item: label.replace(/^New /, "") });
 
   function handle(label: string) {
     setOpen(false);
@@ -347,17 +441,17 @@ function QuickCreate({ role, onOpenModule }: { role: RoleConfig; onOpenModule?: 
     <div ref={ref} className="relative hidden md:block">
       <button
         onClick={() => setOpen(o => !o)}
-        title="Quick Create"
+        title={t("dashboard.topbar.quick_create")}
         className="inline-flex items-center gap-1.5 rounded-lg bg-brand/15 text-brand hover:bg-brand/25 border border-brand/30 px-2.5 py-2 text-xs font-semibold transition"
       >
         <Plus className="h-3.5 w-3.5" />
-        Create
+        {t("dashboard.topbar.create")}
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-56 rounded-xl border border-border bg-popover/95 backdrop-blur shadow-2xl p-1.5 z-50 animate-scale-in origin-top-right">
           {list.map(i => (
             <button key={i} onClick={() => handle(i)} className="w-full text-left rounded-lg px-3 py-2 text-sm hover:bg-surface transition">
-              {i}
+              {shown(i)}
             </button>
           ))}
         </div>
@@ -367,6 +461,9 @@ function QuickCreate({ role, onOpenModule }: { role: RoleConfig; onOpenModule?: 
 }
 
 function StoreSwitcher() {
+  const { t } = useTranslation();
+  const storeText = (s: string) =>
+    s === "Main Store" ? t("dashboard.topbar.main_store") : s === "+ Add Store" ? t("dashboard.topbar.add_store") : s;
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState("Main Store");
   const ref = useRef<HTMLDivElement>(null);
@@ -375,16 +472,19 @@ function StoreSwitcher() {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
-  const stores = ["Main Store", "Wholesale Store", "B2B Storefront", "+ Add Store"];
+  // An account has one storefront on the platform. The other two names in this
+  // list were invented, and "+ Add Store" did nothing; adding a store is not
+  // available yet, and it now says so.
+  const stores = ["Main Store", "+ Add Store"];
   return (
     <div ref={ref} className="relative hidden lg:block">
       <button
         onClick={() => setOpen(o => !o)}
-        title="Switch Store"
+        title={t("dashboard.topbar.switch_store")}
         className="inline-flex items-center gap-1.5 rounded-lg bg-surface hover:bg-surface-2 border border-border px-2.5 py-2 text-xs font-medium transition"
       >
         <Store className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="truncate max-w-[7rem]">{active}</span>
+        <span className="truncate max-w-[7rem]">{storeText(active)}</span>
         <ChevronDown className="h-3 w-3 text-muted-foreground" />
       </button>
       {open && (
@@ -392,11 +492,15 @@ function StoreSwitcher() {
           {stores.map(s => (
             <button
               key={s}
-              onClick={() => { if (!s.startsWith("+")) setActive(s); setOpen(false); }}
+              onClick={() => {
+                if (s.startsWith("+")) notifyPending(t("dashboard.topbar.add_store_notice"), t("dashboard.topbar.add_store_detail"));
+                else setActive(s);
+                setOpen(false);
+              }}
               className="w-full flex items-center gap-2 text-left rounded-lg px-3 py-2 text-sm hover:bg-surface transition"
             >
               <Store className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="flex-1 truncate">{s}</span>
+              <span className="flex-1 truncate">{storeText(s)}</span>
               {s === active && <Check className="h-3.5 w-3.5 text-success" />}
             </button>
           ))}

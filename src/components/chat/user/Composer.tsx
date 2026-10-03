@@ -108,13 +108,14 @@ export function Composer(props: ComposerProps) {
 
   const submit = async () => {
     const body = text.trim();
-    if ((!body && uploads.length === 0) || !canSend || sending) return;
+    // A send in flight does not block the next one; the workspace queues it.
+    if ((!body && uploads.length === 0) || !canSend) return;
     const mentions = resolveMentions(body);
     setText("");
     setMentionOpen(false);
     onTyping(false);
-    await onSend(body, mentions);
     textareaRef.current?.focus();
+    await onSend(body, mentions);
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -282,7 +283,7 @@ export function Composer(props: ComposerProps) {
                 type="button"
                 size="icon"
                 aria-label={t("chat.composer.send_message")}
-                disabled={!canSend || sending || (!text.trim() && uploads.length === 0)}
+                disabled={!canSend || (!text.trim() && uploads.length === 0)}
                 onClick={() => void submit()}
                 className="size-7 shrink-0 rounded-md"
               >

@@ -7,6 +7,7 @@
 import { useCallback, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { recordAuditEvent } from '@/hooks/useActionLogger';
 
 // Module definitions
 export type SystemModule = 
@@ -73,22 +74,31 @@ async function logToAudit(config: SystemActionConfig, result: SystemActionResult
   try {
     const { data: session } = await supabase.auth.getSession();
     
-    // Log to audit_logs table
-    await supabase.from('audit_logs').insert([{
-      action: `${config.action}_${config.entityType}`,
-      module: config.module,
-      user_id: session?.session?.user?.id || null,
-      meta_json: JSON.parse(JSON.stringify({
-        action_id: result.actionId,
-        entity_id: config.entityId || null,
-        entity_name: config.entityName || null,
-        action_type: config.action,
-        success: result.success,
-        data: config.data || null,
-        error: result.error || null,
-        timestamp: result.timestamp
-      }))
-    }]);
+    // Log to audit_logs: the module is the entity type. audit_logs is not
+    // writable from the browser, so this goes through the server function,
+    // which records the signed-in user as the actor and throws on failure.
+    try {
+      await recordAuditEvent({
+        data: {
+          action: `${config.action}_${config.entityType}`,
+          entityType: config.module,
+          entityId: config.entityId || null,
+          severity: result.success ? 'info' : 'warning',
+          metadata: JSON.parse(JSON.stringify({
+            action_id: result.actionId,
+            entity_type: config.entityType,
+            entity_name: config.entityName || null,
+            action_type: config.action,
+            success: result.success,
+            data: config.data || null,
+            error: result.error || null,
+            timestamp: result.timestamp
+          })),
+        },
+      });
+    } catch (err) {
+      console.error('Audit logging failed:', err);
+    }
 
     // For critical actions, also log to blackbox_events
     const criticalActions: SystemAction[] = ['delete', 'suspend', 'lock', 'approve', 'reject'];
