@@ -44,7 +44,6 @@ import { NOTIFICATIONS_MESSAGES } from "./notifications";
 import { PAYMENT_MESSAGES } from "./payment";
 import { RESELLER_MESSAGES } from "./reseller";
 import { DEMO_MESSAGES } from "./demo";
-import { DEVMANAGER_MESSAGES } from "./devmanager";
 import { STOREADMIN_MESSAGES } from "./storeadmin";
 
 export type MessageSource = string | readonly [text: string, description: string];
@@ -70,7 +69,6 @@ export const MODULES = {
   reseller: RESELLER_MESSAGES,
   seo: SEO_MESSAGES,
   demo: DEMO_MESSAGES,
-  devmanager: DEVMANAGER_MESSAGES,
   storeadmin: STOREADMIN_MESSAGES,
 } as const;
 
