@@ -35,6 +35,7 @@ import { CHAT_MESSAGES } from "./chat";
 import { CHECKOUT_MESSAGES } from "./checkout";
 import { DASHBOARD_MESSAGES } from "./dashboard";
 import { COMMON_MESSAGES } from "./common";
+import { DEVMANAGER_MESSAGES } from "./devmanager";
 import { EMAIL_MESSAGES } from "./email";
 import { MANAGER_MESSAGES } from "./manager";
 import { SEO_MESSAGES } from "./seo";
@@ -59,6 +60,7 @@ export const MODULES = {
   checkout: CHECKOUT_MESSAGES,
   dashboard: DASHBOARD_MESSAGES,
   common: COMMON_MESSAGES,
+  devmanager: DEVMANAGER_MESSAGES,
   email: EMAIL_MESSAGES,
   manager: MANAGER_MESSAGES,
 
