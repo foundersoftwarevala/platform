@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { DEMO_COOKIE, ticketFromRequest } from "@/lib/demo/ticket";
@@ -190,14 +189,6 @@ function rewriteHtmlAssetUrls(html: string, slug: string): string {
   return rewritten;
 }
 
-function versionAssetUrls(html: string, version: string): string {
-  return html.replace(
-    /((?:src|href)\s*=\s*["'])(\/api\/proxy\/demo\/[^"']+\.(?:m?js|css)(?:\?[^"']*)?)(["'])/gi,
-    (_match, start: string, url: string, end: string) =>
-      `${start}${url}${url.includes("?") ? "&amp;" : "?"}sv=${version}${end}`,
-  );
-}
-
 export const Route = createFileRoute("/api/proxy/demo/$")({
   server: {
     handlers: {
@@ -272,12 +263,9 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
             console.log(`[demo-proxy] >>> HTML length: ${html.length}`);
 
             // Rewrite asset URLs to go through our proxy
-            const presentationVersion = createHash("sha256")
-              .update(`syntax-aware-v1:${JSON.stringify(originalDemo.rules)}`)
-              .digest("hex")
-              .slice(0, 16);
+            // Entry modules and lazy imports must share one URL/React instance.
+            // Rewritten responses already use private, no-store.
             html = rewriteHtmlAssetUrls(html, slug);
-            html = versionAssetUrls(html, presentationVersion);
 
             // The three replacements that used to sit here caught the phrase
             // "powered by lovable" and nothing else. applyPresentation now runs
