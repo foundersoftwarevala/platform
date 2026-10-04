@@ -633,7 +633,7 @@ if(/wa\\.me|whatsapp/.test(v))return d.length>=8?"d:"+d:null;if(v.indexOf("@")>=
 if(/^https?:\\/\\//.test(v)){try{return "h:"+new URL(v).hostname.replace(/^www\\./,"")}catch(e){return null}}return d.length>=8?"d:"+d:null;}
 function hit(v){var k=key(v);return !!(k&&H[hash(k)]);}
 function publicContact(el){if(!el||!el.closest||el.closest("table,[role=table],[role=grid],input,textarea,select,option,[contenteditable]"))return false;
-if(el.closest("footer,header,address"))return true;
+if(el.closest("footer,header,address,section#contact,section#contact-us,section#contact_us"))return true;
 for(var p=el,i=0;p&&i<5;p=p.parentElement,i++){var hs=p.querySelectorAll(":scope > h1,:scope > h2,:scope > h3,:scope > h4,:scope > h5,:scope > h6");
 for(var j=0;j<hs.length;j++)if(/^(?:Contact Us|Get In Touch|Reach Us)$/i.test(hs[j].textContent.trim()))return true;}return false;}
 var EM=/[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\\.[A-Z0-9-]+)*\\.[A-Z]{2,24}/gi,PH=/(?:\\+|\\b00)?\\d[\\d\\s().-]{6,18}\\d/g;

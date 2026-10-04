@@ -16,6 +16,10 @@ proxy root-relative images/styles. Rewritten text assets are private/no-store,
 and script/style URLs carry a presentation version to avoid stale branding.
 
 Rendered tables, forms and record contact-information cards retain their data;
+explicit public `section#contact`, `section#contact-us` and
+`section#contact_us` areas are also eligible for contact replacement even when
+their heading is nested separately from the contact cards. Browser-verified
+contact rules remain audited; generic record `value` fields stay protected.
 only public contact areas are rewritten. The canonical database types include
 the existing VPS `user_xp` and `user_streaks` columns, nullability and defaults,
 avoiding deep type-instantiation failures on these real wildcard-read relations.
