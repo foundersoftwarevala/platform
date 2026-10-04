@@ -22,14 +22,22 @@ import { addressBlocked, assertPublicUrl } from "./safe-fetch.server";
 const BRAND = { favicon: "/favicon.png", logo: "/assets/sv-logo.jpg", name: "Software Vala" };
 
 describe("Vite lazy module preload paths", () => {
-  it("routes relative assets through the same isolated demo proxy as root assets", () => {
+  it("preserves Vite leading-slash concatenation while proxying relative preload assets", () => {
     const prefix = "/api/proxy/demo/smart-pos-billing";
     const rules: PresentationRules = { remove: [], rebrand: [], logos: [], links: [] };
     const bundle = 'const files=["assets/Landing.js","assets/hero.js","./assets/style.css"];';
     expect(cleanBundle(bundle, rules, BRAND.name, prefix)).toBe(
-      `const files=["${prefix}/assets/Landing.js","${prefix}/assets/hero.js","${prefix}/assets/style.css"];`,
+      'const files=["api/proxy/demo/smart-pos-billing/assets/Landing.js","api/proxy/demo/smart-pos-billing/assets/hero.js","api/proxy/demo/smart-pos-billing/assets/style.css"];',
     );
-    expect(rewriteDemoAssetPaths("assets/Landing.js", prefix)).toBe(`${prefix}/assets/Landing.js`);
+    expect(rewriteDemoAssetPaths("assets/Landing.js", prefix)).toBe(
+      `${prefix.slice(1)}/assets/Landing.js`,
+    );
+    expect(
+      new URL(
+        "/" + rewriteDemoAssetPaths("assets/Landing.js", prefix),
+        "https://www.softwarevala.net",
+      ).href,
+    ).toBe(`https://www.softwarevala.net${prefix}/assets/Landing.js`);
     for (const untouched of [
       "assets/customer",
       "../assets/private.js",
