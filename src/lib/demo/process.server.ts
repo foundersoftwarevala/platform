@@ -6,6 +6,7 @@ import {
   cleanBundle,
   evidenceCorpus,
   extractEvidence,
+  hasStarterApp,
   hasBrandFavicon,
   remainingViolations,
   remainingBundleViolations,
@@ -322,6 +323,11 @@ export async function investigateDemo(input: { productId: string; url: string; a
     // kept in the record either way.
     const target = String(row.url ?? input.url);
     const { page, bundles } = await fetchDemo(target);
+    if (hasStarterApp(page.body, bundles)) {
+      throw new Error(
+        "The original demo contains an unbuilt starter landing page. Supply the completed application's URL; no replacement data was created.",
+      );
+    }
     // Where it actually landed. A demo submitted as http that redirects to
     // https is the same demo as one already stored under its destination, and
     // only a fetch can say so.
@@ -578,6 +584,14 @@ export async function activateDemo(input: {
   try {
     const { page, bundles } = await fetchDemo(String(row.url));
     checks.push({ check: "demo answers", ok: true, detail: `HTTP ${page.status}` });
+    const starterApp = hasStarterApp(page.body, bundles);
+    checks.push({
+      check: "real application",
+      ok: !starterApp,
+      detail: starterApp
+        ? "The original source contains an unbuilt starter landing page."
+        : undefined,
+    });
     const presented = applyPresentation(page.body, rules, DEMO_BRAND);
     const favicon = hasBrandFavicon(presented, DEMO_BRAND.favicon);
     checks.push({ check: "Software Vala favicon", ok: favicon });

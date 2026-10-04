@@ -28,6 +28,11 @@ its 500-row, duplicate-safe batches and review gates for unresolved mappings.
 
 ## Demo intake and row order
 
+Publication rejects the known unbuilt Lovable starter landing copy rather than
+treating HTTP 200 and successful rebranding as proof of a working application.
+Confirmed blank upstream previews can be disabled through the audited URL
+Manager without deleting their URL or product. A completed source URL is needed.
+
 Live-demo cards precede other cards in each category and curated row. Existing
 relative order is preserved inside each group, including country order after
 demo cards. Ranking happens before pagination. Apply

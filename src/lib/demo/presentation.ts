@@ -287,6 +287,17 @@ export function bundleStrings(js: string, limit = 600): string[] {
   return unique([...contacts, ...out]).slice(0, limit);
 }
 
+export function hasStarterApp(html: string, bundles: string[] = []): boolean {
+  const text = [
+    visibleText(html),
+    ...bundles.flatMap((bundle) => [...bundleLiterals(bundle)].map((literal) => literal.value)),
+  ].join("\n");
+  return (
+    text.includes("Welcome to Your Blank App") &&
+    text.includes("Start building your amazing project here!")
+  );
+}
+
 export function extractEvidence(html: string, pageUrl: string, bundles: string[] = []): Evidence {
   const origin = new URL(pageUrl);
   const text = visibleText(html);

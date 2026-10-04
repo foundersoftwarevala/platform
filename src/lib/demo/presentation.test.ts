@@ -11,6 +11,7 @@ import {
   extractEvidence,
   keyHash,
   hasBrandFavicon,
+  hasStarterApp,
   remainingViolations,
   SOFTWARE_VALA_CONTACT,
   stripPlatformBranding,
@@ -19,6 +20,27 @@ import {
 import { addressBlocked, assertPublicUrl } from "./safe-fetch.server";
 
 const BRAND = { favicon: "/favicon.png", logo: "/assets/sv-logo.jpg", name: "Software Vala" };
+
+describe("unbuilt upstream starter apps", () => {
+  it("detects the actual blank landing-page copy in HTML and compiled JavaScript", () => {
+    const heading = "Welcome to Your Blank App";
+    const body = "Start building your amazing project here!";
+    expect(hasStarterApp(`<h1>${heading}</h1><p>${body}</p>`)).toBe(true);
+    expect(
+      hasStarterApp("", [
+        `const page={children:[${JSON.stringify(heading)},${JSON.stringify(body)}]};`,
+      ]),
+    ).toBe(true);
+  });
+  it("does not mistake comments or working application copy for a blank app", () => {
+    expect(
+      hasStarterApp("", [
+        '/* Welcome to Your Blank App: Start building your amazing project here! */ const title="Nursing Training Institute";',
+      ]),
+    ).toBe(false);
+    expect(hasStarterApp("<h1>Nursing Training Institute</h1><p>Student Portal</p>")).toBe(false);
+  });
+});
 
 const PAGE = `<!doctype html><html><head><title>ClinicDesk</title>
 <link rel="icon" href="/dev-favicon.ico"><link rel="shortcut icon" href="https://cdn.dev.example/fav.png">
