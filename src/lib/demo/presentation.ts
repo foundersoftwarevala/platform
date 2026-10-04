@@ -41,6 +41,8 @@ export type Evidence = {
 };
 
 export type PresentationRules = {
+  /** Short brand labels matched as complete header/footer text, not feature copy. */
+  brandLabels?: string[];
   /** Literal text removed wherever it appears (contact details). */
   remove: string[];
   /** Literal developer names/credits shown as "Software Vala" instead. */
@@ -622,6 +624,7 @@ export function presentationScript(
   const payload = JSON.stringify({
     h: hashes,
     b: rules.rebrand,
+    e: rules.brandLabels ?? [],
     l: rules.logos,
     brand,
     contact: SOFTWARE_VALA_CONTACT,
@@ -638,6 +641,7 @@ for(var p=el,i=0;p&&i<5;p=p.parentElement,i++){var hs=p.querySelectorAll(":scope
 for(var j=0;j<hs.length;j++)if(/^(?:Contact Us|Get In Touch|Reach Us)$/i.test(hs[j].textContent.trim()))return true;}return false;}
 var EM=/[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\\.[A-Z0-9-]+)*\\.[A-Z]{2,24}/gi,PH=/(?:\\+|\\b00)?\\d[\\d\\s().-]{6,18}\\d/g;
 function fixText(node){var v=node.nodeValue,o=v;
+if(node.parentElement&&node.parentElement.closest("header,footer")&&R.e.indexOf(v.trim())>=0)v=R.brand.name;
 if(publicContact(node.parentElement))v=v.replace(EM,function(m){return hit(m)?R.contact.email:m}).replace(PH,function(m){return hit(m)?R.contact.phone:m});
 R.b.slice().sort(function(a,b){return b.length-a.length}).forEach(function(n){if(n.length>=3&&v.indexOf(n)>=0)v=v.split(n).join(R.brand.name)});
 if(v!==o)node.nodeValue=v;}

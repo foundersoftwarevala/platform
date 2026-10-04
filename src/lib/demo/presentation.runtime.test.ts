@@ -7,6 +7,7 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
     presentationScript(
       {
         remove: ["info@nursinginstitute.edu", "+91 98765 43210"],
+        brandLabels: ["Study Abroad"],
         rebrand: [],
         logos: [],
         links: ["https://wa.me/919876543210"],
@@ -24,6 +25,10 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
     <a href="tel:+919876543210">+91 98765 43210</a>
     <a href="https://wa.me/919876543210">WhatsApp us</a>
   </footer><input placeholder="you@nursing.edu"><p>jane.roe@patient.test</p><section data-record-card><h3>Contact Information</h3><p>+91 98765 43210</p><a href="mailto:info@nursinginstitute.edu">info@nursinginstitute.edu</a></section><table><tbody><tr><td>+91 98765 43210</td><td><a href="mailto:info@nursinginstitute.edu">info@nursinginstitute.edu</a></td></tr></tbody></table>`;
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    "<footer><span>Study Abroad</span></footer><p data-feature>Comprehensive Study Abroad Support</p>",
+  );
   document.body.insertAdjacentHTML(
     "beforeend",
     '<section id="contact"><div><div><h2>Contact Us</h2></div><div><article><h3>Email</h3><p>info@nursinginstitute.edu</p></article><article><h3>Phone</h3><p>+91 98765 43210</p></article></div></div></section>',
@@ -49,6 +54,10 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
     SOFTWARE_VALA_CONTACT.phone,
   );
   expect(document.body.textContent).toContain("jane.roe@patient.test");
+  expect(document.querySelector("footer span")?.textContent).toBe("Software Vala");
+  expect(document.querySelector("[data-feature]")?.textContent).toBe(
+    "Comprehensive Study Abroad Support",
+  );
   expect(document.querySelector("table")?.textContent).toContain("+91 98765 43210");
   expect(document.querySelector("table a")?.getAttribute("href")).toBe(
     "mailto:info@nursinginstitute.edu",

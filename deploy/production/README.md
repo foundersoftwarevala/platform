@@ -9,6 +9,9 @@ and is not modified. Demo cards lead their related marketplace rows.
 JavaScript evidence uses a real lexer so empty strings, long literals, comments
 and regular expressions cannot desynchronize contact extraction.
 
+Short site-brand labels can use `brandLabels`: exact header/footer text is
+replaced without rewriting the same words inside ordinary feature descriptions.
+
 AI findings are accepted only for verified contact and navigation evidence.
 Login/account records, form placeholders, SVG geometry/namespaces and API
 endpoints remain intact. JavaScript rewrites preserve those properties and
