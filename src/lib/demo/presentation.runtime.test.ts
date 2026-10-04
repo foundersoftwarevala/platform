@@ -8,7 +8,7 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
       {
         remove: ["info@nursinginstitute.edu", "+91 98765 43210"],
         brandLabels: ["Study Abroad"],
-        rebrand: [],
+        rebrand: ["SmartPOS"],
         logos: [],
         links: ["https://wa.me/919876543210"],
       },
@@ -27,7 +27,7 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
   </footer><input placeholder="you@nursing.edu"><p>jane.roe@patient.test</p><section data-record-card><h3>Contact Information</h3><p>+91 98765 43210</p><a href="mailto:info@nursinginstitute.edu">info@nursinginstitute.edu</a></section><table><tbody><tr><td>+91 98765 43210</td><td><a href="mailto:info@nursinginstitute.edu">info@nursinginstitute.edu</a></td></tr></tbody></table>`;
   document.body.insertAdjacentHTML(
     "beforeend",
-    "<footer><span>Study Abroad</span></footer><p data-feature>Comprehensive Study Abroad Support</p>",
+    "<footer><span>Study Abroad</span><p data-split-brand>Smart<span>POS</span></p></footer><p data-feature>Comprehensive Study Abroad Support</p><footer><table><tbody><tr><td data-brand-record>Study <span>Abroad</span></td></tr></tbody></table></footer>",
   );
   document.body.insertAdjacentHTML(
     "beforeend",
@@ -55,6 +55,9 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
   );
   expect(document.body.textContent).toContain("jane.roe@patient.test");
   expect(document.querySelector("footer span")?.textContent).toBe("Software Vala");
+  expect(document.querySelector("[data-split-brand]")?.textContent).toBe("Software Vala");
+  expect(document.querySelector("[data-split-brand] span")).not.toBeNull();
+  expect(document.querySelector("[data-brand-record]")?.textContent).toBe("Study Abroad");
   expect(document.querySelector("[data-feature]")?.textContent).toBe(
     "Comprehensive Study Abroad Support",
   );

@@ -21,6 +21,27 @@ import { addressBlocked, assertPublicUrl } from "./safe-fetch.server";
 
 const BRAND = { favicon: "/favicon.png", logo: "/assets/sv-logo.jpg", name: "Software Vala" };
 
+describe("Vite lazy module preload paths", () => {
+  it("routes relative assets through the same isolated demo proxy as root assets", () => {
+    const prefix = "/api/proxy/demo/smart-pos-billing";
+    const rules: PresentationRules = { remove: [], rebrand: [], logos: [], links: [] };
+    const bundle = 'const files=["assets/Landing.js","assets/hero.js","./assets/style.css"];';
+    expect(cleanBundle(bundle, rules, BRAND.name, prefix)).toBe(
+      `const files=["${prefix}/assets/Landing.js","${prefix}/assets/hero.js","${prefix}/assets/style.css"];`,
+    );
+    expect(rewriteDemoAssetPaths("assets/Landing.js", prefix)).toBe(`${prefix}/assets/Landing.js`);
+    for (const untouched of [
+      "assets/customer",
+      "../assets/private.js",
+      "https://vendor.test/assets/app.js",
+      "/api/proxy/demo/smart-pos-billing/assets/app.js",
+      "/api/data",
+    ]) {
+      expect(rewriteDemoAssetPaths(untouched, prefix)).toBe(untouched);
+    }
+  });
+});
+
 describe("unbuilt upstream starter apps", () => {
   it("detects the actual blank landing-page copy in HTML and compiled JavaScript", () => {
     const heading = "Welcome to Your Blank App";

@@ -11,6 +11,7 @@ and regular expressions cannot desynchronize contact extraction.
 
 Short site-brand labels can use `brandLabels`: exact header/footer text is
 replaced without rewriting the same words inside ordinary feature descriptions.
+Split inline header/footer labels and Vite lazy module preload assets are also preserved and presented through the isolated demo proxy.
 
 AI findings are accepted only for verified contact and navigation evidence.
 Login/account records, form placeholders, SVG geometry/namespaces and API
@@ -26,7 +27,6 @@ contact rules remain audited; generic record `value` fields stay protected.
 only public contact areas are rewritten. The canonical database types include
 the existing VPS `user_xp` and `user_streaks` columns, nullability and defaults,
 avoiding deep type-instantiation failures on these real wildcard-read relations.
-
 
 The Add Demo submit action uses `POST /api/demo/process` with `action: "publish"`.
 It runs investigation and activation together; category mismatches and failed
@@ -53,17 +53,17 @@ Everything the production VPS runs that is not application code, kept here so
 the server can be rebuilt from GitHub. No secret is in this directory: the
 values live only on the server (see "Secrets" below).
 
-| File here | Lives on the server at | What it is |
-|---|---|---|
-| `deploy-prod.sh` | `/root/deploy-prod.sh` | Build and restart the app (`/var/www/softwarevala`, PM2 `softwarevala-staging`), keep the previous build, roll back if the site does not answer |
-| `nginx/softwarevala-production.conf` | `/etc/nginx/sites-enabled/softwarevala-production` | TLS termination, proxy to the app on 127.0.0.1:3000, security headers |
-| `nginx/cloudflare-realip.conf` | `/etc/nginx/conf.d/cloudflare-realip.conf` | Trust `CF-Connecting-IP` only from Cloudflare's ranges |
-| `system/cf-realip-update.sh` | `/root/cf-realip-update.sh` | Weekly refresh of those ranges (root crontab) |
-| `system/sv-db-backup.py` | `/usr/local/bin/sv-db-backup.py` | Nightly logical database backup (`cron/sv-db-backup`) |
-| `system/logrotate-softwarevala` | `/etc/logrotate.d/softwarevala` | Rotation for `/var/log/sv-*.log` and PM2 logs |
-| `system/fail2ban-sshd.local` | `/etc/fail2ban/jail.d/sshd.local` | Ban an address after 5 failed SSH logins in 10 min, for 1 h |
-| `cron/*` | `/etc/cron.d/*` | Scheduled jobs |
-| `cron/root-crontab` | `crontab -l` for root | Scheduled jobs (translation engine health, backups, sweeps) |
+| File here                            | Lives on the server at                             | What it is                                                                                                                                      |
+| ------------------------------------ | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deploy-prod.sh`                     | `/root/deploy-prod.sh`                             | Build and restart the app (`/var/www/softwarevala`, PM2 `softwarevala-staging`), keep the previous build, roll back if the site does not answer |
+| `nginx/softwarevala-production.conf` | `/etc/nginx/sites-enabled/softwarevala-production` | TLS termination, proxy to the app on 127.0.0.1:3000, security headers                                                                           |
+| `nginx/cloudflare-realip.conf`       | `/etc/nginx/conf.d/cloudflare-realip.conf`         | Trust `CF-Connecting-IP` only from Cloudflare's ranges                                                                                          |
+| `system/cf-realip-update.sh`         | `/root/cf-realip-update.sh`                        | Weekly refresh of those ranges (root crontab)                                                                                                   |
+| `system/sv-db-backup.py`             | `/usr/local/bin/sv-db-backup.py`                   | Nightly logical database backup (`cron/sv-db-backup`)                                                                                           |
+| `system/logrotate-softwarevala`      | `/etc/logrotate.d/softwarevala`                    | Rotation for `/var/log/sv-*.log` and PM2 logs                                                                                                   |
+| `system/fail2ban-sshd.local`         | `/etc/fail2ban/jail.d/sshd.local`                  | Ban an address after 5 failed SSH logins in 10 min, for 1 h                                                                                     |
+| `cron/*`                             | `/etc/cron.d/*`                                    | Scheduled jobs                                                                                                                                  |
+| `cron/root-crontab`                  | `crontab -l` for root                              | Scheduled jobs (translation engine health, backups, sweeps)                                                                                     |
 
 The translation engine has its own deployment in `services/translation-engine/`
 (container `sv-translate`, `/opt/sv-translate`).

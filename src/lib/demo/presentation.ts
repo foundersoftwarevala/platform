@@ -537,7 +537,10 @@ export function cleanText(text: string, rules: PresentationRules, brandName: str
 export function rewriteDemoAssetPaths(text: string, prefix: string): string {
   const asset =
     /^\/(?!\/|api\/proxy\/demo\/)[^\s"'<>?#]+\.(?:png|jpe?g|gif|webp|svg|ico|avif|woff2?|ttf|eot|mp4|webm|ogg|mp3|css|m?js)(?:[?#][^\s"'<>]*)?$/i;
-  const path = (value: string) => (asset.test(value) ? `${prefix}${value}` : value);
+  const path = (value: string) => {
+    const normalized = value.replace(/^(?:\.\/)?assets\//, "/assets/");
+    return asset.test(normalized) ? `${prefix}${normalized}` : value;
+  };
   return path(text).replace(
     /(\burl\(\s*["']?)(\/[^"'()]+)(["']?\s*\))/gi,
     (_match, start: string, value: string, end: string) => `${start}${path(value)}${end}`,
@@ -641,11 +644,12 @@ for(var p=el,i=0;p&&i<5;p=p.parentElement,i++){var hs=p.querySelectorAll(":scope
 for(var j=0;j<hs.length;j++)if(/^(?:Contact Us|Get In Touch|Reach Us)$/i.test(hs[j].textContent.trim()))return true;}return false;}
 var EM=/[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\\.[A-Z0-9-]+)*\\.[A-Z]{2,24}/gi,PH=/(?:\\+|\\b00)?\\d[\\d\\s().-]{6,18}\\d/g;
 function fixText(node){var v=node.nodeValue,o=v;
-if(node.parentElement&&node.parentElement.closest("header,footer")&&R.e.indexOf(v.trim())>=0)v=R.brand.name;
+if(node.parentElement&&node.parentElement.closest("header,footer")&&publicContact(node.parentElement)&&R.e.indexOf(v.trim())>=0)v=R.brand.name;
 if(publicContact(node.parentElement))v=v.replace(EM,function(m){return hit(m)?R.contact.email:m}).replace(PH,function(m){return hit(m)?R.contact.phone:m});
 R.b.slice().sort(function(a,b){return b.length-a.length}).forEach(function(n){if(n.length>=3&&v.indexOf(n)>=0)v=v.split(n).join(R.brand.name)});
 if(v!==o)node.nodeValue=v;}
 function fixEl(el){var badge=el.id==="lovable-badge"?el:(el.closest?el.closest("#lovable-badge"):null);if(badge){badge.remove();return;}if(el.tagName==="A"&&hit(el.getAttribute("href"))){var href=el.getAttribute("href");if(/^(?:mailto|tel):|wa\\.me|whatsapp/i.test(href)&&!publicContact(el))return;if(/^mailto:/i.test(href))el.setAttribute("href","mailto:"+R.contact.email);else if(/^tel:/i.test(href))el.setAttribute("href","tel:"+R.contact.phone.replace(/\\s/g,""));else if(/wa\\.me|whatsapp/i.test(href))el.setAttribute("href","https://wa.me/"+R.contact.phone.replace(/\\D/g,""));else{el.remove();return;}}
+if(el.closest("header,footer")&&publicContact(el)&&!el.querySelector("table,[role=table],[role=grid],input,textarea,select,button,a,svg,img,[contenteditable]")&&R.e.concat(R.b).indexOf(el.textContent.trim())>=0){var tw=document.createTreeWalker(el,4,null),tn,first=true;while((tn=tw.nextNode())){tn.nodeValue=first?R.brand.name:"";first=false;}}
 if(el.tagName==="IMG"){var s=el.getAttribute("src")||"";for(var j=0;j<R.l.length;j++){var l=R.l[j];if(l&&(s===l||s.slice(-l.length)===l||l.slice(-s.length)===s&&s.length>4)){el.setAttribute("src",R.brand.logo);break;}}}
 if(el.tagName==="LINK"&&/icon/i.test(el.getAttribute("rel")||"")&&el.getAttribute("href")!==R.brand.favicon)el.setAttribute("href",R.brand.favicon);}
 function walk(root){if(!root)return;if(root.nodeType===3){fixText(root);return;}if(root.nodeType!==1)return;fixEl(root);
