@@ -76,16 +76,7 @@ export function WallsSection() {
       <PageHeader
         eyebrow={`Wall Manager · ${walls.loading ? "…" : walls.failed ? "—" : walls.total} walls`}
         title="Storefront Walls"
-        description="Netflix-style content rows. Enable, reorder, assign products manually or via rules."
-        actions={
-          <PillButton
-            variant="primary"
-            disabled
-            title="Walls are added and edited in the live Walls table above."
-          >
-            Add Wall
-          </PillButton>
-        }
+        description="Create a curated collection in the live Walls table above; every new wall starts as a draft."
       />
       <TableToolbar title="Walls" count={walls.total} extraActions={["publish"]} />
       {walls.loading && <EmptyHint text="Reading the walls…" />}

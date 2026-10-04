@@ -38,7 +38,9 @@ describe("demo evidence", () => {
     expect(e.title).toBe("ClinicDesk");
     expect(e.favicons).toEqual(["/dev-favicon.ico", "https://cdn.dev.example/fav.png"]);
     expect(e.logos).toContain("/img/acme-logo.png");
-    expect(e.emails).toEqual(expect.arrayContaining(["jane.roe@patient.test", "sales@acme-devs.example"]));
+    expect(e.emails).toEqual(
+      expect.arrayContaining(["jane.roe@patient.test", "sales@acme-devs.example"]),
+    );
     expect(e.phones.join(" ")).toContain("98765 43210");
     expect(e.whatsapp).toContain("https://wa.me/919876543210");
     expect(e.credits.join(" ")).toContain("Developed by Acme Devs");
@@ -47,7 +49,11 @@ describe("demo evidence", () => {
 
   it("reads interface strings and contacts out of a single-page app bundle", () => {
     const bundle = `const a="Book an appointment today";const b="support@acme-devs.example";const c="https://wa.me/447700900123";`;
-    const e = extractEvidence("<html><head></head><body><div id=root></div></body></html>", "https://x.example/", [bundle]);
+    const e = extractEvidence(
+      "<html><head></head><body><div id=root></div></body></html>",
+      "https://x.example/",
+      [bundle],
+    );
     expect(e.emails).toContain("support@acme-devs.example");
     expect(e.whatsapp).toContain("https://wa.me/447700900123");
     expect(e.strings).toContain("Book an appointment today");
@@ -70,7 +76,7 @@ describe("Software Vala presentation", () => {
   it("removes developer contact details and links, keeps application data", () => {
     expect(remainingViolations(out, RULES)).toEqual([]);
     expect(out).not.toContain("wa.me");
-    expect(out).not.toContain("acme-devs.example\"");
+    expect(out).not.toContain('acme-devs.example"');
     // The sample patient is the software's own data and stays.
     expect(out).toContain("jane.roe@patient.test");
     expect(out).toContain("+1 555 010 7788");
@@ -79,15 +85,21 @@ describe("Software Vala presentation", () => {
 
   it("installs the script that applies the same rules after a single-page app renders", () => {
     expect(out).toContain("<script data-sv-presentation>");
+    expect(out).toContain('el.closest("#lovable-badge")');
+    expect(out).toContain('window.history.replaceState(window.history.state,"","/")');
     // The script identifies the developer's contacts by hash only.
     expect(out).toContain(keyHash("d:919876543210"));
     expect(out).toContain(keyHash("e:sales@acme-devs.example"));
     expect(out).toContain(keyHash("h:acme-devs.example"));
-    expect(out).not.toMatch(/<script data-sv-presentation>[^<]*<\/script>[\s\S]*<script data-sv-presentation>/);
+    expect(out).not.toMatch(
+      /<script data-sv-presentation>[^<]*<\/script>[\s\S]*<script data-sv-presentation>/,
+    );
   });
 
   it("reports what is left when a rule did not take", () => {
-    expect(remainingViolations(PAGE, RULES)).toEqual(expect.arrayContaining(["sales@acme-devs.example"]));
+    expect(remainingViolations(PAGE, RULES)).toEqual(
+      expect.arrayContaining(["sales@acme-devs.example"]),
+    );
   });
 
   it("cleans a single-page app bundle without touching its code", () => {
@@ -125,33 +137,43 @@ describe("demo address safety", () => {
   });
 
   it("accepts an ordinary public address", () => {
-    expect(assertPublicUrl("https://some-random-domain.com/demo").hostname).toBe("some-random-domain.com");
+    expect(assertPublicUrl("https://some-random-domain.com/demo").hostname).toBe(
+      "some-random-domain.com",
+    );
   });
 
-  it.each(["10.1.2.3", "172.20.0.1", "100.64.0.1", "::ffff:127.0.0.1", "fd00::1", "fe80::1", "0.0.0.0"])(
-    "blocks the resolved address %s",
-    (ip) => expect(addressBlocked(ip)).toBe(true),
+  it.each([
+    "10.1.2.3",
+    "172.20.0.1",
+    "100.64.0.1",
+    "::ffff:127.0.0.1",
+    "fd00::1",
+    "fe80::1",
+    "0.0.0.0",
+  ])("blocks the resolved address %s", (ip) => expect(addressBlocked(ip)).toBe(true));
+  it.each(["93.184.216.34", "2606:4700::6810:84e5"])("allows %s", (ip) =>
+    expect(addressBlocked(ip)).toBe(false),
   );
-  it.each(["93.184.216.34", "2606:4700::6810:84e5"])("allows %s", (ip) => expect(addressBlocked(ip)).toBe(false));
 });
 
 describe("stripPlatformBranding", () => {
   it("takes out the hosting platform's badge, script and back-link", () => {
     const page = [
-      '<html><head>',
+      "<html><head>",
       '<meta property="og:title" content="my-app | Built with Lovable">',
       '<script src="https://cdn.gpteng.co/gptengineer.js"></script>',
-      '</head><body>',
-      '<a href="https://lovable.dev/projects/abc123">Edit with Lovable</a>',
+      "</head><body>",
+      '<aside id="lovable-badge" aria-label="Edit with Lovable"><a id="lovable-badge-cta" href="https://lovable.dev/projects/abc123">Edit with Lovable</a><button>Dismiss</button></aside>',
       '<script src="/_vercel/insights/script.js"></script>',
-      '<p>Real product content stays</p>',
-      '</body></html>',
+      "<p>Real product content stays</p>",
+      "</body></html>",
     ].join("");
 
     const { html, removed } = stripPlatformBranding(page);
 
     expect(html).not.toContain("gpteng.co");
     expect(html).not.toContain("lovable.dev/projects");
+    expect(html).not.toContain('id="lovable-badge"');
     expect(html).not.toContain("Edit with Lovable");
     expect(html).not.toContain("_vercel/insights");
     // The preview tag is kept and rewritten, not deleted.
@@ -163,7 +185,8 @@ describe("stripPlatformBranding", () => {
   });
 
   it("leaves a page that carries no platform furniture alone", () => {
-    const page = '<html><head><meta name="description" content="A school ERP"></head><body>Hello</body></html>';
+    const page =
+      '<html><head><meta name="description" content="A school ERP"></head><body>Hello</body></html>';
     const { html, removed } = stripPlatformBranding(page);
     expect(html).toBe(page);
     expect(removed).toEqual([]);

@@ -316,6 +316,7 @@ export async function investigateDemo(input: { productId: string; url: string; a
     );
     const ai = await aiComplete({
       module: "demo-manager",
+      serviceName: "OpenAI API",
       json: true,
       temperature: 0,
       // Raising this was the wrong instinct and the numbers said so: at 1,800

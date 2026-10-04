@@ -51,11 +51,13 @@ export type PresentationRules = {
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)*\.[A-Z]{2,24}/gi;
 // A number worth a second look: at least 8 digits, allowing the usual separators.
 const PHONE = /(?:\+|\b00)?\d[\d\s().-]{6,18}\d/g;
-const WHATSAPP = /(?:https?:)?\/\/(?:wa\.me|api\.whatsapp\.com|chat\.whatsapp\.com|web\.whatsapp\.com)\/[^\s"'<>)]*|whatsapp:\/\/[^\s"'<>)]*/gi;
-const CREDIT = /\b(?:developed|designed|powered|created|built|made|crafted|maintained)\s+(?:with\s+\S+\s+)?by\s*:?\s*([^<>"'\n|©]{2,60})/gi;
+const WHATSAPP =
+  /(?:https?:)?\/\/(?:wa\.me|api\.whatsapp\.com|chat\.whatsapp\.com|web\.whatsapp\.com)\/[^\s"'<>)]*|whatsapp:\/\/[^\s"'<>)]*/gi;
+const CREDIT =
+  /\b(?:developed|designed|powered|created|built|made|crafted|maintained)\s+(?:with\s+\S+\s+)?by\s*:?\s*([^<>"'\n|©]{2,60})/gi;
 const ASSET_EMAIL = /\.(?:png|jpe?g|gif|svg|webp|avif|js|css|woff2?)$/i;
 
-const unique = <T,>(list: T[]) => [...new Set(list)];
+const unique = <T>(list: T[]) => [...new Set(list)];
 
 /**
  * Software Vala's own contact, put in place of the developer's.
@@ -83,11 +85,32 @@ export const SOFTWARE_VALA_CONTACT = {
  * accounts and anything the developer actually built are left alone.
  */
 const PLATFORM_FURNITURE: { what: string; pattern: RegExp }[] = [
-  { what: "platform badge", pattern: /<a\b[^>]*(?:lovable\.(?:dev|app)|gpteng\.co)[^>]*>[\s\S]{0,400}?<\/a>/gi },
-  { what: "platform script", pattern: /<script\b[^>]*(?:gpteng\.co|flock\.js)[^>]*>[\s\S]{0,2000}?<\/script>/gi },
-  { what: "platform script tag", pattern: /<script\b[^>]*src\s*=\s*["'][^"']*(?:gpteng\.co|flock\.js)[^"']*["'][^>]*>\s*<\/script>/gi },
-  { what: "vercel analytics", pattern: /<script\b[^>]*\/_vercel\/(?:insights|speed-insights)[^>]*>\s*<\/script>/gi },
-  { what: "platform link", pattern: /<a\b[^>]*href\s*=\s*["'][^"']*(?:lovable\.dev|lovable\.app|vercel\.com|netlify\.app)[^"']*["'][^>]*>[\s\S]{0,200}?<\/a>/gi },
+  {
+    what: "platform badge container",
+    pattern: /<aside\b(?=[^>]*\bid\s*=\s*"lovable-badge")[^>]*>[\s\S]*?<\/aside>/gi,
+  },
+  {
+    what: "platform badge",
+    pattern: /<a\b[^>]*(?:lovable\.(?:dev|app)|gpteng\.co)[^>]*>[\s\S]{0,400}?<\/a>/gi,
+  },
+  {
+    what: "platform script",
+    pattern: /<script\b[^>]*(?:gpteng\.co|flock\.js)[^>]*>[\s\S]{0,2000}?<\/script>/gi,
+  },
+  {
+    what: "platform script tag",
+    pattern:
+      /<script\b[^>]*src\s*=\s*["'][^"']*(?:gpteng\.co|flock\.js)[^"']*["'][^>]*>\s*<\/script>/gi,
+  },
+  {
+    what: "vercel analytics",
+    pattern: /<script\b[^>]*\/_vercel\/(?:insights|speed-insights)[^>]*>\s*<\/script>/gi,
+  },
+  {
+    what: "platform link",
+    pattern:
+      /<a\b[^>]*href\s*=\s*["'][^"']*(?:lovable\.dev|lovable\.app|vercel\.com|netlify\.app)[^"']*["'][^>]*>[\s\S]{0,200}?<\/a>/gi,
+  },
 ];
 
 /**
@@ -117,7 +140,8 @@ export function stripPlatformBranding(
   const social =
     /(<meta\b[^>]*(?:property|name)\s*=\s*["'](?:og:site_name|og:title|twitter:title|og:description|twitter:description|description)["'][^>]*content\s*=\s*["'])([^"']*)(["'])/gi;
   out = out.replace(social, (whole, open: string, value: string, close: string) => {
-    if (!/lovable|gpteng|vercel|netlify|generated with|built with/i.test(String(value))) return whole;
+    if (!/lovable|gpteng|vercel|netlify|generated with|built with/i.test(String(value)))
+      return whole;
     removed.push("platform social preview");
     return `${open}${brandName}${close}`;
   });
@@ -177,11 +201,7 @@ export function bundleStrings(js: string, limit = 600): string[] {
   return unique(out).slice(0, limit);
 }
 
-export function extractEvidence(
-  html: string,
-  pageUrl: string,
-  bundles: string[] = [],
-): Evidence {
+export function extractEvidence(html: string, pageUrl: string, bundles: string[] = []): Evidence {
   const origin = new URL(pageUrl);
   const text = visibleText(html);
   const strings = unique([...bundles.flatMap((b) => bundleStrings(b))]);
@@ -193,7 +213,9 @@ export function extractEvidence(
     const content = attr(tag, "content");
     if (
       content &&
-      /^(author|generator|application-name|og:site_name|og:title|og:description|twitter:site|twitter:creator|copyright|publisher)$/.test(key)
+      /^(author|generator|application-name|og:site_name|og:title|og:description|twitter:site|twitter:creator|copyright|publisher)$/.test(
+        key,
+      )
     ) {
       meta[key] = content.slice(0, 200);
     }
@@ -208,20 +230,28 @@ export function extractEvidence(
 
   const logos = unique(
     (html.match(/<img\b[^>]*>/gi) ?? [])
-      .filter((tag) => /logo|brand/i.test(`${attr(tag, "src")} ${attr(tag, "alt")} ${attr(tag, "class")} ${attr(tag, "id")}`))
+      .filter((tag) =>
+        /logo|brand/i.test(
+          `${attr(tag, "src")} ${attr(tag, "alt")} ${attr(tag, "class")} ${attr(tag, "id")}`,
+        ),
+      )
       .map((tag) => attr(tag, "src"))
       .filter((s): s is string => Boolean(s))
       .concat(
         bundles.flatMap((b) =>
-          (b.match(/["'`](\/?[\w./-]*(?:logo|brand)[\w./-]*\.(?:png|jpe?g|svg|webp|gif))["'`]/gi) ?? []).map((q) =>
-            q.slice(1, -1),
-          ),
+          (
+            b.match(
+              /["'`](\/?[\w./-]*(?:logo|brand)[\w./-]*\.(?:png|jpe?g|svg|webp|gif))["'`]/gi,
+            ) ?? []
+          ).map((q) => q.slice(1, -1)),
         ),
       ),
   ).slice(0, 20);
 
   const emails = unique(
-    [...(html.match(EMAIL) ?? []), ...(corpus.match(EMAIL) ?? [])].filter((e) => !ASSET_EMAIL.test(e)),
+    [...(html.match(EMAIL) ?? []), ...(corpus.match(EMAIL) ?? [])].filter(
+      (e) => !ASSET_EMAIL.test(e),
+    ),
   ).slice(0, 40);
 
   const telLinks = (html.match(/href\s*=\s*["']tel:([^"']+)["']/gi) ?? []).map((h) =>
@@ -229,7 +259,10 @@ export function extractEvidence(
   );
   const phones = unique([...telLinks, ...phonesIn(corpus)]).slice(0, 40);
 
-  const whatsapp = unique([...(html.match(WHATSAPP) ?? []), ...(corpus.match(WHATSAPP) ?? [])]).slice(0, 20);
+  const whatsapp = unique([
+    ...(html.match(WHATSAPP) ?? []),
+    ...(corpus.match(WHATSAPP) ?? []),
+  ]).slice(0, 20);
 
   const externalLinks: { href: string; text: string }[] = [];
   for (const m of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
@@ -351,7 +384,9 @@ export function applyPresentation(
  */
 export function cleanText(text: string, rules: PresentationRules, brandName: string): string {
   let out = text;
-  for (const value of unique([...rules.remove, ...rules.links]).sort((a, b) => b.length - a.length)) {
+  for (const value of unique([...rules.remove, ...rules.links]).sort(
+    (a, b) => b.length - a.length,
+  )) {
     if (value.length >= 4) {
       /**
        * Replaced, not deleted. An e-mail address becomes ours and a phone
@@ -380,7 +415,10 @@ export function cleanText(text: string, rules: PresentationRules, brandName: str
  * does not carry the developer's contact details the page no longer shows.
  */
 export function contactKey(value: string): string | null {
-  const v = String(value ?? "").trim().toLowerCase().replace(/^(mailto|tel):/, "");
+  const v = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^(mailto|tel):/, "");
   const d = v.replace(/\D/g, "");
   if (/wa\.me|whatsapp/.test(v)) return d.length >= 8 ? `d:${d}` : null;
   if (v.includes("@")) return `e:${v.split("?")[0]}`;
@@ -410,10 +448,16 @@ export function presentationScript(
   brand: { favicon: string; logo: string; name: string },
 ): string {
   const hashes = unique(
-    [...rules.remove, ...rules.links].map(contactKey).filter((k): k is string => Boolean(k)).map(keyHash),
+    [...rules.remove, ...rules.links]
+      .map(contactKey)
+      .filter((k): k is string => Boolean(k))
+      .map(keyHash),
   );
-  const payload = JSON.stringify({ h: hashes, b: rules.rebrand, l: rules.logos, brand }).replace(/</g, "\\u003c");
-  return `(function(){var R=${payload};var H={};R.h.forEach(function(x){H[x]=1});
+  const payload = JSON.stringify({ h: hashes, b: rules.rebrand, l: rules.logos, brand }).replace(
+    /</g,
+    "\\u003c",
+  );
+  return `(function(){var R=${payload};var H={};if(new RegExp("^/api/proxy/demo/[^/]+(?:/.*)?$").test(window.location.pathname))window.history.replaceState(window.history.state,"","/");R.h.forEach(function(x){H[x]=1});
 function hash(k){var h=0x811c9dc5;for(var i=0;i<k.length;i++){h^=k.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h.toString(16);}
 function key(v){v=String(v||"").trim().toLowerCase().replace(/^(mailto|tel):/,"");var d=v.replace(/\\D/g,"");
 if(/wa\\.me|whatsapp/.test(v))return d.length>=8?"d:"+d:null;if(v.indexOf("@")>=0)return "e:"+v.split("?")[0];
@@ -424,7 +468,7 @@ function fixText(node){var v=node.nodeValue,o=v;
 v=v.replace(EM,function(m){return hit(m)?"":m}).replace(PH,function(m){return hit(m)?"":m});
 R.b.slice().sort(function(a,b){return b.length-a.length}).forEach(function(n){if(n.length>=3&&v.indexOf(n)>=0)v=v.split(n).join(R.brand.name)});
 if(v!==o)node.nodeValue=v;}
-function fixEl(el){if(el.tagName==="A"&&hit(el.getAttribute("href"))){el.remove();return;}
+function fixEl(el){var badge=el.id==="lovable-badge"?el:(el.closest?el.closest("#lovable-badge"):null);if(badge){badge.remove();return;}if(el.tagName==="A"&&hit(el.getAttribute("href"))){el.remove();return;}
 if(el.tagName==="IMG"){var s=el.getAttribute("src")||"";for(var j=0;j<R.l.length;j++){var l=R.l[j];if(l&&(s===l||s.slice(-l.length)===l||l.slice(-s.length)===s&&s.length>4)){el.setAttribute("src",R.brand.logo);break;}}}
 if(el.tagName==="LINK"&&/icon/i.test(el.getAttribute("rel")||"")&&el.getAttribute("href")!==R.brand.favicon)el.setAttribute("href",R.brand.favicon);}
 function walk(root){if(!root)return;if(root.nodeType===3){fixText(root);return;}if(root.nodeType!==1)return;fixEl(root);

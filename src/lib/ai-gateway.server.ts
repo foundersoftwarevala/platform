@@ -78,6 +78,10 @@ export async function resolveAiTarget(
  * caller that asked for a particular model meant it. Only the unselected case
  * fans out.
  */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function resolveAiTargets(
   selector?: string | { serviceId?: string; serviceName?: string },
 ): Promise<AiTarget[]> {
@@ -92,7 +96,7 @@ export async function resolveAiTargets(
       .select("id, name, provider_id, endpoint_url, status, category, approval_status")
       .eq("id", serviceId)
       .maybeSingle();
-    row = (data as Record<string, unknown>) ?? null;
+    row = isRecord(data) ? data : null;
     if (!row) throw new Error("The selected AI service is not registered in AI API Manager.");
   }
   if (!row && serviceName) {
@@ -102,7 +106,8 @@ export async function resolveAiTargets(
       .ilike("name", `%${serviceName}%`)
       .eq("status", "active")
       .limit(1);
-    row = (data?.[0] as Record<string, unknown>) ?? null;
+    const candidate = data?.[0];
+    row = isRecord(candidate) ? candidate : null;
   }
   const rows: Record<string, unknown>[] = [];
   if (row) {
@@ -119,9 +124,7 @@ export async function resolveAiTargets(
     // Only a chat endpoint can answer a completion; an embeddings or audio
     // service is not a worse choice, it is the wrong one.
     for (const candidate of (data ?? []) as Record<string, unknown>[]) {
-      if (
-        String(candidate["endpoint_url"] ?? "").match(/chat\/completions|\/v1\/messages/)
-      ) {
+      if (String(candidate["endpoint_url"] ?? "").match(/chat\/completions|\/v1\/messages/)) {
         rows.push(candidate);
       }
     }
@@ -144,9 +147,7 @@ export async function resolveAiTargets(
   }
   if (targets.length === 0) {
     throw new Error(
-      skipped.length === 1
-        ? skipped[0]
-        : `No AI service could be used. ${skipped.join(" ")}`,
+      skipped.length === 1 ? skipped[0] : `No AI service could be used. ${skipped.join(" ")}`,
     );
   }
   return targets;
@@ -407,9 +408,18 @@ async function callTarget(
     headers,
     body: JSON.stringify(body),
   });
-  const result = (await response.json().catch(() => ({}))) as Record<string, any>;
+  type ProviderError = { message?: string };
+  type ProviderResponse = {
+    content?: { type?: string; text?: string }[];
+    choices?: { message?: { content?: string }; finish_reason?: string }[];
+    stop_reason?: string;
+    usage?: Record<string, unknown>;
+    model?: string;
+    error?: ProviderError | ProviderError[];
+  };
+  const result = (await response.json().catch(() => ({}))) as ProviderResponse;
   const text = target.isAnthropic
-    ? result.content?.find((c: any) => c.type === "text")?.text
+    ? result.content?.find((item) => item.type === "text")?.text
     : result.choices?.[0]?.message?.content;
 
   // A model that runs out of room stops mid-sentence, and the caller then
@@ -438,14 +448,17 @@ async function callTarget(
   }
 
   if (!response.ok || !text) {
+    const providerError = Array.isArray(result.error)
+      ? result.error[0]?.message
+      : result.error?.message;
     throw new AiProviderError(
-      result.error?.message ??
-        result.error?.[0]?.message ??
-        `The AI provider returned HTTP ${response.status}.`,
+      providerError ?? `The AI provider returned HTTP ${response.status}.`,
       response.status,
     );
   }
-  return { text: String(text), model: target.modelId, service: target.serviceName };
+  const reportedModel =
+    typeof result.model === "string" && result.model ? result.model : resolvedModel;
+  return { text: String(text), model: reportedModel, service: target.serviceName };
 }
 
 /**
@@ -487,7 +500,9 @@ export async function aiStream(options: {
     attempts.push(`${target.serviceName}: ${response.detail}`);
     if (isLast || !providerCouldBeSwapped(response.status, response.detail)) {
       return new Response(
-        attempts.length === 1 ? response.detail : `Every AI service refused. ${attempts.join(" | ")}`,
+        attempts.length === 1
+          ? response.detail
+          : `Every AI service refused. ${attempts.join(" | ")}`,
         { status: response.status || 502 },
       );
     }
@@ -536,7 +551,11 @@ async function streamFromTarget(
 
   if (!upstream.ok || !upstream.body) {
     const detail = await upstream.text().catch(() => "");
-    return { ok: false, status: upstream.status || 502, detail: detail || "The AI request failed." };
+    return {
+      ok: false,
+      status: upstream.status || 502,
+      detail: detail || "The AI request failed.",
+    };
   }
 
   return {

@@ -280,4 +280,6 @@ export const DEMO_MESSAGES = {
   "demo.topbar.uptime": ["{value} UPTIME", "value is a percentage or a dash"],
   "demo.topbar.no_settings": "There is no Demo Manager settings screen yet.",
   "demo.topbar.no_search": "Search is not available in this header; use the search on each screen.",
+  "demo.dashboard.description": "Demo performance over the last {days} days",
+  "demo.dashboard.window": "{days}-day window",
 } as const;

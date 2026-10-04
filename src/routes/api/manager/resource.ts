@@ -47,6 +47,8 @@ type Resource = {
   creatable?: string[];
   /** Columns required to have a value before a row can be created. */
   required?: string[];
+  /** Server-owned values applied when a row is created. */
+  createDefaults?: Record<string, unknown>;
   /**
    * How a row is retired. Nothing in this catalogue is deleted, so a resource
    * names the change that takes a row out of use instead.
@@ -787,6 +789,9 @@ const RESOURCES: Record<string, Resource> = {
       "title",
       "row_kind",
     ],
+    creatable: ["key", "title"],
+    required: ["key", "title"],
+    createDefaults: { row_kind: "curated", status: "draft" },
     searchable: ["status", "title"],
     order: "sort_order.asc",
     label: "Walls",
@@ -4386,7 +4391,7 @@ export const Route = createFileRoute("/api/manager/resource")({
         }
 
         // Only whitelisted columns survive, the same as a change.
-        const values: Record<string, unknown> = {};
+        const values: Record<string, unknown> = { ...(resource.createDefaults ?? {}) };
         for (const [sent, value] of Object.entries(body.values ?? {})) {
           // A new row arrives under the names the screen uses, the same as a
           // change does, and is translated before the whitelist sees it.

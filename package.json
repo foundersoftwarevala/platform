@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "build:cloudflare": "vite build",
-    "test": "vitest run --exclude .kilo/**",
+    "test": "vitest run --exclude .kilo/** --exclude \"releases/**\"",
     "i18n:audit": "node scripts/i18n-audit.mjs",
     "i18n:check": "node scripts/i18n-audit.mjs --check",
     "i18n:baseline": "node scripts/i18n-audit.mjs --update-baseline"

@@ -307,7 +307,7 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
               "X-Demo-Slug": slug,
               "X-Demo-Name": demoName,
               "X-Content-Type-Options": "nosniff",
-              "X-Frame-Options": "SAMEORIGIN",
+              "Content-Security-Policy": "frame-ancestors https://softwarevala.net",
             });
 
             // The demo asks for its own scripts and images, and a browser will

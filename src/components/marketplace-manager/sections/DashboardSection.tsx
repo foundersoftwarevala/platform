@@ -462,7 +462,7 @@ export function DashboardSection({ onNavigate }: { onNavigate?: (id: NavId) => v
             { l: "Launch Campaign", i: Megaphone, id: "marketing" as NavId },
             { l: "Create Offer", i: Tag, id: "offers" as NavId },
             { l: "Create Coupon", i: Tag, id: "offers" as NavId },
-            { l: "Feature Product", i: Sparkles, id: "walls" as NavId },
+            { l: "Feature Product", i: Sparkles, id: "products" as NavId },
             { l: "Approve Listing", i: CheckCircle2, id: "approval" as NavId },
             { l: "Send Announcement", i: Megaphone, id: "notifications" as NavId },
             { l: "Homepage Manager", i: ArrowUpRight, id: "homepage-rows" as NavId },
