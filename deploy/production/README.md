@@ -9,6 +9,9 @@ and is not modified. Demo cards lead their related marketplace rows.
 JavaScript evidence uses a real lexer so empty strings, long literals, comments
 and regular expressions cannot desynchronize contact extraction.
 
+Official demo contact replacements use the owner's support email
+`hellosoftwarevala@gmail.com` and WhatsApp/phone `+91 8348838383`.
+Original application account emails and credentials remain unchanged.
 Short site-brand labels can use `brandLabels`: exact header/footer text is
 replaced without rewriting the same words inside ordinary feature descriptions.
 Split inline header/footer labels and Vite lazy module preload assets are also preserved and presented through the isolated demo proxy.

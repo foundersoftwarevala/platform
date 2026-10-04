@@ -91,7 +91,7 @@ const unique = <T>(list: T[]) => [...new Set(list)];
  * write to.
  */
 export const SOFTWARE_VALA_CONTACT = {
-  email: "support@softwarevala.net",
+  email: "hellosoftwarevala@gmail.com",
   phone: "+91 83488 38383",
 };
 
