@@ -13,6 +13,8 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
       {
         remove: ["info@nursinginstitute.edu", "+91 98765 43210"],
         brandLabels: ["Study Abroad"],
+        brandLabelPaths: ["/login"],
+        brandMonograms: ["LT"],
         publicContactPaths: ["/contact"],
         rebrand: ["SmartPOS"],
         logos: [],
@@ -36,7 +38,7 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
   </footer><input placeholder="you@nursing.edu"><p>jane.roe@patient.test</p><section data-record-card><h3>Contact Information</h3><p>+91 98765 43210</p><a href="mailto:info@nursinginstitute.edu">info@nursinginstitute.edu</a></section><table><tbody><tr><td>+91 98765 43210</td><td><a href="mailto:info@nursinginstitute.edu">info@nursinginstitute.edu</a></td></tr></tbody></table>`;
   document.body.insertAdjacentHTML(
     "beforeend",
-    '<nav><a href="#features"><span data-nav-brand>Smart<span>POS</span></span></a><span data-nav-feature>Study Abroad</span></nav><footer><span>Study Abroad</span><p data-split-brand>Smart<span>POS</span></p></footer><p data-feature>Comprehensive Study Abroad Support</p><footer><table><tbody><tr><td data-brand-record>Study <span>Abroad</span></td></tr></tbody></table></footer>',
+    '<nav><a href="#features"><span data-nav-brand>Smart<span>POS</span></span></a><span data-nav-feature>Study Abroad courses</span><span data-monogram>LT</span></nav><footer><span>Study Abroad</span><p data-split-brand>Smart<span>POS</span></p></footer><p data-feature>Comprehensive Study Abroad Support</p><p data-login-brand>Study Abroad</p><p data-login-monogram>LT</p><form><p data-monogram-record>LT</p></form><footer><table><tbody><tr><td data-brand-record>Study <span>Abroad</span></td></tr></tbody></table></footer>',
   );
   document.body.insertAdjacentHTML(
     "beforeend",
@@ -69,7 +71,11 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
   expect(document.querySelector("[data-brand-record]")?.textContent).toBe("Study Abroad");
   expect(document.querySelector("[data-nav-brand]")?.textContent).toBe("Software Vala");
   expect(document.querySelector("nav a")?.getAttribute("href")).toBe("#features");
-  expect(document.querySelector("[data-nav-feature]")?.textContent).toBe("Study Abroad");
+  expect(document.querySelector("[data-nav-feature]")?.textContent).toBe("Study Abroad courses");
+  expect(document.querySelector("[data-monogram]")?.textContent).toBe("SV");
+  expect(document.querySelector("[data-login-brand]")?.textContent).toBe("Software Vala");
+  expect(document.querySelector("[data-login-monogram]")?.textContent).toBe("SV");
+  expect(document.querySelector("[data-monogram-record]")?.textContent).toBe("LT");
   window.history.replaceState(null, "", "/contact");
   document.body.insertAdjacentHTML(
     "beforeend",

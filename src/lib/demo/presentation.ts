@@ -43,6 +43,10 @@ export type Evidence = {
 export type PresentationRules = {
   /** Short brand labels matched as complete header/footer text, not feature copy. */
   brandLabels?: string[];
+  /** Verified authentication routes containing site-brand labels. */
+  brandLabelPaths?: string[];
+  /** Exact chrome monograms replaced by Software Vala initials. */
+  brandMonograms?: string[];
   /** Browser-verified public contact pages; only their email/phone cards qualify. */
   publicContactPaths?: string[];
   /** Literal text removed wherever it appears (contact details). */
@@ -652,6 +656,8 @@ export function presentationScript(
     b: rules.rebrand,
     e: rules.brandLabels ?? [],
     p: rules.publicContactPaths ?? [],
+    s: rules.brandLabelPaths ?? [],
+    i: rules.brandMonograms ?? [],
     l: rules.logos,
     brand,
     contact: SOFTWARE_VALA_CONTACT,
@@ -668,12 +674,13 @@ for(var p=el,i=0;p&&i<5;p=p.parentElement,i++){var hs=p.querySelectorAll(":scope
 for(var j=0;j<hs.length;j++){var heading=hs[j].textContent.trim();if(/^(?:Contact Us|Get In Touch|Reach Us)$/i.test(heading)||(R.p.indexOf(window.location.pathname)>=0&&/^(?:Email|Phone|WhatsApp)$/i.test(heading)))return true;}}return false;}
 var EM=/[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\\.[A-Z0-9-]+)*\\.[A-Z]{2,24}/gi,PH=/(?:\\+|\\b00)?\\d[\\d\\s().-]{6,18}\\d/g;
 function fixText(node){var v=node.nodeValue,o=v;
-if(node.parentElement&&node.parentElement.closest("header,footer")&&publicContact(node.parentElement)&&R.e.indexOf(v.trim())>=0)v=R.brand.name;
+var el=node.parentElement,scope=el&&!el.closest("table,[role=table],[role=grid],form,input,textarea,select,option,[contenteditable],[data-record-card]")&&(el.closest("header,footer,nav")||R.s.indexOf(window.location.pathname)>=0);
+if(scope){if(R.e.indexOf(v.trim())>=0)v=R.brand.name;else if(R.i.indexOf(v.trim())>=0)v=R.brand.name.split(/\\s+/).map(function(n){return n.charAt(0)}).join("").slice(0,3);}
 if(publicContact(node.parentElement))v=v.replace(EM,function(m){return hit(m)?R.contact.email:m}).replace(PH,function(m){return hit(m)?R.contact.phone:m});
 R.b.slice().sort(function(a,b){return b.length-a.length}).forEach(function(n){if(n.length>=3&&v.indexOf(n)>=0)v=v.split(n).join(R.brand.name)});
 if(v!==o)node.nodeValue=v;}
 function fixEl(el){var badge=el.id==="lovable-badge"?el:(el.closest?el.closest("#lovable-badge"):null);if(badge){badge.remove();return;}if(el.tagName==="A"&&hit(el.getAttribute("href"))){var href=el.getAttribute("href");if(/^(?:mailto|tel):|wa\\.me|whatsapp/i.test(href)&&!publicContact(el))return;if(/^mailto:/i.test(href))el.setAttribute("href","mailto:"+R.contact.email);else if(/^tel:/i.test(href))el.setAttribute("href","tel:"+R.contact.phone.replace(/\\s/g,""));else if(/wa\\.me|whatsapp/i.test(href))el.setAttribute("href","https://wa.me/"+R.contact.phone.replace(/\\D/g,""));else{el.remove();return;}}
-if(el.closest("header,footer,nav")&&!el.closest("table,[role=table],[role=grid],form,input,textarea,select,[contenteditable]")&&!el.querySelector("table,[role=table],[role=grid],form,input,textarea,select,button,a,svg,img,[contenteditable]")&&(el.closest("header,footer")?R.e.concat(R.b):R.b).indexOf(el.textContent.trim())>=0){var tw=document.createTreeWalker(el,4,null),tn,first=true;while((tn=tw.nextNode())){tn.nodeValue=first?R.brand.name:"";first=false;}}
+if((el.closest("header,footer,nav")||R.s.indexOf(window.location.pathname)>=0)&&!el.closest("table,[role=table],[role=grid],form,input,textarea,select,[contenteditable],[data-record-card]")&&!el.querySelector("table,[role=table],[role=grid],form,input,textarea,select,button,a,svg,img,[contenteditable],[data-record-card]")&&R.e.concat(R.b).indexOf(el.textContent.trim())>=0){var tw=document.createTreeWalker(el,4,null),tn,first=true;while((tn=tw.nextNode())){tn.nodeValue=first?R.brand.name:"";first=false;}}
 if(el.tagName==="IMG"){var s=el.getAttribute("src")||"";for(var j=0;j<R.l.length;j++){var l=R.l[j];if(l&&(s===l||s.slice(-l.length)===l||l.slice(-s.length)===s&&s.length>4)){el.setAttribute("src",R.brand.logo);break;}}}
 if(el.tagName==="LINK"&&/icon/i.test(el.getAttribute("rel")||"")&&el.getAttribute("href")!==R.brand.favicon)el.setAttribute("href",R.brand.favicon);}
 function walk(root){if(!root)return;if(root.nodeType===3){fixText(root);return;}if(root.nodeType!==1)return;fixEl(root);

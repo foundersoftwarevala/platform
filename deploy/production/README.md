@@ -9,6 +9,9 @@ and is not modified. Demo cards lead their related marketplace rows.
 JavaScript evidence uses a real lexer so empty strings, long literals, comments
 and regular expressions cannot desynchronize contact extraction.
 
+Exact `brandLabels` and `brandMonograms` are scoped to header/footer/navigation.
+Verified `brandLabelPaths` extend this scope to authentication pages, retaining
+forms, records and generic feature copy; monograms become Software Vala initials.
 Browser-verified `publicContactPaths` opt specific public pages into email/phone
 card replacement even with nested page headings. Other routes, forms and
 record cards remain excluded.
