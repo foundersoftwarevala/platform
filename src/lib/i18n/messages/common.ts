@@ -4,6 +4,14 @@
  */
 export const COMMON_MESSAGES = {
   "common.close": ["Close", "closes a dialog or panel"],
+  "common.dismiss_announcement": [
+    "Dismiss announcement",
+    "closes the rotating marketplace announcement banner",
+  ],
+  "common.weather_forecast_scroll": [
+    "Hourly and daily weather forecast",
+    "accessible name for the horizontally scrolling weather forecast",
+  ],
   "common.pagination": ["Pagination", "name of the page navigation for screen readers"],
   "common.previous_page": "Go to previous page",
   "common.next_page": "Go to next page",

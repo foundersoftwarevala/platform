@@ -25,13 +25,14 @@ async function run(label, context) {
   });
 
   const started = Date.now();
-  await page.goto(url, { waitUntil: "load", timeout: 90_000 });
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 90_000 });
 
   const paint = await page.evaluate(
     () =>
       new Promise((resolve) => {
         const out = {};
-        for (const e of performance.getEntriesByType("paint")) out[e.name] = Math.round(e.startTime);
+        for (const e of performance.getEntriesByType("paint"))
+          out[e.name] = Math.round(e.startTime);
         const nav = performance.getEntriesByType("navigation")[0];
         if (nav) {
           out.ttfb = Math.round(nav.responseStart);
@@ -45,7 +46,9 @@ async function run(label, context) {
             const entries = list.getEntries();
             out.lcp = Math.round(entries[entries.length - 1].startTime);
           }).observe({ type: "largest-contentful-paint", buffered: true });
-        } catch { /* not supported */ }
+        } catch {
+          /* not supported */
+        }
         setTimeout(() => resolve(out), 2500);
       }),
   );
@@ -77,7 +80,9 @@ const show = (r) => {
   console.log(`  LCP                ${r.lcp ?? "not reported"} ms`);
   console.log(`  DOMContentLoaded   ${r.domContentLoaded ?? "?"} ms`);
   console.log(`  load               ${r.load ?? "?"} ms`);
-  console.log(`  document transfer  ${r.transferSize ? Math.round(r.transferSize / 1024) + " KB" : "?"}`);
+  console.log(
+    `  document transfer  ${r.transferSize ? Math.round(r.transferSize / 1024) + " KB" : "?"}`,
+  );
   console.log(`  requests           ${r.requests}`);
   console.log(`  content-length sum ${Math.round(r.transferred / 1024)} KB`);
   console.log(`  DOM nodes          ${r.nodes}`);

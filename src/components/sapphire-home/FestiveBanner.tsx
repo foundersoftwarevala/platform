@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 import { X, PartyPopper, Tag, Handshake, Store, Share2, Building2, Search, Megaphone, Headphones } from "lucide-react";
 
 /** Plain (single) premium colours — no gradients, no shades. */
 const COLORS = [
-  "bg-[oklch(0.55_0.19_264)]",
-  "bg-[oklch(0.56_0.17_190)]",
-  "bg-[oklch(0.55_0.20_25)]",
-  "bg-[oklch(0.58_0.17_150)]",
-  "bg-[oklch(0.55_0.19_300)]",
-  "bg-[oklch(0.60_0.17_60)]",
-  "bg-[oklch(0.54_0.18_340)]",
-  "bg-[oklch(0.55_0.16_230)]",
+  "bg-[oklch(0.34_0.13_264)]",
+  "bg-[oklch(0.34_0.13_190)]",
+  "bg-[oklch(0.34_0.13_25)]",
+  "bg-[oklch(0.34_0.13_150)]",
+  "bg-[oklch(0.34_0.13_300)]",
+  "bg-[oklch(0.34_0.13_60)]",
+  "bg-[oklch(0.34_0.13_340)]",
+  "bg-[oklch(0.34_0.13_230)]",
 ];
 
 // The two "147 products" lines were written when the catalogue held 147. It
@@ -30,6 +31,7 @@ const announcements = [
 ];
 
 const FestiveBanner = () => {
+  const { t } = useTranslation();
   const [dismissed, setDismissed] = useState(false);
   const [index, setIndex] = useState(0);
 
@@ -61,7 +63,7 @@ const FestiveBanner = () => {
         <button
           type="button"
           onClick={() => setDismissed(true)}
-          aria-label="Dismiss offers banner"
+          aria-label={t("common.dismiss_announcement")}
           className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-5 h-5 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center text-white transition-colors border border-white/25"
         >
           <X className="w-3 h-3" />

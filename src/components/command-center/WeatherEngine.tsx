@@ -28,6 +28,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { usePlace, usePlaceSearch, useWeather } from "./useLive";
 import type { GeoPlace } from "@/lib/live-data.functions";
 
@@ -312,6 +313,7 @@ const Chip = ({ k, v, icon: Icon }: { k: string; v: string; icon: React.ElementT
 );
 
 export const WeatherEngine = memo(() => {
+  const { t } = useTranslation();
   const { place, setPlace, favorites, toggleFavorite, detectGps } = usePlace();
   const { data, isFetching, refetch, dataUpdatedAt } = useWeather(place);
   const [q, setQ] = useState("");
@@ -529,7 +531,11 @@ export const WeatherEngine = memo(() => {
         ))}
       </div>
 
-      <div className="mt-1.5 flex gap-1 overflow-x-auto pb-1">
+      <div
+        className="mt-1.5 flex gap-1 overflow-x-auto pb-1"
+        tabIndex={0}
+        aria-label={t("common.weather_forecast_scroll")}
+      >
         {(tab === "hourly" ? data?.hourly ?? [] : data?.daily ?? []).map((row, i) => {
           const isHour = tab === "hourly";
           const r = row as { t?: string; date?: string; temp?: number; max?: number; min?: number; code: number; rain: number };

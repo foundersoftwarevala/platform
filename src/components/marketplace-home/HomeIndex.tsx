@@ -94,6 +94,7 @@ import {
   Lightbulb,
   Code2,
   Tag,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,7 +142,7 @@ interface Demo {
   masterCategory: string;
   description: string;
   url: string;
-  icon: any;
+  icon: LucideIcon;
   status: "ACTIVE" | "COMING_SOON";
   features: string[];
   frontend: string[];
@@ -4428,14 +4429,16 @@ export const DemoCard = memo(
                     className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-white"}`}
                   />
                 </button>
-                <a
-                  href={demo.url}
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label={`Preview ${demo.name}`}
-                  className="sv-icon-btn"
-                >
-                  <Eye className="h-4 w-4 text-white" />
-                </a>
+                {demo.status === "ACTIVE" && demo.url.trim() && demo.url !== "#" && (
+                  <a
+                    href={demo.url}
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Preview ${demo.name}`}
+                    className="sv-icon-btn"
+                  >
+                    <Eye className="h-4 w-4 text-white" />
+                  </a>
+                )}
               </div>
             </div>
 

@@ -229,7 +229,7 @@ export const LiveNotifications = memo(() => {
       icon={Bell}
       title="Live Notifications"
       right={
-        <span className="rounded-md bg-rose-500 px-1.5 py-0.5 text-[8.5px] font-bold text-white">
+        <span className="rounded-md bg-rose-700 px-1.5 py-0.5 text-[8.5px] font-bold text-white">
           {unread} NEW
         </span>
       }
