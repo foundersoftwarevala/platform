@@ -45,16 +45,18 @@ const OPERATOR_ACCOUNT =
   "CONTROL_PANEL";
 const OPERATOR = {
   email: ops[`SV_LOGIN_${OPERATOR_ACCOUNT}`],
-  password:
-    ops[`SV_PW_${OPERATOR_ACCOUNT}`] ??
-    (OPERATOR_ACCOUNT === "CONTROL_PANEL"
-      ? ops.SV_PW_TEST ?? ops.SV_PW_CONTROL_PANEL
-      : undefined),
+  password: ops[`SV_PW_${OPERATOR_ACCOUNT}`] ?? ops.SV_PW_TEST ?? ops.SV_PW_CONTROL_PANEL,
 };
 const OUTSIDER = {
   email: ops.SV_LOGIN_AUTHOR,
   password: ops.SV_PW_TEST ?? ops.SV_PW_CONTROL_PANEL,
 };
+if (!OPERATOR.email || !OPERATOR.password) {
+  throw new Error(`Credentials for ${OPERATOR_ACCOUNT} are incomplete in .env.ops`);
+}
+if (!OUTSIDER.email || !OUTSIDER.password) {
+  throw new Error("AUTHOR credentials are incomplete in .env.ops");
+}
 
 /* ------------------------------------------- the modules, from the source */
 const sidebar = readFileSync(
