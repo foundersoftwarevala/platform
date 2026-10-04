@@ -45,6 +45,7 @@ import {
   Sparkles,
   Rocket,
   CloudSun,
+  type LucideIcon,
 } from "lucide-react";
 import {
   askStorefrontAi,
@@ -63,7 +64,7 @@ const TRIGGER = "kr-btn tb-pill group";
 const PANEL =
   "kr-panel w-[300px] rounded-2xl border border-white/10 bg-[#0b1a30]/95 p-0 text-white shadow-2xl backdrop-blur-xl";
 
-function PanelHead({ icon: Icon, title, note }: { icon: any; title: string; note?: string }) {
+function PanelHead({ icon: Icon, title, note }: { icon: LucideIcon; title: string; note?: string }) {
   return (
     <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
       <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/25 to-amber-300/20 text-cyan-300">
@@ -94,7 +95,7 @@ const APPLY_ROLES: { key: string; label: string; blurb: string }[] = [
 function ApplyNow({ t, roles }: { t: (s: string) => string; roles?: BarItem[] }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={TRIGGER}>
+      <DropdownMenuTrigger className={TRIGGER} aria-label={t("Apply Now")}>
         <Rocket className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:-translate-y-0.5" />
         {t("Apply Now")}
         <span className="text-[9px] opacity-70">▼</span>
@@ -146,6 +147,8 @@ export const LANGS = [
 /** UI strings translated live by the AI gateway (real translation, cached per language). */
 const BAR_STRINGS = [
   "Apply Now",
+  "My Favorites",
+  "Account",
   "Role applications",
   "Language",
   "Currency",
@@ -281,7 +284,7 @@ function LanguagePicker({
   const current = options.find((l) => same(l.code, lang)) ?? options[0];
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Language")}>
         {busy ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
         ) : (
@@ -359,7 +362,7 @@ function CurrencyPicker({ t }: { t: (s: string) => string }) {
 
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Currency")}>
         <Coins className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:scale-110" />
         <span className="hidden sm:inline">{t("Currency")}</span>
       </PopoverTrigger>
@@ -448,7 +451,7 @@ function WorldClock({ t }: { t: (s: string) => string }) {
 
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("World Clock")}>
         <Clock className="h-3.5 w-3.5 text-cyan-200 transition-transform duration-500 group-hover:rotate-[360deg]" />
         <span className="tabular-nums">{local}</span>
       </PopoverTrigger>
@@ -520,7 +523,7 @@ function Weather({ t }: { t: (s: string) => string }) {
   const d = q.data;
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Weather")}>
         <CloudSun className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:-translate-y-0.5" />
         <span className="tabular-nums">{d && !d.error ? `${Math.round(d.tempC)}°` : "—"}</span>
       </PopoverTrigger>
@@ -615,7 +618,7 @@ function CalendarTool({ t }: { t: (s: string) => string }) {
 
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Calendar")}>
         <CalendarDays className="h-3.5 w-3.5 text-cyan-200 transition-transform duration-300 group-hover:-translate-y-0.5" />
         <span className="hidden sm:inline">{t("Calendar")}</span>
       </PopoverTrigger>
@@ -737,7 +740,7 @@ function CalculatorTool({ t }: { t: (s: string) => string }) {
   const result = expr ? evaluate(expr) : null;
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Calculator")}>
         <CalculatorIcon className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:scale-110" />
         <span className="hidden lg:inline">{t("Calculator")}</span>
       </PopoverTrigger>
@@ -809,7 +812,7 @@ function AiChat({ t }: { t: (s: string) => string }) {
 
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("AI Chat")}>
         <Bot className="h-3.5 w-3.5 text-cyan-200 transition-transform duration-300 group-hover:-translate-y-0.5" />
         <span className="hidden sm:inline">{t("AI Chat")}</span>
         <span className="kr-dot" />
@@ -917,13 +920,13 @@ function Notifications({ t }: { t: (s: string) => string }) {
   const q = useQuery({
     queryKey: ["site_notifications"],
     queryFn: async (): Promise<Notification[]> => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("site_notifications")
         .select("id,title,body,kind,link_url,published_at")
         .eq("is_published", true)
         .order("sort_order", { ascending: true });
       if (error) return [];
-      return (data ?? []) as Notification[];
+      return data ?? [];
     },
     staleTime: 1000 * 60 * 5,
   });
@@ -1001,7 +1004,7 @@ function Notifications({ t }: { t: (s: string) => string }) {
         }
       }}
     >
-      <PopoverTrigger className={`${TRIGGER} relative`}>
+      <PopoverTrigger className={`${TRIGGER} relative`} aria-label={t("Notifications")}>
         <Bell className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:animate-[kr-ring_0.6s_ease]" />
         <span className="hidden sm:inline">{t("Notifications")}</span>
         {unread > 0 && (
@@ -1020,14 +1023,30 @@ function Notifications({ t }: { t: (s: string) => string }) {
               <div className="p-3 text-[12px] text-white/50">No announcements right now.</div>
             )}
             {items.map((n, i) => {
-              const Wrapper: any = n.link_url ? "a" : "div";
               return (
-                <Wrapper
-                  key={n.id}
-                  {...(n.link_url ? { href: n.link_url } : {})}
-                  className="kr-item block rounded-xl px-3 py-2 hover:bg-white/5"
-                  style={{ animationDelay: `${i * 30}ms` }}
-                >
+                n.link_url ? (
+                  <a
+                    key={n.id}
+                    href={n.link_url}
+                    className="kr-item block rounded-xl px-3 py-2 hover:bg-white/5"
+                    style={{ animationDelay: `${i * 30}ms` }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          n.kind === "promo" ? "bg-amber-300" : n.kind === "update" ? "bg-cyan-300" : "bg-white/40"
+                        }`}
+                      />
+                      <span className="text-[12.5px] font-semibold">{n.title}</span>
+                    </div>
+                    <p className="mt-0.5 pl-3.5 text-[11.5px] leading-snug text-white/55">{n.body}</p>
+                  </a>
+                ) : (
+                  <div
+                    key={n.id}
+                    className="kr-item block rounded-xl px-3 py-2 hover:bg-white/5"
+                    style={{ animationDelay: `${i * 30}ms` }}
+                  >
                   <div className="flex items-center gap-2">
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${
@@ -1037,7 +1056,8 @@ function Notifications({ t }: { t: (s: string) => string }) {
                     <span className="text-[12.5px] font-semibold">{n.title}</span>
                   </div>
                   <p className="mt-0.5 pl-3.5 text-[11.5px] leading-snug text-white/55">{n.body}</p>
-                </Wrapper>
+                  </div>
+                )
               );
             })}
           </div>
@@ -1051,10 +1071,11 @@ function Notifications({ t }: { t: (s: string) => string }) {
 /* My Favorites                                                        */
 /* ------------------------------------------------------------------ */
 
-function Favorites({ count }: { count: number }) {
+function Favorites({ count, t }: { count: number; t: (s: string) => string }) {
   return (
     <button
       type="button"
+      aria-label={t("My Favorites")}
       className={`${TRIGGER} relative`}
       onClick={() => document.getElementById("All")?.scrollIntoView({ behavior: "smooth" })}
     >
@@ -1077,8 +1098,8 @@ function LoginPill({ t }: { t: (s: string) => string }) {
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }: any) => setUserEmail(data.session?.user.email ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e: any, session: any) =>
+    supabase.auth.getSession().then(({ data }) => setUserEmail(data.session?.user.email ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
       setUserEmail(session?.user.email ?? null),
     );
     return () => sub.subscription.unsubscribe();
@@ -1100,7 +1121,7 @@ function LoginPill({ t }: { t: (s: string) => string }) {
 
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Account")}>
         <LogIn className="h-3.5 w-3.5 text-emerald-300 transition-transform duration-300 group-hover:translate-x-0.5" />
         <span className="hidden sm:inline">{userEmail.split("@")[0]}</span>
       </PopoverTrigger>
@@ -1145,7 +1166,7 @@ const DASHBOARD_ROLES: { key: string; label: string; blurb: string }[] = [
 function DashboardsMenu({ t, roles }: { t: (s: string) => string; roles?: BarItem[] }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={TRIGGER}>
+      <DropdownMenuTrigger className={TRIGGER} aria-label={t("Dashboards")}>
         <LayoutDashboard className="h-3.5 w-3.5 text-cyan-300 transition-transform duration-300 group-hover:-translate-y-0.5" />
         {t("Dashboards")}
         <span className="text-[9px] opacity-70">▼</span>
@@ -1314,7 +1335,7 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
       <CurrencyPicker key="cur" t={t} />,
       <Notifications key="notif" t={t} />,
       <ChatAppButton key="chat" className={`${TRIGGER} relative`} iconClassName="h-3.5 w-3.5" label={t("Chat")} />,
-      <Favorites key="fav" count={favoritesCount} />,
+      <Favorites key="fav" count={favoritesCount} t={t} />,
       <AiChat key="ai" t={t} />,
     ],
     [lang, t, apply, busy, favoritesCount, applyRoles, dashboardRoles],
@@ -1363,4 +1384,3 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
 }
 
 export { Lock };
-
