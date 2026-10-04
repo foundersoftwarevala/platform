@@ -17,7 +17,9 @@ AI findings are accepted only for verified contact and navigation evidence.
 Login/account records, form placeholders, SVG geometry/namespaces and API
 endpoints remain intact. JavaScript rewrites preserve those properties and
 proxy root-relative images/styles. Rewritten text assets are private/no-store,
-and script/style URLs carry a presentation version to avoid stale branding.
+preventing stale branding without adding entry-only cache queries. Entry modules
+and lazy imports share one URL so navigation cannot create duplicate React
+instances. Vite relative preload paths retain their leading-slash semantics.
 
 Rendered tables, forms and record contact-information cards retain their data;
 explicit public `section#contact`, `section#contact-us` and
