@@ -43,6 +43,8 @@ export type Evidence = {
 export type PresentationRules = {
   /** Short brand labels matched as complete header/footer text, not feature copy. */
   brandLabels?: string[];
+  /** Browser-verified public contact pages; only their email/phone cards qualify. */
+  publicContactPaths?: string[];
   /** Literal text removed wherever it appears (contact details). */
   remove: string[];
   /** Literal developer names/credits shown as "Software Vala" instead. */
@@ -649,6 +651,7 @@ export function presentationScript(
     h: hashes,
     b: rules.rebrand,
     e: rules.brandLabels ?? [],
+    p: rules.publicContactPaths ?? [],
     l: rules.logos,
     brand,
     contact: SOFTWARE_VALA_CONTACT,
@@ -659,10 +662,10 @@ function key(v){v=String(v||"").trim().toLowerCase().replace(/^(mailto|tel):/,""
 if(/wa\\.me|whatsapp/.test(v))return d.length>=8?"d:"+d:null;if(v.indexOf("@")>=0)return "e:"+v.split("?")[0];
 if(/^https?:\\/\\//.test(v)){try{return "h:"+new URL(v).hostname.replace(/^www\\./,"")}catch(e){return null}}return d.length>=8?"d:"+d:null;}
 function hit(v){var k=key(v);return !!(k&&H[hash(k)]);}
-function publicContact(el){if(!el||!el.closest||el.closest("table,[role=table],[role=grid],input,textarea,select,option,[contenteditable]"))return false;
+function publicContact(el){if(!el||!el.closest||el.closest("table,[role=table],[role=grid],form,input,textarea,select,option,[contenteditable],[data-record-card]"))return false;
 if(el.closest("footer,header,address,section#contact,section#contact-us,section#contact_us"))return true;
 for(var p=el,i=0;p&&i<5;p=p.parentElement,i++){var hs=p.querySelectorAll(":scope > h1,:scope > h2,:scope > h3,:scope > h4,:scope > h5,:scope > h6");
-for(var j=0;j<hs.length;j++)if(/^(?:Contact Us|Get In Touch|Reach Us)$/i.test(hs[j].textContent.trim()))return true;}return false;}
+for(var j=0;j<hs.length;j++){var heading=hs[j].textContent.trim();if(/^(?:Contact Us|Get In Touch|Reach Us)$/i.test(heading)||(R.p.indexOf(window.location.pathname)>=0&&/^(?:Email|Phone|WhatsApp)$/i.test(heading)))return true;}}return false;}
 var EM=/[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\\.[A-Z0-9-]+)*\\.[A-Z]{2,24}/gi,PH=/(?:\\+|\\b00)?\\d[\\d\\s().-]{6,18}\\d/g;
 function fixText(node){var v=node.nodeValue,o=v;
 if(node.parentElement&&node.parentElement.closest("header,footer")&&publicContact(node.parentElement)&&R.e.indexOf(v.trim())>=0)v=R.brand.name;

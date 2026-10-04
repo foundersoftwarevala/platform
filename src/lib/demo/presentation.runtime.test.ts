@@ -13,6 +13,7 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
       {
         remove: ["info@nursinginstitute.edu", "+91 98765 43210"],
         brandLabels: ["Study Abroad"],
+        publicContactPaths: ["/contact"],
         rebrand: ["SmartPOS"],
         logos: [],
         links: ["https://wa.me/919876543210"],
@@ -69,6 +70,29 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
   expect(document.querySelector("[data-nav-brand]")?.textContent).toBe("Software Vala");
   expect(document.querySelector("nav a")?.getAttribute("href")).toBe("#features");
   expect(document.querySelector("[data-nav-feature]")?.textContent).toBe("Study Abroad");
+  window.history.replaceState(null, "", "/contact");
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    "<main><article data-public-contact><h3>Email</h3><p>info@nursinginstitute.edu</p></article><form><article data-form-contact><h3>Email</h3><p>info@nursinginstitute.edu</p></article></form><article data-record-card data-private-contact><h3>Email</h3><p>info@nursinginstitute.edu</p></article></main>",
+  );
+  await expect
+    .poll(() => document.querySelector("[data-public-contact] p")?.textContent)
+    .toBe(SOFTWARE_VALA_CONTACT.email);
+  expect(document.querySelector("[data-form-contact] p")?.textContent).toBe(
+    "info@nursinginstitute.edu",
+  );
+  expect(document.querySelector("[data-private-contact] p")?.textContent).toBe(
+    "info@nursinginstitute.edu",
+  );
+  window.history.replaceState(null, "", "/students");
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    "<article data-other-page><h3>Email</h3><p>info@nursinginstitute.edu</p></article>",
+  );
+  await new Promise((resolve) => setTimeout(resolve, 450));
+  expect(document.querySelector("[data-other-page] p")?.textContent).toBe(
+    "info@nursinginstitute.edu",
+  );
   expect(document.querySelector("[data-feature]")?.textContent).toBe(
     "Comprehensive Study Abroad Support",
   );

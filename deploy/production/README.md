@@ -9,6 +9,9 @@ and is not modified. Demo cards lead their related marketplace rows.
 JavaScript evidence uses a real lexer so empty strings, long literals, comments
 and regular expressions cannot desynchronize contact extraction.
 
+Browser-verified `publicContactPaths` opt specific public pages into email/phone
+card replacement even with nested page headings. Other routes, forms and
+record cards remain excluded.
 SSR hydration manifests use the same proxied asset URLs as their HTML preload
 tags; application route IDs, employee accounts and credentials remain intact.
 Direct proxied application routes retain their original pathname, query and
