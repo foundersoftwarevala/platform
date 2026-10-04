@@ -9,6 +9,8 @@ and is not modified. Demo cards lead their related marketplace rows.
 JavaScript evidence uses a real lexer so empty strings, long literals, comments
 and regular expressions cannot desynchronize contact extraction.
 
+Direct proxied application routes retain their original pathname, query and
+fragment when removing the proxy prefix, including employee login deep links.
 Official demo contact replacements use the owner's support email
 `hellosoftwarevala@gmail.com` and WhatsApp/phone `+91 8348838383`.
 Original application account emails and credentials remain unchanged.

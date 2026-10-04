@@ -158,7 +158,9 @@ describe("Software Vala presentation", () => {
   it("installs the script that applies the same rules after a single-page app renders", () => {
     expect(out).toContain("<script data-sv-presentation>");
     expect(out).toContain('el.closest("#lovable-badge")');
-    expect(out).toContain('window.history.replaceState(window.history.state,"","/")');
+    expect(out).toContain(
+      'window.history.replaceState(window.history.state,"",(route[1]||"/")+window.location.search+window.location.hash)',
+    );
     // The script identifies the developer's contacts by hash only.
     expect(out).toContain(keyHash("d:919876543210"));
     expect(out).toContain(keyHash("e:sales@acme-devs.example"));

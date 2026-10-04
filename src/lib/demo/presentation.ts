@@ -635,7 +635,7 @@ export function presentationScript(
     brand,
     contact: SOFTWARE_VALA_CONTACT,
   }).replace(/</g, "\\u003c");
-  return `(function(){var R=${payload};var H={};if(new RegExp("^/api/proxy/demo/[^/]+(?:/.*)?$").test(window.location.pathname))window.history.replaceState(window.history.state,"","/");R.h.forEach(function(x){H[x]=1});
+  return `(function(){var R=${payload};var H={};var route=window.location.pathname.match(new RegExp("^/api/proxy/demo/[^/]+(/.*)?$"));if(route)window.history.replaceState(window.history.state,"",(route[1]||"/")+window.location.search+window.location.hash);R.h.forEach(function(x){H[x]=1});
 function hash(k){var h=0x811c9dc5;for(var i=0;i<k.length;i++){h^=k.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h.toString(16);}
 function key(v){v=String(v||"").trim().toLowerCase().replace(/^(mailto|tel):/,"");var d=v.replace(/\\D/g,"");
 if(/wa\\.me|whatsapp/.test(v))return d.length>=8?"d:"+d:null;if(v.indexOf("@")>=0)return "e:"+v.split("?")[0];

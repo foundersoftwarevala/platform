@@ -3,6 +3,11 @@ import { expect, it } from "vitest";
 import { presentationScript, SOFTWARE_VALA_CONTACT } from "./presentation";
 
 it("replaces late-rendered vendor contacts without deleting contact actions or application data", async () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/api/proxy/demo/hotel-management/login?next=dashboard#employee",
+  );
   window.eval(
     presentationScript(
       {
@@ -20,6 +25,9 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
     ),
   );
   document.dispatchEvent(new Event("DOMContentLoaded"));
+  expect(window.location.pathname).toBe("/login");
+  expect(window.location.search).toBe("?next=dashboard");
+  expect(window.location.hash).toBe("#employee");
   document.body.innerHTML = `<footer>
     <a href="mailto:info@nursinginstitute.edu">info@nursinginstitute.edu</a>
     <a href="tel:+919876543210">+91 98765 43210</a>
