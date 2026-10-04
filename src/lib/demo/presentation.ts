@@ -534,6 +534,24 @@ export function cleanText(text: string, rules: PresentationRules, brandName: str
   return out;
 }
 
+export function rewriteDemoHydrationAssets(html: string, prefix: string): string {
+  const rules: PresentationRules = { remove: [], rebrand: [], logos: [], links: [] };
+  return html.replace(
+    /(<script\b[^>]*>)([\s\S]*?)(<\/script>)/gi,
+    (whole, start: string, code: string, end: string) => {
+      const type = attr(start, "type");
+      if (
+        attr(start, "src") ||
+        (type && !/^(?:module|(?:text|application)\/javascript)$/i.test(type))
+      ) {
+        return whole;
+      }
+      if (!code.includes("$_TSR.router=")) return whole;
+      return `${start}${cleanBundle(code, rules, "", prefix)}${end}`;
+    },
+  );
+}
+
 export function rewriteDemoAssetPaths(text: string, prefix: string): string {
   const asset =
     /^\/(?!\/|api\/proxy\/demo\/)[^\s"'<>?#]+\.(?:png|jpe?g|gif|webp|svg|ico|avif|woff2?|ttf|eot|mp4|webm|ogg|mp3|css|m?js)(?:[?#][^\s"'<>]*)?$/i;

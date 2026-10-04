@@ -9,6 +9,8 @@ and is not modified. Demo cards lead their related marketplace rows.
 JavaScript evidence uses a real lexer so empty strings, long literals, comments
 and regular expressions cannot desynchronize contact extraction.
 
+SSR hydration manifests use the same proxied asset URLs as their HTML preload
+tags; application route IDs, employee accounts and credentials remain intact.
 Direct proxied application routes retain their original pathname, query and
 fragment when removing the proxy prefix, including employee login deep links.
 Official demo contact replacements use the owner's support email

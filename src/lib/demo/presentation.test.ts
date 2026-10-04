@@ -7,6 +7,7 @@ import {
   cleanBundle,
   remainingBundleViolations,
   rewriteDemoAssetPaths,
+  rewriteDemoHydrationAssets,
   contactKey,
   extractEvidence,
   keyHash,
@@ -20,6 +21,22 @@ import {
 import { addressBlocked, assertPublicUrl } from "./safe-fetch.server";
 
 const BRAND = { favicon: "/favicon.png", logo: "/assets/sv-logo.jpg", name: "Software Vala" };
+
+describe("SSR hydration manifest assets", () => {
+  it("proxies hydration preloads without changing route IDs or account values", () => {
+    const code =
+      '$_TSR.router={preloads:["/assets/login.js"],scripts:[{attrs:{src:"/assets/index.js"}}],matches:[{id:"/login"}],email:"gm.mumbai@nexora.io",password:"nexora-demo"};';
+    const html = `<script>${code}</script><script type="application/json">{"src":"/assets/data.js"}</script>`;
+    const result = rewriteDemoHydrationAssets(html, "/api/proxy/demo/hotel-management");
+    expect(result).toContain('preloads:["/api/proxy/demo/hotel-management/assets/login.js"]');
+    expect(result).toContain('src:"/api/proxy/demo/hotel-management/assets/index.js"');
+    expect(result).toContain('id:"/login"');
+    expect(result).toContain('email:"gm.mumbai@nexora.io"');
+    expect(result).toContain('password:"nexora-demo"');
+    expect(result).toContain('<script type="application/json">{"src":"/assets/data.js"}</script>');
+    expect(rewriteDemoHydrationAssets(result, "/api/proxy/demo/hotel-management")).toBe(result);
+  });
+});
 
 describe("Vite lazy module preload paths", () => {
   it("preserves Vite leading-slash concatenation while proxying relative preload assets", () => {

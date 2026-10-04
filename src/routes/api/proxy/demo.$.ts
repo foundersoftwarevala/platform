@@ -7,6 +7,7 @@ import {
   cleanBundle,
   cleanText,
   rewriteDemoAssetPaths,
+  rewriteDemoHydrationAssets,
   type PresentationRules,
 } from "@/lib/demo/presentation";
 import { safeFetchResponse } from "@/lib/demo/safe-fetch.server";
@@ -266,6 +267,7 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
             // Entry modules and lazy imports must share one URL/React instance.
             // Rewritten responses already use private, no-store.
             html = rewriteHtmlAssetUrls(html, slug);
+            html = rewriteDemoHydrationAssets(html, `/api/proxy/demo/${slug}`);
 
             // The three replacements that used to sit here caught the phrase
             // "powered by lovable" and nothing else. applyPresentation now runs
