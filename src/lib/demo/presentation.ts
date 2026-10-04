@@ -585,7 +585,7 @@ export function cleanBundle(
     chunks.push(
       literal.token.type.label === "string"
         ? JSON.stringify(cleaned)
-        : cleanText(js.slice(literal.token.start, literal.token.end), rules, brandName),
+        : JSON.stringify(cleaned).slice(1, -1).replace(/`/g, "\\`").replace(/\$\{/g, "\\${"),
     );
     cursor = literal.token.end;
   }

@@ -22,6 +22,25 @@ import { addressBlocked, assertPublicUrl } from "./safe-fetch.server";
 
 const BRAND = { favicon: "/favicon.png", logo: "/assets/sv-logo.jpg", name: "Software Vala" };
 
+describe("template literal asset paths", () => {
+  it("rewrites template CSS imports while retaining interpolation syntax", () => {
+    const rules: PresentationRules = { remove: [], rebrand: [], logos: [], links: [] };
+    expect(
+      cleanBundle(
+        "const css=`/assets/style.css`;const dynamic=`hello ${name}`;",
+        rules,
+        BRAND.name,
+        "/api/proxy/demo/hotel-management",
+      ),
+    ).toBe(
+      "const css=`/api/proxy/demo/hotel-management/assets/style.css`;const dynamic=`hello ${name}`;",
+    );
+    expect(
+      cleanBundle("const label=`Vendor`;", { ...rules, rebrand: ["Vendor"] }, "Brand `${safe}`"),
+    ).toBe("const label=`Brand \\`\\${safe}\\``;");
+  });
+});
+
 describe("SSR hydration manifest assets", () => {
   it("proxies hydration preloads without changing route IDs or account values", () => {
     const code =
