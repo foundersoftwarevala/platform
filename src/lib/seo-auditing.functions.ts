@@ -6,6 +6,34 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 
+/**
+ * Every server function in this file is a public RPC endpoint and works with
+ * the service role, which reads and writes past every policy. None had a check
+ * of its own, so anyone - signed in or not - could call them. The SEO
+ * console's people are the operators plus the seo and marketing staff the
+ * route gate admits, as in seo.functions.ts.
+ */
+async function seoGuard(action: string) {
+  const { requireOperator } = await import("@/lib/auth/require-operator.server");
+  return requireOperator(action, { alsoAllow: ["seo", "marketing"] });
+}
+
+/**
+ * Every address below comes from the request body and was fetched with plain
+ * fetch() from inside the server's network - localhost, the database, internal
+ * services, the cloud metadata endpoint, and any redirect to them. All of it
+ * now goes through the checked fetcher (lib/seo/public-fetch.server.ts).
+ */
+async function auditFetch(url: string) {
+  const { publicFetch } = await import("@/lib/seo/public-fetch.server");
+  return publicFetch(url, { maxBytes: 2_000_000, timeoutMs: 15_000 });
+}
+
+async function assertAuditUrl(url: unknown): Promise<string> {
+  const { assertFetchableUrl } = await import("@/lib/seo/public-fetch.server");
+  return (await assertFetchableUrl(String(url ?? ""))).toString();
+}
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -61,6 +89,8 @@ function getSupabaseAdmin() {
 export const performSeoAudit = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { url: string })
   .handler(async ({ data }) => {
+    await seoGuard("performSeoAudit");
+    await assertAuditUrl(data.url);
     const admin = getSupabaseAdmin();
     const result: SeoAuditResult = {
       url: data.url,
@@ -95,60 +125,47 @@ export const performSeoAudit = createServerFn({ method: "POST" })
 
     try {
       // 1. Check HTTPS availability
-      try {
-        const httpsResponse = await fetch(data.url, {
-          method: "HEAD",
-          redirect: "manual",
-        });
-        result.checks.https_available = httpsResponse.ok || httpsResponse.status < 400;
-        result.checks.status_code = httpsResponse.status;
-        result.checks.content_length = parseInt(
-          httpsResponse.headers.get("content-length") || "0"
-        );
-        result.checks.response_headers = Object.fromEntries(httpsResponse.headers);
-      } catch (e) {
+      const httpsResponse = await auditFetch(data.url);
+      if (httpsResponse.error) {
         result.issues.push("HTTPS connection failed");
+      } else {
+        result.checks.https_available = httpsResponse.status > 0 && httpsResponse.status < 400;
+        result.checks.status_code = httpsResponse.status;
+        result.checks.redirect_chain_length = httpsResponse.redirects.length;
+        result.checks.content_length = Buffer.byteLength(httpsResponse.body);
+        result.checks.response_headers = httpsResponse.contentType
+          ? { "content-type": httpsResponse.contentType }
+          : {};
       }
 
       // 2. Check HTTP to HTTPS redirect
       try {
         const httpUrl = data.url.replace("https://", "http://");
-        const httpResponse = await fetch(httpUrl, {
-          method: "HEAD",
-          redirect: "manual",
-        });
-
-        if (httpResponse.status === 301 || httpResponse.status === 302) {
-          const location = httpResponse.headers.get("location");
-          result.checks.http_redirects_to_https = location?.includes("https") || false;
-        }
+        const httpResponse = await auditFetch(httpUrl);
+        if (httpResponse.error) throw new Error(httpResponse.error);
+        // The first hop followed is where the plain-http address redirected.
+        result.checks.http_redirects_to_https =
+          httpResponse.redirects[0]?.startsWith("https://") ?? false;
       } catch (e) {
         result.issues.push("HTTP check failed");
       }
 
       // 3. Fetch full page content for meta checks
       let htmlContent = "";
-      try {
-        const pageResponse = await fetch(data.url, { redirect: "follow" });
-        if (pageResponse.ok) {
-          htmlContent = await pageResponse.text();
-        }
-      } catch (e) {
+      if (httpsResponse.ok) {
+        htmlContent = httpsResponse.body;
+      } else {
         result.issues.push("Could not fetch page content");
       }
 
       // 4. Extract and validate canonical tags
-      const canonicalMatch = htmlContent.match(
-        /<link\s+rel="canonical"\s+href="([^"]+)"/i
-      );
-      result.checks.canonical_tag = canonicalMatch
-        ? canonicalMatch[1]
-        : false;
+      const canonicalMatch = htmlContent.match(/<link\s+rel="canonical"\s+href="([^"]+)"/i);
+      result.checks.canonical_tag = canonicalMatch ? canonicalMatch[1] : false;
 
       // 5. Check robots.txt
       try {
         const robotsUrl = new URL(data.url).origin + "/robots.txt";
-        const robotsResponse = await fetch(robotsUrl);
+        const robotsResponse = await auditFetch(robotsUrl);
         result.checks.robots_txt_accessible = robotsResponse.ok;
         if (!robotsResponse.ok) {
           result.issues.push("robots.txt not found or not accessible");
@@ -160,7 +177,7 @@ export const performSeoAudit = createServerFn({ method: "POST" })
       // 6. Check sitemap.xml
       try {
         const sitemapUrl = new URL(data.url).origin + "/sitemap.xml";
-        const sitemapResponse = await fetch(sitemapUrl);
+        const sitemapResponse = await auditFetch(sitemapUrl);
         result.checks.sitemap_accessible = sitemapResponse.ok;
         if (!sitemapResponse.ok) {
           result.issues.push("sitemap.xml not found or not accessible");
@@ -170,18 +187,14 @@ export const performSeoAudit = createServerFn({ method: "POST" })
       }
 
       // 7. Check for Open Graph tags
-      result.checks.og_tags_present = /og:title|og:description|og:image/.test(
-        htmlContent
-      );
+      result.checks.og_tags_present = /og:title|og:description|og:image/.test(htmlContent);
 
       // 8. Check for Twitter Card tags
-      result.checks.twitter_card_present = /twitter:card|twitter:title/.test(
-        htmlContent
-      );
+      result.checks.twitter_card_present = /twitter:card|twitter:title/.test(htmlContent);
 
       // 9. Validate schema.org structured data
       const jsonLdMatches = htmlContent.match(
-        /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi
+        /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi,
       );
 
       if (jsonLdMatches) {
@@ -201,30 +214,27 @@ export const performSeoAudit = createServerFn({ method: "POST" })
 
       // 10. Check hreflang tags
       const hrefLangMatches = htmlContent.match(
-        /<link[^>]*rel="alternate"[^>]*hreflang="([^"]+)"[^>]*>/gi
+        /<link[^>]*rel="alternate"[^>]*hreflang="([^"]+)"[^>]*>/gi,
       );
 
       if (hrefLangMatches && hrefLangMatches.length > 0) {
         result.checks.hreflang_present = true;
         // Basic validation
-        result.checks.hreflang_valid = hrefLangMatches.every(tag =>
-          /hreflang="[a-z]{2}(-[A-Z]{2})?"/.test(tag)
+        result.checks.hreflang_valid = hrefLangMatches.every((tag) =>
+          /hreflang="[a-z]{2}(-[A-Z]{2})?"/.test(tag),
         );
       }
 
       // 11. Check for meta descriptions and titles (for duplicates)
       const titles = htmlContent.match(/<title>([^<]+)<\/title>/gi) || [];
-      const descriptions = htmlContent.match(
-        /<meta\s+name="description"\s+content="([^"]+)"/gi
-      ) || [];
+      const descriptions =
+        htmlContent.match(/<meta\s+name="description"\s+content="([^"]+)"/gi) || [];
 
       result.checks.duplicate_meta_titles = titles.length > 1;
       result.checks.duplicate_meta_descriptions = descriptions.length > 1;
 
       // 12. Parse links for internal/broken link analysis
-      const linkMatches = htmlContent.match(
-        /<a[^>]*href="([^"]+)"[^>]*>/gi
-      ) || [];
+      const linkMatches = htmlContent.match(/<a[^>]*href="([^"]+)"[^>]*>/gi) || [];
       const internalLinks = new Set<string>();
       const brokenLinks = new Set<string>();
 
@@ -239,22 +249,25 @@ export const performSeoAudit = createServerFn({ method: "POST" })
 
       // Calculate audit score
       const checksArray = Object.entries(result.checks).filter(
-        ([key, value]) => typeof value === "boolean"
+        ([key, value]) => typeof value === "boolean",
       );
       const passedChecks = checksArray.filter(([, value]) => value === true).length;
       result.score = Math.round((passedChecks / checksArray.length) * 100);
 
       // Store audit in database
-      await admin.from("seo_audits").insert({
-        url: data.url,
-        audit_data: JSON.stringify(result.checks),
-        issues: JSON.stringify(result.issues),
-        score: result.score,
-        created_at: new Date().toISOString(),
-      }).catch(() => {
-        // Table may not exist yet
-        console.warn("Could not store audit result (table may not exist)");
-      });
+      await admin
+        .from("seo_audits")
+        .insert({
+          url: data.url,
+          audit_data: JSON.stringify(result.checks),
+          issues: JSON.stringify(result.issues),
+          score: result.score,
+          created_at: new Date().toISOString(),
+        })
+        .catch(() => {
+          // Table may not exist yet
+          console.warn("Could not store audit result (table may not exist)");
+        });
 
       return result;
     } catch (error) {
@@ -268,16 +281,21 @@ export const performSeoAudit = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const crawlWebsite = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    url: string;
-    max_depth?: number;
-    max_pages?: number;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        url: string;
+        max_depth?: number;
+        max_pages?: number;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("crawlWebsite");
     const crawled = new Set<string>();
-    const baseUrl = new URL(data.url).origin;
-    const maxDepth = data.max_depth || 3;
-    const maxPages = data.max_pages || 100;
+    const baseUrl = new URL(await assertAuditUrl(data.url)).origin;
+    // Bounded whatever the caller asks for: each page is a request this server makes.
+    const maxDepth = Math.min(Math.max(Number(data.max_depth) || 3, 0), 3);
+    const maxPages = Math.min(Math.max(Number(data.max_pages) || 100, 1), 100);
     const results: Array<{
       url: string;
       status: number;
@@ -285,23 +303,17 @@ export const crawlWebsite = createServerFn({ method: "POST" })
       h1?: string;
     }> = [];
 
-    async function crawlPage(
-      url: string,
-      depth: number
-    ): Promise<void> {
-      if (
-        depth > maxDepth ||
-        crawled.size >= maxPages ||
-        crawled.has(url)
-      ) {
+    async function crawlPage(url: string, depth: number): Promise<void> {
+      if (depth > maxDepth || crawled.size >= maxPages || crawled.has(url)) {
         return;
       }
 
       crawled.add(url);
 
       try {
-        const response = await fetch(url, { redirect: "follow" });
-        const html = await response.text();
+        const response = await auditFetch(url);
+        if (response.error) throw new Error(response.error);
+        const html = response.body;
 
         const titleMatch = html.match(/<title>([^<]+)<\/title>/);
         const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
@@ -314,9 +326,7 @@ export const crawlWebsite = createServerFn({ method: "POST" })
         });
 
         // Extract and crawl internal links
-        const linkMatches = html.match(
-          /<a[^>]*href="([^"]+)"[^>]*>/gi
-        ) || [];
+        const linkMatches = html.match(/<a[^>]*href="([^"]+)"[^>]*>/gi) || [];
 
         for (const linkMatch of linkMatches) {
           const href = linkMatch.match(/href="([^"]+)"/)?.[1];
@@ -357,18 +367,17 @@ export const crawlWebsite = createServerFn({ method: "POST" })
 export const checkMobileUsability = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { url: string })
   .handler(async ({ data }) => {
+    await seoGuard("checkMobileUsability");
     try {
-      const response = await fetch(data.url);
-      const html = await response.text();
+      const response = await auditFetch(data.url);
+      if (response.error) throw new Error(response.error);
+      const html = response.body;
 
       const checks = {
         has_viewport_meta: /<meta[^>]*viewport/.test(html),
         has_charset_meta: /<meta[^>]*charset/.test(html),
-        font_size_ok:
-          !/<font-size[^>]*[0-9]{1,2}px/i.test(html),
-        touch_friendly: /<meta[^>]*user-scalable=yes|minimum-scale/.test(
-          html
-        ),
+        font_size_ok: !/<font-size[^>]*[0-9]{1,2}px/i.test(html),
+        touch_friendly: /<meta[^>]*user-scalable=yes|minimum-scale/.test(html),
       };
 
       const passed = Object.values(checks).filter(Boolean).length;
@@ -387,29 +396,27 @@ export const checkMobileUsability = createServerFn({ method: "POST" })
 export const extractPageKeywords = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { url: string })
   .handler(async ({ data }) => {
+    await seoGuard("extractPageKeywords");
     try {
-      const response = await fetch(data.url);
-      const html = await response.text();
+      const response = await auditFetch(data.url);
+      if (response.error) throw new Error(response.error);
+      const html = response.body;
 
       // Extract keywords from meta tag
-      const keywordsMatch = html.match(
-        /<meta[^>]*name="keywords"[^>]*content="([^"]+)"/i
-      );
-      const keywords = keywordsMatch ? keywordsMatch[1].split(",").map(k => k.trim()) : [];
+      const keywordsMatch = html.match(/<meta[^>]*name="keywords"[^>]*content="([^"]+)"/i);
+      const keywords = keywordsMatch ? keywordsMatch[1].split(",").map((k) => k.trim()) : [];
 
       // Extract title
       const titleMatch = html.match(/<title>([^<]+)<\/title>/);
       const title = titleMatch ? titleMatch[1] : "";
 
       // Extract description
-      const descMatch = html.match(
-        /<meta[^>]*name="description"[^>]*content="([^"]+)"/i
-      );
+      const descMatch = html.match(/<meta[^>]*name="description"[^>]*content="([^"]+)"/i);
       const description = descMatch ? descMatch[1] : "";
 
       // Extract H1s
       const h1Matches = html.match(/<h1[^>]*>([^<]+)<\/h1>/gi) || [];
-      const h1s = h1Matches.map(h => h.replace(/<[^>]*>/g, ""));
+      const h1s = h1Matches.map((h) => h.replace(/<[^>]*>/g, ""));
 
       return {
         success: true,
@@ -430,12 +437,15 @@ export const extractPageKeywords = createServerFn({ method: "POST" })
 export const checkDuplicateContent = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { urls: string[] })
   .handler(async ({ data }) => {
+    await seoGuard("checkDuplicateContent");
     const contentHashes = new Map<string, string[]>();
 
-    for (const url of data.urls) {
+    const urls = Array.isArray(data.urls) ? data.urls.slice(0, 50) : [];
+    for (const url of urls) {
       try {
-        const response = await fetch(url);
-        const html = await response.text();
+        const response = await auditFetch(String(url));
+        if (response.error) throw new Error(response.error);
+        const html = response.body;
 
         // Simple hash of main content (remove tags)
         const content = html.replace(/<[^>]*>/g, " ").trim();

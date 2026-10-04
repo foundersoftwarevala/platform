@@ -241,9 +241,13 @@ export const reorderRows = createServerFn({ method: "POST" })
   );
 
 export const getRowAnalytics = createServerFn({ method: "GET" })
-  .inputValidator((i: unknown) => z.object({ key: z.string().min(1) }).parse(i))
-  .handler(async ({ data }) =>
-    callAsUser<{
+  .inputValidator((i: unknown) => z.object({ key: z.string().min(1).max(120) }).parse(i))
+  .handler(async ({ data }) => {
+    // The RPC gates direct callers too; this check gives the server path the
+    // same operator policy before invoking it with the user's credentials.
+    const { requireMarketplaceOperator } = await import("./mm-operator.server");
+    await requireMarketplaceOperator("Reading row analytics");
+    return callAsUser<{
       ok: boolean;
       product_views: number;
       demo_opens: number;
@@ -253,8 +257,8 @@ export const getRowAnalytics = createServerFn({ method: "GET" })
       ctr: number | null;
       conversion: number | null;
       measured_from: string | null;
-    }>("mm_row_analytics", { p_key: data.key }),
-  );
+    }>("mm_row_analytics", { p_key: data.key });
+  });
 
 /**
  * The product picker. Searches the real catalogue, defaulting to the row's own
@@ -284,8 +288,8 @@ export const searchRowProducts = createServerFn({ method: "GET" })
     // The service role reads past every policy, so only an operator may ask for
     // drafts and hidden products. Anyone else gets the published catalogue.
     if (data.onlyPublished === false) {
-      const { requireOperator } = await import("@/lib/auth/require-operator.server");
-      await requireOperator("Searching unpublished products");
+      const { requireMarketplaceOperator } = await import("./mm-operator.server");
+      await requireMarketplaceOperator("Searching unpublished products");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let q = supabaseAdmin
@@ -299,7 +303,8 @@ export const searchRowProducts = createServerFn({ method: "GET" })
     if (data.categoryId) q = q.eq("category_id", data.categoryId);
     if (data.onlyPublished !== false) q = q.eq("visible", true).eq("content_status", "published");
     // % and _ are wildcards to ilike; a search for "50%" means the characters.
-    if (data.query?.trim()) q = q.ilike("name", `%${data.query.trim().replace(/[\\%_]/g, "\\$&")}%`);
+    if (data.query?.trim())
+      q = q.ilike("name", `%${data.query.trim().replace(/[\\%_]/g, "\\$&")}%`);
     if (data.subcategory) q = q.eq("subcategory", data.subcategory);
     if (data.industry) q = q.eq("industry_label", data.industry);
     if (data.sellerId) q = q.eq("seller_id", data.sellerId);
@@ -463,9 +468,10 @@ export const getRowAudit = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ key: z.string().min(1) }).parse(i))
   .handler(async ({ data }) => {
     // The trail carries operator e-mails and full before/after state, read with
-    // the service role, so it is for operators only.
-    const { requireOperator } = await import("@/lib/auth/require-operator.server");
-    await requireOperator("Reading the row history");
+    // the service role, so it is for operators only - the console's own
+    // operators (mm_is_operator), not requireOperator's wider staff list.
+    const { requireMarketplaceOperator } = await import("./mm-operator.server");
+    await requireMarketplaceOperator("Reading the row history");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row } = await supabaseAdmin
       .from("marketplace_categories")
@@ -593,7 +599,9 @@ export const configureSection = createServerFn({ method: "POST" })
     // status is a real column (20260906210000); the generated types predate it.
     const currentStatus = (current as unknown as { status?: string }).status;
     if (currentStatus === "archived" && ("status" in patch || "enabled" in patch)) {
-      throw new Error("This section is archived. Restore it from Layout Order before publishing it.");
+      throw new Error(
+        "This section is archived. Restore it from Layout Order before publishing it.",
+      );
     }
 
     const { error } = await supabaseAdmin

@@ -550,9 +550,20 @@ const RESOURCES: Record<string, Resource> = {
   influencer_applications: {
     table: "influencer_applications",
     select: [
-      "id", "application_number", "full_name", "email", "phone", "country",
-      "region", "niche", "followers", "engagement_rate", "status",
-      "rejection_reason", "reviewed_at", "created_at",
+      "id",
+      "application_number",
+      "full_name",
+      "email",
+      "phone",
+      "country",
+      "region",
+      "niche",
+      "followers",
+      "engagement_rate",
+      "status",
+      "rejection_reason",
+      "reviewed_at",
+      "created_at",
     ],
     editable: ["status", "rejection_reason"],
     searchable: ["full_name", "email", "status", "application_number"],
@@ -562,8 +573,15 @@ const RESOURCES: Record<string, Resource> = {
   influencer_social_accounts: {
     table: "influencer_social_accounts",
     select: [
-      "id", "profile_id", "platform", "handle", "profile_url", "followers",
-      "engagement_rate", "verification_status", "verified_at",
+      "id",
+      "profile_id",
+      "platform",
+      "handle",
+      "profile_url",
+      "followers",
+      "engagement_rate",
+      "verification_status",
+      "verified_at",
     ],
     // Verifying an account is the operator's decision; the follower count is
     // the platform's own number and is not typed in here.
@@ -583,8 +601,16 @@ const RESOURCES: Record<string, Resource> = {
   influencer_earnings: {
     table: "influencer_earnings",
     select: [
-      "id", "profile_id", "campaign_id", "gross_amount", "deductions",
-      "net_amount", "currency", "status", "approved_at", "created_at",
+      "id",
+      "profile_id",
+      "campaign_id",
+      "gross_amount",
+      "deductions",
+      "net_amount",
+      "currency",
+      "status",
+      "approved_at",
+      "created_at",
     ],
     // Approving an earning is a decision; the amounts are not re-typed.
     editable: ["status"],
@@ -595,8 +621,14 @@ const RESOURCES: Record<string, Resource> = {
   influencer_payouts: {
     table: "influencer_payouts",
     select: [
-      "id", "profile_id", "amount", "currency", "status",
-      "provider_reference", "processed_at", "created_at",
+      "id",
+      "profile_id",
+      "amount",
+      "currency",
+      "status",
+      "provider_reference",
+      "processed_at",
+      "created_at",
     ],
     editable: ["status", "provider_reference"],
     searchable: ["status", "currency", "provider_reference"],
@@ -606,8 +638,16 @@ const RESOURCES: Record<string, Resource> = {
   influencer_invoices: {
     table: "influencer_invoices",
     select: [
-      "id", "invoice_number", "profile_id", "amount", "currency", "status",
-      "issued_at", "due_at", "paid_at", "created_at",
+      "id",
+      "invoice_number",
+      "profile_id",
+      "amount",
+      "currency",
+      "status",
+      "issued_at",
+      "due_at",
+      "paid_at",
+      "created_at",
     ],
     editable: ["status"],
     searchable: ["invoice_number", "status"],
@@ -617,8 +657,15 @@ const RESOURCES: Record<string, Resource> = {
   influencer_compensation_rules: {
     table: "influencer_compensation_rules",
     select: [
-      "id", "campaign_id", "platform", "metric", "rate", "currency",
-      "eligibility", "active", "created_at",
+      "id",
+      "campaign_id",
+      "platform",
+      "metric",
+      "rate",
+      "currency",
+      "eligibility",
+      "active",
+      "created_at",
     ],
     editable: ["rate", "currency", "eligibility", "active"],
     searchable: ["platform", "metric"],
@@ -1492,7 +1539,19 @@ const RESOURCES: Record<string, Resource> = {
   // a ticket is worked in the AMS Manager, which owns its statuses and history.
   reseller_support_tickets: {
     table: "reseller_support_tickets",
-    select: ["id", "ticket_no", "subject", "category", "priority", "status", "requester", "reseller", "assignee", "created_at", "updated_at"],
+    select: [
+      "id",
+      "ticket_no",
+      "subject",
+      "category",
+      "priority",
+      "status",
+      "requester",
+      "reseller",
+      "assignee",
+      "created_at",
+      "updated_at",
+    ],
     editable: [],
     searchable: ["subject", "requester", "reseller", "ticket_no"],
     order: "created_at.desc",
@@ -2381,15 +2440,7 @@ const RESOURCES: Record<string, Resource> = {
   // and what they answered.
   indexnow: {
     table: "indexnow_submissions",
-    select: [
-      "id",
-      "submission_id",
-      "host",
-      "url_count",
-      "status",
-      "response_status",
-      "created_at",
-    ],
+    select: ["id", "submission_id", "host", "url_count", "status", "response_status", "created_at"],
     editable: [],
     searchable: ["host", "status", "submission_id"],
     order: "created_at.desc",
@@ -2750,7 +2801,18 @@ const RESOURCES: Record<string, Resource> = {
       "enabled",
       "sort_order",
     ],
-    creatable: ["code", "name", "commission_percent", "min_verified_followers", "min_sales_90d", "min_revenue_180d", "hold_days", "payout_floor", "currency", "sort_order"],
+    creatable: [
+      "code",
+      "name",
+      "commission_percent",
+      "min_verified_followers",
+      "min_sales_90d",
+      "min_revenue_180d",
+      "hold_days",
+      "payout_floor",
+      "currency",
+      "sort_order",
+    ],
     required: ["code", "name", "commission_percent"],
     searchable: ["code", "name"],
     order: "sort_order.asc",
@@ -4143,6 +4205,15 @@ function admin() {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * The resource a request names, or undefined. Own keys only: "constructor" or
+ * "toString" used to resolve to Object.prototype members and reach the handler
+ * as if they were resources.
+ */
+function resourceNamed(name: string): Resource | undefined {
+  return Object.prototype.hasOwnProperty.call(RESOURCES, name) ? RESOURCES[name] : undefined;
+}
+
 export const Route = createFileRoute("/api/manager/resource")({
   server: {
     handlers: {
@@ -4153,7 +4224,7 @@ export const Route = createFileRoute("/api/manager/resource")({
 
         const params = new URL(request.url).searchParams;
         const name = (params.get("resource") ?? "").trim();
-        const resource = RESOURCES[name];
+        const resource = resourceNamed(name);
         if (!resource) {
           return Response.json(
             { error: "Unknown resource", available: Object.keys(RESOURCES) },
@@ -4177,7 +4248,9 @@ export const Route = createFileRoute("/api/manager/resource")({
         // time. sort_order is shared by many rows; ordered by it alone, paging
         // repeated some rows and never showed others.
         const order =
-          resource.select.includes("id") && !/(^|,)id\./.test(primary) ? `${primary},id.asc` : primary;
+          resource.select.includes("id") && !/(^|,)id\./.test(primary)
+            ? `${primary},id.asc`
+            : primary;
 
         // Section 4. Same rule: a filter names a column the resource exposes,
         // an operator from a fixed list, and a value that is clipped. Anything
@@ -4220,7 +4293,9 @@ export const Route = createFileRoute("/api/manager/resource")({
         if (resource.scope) query += `&${resource.scope}`;
         for (const clause of filters) query += `&${clause}`;
         if (search && resource.searchable.length) {
-          const term = search.replace(/[(),*]/g, " ").trim();
+          // A quote or backslash is or() syntax as well: it opened a quoted
+          // value and the whole read failed with 400.
+          const term = search.replace(/[(),*"\\]/g, " ").trim();
           const or = resource.searchable.map((c) => `${c}.ilike.*${term}*`).join(",");
           query += `&or=(${encodeURIComponent(or)})`;
         }
@@ -4301,7 +4376,7 @@ export const Route = createFileRoute("/api/manager/resource")({
           return Response.json({ error: "Invalid request" }, { status: 400 });
         }
 
-        const resource = RESOURCES[String(body.resource ?? "")];
+        const resource = resourceNamed(String(body.resource ?? ""));
         if (!resource) return Response.json({ error: "Unknown resource" }, { status: 400 });
         if (!resource.creatable?.length) {
           return Response.json(
@@ -4392,7 +4467,7 @@ export const Route = createFileRoute("/api/manager/resource")({
         if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
 
         const params = new URL(request.url).searchParams;
-        const resource = RESOURCES[String(params.get("resource") ?? "")];
+        const resource = resourceNamed(String(params.get("resource") ?? ""));
         const id = String(params.get("id") ?? "");
         if (!resource) return Response.json({ error: "Unknown resource" }, { status: 400 });
         if (!resource.archive) {
@@ -4459,7 +4534,7 @@ export const Route = createFileRoute("/api/manager/resource")({
           return Response.json({ error: "Invalid request" }, { status: 400 });
         }
 
-        const resource = RESOURCES[String(body.resource ?? "")];
+        const resource = resourceNamed(String(body.resource ?? ""));
         if (!resource) return Response.json({ error: "Unknown resource" }, { status: 400 });
         if (!resource.editable.length) {
           return Response.json({ error: `${resource.label} is read only` }, { status: 403 });

@@ -276,6 +276,7 @@ import { Route as ApiControlPanelCockpitRouteImport } from './routes/api/control
 import { Route as ApiControlPanelFeedRouteImport } from './routes/api/control-panel/feed'
 import { Route as ApiControlPanelPartnersRouteImport } from './routes/api/control-panel/partners'
 import { Route as ApiDemoAssignRouteImport } from './routes/api/demo/assign'
+import { Route as ApiDemoCheckRouteImport } from './routes/api/demo/check'
 import { Route as ApiDemoInvestigateRouteImport } from './routes/api/demo/investigate'
 import { Route as ApiDemoOpsRouteImport } from './routes/api/demo/ops'
 import { Route as ApiDemoProcessRouteImport } from './routes/api/demo/process'
@@ -1728,6 +1729,11 @@ const ApiDemoAssignRoute = ApiDemoAssignRouteImport.update({
   path: '/api/demo/assign',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDemoCheckRoute = ApiDemoCheckRouteImport.update({
+  id: '/api/demo/check',
+  path: '/api/demo/check',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDemoInvestigateRoute = ApiDemoInvestigateRouteImport.update({
   id: '/api/demo/investigate',
   path: '/api/demo/investigate',
@@ -2459,6 +2465,7 @@ export interface FileRoutesByFullPath {
   '/api/control-panel/feed': typeof ApiControlPanelFeedRoute
   '/api/control-panel/partners': typeof ApiControlPanelPartnersRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
+  '/api/demo/check': typeof ApiDemoCheckRoute
   '/api/demo/investigate': typeof ApiDemoInvestigateRoute
   '/api/demo/ops': typeof ApiDemoOpsRoute
   '/api/demo/process': typeof ApiDemoProcessRoute
@@ -2808,6 +2815,7 @@ export interface FileRoutesByTo {
   '/api/control-panel/feed': typeof ApiControlPanelFeedRoute
   '/api/control-panel/partners': typeof ApiControlPanelPartnersRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
+  '/api/demo/check': typeof ApiDemoCheckRoute
   '/api/demo/investigate': typeof ApiDemoInvestigateRoute
   '/api/demo/ops': typeof ApiDemoOpsRoute
   '/api/demo/process': typeof ApiDemoProcessRoute
@@ -3168,6 +3176,7 @@ export interface FileRoutesById {
   '/api/control-panel/feed': typeof ApiControlPanelFeedRoute
   '/api/control-panel/partners': typeof ApiControlPanelPartnersRoute
   '/api/demo/assign': typeof ApiDemoAssignRoute
+  '/api/demo/check': typeof ApiDemoCheckRoute
   '/api/demo/investigate': typeof ApiDemoInvestigateRoute
   '/api/demo/ops': typeof ApiDemoOpsRoute
   '/api/demo/process': typeof ApiDemoProcessRoute
@@ -3529,6 +3538,7 @@ export interface FileRouteTypes {
     | '/api/control-panel/feed'
     | '/api/control-panel/partners'
     | '/api/demo/assign'
+    | '/api/demo/check'
     | '/api/demo/investigate'
     | '/api/demo/ops'
     | '/api/demo/process'
@@ -3878,6 +3888,7 @@ export interface FileRouteTypes {
     | '/api/control-panel/feed'
     | '/api/control-panel/partners'
     | '/api/demo/assign'
+    | '/api/demo/check'
     | '/api/demo/investigate'
     | '/api/demo/ops'
     | '/api/demo/process'
@@ -4237,6 +4248,7 @@ export interface FileRouteTypes {
     | '/api/control-panel/feed'
     | '/api/control-panel/partners'
     | '/api/demo/assign'
+    | '/api/demo/check'
     | '/api/demo/investigate'
     | '/api/demo/ops'
     | '/api/demo/process'
@@ -4437,6 +4449,7 @@ export interface RootRouteChildren {
   ApiControlPanelFeedRoute: typeof ApiControlPanelFeedRoute
   ApiControlPanelPartnersRoute: typeof ApiControlPanelPartnersRoute
   ApiDemoAssignRoute: typeof ApiDemoAssignRoute
+  ApiDemoCheckRoute: typeof ApiDemoCheckRoute
   ApiDemoInvestigateRoute: typeof ApiDemoInvestigateRoute
   ApiDemoOpsRoute: typeof ApiDemoOpsRoute
   ApiDemoProcessRoute: typeof ApiDemoProcessRoute
@@ -6386,6 +6399,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDemoAssignRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/demo/check': {
+      id: '/api/demo/check'
+      path: '/api/demo/check'
+      fullPath: '/api/demo/check'
+      preLoaderRoute: typeof ApiDemoCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/demo/investigate': {
       id: '/api/demo/investigate'
       path: '/api/demo/investigate'
@@ -7598,6 +7618,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiControlPanelFeedRoute: ApiControlPanelFeedRoute,
   ApiControlPanelPartnersRoute: ApiControlPanelPartnersRoute,
   ApiDemoAssignRoute: ApiDemoAssignRoute,
+  ApiDemoCheckRoute: ApiDemoCheckRoute,
   ApiDemoInvestigateRoute: ApiDemoInvestigateRoute,
   ApiDemoOpsRoute: ApiDemoOpsRoute,
   ApiDemoProcessRoute: ApiDemoProcessRoute,

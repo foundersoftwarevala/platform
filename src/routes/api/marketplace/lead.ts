@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { clientAddress } from "@/lib/i18n/limits";
 
 import {
   leadAcknowledgementEmail,
@@ -26,9 +27,19 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // of these keeps its own identity, so the source analytics in section 44 can
 // tell a WhatsApp lead from a brochure download.
 const ALLOWED_ACTIONS = new Set([
-  "request_demo", "notify_me", "enquiry", "callback", "buy_intent",
-  "whatsapp", "email_lead", "contact_sales", "brochure",
-  "meeting", "live_demo", "consultation", "enterprise",
+  "request_demo",
+  "notify_me",
+  "enquiry",
+  "callback",
+  "buy_intent",
+  "whatsapp",
+  "email_lead",
+  "contact_sales",
+  "brochure",
+  "meeting",
+  "live_demo",
+  "consultation",
+  "enterprise",
 ]);
 
 const RATE_WINDOW_MS = 60_000;
@@ -63,7 +74,11 @@ async function resolveProduct(
     try {
       const response = await fetch(`${base}/rest/v1/marketplace_products?${query}`, { headers });
       if (!response.ok) return [];
-      return (await response.json()) as { id: string; category_id: string | null; industry_label: string | null }[];
+      return (await response.json()) as {
+        id: string;
+        category_id: string | null;
+        industry_label: string | null;
+      }[];
     } catch {
       return [];
     }
@@ -118,12 +133,15 @@ export const Route = createFileRoute("/api/marketplace/lead")({
           return Response.json({ error: "Lead service is not configured" }, { status: 503 });
         }
 
-        const sourceIp =
-          request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-          request.headers.get("x-real-ip") ??
-          "unknown";
+        // The address nginx vouches for (CF-Connecting-IP, overwritten at the
+        // edge), not the first X-Forwarded-For entry, which the caller writes:
+        // a fresh value per request walked straight past this limit.
+        const sourceIp = clientAddress(request.headers);
         if (rateLimited(sourceIp)) {
-          return Response.json({ error: "Too many requests. Please wait a moment." }, { status: 429 });
+          return Response.json(
+            { error: "Too many requests. Please wait a moment." },
+            { status: 429 },
+          );
         }
 
         let body: Record<string, unknown>;
@@ -134,7 +152,9 @@ export const Route = createFileRoute("/api/marketplace/lead")({
         }
 
         const name = String(body.name ?? "").trim();
-        const email = String(body.email ?? "").trim().toLowerCase();
+        const email = String(body.email ?? "")
+          .trim()
+          .toLowerCase();
         const phone = String(body.phone ?? "").trim();
         const productName = String(body.productName ?? "").trim();
         const productIdRaw = String(body.productId ?? "").trim();
@@ -233,9 +253,8 @@ export const Route = createFileRoute("/api/marketplace/lead")({
          * eventually paid.
          */
         try {
-          const { REFERRAL_COOKIE, attributionForSession, readCookie } = await import(
-            "@/lib/affiliate/core"
-          );
+          const { REFERRAL_COOKIE, attributionForSession, readCookie } =
+            await import("@/lib/affiliate/core");
           const sessionKey = readCookie(request, REFERRAL_COOKIE);
           if (sessionKey) {
             const partner = await attributionForSession(sessionKey);
@@ -267,8 +286,11 @@ export const Route = createFileRoute("/api/marketplace/lead")({
               { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
             );
             if (slotResponse.ok) {
-              const slots = (await slotResponse.json()) as
-                { id: string; country_marker: string | null; region: string | null }[];
+              const slots = (await slotResponse.json()) as {
+                id: string;
+                country_marker: string | null;
+                region: string | null;
+              }[];
               if (slots[0]) {
                 row.card_slot_id = slots[0].id;
                 if (!row.country && slots[0].country_marker) row.country = slots[0].country_marker;
@@ -282,14 +304,18 @@ export const Route = createFileRoute("/api/marketplace/lead")({
           }
         }
 
-        const resolved = await resolveProduct(url, {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-        }, {
-          id: productIdRaw,
-          sourcePage,
-          name: productName,
-        });
+        const resolved = await resolveProduct(
+          url,
+          {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          {
+            id: productIdRaw,
+            sourcePage,
+            name: productName,
+          },
+        );
         if (resolved.id) {
           row.product_id = resolved.id;
           // The product's own category is not copied here. `leads.category`
@@ -318,7 +344,10 @@ export const Route = createFileRoute("/api/marketplace/lead")({
           });
           if (!response.ok) {
             console.error("[lead] insert failed", response.status, await response.text());
-            return Response.json({ error: "We could not save that. Please try again." }, { status: 502 });
+            return Response.json(
+              { error: "We could not save that. Please try again." },
+              { status: 502 },
+            );
           }
 
           const saved = (await response.json().catch(() => [])) as { id?: string }[];
@@ -359,7 +388,12 @@ export const Route = createFileRoute("/api/marketplace/lead")({
                 { t, lang },
               ),
               to: email,
-              context: { kind: "lead_acknowledgement", lead_id: leadId, action: ctaAction, language: lang },
+              context: {
+                kind: "lead_acknowledgement",
+                lead_id: leadId,
+                action: ctaAction,
+                language: lang,
+              },
             });
 
             const operators = await operatorRecipients();
@@ -371,9 +405,14 @@ export const Route = createFileRoute("/api/marketplace/lead")({
             for (const operator of operators) {
               await sendMail({
                 ...leadNotificationEmail({
-                  name, email, phone, productName: productName || null,
-                  action: ctaAction, sourcePage: sourcePage || null,
-                  requirements: String(row.requirements ?? ""), leadId,
+                  name,
+                  email,
+                  phone,
+                  productName: productName || null,
+                  action: ctaAction,
+                  sourcePage: sourcePage || null,
+                  requirements: String(row.requirements ?? ""),
+                  leadId,
                 }),
                 to: operator,
                 context: { kind: "lead_notification", lead_id: leadId },

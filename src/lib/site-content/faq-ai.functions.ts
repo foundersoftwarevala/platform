@@ -18,7 +18,18 @@ Return STRICT JSON only: {"items":[{"question":"...","answer":"...","category":"
 Answers must be 1-3 sentences, factual, no marketing fluff, no invented metrics.`;
 
 export const generateFaqs = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => (d ?? {}) as GenInput)
+  .inputValidator((d: unknown): GenInput => {
+    // Bounded, so a caller cannot put an arbitrarily long prompt on the
+    // platform's AI bill through the topic or category.
+    const input = (d ?? {}) as Record<string, unknown>;
+    const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : undefined);
+    return {
+      topic: str(input.topic, 500),
+      category: str(input.category, 120),
+      count:
+        typeof input.count === "number" && Number.isFinite(input.count) ? input.count : undefined,
+    };
+  })
   .handler(async ({ data }): Promise<GenOutput> => {
     // Held to the same callers as the other manager AI tools, so the public
     // cannot spend the platform AI credit through this endpoint.
@@ -30,24 +41,24 @@ export const generateFaqs = createServerFn({ method: "POST" })
     const count = Math.min(Math.max(data.count ?? 6, 1), 12);
     try {
       const __ai = await aiComplete({
-      module: "faq",
-      messages: [
-            { role: "system", content: SYSTEM },
-            {
-              role: "user",
-              content: `Generate ${count} new customer FAQs${
-                data.category ? ` for the category "${data.category}"` : ""
-              }${data.topic ? ` about: ${data.topic}` : ""}.`,
-            },
-          ],
-    });
-    // Shaped like the gateway reply the surrounding code already parses.
-    const res = {
-      ok: true,
-      status: 200,
-      json: async () => ({ choices: [{ message: { content: __ai.text } }] }),
-      text: async () => __ai.text,
-    };
+        module: "faq",
+        messages: [
+          { role: "system", content: SYSTEM },
+          {
+            role: "user",
+            content: `Generate ${count} new customer FAQs${
+              data.category ? ` for the category "${data.category}"` : ""
+            }${data.topic ? ` about: ${data.topic}` : ""}.`,
+          },
+        ],
+      });
+      // Shaped like the gateway reply the surrounding code already parses.
+      const res = {
+        ok: true,
+        status: 200,
+        json: async () => ({ choices: [{ message: { content: __ai.text } }] }),
+        text: async () => __ai.text,
+      };
       if (res.status === 429) return { items: [], error: "Rate limit reached. Try again shortly." };
       if (res.status === 402) return { items: [], error: "AI credits exhausted." };
       if (!res.ok) return { items: [], error: `AI gateway error (${res.status}).` };

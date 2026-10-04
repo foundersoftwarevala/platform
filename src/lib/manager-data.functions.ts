@@ -12,16 +12,25 @@ import { assertManagedProviderEndpoint } from "./managed-api-endpoints.server";
 import { aiComplete } from "./ai-gateway.server";
 import { randomUUID } from "node:crypto";
 
+/**
+ * A plain column name. The list endpoints run with the service role, so a
+ * select, filter or order string is the caller reaching into the table: an
+ * alias ("s:secret_encrypted") slipped past the server-only column redaction,
+ * and an embed ("*,other_table(*)") read tables outside the allow-list.
+ */
+const COLUMN = /^[a-z_][a-z0-9_]*$/;
+const SELECT_LIST = /^\s*(\*|[a-z_][a-z0-9_]*)(\s*,\s*(\*|[a-z_][a-z0-9_]*))*\s*$/;
+
 const filterSchema = z.object({
-  column: z.string().min(1).max(64),
+  column: z.string().min(1).max(64).regex(COLUMN, "Unknown column"),
   op: z.enum(["eq", "neq", "gt", "gte", "lt", "lte", "in", "is"]).default("eq"),
   value: z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())]),
 });
 
 const listSchema = z.object({
   table: z.string().refine(isManagerTable, "Unknown table"),
-  select: z.string().max(600).default("*"),
-  orderBy: z.string().max(64).optional(),
+  select: z.string().max(600).regex(SELECT_LIST, "Select must be a list of columns").default("*"),
+  orderBy: z.string().max(64).regex(COLUMN, "Unknown column").optional(),
   ascending: z.boolean().default(false),
   limit: z.number().int().min(1).max(2000).default(200),
   filters: z.array(filterSchema).max(8).default([]),
@@ -153,10 +162,40 @@ const WORKFLOW_ONLY_TABLES = new Set([
   "marketplace_payouts",
 ]);
 
-async function refuseWorkflowTable(context: ManagerContext, table: string, action: string, id: string | null) {
+async function refuseWorkflowTable(
+  context: ManagerContext,
+  table: string,
+  action: string,
+  id: string | null,
+) {
   if (!WORKFLOW_ONLY_TABLES.has(table)) return;
   await writeAudit(context, `${table}.direct_${action}_refused`, table, id, {}, "warning");
-  throw new Error(`${table} is changed only through its own workflow (orders, refunds and payouts), not edited directly.`);
+  throw new Error(
+    `${table} is changed only through its own workflow (orders, refunds and payouts), not edited directly.`,
+  );
+}
+
+// Trails and ledgers are append-only: an audit row or a ledger entry edited or
+// removed through a generic console is the record of what happened rewritten.
+const APPEND_ONLY_TABLES = new Set([
+  "audit_logs",
+  "finance_audit_logs",
+  "finance_ledger_entries",
+  "finance_payment_events",
+  "finance_payment_webhooks",
+]);
+
+async function refuseAppendOnly(
+  context: ManagerContext,
+  table: string,
+  action: string,
+  id: string | null,
+) {
+  if (!APPEND_ONLY_TABLES.has(table)) return;
+  await writeAudit(context, `${table}.direct_${action}_refused`, table, id, {}, "warning");
+  throw new Error(
+    `${table} is an append-only record and cannot be ${action === "delete" ? "deleted" : "edited"}.`,
+  );
 }
 
 type ListInput = z.infer<typeof listSchema>;
@@ -191,6 +230,17 @@ function redactValues(table: string, values: Record<string, unknown>): Record<st
 }
 
 async function runList(db: Awaited<ReturnType<typeof admin>>, input: ListInput) {
+  // Server-only columns are never selected, filtered or ordered on: a range
+  // filter on a secret is a way of reading it one comparison at a time.
+  const hidden = SERVER_ONLY_COLUMNS[input.table] ?? [];
+  const named = [
+    ...input.select.split(",").map((c) => c.trim()),
+    ...input.filters.map((f) => f.column),
+    ...(input.orderBy ? [input.orderBy] : []),
+  ];
+  if (named.some((c) => hidden.includes(c))) {
+    throw new Error(`${input.table}: that column is not available here.`);
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query: any = db.from(input.table).select(input.select).limit(input.limit);
 
@@ -303,6 +353,7 @@ export const updateRecord = createServerFn({ method: "POST" })
     const db = context.client;
     requireCentralAiManager(context, [data.table]);
     await refuseWorkflowTable(context, data.table, "update", data.id);
+    await refuseAppendOnly(context, data.table, "update", data.id);
     if (
       (data.table === "api_services" || data.table === "ai_providers") &&
       "credential_env" in data.values
@@ -315,7 +366,9 @@ export const updateRecord = createServerFn({ method: "POST" })
       assertManagedProviderEndpoint(data.values["endpoint_url"]);
     }
     if (data.table === "api_keys" && "secret_encrypted" in data.values) {
-      throw new Error("Replace credentials through Configure Key; stored secrets cannot be updated directly.");
+      throw new Error(
+        "Replace credentials through Configure Key; stored secrets cannot be updated directly.",
+      );
     }
     if (data.table === "api_services") {
       await validateApiServiceActivation(db, data.id, data.values);
@@ -349,12 +402,15 @@ export const creditWallet = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const context = await requireManager(data.accessToken);
     const reference = `TOPUP-${Date.now()}`;
-    const { data: wallet, error } = await context.client.rpc("wallet_credit_atomic" as never, {
-      p_wallet_id: data.walletId,
-      p_amount: data.amount,
-      p_description: data.description,
-      p_reference: reference,
-    } as never);
+    const { data: wallet, error } = await context.client.rpc(
+      "wallet_credit_atomic" as never,
+      {
+        p_wallet_id: data.walletId,
+        p_amount: data.amount,
+        p_description: data.description,
+        p_reference: reference,
+      } as never,
+    );
     if (error) throw new Error(error.message);
     await writeAudit(context, "wallets.credited", "wallets", data.walletId, {
       amount: data.amount,
@@ -556,6 +612,7 @@ export const deleteRecord = createServerFn({ method: "POST" })
     const db = context.client;
     requireCentralAiManager(context, [data.table]);
     await refuseWorkflowTable(context, data.table, "delete", data.id);
+    await refuseAppendOnly(context, data.table, "delete", data.id);
     const { error } = await db.from(data.table).delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     await writeAudit(context, `${data.table}.deleted`, data.table, data.id, {}, "warning");

@@ -40,18 +40,44 @@ const now = () => new Date().toISOString();
 
 const SEED: DemoUrl[] = [
   {
-    id: "demo-erp-admin", product_id: "prd-erp-suite", demo_name: "Vala ERP Suite", role_name: "Admin",
-    url: "https://demo.softwarevala.com/erp/admin", username: "admin@demo.io", password: "demo1234",
-    description: "Full ERP admin workspace", environment: "production", status: "active", sort_order: 0,
-    last_checked_at: null, last_response_ms: null, last_http_status: null, last_result: "unknown",
-    ssl_valid: null, created_at: now(), updated_at: now(),
+    id: "demo-erp-admin",
+    product_id: "prd-erp-suite",
+    demo_name: "Vala ERP Suite",
+    role_name: "Admin",
+    url: "https://demo.softwarevala.com/erp/admin",
+    username: "admin@demo.io",
+    password: "demo1234",
+    description: "Full ERP admin workspace",
+    environment: "production",
+    status: "active",
+    sort_order: 0,
+    last_checked_at: null,
+    last_response_ms: null,
+    last_http_status: null,
+    last_result: "unknown",
+    ssl_valid: null,
+    created_at: now(),
+    updated_at: now(),
   },
   {
-    id: "demo-crm-sales", product_id: "prd-crm-pro", demo_name: "Vala CRM Pro", role_name: "Sales Rep",
-    url: "https://demo.softwarevala.com/crm/sales", username: "sales@demo.io", password: "demo1234",
-    description: "Pipeline and lead views", environment: "staging", status: "active", sort_order: 1,
-    last_checked_at: null, last_response_ms: null, last_http_status: null, last_result: "unknown",
-    ssl_valid: null, created_at: now(), updated_at: now(),
+    id: "demo-crm-sales",
+    product_id: "prd-crm-pro",
+    demo_name: "Vala CRM Pro",
+    role_name: "Sales Rep",
+    url: "https://demo.softwarevala.com/crm/sales",
+    username: "sales@demo.io",
+    password: "demo1234",
+    description: "Pipeline and lead views",
+    environment: "staging",
+    status: "active",
+    sort_order: 1,
+    last_checked_at: null,
+    last_response_ms: null,
+    last_http_status: null,
+    last_result: "unknown",
+    ssl_valid: null,
+    created_at: now(),
+    updated_at: now(),
   },
 ];
 
@@ -149,18 +175,20 @@ export async function upsertDemoUrl(arg: { data: Partial<DemoUrl> }): Promise<De
   delete input.id;
   const saved = await writeRow(id, input as Record<string, unknown>);
   await record(id ? "demo_url.update" : "demo_url.create", saved.id, {
-    demo_name: saved.demo_name, role_name: saved.role_name,
-    environment: saved.environment, status: saved.status,
+    demo_name: saved.demo_name,
+    role_name: saved.role_name,
+    environment: saved.environment,
+    status: saved.status,
   });
   return saved;
 }
 
 /** Made inactive, not removed. */
 export async function deleteDemoUrl(arg: { data: { id: string } }) {
-  const response = await fetch(
-    `${ENDPOINT}?resource=demos&id=${encodeURIComponent(arg.data.id)}`,
-    { method: "DELETE", headers: await authHeaders() },
-  );
+  const response = await fetch(`${ENDPOINT}?resource=demos&id=${encodeURIComponent(arg.data.id)}`, {
+    method: "DELETE",
+    headers: await authHeaders(),
+  });
   if (!response.ok) throw new Error(await refusal(response));
   await record("demo_url.retire", arg.data.id, {});
   return { ok: true };
@@ -188,51 +216,44 @@ export async function duplicateDemoUrl(arg: { data: { id: string } }): Promise<D
 
 export async function toggleDemoUrl(arg: { data: { id: string; status: "active" | "inactive" } }) {
   await writeRow(arg.data.id, { status: arg.data.status });
-  await record(
-    arg.data.status === "active" ? "demo_url.enable" : "demo_url.disable",
-    arg.data.id,
-    { status: arg.data.status },
-  );
+  await record(arg.data.status === "active" ? "demo_url.enable" : "demo_url.disable", arg.data.id, {
+    status: arg.data.status,
+  });
   return { ok: true };
 }
 
-async function checkOnce(url: string) {
-  const start = Date.now();
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
-    try {
-      const res = await fetch(url, { method: "GET", mode: "no-cors", redirect: "follow", signal: controller.signal });
-      const ms = Date.now() - start;
-      const status = res.status || 200;
-      const ok = res.type === "opaque" || (status >= 200 && status < 400);
-      const result: DemoUrl["last_result"] = !ok ? "offline" : ms > 2500 ? "slow" : "working";
-      return { ok, status, ms, result, ssl: url.startsWith("https://") ? ok : null };
-    } finally {
-      clearTimeout(timer);
-    }
-  } catch {
-    return { ok: false, status: 0, ms: Date.now() - start, result: "offline" as const, ssl: null };
-  }
+export type DemoCheck = {
+  id: string;
+  last_checked_at: string;
+  last_response_ms: number;
+  last_http_status: number;
+  last_result: DemoUrl["last_result"];
+  ssl_valid: boolean | null;
+  error?: string | null;
+};
+
+/**
+ * One address checked and its result stored against it - the Health Check tab
+ * uses it too.
+ *
+ * The check runs on the server (/api/demo/check). From the browser a
+ * cross-origin request is opaque: it exposes no status, so the old no-cors
+ * check stored every reachable address as HTTP 200 / working, 404s included.
+ * The server reads the real status and certificate and records the result,
+ * its history and the audit entry itself.
+ */
+export async function checkDemoUrlById(id: string): Promise<DemoCheck> {
+  const response = await fetch("/api/demo/check", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify({ id }),
+  });
+  if (!response.ok) throw new Error(await refusal(response));
+  return (await response.json()) as DemoCheck;
 }
 
-/** One address checked and its result stored against it - the Health Check tab uses it too. */
 export async function runCheck(row: DemoUrl) {
-  const r = await checkOnce(row.url);
-  const patch = {
-    last_checked_at: now(),
-    last_response_ms: r.ms,
-    last_http_status: r.status,
-    last_result: r.result,
-    ssl_valid: r.ssl,
-  };
-  // The result is stored against the address itself, so the next person to open
-  // the console sees when it was last reached rather than "never checked".
-  await writeRow(row.id, patch);
-  await record("demo_url.test", row.id, {
-    http_status: r.status, response_ms: r.ms, result: r.result, ssl_valid: r.ssl,
-  });
-  return { id: row.id, ...patch };
+  return checkDemoUrlById(row.id);
 }
 
 export async function testDemoUrl(arg: { data: { id: string } }) {

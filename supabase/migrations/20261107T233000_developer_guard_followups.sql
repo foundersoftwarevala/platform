@@ -113,6 +113,9 @@ create trigger tm_tasks_guard_member_update
   for each row execute function public.tm_guard_member_task_update();
 
 -- 3 ---------------------------------------------------------------------------
+drop policy if exists tm_notifications_insert on public.tm_notifications;
+drop policy if exists tm_notifications_update on public.tm_notifications;
+drop policy if exists tm_notifications_delete on public.tm_notifications;
 drop policy if exists tm_notifications_write on public.tm_notifications;
 create policy tm_notifications_insert on public.tm_notifications
   for insert to authenticated
@@ -171,8 +174,20 @@ create trigger tm_notifications_guard_member_update
   for each row execute function public.tm_guard_member_notification_update();
 
 -- 4 ---------------------------------------------------------------------------
-alter table public.tm_time_logs
-  add constraint tm_time_logs_seconds_nonnegative check (seconds is null or seconds >= 0);
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.tm_time_logs'::regclass
+      and conname = 'tm_time_logs_seconds_nonnegative'
+  ) then
+    alter table public.tm_time_logs
+      add constraint tm_time_logs_seconds_nonnegative
+      check (seconds is null or seconds >= 0);
+  end if;
+end;
+$$;
 
 alter policy tm_time_logs_update on public.tm_time_logs
   using (tm_is_operator()) with check (tm_is_operator());

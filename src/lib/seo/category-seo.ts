@@ -147,7 +147,10 @@ export const getProductSeo = createServerFn({ method: "GET" })
           `&slug=eq.${encodeURIComponent(data.slug)}&limit=1`,
         { headers: admin() },
       );
-      const rows = response.ok ? ((await response.json()) as Record<string, unknown>[]) : [];
+      // A refused or failed read is not "no such product": it must not be
+      // cached as one, or answered as one (the route turns empty into a 404).
+      if (!response.ok) throw new Error(`product SEO read failed: HTTP ${response.status}`);
+      const rows = (await response.json()) as Record<string, unknown>[];
       const row = rows[0];
       if (!row?.name) {
         productCache.set(data.slug, { at: Date.now(), value: null });
@@ -176,6 +179,6 @@ export const getProductSeo = createServerFn({ method: "GET" })
       return value;
     } catch (error) {
       console.error("[product seo] failed for", data.slug, error);
-      return null;
+      throw error instanceof Error ? error : new Error("product SEO read failed");
     }
   });

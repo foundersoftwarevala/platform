@@ -16,7 +16,16 @@ import { Tabs, SectionCard, StatusBadge } from "@/components/affiliate/StatusBad
 import { KpiCard, KpiGrid } from "@/components/affiliate/KpiCard";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { DATASETS, buildCsvTemplate, downloadCsv, type DatasetSpec } from "@/lib/affiliate-bulk";
+import {
+  DATASETS,
+  buildCsvTemplate,
+  buildErrorReportCsv,
+  downloadCsv,
+  parseCsv,
+  validateRows,
+  type DatasetSpec,
+  type ValidationResult,
+} from "@/lib/affiliate-bulk";
 import { EmptyState } from "@/components/affiliate/EmptyState";
 
 export const Route = createFileRoute("/affiliate-manager/import")({
@@ -31,14 +40,43 @@ function ImportCenter() {
   const dataset = useMemo(() => DATASETS.find((d) => d.id === datasetId)!, [datasetId]);
   const [phase, setPhase] = useState<Phase>("select");
   const [fileName, setFileName] = useState<string | null>(null);
-  const [rowCount, setRowCount] = useState(0);
+  const [rows, setRows] = useState<string[][]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
+  // Data rows only; the first line of the file is the header.
+  const rowCount = Math.max(0, rows.length - 1);
 
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function reset() {
+    setPhase("select");
+    setFileName(null);
+    setRows([]);
+    setFileError(null);
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
+    e.target.value = "";
     if (!f) return;
     setFileName(f.name);
-    setRowCount(Math.floor(Math.random() * 4000) + 200);
-    setPhase("map");
+    setFileError(null);
+    if (!/\.csv$/i.test(f.name)) {
+      // The validator reads CSV text; an .xlsx workbook is binary.
+      setRows([]);
+      setFileError(
+        "Only CSV files can be validated here. Save the sheet as CSV (UTF-8) and select it again.",
+      );
+      setPhase("select");
+      return;
+    }
+    try {
+      const parsed = parseCsv(await f.text());
+      setRows(parsed);
+      setPhase(parsed.length > 1 ? "map" : "select");
+      if (parsed.length <= 1) setFileError("The file has no data rows under the header.");
+    } catch (err) {
+      setRows([]);
+      setFileError(err instanceof Error ? err.message : "The file could not be read.");
+      setPhase("select");
+    }
   }
 
   function downloadTemplate(format: "csv" | "xlsx") {
@@ -50,12 +88,13 @@ function ImportCenter() {
     }
   }
 
-  const validationSummary = {
-    parsed: rowCount,
-    valid: Math.round(rowCount * 0.93),
-    warnings: Math.round(rowCount * 0.05),
-    errors: Math.round(rowCount * 0.02),
-  };
+  // Every count below comes from checking the uploaded rows against the schema.
+  const validationSummary: ValidationResult = useMemo(
+    () => validateRows(dataset, rows),
+    [dataset, rows],
+  );
+  const header = validationSummary.header;
+  const firstRow = rows[1] ?? [];
 
   return (
     <>
@@ -70,7 +109,7 @@ function ImportCenter() {
                 <Download className="size-3.5" /> Export Center
               </Link>
             </Button>
-            <Button size="sm" className="gap-1.5">
+            <Button size="sm" className="gap-1.5" onClick={reset}>
               <UploadCloud className="size-3.5" /> New Import
             </Button>
           </>
@@ -79,10 +118,20 @@ function ImportCenter() {
       <Tabs items={["New Import", "In Progress", "History", "Scheduled", "API"]} />
       <WallShell>
         <KpiGrid>
-          <KpiCard label="Datasets" value={DATASETS.length.toString()} icon={<FileSpreadsheet className="size-4" />} tone="primary" />
+          <KpiCard
+            label="Datasets"
+            value={DATASETS.length.toString()}
+            icon={<FileSpreadsheet className="size-4" />}
+            tone="primary"
+          />
           <KpiCard label="Imports 30d" value="0" icon={<History className="size-4" />} />
           <KpiCard label="Records Imported" value="0" />
-          <KpiCard label="Validation Pass" value="—" icon={<ShieldCheck className="size-4" />} tone="success" />
+          <KpiCard
+            label="Validation Pass"
+            value="—"
+            icon={<ShieldCheck className="size-4" />}
+            tone="success"
+          />
           <KpiCard label="Errors 30d" value="0" tone="destructive" />
           <KpiCard label="Largest Batch" value="—" />
         </KpiGrid>
@@ -96,8 +145,7 @@ function ImportCenter() {
                   key={d.id}
                   onClick={() => {
                     setDatasetId(d.id);
-                    setPhase("select");
-                    setFileName(null);
+                    reset();
                   }}
                   className={[
                     "group flex flex-col gap-1.5 rounded-md border p-3 text-left transition-colors",
@@ -110,7 +158,9 @@ function ImportCenter() {
                     <div className="font-display text-sm font-semibold">{d.label}</div>
                     {active && <StatusBadge tone="primary">Selected</StatusBadge>}
                   </div>
-                  <div className="text-[12px] text-muted-foreground line-clamp-2">{d.description}</div>
+                  <div className="text-[12px] text-muted-foreground line-clamp-2">
+                    {d.description}
+                  </div>
                   <div className="mt-1 text-[11px] text-muted-foreground">
                     {d.fields.length} columns · {d.fields.filter((f) => f.required).length} required
                   </div>
@@ -127,20 +177,33 @@ function ImportCenter() {
                 <div className="mx-auto mb-3 grid size-11 place-items-center rounded-md bg-primary-soft text-primary">
                   <UploadCloud className="size-5" />
                 </div>
-                <div className="font-display text-sm font-semibold">Drop your {dataset.label} file here</div>
+                <div className="font-display text-sm font-semibold">
+                  Drop your {dataset.label} file here
+                </div>
                 <div className="mt-1 text-[12px] text-muted-foreground">
-                  Accepts .csv and .xlsx · Max 500 MB · UTF-8 recommended
+                  Accepts .csv · UTF-8 recommended
                 </div>
                 <label className="mt-4 inline-flex">
-                  <input type="file" accept=".csv,.xlsx" onChange={onFile} className="hidden" />
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={(e) => void onFile(e)}
+                    className="hidden"
+                  />
                   <span className="inline-flex h-9 cursor-pointer items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
                     Select File
                   </span>
                 </label>
-                {fileName && (
+                {fileName && !fileError && (
                   <div className="mt-4 text-[12px] text-muted-foreground">
                     Loaded <span className="font-medium text-foreground">{fileName}</span> ·{" "}
                     {rowCount.toLocaleString()} rows detected
+                  </div>
+                )}
+                {fileError && (
+                  <div role="alert" className="mt-4 text-[12px] text-destructive">
+                    {fileName && <span className="font-medium">{fileName}: </span>}
+                    {fileError}
                   </div>
                 )}
               </div>
@@ -166,25 +229,38 @@ function ImportCenter() {
                       </tr>
                     </thead>
                     <tbody>
-                      {dataset.fields.map((f) => (
-                        <tr key={f.name} className="border-b border-border last:border-0">
-                          <td className="px-3 py-2 font-mono text-[12px] text-muted-foreground">{f.name}</td>
-                          <td className="px-3 py-2 font-mono text-[12px] text-foreground">{f.name}</td>
-                          <td className="px-3 py-2 text-[12px]">{f.type}</td>
-                          <td className="px-3 py-2">
-                            {f.required ? (
-                              <StatusBadge tone="warning">Required</StatusBadge>
-                            ) : (
-                              <span className="text-[12px] text-muted-foreground">Optional</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-[12px] text-muted-foreground">{f.example}</td>
-                        </tr>
-                      ))}
+                      {dataset.fields.map((f) => {
+                        const at = header.indexOf(f.name);
+                        return (
+                          <tr key={f.name} className="border-b border-border last:border-0">
+                            <td className="px-3 py-2 font-mono text-[12px] text-muted-foreground">
+                              {at >= 0 ? (
+                                header[at]
+                              ) : (
+                                <span className="text-destructive">not in file</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 font-mono text-[12px] text-foreground">
+                              {f.name}
+                            </td>
+                            <td className="px-3 py-2 text-[12px]">{f.type}</td>
+                            <td className="px-3 py-2">
+                              {f.required ? (
+                                <StatusBadge tone="warning">Required</StatusBadge>
+                              ) : (
+                                <span className="text-[12px] text-muted-foreground">Optional</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 font-mono text-[12px] text-muted-foreground">
+                              {at >= 0 ? (firstRow[at] ?? "") : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                   <div className="flex items-center justify-end gap-2 px-3 py-3">
-                    <Button variant="outline" size="sm" onClick={() => setPhase("select")}>
+                    <Button variant="outline" size="sm" onClick={reset}>
                       Cancel
                     </Button>
                     <Button size="sm" onClick={() => setPhase("validate")}>
@@ -210,23 +286,62 @@ function ImportCenter() {
                     <SmallStat label="Warnings" value={validationSummary.warnings} tone="warning" />
                     <SmallStat label="Errors" value={validationSummary.errors} tone="destructive" />
                   </div>
-                  <Progress value={Math.round((validationSummary.valid / validationSummary.parsed) * 100)} className="h-2" />
+                  <Progress
+                    value={
+                      validationSummary.parsed
+                        ? Math.round((validationSummary.valid / validationSummary.parsed) * 100)
+                        : 0
+                    }
+                    className="h-2"
+                  />
                   <div className="rounded-md border border-border bg-muted/30 p-3 text-[12px] space-y-1.5">
                     <div className="flex items-center gap-1.5 font-medium text-foreground">
                       <AlertTriangle className="size-3.5 text-warning-foreground" /> Top issues
                     </div>
                     <ul className="text-muted-foreground space-y-1">
-                      <li>• Row 42: <span className="font-mono">email</span> not a valid address</li>
-                      <li>• Row 117: <span className="font-mono">country</span> not in ISO-3166 list</li>
-                      <li>• Row 392: <span className="font-mono">discount_value</span> exceeds 100 for percent type</li>
+                      {validationSummary.missingColumns.map((c) => (
+                        <li key={`missing-${c}`}>
+                          • Missing required column <span className="font-mono">{c}</span>
+                        </li>
+                      ))}
+                      {validationSummary.issues.slice(0, 5).map((i) => (
+                        <li key={`${i.row}-${i.field}-${i.message}`}>
+                          • Row {i.row}: {i.field && <span className="font-mono">{i.field}</span>}{" "}
+                          {i.message}
+                        </li>
+                      ))}
+                      {validationSummary.missingColumns.length === 0 &&
+                        validationSummary.issues.length === 0 && <li>• No issues found</li>}
                     </ul>
                   </div>
                   <div className="flex items-center justify-end gap-2">
-                    <Button variant="outline" size="sm" className="gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={
+                        validationSummary.issues.length === 0 &&
+                        validationSummary.missingColumns.length === 0
+                      }
+                      onClick={() =>
+                        downloadCsv(
+                          `${dataset.id}-errors.csv`,
+                          buildErrorReportCsv(validationSummary),
+                        )
+                      }
+                    >
                       <Download className="size-3.5" /> Download error report
                     </Button>
-                    <Button size="sm" className="gap-1.5" onClick={() => setPhase("done")}>
-                      <CheckCircle2 className="size-3.5" /> Commit {validationSummary.valid.toLocaleString()} valid rows
+                    {/* No import service writes these rows yet, so nothing is committed
+                        and no success is shown. */}
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      disabled
+                      title="Committing imports is not available yet: no import service is connected."
+                    >
+                      <CheckCircle2 className="size-3.5" /> Commit{" "}
+                      {validationSummary.valid.toLocaleString()} valid rows
                     </Button>
                   </div>
                 </div>
@@ -238,13 +353,25 @@ function ImportCenter() {
             <SectionCard title="Templates">
               <div className="space-y-2">
                 <div className="text-[12px] text-muted-foreground">
-                  Download the schema for <span className="font-medium text-foreground">{dataset.label}</span> with example rows and inline validation hints.
+                  Download the schema for{" "}
+                  <span className="font-medium text-foreground">{dataset.label}</span> with example
+                  rows and inline validation hints.
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="flex-1 gap-1.5" onClick={() => downloadTemplate("csv")}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1.5"
+                    onClick={() => downloadTemplate("csv")}
+                  >
                     <Download className="size-3.5" /> CSV
                   </Button>
-                  <Button size="sm" variant="outline" className="flex-1 gap-1.5" onClick={() => downloadTemplate("xlsx")}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1.5"
+                    onClick={() => downloadTemplate("xlsx")}
+                  >
                     <Download className="size-3.5" /> XLSX
                   </Button>
                 </div>
@@ -260,7 +387,9 @@ function ImportCenter() {
                       {f.required ? (
                         <StatusBadge tone="warning">required</StatusBadge>
                       ) : (
-                        <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">optional</span>
+                        <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+                          optional
+                        </span>
                       )}
                     </div>
                     <div className="mt-1 text-[11px] text-muted-foreground">
@@ -309,10 +438,10 @@ function SmallStat({
     tone === "success"
       ? "text-success"
       : tone === "warning"
-      ? "text-warning-foreground"
-      : tone === "destructive"
-      ? "text-destructive"
-      : "text-foreground";
+        ? "text-warning-foreground"
+        : tone === "destructive"
+          ? "text-destructive"
+          : "text-foreground";
   return (
     <div className="rounded-md border border-border bg-surface px-3 py-2">
       <div className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{label}</div>

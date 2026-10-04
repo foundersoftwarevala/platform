@@ -1,59 +1,115 @@
-import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
 import {
-  ShoppingCart, Globe, Settings, CreditCard, CheckCircle2,
-  Shield, Database, Clock, ArrowRight, ArrowLeft, AlertTriangle, Copy
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
-import { smQuery, smMutate } from '@/lib/sm-data';
-import { PageHeader } from '../layout/PageShell';
+  ShoppingCart,
+  Globe,
+  Settings,
+  CreditCard,
+  CheckCircle2,
+  Shield,
+  Database,
+  Clock,
+  ArrowRight,
+  ArrowLeft,
+  AlertTriangle,
+  Copy,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { smQuery, smMutate, smErrorMessage } from "@/lib/sm-data";
+import { useServerFn } from "@/lib/serverFn";
+// The payment rails Finance has switched on (finance_payment_rails.enabled),
+// read on the server because the table is readable only by finance operators.
+import { listResellerPaymentRails } from "@/lib/reseller-dashboard.functions";
+import { PageHeader } from "../layout/PageShell";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
-type Plan = Tables<'server_plans'>;
-type Region = Tables<'server_regions'>;
-type Purchase = Tables<'server_purchases'>;
+type Plan = Tables<"server_plans">;
+type Region = Tables<"server_regions">;
+type Purchase = Tables<"server_purchases">;
 
-const steps = ['Select Plan', 'Select Region', 'Configuration', 'Billing'];
-const OS_OPTIONS = ['ubuntu-22', 'debian-12', 'centos-9'];
-const FIREWALL_OPTIONS = ['minimal', 'standard', 'strict'];
+const steps = ["Select Plan", "Select Region", "Configuration", "Billing"];
+const OS_OPTIONS = ["ubuntu-22", "debian-12", "centos-9"];
+const FIREWALL_OPTIONS = ["minimal", "standard", "strict"];
 
-const genPurchaseCode = () => `PO-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 900 + 100)}`;
+// purchase_code is NOT NULL with no database default; it is derived from the
+// creation time, and the order shown afterwards is the row the database returns.
+const genPurchaseCode = () => `PO-${Date.now().toString(36).toUpperCase()}`;
 
 const SMBuyServer = () => {
+  const { t } = useTranslation();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
-  const [selectedRegion, setSelectedRegion] = useState<string>('');
-  const [serverName, setServerName] = useState('');
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+  const [selectedRegion, setSelectedRegion] = useState<string>("");
+  const [serverName, setServerName] = useState("");
   const [config, setConfig] = useState<{ os: string; autoBackup: boolean; firewall: string }>({
-    os: OS_OPTIONS[0] ?? 'ubuntu-22.04',
+    os: OS_OPTIONS[0] ?? "ubuntu-22.04",
     autoBackup: true,
-    firewall: 'standard',
+    firewall: "standard",
   });
-  const [paymentMethod] = useState('wallet');
   const [createdOrder, setCreatedOrder] = useState<Purchase | null>(null);
+  // Payment readiness is read before any order is placed. null = still checking.
+  const listRails = useServerFn(listResellerPaymentRails);
+  const [rails, setRails] = useState<{ code: string; label: string }[] | null>(null);
+  const [railsError, setRailsError] = useState<string | null>(null);
+
+  const loadRails = useCallback(async () => {
+    setRails(null);
+    setRailsError(null);
+    try {
+      setRails(await listRails());
+    } catch (err) {
+      console.error("[server-manager] payment readiness check failed", err);
+      setRailsError(smErrorMessage(err));
+      setRails([]);
+    }
+  }, [listRails]);
+
+  useEffect(() => {
+    void loadRails();
+  }, [loadRails]);
+
+  const railsLoading = rails === null;
+  const paymentRail = rails?.[0] ?? null;
+  const paymentReady = !railsLoading && !railsError && paymentRail !== null;
+  const paymentBlockReason = railsLoading
+    ? t("manager.server.checking_payment")
+    : railsError
+      ? t("manager.server.payment_check_failed_reason")
+      : !paymentRail
+        ? t("manager.server.payment_not_configured")
+        : null;
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
       const [planRows, regionRows] = await Promise.all([
-        smQuery('server plans', () => supabase.from('server_plans').select('*').eq('is_active', true).order('price_monthly', { ascending: true })),
-        smQuery('server regions', () => supabase.from('server_regions').select('*').eq('is_active', true)),
+        smQuery("server plans", () =>
+          supabase
+            .from("server_plans")
+            .select("*")
+            .eq("is_active", true)
+            .order("price_monthly", { ascending: true }),
+        ),
+        smQuery("server regions", () =>
+          supabase.from("server_regions").select("*").eq("is_active", true),
+        ),
       ]);
       if (planRows === null || regionRows === null) {
-        setLoadError('Could not load plans or regions. Please try again.');
+        setLoadError("Could not load plans or regions. Please try again.");
       }
       setPlans(planRows ?? []);
       setRegions(regionRows ?? []);
@@ -64,13 +120,17 @@ const SMBuyServer = () => {
     }
   }, []);
 
-  useEffect(() => { void loadData(); }, [loadData]);
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
-  const selectedPlan = plans.find(p => p.id === selectedPlanId);
-  const selectedRegionRow = regions.find(r => r.region_code === selectedRegion);
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId);
+  const selectedRegionRow = regions.find((r) => r.region_code === selectedRegion);
 
   const backupCost = 299;
-  const totalCost = selectedPlan ? Number(selectedPlan.price_monthly) + (config.autoBackup ? backupCost : 0) : 0;
+  const totalCost = selectedPlan
+    ? Number(selectedPlan.price_monthly) + (config.autoBackup ? backupCost : 0)
+    : 0;
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) setCurrentStep(currentStep + 1);
@@ -81,27 +141,34 @@ const SMBuyServer = () => {
 
   const handlePurchase = async () => {
     if (!selectedPlan || !selectedRegionRow) {
-      toast.error('Please select a plan and region');
+      toast.error("Please select a plan and region");
+      return;
+    }
+    // No order is created unless a payment provider is configured.
+    if (!paymentReady || !paymentRail) {
+      toast.error(paymentBlockReason ?? t("manager.server.payment_not_configured"));
       return;
     }
     setSubmitting(true);
     try {
       const purchase_code = genPurchaseCode();
       let inserted: Purchase | null = null;
-      const ok = await smMutate('Create order', async () => {
+      const ok = await smMutate("Create order", async () => {
         const { data, error } = await supabase
-          .from('server_purchases')
+          .from("server_purchases")
           .insert({
             purchase_code,
             plan_id: selectedPlan.id,
             region_code: selectedRegionRow.region_code,
             os_type: config.os,
-            server_name: serverName || `${selectedPlan.plan_code}-${selectedRegionRow.region_code.toLowerCase()}`,
+            server_name:
+              serverName ||
+              `${selectedPlan.plan_code}-${selectedRegionRow.region_code.toLowerCase()}`,
             auto_backup: config.autoBackup,
             firewall_preset: config.firewall,
-            payment_method: paymentMethod,
+            payment_method: paymentRail.code,
             amount: totalCost,
-            status: 'pending',
+            status: "pending",
           })
           .select()
           .single();
@@ -110,7 +177,7 @@ const SMBuyServer = () => {
       });
       if (!ok || !inserted) return;
       setCreatedOrder(inserted);
-      toast.success('Order created. Payment provider is not connected yet — order is pending.');
+      toast.success(t("manager.server.order_created"));
     } finally {
       setSubmitting(false);
     }
@@ -119,7 +186,7 @@ const SMBuyServer = () => {
   const resetFlow = () => {
     setCreatedOrder(null);
     setCurrentStep(0);
-    setServerName('');
+    setServerName("");
   };
 
   if (createdOrder) {
@@ -137,18 +204,54 @@ const SMBuyServer = () => {
             <div className="p-4 rounded-lg bg-accent-amber/10 border border-accent-amber/30 flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-accent-amber mt-0.5" />
               <div>
-                <p className="text-accent-amber font-medium">Payment provider not connected</p>
-                <p className="text-muted-foreground text-sm">Your order has been recorded with status "pending". Once a payment provider is integrated, this order will be charged and provisioning will begin automatically.</p>
+                <p className="text-accent-amber font-medium">
+                  {t("manager.server.awaiting_payment")}
+                </p>
+                <p className="text-muted-foreground text-sm">
+                  {t("manager.server.order_recorded", {
+                    status: String(createdOrder.status),
+                    method: String(createdOrder.payment_method ?? ""),
+                  })}
+                </p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><span className="text-muted-foreground">Server Name: </span><span className="text-foreground">{createdOrder.server_name}</span></div>
-              <div><span className="text-muted-foreground">Region: </span><span className="text-foreground">{createdOrder.region_code}</span></div>
-              <div><span className="text-muted-foreground">OS: </span><span className="text-foreground capitalize">{createdOrder.os_type.replace('-', ' ')}</span></div>
-              <div><span className="text-muted-foreground">Firewall: </span><span className="text-foreground capitalize">{createdOrder.firewall_preset}</span></div>
-              <div><span className="text-muted-foreground">Auto Backup: </span><span className="text-foreground">{createdOrder.auto_backup ? 'Enabled' : 'Disabled'}</span></div>
-              <div><span className="text-muted-foreground">Amount: </span><span className="text-primary font-semibold">₹{Number(createdOrder.amount).toLocaleString()}/mo</span></div>
-              <div><span className="text-muted-foreground">Status: </span><Badge className="bg-accent-amber/20 text-accent-amber">{createdOrder.status}</Badge></div>
+              <div>
+                <span className="text-muted-foreground">Server Name: </span>
+                <span className="text-foreground">{createdOrder.server_name}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Region: </span>
+                <span className="text-foreground">{createdOrder.region_code}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">OS: </span>
+                <span className="text-foreground capitalize">
+                  {createdOrder.os_type.replace("-", " ")}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Firewall: </span>
+                <span className="text-foreground capitalize">{createdOrder.firewall_preset}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Auto Backup: </span>
+                <span className="text-foreground">
+                  {createdOrder.auto_backup ? "Enabled" : "Disabled"}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Amount: </span>
+                <span className="text-primary font-semibold">
+                  ₹{Number(createdOrder.amount).toLocaleString()}/mo
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Status: </span>
+                <Badge className="bg-accent-amber/20 text-accent-amber">
+                  {createdOrder.status}
+                </Badge>
+              </div>
             </div>
             <Button variant="outline" onClick={resetFlow}>
               <Copy className="w-4 h-4 mr-2" />
@@ -177,14 +280,22 @@ const SMBuyServer = () => {
       <div className="flex items-center justify-between mb-8">
         {steps.map((step, i) => (
           <div key={step} className="flex items-center">
-            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-              i <= currentStep ? 'border-primary bg-primary/20 text-primary' : 'border-border text-muted-foreground'
-            }`}>
+            <div
+              className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+                i <= currentStep
+                  ? "border-primary bg-primary/20 text-primary"
+                  : "border-border text-muted-foreground"
+              }`}
+            >
               {i < currentStep ? <CheckCircle2 className="w-5 h-5" /> : i + 1}
             </div>
-            <span className={`ml-2 ${i <= currentStep ? 'text-foreground' : 'text-muted-foreground'}`}>{step}</span>
+            <span
+              className={`ml-2 ${i <= currentStep ? "text-foreground" : "text-muted-foreground"}`}
+            >
+              {step}
+            </span>
             {i < steps.length - 1 && (
-              <div className={`w-16 h-0.5 mx-4 ${i < currentStep ? 'bg-primary' : 'bg-border'}`} />
+              <div className={`w-16 h-0.5 mx-4 ${i < currentStep ? "bg-primary" : "bg-border"}`} />
             )}
           </div>
         ))}
@@ -206,15 +317,25 @@ const SMBuyServer = () => {
                     <RadioGroup value={selectedPlanId} onValueChange={setSelectedPlanId}>
                       <div className="grid grid-cols-2 gap-4">
                         {plans.map((plan) => (
-                          <div key={plan.id} className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                            selectedPlanId === plan.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40'
-                          }`} onClick={() => setSelectedPlanId(plan.id)}>
+                          <div
+                            key={plan.id}
+                            className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                              selectedPlanId === plan.id
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:border-primary/40"
+                            }`}
+                            onClick={() => setSelectedPlanId(plan.id)}
+                          >
                             <div className="flex items-center gap-3">
                               <RadioGroupItem value={plan.id} />
                               <div>
                                 <p className="text-foreground font-medium">{plan.plan_name}</p>
-                                <p className="text-muted-foreground text-sm">{plan.cpu_cores} vCPU, {plan.ram_gb} GB RAM</p>
-                                <p className="text-primary font-semibold mt-1">₹{Number(plan.price_monthly).toLocaleString()}/mo</p>
+                                <p className="text-muted-foreground text-sm">
+                                  {plan.cpu_cores} vCPU, {plan.ram_gb} GB RAM
+                                </p>
+                                <p className="text-primary font-semibold mt-1">
+                                  ₹{Number(plan.price_monthly).toLocaleString()}/mo
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -234,23 +355,37 @@ const SMBuyServer = () => {
                     <RadioGroup value={selectedRegion} onValueChange={setSelectedRegion}>
                       <div className="space-y-3">
                         {regions.map((region) => (
-                          <div key={region.region_code} className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                            selectedRegion === region.region_code ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40'
-                          }`} onClick={() => setSelectedRegion(region.region_code)}>
+                          <div
+                            key={region.region_code}
+                            className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                              selectedRegion === region.region_code
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:border-primary/40"
+                            }`}
+                            onClick={() => setSelectedRegion(region.region_code)}
+                          >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
                                 <RadioGroupItem value={region.region_code} />
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <Globe className="w-4 h-4 text-primary" />
-                                    <p className="text-foreground font-medium">{region.country_flag} {region.region_name}</p>
-                                    <Badge variant="outline" className="border-border text-muted-foreground">
+                                    <p className="text-foreground font-medium">
+                                      {region.country_flag} {region.region_name}
+                                    </p>
+                                    <Badge
+                                      variant="outline"
+                                      className="border-border text-muted-foreground"
+                                    >
                                       {region.region_code}
                                     </Badge>
                                   </div>
                                   <div className="flex items-center gap-2 mt-1">
-                                    {(region.compliance ?? []).map(c => (
-                                      <Badge key={c} className="bg-accent-emerald/20 text-accent-emerald text-xs">
+                                    {(region.compliance ?? []).map((c) => (
+                                      <Badge
+                                        key={c}
+                                        className="bg-accent-emerald/20 text-accent-emerald text-xs"
+                                      >
                                         {c}
                                       </Badge>
                                     ))}
@@ -259,7 +394,9 @@ const SMBuyServer = () => {
                               </div>
                               <div className="flex items-center gap-2">
                                 <Clock className="w-4 h-4 text-muted-foreground" />
-                                <span className={`font-mono ${region.latency_ms < 50 ? 'text-accent-emerald' : 'text-accent-amber'}`}>
+                                <span
+                                  className={`font-mono ${region.latency_ms < 50 ? "text-accent-emerald" : "text-accent-amber"}`}
+                                >
                                   {region.latency_ms}ms
                                 </span>
                               </div>
@@ -287,14 +424,22 @@ const SMBuyServer = () => {
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Operating System</Label>
-                      <RadioGroup value={config.os} onValueChange={(v) => setConfig({ ...config, os: v })} className="mt-2">
+                      <RadioGroup
+                        value={config.os}
+                        onValueChange={(v) => setConfig({ ...config, os: v })}
+                        className="mt-2"
+                      >
                         <div className="grid grid-cols-3 gap-3">
                           {OS_OPTIONS.map((os) => (
-                            <div key={os} className={`p-3 rounded-lg border text-center cursor-pointer ${
-                              config.os === os ? 'border-primary bg-primary/10' : 'border-border'
-                            }`} onClick={() => setConfig({ ...config, os })}>
+                            <div
+                              key={os}
+                              className={`p-3 rounded-lg border text-center cursor-pointer ${
+                                config.os === os ? "border-primary bg-primary/10" : "border-border"
+                              }`}
+                              onClick={() => setConfig({ ...config, os })}
+                            >
                               <RadioGroupItem value={os} className="sr-only" />
-                              <p className="text-foreground capitalize">{os.replace('-', ' ')}</p>
+                              <p className="text-foreground capitalize">{os.replace("-", " ")}</p>
                             </div>
                           ))}
                         </div>
@@ -302,14 +447,21 @@ const SMBuyServer = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                      <div className={`p-4 rounded-lg border cursor-pointer ${
-                        config.autoBackup ? 'border-primary bg-primary/10' : 'border-border'
-                      }`} onClick={() => setConfig({ ...config, autoBackup: !config.autoBackup })}>
+                      <div
+                        className={`p-4 rounded-lg border cursor-pointer ${
+                          config.autoBackup ? "border-primary bg-primary/10" : "border-border"
+                        }`}
+                        onClick={() => setConfig({ ...config, autoBackup: !config.autoBackup })}
+                      >
                         <div className="flex items-center gap-3">
-                          <Database className={config.autoBackup ? 'text-primary' : 'text-muted-foreground'} />
+                          <Database
+                            className={config.autoBackup ? "text-primary" : "text-muted-foreground"}
+                          />
                           <div>
                             <p className="text-foreground font-medium">Auto Backup</p>
-                            <p className="text-muted-foreground text-sm">Daily automated backups (+₹{backupCost}/mo)</p>
+                            <p className="text-muted-foreground text-sm">
+                              Daily automated backups (+₹{backupCost}/mo)
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -318,7 +470,9 @@ const SMBuyServer = () => {
                           <Settings className="text-muted-foreground" />
                           <div>
                             <p className="text-foreground font-medium">Auto Scaling</p>
-                            <p className="text-muted-foreground text-sm">Configurable after provisioning</p>
+                            <p className="text-muted-foreground text-sm">
+                              Configurable after provisioning
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -326,13 +480,25 @@ const SMBuyServer = () => {
 
                     <div>
                       <Label className="text-muted-foreground">Firewall Preset</Label>
-                      <RadioGroup value={config.firewall} onValueChange={(v) => setConfig({ ...config, firewall: v })} className="mt-2">
+                      <RadioGroup
+                        value={config.firewall}
+                        onValueChange={(v) => setConfig({ ...config, firewall: v })}
+                        className="mt-2"
+                      >
                         <div className="grid grid-cols-3 gap-3">
                           {FIREWALL_OPTIONS.map((fw) => (
-                            <div key={fw} className={`p-3 rounded-lg border text-center cursor-pointer ${
-                              config.firewall === fw ? 'border-primary bg-primary/10' : 'border-border'
-                            }`} onClick={() => setConfig({ ...config, firewall: fw })}>
-                              <Shield className={`w-5 h-5 mx-auto mb-1 ${config.firewall === fw ? 'text-primary' : 'text-muted-foreground'}`} />
+                            <div
+                              key={fw}
+                              className={`p-3 rounded-lg border text-center cursor-pointer ${
+                                config.firewall === fw
+                                  ? "border-primary bg-primary/10"
+                                  : "border-border"
+                              }`}
+                              onClick={() => setConfig({ ...config, firewall: fw })}
+                            >
+                              <Shield
+                                className={`w-5 h-5 mx-auto mb-1 ${config.firewall === fw ? "text-primary" : "text-muted-foreground"}`}
+                              />
                               <p className="text-foreground capitalize">{fw}</p>
                             </div>
                           ))}
@@ -352,15 +518,19 @@ const SMBuyServer = () => {
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Plan</span>
-                          <span className="text-foreground">{selectedPlan?.plan_name ?? '—'}</span>
+                          <span className="text-foreground">{selectedPlan?.plan_name ?? "—"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Region</span>
-                          <span className="text-foreground">{selectedRegionRow?.region_name ?? '—'}</span>
+                          <span className="text-foreground">
+                            {selectedRegionRow?.region_name ?? "—"}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Auto Backup</span>
-                          <span className="text-foreground">{config.autoBackup ? `Enabled (+₹${backupCost}/mo)` : 'Disabled'}</span>
+                          <span className="text-foreground">
+                            {config.autoBackup ? `Enabled (+₹${backupCost}/mo)` : "Disabled"}
+                          </span>
                         </div>
                         <div className="border-t border-border pt-2 mt-2">
                           <div className="flex justify-between font-semibold">
@@ -376,8 +546,22 @@ const SMBuyServer = () => {
                       <div className="flex items-center gap-3 p-3 rounded-lg border border-accent-amber/30 bg-accent-amber/10">
                         <CreditCard className="w-5 h-5 text-accent-amber" />
                         <div>
-                          <p className="text-foreground">Wallet Balance</p>
-                          <p className="text-accent-amber text-sm">Payment provider not connected yet — order will be recorded as pending.</p>
+                          <p className="text-foreground">
+                            {paymentRail ? paymentRail.label : t("manager.server.payment_provider")}
+                          </p>
+                          <p className="text-accent-amber text-sm">
+                            {paymentBlockReason ?? t("manager.server.pending_until_paid")}
+                          </p>
+                          {railsError && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                              onClick={() => void loadRails()}
+                            >
+                              {t("manager.console.retry")}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -391,11 +575,7 @@ const SMBuyServer = () => {
 
       {/* Navigation */}
       <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={handlePrev}
-          disabled={currentStep === 0}
-        >
+        <Button variant="outline" onClick={handlePrev} disabled={currentStep === 0}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Previous
         </Button>
@@ -405,9 +585,22 @@ const SMBuyServer = () => {
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         ) : (
-          <Button onClick={handlePurchase} disabled={submitting} className="bg-accent-emerald hover:bg-accent-emerald/90">
+          <Button
+            onClick={handlePurchase}
+            disabled={submitting || !paymentReady}
+            title={paymentBlockReason ?? undefined}
+            className="bg-accent-emerald hover:bg-accent-emerald/90"
+          >
             <ShoppingCart className="w-4 h-4 mr-2" />
-            {submitting ? 'Placing Order...' : 'Confirm Purchase'}
+            {submitting
+              ? t("manager.server.placing_order")
+              : railsLoading
+                ? t("manager.server.checking_payment")
+                : railsError
+                  ? t("manager.server.payment_check_failed")
+                  : !paymentReady
+                    ? t("manager.server.payment_not_configured")
+                    : t("manager.server.confirm_purchase")}
           </Button>
         )}
       </div>

@@ -12,7 +12,14 @@ import { readCardSlot, type CardSlot } from "./card-slot";
  * written to undo. This keeps it where the credentials are.
  */
 export const getCardSlot = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => input as { category: string; country: string })
+  .inputValidator((input: unknown) => {
+    // Typed, not just cast: the slugs build a service-role lookup path.
+    const raw = (input ?? {}) as { category?: unknown; country?: unknown };
+    return {
+      category: String(raw.category ?? "").slice(0, 120),
+      country: String(raw.country ?? "").slice(0, 120),
+    };
+  })
   .handler(async ({ data }): Promise<CardSlot | null> => {
     try {
       return await readCardSlot(data.category, data.country);

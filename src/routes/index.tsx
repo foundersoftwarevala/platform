@@ -19,13 +19,32 @@ export const Route = createFileRoute("/")({
    * carries no number rather than a wrong one. This page has real visitors on
    * it, and no piece of metadata is worth a blank screen.
    */
+  /*
+   * Alongside it, two more reads the page's own sections quote: the live-demo
+   * count (getHomeStats) and the published Vala TV films (the storefront
+   * chrome). Each is settled on its own and capped at a second and a half, so
+   * none of them can fail or stall the page - a missing answer only means that
+   * section shows no number, or does not render.
+   */
   loader: async () => {
-    const { getCatalogueHeadline } = await import("@/lib/seo/catalogue-headline.server");
-    try {
-      return { headline: await getCatalogueHeadline() };
-    } catch {
-      return { headline: null };
-    }
+    const [{ getCatalogueHeadline }, { getHomeStats }, { getStorefrontChrome }] = await Promise.all(
+      [
+        import("@/lib/seo/catalogue-headline.server"),
+        import("@/lib/marketplace/home-stats.functions"),
+        import("@/lib/storefront/chrome.functions"),
+      ],
+    );
+    const capped = <T,>(read: () => Promise<T>): Promise<T | null> =>
+      Promise.race([
+        read().catch(() => null),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+      ]);
+    const [headline, stats, chrome] = await Promise.all([
+      capped(() => getCatalogueHeadline()),
+      capped(() => getHomeStats()),
+      capped(() => getStorefrontChrome()),
+    ]);
+    return { headline, stats, chrome };
   },
   head: ({ loaderData }) => {
     const headline = loaderData?.headline ?? null;
@@ -39,24 +58,24 @@ export const Route = createFileRoute("/")({
       : "Browse ready-to-deploy software solutions with live demos, full source code and lifetime access.";
 
     return {
-    links: [{ rel: "canonical", href: absoluteUrl("/") }],
-    meta: [
-      { title },
-      {
-        name: "description",
-        content: description,
-      },
-      { property: "og:title", content: title },
-      {
-        property: "og:description",
-        content: categories
-          ? `Live demos, full source code, 1 year free support and lifetime access across ${categories} categories.`
-          : "Live demos, full source code, 1 year free support and lifetime access.",
-      },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: absoluteUrl("/") },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
+      links: [{ rel: "canonical", href: absoluteUrl("/") }],
+      meta: [
+        { title },
+        {
+          name: "description",
+          content: description,
+        },
+        { property: "og:title", content: title },
+        {
+          property: "og:description",
+          content: categories
+            ? `Live demos, full source code, 1 year free support and lifetime access across ${categories} categories.`
+            : "Live demos, full source code, 1 year free support and lifetime access.",
+        },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: absoluteUrl("/") },
+        { name: "twitter:card", content: "summary_large_image" },
+      ],
     };
   },
   component: () => (

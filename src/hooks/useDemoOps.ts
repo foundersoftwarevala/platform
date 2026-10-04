@@ -26,7 +26,9 @@ import {
 
 const OPS = "demo-ops";
 
-const rows = async <T,>(promise: PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> => {
+const rows = async <T>(
+  promise: PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> => {
   const { data, error } = await promise;
   if (error) throw error;
   return data ?? [];
@@ -43,7 +45,11 @@ const RENEW_ACTION = "demo_url.renew";
 // Automated monitor pings and syncs are thousands of rows; the trail shows people's actions.
 const AUTOMATED_ACTIONS = "(demo_url.monitor,demo_url.sync)";
 
-const logDemoAction = async (demoUrlId: string | null, action: string, metadata: Record<string, unknown>) => {
+const logDemoAction = async (
+  demoUrlId: string | null,
+  action: string,
+  metadata: Record<string, unknown>,
+) => {
   const { data } = await supabase.auth.getUser();
   if (!data.user) throw new Error("Sign in to record this action");
   const { error } = await supabase.from("demo_url_audit_log").insert({
@@ -153,7 +159,11 @@ export const useOpsAlerts = () =>
     queryKey: [OPS, "alerts"],
     queryFn: () =>
       rows<AlertRow>(
-        supabase.from("demo_alerts").select("*").order("created_at", { ascending: false }).limit(200) as never,
+        supabase
+          .from("demo_alerts")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(200) as never,
       ),
   });
 
@@ -162,7 +172,11 @@ export const useOpsAnalytics = () =>
     queryKey: [OPS, "analytics"],
     queryFn: () =>
       rows<AnalyticsRow>(
-        supabase.from("demo_analytics").select("*").order("date", { ascending: false }).limit(400) as never,
+        supabase
+          .from("demo_analytics")
+          .select("*")
+          .order("date", { ascending: false })
+          .limit(400) as never,
       ),
   });
 
@@ -171,7 +185,11 @@ export const useOpsEscalations = () =>
     queryKey: [OPS, "escalations"],
     queryFn: () =>
       rows<EscalationRow>(
-        supabase.from("demo_escalations").select("*").order("created_at", { ascending: false }).limit(200) as never,
+        supabase
+          .from("demo_escalations")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(200) as never,
       ),
   });
 
@@ -187,7 +205,11 @@ export const useOpsDeployments = () =>
     queryKey: [OPS, "deployments"],
     queryFn: () =>
       rows<DeploymentRow>(
-        supabase.from("demo_deployments").select("*").order("created_at", { ascending: false }).limit(300) as never,
+        supabase
+          .from("demo_deployments")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(300) as never,
       ),
   });
 
@@ -339,7 +361,8 @@ export const useOpsKpis = () => {
         : null;
       if (days !== null && days >= 0 && days <= 7) expiringSoon += 1;
       if (!demo.url?.startsWith("https://")) insecureUrls += 1;
-      if (!demo.title?.trim() || !demo.demo_banner_text?.trim() || !demo.masked_url?.trim()) brandingIssues += 1;
+      if (!demo.title?.trim() || !demo.demo_banner_text?.trim() || !demo.masked_url?.trim())
+        brandingIssues += 1;
       const score = performanceScore(demo);
       if (score !== null && score < 70) performanceIssues += 1;
     }
@@ -381,7 +404,11 @@ export const useOpsKpis = () => {
   return {
     kpis,
     isLoading:
-      demos.isLoading || alerts.isLoading || escalations.isLoading || credentials.isLoading || logs.isLoading,
+      demos.isLoading ||
+      alerts.isLoading ||
+      escalations.isLoading ||
+      credentials.isLoading ||
+      logs.isLoading,
     error: demos.error ?? alerts.error ?? escalations.error,
     refetch: () => {
       void demos.refetch();
@@ -396,7 +423,10 @@ export const useOpsKpis = () => {
 export const useOpsDetections = () => {
   const demos = useOpsDemos();
   const logs = useOpsValidationLogs();
-  const hits = useMemo(() => detectFailures(demos.data ?? [], logs.data ?? []), [demos.data, logs.data]);
+  const hits = useMemo(
+    () => detectFailures(demos.data ?? [], logs.data ?? []),
+    [demos.data, logs.data],
+  );
   return {
     hits,
     isLoading: demos.isLoading || logs.isLoading,
@@ -438,37 +468,21 @@ export const useOpsActions = () => {
   const runAction = useMutation({
     mutationFn: async ({ demo, action }: { demo: DemoRow; action: OneClickAction }) => {
       if (action === "recheck") {
-        const { data, error } = await supabase.functions.invoke("health-check", {
-          body: { demo_ids: [demo.id], batch_size: 1 },
-        });
-        if (error) throw error;
-        return data;
+        // A real check on the server; the "health-check" edge function this
+        // called does not exist on this server (404).
+        const { checkDemoUrlById } = await import("@/lib/marketplace-manager/demo");
+        return checkDemoUrlById(demo.id);
       }
 
-      const statusPatch: Partial<DemoRow> =
-        action === "restart"
-          ? { status: "active", last_health_check: new Date().toISOString() }
-          : action === "rebuild"
-            ? { status: "maintenance" }
-            : {};
-
-      if (Object.keys(statusPatch).length > 0) {
-        const { error } = await supabase
-          .from("demos")
-          .update({ ...statusPatch, updated_at: new Date().toISOString() } as never)
-          .eq("id", demo.id);
-        if (error) throw error;
-      }
-
-      await logDemoAction(demo.id, `demo_url.ops.${action}`, {
-        demo_name: demo.title,
-        action_type: ACTION_LABEL[action],
-        demo_status: demo.status,
-        sector: demo.category,
-        workflow_status: "completed",
-        performed_by_role: "demo_manager",
-      });
-      return { ok: true };
+      // The demos are addresses hosted elsewhere (product_demo_urls). There is
+      // no control connection to those hosts, so restarting, rebuilding,
+      // clearing a cache, regenerating branding, reconnecting a database or
+      // syncing cannot be carried out from here. These used to update the
+      // legacy `demos` table - which holds none of these rows, so nothing
+      // changed - and then log the action as "completed". Say so instead.
+      throw new Error(
+        `${ACTION_LABEL[action]} is not available: no control connection to the demo host is configured. Use "Re-run health check" to verify the address.`,
+      );
     },
     onSuccess: (_data, variables) => {
       toast.success(`${ACTION_LABEL[variables.action]} recorded for ${variables.demo.title}`);
@@ -545,20 +559,12 @@ export const useOpsActions = () => {
 
   const renewDemo = useMutation({
     mutationFn: async ({ demo, days }: { demo: DemoRow; days: number }) => {
-      const base = demo.expiry_date ? new Date(demo.expiry_date) : new Date();
-      const next = new Date(Math.max(base.getTime(), Date.now()) + days * 86_400_000).toISOString();
-      const { error } = await supabase
-        .from("demos")
-        .update({ expiry_date: next, status: "active", lifecycle_status: "active" } as never)
-        .eq("id", demo.id);
-      if (error) throw error;
-      await logDemoAction(demo.id, RENEW_ACTION, {
-        previous_expiry: demo.expiry_date,
-        new_expiry: next,
-        auto_renewed: false,
-        notes: `Renewed ${days} days from Operations Center`,
-      });
-      return next;
+      // product_demo_urls has no expiry date: a hosted demo address does not
+      // lapse. The old update targeted the legacy `demos` table, matched no
+      // row, and still reported "Demo renewed".
+      void demo;
+      void days;
+      throw new Error("Hosted demo addresses have no expiry date to renew.");
     },
     onSuccess: () => {
       toast.success("Demo renewed");
@@ -568,15 +574,25 @@ export const useOpsActions = () => {
   });
 
   const setLifecycle = useMutation({
-    mutationFn: async ({ demo, lifecycle }: { demo: DemoRow; lifecycle: "archived" | "active" | "retired" }) => {
-      const { error } = await supabase
-        .from("demos")
-        .update({
-          lifecycle_status: lifecycle,
-          status: lifecycle === "active" ? "active" : "inactive",
-        } as never)
-        .eq("id", demo.id);
-      if (error) throw error;
+    mutationFn: async ({
+      demo,
+      lifecycle,
+    }: {
+      demo: DemoRow;
+      lifecycle: "archived" | "active" | "retired";
+    }) => {
+      // The address itself is switched on or off (product_demo_urls.status,
+      // through the operator resource API, which records the change). The old
+      // update targeted the legacy `demos` table and changed nothing.
+      const { upsertDemoUrl } = await import("@/lib/marketplace-manager/demo");
+      await upsertDemoUrl({
+        data: { id: demo.id, status: lifecycle === "active" ? "active" : "inactive" },
+      });
+      await logDemoAction(demo.id, `demo_url.lifecycle.${lifecycle}`, {
+        demo_name: demo.title,
+        previous_status: demo.status,
+        lifecycle,
+      });
     },
     onSuccess: () => {
       toast.success("Lifecycle updated");

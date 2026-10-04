@@ -1,8 +1,23 @@
-import { Play, Sparkles, ArrowRight } from "lucide-react";
+import { Play, Sparkles, ArrowRight, Info } from "lucide-react";
 import type { RoleConfig } from "@/lib/roles";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
-export function Hero({ role, onCta, onAnalytics }: { role: RoleConfig; onCta?: () => void; onAnalytics?: () => void }) {
+export function Hero({
+  role,
+  onCta,
+  onAnalytics,
+  ctaNotice,
+}: {
+  role: RoleConfig;
+  onCta?: () => void;
+  onAnalytics?: () => void;
+  /**
+   * Set when the banner action has no form behind it yet: the button opens
+   * the list it names, carries an info mark instead of a play mark and shows
+   * this reason under the buttons, so it does not pretend to create anything.
+   */
+  ctaNotice?: string;
+}) {
   const { t } = useTranslation();
   const banner = role.banner;
   return (
@@ -19,8 +34,13 @@ export function Hero({ role, onCta, onAnalytics }: { role: RoleConfig; onCta?: (
         }}
       />
       {/* Grain */}
-      <div className="absolute inset-0 opacity-[0.04] mix-blend-overlay pointer-events-none"
-           style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
+      <div
+        className="absolute inset-0 opacity-[0.04] mix-blend-overlay pointer-events-none"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        }}
+      />
 
       <div className="relative grid md:grid-cols-[1.4fr_1fr] gap-6 p-6 md:p-10">
         <div className="min-w-0 text-white">
@@ -31,15 +51,24 @@ export function Hero({ role, onCta, onAnalytics }: { role: RoleConfig; onCta?: (
           <h1 className="mt-4 text-3xl md:text-5xl font-black tracking-tight leading-[1.05]">
             {banner.headlineKey ? t(banner.headlineKey) : banner.headline}
           </h1>
-          <p className="mt-3 text-sm md:text-base text-white/75 max-w-xl">{banner.subKey ? t(banner.subKey) : banner.sub}</p>
+          <p className="mt-3 text-sm md:text-base text-white/75 max-w-xl">
+            {banner.subKey ? t(banner.subKey) : banner.sub}
+          </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
               onClick={onCta}
+              title={ctaNotice}
+              aria-describedby={ctaNotice ? "sv-hero-cta-notice" : undefined}
               className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-black shadow-glow transition hover:opacity-95"
               style={{ background: "white" }}
             >
-              <Play className="h-4 w-4 fill-current" /> {banner.ctaKey ? t(banner.ctaKey) : banner.cta}
+              {ctaNotice ? (
+                <Info className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Play className="h-4 w-4 fill-current" />
+              )}{" "}
+              {banner.ctaKey ? t(banner.ctaKey) : banner.cta}
             </button>
             <button
               onClick={onAnalytics}
@@ -48,21 +77,35 @@ export function Hero({ role, onCta, onAnalytics }: { role: RoleConfig; onCta?: (
               {t("dashboard.hero.view_analytics")} <ArrowRight className="h-4 w-4" />
             </button>
           </div>
+          {ctaNotice && (
+            <p id="sv-hero-cta-notice" className="mt-2 max-w-xl text-xs text-white/70">
+              {ctaNotice}
+            </p>
+          )}
 
           <div className="mt-7 flex flex-wrap items-center gap-5 text-xs text-white/70">
             <Stat label={t("dashboard.hero.benchmarked")} value={role.benchmarks.join(" + ")} />
-            <Stat label={t("dashboard.hero.role")} value={role.nameKey ? t(role.nameKey) : role.name} />
+            <Stat
+              label={t("dashboard.hero.role")}
+              value={role.nameKey ? t(role.nameKey) : role.name}
+            />
             <Stat label={t("dashboard.hero.status")} value={t("dashboard.hero.live_workspace")} />
           </div>
         </div>
 
         <div className="relative hidden md:block">
-          <div className="absolute -top-10 -right-10 h-72 w-72 rounded-full blur-3xl opacity-50"
-               style={{ background: role.banner.accent }} />
+          <div
+            className="absolute -top-10 -right-10 h-72 w-72 rounded-full blur-3xl opacity-50"
+            style={{ background: role.banner.accent }}
+          />
           <div className="relative h-full rounded-2xl bg-white/5 border border-white/15 backdrop-blur p-5 text-white">
             <div className="flex items-center justify-between">
-              <div className="text-[11px] uppercase tracking-wider text-white/60">{t("dashboard.hero.performance")}</div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10">{t("dashboard.hero.awaiting_data")}</span>
+              <div className="text-[11px] uppercase tracking-wider text-white/60">
+                {t("dashboard.hero.performance")}
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10">
+                {t("dashboard.hero.awaiting_data")}
+              </span>
             </div>
             <div className="mt-2 text-xl font-bold">{t("dashboard.hero.connect_source")}</div>
             <div className="text-xs text-white/60">{t("dashboard.hero.charts_note")}</div>
@@ -104,7 +147,14 @@ function EmptySparkline({ accent }: { accent: string }) {
         </pattern>
       </defs>
       <rect width="200" height="80" fill="url(#dash)" rx="8" />
-      <path d="M0,55 C30,50 55,50 80,50 C120,50 150,50 200,50" stroke={accent} strokeOpacity="0.5" strokeWidth="1.5" strokeDasharray="4 4" fill="none" />
+      <path
+        d="M0,55 C30,50 55,50 80,50 C120,50 150,50 200,50"
+        stroke={accent}
+        strokeOpacity="0.5"
+        strokeWidth="1.5"
+        strokeDasharray="4 4"
+        fill="none"
+      />
     </svg>
   );
 }

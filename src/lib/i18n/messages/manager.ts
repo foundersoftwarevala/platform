@@ -84,6 +84,23 @@ export const MANAGER_MESSAGES = {
   "manager.module.influencer": "Influencer",
   "manager.module.qr_system": "QR System",
   "manager.module.reports": "Reports",
+  // Marketplace Manager feature-outline screens (no records behind them).
+  "manager.module.outline_no_export": [
+    "This screen is a feature outline with no records behind it, so there is nothing to export.",
+    "hover reason on a disabled Export button",
+  ],
+  "manager.module.outline_no_new": [
+    "This screen is a feature outline with no records behind it, so there is nothing to add to.",
+    "hover reason on a disabled New button",
+  ],
+  "manager.module.action_not_connected": [
+    "Nothing is connected to this action on this screen yet.",
+    "hover reason on a disabled action button in the Marketplace Manager",
+  ],
+  "manager.module.more_actions": [
+    "More actions",
+    "label of an icon button that opens further actions",
+  ],
 
   // The orders wall.
   "manager.orders.title": "Orders",
@@ -129,12 +146,16 @@ export const MANAGER_MESSAGES = {
   "manager.orders.refund_prompt": "Refund {amount} for {order}. Why?",
   // Product Manager creates products; Marketplace Manager → Products edits,
   // publishes and retires them. The screens used to call products immutable.
-  "manager.products.created_as_draft": "Saved as a draft. Edit and publish it in Marketplace Manager → Products.",
-  "manager.products.read_only_here": "Once submitted, the product is read-only in this studio; it is edited and published in Marketplace Manager → Products.",
+  "manager.products.created_as_draft":
+    "Saved as a draft. Edit and publish it in Marketplace Manager → Products.",
+  "manager.products.read_only_here":
+    "Once submitted, the product is read-only in this studio; it is edited and published in Marketplace Manager → Products.",
   "manager.products.policy_title": "Read-only in this studio",
-  "manager.products.policy_body": "This product cannot be edited here after creation. Changes, publishing and retiring happen in Marketplace Manager → Products. Review carefully before submitting.",
+  "manager.products.policy_body":
+    "This product cannot be edited here after creation. Changes, publishing and retiring happen in Marketplace Manager → Products. Review carefully before submitting.",
   "manager.products.create_button": ["Create Product", "submits the new product form"],
-  "manager.products.list_read_only": "Read-only here. Edit this product in Marketplace Manager → Products.",
+  "manager.products.list_read_only":
+    "Read-only here. Edit this product in Marketplace Manager → Products.",
   "manager.products.created": "Product created successfully!",
   "manager.products.create_failed": "Failed to create product",
   "manager.products.add_title": "Add New Product",
@@ -143,7 +164,10 @@ export const MANAGER_MESSAGES = {
   "manager.products.name_placeholder": "Enter product name",
   "manager.products.category_required": "Category *",
   "manager.products.category_placeholder": "Select category",
-  "manager.products.category_other": ["Other", "category choice for a product that fits no listed category"],
+  "manager.products.category_other": [
+    "Other",
+    "category choice for a product that fits no listed category",
+  ],
   "manager.products.description": "Description",
   "manager.products.description_placeholder": "Product description...",
   "manager.products.features": "Features",
@@ -216,7 +240,8 @@ export const MANAGER_MESSAGES = {
   "manager.products.recent_demos": "Recent Demos",
   "manager.products.engagement": "Engagement",
   "manager.products.studio_eyebrow": "live demo operations · full CRUD · full audit",
-  "manager.products.studio_subtitle": "{section} — catalog, demo URLs, product relationships, health checks and audit trail.",
+  "manager.products.studio_subtitle":
+    "{section} — catalog, demo URLs, product relationships, health checks and audit trail.",
   "manager.products.read_badge": ["READ", "badge on a tab that only shows data"],
   "manager.products.studio_title": "Product & Demo Studio",
   "manager.products.tab_dashboard": "Product Dashboard",
@@ -232,13 +257,16 @@ export const MANAGER_MESSAGES = {
   "manager.products.categories_unreadable": "The categories could not be read.",
   "manager.products.signin_to_add": "Sign in as an operator to add a product.",
   "manager.products.not_created": "The product was not created.",
-  "manager.products.audit_unreadable": "The audit trail could not be read. Check your operator sign-in and try again.",
-  "manager.products.list_unreadable": "The products could not be read. Check your operator sign-in and try again.",
+  "manager.products.audit_unreadable":
+    "The audit trail could not be read. Check your operator sign-in and try again.",
+  "manager.products.list_unreadable":
+    "The products could not be read. Check your operator sign-in and try again.",
   "manager.products.search_placeholder": "Search by name, slug or category",
   "manager.products.range": ["{from}–{to} of {total}", "which products of the list are shown"],
   "manager.products.previous": ["Previous", "button that shows the previous page of products"],
   "manager.products.next": ["Next", "button that shows the next page of products"],
-  "manager.hero.archived_cannot_enable": "This slide is archived. Restore it as a draft before switching it on.",
+  "manager.hero.archived_cannot_enable":
+    "This slide is archived. Restore it as a draft before switching it on.",
   "manager.orders.refund_amount_prompt": "How much of {total} should be refunded for {order}?",
   "manager.orders.refund_amount_invalid": "Enter an amount above zero and no more than {total}.",
   "manager.orders.dispute": ["Dispute", "button that opens a dispute"],
@@ -454,4 +482,200 @@ export const MANAGER_MESSAGES = {
   // The home page's chat button.
   "manager.home.open_chat": ["Open Connect Chat", "the button that opens the chat panel"],
   "manager.home.chat_with_us": "Chat with us",
+
+  // Manager / demo / support consoles: real-data states (internal support AI, server manager, demo manager).
+  "manager.console.load_failed_generic": "Unable to load this manager data.",
+  "manager.console.load_failed": [
+    "Could not load this data: {message}",
+    "message is the error the server returned",
+  ],
+  "manager.console.retry": ["Retry", "button that runs a failed read again"],
+  "manager.console.sub_edit_reason":
+    "Subscriptions change through the billing workflow; there is no direct edit from this console.",
+  "manager.console.sub_delete_reason":
+    "Subscriptions are financial records and are never deleted; cancellation runs through billing.",
+  "manager.console.plan_edit_reason": "Plan pricing is not editable from this console.",
+  "manager.console.payment_method_reason":
+    "Payment rails are configured on the server, not from this console.",
+  "manager.console.subscriptions_title": "Subscriptions & Payments",
+  "manager.console.subscriptions_description": "Manage plans, payments, invoices, and billing",
+  "manager.console.active_subscriptions": [
+    "Active Subscriptions",
+    "count of subscriptions with status active",
+  ],
+  "manager.console.mrr_note": "Active subscriptions, normalised to monthly",
+  "manager.console.churn_rate": "Churn Rate",
+  "manager.console.churn_not_tracked": "Not tracked: subscriptions carry no cancellation date",
+  "manager.console.no_subscriptions": "No subscriptions have been recorded.",
+  "manager.console.no_plans": "No subscription plans are defined.",
+  "manager.console.plan_features": [
+    "{count} features · {status}",
+    "count is a number or a dash; status is the plan status code",
+  ],
+  "manager.console.no_invoices": "No invoices have been issued.",
+  "manager.console.no_coupons":
+    "No company coupons exist. Coupons are created and controlled by Software Vala only.",
+  "manager.console.manage_coupons": ["Manage coupons", "link to the coupon screen"],
+  "manager.console.unlimited": ["Unlimited", "a coupon with no redemption limit"],
+  "manager.console.no_rails": "No payment rails are registered.",
+  "manager.console.rail_state": [
+    "{configured, select, yes {Enabled} other {Not configured}} · health: {health}",
+    "health is a status code",
+  ],
+  "manager.console.status_value": ["Status: {status}", "status is a status code"],
+  "manager.console.status_not_configured": "Status: Not configured",
+  "manager.console.rail_name": "Rail: {name}",
+  "manager.console.no_stripe_rail": "No Stripe payment rail is registered on the server.",
+  "manager.console.stripe_not_connected": "Stripe is not connected.",
+  "manager.console.view_stripe_dashboard": "View Stripe Dashboard",
+  "manager.console.reconnect_account": [
+    "Reconnect Account",
+    "button that reconnects a payment provider account",
+  ],
+  "manager.console.no_lead_finder": "No lead-finder provider is connected.",
+  "manager.console.no_enrichment": "No enrichment provider is connected.",
+  "manager.console.no_linkedin": "LinkedIn is not connected.",
+  "manager.console.lead_delete_reason":
+    "Leads are kept as records; close or mark them as spam in Lead Manager.",
+  "manager.console.total_leads": "Total Leads",
+  "manager.console.hot_leads": "Hot Leads",
+  "manager.console.avg_lead_score": "Avg Lead Score",
+  "manager.console.enrichment_rate": "Enrichment Rate",
+  "manager.console.not_tracked": [
+    "Not tracked",
+    "shown where the platform records nothing for a figure",
+  ],
+  "manager.console.no_leads_match": "No leads match this filter.",
+  "manager.console.no_leads": "No leads have been captured yet.",
+  "manager.console.lead_status_added": ["{status} · added {date}", "status is a lead status code"],
+  "manager.console.open_in_lead_manager": "Open {name} in Lead Manager",
+  "manager.console.delete_with_reason": [
+    "Delete — {reason}",
+    "label of a disabled delete button; reason says why it is disabled",
+  ],
+  "manager.console.not_connected_reason": [
+    "Not connected: {reason}",
+    "reason says what is missing",
+  ],
+  "manager.console.enriched_not_tracked": "Enriched This Month: not tracked — {reason}",
+  "manager.console.no_campaigns": "No email campaigns have been recorded.",
+  "manager.console.status_not_connected": "Status: Not connected",
+  "manager.console.no_generator":
+    "No content-generation endpoint is connected to this console. Product content is generated from the marketplace content pipeline.",
+  "manager.console.copied": ["Copied", "toast after content was copied to the clipboard"],
+  "manager.console.copy_failed": "Copy failed: the browser blocked clipboard access.",
+  "manager.console.ai_content_title": "AI Content Suite",
+  "manager.console.ai_content_description":
+    "Generate blog posts, emails, social media, images, and videos with AI",
+  "manager.console.content_generated": "Content Generated",
+  "manager.console.content_records":
+    "{count, plural, one {# content record} other {# content records}}",
+  "manager.console.images_created": "Images Created",
+  "manager.console.words_written": "Words Written",
+  "manager.console.languages": ["Languages", "count of distinct content languages"],
+  "manager.console.no_ai_content": "No AI content has been generated yet.",
+  "manager.console.content_meta": [
+    "{words} words • {language} • {date}",
+    "words is a formatted number; language is a language code",
+  ],
+  "manager.console.copy_content": "Copy content",
+  "manager.console.nothing_to_copy": "This record has no content to copy.",
+  "manager.console.download_content": "Download content",
+  "manager.console.nothing_to_download": "This record has no content to download.",
+  "manager.registry.key_created": "API key created",
+  "manager.registry.key_updated": "API key updated",
+  "manager.registry.rotate_title": "Rotate API Key",
+  "manager.registry.create_title": "Create API Key",
+  "manager.registry.secret_label": [
+    "Secret key",
+    "label of the field where the provider's secret is pasted",
+  ],
+  "manager.registry.secret_placeholder": "Paste the provider's secret key",
+  "manager.registry.rotate_note":
+    "The new secret is saved as a new key, and this key is revoked once it is saved.",
+  "manager.registry.secret_note":
+    "Stored encrypted on the server; only its prefix and last four characters are shown.",
+  "manager.registry.rotate_submit": ["Rotate", "button that saves the replacement secret"],
+  "manager.support_ai.loading": "Loading live data…",
+  "manager.support_ai.not_permitted": [
+    "Not permitted to read {source}",
+    "source names a table or data feed",
+  ],
+  "manager.support_ai.could_not_load": [
+    "Could not load {source}",
+    "source names a table or data feed",
+  ],
+  "manager.support_ai.degraded_reason": "One or more live sources could not be read",
+  "manager.support_ai.loading_badge": ["LOADING", "status badge while live reads are loading"],
+  "manager.support_ai.nearest_sla": "Nearest SLA",
+  "manager.support_ai.total_fix_attempts": "Total Fix Attempts",
+  "manager.support_ai.auto_recovered": "Auto-Recovered Incidents",
+  "manager.support_ai.fix_time_reason":
+    "Attempt end times are not recorded, so fix duration cannot be measured.",
+  "manager.support_ai.avg_fix_time": "Avg Fix Time (not tracked)",
+  "manager.support_ai.rollbacks_reason": "The recovery executor records no rollbacks.",
+  "manager.support_ai.rollbacks": "Rollbacks (not tracked)",
+  "manager.support_ai.awaiting_recovery": "Awaiting Recovery",
+  "manager.support_ai.fix_types": "Fix Type Distribution",
+  "manager.support_ai.no_attempts": "No recovery attempts have been recorded yet.",
+  "manager.support_ai.queue_empty": "No incidents have entered the self-healing queue.",
+  "manager.support_ai.safe_fix_queue": "Safe Fix Queue",
+  "manager.support_ai.no_escalation_link": "error_events records no escalation link.",
+  "manager.support_ai.escalated_not_tracked": "Escalated (not tracked)",
+  "manager.support_ai.no_detection_latency": "Detection latency is not recorded.",
+  "manager.support_ai.avg_detection": "Avg Detection (not tracked)",
+  "manager.support_ai.no_resolution_timestamp": "Escalations record no resolution timestamp.",
+  "manager.support_ai.avg_resolution": "Avg Resolution (not tracked)",
+  "manager.support_ai.sla_compliance_note": "Share of escalated tickets whose SLA is not breached.",
+  "manager.support_ai.sla_compliance": "SLA Compliance",
+  "manager.support_ai.levels_capacity": "Escalation Levels & Capacity",
+  "manager.support_ai.no_open_levels": "No open escalations at any level.",
+  "manager.support_ai.active_count": "{count, plural, one {# active} other {# active}}",
+  "manager.support_ai.capacity_reason": "Response times and team capacity are not recorded.",
+  "manager.support_ai.avg_response": "Avg Response",
+  "manager.support_ai.capacity": ["Capacity", "how much work a support team can take"],
+  "manager.support_ai.ticket_details_failed":
+    "Ticket details (priority, SLA) could not be read; escalations are shown without them.",
+  "manager.support_ai.no_active_escalations": "No active escalations.",
+  "manager.support_ai.sla_minutes_note": "SLA minutes remaining as recorded on the ticket",
+  "manager.support_ai.active_issues": "Active Issues",
+  "manager.support_ai.tickets_unavailable": "support_tickets unavailable",
+  "manager.support_ai.loading_short": "Loading…",
+  "manager.support_ai.auto_recovered_short": "Auto-Recovered",
+  "manager.support_ai.healing_unavailable": "Self-healing data unavailable",
+  "manager.support_ai.no_incidents": "No incidents recorded",
+  "manager.support_ai.escalated": ["Escalated", "count of escalated issues"],
+  "manager.support_ai.avg_resolution_short": "Avg Resolution",
+  "manager.support_ai.live_issue_overview": "Live Issue Overview",
+  "manager.support_ai.open_tickets": "Open tickets",
+  "manager.support_ai.trust_reason":
+    "No trust index, uptime or accuracy measurement is recorded for this module.",
+  "manager.support_ai.overall_trust": "Overall Trust",
+  "manager.support_ai.frustration_reason":
+    "No frustration signal is recorded anywhere on the platform.",
+  "manager.server.checking_payment": "Checking payment provider...",
+  "manager.server.payment_check_failed_reason":
+    "Could not verify the payment provider. Purchase is unavailable.",
+  "manager.server.payment_not_configured": "Payment provider not configured",
+  "manager.server.order_created": "Order created — awaiting payment.",
+  "manager.server.awaiting_payment": "Awaiting payment",
+  "manager.server.order_recorded": [
+    'Your order has been recorded with status "{status}" and payment method "{method}". It is not paid yet; provisioning begins only after the payment is confirmed.',
+    "status and method are stored codes",
+  ],
+  "manager.server.payment_provider": [
+    "Payment provider",
+    "placeholder when no payment provider is configured",
+  ],
+  "manager.server.pending_until_paid":
+    "The order is recorded as pending and is not paid until the payment is confirmed.",
+  "manager.server.placing_order": "Placing Order...",
+  "manager.server.payment_check_failed": "Payment check failed",
+  "manager.server.confirm_purchase": "Confirm Purchase",
+  "manager.server.mw_fill_required": "Please fill in title, scope, start and end",
+  "manager.server.mw_end_after_start": "End must be after start",
+  "manager.server.mw_scheduled": [
+    "{code} scheduled — pending approval",
+    "code is the maintenance window reference",
+  ],
 } as const;

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { bearerToken, userFromBearerToken } from "@/lib/auth/bearer-user.server";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { approveChange, publishChange, rollbackChange } from "@/lib/seo/change-control.server";
 
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/api/seo/change")({
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
 
-        let body: { id?: unknown; action?: unknown; approvedBy?: unknown };
+        let body: { id?: unknown; action?: unknown };
         try {
           body = (await request.json()) as typeof body;
         } catch {
@@ -37,7 +38,11 @@ export const Route = createFileRoute("/api/seo/change")({
         }
 
         try {
-          const approvedBy = typeof body.approvedBy === "string" ? body.approvedBy : null;
+          // Who approved is the signed-in operator the guard just verified,
+          // never a name the request supplies. A caller using the internal
+          // token is a script, not a person, and is recorded as nobody.
+          const token = bearerToken(request.headers.get("authorization"));
+          const approvedBy = token ? ((await userFromBearerToken(token))?.id ?? null) : null;
           const change =
             action === "approve"
               ? await approveChange(id, approvedBy)

@@ -6,6 +6,29 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 
+/**
+ * Every function below is a public RPC endpoint that acts on the platform's
+ * Cloudflare zone with the stored API token - DNS records, HTTPS, redirects,
+ * caching, security headers. None had a check of its own, so anyone could
+ * repoint the domain. Infrastructure changes are for operators only; the
+ * seo/marketing staff the SEO console admits are deliberately not widened in.
+ */
+async function operatorGuard(action: string) {
+  const { requireOperator } = await import("@/lib/auth/require-operator.server");
+  return requireOperator(action);
+}
+
+/**
+ * Cloudflare zone and record ids are 32 hex characters. They are interpolated
+ * into the API path, so anything else (a "/" or "..") could steer the stored
+ * token at a different Cloudflare endpoint.
+ */
+function cfId(value: unknown, what: string): string {
+  const id = String(value ?? "");
+  if (!/^[a-f0-9]{32}$/i.test(id)) throw new Error(`That is not a valid Cloudflare ${what} id.`);
+  return id;
+}
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -67,12 +90,16 @@ async function getCloudflareCredentials() {
 export const getDnsRecords = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { zone_id?: string })
   .handler(async ({ data }) => {
+    await operatorGuard("getDnsRecords");
     const cf = await getCloudflareCredentials();
-    const zoneId = data.zone_id || cf.zone_id;
+    const zoneId = cfId(data.zone_id || cf.zone_id, "zone");
 
-    const response = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`, {
-      headers: { Authorization: `Bearer ${cf.api_token}` },
-    });
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`,
+      {
+        headers: { Authorization: `Bearer ${cf.api_token}` },
+      },
+    );
 
     if (!response.ok) throw new Error(`Cloudflare API error: ${response.statusText}`);
 
@@ -81,21 +108,25 @@ export const getDnsRecords = createServerFn({ method: "POST" })
   });
 
 export const updateDnsRecord = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    zone_id?: string;
-    record_id: string;
-    name: string;
-    type: string;
-    content: string;
-    ttl?: number;
-    proxied?: boolean;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        zone_id?: string;
+        record_id: string;
+        name: string;
+        type: string;
+        content: string;
+        ttl?: number;
+        proxied?: boolean;
+      },
+  )
   .handler(async ({ data }) => {
+    await operatorGuard("updateDnsRecord");
     const cf = await getCloudflareCredentials();
-    const zoneId = data.zone_id || cf.zone_id;
+    const zoneId = cfId(data.zone_id || cf.zone_id, "zone");
 
     const response = await fetch(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${data.record_id}`,
+      `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${cfId(data.record_id, "DNS record")}`,
       {
         method: "PUT",
         headers: {
@@ -109,7 +140,7 @@ export const updateDnsRecord = createServerFn({ method: "POST" })
           ttl: data.ttl || 3600,
           proxied: data.proxied ?? false,
         }),
-      }
+      },
     );
 
     if (!response.ok) throw new Error(`Cloudflare API error: ${response.statusText}`);
@@ -119,32 +150,39 @@ export const updateDnsRecord = createServerFn({ method: "POST" })
   });
 
 export const createDnsRecord = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    zone_id?: string;
-    name: string;
-    type: string;
-    content: string;
-    ttl?: number;
-    proxied?: boolean;
-  })
-  .handler(async ({ data }) => {
-    const cf = await getCloudflareCredentials();
-    const zoneId = data.zone_id || cf.zone_id;
-
-    const response = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${cf.api_token}`,
-        "Content-Type": "application/json",
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        zone_id?: string;
+        name: string;
+        type: string;
+        content: string;
+        ttl?: number;
+        proxied?: boolean;
       },
-      body: JSON.stringify({
-        type: data.type,
-        name: data.name,
-        content: data.content,
-        ttl: data.ttl || 3600,
-        proxied: data.proxied ?? false,
-      }),
-    });
+  )
+  .handler(async ({ data }) => {
+    await operatorGuard("createDnsRecord");
+    const cf = await getCloudflareCredentials();
+    const zoneId = cfId(data.zone_id || cf.zone_id, "zone");
+
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${cf.api_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: data.type,
+          name: data.name,
+          content: data.content,
+          ttl: data.ttl || 3600,
+          proxied: data.proxied ?? false,
+        }),
+      },
+    );
 
     if (!response.ok) throw new Error(`Cloudflare API error: ${response.statusText}`);
 
@@ -159,14 +197,15 @@ export const createDnsRecord = createServerFn({ method: "POST" })
 export const getSSLCertificate = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { zone_id?: string })
   .handler(async ({ data }) => {
+    await operatorGuard("getSSLCertificate");
     const cf = await getCloudflareCredentials();
-    const zoneId = data.zone_id || cf.zone_id;
+    const zoneId = cfId(data.zone_id || cf.zone_id, "zone");
 
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/zones/${zoneId}/ssl/certificate_pack`,
       {
         headers: { Authorization: `Bearer ${cf.api_token}` },
-      }
+      },
     );
 
     if (!response.ok) throw new Error(`Cloudflare API error: ${response.statusText}`);
@@ -178,18 +217,22 @@ export const getSSLCertificate = createServerFn({ method: "POST" })
 export const enableHttpsRedirect = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { zone_id?: string })
   .handler(async ({ data }) => {
+    await operatorGuard("enableHttpsRedirect");
     const cf = await getCloudflareCredentials();
-    const zoneId = data.zone_id || cf.zone_id;
+    const zoneId = cfId(data.zone_id || cf.zone_id, "zone");
 
     // Set always_use_https
-    const response = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/settings/always_use_https`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${cf.api_token}`,
-        "Content-Type": "application/json",
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/zones/${zoneId}/settings/always_use_https`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${cf.api_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ value: "on" }),
       },
-      body: JSON.stringify({ value: "on" }),
-    });
+    );
 
     if (!response.ok) throw new Error(`Cloudflare API error: ${response.statusText}`);
 
@@ -201,15 +244,19 @@ export const enableHttpsRedirect = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const createRedirectRule = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    zone_id?: string;
-    source: string;
-    destination: string;
-    status_code: number;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        zone_id?: string;
+        source: string;
+        destination: string;
+        status_code: number;
+      },
+  )
   .handler(async ({ data }) => {
+    await operatorGuard("createRedirectRule");
     const cf = await getCloudflareCredentials();
-    const zoneId = data.zone_id || cf.zone_id;
+    const zoneId = cfId(data.zone_id || cf.zone_id, "zone");
 
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/zones/${zoneId}/rules/lists/redirects/items`,
@@ -224,7 +271,7 @@ export const createRedirectRule = createServerFn({ method: "POST" })
           destination: data.destination,
           status_code: data.status_code,
         }),
-      }
+      },
     );
 
     if (!response.ok) throw new Error(`Cloudflare API error: ${response.statusText}`);
@@ -237,15 +284,24 @@ export const createRedirectRule = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const setCachingRules = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    zone_id?: string;
-    path_pattern: string;
-    cache_level: "bypass" | "development" | "cache" | "cache_everything";
-    browser_cache_ttl?: number;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        zone_id?: string;
+        path_pattern: string;
+        cache_level: "bypass" | "development" | "cache" | "cache_everything";
+        browser_cache_ttl?: number;
+      },
+  )
   .handler(async ({ data }) => {
+    await operatorGuard("setCachingRules");
+    // The pattern is written into a Cloudflare rule expression inside quotes;
+    // a quote or parenthesis in it would rewrite the expression itself.
+    if (!/^\/[A-Za-z0-9/_.*%~-]{0,200}$/.test(String(data.path_pattern ?? ""))) {
+      throw new Error("The path pattern must start with / and use only URL path characters.");
+    }
     const cf = await getCloudflareCredentials();
-    const zoneId = data.zone_id || cf.zone_id;
+    const zoneId = cfId(data.zone_id || cf.zone_id, "zone");
 
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/zones/${zoneId}/cache_rules`,
@@ -266,7 +322,7 @@ export const setCachingRules = createServerFn({ method: "POST" })
             cache_on_cookie: "session_id",
           },
         }),
-      }
+      },
     );
 
     if (!response.ok) throw new Error(`Cloudflare API error: ${response.statusText}`);
@@ -281,6 +337,7 @@ export const setCachingRules = createServerFn({ method: "POST" })
 export const checkDomainHealth = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { domain: string })
   .handler(async ({ data }) => {
+    await operatorGuard("checkDomainHealth");
     const checks: DomainHealthCheck = {
       domain: data.domain,
       https_enabled: false,
@@ -295,34 +352,39 @@ export const checkDomainHealth = createServerFn({ method: "POST" })
     };
 
     try {
-      // Check HTTPS
-      const httpsResponse = await fetch(`https://${data.domain}`, {
-        method: "HEAD",
-        redirect: "manual",
-      });
-      checks.https_enabled = httpsResponse.ok || httpsResponse.status === 200 || httpsResponse.status === 301;
+      // The domain comes from the request body, so every request goes through
+      // the checked fetcher: a "domain" of 169.254.169.254 or an internal host
+      // is refused instead of fetched from inside the server's network.
+      const { publicFetch } = await import("@/lib/seo/public-fetch.server");
+      const domain = String(data.domain ?? "").trim();
+      if (!/^[A-Za-z0-9.-]{1,253}$/.test(domain)) throw new Error("That is not a valid domain.");
+
+      // Check HTTPS (a followed redirect stands in for the 301 a manual fetch saw)
+      const httpsResponse = await publicFetch(`https://${domain}`);
+      checks.https_enabled = httpsResponse.ok || httpsResponse.redirects.length > 0;
 
       // Check homepage
-      const homeResponse = await fetch(`https://${data.domain}/`, { redirect: "follow" });
+      const homeResponse = await publicFetch(`https://${domain}/`);
       checks.homepage_accessible = homeResponse.ok;
 
       // Check robots.txt
-      const robotsResponse = await fetch(`https://${data.domain}/robots.txt`);
+      const robotsResponse = await publicFetch(`https://${domain}/robots.txt`);
       checks.robots_txt_accessible = robotsResponse.ok;
 
       // Check sitemap
-      const sitemapResponse = await fetch(`https://${data.domain}/sitemap.xml`);
+      const sitemapResponse = await publicFetch(`https://${domain}/sitemap.xml`);
       checks.sitemap_accessible = sitemapResponse.ok;
 
       // Check API
-      const apiResponse = await fetch(`https://${data.domain}/api/health`, { method: "HEAD" });
-      checks.api_responsive = apiResponse.ok || apiResponse.status === 404 || apiResponse.status === 405;
+      const apiResponse = await publicFetch(`https://${domain}/api/health`);
+      checks.api_responsive =
+        apiResponse.ok || apiResponse.status === 404 || apiResponse.status === 405;
 
       // Determine overall health
       const healthyChecks = Object.values(checks)
-        .filter(v => typeof v === "boolean")
-        .filter(v => v).length;
-      const totalChecks = Object.values(checks).filter(v => typeof v === "boolean").length;
+        .filter((v) => typeof v === "boolean")
+        .filter((v) => v).length;
+      const totalChecks = Object.values(checks).filter((v) => typeof v === "boolean").length;
 
       if (healthyChecks === totalChecks) {
         checks.overall_health = "healthy";
@@ -343,8 +405,9 @@ export const checkDomainHealth = createServerFn({ method: "POST" })
 export const configurePerformanceSettings = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { zone_id?: string })
   .handler(async ({ data }) => {
+    await operatorGuard("configurePerformanceSettings");
     const cf = await getCloudflareCredentials();
-    const zoneId = data.zone_id || cf.zone_id;
+    const zoneId = cfId(data.zone_id || cf.zone_id, "zone");
 
     const settings = [
       // Minification
@@ -397,7 +460,7 @@ export const configurePerformanceSettings = createServerFn({ method: "POST" })
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ value: setting.value }),
-          }
+          },
         );
 
         if (response.ok) {
@@ -410,7 +473,7 @@ export const configurePerformanceSettings = createServerFn({ method: "POST" })
       }
     }
 
-    return { success: results.every(r => r.success), results };
+    return { success: results.every((r) => r.success), results };
   });
 
 // ============================================================================
@@ -420,8 +483,9 @@ export const configurePerformanceSettings = createServerFn({ method: "POST" })
 export const configureSecurityHeaders = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { zone_id?: string })
   .handler(async ({ data }) => {
+    await operatorGuard("configureSecurityHeaders");
     const cf = await getCloudflareCredentials();
-    const zoneId = data.zone_id || cf.zone_id;
+    const zoneId = cfId(data.zone_id || cf.zone_id, "zone");
 
     // Configure through Transform Rules
     const response = await fetch(
@@ -445,7 +509,7 @@ export const configureSecurityHeaders = createServerFn({ method: "POST" })
             { id: "add_x_content_type_options", enabled: true },
           ],
         }),
-      }
+      },
     );
 
     if (!response.ok) throw new Error(`Cloudflare API error: ${response.statusText}`);

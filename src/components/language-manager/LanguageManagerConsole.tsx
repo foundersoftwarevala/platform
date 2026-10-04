@@ -97,6 +97,22 @@ type GlossaryRow = {
   namespace: string | null;
 };
 
+/** A refusal from /api/i18n/admin, with the HTTP status it came with. */
+class AdminRequestError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+const isAccessError = (error: unknown) =>
+  error instanceof AdminRequestError && (error.status === 401 || error.status === 403);
+
+/** Retrying a refusal only delays the message by several seconds; retry anything else. */
+const retryUnlessRefused = (failures: number, error: unknown) =>
+  !isAccessError(error) && failures < 3;
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -109,7 +125,12 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   const body = (await response.json().catch(() => ({}))) as T & { error?: string };
-  if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
+  if (!response.ok) {
+    throw new AdminRequestError(
+      body.error ?? `Request failed (${response.status})`,
+      response.status,
+    );
+  }
   return body;
 }
 
@@ -135,8 +156,10 @@ export function LanguageManagerConsole() {
   const overview = useQuery({
     queryKey: ["i18n-overview"],
     queryFn: () => call<Overview>("/api/i18n/admin?view=overview"),
-    refetchInterval: 30_000,
+    refetchInterval: (query) => (isAccessError(query.state.error) ? false : 30_000),
+    retry: retryUnlessRefused,
   });
+  const refused = isAccessError(overview.error);
 
   const review = useQuery({
     queryKey: ["i18n-review", reviewLanguage, reviewStatus],
@@ -144,11 +167,15 @@ export function LanguageManagerConsole() {
       call<{ rows: ReviewRow[]; total: number }>(
         `/api/i18n/admin?view=review&status=${reviewStatus}${reviewLanguage ? `&language=${reviewLanguage}` : ""}`,
       ),
+    retry: retryUnlessRefused,
+    enabled: !refused,
   });
 
   const glossary = useQuery({
     queryKey: ["i18n-glossary"],
     queryFn: () => call<{ terms: GlossaryRow[] }>("/api/i18n/admin?view=glossary"),
+    retry: retryUnlessRefused,
+    enabled: !refused,
   });
 
   const run = useMutation({
@@ -211,7 +238,11 @@ export function LanguageManagerConsole() {
       </header>
 
       {overview.error && (
-        <Card className="border-destructive p-3 text-sm">{(overview.error as Error).message}</Card>
+        <Card className="border-destructive p-3 text-sm" role="alert">
+          {refused
+            ? t("common.language_manager_refused", { reason: (overview.error as Error).message })
+            : (overview.error as Error).message}
+        </Card>
       )}
       {overview.data?.errors?.length ? (
         <Card className="border-amber-500/50 p-3 text-xs">
@@ -220,14 +251,22 @@ export function LanguageManagerConsole() {
       ) : null}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-        <Stat label="Languages" value={languages.length} />
-        <Stat label="With memory" value={withMemory} />
+        <Stat label="Languages" value={overview.data ? languages.length : "—"} />
+        <Stat label="With memory" value={overview.data ? withMemory : "—"} />
         <Stat label="Catalogue strings" value={overview.data?.catalogueSize ?? "—"} />
         <Stat label="Glossary terms" value={overview.data?.glossaryTerms ?? "—"} />
-        <Stat label="Queued jobs" value={jobTotals.queued ?? 0} />
+        <Stat label="Queued jobs" value={overview.data ? (jobTotals.queued ?? 0) : "—"} />
         <Stat
           label="Engine"
-          value={engine.ready ? "ready" : engine.configured ? "not ready" : "not configured"}
+          value={
+            !overview.data
+              ? "—"
+              : engine.ready
+                ? "ready"
+                : engine.configured
+                  ? "not ready"
+                  : "not configured"
+          }
           tone={engine.ready ? "text-emerald-500" : "text-amber-500"}
         />
       </div>

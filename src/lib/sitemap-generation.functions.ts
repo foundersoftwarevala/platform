@@ -6,6 +6,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 
+/**
+ * Every server function in this file is a public RPC endpoint and works with
+ * the service role, which reads and writes past every policy. None had a check
+ * of its own, so anyone - signed in or not - could call them. The SEO
+ * console's people are the operators plus the seo and marketing staff the
+ * route gate admits, as in seo.functions.ts.
+ */
+async function seoGuard(action: string) {
+  const { requireOperator } = await import("@/lib/auth/require-operator.server");
+  return requireOperator(action, { alsoAllow: ["seo", "marketing"] });
+}
+
 // ============================================================================
 // ADMIN CLIENT
 // ============================================================================
@@ -24,20 +36,24 @@ function getSupabaseAdmin() {
 // ============================================================================
 
 export const generateSitemap = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    domain: string;
-    urls: Array<{
-      loc: string;
-      lastmod?: string;
-      changefreq?: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
-      priority?: number;
-      images?: string[];
-    }>;
-    include_images?: boolean;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        domain: string;
+        urls: Array<{
+          loc: string;
+          lastmod?: string;
+          changefreq?: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
+          priority?: number;
+          images?: string[];
+        }>;
+        include_images?: boolean;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("generateSitemap");
     const admin = getSupabaseAdmin();
-    
+
     try {
       // Generate XML sitemap
       let sitemapXml =
@@ -106,16 +122,20 @@ export const generateSitemap = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const generateRobotsTxt = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    domain: string;
-    sitemap_urls?: string[];
-    disallowed_paths?: string[];
-    user_agents?: Array<{ agent: string; disallow: string[] }>;
-    crawl_delay?: number;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        domain: string;
+        sitemap_urls?: string[];
+        disallowed_paths?: string[];
+        user_agents?: Array<{ agent: string; disallow: string[] }>;
+        crawl_delay?: number;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("generateRobotsTxt");
     const admin = getSupabaseAdmin();
-    
+
     try {
       let robotsTxt = "# robots.txt for " + data.domain + "\n";
       robotsTxt += "# Generated automatically\n\n";
@@ -171,27 +191,31 @@ export const generateRobotsTxt = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const generateAndCacheMetadata = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    url: string;
-    title: string;
-    description: string;
-    keywords?: string[];
-    og_image?: string;
-    canonical?: string;
-    hreflang_variants?: Record<string, string>;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        url: string;
+        title: string;
+        description: string;
+        keywords?: string[];
+        og_image?: string;
+        canonical?: string;
+        hreflang_variants?: Record<string, string>;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("generateAndCacheMetadata");
     const admin = getSupabaseAdmin();
-    
+
     try {
       // Generate schema.org structured data
       const schema = {
         "@context": "https://schema.org",
         "@type": "WebPage",
-        "name": data.title,
-        "description": data.description,
-        "url": data.url,
-        "image": data.og_image,
+        name: data.title,
+        description: data.description,
+        url: data.url,
+        image: data.og_image,
       };
 
       // Generate Open Graph tags
@@ -225,7 +249,7 @@ export const generateAndCacheMetadata = createServerFn({ method: "POST" })
           hreflang_variants: JSON.stringify(data.hreflang_variants || {}),
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "url" }
+        { onConflict: "url" },
       );
 
       return {
@@ -252,8 +276,9 @@ export const generateAndCacheMetadata = createServerFn({ method: "POST" })
 export const getCachedMetadata = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { url: string })
   .handler(async ({ data }) => {
+    await seoGuard("getCachedMetadata");
     const admin = getSupabaseAdmin();
-    
+
     try {
       const { data: metadata } = await admin
         .from("metadata_cache")
@@ -285,15 +310,19 @@ export const getCachedMetadata = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const generateBulkMetadata = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    urls: Array<{
-      url: string;
-      title: string;
-      description: string;
-      keywords?: string[];
-    }>;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        urls: Array<{
+          url: string;
+          title: string;
+          description: string;
+          keywords?: string[];
+        }>;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("generateBulkMetadata");
     const results = [];
 
     for (const page of data.urls) {
@@ -326,6 +355,7 @@ export const generateBulkMetadata = createServerFn({ method: "POST" })
 export const validateSchema = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { schema_json: Record<string, any> })
   .handler(async ({ data }) => {
+    await seoGuard("validateSchema");
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -341,16 +371,14 @@ export const validateSchema = createServerFn({ method: "POST" })
 
       if (schemaType === "Article" || schemaType === "BlogPosting") {
         if (!schema.headline) errors.push("Missing headline for Article");
-        if (!schema.datePublished)
-          errors.push("Missing datePublished for Article");
+        if (!schema.datePublished) errors.push("Missing datePublished for Article");
         if (!schema.author) warnings.push("Recommended: Add author for Article");
       }
 
       if (schemaType === "Product") {
         if (!schema.name) errors.push("Missing name for Product");
         if (!schema.offers) errors.push("Missing offers for Product");
-        if (!schema.description)
-          warnings.push("Recommended: Add description for Product");
+        if (!schema.description) warnings.push("Recommended: Add description for Product");
       }
 
       if (schemaType === "LocalBusiness" || schemaType === "Organization") {

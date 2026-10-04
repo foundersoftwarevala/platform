@@ -1,9 +1,22 @@
 import { useCallback, useRef, useState } from "react";
 
+import { ChatRequestError, streamChat } from "./chat-stream";
+
 export type ValaMessage = { id: string; role: "user" | "assistant"; content: string };
 
 const WELCOME =
   "Hello Boss. Welcome back. All enterprise systems are online. How may I assist you today?";
+
+function errorMessage(e: unknown): string {
+  if (e instanceof ChatRequestError) {
+    if (e.status === 401)
+      return "Please sign in again, Boss. This session is not authorised for AI.";
+    if (e.status === 429) return "Too many requests, Boss. Ek minute me phir try karein.";
+    if (e.status === 402) return "AI credits khatam ho gaye. Please add credits to continue.";
+    return e.message || "AI abhi respond nahi kar pa rahi hai.";
+  }
+  return (e as Error)?.message || "Something went wrong.";
+}
 
 export function useValaChat() {
   const [messages, setMessages] = useState<ValaMessage[]>([
@@ -28,6 +41,7 @@ export function useValaChat() {
       setError(null);
       const userMsg: ValaMessage = { id: `u-${Date.now()}`, role: "user", content: clean };
       const assistantId = `a-${Date.now()}`;
+      // The welcome line is local UI text, not something the assistant said.
       const history = [...messages, userMsg];
       setMessages([...history, { id: assistantId, role: "assistant", content: "" }]);
       setStatus("thinking");
@@ -36,54 +50,27 @@ export function useValaChat() {
       abortRef.current = controller;
 
       try {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({
-            messages: history.map((m) => ({ role: m.role, content: m.content })),
-          }),
-        });
-
-        if (res.status === 429) throw new Error("Too many requests, Boss. Ek minute me phir try karein.");
-        if (res.status === 402) throw new Error("AI credits khatam ho gaye. Please add credits to continue.");
-        if (!res.ok || !res.body) throw new Error("AI abhi respond nahi kar pa rahi hai.");
-
-        const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-        let buffer = "";
-        let full = "";
-        setStatus("speaking");
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += value;
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data:")) continue;
-            const data = trimmed.slice(5).trim();
-            if (!data || data === "[DONE]") continue;
-            try {
-              const parsed = JSON.parse(data);
-              const delta: string = parsed?.choices?.[0]?.delta?.content ?? "";
-              if (delta) {
-                full += delta;
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === assistantId ? { ...m, content: full } : m)),
-                );
-              }
-            } catch {
-              /* ignore malformed chunk */
-            }
-          }
-        }
+        const full = await streamChat(
+          history
+            .filter((m) => m.id !== "welcome")
+            .map((m) => ({ role: m.role, content: m.content })),
+          {
+            signal: controller.signal,
+            onDelta: (partial) => {
+              setStatus("speaking");
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantId ? { ...m, content: partial } : m)),
+              );
+            },
+          },
+        );
 
         if (!full) {
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantId ? { ...m, content: "Sorry Boss, mujhe koi reply nahi mila." } : m,
+              m.id === assistantId
+                ? { ...m, content: "Sorry Boss, mujhe koi reply nahi mila." }
+                : m,
             ),
           );
         } else {
@@ -91,7 +78,7 @@ export function useValaChat() {
         }
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
-        const msg = (e as Error).message || "Something went wrong.";
+        const msg = errorMessage(e);
         setError(msg);
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: msg } : m)));
       } finally {

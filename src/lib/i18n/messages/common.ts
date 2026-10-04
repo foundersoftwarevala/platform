@@ -32,7 +32,20 @@ export const COMMON_MESSAGES = {
   "common.language_manage": ["Manage", "opens the Language Manager"],
   "common.language_on": ["On", "the language is switched on"],
   "common.language_off": ["Off", "the language is switched off"],
-  "common.skip_to_content": ["Skip to main content", "keyboard link that jumps past the menus to the page content"],
-  "common.language_change_delay": ["Changes here reach visitors within about two minutes: each server keeps its own copy of the language list and language packs for a minute, and browsers for another minute.", "note in the Language Manager about how long an enabled/disabled language or an approved translation takes to show"],
-  "common.translation_paused": ["Translation is paused for a moment; the page stays in English until it resumes.", "shown in the language selector while the translation engine is not answering"],
+  "common.skip_to_content": [
+    "Skip to main content",
+    "keyboard link that jumps past the menus to the page content",
+  ],
+  "common.language_change_delay": [
+    "Changes here reach visitors within about two minutes: each server keeps its own copy of the language list and language packs for a minute, and browsers for another minute.",
+    "note in the Language Manager about how long an enabled/disabled language or an approved translation takes to show",
+  ],
+  "common.translation_paused": [
+    "Translation is paused for a moment; the page stays in English until it resumes.",
+    "shown in the language selector while the translation engine is not answering",
+  ],
+  "common.language_manager_refused": [
+    "The Language Manager service refused this session: {reason} Its data needs a signed-in admin or boss account that the server accepts.",
+    "error in the Language Manager when the server refuses the signed-in account; {reason} is the server's own message",
+  ],
 } as const;

@@ -10,16 +10,31 @@
  */
 export const DASHBOARD_MESSAGES = {
   // Sidebar (src/components/dashboard/Sidebar.tsx)
-  "dashboard.sidebar.navigation": ["Dashboard navigation", "screen-reader name of the dashboard's side menu"],
+  "dashboard.sidebar.navigation": [
+    "Dashboard navigation",
+    "screen-reader name of the dashboard's side menu",
+  ],
   "dashboard.sidebar.menu": ["Menu", "heading of the first group in the dashboard side menu"],
   "dashboard.sidebar.dashboard": ["Dashboard", "side menu item that opens the dashboard home"],
-  "dashboard.sidebar.pricing_engine": ["Pricing Engine", "side menu item: the reseller's pricing calculator"],
+  "dashboard.sidebar.pricing_engine": [
+    "Pricing Engine",
+    "side menu item: the reseller's pricing calculator",
+  ],
   "dashboard.sidebar.ai_chat": ["AI Chat", "side menu item that opens the AI assistant chat"],
   "dashboard.sidebar.explore": ["Explore", "side menu item that goes to the home page"],
-  "dashboard.sidebar.marketplace": ["Marketplace", "side menu item that goes to the product catalogue"],
+  "dashboard.sidebar.marketplace": [
+    "Marketplace",
+    "side menu item that goes to the product catalogue",
+  ],
   "dashboard.sidebar.library": ["Library", "side menu item that opens the role's first module"],
-  "dashboard.sidebar.role_modules": ["{role} Modules", "heading over a role's modules; role is the role name, e.g. Developer"],
-  "dashboard.sidebar.reseller_centers": ["Reseller Centers", "heading over the reseller's center screens"],
+  "dashboard.sidebar.role_modules": [
+    "{role} Modules",
+    "heading over a role's modules; role is the role name, e.g. Developer",
+  ],
+  "dashboard.sidebar.reseller_centers": [
+    "Reseller Centers",
+    "heading over the reseller's center screens",
+  ],
   "dashboard.sidebar.account": ["Account", "heading of the account group in the side menu"],
   "dashboard.sidebar.settings": ["Settings", "side menu item"],
   "dashboard.sidebar.support": ["Support", "side menu item"],
@@ -32,8 +47,12 @@ export const DASHBOARD_MESSAGES = {
   "dashboard.sidebar.go_pro": ["Go Pro", "title of the upgrade card in the side menu"],
   "dashboard.sidebar.upgrade_pitch": "Unlock advanced analytics & AI tools.",
   "dashboard.sidebar.upgrade_now": ["Upgrade now", "button on the upgrade card"],
-  "dashboard.sidebar.upgrade_to_pro": ["Upgrade to Pro", "title of the notice shown by Upgrade now"],
-  "dashboard.sidebar.upgrade_billing": "Plan upgrades run through your existing Software Vala billing account.",
+  "dashboard.sidebar.upgrade_to_pro": [
+    "Upgrade to Pro",
+    "title of the notice shown by Upgrade now",
+  ],
+  "dashboard.sidebar.upgrade_billing":
+    "Plan upgrades run through your existing Software Vala billing account.",
 
   // Top bar (src/components/dashboard/TopBar.tsx)
   "dashboard.topbar.marketplace": ["Marketplace", "top bar button back to the marketplace"],
@@ -52,7 +71,10 @@ export const DASHBOARD_MESSAGES = {
   "dashboard.topbar.search_hint": "Try a module name such as Orders, Leads or Analytics.",
   "dashboard.topbar.chat": ["Chat", "top bar button that opens the chat"],
   "dashboard.topbar.ai_chat": ["AI Chat", "top bar button that opens the AI assistant chat"],
-  "dashboard.topbar.display_currency": ["Display currency", "screen-reader name of the currency picker"],
+  "dashboard.topbar.display_currency": [
+    "Display currency",
+    "screen-reader name of the currency picker",
+  ],
   "dashboard.topbar.reseller_rank": "Reseller Rank",
   "dashboard.topbar.reseller_level": "Reseller Level",
   "dashboard.topbar.xp_achievements": ["XP / Achievements", "XP is experience points"],
@@ -66,29 +88,43 @@ export const DASHBOARD_MESSAGES = {
     "tooltip of the rank figure; role is the role name, the dash stands for a level not known yet",
   ],
   "dashboard.topbar.copy_referral_link": ["Copy referral link", "button tooltip"],
-  "dashboard.topbar.referral_qr": ["Referral QR code", "button tooltip, and title of its error notice"],
+  "dashboard.topbar.referral_qr": [
+    "Referral QR code",
+    "button tooltip, and title of its error notice",
+  ],
   "dashboard.topbar.achievement_badges": ["Achievement badges", "button tooltip"],
   "dashboard.topbar.messages": ["Messages", "button tooltip"],
-  "dashboard.topbar.referral_link": ["Referral link", "title of an error notice about the referral link"],
+  "dashboard.topbar.referral_link": [
+    "Referral link",
+    "title of an error notice about the referral link",
+  ],
   "dashboard.topbar.referral_link_copied": "Referral link copied",
   "dashboard.topbar.referral_links_unreadable": "Your referral links could not be read",
   "dashboard.topbar.no_referral_link": "No referral link yet",
-  "dashboard.topbar.no_referral_link_copy": "Create one in the Referral Link Generator, then copy it from here.",
+  "dashboard.topbar.no_referral_link_copy":
+    "Create one in the Referral Link Generator, then copy it from here.",
   "dashboard.topbar.no_referral_link_qr":
     "Create one in the Referral Link Generator; its QR code can then be saved from here.",
   "dashboard.topbar.referral_qr_saved": "Referral QR code saved",
   "dashboard.topbar.referral_code": ["Code {code}", "the referral code of the saved QR image"],
   "dashboard.topbar.your_account": ["Your account", "the account menu button"],
-  "dashboard.topbar.role_active": ["{role} · Active", "under the account menu button; role is the role name"],
+  "dashboard.topbar.role_active": [
+    "{role} · Active",
+    "under the account menu button; role is the role name",
+  ],
   "dashboard.topbar.signed_in_as": ["Signed in as {role}", "role is the role name"],
   "dashboard.topbar.profile": ["Profile", "account menu item"],
   "dashboard.topbar.profile_detail": "Profile details come from your existing account system.",
   "dashboard.topbar.switch_role": ["Switch role", "account menu item"],
   "dashboard.topbar.wallet_earnings": ["Wallet & Earnings", "account menu item"],
-  "dashboard.topbar.wallet_earnings_notice": ["Wallet & earnings", "title of the notice from Wallet & Earnings"],
+  "dashboard.topbar.wallet_earnings_notice": [
+    "Wallet & earnings",
+    "title of the notice from Wallet & Earnings",
+  ],
   "dashboard.topbar.wallet_detail": "Balances are read from your existing payouts service.",
   "dashboard.topbar.account_settings": ["Account settings", "account menu item"],
-  "dashboard.topbar.account_settings_detail": "Managed by your existing Software Vala account system.",
+  "dashboard.topbar.account_settings_detail":
+    "Managed by your existing Software Vala account system.",
   "dashboard.topbar.sign_out": ["Sign out", "account menu item"],
   "dashboard.topbar.active_roles": ["Active roles", "heading of the role switcher list"],
   "dashboard.topbar.back": ["Back", "returns from the role list to the account menu"],
@@ -113,7 +149,10 @@ export const DASHBOARD_MESSAGES = {
 
   // Hero banner (src/components/dashboard/Hero.tsx)
   "dashboard.hero.view_analytics": ["View Analytics", "button on the dashboard banner"],
-  "dashboard.hero.benchmarked": ["Benchmarked", "label over the products this dashboard is modelled on"],
+  "dashboard.hero.benchmarked": [
+    "Benchmarked",
+    "label over the products this dashboard is modelled on",
+  ],
   "dashboard.hero.role": ["Role", "label over the role name on the banner"],
   "dashboard.hero.status": ["Status", "label over the workspace status on the banner"],
   "dashboard.hero.live_workspace": ["Live workspace", "the workspace status"],
@@ -143,10 +182,19 @@ export const DASHBOARD_MESSAGES = {
   "dashboard.kpi.tone_cyan": ["cyan", "figure category filter"],
 
   // Content rows (src/components/dashboard/ContentRows.tsx)
-  "dashboard.rows.recent": ["Recent {module}", "card heading; module is the role's first module name"],
-  "dashboard.rows.recent_activity": ["Recent Activity", "card heading when the role has no modules"],
+  "dashboard.rows.recent": [
+    "Recent {module}",
+    "card heading; module is the role's first module name",
+  ],
+  "dashboard.rows.recent_activity": [
+    "Recent Activity",
+    "card heading when the role has no modules",
+  ],
   "dashboard.rows.see_all": ["See all", "card action"],
-  "dashboard.rows.none_yet": ["No {module} yet", "empty state; module is a module name in lower case"],
+  "dashboard.rows.none_yet": [
+    "No {module} yet",
+    "empty state; module is a module name in lower case",
+  ],
   "dashboard.rows.no_items_yet": ["No items yet", "empty state when the role has no modules"],
   "dashboard.rows.items_note": "Items from your account will appear here once available.",
   "dashboard.rows.create": ["Create {item}", "button; item is a module name"],
@@ -161,7 +209,10 @@ export const DASHBOARD_MESSAGES = {
   "dashboard.rows.all_caught_up": "All caught up",
   "dashboard.rows.events_note": "Recent events from your workspace will appear here.",
   "dashboard.rows.workspace": ["Workspace", "small label over the role's dashboard title"],
-  "dashboard.rows.benchmark": ["Benchmark", "label over the products this dashboard is modelled on"],
+  "dashboard.rows.benchmark": [
+    "Benchmark",
+    "label over the products this dashboard is modelled on",
+  ],
   "dashboard.rows.modeled_after": [
     "This dashboard is modeled after best-in-class tooling for {role}s.",
     "role is the role name in lower case, e.g. developer",
@@ -173,9 +224,16 @@ export const DASHBOARD_MESSAGES = {
   "dashboard.role.developer.name": ["Developer", "role name"],
   "dashboard.role.developer.title": "Developer Dashboard",
   "dashboard.role.developer.tagline": "Command center for shipping code",
-  "dashboard.role.developer.eyebrow": ["Developer Workspace", "small label on the developer's banner"],
-  "dashboard.role.developer.headline": ["Ship code. Earn XP.", "banner headline; XP is experience points"],
-  "dashboard.role.developer.sub": "Tasks, bugs, code review, timers & performance — one command center.",
+  "dashboard.role.developer.eyebrow": [
+    "Developer Workspace",
+    "small label on the developer's banner",
+  ],
+  "dashboard.role.developer.headline": [
+    "Ship code. Earn XP.",
+    "banner headline; XP is experience points",
+  ],
+  "dashboard.role.developer.sub":
+    "Tasks, bugs, code review, timers & performance — one command center.",
   "dashboard.role.developer.cta": ["Open Command Center", "banner button"],
   "dashboard.role.developer.module.command_center": ["Command Center", "developer module"],
   "dashboard.role.developer.module.tasks": ["Tasks", "developer module"],
@@ -194,5 +252,51 @@ export const DASHBOARD_MESSAGES = {
   "dashboard.role.developer.kpi.code_hours": ["Coding Hours", "developer figure"],
   "dashboard.role.developer.kpi.performance": ["Performance Score", "developer figure"],
   "dashboard.role.developer.kpi.payout": ["Payout Pending", "developer figure"],
-  "dashboard.role.developer.kpi.streak": ["Ship Streak", "developer figure: consecutive days with shipped work"],
+  "dashboard.role.developer.kpi.streak": [
+    "Ship Streak",
+    "developer figure: consecutive days with shipped work",
+  ],
+
+  // Reasons shown on dashboard actions that have no screen behind them yet
+  // (disabled buttons and menu items, and the banner notice).
+  "dashboard.sidebar.no_settings": [
+    "This dashboard has no settings screen yet.",
+    "why Settings is disabled",
+  ],
+  "dashboard.sidebar.no_plan": [
+    "Plans and upgrades are not available for this role yet.",
+    "why Upgrade now is disabled",
+  ],
+  "dashboard.topbar.no_screen": [
+    "Not available on this screen.",
+    "why an account menu item is disabled",
+  ],
+  "dashboard.topbar.no_earnings": [
+    "This dashboard has no wallet or earnings screen yet.",
+    "why Wallet & Earnings is disabled",
+  ],
+  "dashboard.hero.notice_vendor": [
+    "New products are listed by the Software Vala catalogue team; you cannot add one from here yet.",
+    "note beside the vendor banner button, which opens the product list instead of a form",
+  ],
+  "dashboard.hero.notice_author": [
+    "New products are uploaded through the Software Vala catalogue team; self-upload is not available yet.",
+    "note beside the author banner button, which opens the product list instead of a form",
+  ],
+  "dashboard.hero.notice_influencer": [
+    "Campaigns are created by Software Vala's marketing team and appear here when you are added to one.",
+    "note beside the influencer banner button, which opens the campaign list instead of a form",
+  ],
+  "dashboard.hero.network_unavailable": [
+    "The partner network has no page on the platform yet.",
+    "why the reseller banner button Explore network is disabled",
+  ],
+  "dashboard.rows.open_to_view": [
+    "Open {module} to see your records",
+    "home screen card that reads no records itself; module is a module name",
+  ],
+  "dashboard.rows.open_to_view_short": [
+    "Open to see records",
+    "status under a module name in the workspace card",
+  ],
 } as const;

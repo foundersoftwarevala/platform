@@ -31,7 +31,9 @@ export const moduleAnalyticsQueryOptions = (module: ModuleId, range: TimeRange =
   queryOptions({
     queryKey: ["module-analytics", module, range] as const,
     queryFn: () => getModuleAnalytics({ data: { module, range } }),
-    staleTime: 60_000,
+    // A server render carries no session, so it answers "not connected"; that
+    // snapshot is stale at once so the signed-in browser asks again.
+    staleTime: (query) => (query.state.data?.connected ? 60_000 : 0),
   });
 
 /** Back-compat alias for the Creator Manager console. */

@@ -119,9 +119,7 @@ function normalizeAnalytics(raw: unknown, range: TimeRange): DashboardAnalytics 
  * on the server for an operator console that row level security has already let
  * through at the route.
  */
-async function fetchFromPlatform(
-  params: FetchAnalyticsParams,
-): Promise<DashboardAnalytics | null> {
+async function fetchFromPlatform(params: FetchAnalyticsParams): Promise<DashboardAnalytics | null> {
   if (params.module === "reseller") return fetchResellerFromPlatform(params);
   if (params.module !== "influencer") return null;
 
@@ -129,16 +127,32 @@ async function fetchFromPlatform(
   const key = process.env["SUPABASE_SERVICE_ROLE_KEY"]?.trim();
   if (!url || !key) return null;
 
+  // The route gate does not guard this: getModuleAnalytics is callable by
+  // anyone, and the /influencer-manager loader runs it during server rendering
+  // for every visitor, so the programme's earnings and payout totals reached
+  // anonymous callers and were serialised into the page. Only an operator gets
+  // them; anyone else gets the empty "not connected" snapshot, as the reseller
+  // branch below already answers a caller the database refuses.
   try {
-    const response = await fetch(`${url.replace(/\/+$/, "")}/rest/v1/rpc/influencer_programme_summary`, {
-      method: "POST",
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Reading the influencer programme");
+  } catch {
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `${url.replace(/\/+$/, "")}/rest/v1/rpc/influencer_programme_summary`,
+      {
+        method: "POST",
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
       },
-      body: "{}",
-    });
+    );
     if (!response.ok) return null;
     const s = (await response.json()) as Record<string, unknown>;
     const n = (field: string) => Number(s[field] ?? 0) || 0;
@@ -196,7 +210,8 @@ async function fetchResellerFromPlatform(
 ): Promise<DashboardAnalytics | null> {
   const url = process.env["SUPABASE_URL"]?.trim()?.replace(/\/+$/, "");
   const anon =
-    process.env["SUPABASE_ANON_KEY"]?.trim() || process.env["VITE_SUPABASE_PUBLISHABLE_KEY"]?.trim();
+    process.env["SUPABASE_ANON_KEY"]?.trim() ||
+    process.env["VITE_SUPABASE_PUBLISHABLE_KEY"]?.trim();
   const service = process.env["SUPABASE_SERVICE_ROLE_KEY"]?.trim();
   if (!url || !anon || !service) return null;
 
@@ -213,7 +228,11 @@ async function fetchResellerFromPlatform(
   const asCaller = async (fn: string, body: unknown) => {
     const response = await fetch(`${url}/rest/v1/rpc/${fn}`, {
       method: "POST",
-      headers: { apikey: anon, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      headers: {
+        apikey: anon,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(body),
     });
     if (!response.ok) return null;
@@ -254,7 +273,15 @@ async function fetchResellerFromPlatform(
       if (unit !== undefined) metrics[k].unit = unit;
     };
     const unavailable = (k: MetricKey) => {
-      metrics[k] = { ...metrics[k], key: k, value: 0, previousValue: 0, deltaPct: null, series: [], unavailable: true };
+      metrics[k] = {
+        ...metrics[k],
+        key: k,
+        value: 0,
+        previousValue: 0,
+        deltaPct: null,
+        series: [],
+        unavailable: true,
+      };
     };
     const n = (v: unknown) => Number(v ?? 0) || 0;
 
@@ -272,7 +299,11 @@ async function fetchResellerFromPlatform(
       const currencies = new Set(lines.map((l) => l.currency));
       if (currencies.size === 0) set("revenue", 0);
       else if (currencies.size === 1) {
-        set("revenue", lines.reduce((sum, l) => sum + n(l.gross_amount), 0), [...currencies][0]);
+        set(
+          "revenue",
+          lines.reduce((sum, l) => sum + n(l.gross_amount), 0),
+          [...currencies][0],
+        );
       } else unavailable("revenue");
     } else unavailable("revenue");
 

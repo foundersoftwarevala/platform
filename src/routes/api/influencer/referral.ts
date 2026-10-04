@@ -41,19 +41,29 @@ async function profileForUser(userId: string): Promise<Profile | null> {
   return rows[0] ?? null;
 }
 
-type Gate =
-  | { ok: true; profile: Profile; userId: string }
-  | { ok: false; response: Response };
+type Gate = { ok: true; profile: Profile; userId: string } | { ok: false; response: Response };
 
 async function requireInfluencer(request: Request): Promise<Gate> {
   const user = await currentUser(request);
-  if (!user) return { ok: false, response: Response.json({ error: "Please sign in" }, { status: 401 }) };
+  // i18n-ignore: an API error message; this API answers in English.
+  if (!user)
+    return {
+      ok: false,
+      response: Response.json(
+        { error: "Please sign in" /* i18n-ignore: API error */ },
+        { status: 401 },
+      ),
+    };
 
   const profile = await profileForUser(user.id);
   if (!profile) {
     return {
       ok: false,
-      response: Response.json({ error: "This account is not enrolled as an influencer" }, { status: 403 }),
+      // i18n-ignore: an API error message; this API answers in English.
+      response: Response.json(
+        { error: "This account is not enrolled as an influencer" /* i18n-ignore: API error */ },
+        { status: 403 },
+      ),
     };
   }
   // A suspended or rejected influencer keeps their history and earns nothing
@@ -61,7 +71,10 @@ async function requireInfluencer(request: Request): Promise<Gate> {
   if (profile.status !== "active") {
     return {
       ok: false,
-      response: Response.json({ error: `This influencer account is ${profile.status}` }, { status: 403 }),
+      response: Response.json(
+        { error: `This influencer account is ${profile.status}` },
+        { status: 403 },
+      ),
     };
   }
   return { ok: true, profile, userId: user.id };
@@ -82,7 +95,12 @@ export const Route = createFileRoute("/api/influencer/referral")({
             `&order=created_at.desc&limit=${MAX_LINKS * 4}`,
         );
         const codes = codesResponse.ok
-          ? ((await codesResponse.json()) as { id: string; code: string; active: boolean; created_at: string }[])
+          ? ((await codesResponse.json()) as {
+              id: string;
+              code: string;
+              active: boolean;
+              created_at: string;
+            }[])
           : [];
 
         const links = await Promise.all(
@@ -92,8 +110,10 @@ export const Route = createFileRoute("/api/influencer/referral")({
                 `&referral_code_id=eq.${encodeURIComponent(c.id)}&limit=2000`,
             );
             const sessions = sessionsResponse.ok
-              ? ((await sessionsResponse.json()) as
-                  { metadata: Record<string, unknown> | null; converted_order_id: string | null }[])
+              ? ((await sessionsResponse.json()) as {
+                  metadata: Record<string, unknown> | null;
+                  converted_order_id: string | null;
+                }[])
               : [];
             const clicks = sessions.reduce((sum, s) => sum + Number(s.metadata?.clicks ?? 1), 0);
             const conversions = sessions.filter((s) => s.converted_order_id).length;
@@ -106,7 +126,9 @@ export const Route = createFileRoute("/api/influencer/referral")({
               clicks,
               visitors: sessions.length,
               conversions,
-              conversionRate: sessions.length ? Math.round((conversions / sessions.length) * 1000) / 10 : 0,
+              conversionRate: sessions.length
+                ? Math.round((conversions / sessions.length) * 1000) / 10
+                : 0,
             };
           }),
         );
@@ -119,7 +141,10 @@ export const Route = createFileRoute("/api/influencer/referral")({
             `&partner_kind=eq.influencer&partner_id=eq.${encodeURIComponent(gate.profile.id)}&limit=5000`,
         );
         const ledger = ledgerResponse.ok
-          ? ((await ledgerResponse.json()) as { commission_amount: string | number; status: string }[])
+          ? ((await ledgerResponse.json()) as {
+              commission_amount: string | number;
+              status: string;
+            }[])
           : [];
         const sum = (rows: typeof ledger) =>
           Math.round(rows.reduce((s, r) => s + (Number(r.commission_amount) || 0), 0) * 100) / 100;
@@ -178,6 +203,7 @@ export const Route = createFileRoute("/api/influencer/referral")({
         try {
           body = (await request.json()) as Record<string, unknown>;
         } catch {
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Expected a JSON body" }, { status: 400 });
         }
         const action = String(body.action ?? "").trim();
@@ -193,7 +219,9 @@ export const Route = createFileRoute("/api/influencer/referral")({
           const count = countResponse.ok ? ((await countResponse.json()) as unknown[]).length : 0;
           if (count >= MAX_LINKS) {
             return Response.json(
-              { error: `You already have ${MAX_LINKS} links. Deactivate one before creating another.` },
+              {
+                error: `You already have ${MAX_LINKS} links. Deactivate one before creating another.`,
+              },
               { status: 409 },
             );
           }
@@ -202,7 +230,11 @@ export const Route = createFileRoute("/api/influencer/referral")({
           // code, with a prefix that says which programme it belongs to.
           const code = await generateUniqueCode("SVI");
           if (!code) {
-            return Response.json({ error: "Could not allocate a code, please retry" }, { status: 503 });
+            // i18n-ignore: an API error message; this API answers in English.
+            return Response.json(
+              { error: "Could not allocate a code, please retry" /* i18n-ignore: API error */ },
+              { status: 503 },
+            );
           }
 
           const created = await rest("marketplace_referral_codes", {
@@ -215,17 +247,30 @@ export const Route = createFileRoute("/api/influencer/referral")({
             }),
           });
           if (!created.ok) {
+            // i18n-ignore: an API error message; this API answers in English.
             return Response.json({ error: "Could not create the link" }, { status: 502 });
           }
           const rows = (await created.json()) as { id: string; code: string }[];
           return Response.json(
-            { ok: true, link: { ...rows[0], url: `/?ref=${rows[0].code}`, active: true, clicks: 0, visitors: 0, conversions: 0, conversionRate: 0 } },
+            {
+              ok: true,
+              link: {
+                ...rows[0],
+                url: `/?ref=${rows[0].code}`,
+                active: true,
+                clicks: 0,
+                visitors: 0,
+                conversions: 0,
+                conversionRate: 0,
+              },
+            },
             { status: 201 },
           );
         }
 
         if (action === "toggle-link") {
           const linkId = String(body.linkId ?? "").trim();
+          // i18n-ignore: an API error message; this API answers in English.
           if (!linkId) return Response.json({ error: "linkId is required" }, { status: 400 });
 
           // Ownership is checked against the database, never taken from the body:
@@ -235,17 +280,32 @@ export const Route = createFileRoute("/api/influencer/referral")({
               `&influencer_profile_id=eq.${encodeURIComponent(gate.profile.id)}&limit=1`,
           );
           if (!owned.ok || ((await owned.json()) as unknown[]).length === 0) {
-            return Response.json({ error: "That link does not belong to this influencer" }, { status: 403 });
+            // i18n-ignore: an API error message; this API answers in English.
+            return Response.json(
+              {
+                error: "That link does not belong to this influencer" /* i18n-ignore: API error */,
+              },
+              { status: 403 },
+            );
           }
-          const patched = await rest(`marketplace_referral_codes?id=eq.${encodeURIComponent(linkId)}`, {
-            method: "PATCH",
-            headers: { Prefer: "return=minimal" },
-            body: JSON.stringify({ active: body.active === true }),
-          });
-          if (!patched.ok) return Response.json({ error: "Could not update the link" }, { status: 502 });
+          const patched = await rest(
+            `marketplace_referral_codes?id=eq.${encodeURIComponent(linkId)}`,
+            {
+              method: "PATCH",
+              headers: { Prefer: "return=minimal" },
+              body: JSON.stringify({ active: body.active === true }),
+            },
+          );
+          // i18n-ignore: an API error message; this API answers in English.
+          if (!patched.ok)
+            return Response.json(
+              { error: "Could not update the link" /* i18n-ignore: API error */ },
+              { status: 502 },
+            );
           return Response.json({ ok: true, linkId, active: body.active === true });
         }
 
+        // i18n-ignore: an API error message; this API answers in English.
         return Response.json({ error: "Unknown action" }, { status: 400 });
       },
     },

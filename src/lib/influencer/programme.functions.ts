@@ -20,8 +20,7 @@ import { getRequestHeader } from "@tanstack/react-start/server";
  * and counts them in the browser, which is the shape that goes quietly wrong
  * the day the programme passes two thousand of anything.
  *
- * It carries the operator's own token, so row level security decides what they
- * may see.
+ * The caller must be an operator; the check is made in the handler below.
  */
 
 export type InfluencerProgramme = {
@@ -56,24 +55,32 @@ export const getInfluencerProgramme = createServerFn({ method: "GET" }).handler(
     const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
     if (!token) throw new Error("Unauthorized: sign in required");
 
-    const publishable =
-      process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ??
-      process.env.SUPABASE_ANON_KEY?.trim() ??
-      process.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ??
-      "";
+    // influencer_programme_summary() is SECURITY DEFINER with no caller check,
+    // so "row level security decides" was not true: any account - and, through
+    // its anon grant, anyone with the publishable key - read the programme's
+    // earnings and payout totals. The caller is checked here, against the roles
+    // the Influencer Manager admits (all of them operators), and the summary is
+    // read with the service key so the database can stop answering anyone else
+    // (20261107T239040_demo_and_influencer_summaries_service_only.sql).
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Reading the influencer programme");
+    const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+    if (!service) throw new Error("The database is not configured on this server.");
 
     const response = await fetch(`${gateway()}/rest/v1/rpc/influencer_programme_summary`, {
       method: "POST",
       headers: {
-        apikey: publishable,
-        Authorization: `Bearer ${token}`,
+        apikey: service,
+        Authorization: `Bearer ${service}`,
         "Content-Type": "application/json",
       },
       body: "{}",
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new Error(`The influencer programme could not be read: ${response.status} ${detail.slice(0, 160)}`);
+      throw new Error(
+        `The influencer programme could not be read: ${response.status} ${detail.slice(0, 160)}`,
+      );
     }
     return (await response.json()) as InfluencerProgramme;
   },

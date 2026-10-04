@@ -98,8 +98,16 @@ export const searchFounderKnowledge = createServerFn({ method: "GET" })
     z
       .object({
         search: z.string().max(300).optional(),
-        kind: z.string().max(40).optional(),
-        status: z.string().max(20).optional(),
+        kind: z
+          .string()
+          .max(40)
+          .regex(/^[A-Za-z_]+$/)
+          .optional(),
+        status: z
+          .string()
+          .max(20)
+          .regex(/^[A-Za-z_]+$/)
+          .optional(),
         domain: z.string().max(60).optional(),
         staleOnly: z.boolean().optional(),
         limit: z.number().int().min(1).max(200).optional(),

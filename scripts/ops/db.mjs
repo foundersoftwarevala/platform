@@ -89,7 +89,7 @@ if (target === "vps") {
       [
         ...ssh,
         host,
-        `sudo -u postgres psql -v ON_ERROR_STOP=1 -f ${remote} ${database}; rm -f ${remote}`,
+        `sudo -u postgres psql -v ON_ERROR_STOP=1 -f ${remote} ${database}; status=$?; rm -f -- ${remote}; exit "$status"`,
       ],
       { encoding: "utf8" },
     );

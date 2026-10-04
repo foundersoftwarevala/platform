@@ -262,8 +262,14 @@ export const exportOrders = createServerFn({ method: "POST" })
       "created_at",
     ];
     const esc = (v: unknown) => {
-      const s = v === null || v === undefined ? "" : String(v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      let s = v === null || v === undefined ? "" : String(v);
+      // Customer e-mails and product names are other people's text; a cell that
+      // starts like a formula would run as one when the file is opened in a
+      // spreadsheet. Numbers are left as they are.
+      if (typeof v === "string" && /^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) {
+        s = `'${s}`;
+      }
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [head.join(",")];
     for (const o of r.orders) {

@@ -419,4 +419,20 @@ export const CEO_MESSAGES = {
     "Nothing outstanding was found to plan",
     "confirmation shown when the cycle ran and found no work",
   ],
+
+  // Manager / demo / support consoles: real-data states (internal support AI, server manager, demo manager).
+  "ceo.performance.role_performance": [
+    "Role Performance",
+    "heading of the per-role performance rates",
+  ],
+  "ceo.performance.loading": "Loading live data…",
+  "ceo.performance.no_trend_reason": "No history of this rate is stored, so no trend can be shown.",
+  "ceo.performance.not_tracked": [
+    "Not tracked",
+    "shown where nothing is recorded for a role or metric",
+  ],
+  "ceo.performance.no_trend": "No trend history",
+  "ceo.performance.corrective_actions": "Suggested Corrective Actions",
+  "ceo.performance.no_corrective_engine":
+    "No corrective-action engine runs against these rates yet, so there are no suggestions to show.",
 } as const;

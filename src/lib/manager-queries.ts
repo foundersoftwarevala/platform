@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { supabase } from "@/integrations/supabase/client";
 
 import {
@@ -50,6 +52,31 @@ async function withAccessToken<T extends object>(data: T): Promise<T & { accessT
   return { ...data, accessToken };
 }
 
+/**
+ * Errors that can never succeed on retry: the caller is signed out or lacks the
+ * manager role. Retrying these only floods the server function.
+ */
+export function isAccessError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /authentication required|permission required|cannot access|unauthori[sz]ed|forbidden|\b40[13]\b|jwt/i.test(
+    message,
+  );
+}
+
+/**
+ * Shared read policy for every manager console query: at most two retries with
+ * exponential backoff (2s, 4s, capped at 8s), none for access failures, and no
+ * refetch on window focus or on remount of a query that already failed, so a
+ * failing read cannot become a request storm. Retry is explicit (ErrorState).
+ */
+export const MANAGER_READ_POLICY = {
+  staleTime: 30_000,
+  retry: (failureCount: number, error: unknown) => !isAccessError(error) && failureCount < 2,
+  retryDelay: (attempt: number) => Math.min(1_000 * 2 ** (attempt + 1), 8_000),
+  retryOnMount: false,
+  refetchOnWindowFocus: false,
+} as const;
+
 /** Read one table. */
 export function useRecords(spec: ListSpec) {
   const fn = useServerFn(listRecords);
@@ -57,7 +84,7 @@ export function useRecords(spec: ListSpec) {
   return useQuery({
     queryKey: ["manager", payload],
     queryFn: async () => fn({ data: await withAccessToken(payload) }),
-    staleTime: 15_000,
+    ...MANAGER_READ_POLICY,
   });
 }
 
@@ -68,7 +95,7 @@ export function useManyRecords(specs: ListSpec[]) {
   return useQuery({
     queryKey: ["manager", "many", requests],
     queryFn: async () => fn({ data: await withAccessToken({ requests }) }),
-    staleTime: 15_000,
+    ...MANAGER_READ_POLICY,
   });
 }
 
@@ -161,9 +188,38 @@ export function useApiServiceTest() {
     onSuccess: (result) => {
       invalidate();
       toast.success(
-        `Live test succeeded via ${result.service} (${result.model ?? "default model"}), ${result.latencyMs}ms â€” "${result.responsePreview}"`,
+        `Live test succeeded via ${result.service} (${result.model ?? "default model"}), ${result.latencyMs}ms — "${result.responsePreview}"`,
       );
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/**
+ * Untyped browser client for platform tables the generated types do not list
+ * (leads, ai_content_*, seo_* ...). Row-level security applies; in production
+ * this client talks to the VPS.
+ */
+export const directDb = supabase as unknown as SupabaseClient;
+
+/** Unwrap a Supabase response, turning its error into a thrown Error. */
+export async function must<T>(
+  request: PromiseLike<{
+    data: T | null;
+    error: { message: string } | null;
+    count?: number | null;
+  }>,
+): Promise<{ data: T | null; count: number | null }> {
+  const { data, error, count } = await request;
+  if (error) throw new Error(error.message);
+  return { data, count: count ?? null };
+}
+
+/** A direct read under the same bounded retry policy as every manager read. */
+export function useDirectRead<T>(key: readonly unknown[], read: () => Promise<T>) {
+  return useQuery({
+    queryKey: ["manager", "direct", ...key],
+    queryFn: read,
+    ...MANAGER_READ_POLICY,
   });
 }

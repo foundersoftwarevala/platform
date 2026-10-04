@@ -1,6 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { aiComplete } from "@/lib/ai-gateway.server";
+import { SlidingWindowLimiter } from "@/lib/i18n/limits";
+
+/**
+ * Each reply is a metered model call, and any participant could loop this
+ * endpoint. Twenty replies a minute per person is far above a conversation.
+ */
+const replyLimiter = new SlidingWindowLimiter(60_000, 10_000);
+const REPLIES_PER_MINUTE = 20;
 
 /**
  * AI assistant layer for Connect Chat.
@@ -25,8 +33,7 @@ Rules:
 - If the user asks for a human, is angry, or the request needs an account/billing/legal decision you cannot verify, end your reply with the exact token ${HANDOFF_MARKER} on its own line.`;
 
 type GatewayResult =
-  | { ok: true; text: string }
-  | { ok: false; status: number; error: string; retryable: boolean };
+  { ok: true; text: string } | { ok: false; status: number; error: string; retryable: boolean };
 
 async function callGateway(
   input: { role: "system" | "user" | "assistant"; content: string }[],
@@ -55,9 +62,7 @@ async function callGateway(
   }
 }
 
-type AdminClient = Awaited<
-  typeof import("@/integrations/supabase/client.server")
->["supabaseAdmin"];
+type AdminClient = Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"];
 
 async function ensureBotUser(admin: AdminClient): Promise<string> {
   const { data: existing } = await admin
@@ -73,7 +78,8 @@ async function ensureBotUser(admin: AdminClient): Promise<string> {
     email_confirm: true,
     user_metadata: { username: BOT_HANDLE, full_name: "Vala AI", job_title: "AI Assistant" },
   });
-  if (error || !created.user) throw new Error(error?.message ?? "Could not provision the AI assistant.");
+  if (error || !created.user)
+    throw new Error(error?.message ?? "Could not provision the AI assistant.");
 
   await admin
     .from("profiles")
@@ -91,6 +97,14 @@ export const generateAiReply = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    if (replyLimiter.hit(userId, REPLIES_PER_MINUTE)) {
+      return {
+        ok: false as const,
+        error: "Too many AI replies requested. Please wait a moment.",
+        retryable: true,
+        status: 429,
+      };
+    }
 
     // RLS: this only returns the row when the caller participates in it.
     const { data: conversation, error: convError } = await supabase
@@ -100,7 +114,8 @@ export const generateAiReply = createServerFn({ method: "POST" })
       .maybeSingle();
     if (convError) return { ok: false as const, error: convError.message };
     if (!conversation) return { ok: false as const, error: "Conversation not found." };
-    if (!conversation.ai_enabled) return { ok: false as const, error: "AI is disabled for this conversation." };
+    if (!conversation.ai_enabled)
+      return { ok: false as const, error: "AI is disabled for this conversation." };
 
     const { data: history, error: historyError } = await supabase
       .from("messages")
@@ -148,7 +163,12 @@ export const generateAiReply = createServerFn({ method: "POST" })
         severity: result.status === 402 || result.status === 403 ? "high" : "medium",
         metadata: { status: result.status, error: result.error, model: MODEL },
       });
-      return { ok: false as const, error: result.error, retryable: result.retryable, status: result.status };
+      return {
+        ok: false as const,
+        error: result.error,
+        retryable: result.retryable,
+        status: result.status,
+      };
     }
 
     const wantsHuman = result.text.includes(HANDOFF_MARKER);

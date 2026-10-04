@@ -7,6 +7,7 @@ import { getStorefrontChrome, type StorefrontVideo } from "@/lib/storefront/chro
 import CategoryRow from "@/components/marketplace-home/CategoryRow";
 import { SiteFooter } from "@/components/marketplace-home/SiteFooter";
 import { RAIL_COUNTRIES } from "@/lib/marketplace/rail-countries";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import "@/styles/marketplace-home.css";
 
 /**
@@ -56,6 +57,7 @@ type Film = {
 };
 
 function ValaTvPage() {
+  const { t } = useTranslation();
   const { videos: published, channel } = Route.useLoaderData();
 
   const films: Film[] = useMemo(
@@ -146,7 +148,7 @@ function ValaTvPage() {
                 </button>
               ) : (
                 <span className="absolute inset-x-0 bottom-0 bg-black/70 px-3 py-1.5 text-center text-[11px] text-white/70">
-                  Film not published yet
+                  {t("marketplace.home.film_unpublished")}
                 </span>
               )}
             </>
@@ -171,7 +173,11 @@ function ValaTvPage() {
             )}
           </div>
           <h2 className="mt-1.5 text-sm font-bold leading-snug">{video.title}</h2>
-          {video.views && <p className="mt-1 text-[11px] text-white/50">{video.views} views</p>}
+          {video.views && (
+            <p className="mt-1 text-[11px] text-white/50">
+              {t("marketplace.home.views_count", { views: video.views })}
+            </p>
+          )}
         </div>
       </article>
     );
@@ -185,15 +191,13 @@ function ValaTvPage() {
             href="/"
             className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-cyan-300 hover:text-cyan-200"
           >
-            &larr; Back to marketplace
+            {t("marketplace.valatv.back")}
           </a>
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Vala TV</h1>
-              <p className="mt-1.5 text-sm text-white/60">
-                Demos, walkthroughs and customer films.
-              </p>
+              <p className="mt-1.5 text-sm text-white/60">{t("marketplace.valatv.subtitle")}</p>
             </div>
             {channel && (
               <a
@@ -203,14 +207,14 @@ function ValaTvPage() {
                 className="inline-flex items-center gap-2 rounded-lg border border-red-400/40 bg-red-500/15 px-4 py-2 text-[13px] font-semibold text-red-200 transition-colors hover:bg-red-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400"
               >
                 <Play className="h-4 w-4 fill-current" aria-hidden="true" />
-                Watch the whole channel on YouTube
+                {t("marketplace.valatv.channel")}
               </a>
             )}
           </div>
 
           {films.length === 0 ? (
             <p className="mt-10 rounded-2xl border border-dashed border-white/15 px-5 py-8 text-center text-sm text-white/60">
-              No films are published here yet.
+              {t("marketplace.valatv.empty")}
               {channel && (
                 <>
                   {" "}
@@ -233,7 +237,7 @@ function ValaTvPage() {
                 <div
                   className="mt-6 flex flex-wrap gap-2"
                   role="tablist"
-                  aria-label="Video categories"
+                  aria-label={t("marketplace.valatv.categories_label")}
                 >
                   {categories.map((category) => (
                     <button
@@ -256,7 +260,7 @@ function ValaTvPage() {
 
               {shown.length === 0 ? (
                 <p className="mt-10 rounded-2xl border border-dashed border-white/15 px-5 py-8 text-center text-sm text-white/60">
-                  No films in that category yet.
+                  {t("marketplace.valatv.category_empty")}
                 </p>
               ) : (
                 <div className="mt-8">

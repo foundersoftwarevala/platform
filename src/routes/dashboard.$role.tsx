@@ -10,11 +10,12 @@ import { Hero } from "@/components/dashboard/Hero";
 import { VendorSliderHero } from "@/components/dashboard/VendorSliderHero";
 import { ResellerHero } from "@/components/dashboard/ResellerHero";
 import { AmsSummaryCard } from "@/components/dashboard/ams/AmsSummaryCard";
-import { notBuilt } from "@/lib/ui/not-built";
 import { AuthorHero } from "@/components/dashboard/AuthorHero";
 import { ResellerProfileHero } from "@/components/dashboard/ResellerProfileHero";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { useSellerMetrics } from "@/hooks/useSellerMetrics";
+import { isSellerRole, useSellerMetrics } from "@/hooks/useSellerMetrics";
+import { useQuery } from "@tanstack/react-query";
+import { getHeldRoles, ownsActiveSellerRecord } from "@/lib/auth-bridge";
 import { useInfluencerMetrics } from "@/hooks/useInfluencerMetrics";
 import { useResellerMetrics } from "@/hooks/useResellerOverview";
 import { useDeveloperMetrics } from "@/lib/dashboard-records/use-dashboard-records";
@@ -27,36 +28,89 @@ import { ROLES, isRoleKey, type RoleKey } from "@/lib/roles";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { sourceFor } from "@/lib/dashboard-records/sources";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useTranslation } from "@/lib/i18n/use-translation";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { ModuleFallback, AccessDenied } from "@/components/dashboard/AccessStates";
 
-const AIChatWorkspace = lazy(() => import("@/components/dashboard/AIChatWorkspace").then((m) => ({ default: m.AIChatWorkspace })));
-const AISuitePage = lazy(() => import("@/components/dashboard/AISuitePage").then((m) => ({ default: m.AISuitePage })));
-const ResellerAISuitePage = lazy(() => import("@/components/dashboard/ResellerAISuitePage").then((m) => ({ default: m.ResellerAISuitePage })));
-const ResellerPricingWorkspace = lazy(() => import("@/components/dashboard/ResellerPricingWorkspace").then((m) => ({ default: m.ResellerPricingWorkspace })));
-const ResellerMembershipPlans = lazy(() => import("@/components/reseller/ResellerMembershipPlans").then((m) => ({ default: m.ResellerMembershipPlans })));
-const ResellerCenterPage = lazy(() => import("@/components/dashboard/ResellerCenterPage").then((m) => ({ default: m.ResellerCenterPage })));
-const InfluencerReferralLinks = lazy(() => import("@/components/influencer/InfluencerReferralLinks").then((m) => ({ default: m.InfluencerReferralLinks })));
-const ResellerReferralLinks = lazy(() => import("@/components/reseller/ResellerReferralLinks").then((m) => ({ default: m.ResellerReferralLinks })));
-const ModulePage = lazy(() => import("@/components/dashboard/ModulePage").then((m) => ({ default: m.ModulePage })));
-const ResellerModulePage = lazy(() => import("@/components/dashboard/ResellerModulePage").then((m) => ({ default: m.ResellerModulePage })));
-const FranchiseHome = lazy(() => import("@/components/dashboard/franchise/FranchiseHome").then((m) => ({ default: m.FranchiseHome })));
-const FranchiseModulePage = lazy(() => import("@/components/dashboard/franchise/FranchiseModules").then((m) => ({ default: m.FranchiseModulePage })));
+const AIChatWorkspace = lazy(() =>
+  import("@/components/dashboard/AIChatWorkspace").then((m) => ({ default: m.AIChatWorkspace })),
+);
+const AISuitePage = lazy(() =>
+  import("@/components/dashboard/AISuitePage").then((m) => ({ default: m.AISuitePage })),
+);
+const ResellerAISuitePage = lazy(() =>
+  import("@/components/dashboard/ResellerAISuitePage").then((m) => ({
+    default: m.ResellerAISuitePage,
+  })),
+);
+const ResellerPricingWorkspace = lazy(() =>
+  import("@/components/dashboard/ResellerPricingWorkspace").then((m) => ({
+    default: m.ResellerPricingWorkspace,
+  })),
+);
+const ResellerMembershipPlans = lazy(() =>
+  import("@/components/reseller/ResellerMembershipPlans").then((m) => ({
+    default: m.ResellerMembershipPlans,
+  })),
+);
+const ResellerCenterPage = lazy(() =>
+  import("@/components/dashboard/ResellerCenterPage").then((m) => ({
+    default: m.ResellerCenterPage,
+  })),
+);
+const InfluencerReferralLinks = lazy(() =>
+  import("@/components/influencer/InfluencerReferralLinks").then((m) => ({
+    default: m.InfluencerReferralLinks,
+  })),
+);
+const ResellerReferralLinks = lazy(() =>
+  import("@/components/reseller/ResellerReferralLinks").then((m) => ({
+    default: m.ResellerReferralLinks,
+  })),
+);
+const ModulePage = lazy(() =>
+  import("@/components/dashboard/ModulePage").then((m) => ({ default: m.ModulePage })),
+);
+const ResellerModulePage = lazy(() =>
+  import("@/components/dashboard/ResellerModulePage").then((m) => ({
+    default: m.ResellerModulePage,
+  })),
+);
+const FranchiseHome = lazy(() =>
+  import("@/components/dashboard/franchise/FranchiseHome").then((m) => ({
+    default: m.FranchiseHome,
+  })),
+);
+const FranchiseModulePage = lazy(() =>
+  import("@/components/dashboard/franchise/FranchiseModules").then((m) => ({
+    default: m.FranchiseModulePage,
+  })),
+);
 const FRANCHISE_MODULE_KEYS = ["branches", "leads", "revenue", "employees"];
 const isFranchiseModule = (k: string) => FRANCHISE_MODULE_KEYS.includes(k);
 
-
 const ROLE_BANNER_GRADIENTS: Record<RoleKey, string> = {
-  reseller:   "linear-gradient(120deg, oklch(0.26 0.06 175), oklch(0.32 0.16 160), oklch(0.42 0.22 150))",
-  author:     "linear-gradient(120deg, oklch(0.24 0.08 275), oklch(0.32 0.16 265), oklch(0.42 0.20 255))",
-  vendor:     "linear-gradient(120deg, oklch(0.24 0.06 210), oklch(0.32 0.14 200), oklch(0.42 0.18 195))",
-  affiliate:  "linear-gradient(120deg, oklch(0.24 0.08 310), oklch(0.32 0.16 300), oklch(0.42 0.20 295))",
-  influencer: "linear-gradient(120deg, oklch(0.26 0.08 350), oklch(0.34 0.18 350), oklch(0.44 0.20 20))",
-  franchise:  "linear-gradient(120deg, oklch(0.26 0.06 60),  oklch(0.34 0.14 65),  oklch(0.44 0.18 55))",
-  seo:        "linear-gradient(120deg, oklch(0.24 0.06 215), oklch(0.32 0.14 210), oklch(0.42 0.18 205))",
-  admin:      "linear-gradient(120deg, oklch(0.22 0.03 250), oklch(0.30 0.06 245), oklch(0.40 0.08 245))",
-  developer:        "linear-gradient(120deg, oklch(0.24 0.05 260), oklch(0.32 0.14 250), oklch(0.42 0.18 235))",
-  "dev-manager":    "linear-gradient(120deg, oklch(0.24 0.06 220), oklch(0.32 0.14 210), oklch(0.42 0.18 195))",
-  "promise-tracker":"linear-gradient(120deg, oklch(0.26 0.06 325), oklch(0.34 0.16 335), oklch(0.44 0.20 350))",
+  reseller:
+    "linear-gradient(120deg, oklch(0.26 0.06 175), oklch(0.32 0.16 160), oklch(0.42 0.22 150))",
+  author:
+    "linear-gradient(120deg, oklch(0.24 0.08 275), oklch(0.32 0.16 265), oklch(0.42 0.20 255))",
+  vendor:
+    "linear-gradient(120deg, oklch(0.24 0.06 210), oklch(0.32 0.14 200), oklch(0.42 0.18 195))",
+  affiliate:
+    "linear-gradient(120deg, oklch(0.24 0.08 310), oklch(0.32 0.16 300), oklch(0.42 0.20 295))",
+  influencer:
+    "linear-gradient(120deg, oklch(0.26 0.08 350), oklch(0.34 0.18 350), oklch(0.44 0.20 20))",
+  franchise:
+    "linear-gradient(120deg, oklch(0.26 0.06 60),  oklch(0.34 0.14 65),  oklch(0.44 0.18 55))",
+  seo: "linear-gradient(120deg, oklch(0.24 0.06 215), oklch(0.32 0.14 210), oklch(0.42 0.18 205))",
+  admin:
+    "linear-gradient(120deg, oklch(0.22 0.03 250), oklch(0.30 0.06 245), oklch(0.40 0.08 245))",
+  developer:
+    "linear-gradient(120deg, oklch(0.24 0.05 260), oklch(0.32 0.14 250), oklch(0.42 0.18 235))",
+  "dev-manager":
+    "linear-gradient(120deg, oklch(0.24 0.06 220), oklch(0.32 0.14 210), oklch(0.42 0.18 195))",
+  "promise-tracker":
+    "linear-gradient(120deg, oklch(0.26 0.06 325), oklch(0.34 0.16 335), oklch(0.44 0.20 350))",
 };
 import { RESELLER_CENTER_ORDER, type CenterKey } from "@/lib/reseller-extras";
 
@@ -79,7 +133,10 @@ export const Route = createFileRoute("/dashboard/$role")({
     return {
       meta: [
         { title: cfg ? `${cfg.title} — Software Vala` : "Dashboard — Software Vala" },
-        { name: "description", content: cfg ? `${cfg.title}. ${cfg.tagline}.` : "Software Vala workspace." },
+        {
+          name: "description",
+          content: cfg ? `${cfg.title}. ${cfg.tagline}.` : "Software Vala workspace.",
+        },
       ],
     };
   },
@@ -118,11 +175,11 @@ const DASHBOARD_ROLE_REQUIREMENT: Record<string, string[]> = {
  * campaign in Marketing Manager), so theirs opens the list it names and says
  * so rather than promising a form.
  */
-const PARTNER_HERO: Partial<Record<string, { module: string; notice?: string }>> = {
+const PARTNER_HERO: Partial<Record<string, { module: string; notice?: MessageKey }>> = {
   affiliate: { module: "referrals" },
-  vendor: { module: "products", notice: "New products are listed by the Software Vala catalogue team; you cannot add one from here yet." },
-  author: { module: "products", notice: "New products are uploaded through the Software Vala catalogue team; self-upload is not available yet." },
-  influencer: { module: "campaigns", notice: "Campaigns are created by Software Vala's marketing team and appear here when you are added to one." },
+  vendor: { module: "products", notice: "dashboard.hero.notice_vendor" },
+  author: { module: "products", notice: "dashboard.hero.notice_author" },
+  influencer: { module: "campaigns", notice: "dashboard.hero.notice_influencer" },
 };
 
 /** Reseller hero buttons that open one of the reseller's own modules. */
@@ -158,6 +215,10 @@ const DEVELOPER_KPI_MODULES: Record<string, string> = {
   "tasks-done": "tasks",
   "bugs-open": "bugs",
 };
+/** Reseller hero buttons with no screen behind them yet, and why. */
+const RESELLER_HERO_UNAVAILABLE: Record<string, MessageKey> = {
+  "Explore network": "dashboard.hero.network_unavailable",
+};
 /** Reseller hero buttons whose destination is the marketplace itself. */
 const RESELLER_HERO_MARKETPLACE = new Set(["Browse catalog", "Open marketplace", "See top 50"]);
 
@@ -177,6 +238,7 @@ function DashboardPage() {
   // The Referral & Coupon Center feature a hero button asked for, if any.
   const [centerFeature, setCenterFeature] = useState<string | null>(null);
   const cfg = ROLES[role as RoleKey];
+  const { t } = useTranslation();
   const perms = usePermissions(role as RoleKey);
   // The open module lives in the URL (?module=) and passes the same
   // permission gate as a click; anything else shows the dashboard home.
@@ -192,7 +254,19 @@ function DashboardPage() {
   );
   // Vendors and authors both sell on the marketplace, so both dashboards
   // read their figures from the database instead of the sample engine.
-  const sellerMetrics = useSellerMetrics(role);
+  // Only an account that itself holds the seller role AND owns an active
+  // seller record asks the seller endpoint (its requireAuthor gate). An
+  // operator opening a vendor or author dashboard from the control panel, or
+  // a vendor/author with no seller record yet, would only be answered 403,
+  // which the browser logged as an error on every visit.
+  const sellerAccess = useQuery({
+    queryKey: ["seller-access", role],
+    queryFn: async () => (await getHeldRoles()).has(role) && (await ownsActiveSellerRecord()),
+    enabled: isSellerRole(role),
+    staleTime: 60_000,
+  });
+  const holdsSellerRole = sellerAccess.data ?? false;
+  const sellerMetrics = useSellerMetrics(holdsSellerRole ? role : "");
   // An influencer's own followers, campaigns and earnings, from the same tables
   // Influencer Manager operates. Each hook answers only for its own roles and
   // returns undefined otherwise, so at most one of these is ever a value.
@@ -203,8 +277,19 @@ function DashboardPage() {
   // A developer's own open and completed tasks and open bugs, counted on the
   // server (getDeveloperMetrics).
   const developerMetrics = useDeveloperMetrics(role);
-  const metricValues =
-    sellerMetrics.values ?? influencerMetrics.values ?? resellerMetrics.values ?? developerMetrics.values;
+  // Never undefined: a role with no metrics source of its own (affiliate,
+  // franchise, seo, admin, dev-manager, promise-tracker) gets an empty map, so
+  // every card reads "not tracked yet" instead of a generated number.
+  const metricValues: Record<string, number | null> =
+    sellerMetrics.values ??
+    influencerMetrics.values ??
+    resellerMetrics.values ??
+    developerMetrics.values ??
+    {};
+  const metricsLoading =
+    (isSellerRole(role) && sellerAccess.isLoading) ||
+    sellerMetrics.loading ||
+    influencerMetrics.loading;
   const openModule = useCallback(
     (key: string | null) => {
       // A module whose job another module on this dashboard does (an "AI"
@@ -219,9 +304,19 @@ function DashboardPage() {
   const openHero = useCallback(() => {
     const target = PARTNER_HERO[role];
     if (!target) return openModule(cfg.modules[0]?.key ?? null);
+    // A role whose banner action has no form yet (PARTNER_HERO notice) opens
+    // the list it names; the hero shows the notice beside the button.
     openModule(target.module);
-    if (target.notice) notBuilt(cfg.banner.cta, target.notice);
   }, [cfg, openModule, role]);
+  const heroNoticeKey = PARTNER_HERO[role]?.notice;
+  const heroNotice = heroNoticeKey ? t(heroNoticeKey) : undefined;
+  const resellerUnavailable = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(RESELLER_HERO_UNAVAILABLE).map(([cta, key]) => [cta, t(key)]),
+      ),
+    [t],
+  );
   const closeModule = useCallback(() => {
     void setActiveModule(null);
     setCenterFeature(null);
@@ -275,10 +370,17 @@ function DashboardPage() {
   const filteredKpis = useMemo(() => {
     let list = kpiTone === "all" ? cfg.kpis : cfg.kpis.filter((k) => k.tone === kpiTone);
     switch (kpiSort) {
-      case "label_asc":  list = [...list].sort((a, b) => a.label.localeCompare(b.label)); break;
-      case "label_desc": list = [...list].sort((a, b) => b.label.localeCompare(a.label)); break;
-      case "tone":       list = [...list].sort((a, b) => a.tone.localeCompare(b.tone)); break;
-      default: break;
+      case "label_asc":
+        list = [...list].sort((a, b) => a.label.localeCompare(b.label));
+        break;
+      case "label_desc":
+        list = [...list].sort((a, b) => b.label.localeCompare(a.label));
+        break;
+      case "tone":
+        list = [...list].sort((a, b) => a.tone.localeCompare(b.tone));
+        break;
+      default:
+        break;
     }
     return list;
   }, [cfg.kpis, kpiTone, kpiSort]);
@@ -287,12 +389,24 @@ function DashboardPage() {
     if (isAIChat) return "AI Chat";
     if (isPricing) return "Pricing Engine";
     if (isCenter) return `${centerMatch} Center`;
-    if (activeModule) return cfg.modules.find((m) => m.key === activeModule)?.label ?? (activeModule === "rank" ? "Leaderboard" : activeModule === "referrals" ? "Referral Links" : activeModule);
+    if (activeModule)
+      return (
+        cfg.modules.find((m) => m.key === activeModule)?.label ??
+        (activeModule === "rank"
+          ? "Leaderboard"
+          : activeModule === "referrals"
+            ? "Referral Links"
+            : activeModule)
+      );
     return null;
   })();
 
   const crumbs = activeLabel
-    ? [{ label: "Home", onClick: closeModule }, { label: cfg.name, onClick: closeModule }, { label: activeLabel }]
+    ? [
+        { label: "Home", onClick: closeModule },
+        { label: cfg.name, onClick: closeModule },
+        { label: activeLabel },
+      ]
     : [{ label: "Home" }, { label: cfg.name }];
 
   return (
@@ -300,8 +414,18 @@ function DashboardPage() {
       <Toaster />
       <Sidebar role={cfg} activeModule={activeModule} onSelectModule={openModule} />
       <div className="flex-1 min-w-0 flex flex-col">
-        <TopBar role={cfg} onSwitchRole={switchRole} onOpenAIChat={() => openModule("ai-chat")} onOpenModule={openModule} allowedRoles={perms.accessibleRoles} />
-        <main id="main-content" tabIndex={-1} className="flex-1 px-4 md:px-6 py-5 space-y-5 overflow-x-hidden focus:outline-none">
+        <TopBar
+          role={cfg}
+          onSwitchRole={switchRole}
+          onOpenAIChat={() => openModule("ai-chat")}
+          onOpenModule={openModule}
+          allowedRoles={perms.accessibleRoles}
+        />
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 px-4 md:px-6 py-5 space-y-5 overflow-x-hidden focus:outline-none"
+        >
           <Breadcrumbs items={crumbs} />
           {!perms.allowedHere ? (
             <AccessDenied
@@ -310,29 +434,94 @@ function DashboardPage() {
               onGoHome={() => perms.sessionRole && switchRoleUnchecked(perms.sessionRole)}
             />
           ) : isAIChat ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><AIChatWorkspace onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  <AIChatWorkspace onBack={closeModule} />
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
           ) : activeModule === "referrals" && role === "influencer" ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><InfluencerReferralLinks onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  <InfluencerReferralLinks onBack={closeModule} />
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
           ) : activeModule === "referrals" && role === "affiliate" ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerReferralLinks endpoint="/api/affiliate/account" /></Suspense></ModuleBoundary></ModuleFocusScope>
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  <ResellerReferralLinks endpoint="/api/affiliate/account" />
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
           ) : activeModule === "membership" && role === "reseller" ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerMembershipPlans /></Suspense></ModuleBoundary></ModuleFocusScope>
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  <ResellerMembershipPlans />
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
           ) : isPricing ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerPricingWorkspace onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  <ResellerPricingWorkspace onBack={closeModule} />
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
           ) : isCenter && role === "reseller" ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerCenterPage key={`${centerMatch}:${centerFeature ?? ""}`} centerKey={centerMatch as CenterKey} initialFeature={centerFeature} onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  <ResellerCenterPage
+                    key={`${centerMatch}:${centerFeature ?? ""}`}
+                    centerKey={centerMatch as CenterKey}
+                    initialFeature={centerFeature}
+                    onBack={closeModule}
+                  />
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
           ) : activeModule && role === "franchise" && isFranchiseModule(activeModule) ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><FranchiseModulePage moduleKey={activeModule} onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  <FranchiseModulePage moduleKey={activeModule} onBack={closeModule} />
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
           ) : activeModule === "ai" && role === "vendor" ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><AISuitePage onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  <AISuitePage onBack={closeModule} />
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
           ) : activeModule === "ai" && role === "reseller" ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}><ResellerAISuitePage onBack={closeModule} /></Suspense></ModuleBoundary></ModuleFocusScope>
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  <ResellerAISuitePage onBack={closeModule} />
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
           ) : activeModule ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}><ModuleBoundary onReset={closeModule}><Suspense fallback={<ModuleFallback />}>
-              {role === "reseller"
-                ? <ResellerModulePage role={cfg} moduleKey={activeModule} onBack={closeModule} />
-                : <ModulePage role={cfg} moduleKey={activeModule} onBack={closeModule} />}
-            </Suspense></ModuleBoundary></ModuleFocusScope>
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  {role === "reseller" ? (
+                    <ResellerModulePage role={cfg} moduleKey={activeModule} onBack={closeModule} />
+                  ) : (
+                    <ModulePage role={cfg} moduleKey={activeModule} onBack={closeModule} />
+                  )}
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
           ) : (
             <>
               <ResellerProfileHero
@@ -355,17 +544,28 @@ function DashboardPage() {
                       return setCenterFeature(feature);
                     }
                     if (RESELLER_HERO_MARKETPLACE.has(cta)) return void navigate({ to: "/" });
-                    // Anything left (the partner network) has no screen yet:
-                    // say so rather than do nothing.
-                    notBuilt(cta, "The partner network has no page on the platform yet.");
+                    // Anything left has no screen yet; RESELLER_HERO_UNAVAILABLE
+                    // renders those disabled with the reason, so nothing reaches here.
                   }}
+                  unavailable={resellerUnavailable}
                 />
               ) : role === "vendor" ? (
-                <VendorSliderHero role={cfg} onCta={openHero} />
+                <VendorSliderHero role={cfg} onCta={openHero} ctaNotice={heroNotice} />
               ) : role === "author" ? (
-                <AuthorHero role={cfg} onCta={openHero} />
+                <AuthorHero role={cfg} onCta={openHero} ctaNotice={heroNotice} />
               ) : (
-                <Hero role={cfg} onCta={openHero} onAnalytics={() => openModule(cfg.modules.find(m => /analytic|report|insight/i.test(m.label))?.key ?? cfg.modules[0]?.key ?? null)} />
+                <Hero
+                  role={cfg}
+                  onCta={openHero}
+                  ctaNotice={heroNotice}
+                  onAnalytics={() =>
+                    openModule(
+                      cfg.modules.find((m) => /analytic|report|insight/i.test(m.label))?.key ??
+                        cfg.modules[0]?.key ??
+                        null,
+                    )
+                  }
+                />
               )}
               {/* This role's AMS standing; "Open AMS" is the role's Achievements module. */}
               <AmsSummaryCard dashboardRole={role} onOpen={() => openModule("achievements")} />
@@ -386,10 +586,13 @@ function DashboardPage() {
                       ? (k) => openModule(DEVELOPER_KPI_MODULES[k] ?? k)
                       : openModule
                 }
-                {...(metricValues ? { values: metricValues } : {})}
+                values={metricValues}
+                loading={metricsLoading}
               />
               {role === "franchise" ? (
-                <Suspense fallback={<ModuleFallback />}><FranchiseHome onOpen={openModule} /></Suspense>
+                <Suspense fallback={<ModuleFallback />}>
+                  <FranchiseHome onOpen={openModule} />
+                </Suspense>
               ) : (
                 <ContentRows role={cfg} onOpen={openModule} />
               )}

@@ -1,8 +1,10 @@
-import type { ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Loader2, RotateCw } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { cn } from "@/lib/utils";
 
 export function KpiCard({
@@ -28,7 +30,9 @@ export function KpiCard({
       <p className="numeric mt-1 truncate text-xl font-bold text-foreground">{value}</p>
       <div className="mt-2 flex items-center gap-2 text-[11px]">
         {delta ? (
-          <span className={cn("font-medium", positive ? "text-accent-emerald" : "text-accent-pink")}>
+          <span
+            className={cn("font-medium", positive ? "text-accent-emerald" : "text-accent-pink")}
+          >
             {delta}
           </span>
         ) : null}
@@ -37,7 +41,6 @@ export function KpiCard({
     </div>
   );
 }
-
 
 const TONES: Record<string, string> = {
   success: "bg-success/15 text-success",
@@ -53,14 +56,54 @@ export type Tone = keyof typeof TONES;
 export function toneForStatus(status: string): Tone {
   const value = status.toLowerCase();
   if (
-    ["active", "indexed", "pass", "published", "resolved", "connected", "success", "ready", "positive", "replied", "qualified", "tracking"].some(
-      (s) => value.includes(s),
-    )
+    [
+      "active",
+      "indexed",
+      "pass",
+      "published",
+      "resolved",
+      "connected",
+      "success",
+      "ready",
+      "positive",
+      "replied",
+      "qualified",
+      "tracking",
+    ].some((s) => value.includes(s))
   )
     return "success";
-  if (["warn", "pending", "review", "scheduled", "paused", "in_progress", "draft", "generating", "rendering", "medium", "unread"].some((s) => value.includes(s)))
+  if (
+    [
+      "warn",
+      "pending",
+      "review",
+      "scheduled",
+      "paused",
+      "in_progress",
+      "draft",
+      "generating",
+      "rendering",
+      "medium",
+      "unread",
+    ].some((s) => value.includes(s))
+  )
     return "warning";
-  if (["fail", "critical", "high", "toxic", "open", "error", "lost", "negative", "escalated", "blocked", "not_indexed", "excluded"].some((s) => value.includes(s)))
+  if (
+    [
+      "fail",
+      "critical",
+      "high",
+      "toxic",
+      "open",
+      "error",
+      "lost",
+      "negative",
+      "escalated",
+      "blocked",
+      "not_indexed",
+      "excluded",
+    ].some((s) => value.includes(s))
+  )
     return "danger";
   if (["info", "low", "new", "discovered"].some((s) => value.includes(s))) return "info";
   return "neutral";
@@ -111,7 +154,6 @@ export function Panel({
   );
 }
 
-
 export function LoadingRows({ rows = 5 }: { rows?: number }) {
   return (
     <div className="space-y-2" role="status" aria-live="polite" aria-busy="true">
@@ -131,21 +173,115 @@ export function LoadingBlock({ rows = 5 }: { rows?: number }) {
   return <LoadingRows rows={rows} />;
 }
 
-export function ErrorState({ error }: { error: unknown }) {
-  const message = error instanceof Error ? error.message : "Unable to load this manager data.";
-  return <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{message}</div>;
+/**
+ * A failed read is shown as a failure with an explicit retry, never as an empty
+ * shell. Retry re-runs the active manager reads (or the caller's own refetch).
+ */
+export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => unknown }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [retrying, setRetrying] = useState(false);
+  const message = error instanceof Error ? error.message : t("manager.console.load_failed_generic");
+  const retry = async () => {
+    setRetrying(true);
+    try {
+      await (onRetry ? onRetry() : qc.refetchQueries({ queryKey: ["manager"], type: "active" }));
+    } finally {
+      setRetrying(false);
+    }
+  };
+  return (
+    <div
+      role="alert"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+    >
+      <span>{t("manager.console.load_failed", { message })}</span>
+      <button
+        type="button"
+        onClick={() => void retry()}
+        disabled={retrying}
+        className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 px-3 py-1 text-xs font-medium hover:bg-destructive/10 disabled:opacity-60"
+      >
+        {retrying ? (
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+        ) : (
+          <RotateCw className="h-3 w-3" aria-hidden="true" />
+        )}
+        {t("manager.console.retry")}
+      </button>
+    </div>
+  );
 }
 
-export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
-  return <div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-2xl font-semibold">{title}</h1>{description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}</div>{actions}</div>;
+export function PageHeader({
+  title,
+  description,
+  actions,
+}: {
+  title: string;
+  description?: string;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 className="text-2xl font-semibold">{title}</h1>
+        {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+      </div>
+      {actions}
+    </div>
+  );
 }
 
-export function GlassCard({ title, icon, children, className }: { title?: string; icon?: ReactNode; children: ReactNode; className?: string }) {
-  return <section className={cn("panel overflow-hidden", className)}>{title ? <div className="flex items-center gap-2 border-b border-border px-5 py-4"><span>{icon}</span><h2 className="text-base font-semibold">{title}</h2></div> : null}<div className="p-5">{children}</div></section>;
+export function GlassCard({
+  title,
+  icon,
+  children,
+  className,
+}: {
+  title?: string;
+  icon?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn("panel overflow-hidden", className)}>
+      {title ? (
+        <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+          <span>{icon}</span>
+          <h2 className="text-base font-semibold">{title}</h2>
+        </div>
+      ) : null}
+      <div className="p-5">{children}</div>
+    </section>
+  );
 }
 
-export function StatCard({ label, value, icon, tone: _tone, change, loading: _loading }: { label: string; value: ReactNode; icon?: ReactNode; tone?: string; change?: ReactNode; loading?: boolean }) {
-  return <div className="bento-card p-4"><div className="flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{label}</span>{icon}</div><div className="mt-2 text-xl font-bold">{value}</div>{change ? <div className="mt-1 text-xs text-muted-foreground">{change}</div> : null}</div>;
+export function StatCard({
+  label,
+  value,
+  icon,
+  tone: _tone,
+  change,
+  loading: _loading,
+}: {
+  label: string;
+  value: ReactNode;
+  icon?: ReactNode;
+  tone?: string;
+  change?: ReactNode;
+  loading?: boolean;
+}) {
+  return (
+    <div className="bento-card p-4">
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{label}</span>
+        {icon}
+      </div>
+      <div className="mt-2 text-xl font-bold">{value}</div>
+      {change ? <div className="mt-1 text-xs text-muted-foreground">{change}</div> : null}
+    </div>
+  );
 }
 
 export function StatusBadge({ value }: { value: string }) {
@@ -181,8 +317,8 @@ export function QueryBoundary<T>({
         role="alert"
         className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
       >
-        We couldn&rsquo;t load this data right now. Please retry in a moment &mdash; if it keeps failing, check
-        Diagnostics for the captured error.
+        We couldn&rsquo;t load this data right now. Please retry in a moment &mdash; if it keeps
+        failing, check Diagnostics for the captured error.
       </div>
     );
   }
@@ -206,8 +342,9 @@ export const inr = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 export const usd = (value: number) => cf.format(value);
-export const day = (value?: string | null) => value ? new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
-export const when = (value?: string | null) => value ? formatDateTime(value) : "—";
+export const day = (value?: string | null) =>
+  value ? new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
+export const when = (value?: string | null) => (value ? formatDateTime(value) : "—");
 
 export function downloadRows(filename: string, rows: Record<string, unknown>[]) {
   if (typeof document === "undefined") return;

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { siteUrl } from "@/lib/seo/site-url";
 
 /**
  * What the SEO Auto-Generator console reads.
@@ -55,12 +56,28 @@ async function count(path: string): Promise<number | null> {
 const PUBLIC = "visible=eq.true&content_status=eq.published&deleted_at=is.null";
 
 /** How many <loc> entries the site is actually publishing today. */
-async function sitemapUrls(base: string): Promise<{ total: number | null; parts: { url: string; urls: number }[] }> {
+async function sitemapUrls(
+  base: string,
+): Promise<{ total: number | null; parts: { url: string; urls: number }[] }> {
   try {
     const index = await fetch(`${base}/sitemap.xml`);
     if (!index.ok) return { total: null, parts: [] };
     const xml = await index.text();
-    const children = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+    // Only this site's own sitemaps are followed: the server holds credentials
+    // and sits beside internal services, so it does not fetch wherever an
+    // index entry happens to point.
+    // The index writes its entries on the canonical origin (siteUrl), which
+    // SITE_URL can set apart from the base this console fetches from.
+    const origins = new Set([new URL(base).origin, new URL(siteUrl()).origin]);
+    const children = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)]
+      .map((m) => m[1].trim())
+      .filter((child) => {
+        try {
+          return origins.has(new URL(child).origin);
+        } catch {
+          return false;
+        }
+      });
     const parts: { url: string; urls: number }[] = [];
     let total = 0;
     // Counted, not estimated. Each child sitemap is fetched and its entries
@@ -92,7 +109,10 @@ async function robots(base: string) {
     const res = await fetch(`${base}/robots.txt`);
     if (!res.ok) return null;
     const text = await res.text();
-    const lines = text.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+    const lines = text
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("#"));
     return {
       agents: lines.filter((l) => /^user-agent:/i.test(l)).length,
       allow: lines.filter((l) => /^allow:/i.test(l)).length,
@@ -106,7 +126,6 @@ async function robots(base: string) {
     return null;
   }
 }
-
 
 /**
  * What the public page actually emits for one product.
@@ -122,8 +141,9 @@ async function preview(base: string, slug: string) {
     const res = await fetch(target);
     const html = await res.text();
     const pick = (re: RegExp) => (html.match(re)?.[1] ?? "").trim() || null;
-    const ld = [...html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/g)]
-      .map((m) => m[1].trim());
+    const ld = [
+      ...html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/g),
+    ].map((m) => m[1].trim());
     const parsed = ld.map((raw) => {
       try {
         const value = JSON.parse(raw);
@@ -162,12 +182,25 @@ export const Route = createFileRoute("/api/seo/console")({
         const slug = (new URL(request.url).searchParams.get("product") ?? "").trim().slice(0, 200);
 
         const [
-          eligible, withDescription, withKeywords, withCategory, withPrice,
-          categories, canonicalRows, schemaRows, keywords, issues,
-          indexing, integrations, sitemap, robotsRules,
+          eligible,
+          withDescription,
+          withKeywords,
+          withCategory,
+          withPrice,
+          categories,
+          canonicalRows,
+          schemaRows,
+          keywords,
+          issues,
+          indexing,
+          integrations,
+          sitemap,
+          robotsRules,
         ] = await Promise.all([
           count(`marketplace_products?select=id&${PUBLIC}`),
-          count(`marketplace_products?select=id&${PUBLIC}&description=not.is.null&description=neq.`),
+          count(
+            `marketplace_products?select=id&${PUBLIC}&description=not.is.null&description=neq.`,
+          ),
           // search_keywords and price_label are NOT NULL with empty defaults, so
           // "not null" was every row and these two always read 100%.
           count(`marketplace_products?select=id&${PUBLIC}&search_keywords=neq.{}`),
@@ -188,11 +221,23 @@ export const Route = createFileRoute("/api/seo/console")({
         // Coverage per requirement. One percentage hides which requirement is
         // the one failing, so each is reported on its own with its own count.
         const pct = (n: number | null) =>
-          n !== null && eligible !== null && eligible > 0 ? Math.round((n / eligible) * 1000) / 10 : null;
+          n !== null && eligible !== null && eligible > 0
+            ? Math.round((n / eligible) * 1000) / 10
+            : null;
         const requirements = [
-          { key: "description", label: "Meta description source", have: withDescription, pct: pct(withDescription) },
+          {
+            key: "description",
+            label: "Meta description source",
+            have: withDescription,
+            pct: pct(withDescription),
+          },
           { key: "keywords", label: "Keywords", have: withKeywords, pct: pct(withKeywords) },
-          { key: "category", label: "Category (breadcrumb + schema)", have: withCategory, pct: pct(withCategory) },
+          {
+            key: "category",
+            label: "Category (breadcrumb + schema)",
+            have: withCategory,
+            pct: pct(withCategory),
+          },
           // A price label on the product; the page's structured data carries no
           // offer, so "(schema)" claimed something it does not emit.
           { key: "price", label: "Price label", have: withPrice, pct: pct(withPrice) },

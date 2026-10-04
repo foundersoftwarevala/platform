@@ -43,7 +43,9 @@ async function actorOf(request: Request): Promise<Actor> {
   const authorization = request.headers.get("authorization");
   if (!url || !key || !authorization) return { id: null, email: null };
   try {
-    const r = await fetch(`${url}/auth/v1/user`, { headers: { apikey: key, Authorization: authorization } });
+    const r = await fetch(`${url}/auth/v1/user`, {
+      headers: { apikey: key, Authorization: authorization },
+    });
     const user = (await r.json()) as { id?: string; email?: string };
     return { id: user.id ?? null, email: user.email ?? null };
   } catch {
@@ -65,6 +67,7 @@ function refuse(message: string, status = 400) {
 function refuseSize(error: BatchSizeExceeded) {
   return Response.json(
     {
+      // i18n-ignore: an API error message; this API answers in English.
       error: "BATCH_SIZE_EXCEEDED",
       message: error.message,
       received: error.received,
@@ -125,7 +128,10 @@ export const Route = createFileRoute("/api/demo/assign")({
           } catch (error) {
             if (error instanceof BatchSizeExceeded) return refuseSize(error);
             const message = error instanceof Error ? error.message : String(error);
-            return Response.json({ error: message }, { status: message.startsWith("SCHEMA_ERROR") ? 422 : 502 });
+            return Response.json(
+              { error: message },
+              { status: message.startsWith("SCHEMA_ERROR") ? 422 : 502 },
+            );
           }
         }
 
@@ -184,7 +190,9 @@ export const Route = createFileRoute("/api/demo/assign")({
         }
 
         if (action !== "preview" && action !== "commit") {
-          return refuse('action must be "preview", "commit", "resolve", "batch", "batches" or "cancel".');
+          return refuse(
+            'action must be "preview", "commit", "resolve", "batch", "batches" or "cancel".',
+          );
         }
 
         const raw = Array.isArray(body.rows) ? body.rows : null;

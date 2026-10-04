@@ -9,6 +9,18 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { recordCentralSeoUsage, resolveCentralSeoService } from "./seo-registry.server";
 
+/**
+ * Every server function in this file is a public RPC endpoint and works with
+ * the service role, which reads and writes past every policy. None had a check
+ * of its own, so anyone - signed in or not - could call them. The SEO
+ * console's people are the operators plus the seo and marketing staff the
+ * route gate admits, as in seo.functions.ts.
+ */
+async function seoGuard(action: string) {
+  const { requireOperator } = await import("@/lib/auth/require-operator.server");
+  return requireOperator(action, { alsoAllow: ["seo", "marketing"] });
+}
+
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
@@ -96,6 +108,7 @@ export const registerSeoApiCredential = createServerFn({ method: "POST" })
       },
   )
   .handler(async () => {
+    await seoGuard("registerSeoApiCredential");
     throw new Error(
       "Legacy SEO credential storage is disabled. Configure encrypted credentials in AI API Manager.",
     );
@@ -104,6 +117,7 @@ export const registerSeoApiCredential = createServerFn({ method: "POST" })
 export const getSeoApiCredential = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { provider_name: string })
   .handler(async () => {
+    await seoGuard("getSeoApiCredential");
     throw new Error(
       "Legacy SEO credential retrieval is disabled. Provider execution must use the central AI API Manager.",
     );
@@ -116,6 +130,7 @@ export const getSeoApiCredential = createServerFn({ method: "POST" })
 export const syncSearchConsoleData = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as SearchConsoleQuery)
   .handler(async ({ data }) => {
+    await seoGuard("syncSearchConsoleData");
     const {
       db: admin,
       service,
@@ -197,6 +212,7 @@ export const syncSearchConsoleData = createServerFn({ method: "POST" })
 export const runPageSpeedInsights = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as { url: string; strategy?: "desktop" | "mobile" })
   .handler(async ({ data }) => {
+    await seoGuard("runPageSpeedInsights");
     const {
       db: admin,
       service,
@@ -276,6 +292,7 @@ export const submitToIndexNow = createServerFn({ method: "POST" })
       },
   )
   .handler(async ({ data }) => {
+    await seoGuard("submitToIndexNow");
     if (!data.urls.length) throw new Error("At least one URL is required for IndexNow submission.");
     const { db: admin, service, credential } = await resolveCentralSeoService("indexnow");
     const startedAt = Date.now();
@@ -326,6 +343,7 @@ export const submitToIndexNow = createServerFn({ method: "POST" })
 export const generateMetadataWithGemini = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => d as MetadataGenerationInput)
   .handler(async ({ data }) => {
+    await seoGuard("generateMetadataWithGemini");
     void data;
     throw new Error(
       "BLOCKED / EXECUTION ADAPTER REQUIRED. Gemini metadata generation must be configured and routed through AI API Manager.",
@@ -452,6 +470,7 @@ export const validateSchema = createServerFn({ method: "POST" })
       },
   )
   .handler(async ({ data }) => {
+    await seoGuard("validateSchema");
     const admin = getSupabaseAdminClient();
 
     try {
@@ -511,6 +530,7 @@ export const generateSitemap = createServerFn({ method: "POST" })
       },
   )
   .handler(async ({ data }) => {
+    await seoGuard("generateSitemap");
     const admin = getSupabaseAdminClient();
     const sitemapType = data.sitemap_type || "regular";
 
@@ -565,6 +585,7 @@ ${data.urls
 // ============================================================================
 
 export const processPendingIndexing = createServerFn({ method: "POST" }).handler(async () => {
+  await seoGuard("processPendingIndexing");
   const admin = getSupabaseAdminClient();
 
   const { data: pending } = await admin

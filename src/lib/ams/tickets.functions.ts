@@ -2,7 +2,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import type { Database } from "@/integrations/supabase/types";
-import { AMS_STATUSES, AMS_PRIORITIES, AMS_CHAT_CHANNELS, requesterMayMove, type AmsStatus, type AmsPriority, type AmsChatChannel } from "./tickets.types";
+import {
+  AMS_STATUSES,
+  AMS_PRIORITIES,
+  AMS_CHAT_CHANNELS,
+  requesterMayMove,
+  type AmsStatus,
+  type AmsPriority,
+  type AmsChatChannel,
+} from "./tickets.types";
 
 /**
  * Server fns for the Enterprise AMS ticket module.
@@ -16,14 +24,10 @@ function token() {
   return h?.startsWith("Bearer ") ? h.slice(7) : undefined;
 }
 function clientFor(tok?: string): SupabaseClient<Database> {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    {
-      auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
-      global: tok ? { headers: { Authorization: `Bearer ${tok}` } } : undefined,
-    },
-  );
+  return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+    global: tok ? { headers: { Authorization: `Bearer ${tok}` } } : undefined,
+  });
 }
 async function requireUser() {
   const tok = token();
@@ -41,8 +45,15 @@ async function requireUser() {
  * requester's own path - see REQUESTER_TRANSITIONS.
  */
 const AMS_STAFF_ROLES = [
-  "developer", "support", "sales_support_manager",
-  "admin", "super_admin", "boss", "boss_owner", "founder", "owner",
+  "developer",
+  "support",
+  "sales_support_manager",
+  "admin",
+  "super_admin",
+  "boss",
+  "boss_owner",
+  "founder",
+  "owner",
 ];
 
 async function isAmsStaff(sb: SupabaseClient<Database>, uid: string): Promise<boolean> {
@@ -60,8 +71,11 @@ async function isAmsOperator(sb: SupabaseClient<Database>, uid: string): Promise
 type TicketParties = { status: string; created_by: string | null; assignee_id: string | null };
 async function ticketParties(sb: SupabaseClient<Database>, id: string): Promise<TicketParties> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = (await (sb as any).from("ams_tickets").select("status, created_by, assignee_id").eq("id", id).maybeSingle()) as
-    { data: TicketParties | null };
+  const { data } = (await (sb as any)
+    .from("ams_tickets")
+    .select("status, created_by, assignee_id")
+    .eq("id", id)
+    .maybeSingle()) as { data: TicketParties | null };
   if (!data) throw new Error("Ticket not found");
   return data;
 }
@@ -71,7 +85,11 @@ async function ticketParties(sb: SupabaseClient<Database>, id: string): Promise<
  * not, even when their role is a staff role (a developer raising their own
  * ticket), unless it is assigned to them by the team or they are an operator.
  */
-async function worksTicket(sb: SupabaseClient<Database>, uid: string, t: TicketParties): Promise<boolean> {
+async function worksTicket(
+  sb: SupabaseClient<Database>,
+  uid: string,
+  t: TicketParties,
+): Promise<boolean> {
   if (t.assignee_id === uid && t.created_by !== uid) return true;
   if (await isAmsOperator(sb, uid)) return true;
   return t.created_by !== uid && (await isAmsStaff(sb, uid));
@@ -79,7 +97,15 @@ async function worksTicket(sb: SupabaseClient<Database>, uid: string, t: TicketP
 
 // ---------- list ----------
 export const listTickets = createServerFn({ method: "GET" })
-  .inputValidator((d: { status?: AmsStatus | "all"; priority?: AmsPriority; q?: string; assignee?: "me" | "any"; mine?: boolean }) => d)
+  .inputValidator(
+    (d: {
+      status?: AmsStatus | "all";
+      priority?: AmsPriority;
+      q?: string;
+      assignee?: "me" | "any";
+      mine?: boolean;
+    }) => d,
+  )
   .handler(async ({ data }) => {
     const tok = token();
     if (!tok) return { rows: [], stats: emptyStats() };
@@ -87,7 +113,12 @@ export const listTickets = createServerFn({ method: "GET" })
     const { data: u } = await sb.auth.getUser();
     const uid = u.user?.id;
 
-    let q = sb.from("ams_tickets").select("*").is("deleted_at", null).order("created_at", { ascending: false }).limit(500);
+    let q = sb
+      .from("ams_tickets")
+      .select("*")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(500);
     if (data.status && data.status !== "all") q = q.eq("status", data.status);
     if (data.priority) q = q.eq("priority", data.priority);
     if (data.assignee === "me" && uid) q = q.eq("assignee_id", uid);
@@ -98,7 +129,14 @@ export const listTickets = createServerFn({ method: "GET" })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       q = (q as any).eq("created_by", uid);
     }
-    if (data.q) q = q.or(`subject.ilike.%${data.q}%,ticket_no.ilike.%${data.q}%`);
+    // The or-list's own syntax characters are removed, so a typed comma or
+    // parenthesis cannot end the condition early or add one of its own.
+    const term = String(data.q ?? "")
+      .replace(/[(),*"\\%]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 200);
+    if (term) q = q.or(`subject.ilike.%${term}%,ticket_no.ilike.%${term}%`);
     const { data: rows } = await q;
 
     const all = rows ?? [];
@@ -122,7 +160,12 @@ export const getTicket = createServerFn({ method: "GET" })
     const sb = clientFor(tok);
     const [ticket, events, comments, chat, attachments] = await Promise.all([
       sb.from("ams_tickets").select("*").eq("id", data.id).maybeSingle(),
-      sb.from("ams_events").select("*").eq("ticket_id", data.id).order("created_at", { ascending: false }).limit(200),
+      sb
+        .from("ams_events")
+        .select("*")
+        .eq("ticket_id", data.id)
+        .order("created_at", { ascending: false })
+        .limit(200),
       sb.from("ams_comments").select("*").eq("ticket_id", data.id).order("created_at"),
       sb.from("ams_chat_messages").select("*").eq("ticket_id", data.id).order("created_at"),
       sb.from("ams_attachments").select("*").eq("ticket_id", data.id).order("created_at"),
@@ -139,40 +182,96 @@ export const getTicket = createServerFn({ method: "GET" })
 
 // ---------- create ----------
 export const createTicket = createServerFn({ method: "POST" })
-  .inputValidator((d: {
-    subject: string; description?: string; product?: string; category?: string;
-    priority?: AmsPriority; department?: string; team?: string;
-    expected_resolution_at?: string | null; tags?: string[]; submit?: boolean;
-  }) => d)
+  .inputValidator(
+    (d: {
+      subject: string;
+      description?: string;
+      product?: string;
+      category?: string;
+      priority?: AmsPriority;
+      department?: string;
+      team?: string;
+      expected_resolution_at?: string | null;
+      tags?: string[];
+      submit?: boolean;
+    }) => d,
+  )
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
     if (!data.subject?.trim()) throw new Error("Subject is required");
-    const { data: row, error } = await sb.from("ams_tickets").insert({
-      subject: data.subject.trim(),
-      description: data.description ?? null,
-      product: data.product ?? null,
-      category: data.category ?? null,
-      priority: data.priority ?? "medium",
-      status: data.submit ? "submitted" : "draft",
-      department: data.department ?? null,
-      team: data.team ?? null,
-      expected_resolution_at: data.expected_resolution_at ?? null,
-      tags: data.tags ?? [],
-      created_by: uid,
-    }).select("*").single();
+    const { data: row, error } = await sb
+      .from("ams_tickets")
+      .insert({
+        subject: data.subject.trim(),
+        description: data.description ?? null,
+        product: data.product ?? null,
+        category: data.category ?? null,
+        priority: data.priority ?? "medium",
+        status: data.submit ? "submitted" : "draft",
+        department: data.department ?? null,
+        team: data.team ?? null,
+        expected_resolution_at: data.expected_resolution_at ?? null,
+        tags: data.tags ?? [],
+        created_by: uid,
+      })
+      .select("*")
+      .single();
     if (error) throw new Error(error.message);
-    await sb.from("ams_events").insert({ ticket_id: row.id, actor_id: uid, kind: "created", to_value: row.status });
+    await sb
+      .from("ams_events")
+      .insert({ ticket_id: row.id, actor_id: uid, kind: "created", to_value: row.status });
     return row;
   });
 
 // ---------- update ----------
 export const updateTicket = createServerFn({ method: "POST" })
-  .inputValidator((d: { id: string; patch: Partial<{ subject: string; description: string; priority: AmsPriority; category: string; product: string; department: string; team: string; expected_resolution_at: string | null; tags: string[] }> }) => d)
+  .inputValidator(
+    (d: {
+      id: string;
+      patch: Partial<{
+        subject: string;
+        description: string;
+        priority: AmsPriority;
+        category: string;
+        product: string;
+        department: string;
+        team: string;
+        expected_resolution_at: string | null;
+        tags: string[];
+      }>;
+    }) => d,
+  )
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
-    const { data: row, error } = await sb.from("ams_tickets").update(data.patch).eq("id", data.id).select("*").single();
+    // Only the editable fields: status, assignee and ownership move through
+    // their own verbs and checks, never through a generic patch.
+    const EDITABLE = [
+      "subject",
+      "description",
+      "priority",
+      "category",
+      "product",
+      "department",
+      "team",
+      "expected_resolution_at",
+      "tags",
+    ] as const;
+    const patch: Record<string, unknown> = {};
+    for (const key of EDITABLE)
+      if (data.patch && key in data.patch)
+        patch[key] = (data.patch as Record<string, unknown>)[key];
+    if (patch.priority !== undefined && !AMS_PRIORITIES.includes(patch.priority as AmsPriority))
+      throw new Error("Unknown priority");
+    const { data: row, error } = await sb
+      .from("ams_tickets")
+      .update(patch as never)
+      .eq("id", data.id)
+      .select("*")
+      .single();
     if (error) throw new Error(error.message);
-    await sb.from("ams_events").insert({ ticket_id: data.id, actor_id: uid, kind: "updated", payload: data.patch as never });
+    await sb
+      .from("ams_events")
+      .insert({ ticket_id: data.id, actor_id: uid, kind: "updated", payload: patch as never });
     return row;
   });
 
@@ -185,18 +284,26 @@ export const changeStatus = createServerFn({ method: "POST" })
     const prev = await ticketParties(sb, data.id);
     if (!(await worksTicket(sb, uid, prev))) {
       if (!requesterMayMove(prev.status as AmsStatus, data.to)) {
-        throw new Error(`A ticket cannot be moved from ${prev.status} to ${data.to} by the person who raised it.`);
+        throw new Error(
+          `A ticket cannot be moved from ${prev.status} to ${data.to} by the person who raised it.`,
+        );
       }
     }
     const patch: Record<string, unknown> = { status: data.to };
     if (data.to === "resolved") patch.resolved_at = new Date().toISOString();
     if (data.to === "closed") patch.closed_at = new Date().toISOString();
     if (data.to === "archived") patch.deleted_at = null;
-    const { error } = await sb.from("ams_tickets").update(patch as never).eq("id", data.id);
+    const { error } = await sb
+      .from("ams_tickets")
+      .update(patch as never)
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     await sb.from("ams_events").insert({
-      ticket_id: data.id, actor_id: uid, kind: "status_changed",
-      from_value: prev?.status ?? null, to_value: data.to,
+      ticket_id: data.id,
+      actor_id: uid,
+      kind: "status_changed",
+      from_value: prev?.status ?? null,
+      to_value: data.to,
     });
     return { ok: true };
   });
@@ -208,16 +315,22 @@ export const assignTicket = createServerFn({ method: "POST" })
     const { sb, uid } = await requireUser();
     // Who works a ticket is the support team's decision, not the requester's.
     const parties = await ticketParties(sb, data.id);
-    if (!(await worksTicket(sb, uid, parties))) throw new Error("Only the support team can assign a ticket.");
+    if (!(await worksTicket(sb, uid, parties)))
+      throw new Error("Only the support team can assign a ticket.");
     const prev = parties;
     const patch: Record<string, unknown> = { assignee_id: data.assignee_id };
     if (data.assignee_id && prev?.status === "submitted") patch.status = "assigned";
-    const { error } = await sb.from("ams_tickets").update(patch as never).eq("id", data.id);
+    const { error } = await sb
+      .from("ams_tickets")
+      .update(patch as never)
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     await sb.from("ams_events").insert({
-      ticket_id: data.id, actor_id: uid,
+      ticket_id: data.id,
+      actor_id: uid,
       kind: prev?.assignee_id ? "reassigned" : "assigned",
-      from_value: prev?.assignee_id ?? null, to_value: data.assignee_id ?? null,
+      from_value: prev?.assignee_id ?? null,
+      to_value: data.assignee_id ?? null,
     });
     return { ok: true };
   });
@@ -232,7 +345,10 @@ export const archiveTicket = createServerFn({ method: "POST" })
     if (parties.created_by !== uid && !(await worksTicket(sb, uid, parties))) {
       throw new Error("Only the requester or the support team can archive a ticket.");
     }
-    const { error } = await sb.from("ams_tickets").update({ deleted_at: new Date().toISOString(), status: "archived" }).eq("id", data.id);
+    const { error } = await sb
+      .from("ams_tickets")
+      .update({ deleted_at: new Date().toISOString(), status: "archived" })
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     await sb.from("ams_events").insert({ ticket_id: data.id, actor_id: uid, kind: "archived" });
     return { ok: true };
@@ -249,7 +365,10 @@ export const restoreTicket = createServerFn({ method: "POST" })
     if (!ownArchived && !(await worksTicket(sb, uid, parties))) {
       throw new Error("Only the requester or the support team can restore a ticket.");
     }
-    const { error } = await sb.from("ams_tickets").update({ deleted_at: null, status: "submitted" }).eq("id", data.id);
+    const { error } = await sb
+      .from("ams_tickets")
+      .update({ deleted_at: null, status: "submitted" })
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     await sb.from("ams_events").insert({ ticket_id: data.id, actor_id: uid, kind: "restored" });
     return { ok: true };
@@ -261,15 +380,26 @@ export const addComment = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
     if (!data.body?.trim()) throw new Error("Empty comment");
-    if (data.is_internal && !(await worksTicket(sb, uid, await ticketParties(sb, data.ticket_id)))) {
+    if (
+      data.is_internal &&
+      !(await worksTicket(sb, uid, await ticketParties(sb, data.ticket_id)))
+    ) {
       throw new Error("Internal notes are for the support team.");
     }
-    const { data: row, error } = await sb.from("ams_comments").insert({
-      ticket_id: data.ticket_id, author_id: uid, body: data.body.trim(), is_internal: !!data.is_internal,
-    }).select("*").single();
+    const { data: row, error } = await sb
+      .from("ams_comments")
+      .insert({
+        ticket_id: data.ticket_id,
+        author_id: uid,
+        body: data.body.trim(),
+        is_internal: !!data.is_internal,
+      })
+      .select("*")
+      .single();
     if (error) throw new Error(error.message);
     await sb.from("ams_events").insert({
-      ticket_id: data.ticket_id, actor_id: uid,
+      ticket_id: data.ticket_id,
+      actor_id: uid,
       kind: data.is_internal ? "internal_note" : "commented",
     });
     return row;
@@ -282,9 +412,17 @@ export const postChatMessage = createServerFn({ method: "POST" })
     const { sb, uid } = await requireUser();
     if (!AMS_CHAT_CHANNELS.includes(data.channel)) throw new Error("Bad channel");
     if (!data.body?.trim()) throw new Error("Empty message");
-    const { data: row, error } = await sb.from("ams_chat_messages").insert({
-      ticket_id: data.ticket_id, channel: data.channel, author_id: uid, body: data.body.trim(), role: "user",
-    }).select("*").single();
+    const { data: row, error } = await sb
+      .from("ams_chat_messages")
+      .insert({
+        ticket_id: data.ticket_id,
+        channel: data.channel,
+        author_id: uid,
+        body: data.body.trim(),
+        role: "user",
+      })
+      .select("*")
+      .single();
     if (error) throw new Error(error.message);
     return row;
   });
@@ -294,13 +432,19 @@ export const toggleChatPin = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { sb, uid } = await requireUser();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: msg } = (await (sb as any).from("ams_chat_messages").select("ticket_id").eq("id", data.id).maybeSingle()) as
-      { data: { ticket_id: string } | null };
+    const { data: msg } = (await (sb as any)
+      .from("ams_chat_messages")
+      .select("ticket_id")
+      .eq("id", data.id)
+      .maybeSingle()) as { data: { ticket_id: string } | null };
     if (!msg) throw new Error("Message not found");
     if (!(await worksTicket(sb, uid, await ticketParties(sb, msg.ticket_id)))) {
       throw new Error("Only the support team can pin messages.");
     }
-    const { error } = await sb.from("ams_chat_messages").update({ pinned: data.pinned }).eq("id", data.id);
+    const { error } = await sb
+      .from("ams_chat_messages")
+      .update({ pinned: data.pinned })
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

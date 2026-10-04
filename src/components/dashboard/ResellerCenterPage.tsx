@@ -6,6 +6,9 @@ import { ResellerReferralLinks } from "@/components/reseller/ResellerReferralLin
 
 /** Coupon features: coupons are issued and managed by Software Vala, never by a reseller. */
 const COUPON_FEATURES = new Set(["gen", "analytics", "history"]);
+/** Why Configure is disabled: nothing on these screens can be stored yet. */
+const CONFIG_UNAVAILABLE =
+  "Nothing can be configured here yet - this feature is set up by Software Vala.";
 
 export function ResellerCenterPage({
   centerKey,
@@ -26,7 +29,9 @@ export function ResellerCenterPage({
   const [q, setQ] = useState("");
 
   const filtered = (features: CenterFeature[]) =>
-    !q ? features : features.filter((f) => (f.label + f.description).toLowerCase().includes(q.toLowerCase()));
+    !q
+      ? features
+      : features.filter((f) => (f.label + f.description).toLowerCase().includes(q.toLowerCase()));
 
   return (
     <div className="space-y-5">
@@ -81,7 +86,9 @@ export function ResellerCenterPage({
               }}
             />
             <div className="relative max-w-2xl">
-              <div className="text-[11px] uppercase tracking-[0.2em] text-white/70">{cfg.label}</div>
+              <div className="text-[11px] uppercase tracking-[0.2em] text-white/70">
+                {cfg.label}
+              </div>
               <h2 className="mt-2 text-2xl md:text-3xl font-black tracking-tight">{cfg.title}</h2>
               <p className="mt-2 text-sm md:text-base text-white/75">{cfg.tagline}</p>
               <div className="mt-5 flex items-center gap-3 text-[11px] text-white/70">
@@ -153,31 +160,49 @@ function FeatureCard({ feature, onOpen }: { feature: CenterFeature; onOpen: () =
   );
 }
 
-function FeatureDetail({ feature, accent, centerKey }: { feature: CenterFeature; accent: string; centerKey: CenterKey }) {
+function FeatureDetail({
+  feature,
+  accent,
+  centerKey,
+}: {
+  feature: CenterFeature;
+  accent: string;
+  centerKey: CenterKey;
+}) {
   const Icon = feature.icon;
   const [configOpen, setConfigOpen] = useState(false);
   return (
     <div className="rounded-3xl bg-card border border-border shadow-card overflow-hidden">
       <div className="p-6 md:p-8 border-b border-border grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
         <div className="flex min-w-0 items-start gap-4">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white" style={{ background: accent }}>
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-lg md:text-xl font-bold tracking-tight">{feature.label}</h2>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1 max-w-xl">{feature.description}</p>
-        </div>
+          <div
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white"
+            style={{ background: accent }}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-lg md:text-xl font-bold tracking-tight">{feature.label}</h2>
+            <p className="text-xs md:text-sm text-muted-foreground mt-1 max-w-xl">
+              {feature.description}
+            </p>
+          </div>
         </div>
         {/* Coupons are the company's: a reseller has nothing to configure on them. */}
         {!(centerKey === "referral" && COUPON_FEATURES.has(feature.key)) && (
-        <button
-          type="button"
-          onClick={() => setConfigOpen((v) => !v)}
-          aria-expanded={configOpen}
-          className="press-3d shrink-0 inline-flex items-center gap-2 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow"
-        >
-          <Plus className="h-3.5 w-3.5" /> {configOpen ? "Close" : "Configure"}
-        </button>
+          // The configure form had nothing behind it (its Save stored
+          // nothing), so the button is disabled and says why.
+          <button
+            type="button"
+            onClick={() => setConfigOpen((v) => !v)}
+            aria-expanded={configOpen}
+            disabled
+            title={CONFIG_UNAVAILABLE}
+            aria-label={`Configure - ${CONFIG_UNAVAILABLE}`}
+            className="press-3d shrink-0 inline-flex items-center gap-2 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Plus className="h-3.5 w-3.5" /> {configOpen ? "Close" : "Configure"}
+          </button>
         )}
       </div>
 
@@ -211,8 +236,19 @@ function FeatureDetail({ feature, accent, centerKey }: { feature: CenterFeature;
             />
           </label>
           <div className="sm:col-span-2 flex gap-2">
-            <button type="submit" className="press-3d rounded-lg bg-brand text-brand-foreground px-3 py-2 text-xs font-semibold">Save</button>
-            <button type="button" onClick={() => setConfigOpen(false)} className="press-3d rounded-lg border border-border px-3 py-2 text-xs">Cancel</button>
+            <button
+              type="submit"
+              className="press-3d rounded-lg bg-brand text-brand-foreground px-3 py-2 text-xs font-semibold"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfigOpen(false)}
+              className="press-3d rounded-lg border border-border px-3 py-2 text-xs"
+            >
+              Cancel
+            </button>
           </div>
         </form>
       )}
@@ -220,22 +256,20 @@ function FeatureDetail({ feature, accent, centerKey }: { feature: CenterFeature;
       {centerKey === "referral" && feature.key === "link" ? (
         <ResellerReferralLinks />
       ) : (
-      <div className="p-8 md:p-12 grid place-items-center text-center">
-        <div className="grid h-14 w-14 place-items-center rounded-full bg-surface-2 text-muted-foreground">
-          <Inbox className="h-5 w-5" />
-        </div>
-        {/* "No records yet" was a claim this screen cannot make: it reads
+        <div className="p-8 md:p-12 grid place-items-center text-center">
+          <div className="grid h-14 w-14 place-items-center rounded-full bg-surface-2 text-muted-foreground">
+            <Inbox className="h-5 w-5" />
+          </div>
+          {/* "No records yet" was a claim this screen cannot make: it reads
             nothing, so a reseller with pending leads or commissions was told
             they had none. It now says the feature is not connected. */}
-        <div className="mt-4 text-base font-semibold">
-          Not available yet
+          <div className="mt-4 text-base font-semibold">Not available yet</div>
+          <div className="text-xs text-muted-foreground mt-1 max-w-md">
+            {centerKey === "referral" && COUPON_FEATURES.has(feature.key)
+              ? "Coupons are issued and managed by Software Vala only; resellers do not create or edit them. Your price is the rate set by your reseller plan."
+              : "This feature is not connected to your records yet, so nothing is shown here. Nothing is faked."}
+          </div>
         </div>
-        <div className="text-xs text-muted-foreground mt-1 max-w-md">
-          {centerKey === "referral" && COUPON_FEATURES.has(feature.key)
-            ? "Coupons are issued and managed by Software Vala only; resellers do not create or edit them. Your price is the rate set by your reseller plan."
-            : "This feature is not connected to your records yet, so nothing is shown here. Nothing is faked."}
-        </div>
-      </div>
       )}
     </div>
   );

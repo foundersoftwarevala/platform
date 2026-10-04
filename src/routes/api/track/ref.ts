@@ -8,6 +8,7 @@ import {
   resolveCode,
   rest,
 } from "@/lib/affiliate/core";
+import { rateLimited } from "@/lib/server/rate-limit";
 
 /**
  * Records a visit that arrived on a referral link.
@@ -38,6 +39,11 @@ export const Route = createFileRoute("/api/track/ref")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        // Unauthenticated and writes a row per visit, so one address cannot
+        // flood the referral sessions or inflate a link's click count.
+        const limited = rateLimited(request, "public");
+        if (limited) return limited;
+
         let body: Record<string, unknown>;
         try {
           body = (await request.json()) as Record<string, unknown>;
@@ -93,10 +99,13 @@ export const Route = createFileRoute("/api/track/ref")({
               metadata: { ...meta, ...campaign, clicks, last_landing: landing },
             }),
           });
-          return new Response(
-            JSON.stringify({ tracked: true, returning: true, clicks }),
-            { status: 200, headers: { "Content-Type": "application/json", "Set-Cookie": referralCookie(sessionKey) } },
-          );
+          return new Response(JSON.stringify({ tracked: true, returning: true, clicks }), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "Set-Cookie": referralCookie(sessionKey),
+            },
+          });
         }
 
         const insert = await rest("marketplace_referral_sessions", {
@@ -121,10 +130,10 @@ export const Route = createFileRoute("/api/track/ref")({
           return Response.json({ tracked: false, reason: "not recorded" }, { status: 502 });
         }
 
-        return new Response(
-          JSON.stringify({ tracked: true, returning: false }),
-          { status: 200, headers: { "Content-Type": "application/json", "Set-Cookie": referralCookie(sessionKey) } },
-        );
+        return new Response(JSON.stringify({ tracked: true, returning: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", "Set-Cookie": referralCookie(sessionKey) },
+        });
       },
     },
   },

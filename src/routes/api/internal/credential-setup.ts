@@ -9,22 +9,40 @@ export const Route = createFileRoute("/api/internal/credential-setup")({
       POST: async (req) => {
         const gate = await requireInternalOperator(req);
         if (!gate.ok) return gate.response;
+        // Replacing the server's database credential is not a Control Panel
+        // action: a signed-in developer account must not be able to repoint the
+        // service key. Only the server's own INTERNAL_API_TOKEN may.
+        if (gate.via !== "internal token") {
+          return Response.json(
+            // i18n-ignore: an internal operator API error; this API answers in English.
+            { error: "This endpoint accepts the internal token only." },
+            { status: 403 },
+          );
+        }
 
         try {
           const payload = await req.json();
           const { serviceRoleKey } = payload;
 
           if (!serviceRoleKey || typeof serviceRoleKey !== "string") {
+            return Response.json({ error: "Invalid credential provided" }, { status: 400 });
+          }
+
+          // A JWT is base64url segments joined by dots. Anything else - a
+          // newline above all - would be written verbatim into .env.local and
+          // could add or override other settings there.
+          if (!/^[A-Za-z0-9._-]+$/.test(serviceRoleKey)) {
             return Response.json(
+              // i18n-ignore: an internal operator API error; this API answers in English.
               { error: "Invalid credential provided" },
-              { status: 400 }
+              { status: 400 },
             );
           }
 
           if (serviceRoleKey.length < 50) {
             return Response.json(
               { error: "Credential appears too short (< 50 chars)" },
-              { status: 400 }
+              { status: 400 },
             );
           }
 
@@ -37,16 +55,14 @@ export const Route = createFileRoute("/api/internal/credential-setup")({
             let content = readFileSync(envLocalPath, "utf-8");
             content = content.replace(
               /SUPABASE_SERVICE_ROLE_KEY=.*/,
-              `SUPABASE_SERVICE_ROLE_KEY=${serviceRoleKey}`
+              () => `SUPABASE_SERVICE_ROLE_KEY=${serviceRoleKey}`,
             );
             writeFileSync(envLocalPath, content, "utf-8");
           }
 
           // Test the connection
           try {
-            const { supabaseAdmin } = await import(
-              "@/integrations/supabase/client.server"
-            );
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
             const { data, error, count } = await supabaseAdmin
               .from("resellers")
               .select("id", { count: "exact" })
@@ -59,7 +75,7 @@ export const Route = createFileRoute("/api/internal/credential-setup")({
                   message: "Credential set but database connection failed",
                   error: error.message,
                 },
-                { status: 200 }
+                { status: 200 },
               );
             }
 
@@ -73,14 +89,12 @@ export const Route = createFileRoute("/api/internal/credential-setup")({
             return Response.json({
               success: false,
               message: "Credential set to .env.local but connection test failed",
-              error:
-                testError instanceof Error ? testError.message : String(testError),
+              error: testError instanceof Error ? testError.message : String(testError),
               note: "Dev server may need restart to use new credential",
             });
           }
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
+          const message = error instanceof Error ? error.message : String(error);
           return Response.json({ error: message }, { status: 500 });
         }
       },

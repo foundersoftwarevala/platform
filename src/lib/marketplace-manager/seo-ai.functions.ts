@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { aiComplete } from "@/lib/ai-gateway.server";
 import { requireAuthorizedAiCaller } from "@/lib/ai-request-auth.server";
 
@@ -64,7 +65,21 @@ function fallback(input: SeoInput, reason: string): SeoOutput {
 }
 
 export const generateSeo = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as SeoInput)
+  // The input was only cast: a non-string topic crashed into the error text and
+  // an unbounded one went straight to the paid gateway. Clipped, not refused,
+  // so a long topic still generates.
+  .inputValidator((d: unknown): SeoInput =>
+    z
+      .object({
+        topic: z.string().transform((text) => text.slice(0, 500)),
+        type: z.enum(["homepage", "category", "product", "collection"]).optional(),
+        locale: z
+          .string()
+          .transform((text) => text.slice(0, 40))
+          .optional(),
+      })
+      .parse(d),
+  )
   .handler(async ({ data }): Promise<SeoOutput> => {
     // Anyone could call this endpoint and spend the platform AI credit; it is
     // held to the same callers as the manager chat beside it.

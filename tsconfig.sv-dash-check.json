@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/routes/dashboard.$role.tsx", "src/components/dashboard/AuthorHero.tsx", "src/components/dashboard/ContentRows.tsx", "src/components/dashboard/Hero.tsx", "src/components/dashboard/KpiGrid.tsx", "src/components/dashboard/ResellerCenterPage.tsx", "src/components/dashboard/ResellerHero.tsx", "src/components/dashboard/Sidebar.tsx", "src/components/dashboard/TopBar.tsx", "src/components/dashboard/VendorSliderHero.tsx", "src/lib/metrics.ts", "src/lib/auth-bridge.ts", "src/components/auth/CanonicalLogin.tsx", "src/routeTree.gen.ts", "src/vite-env.d.ts"]
+}

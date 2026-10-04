@@ -126,6 +126,7 @@ import { catalogueSlugForShelf } from "@/lib/marketplace/home-category-map";
 import { fetchCountryRail, railCardToDemo, shelfColour } from "@/lib/marketplace/country-rail";
 import { RAIL_COUNTRIES } from "@/lib/marketplace/rail-countries";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { useCatalogueCounts } from "@/components/sapphire-home/useCatalogueCounts";
 import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE } from "@/lib/site-content/constants";
 
 interface Demo {
@@ -3488,7 +3489,6 @@ const fillProductRail = (products: Demo[], target = PRODUCTS_PER_ROW) => {
   return Array.from({ length }, (_, index) => products[index % products.length] as Demo);
 };
 
-
 /**
  * The real catalogue products for one shelf, added after the shelf's own cards.
  *
@@ -3570,6 +3570,7 @@ const CountryRailCards = memo(function CountryRailCards({
 
 const Index = () => {
   const { t } = useTranslation();
+  const counts = useCatalogueCounts();
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   // How many real catalogue products each shelf has added. A shelf that has
@@ -3577,7 +3578,9 @@ const Index = () => {
   // catalogue cannot be reached is the page that shipped yesterday.
   const [addedByShelf, setAddedByShelf] = useState<Record<string, number>>({});
   const noteAdded = useCallback((shelf: string, count: number) => {
-    setAddedByShelf((current) => (current[shelf] === count ? current : { ...current, [shelf]: count }));
+    setAddedByShelf((current) =>
+      current[shelf] === count ? current : { ...current, [shelf]: count },
+    );
   }, []);
   // Saved products belong to the person, not to one browser. Signed out,
   // they are kept in this browser as before and carried up on the next sign-in.
@@ -3747,7 +3750,29 @@ const Index = () => {
             © 2024 Software Vala - The Name of Trust. All rights reserved.
           </p>
           <p className="text-cyan-400 mt-2">
-            55 Master Categories • {allDemos.length} Software Solutions • 20 Live Demos Ready
+            {/* Was "55 Master Categories • {allDemos.length} Software Solutions •
+                20 Live Demos Ready" - the length of a hand-written list and two
+                fixed numbers. The catalogue's real counts, each left out when
+                it could not be read. */}
+            {[
+              counts.categories
+                ? t("marketplace.home.footer_categories", {
+                    count: counts.format(counts.categories),
+                  })
+                : null,
+              counts.products
+                ? t("marketplace.home.footer_solutions_count", {
+                    count: counts.format(counts.products),
+                  })
+                : t("marketplace.home.solutions"),
+              counts.liveDemos
+                ? t("marketplace.home.footer_live_demos_count", {
+                    count: counts.format(counts.liveDemos),
+                  })
+                : t("marketplace.home.footer_live_demos"),
+            ]
+              .filter(Boolean)
+              .join(" • ")}
           </p>
         </div>
       </footer>
@@ -3823,6 +3848,7 @@ const DemoCard = memo(
   }) => {
     const Icon = demo.icon;
     const navigate = useNavigate();
+    const { t } = useTranslation();
     // The page this card opens. An author's upload takes the same address, so
     // the card keeps working when the real product arrives behind it.
     const productSlug = demo.slug ?? catalogueSlug(demo.name);
@@ -4111,25 +4137,35 @@ const DemoCard = memo(
                 </DropdownMenu>
               </div>
 
-              {/* Quick Stats on hover */}
+              {/* Quick Stats on hover. These were "50-99+ Clients", a "4.7-4.9"
+                  rating and "5-14h" delivery, hashed from the card id - numbers
+                  no client, review or order ever produced. They now state what
+                  the card itself knows: its feature count, whether its demo is
+                  live, and the site's stated 2-hour delivery. */}
               <div className="sv-card-stats mt-3 grid grid-cols-3">
                 <div className="sv-card-stat text-center">
-                  <p className="sv-card-stat-value text-lg font-bold">
-                    {50 + (stableSeed(demo.id) % 50)}+
+                  <p className="sv-card-stat-value text-lg font-bold">{demo.features.length}</p>
+                  <p className="sv-card-stat-label text-[10px]">
+                    {t("marketplace.home.card_features")}
                   </p>
-                  <p className="sv-card-stat-label text-[10px]">Clients</p>
                 </div>
                 <div className="sv-card-stat text-center">
                   <p className="sv-card-stat-value text-lg font-bold">
-                    4.{7 + (stableSeed(demo.id + "r") % 3)}
+                    {demo.status === "ACTIVE"
+                      ? t("marketplace.home.card_demo_live")
+                      : t("marketplace.home.card_demo_soon")}
                   </p>
-                  <p className="sv-card-stat-label text-[10px]">Rating</p>
+                  <p className="sv-card-stat-label text-[10px]">
+                    {t("marketplace.home.card_demo")}
+                  </p>
                 </div>
                 <div className="sv-card-stat text-center">
                   <p className="sv-card-stat-value text-lg font-bold">
-                    {5 + (stableSeed(demo.id + "d") % 10)}h
+                    {t("marketplace.home.card_delivery_value")}
                   </p>
-                  <p className="sv-card-stat-label text-[10px]">Delivery</p>
+                  <p className="sv-card-stat-label text-[10px]">
+                    {t("marketplace.home.card_delivery")}
+                  </p>
                 </div>
               </div>
             </div>

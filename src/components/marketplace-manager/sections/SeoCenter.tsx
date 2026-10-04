@@ -191,11 +191,21 @@ function DrawerBody({
             <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
               Position
             </div>
-            <div className="font-mono text-lg font-bold text-accent">3</div>
+            <div
+              className="font-mono text-lg font-bold text-accent"
+              title="Not measured for a button label"
+            >
+              —
+            </div>
           </div>
           <div className="rounded-lg border border-border bg-background/40 p-3 text-[11px]">
             <div className="text-[9px] uppercase tracking-wider text-muted-foreground">CTR</div>
-            <div className="font-mono text-lg font-bold text-success">5.3%</div>
+            <div
+              className="font-mono text-lg font-bold text-success"
+              title="Not measured for a button label"
+            >
+              —
+            </div>
           </div>
         </div>
         <pre className="max-h-40 overflow-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-[11px] leading-relaxed">{`<title>${title} — Software Vala</title>\n<meta name="description" content="Enterprise-ready…" />\n<link rel="canonical" href="https://softwarevala.com/…" />`}</pre>
@@ -315,11 +325,11 @@ function DrawerBody({
   return (
     <div className="space-y-3">
       {[
-        { l: "Meta Title", v: `${title} — Software Vala`, hint: "58 / 60" },
+        { l: "Meta Title", v: "", hint: "" },
         {
           l: "Meta Description",
-          v: "Enterprise-ready SEO copy tuned for search intent and CTR.",
-          hint: "142 / 160",
+          v: "",
+          hint: "",
           area: true,
         },
         { l: "Focus Keyword", v: "" },
@@ -567,6 +577,14 @@ function SeoAiAssistant() {
   );
 }
 
+/**
+ * Why a drawer's save or confirm cannot run. Change requests are moved along
+ * (approve, publish, roll back) through /api/seo/change from the Change
+ * control module, where each row carries the id that API needs.
+ */
+const UNBOUND_DRAWER =
+  "This drawer was opened from a button label, so there is no record behind it to save. SEO edits go through change requests in the Change control module.";
+
 function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => void }) {
   const siteAudit = useSiteAudit();
   const seoReport = useGenerateReport();
@@ -582,6 +600,12 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
 
   const meta = KIND_META[state.kind];
   const Icon = meta.icon;
+  // Only these drawers have an operation behind them. Every other drawer was
+  // opened from a button label and has no record to act on.
+  const bound =
+    state.action === "site-audit" ||
+    state.action === "seo-report" ||
+    state.action === "ai-assistant";
 
   /**
    * The confirm button used to call onClose() for every drawer, whatever it
@@ -658,8 +682,9 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
             {state.kind === "edit" || state.kind === "create" ? (
               <button
                 type="button"
-                onClick={() => notBuilt("Save draft")}
-                className="rounded-full border border-border bg-background/60 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-accent"
+                disabled
+                title={UNBOUND_DRAWER}
+                className="rounded-full border border-border bg-background/60 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Save draft
               </button>
@@ -667,7 +692,8 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
             <button
               type="button"
               onClick={confirm}
-              disabled={running}
+              disabled={running || !bound}
+              title={bound ? undefined : UNBOUND_DRAWER}
               className={`inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-[11px] font-bold uppercase tracking-wider text-primary-foreground shadow-[var(--shadow-glow)] disabled:opacity-60 ${
                 state.kind === "delete"
                   ? "bg-destructive"
@@ -1148,30 +1174,36 @@ function MiniSpark({
   );
 }
 
+/** RowActs answered every press with a toast. It has no row to act on. */
+const ROW_ACTS_REASON = "This row has no record id behind it, so there is nothing to open or edit.";
+
 function RowActs() {
   return (
-    <div className="inline-flex items-center gap-1">
+    <div className="inline-flex items-center gap-1" data-skip-drawer>
       <button
         type="button"
-        onClick={() => notBuilt("View")}
+        disabled
+        aria-label="View"
         className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-accent/40 hover:text-accent"
-        title="View"
+        title={ROW_ACTS_REASON}
       >
         <Eye className="h-3 w-3" />
       </button>
       <button
         type="button"
-        onClick={() => notBuilt("Edit")}
+        disabled
+        aria-label="Edit"
         className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-accent/40 hover:text-accent"
-        title="Edit"
+        title={ROW_ACTS_REASON}
       >
         <Edit3 className="h-3 w-3" />
       </button>
       <button
         type="button"
-        onClick={() => notBuilt("More")}
+        disabled
+        aria-label="More"
         className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground hover:border-warning/40 hover:text-warning"
-        title="More"
+        title={ROW_ACTS_REASON}
       >
         <MoreHorizontal className="h-3 w-3" />
       </button>
@@ -3336,8 +3368,76 @@ function SeoScoreModule() {
  * Nothing rewrites SEO data directly any more. A proposal records what it
  * would replace, and publishing is a separate act with a stored way back.
  */
+/** The step /api/seo/change allows from each state, if any. */
+const NEXT_STEP: Record<string, { action: "approve" | "publish" | "rollback"; label: string }> = {
+  APPROVAL_REQUIRED: { action: "approve", label: "Approve" },
+  QA: { action: "approve", label: "Approve" },
+  APPROVED: { action: "publish", label: "Publish" },
+  PUBLISHED: { action: "rollback", label: "Roll back" },
+};
+
+function ChangeStep({
+  id,
+  state,
+  onDone,
+}: {
+  id: string;
+  state: string;
+  onDone: (state: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const step = NEXT_STEP[state];
+  if (!id || !step) {
+    return <span className="text-[10px] text-muted-foreground">—</span>;
+  }
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const headers = await authHeaders();
+      const response = await fetch("/api/seo/change", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: step.action }),
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        change?: { state?: string };
+        error?: string;
+      };
+      if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
+      // A rollback answers with the new undo request (state PUBLISHED), not
+      // this row; this row is now ROLLED_BACK (change-control.server.ts).
+      onDone(step.action === "rollback" ? "ROLLED_BACK" : (body.change?.state ?? state));
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : String(problem));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="inline-flex items-center gap-1.5" data-skip-drawer>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void run()}
+        className="rounded border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground hover:border-accent/40 hover:text-accent disabled:opacity-50"
+      >
+        {busy ? "…" : step.label}
+      </button>
+      {error ? (
+        <span className="max-w-[160px] truncate text-[10px] text-destructive" title={error}>
+          {error}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function SeoChangesModule() {
   const [offset, setOffset] = useState(0);
+  // What a step returned, so the row shows the state the server now holds.
+  const [moved, setMoved] = useState<Record<string, string>>({});
   const changes = useResource("seo_changes", { limit: PAGE_SIZE, offset });
   const all = useResource("seo_changes", { limit: 1 });
   const waiting = useResource("seo_changes", { limit: 1, filters: ["state.eq.APPROVAL_REQUIRED"] });
@@ -3392,30 +3492,40 @@ function SeoChangesModule() {
         onChange={setOffset}
       />
       <Table
-        head={["When", "Page", "Field", "Source", "State", "Impact", "Reason"]}
-        rows={changes.rows.map((row) => [
-          <span key="w" className="font-mono text-[11px]">
-            {text(row, "created_at").slice(0, 16).replace("T", " ")}
-          </span>,
-          <span key="u" className="max-w-[220px] truncate font-mono text-[11px]">
-            {text(row, "target_url") || text(row, "entity_type")}
-          </span>,
-          <span key="f" className="font-mono text-[11px]">
-            {text(row, "field")}
-          </span>,
-          <Chip key="s" tone={text(row, "source") === "ai" ? "premium" : "default"}>
-            {text(row, "source")}
-          </Chip>,
-          <Chip key="t" tone={CHANGE_TONE[text(row, "state")] ?? "default"}>
-            {text(row, "state")}
-          </Chip>,
-          <Chip key="i" tone={text(row, "impact") === "high" ? "warning" : "default"}>
-            {text(row, "impact")}
-          </Chip>,
-          <span key="r" className="max-w-[300px] truncate text-[11px] text-muted-foreground">
-            {text(row, "reason")}
-          </span>,
-        ])}
+        head={["When", "Page", "Field", "Source", "State", "Impact", "Reason", "Action"]}
+        rows={changes.rows.map((row) => {
+          const id = text(row, "id");
+          const state = moved[id] ?? text(row, "state");
+          return [
+            <span key="w" className="font-mono text-[11px]">
+              {text(row, "created_at").slice(0, 16).replace("T", " ")}
+            </span>,
+            <span key="u" className="max-w-[220px] truncate font-mono text-[11px]">
+              {text(row, "target_url") || text(row, "entity_type")}
+            </span>,
+            <span key="f" className="font-mono text-[11px]">
+              {text(row, "field")}
+            </span>,
+            <Chip key="s" tone={text(row, "source") === "ai" ? "premium" : "default"}>
+              {text(row, "source")}
+            </Chip>,
+            <Chip key="t" tone={CHANGE_TONE[state] ?? "default"}>
+              {state}
+            </Chip>,
+            <Chip key="i" tone={text(row, "impact") === "high" ? "warning" : "default"}>
+              {text(row, "impact")}
+            </Chip>,
+            <span key="r" className="max-w-[300px] truncate text-[11px] text-muted-foreground">
+              {text(row, "reason")}
+            </span>,
+            <ChangeStep
+              key="a"
+              id={id}
+              state={state}
+              onDone={(next) => setMoved((m) => ({ ...m, [id]: next }))}
+            />,
+          ];
+        })}
       />
       {!changes.loading && changes.rows.length === 0 && (
         <div className="text-[11px] text-muted-foreground">
@@ -6416,20 +6526,16 @@ function SitemapModule() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <a href={`${base}/sitemap.xml`} target="_blank" rel="noreferrer">
-          <PillButton variant="primary">
-            <span className="inline-flex items-center gap-1">
-              <MapIcon className="h-3 w-3" /> {t("seo.open_sitemap_xml")}
-            </span>
-          </PillButton>
-        </a>
-        <a href={`${base}/robots.txt`} target="_blank" rel="noreferrer">
-          <PillButton variant="ghost">
-            <span className="inline-flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3" /> {t("seo.open_robots_txt")}
-            </span>
-          </PillButton>
-        </a>
+        <PillButton variant="primary" href={`${base}/sitemap.xml`} target="_blank">
+          <span className="inline-flex items-center gap-1">
+            <MapIcon className="h-3 w-3" /> {t("seo.open_sitemap_xml")}
+          </span>
+        </PillButton>
+        <PillButton variant="ghost" href={`${base}/robots.txt`} target="_blank">
+          <span className="inline-flex items-center gap-1">
+            <ShieldCheck className="h-3 w-3" /> {t("seo.open_robots_txt")}
+          </span>
+        </PillButton>
       </div>
       <div className="rounded-xl border border-border bg-background/40 p-3 text-[11px] leading-relaxed text-muted-foreground">
         {state === "loading"
@@ -6526,13 +6632,11 @@ function RobotsModule() {
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
             robots.txt · as served
           </div>
-          <a href={`${base}/robots.txt`} target="_blank" rel="noreferrer">
-            <PillButton variant="ghost">
-              <span className="inline-flex items-center gap-1">
-                <ExternalLink className="h-3 w-3" /> {t("seo.open")}
-              </span>
-            </PillButton>
-          </a>
+          <PillButton variant="ghost" href={`${base}/robots.txt`} target="_blank">
+            <span className="inline-flex items-center gap-1">
+              <ExternalLink className="h-3 w-3" /> {t("seo.open")}
+            </span>
+          </PillButton>
         </div>
         <pre className="h-72 w-full overflow-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-[12px] leading-relaxed">
           {served ??

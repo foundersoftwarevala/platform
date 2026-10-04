@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export function PageHeader({
   eyebrow,
@@ -228,18 +229,37 @@ export function SectionRow({
   );
 }
 
+/**
+ * A pill button.
+ *
+ * A PillButton with neither onClick nor href used to render as a live button
+ * that did nothing when pressed - dozens of them across the Manager's static
+ * screens. It now renders disabled and says why on hover (its own `title`, or
+ * the shared "not connected" reason). A link that looks like a pill passes
+ * `href` and renders as an anchor with the same look, instead of wrapping a
+ * dead button in an <a>.
+ */
 export function PillButton({
   children,
   variant = "ghost",
   onClick,
   disabled = false,
+  title,
+  href,
+  target,
 }: {
   children: ReactNode;
   variant?: "primary" | "ghost" | "premium";
   onClick?: () => void;
   /** Optional, so every existing caller keeps working unchanged. */
   disabled?: boolean;
+  /** Why the button cannot act when it is disabled; shown on hover. */
+  title?: string;
+  /** Render as a link with the pill's look. */
+  href?: string;
+  target?: string;
 }) {
+  const { t } = useTranslation();
   const map = {
     primary:
       "bg-accent text-accent-foreground hover:brightness-110 shadow-[0_8px_24px_-8px_oklch(0.80_0.13_192/0.6),inset_0_1px_0_oklch(1_0_0/0.25)]",
@@ -247,16 +267,34 @@ export function PillButton({
       "border border-border bg-white/[0.03] text-foreground hover:bg-white/[0.06] hover:border-[oklch(1_0_0/0.14)] ring-rim",
     premium: "text-primary-foreground hover:brightness-110",
   };
+  const style =
+    variant === "premium"
+      ? { background: "var(--gradient-premium)", boxShadow: "var(--shadow-premium)" }
+      : undefined;
+  const className = `rounded-full px-5 py-2 text-[12px] font-bold tracking-tight transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${map[variant]}`;
+  if (href && !disabled) {
+    return (
+      <a
+        href={href}
+        target={target}
+        rel={target === "_blank" ? "noreferrer" : undefined}
+        title={title}
+        style={style}
+        className={`inline-block ${className}`}
+      >
+        {children}
+      </a>
+    );
+  }
+  const unwired = !onClick;
   return (
     <button
+      type="button"
       onClick={onClick}
-      disabled={disabled}
-      style={
-        variant === "premium"
-          ? { background: "var(--gradient-premium)", boxShadow: "var(--shadow-premium)" }
-          : undefined
-      }
-      className={`rounded-full px-5 py-2 text-[12px] font-bold tracking-tight transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${map[variant]}`}
+      disabled={disabled || unwired}
+      title={title ?? (unwired ? t("manager.module.action_not_connected") : undefined)}
+      style={style}
+      className={className}
     >
       {children}
     </button>

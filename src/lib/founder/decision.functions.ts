@@ -234,7 +234,7 @@ export const decideFounderApproval = createServerFn({ method: "POST" })
 export const markFounderApprovalViewed = createServerFn({ method: "POST" })
   .validator((input: unknown) => z.object({ approvalId: z.string().uuid() }).parse(input))
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
-    const caller = await requireCaller();
+    const caller = await requireRead();
     const { markViewed } = await import("./approvals.server");
     return markViewed(data.approvalId, caller.id);
   });
@@ -250,7 +250,7 @@ export const overrideFounderRecommendation = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
-    const caller = await requireCaller();
+    const caller = await requireRead();
     const { overrideRecommendation } = await import("./approvals.server");
     return overrideRecommendation({ ...data, actorId: caller.id });
   });
@@ -267,7 +267,7 @@ export const recordFounderOutcome = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
-    const caller = await requireCaller();
+    const caller = await requireRead();
     const { recordOutcome } = await import("./approvals.server");
     return recordOutcome({
       decisionId: data.decisionId,

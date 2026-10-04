@@ -67,4 +67,98 @@ export const MARKETPLACE_MESSAGES = {
     "link to the country page",
   ],
   "marketplace.slot.faq_heading": ["Frequently Asked Questions", "heading above the questions"],
+
+  // The home page sections (src/components/sapphire-home and marketplace-home).
+  // Every number in these is the catalogue's real count, passed in already
+  // formatted for the visitor's language.
+  "marketplace.home.solutions_count": [
+    "{count} Solutions",
+    "feature strip: how many products the catalogue holds",
+  ],
+  "marketplace.home.solutions": [
+    "Software Solutions",
+    "feature strip item when the product count could not be read",
+  ],
+  "marketplace.home.live_demos_count": [
+    "{count} Live Demos",
+    "feature strip: how many products have a live demo",
+  ],
+  "marketplace.home.live_demos": [
+    "Live Demos",
+    "feature strip item when the live-demo count could not be read",
+  ],
+  "marketplace.home.footer_categories": [
+    "{count} Categories",
+    "footer line: number of catalogue categories",
+  ],
+  "marketplace.home.footer_solutions_count": [
+    "{count} Software Solutions",
+    "footer line: number of products",
+  ],
+  "marketplace.home.footer_live_demos_count": [
+    "{count} Live Demos Ready",
+    "footer line: number of live demos",
+  ],
+  "marketplace.home.footer_live_demos": [
+    "Live Demos Ready",
+    "footer line when the live-demo count could not be read",
+  ],
+  "marketplace.home.card_features": [
+    "Features",
+    "product card stat label: number of features (noun)",
+  ],
+  "marketplace.home.card_demo": [
+    "Demo",
+    "product card stat label: whether the demo is live (noun)",
+  ],
+  "marketplace.home.card_demo_live": ["Live", "product card stat value: the demo is live"],
+  "marketplace.home.card_demo_soon": ["Soon", "product card stat value: the demo is coming soon"],
+  "marketplace.home.card_delivery": ["Delivery", "product card stat label: delivery time (noun)"],
+  "marketplace.home.card_delivery_value": [
+    "2h",
+    "product card stat value: delivered within two hours",
+  ],
+  "marketplace.home.products_count": [
+    "{count} products",
+    "industry tile: number of products in that industry",
+  ],
+  "marketplace.home.ai_picks_count": "Personalised picks from {count} products.",
+  "marketplace.home.ai_picks": "Personalised picks from the full catalogue.",
+  "marketplace.home.enterprise_products": [
+    "Software Products",
+    "enterprise tile label under the product count",
+  ],
+  "marketplace.home.activity_loading": "Reading the marketplace…",
+  "marketplace.home.activity_empty": "Nothing has happened in the marketplace just yet.",
+  "marketplace.home.activity_someone": [
+    "Someone",
+    "anonymous visitor at the start of an activity line, e.g. 'Someone viewed X'",
+  ],
+  "marketplace.home.views_count": ["{views} views", "number of times a film was watched"],
+  "marketplace.home.film_unpublished": [
+    "Film not published yet",
+    "shown on a video card with no playable URL",
+  ],
+
+  // The product page's own not-found screen.
+  "marketplace.product.not_found_title": [
+    "Product Not Found",
+    "heading when a product URL matches nothing",
+  ],
+  "marketplace.product.not_found_body": 'The product with slug "{slug}" could not be found.',
+  "marketplace.product.back": ["Back to Marketplace", "link back to the marketplace home"],
+
+  // The Vala TV page (src/routes/vala-tv.tsx).
+  "marketplace.valatv.back": ["← Back to marketplace", "link at the top of the Vala TV page"],
+  "marketplace.valatv.subtitle": "Demos, walkthroughs and customer films.",
+  "marketplace.valatv.channel": [
+    "Watch the whole channel on YouTube",
+    "button linking to the YouTube channel",
+  ],
+  "marketplace.valatv.empty": "No films are published here yet.",
+  "marketplace.valatv.category_empty": "No films in that category yet.",
+  "marketplace.valatv.categories_label": [
+    "Video categories",
+    "accessible label of the category tabs",
+  ],
 } as const;

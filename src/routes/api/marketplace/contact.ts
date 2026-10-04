@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { clientAddress } from "@/lib/i18n/limits";
 
 import {
   operatorRecipients,
@@ -82,10 +83,10 @@ export const Route = createFileRoute("/api/marketplace/contact")({
           return Response.json({ error: "Support is not configured" }, { status: 503 });
         }
 
-        const sourceIp =
-          request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-          request.headers.get("x-real-ip") ??
-          "unknown";
+        // The address nginx vouches for (CF-Connecting-IP, overwritten at the
+        // edge), not the first X-Forwarded-For entry, which the caller writes:
+        // a fresh value per request walked straight past this limit.
+        const sourceIp = clientAddress(request.headers);
         if (rateLimited(sourceIp)) {
           return Response.json(
             { error: "Too many messages from this address. Please try again in a minute." },
@@ -111,10 +112,16 @@ export const Route = createFileRoute("/api/marketplace/contact")({
 
         if (!name) return Response.json({ error: "Please tell us your name" }, { status: 400 });
         if (!EMAIL_RE.test(email)) {
-          return Response.json({ error: "Please give an email address we can reply to" }, { status: 400 });
+          return Response.json(
+            { error: "Please give an email address we can reply to" },
+            { status: 400 },
+          );
         }
         if (description.length < 10) {
-          return Response.json({ error: "Please describe what you need help with" }, { status: 400 });
+          return Response.json(
+            { error: "Please describe what you need help with" },
+            { status: 400 },
+          );
         }
 
         const admin = {

@@ -45,6 +45,7 @@ export const Route = createFileRoute("/api/demo/investigate")({
         try {
           body = (await request.json()) as Record<string, unknown>;
         } catch {
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "The request body must be JSON." }, { status: 400 });
         }
 
@@ -58,6 +59,7 @@ export const Route = createFileRoute("/api/demo/investigate")({
           if (action === "one") {
             const demoUrlId = String(body.demoUrlId ?? "").trim();
             if (!/^[0-9a-f-]{36}$/i.test(demoUrlId)) {
+              // i18n-ignore: an API error message; this API answers in English.
               return Response.json({ error: "A demo id is required." }, { status: 400 });
             }
             const store = await fetch(
@@ -71,7 +73,12 @@ export const Route = createFileRoute("/api/demo/investigate")({
               },
             );
             const rows = store.ok ? ((await store.json()) as { id: string; url: string }[]) : [];
-            if (!rows[0]) return Response.json({ error: "That demo is not there." }, { status: 404 });
+            // i18n-ignore: an API error message; this API answers in English.
+            if (!rows[0])
+              return Response.json(
+                { error: "That demo is not there." /* i18n-ignore: API error */ },
+                { status: 404 },
+              );
             return Response.json({
               row: await investigateOne({
                 demoUrlId: rows[0].id,
@@ -85,6 +92,7 @@ export const Route = createFileRoute("/api/demo/investigate")({
 
           if (action !== "preview" && action !== "commit") {
             return Response.json(
+              // i18n-ignore: an API error message; this API answers in English.
               { error: 'action must be "preview", "commit" or "one".' },
               { status: 400 },
             );
@@ -92,6 +100,7 @@ export const Route = createFileRoute("/api/demo/investigate")({
 
           const batchId = String(body.batchId ?? "").trim();
           if (batchId && !/^[0-9a-f-]{36}$/i.test(batchId)) {
+            // i18n-ignore: an API error message; this API answers in English.
             return Response.json({ error: "That is not a batch id." }, { status: 400 });
           }
 

@@ -6,6 +6,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 
+/**
+ * Every server function in this file is a public RPC endpoint and works with
+ * the service role, which reads and writes past every policy. None had a check
+ * of its own, so anyone - signed in or not - could call them. The SEO
+ * console's people are the operators plus the seo and marketing staff the
+ * route gate admits, as in seo.functions.ts.
+ */
+async function seoGuard(action: string) {
+  const { requireOperator } = await import("@/lib/auth/require-operator.server");
+  return requireOperator(action, { alsoAllow: ["seo", "marketing"] });
+}
+
 // ============================================================================
 // ADMIN CLIENT
 // ============================================================================
@@ -24,15 +36,19 @@ function getSupabaseAdmin() {
 // ============================================================================
 
 export const syncBingWebmasterData = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    site_url: string;
-    api_key: string;
-    metric_type?: "traffic" | "keywords" | "crawl" | "backlinks";
-    days?: number;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        site_url: string;
+        api_key: string;
+        metric_type?: "traffic" | "keywords" | "crawl" | "backlinks";
+        days?: number;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("syncBingWebmasterData");
     const admin = getSupabaseAdmin();
-    
+
     try {
       const daysBack = data.days || 30;
       const startDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000)
@@ -53,7 +69,7 @@ export const syncBingWebmasterData = createServerFn({ method: "POST" })
             headers: {
               "Content-Type": "application/json",
             },
-          }
+          },
         );
 
         if (trafficResponse.ok) {
@@ -83,7 +99,7 @@ export const syncBingWebmasterData = createServerFn({ method: "POST" })
       if (!data.metric_type || data.metric_type === "keywords") {
         const keywordResponse = await fetch(
           `${bingApiUrl}/GetKeywordData?siteUrl=${encodeURIComponent(data.site_url)}&apikey=${data.api_key}`,
-          { method: "GET" }
+          { method: "GET" },
         );
 
         if (keywordResponse.ok) {
@@ -96,7 +112,7 @@ export const syncBingWebmasterData = createServerFn({ method: "POST" })
       if (!data.metric_type || data.metric_type === "crawl") {
         const crawlResponse = await fetch(
           `${bingApiUrl}/GetCrawlIssues?siteUrl=${encodeURIComponent(data.site_url)}&apikey=${data.api_key}`,
-          { method: "GET" }
+          { method: "GET" },
         );
 
         if (crawlResponse.ok) {
@@ -121,12 +137,16 @@ export const syncBingWebmasterData = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const submitSitemapToBing = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    site_url: string;
-    sitemap_url: string;
-    api_key: string;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        site_url: string;
+        sitemap_url: string;
+        api_key: string;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("submitSitemapToBing");
     try {
       const bingApiUrl = "https://ssl.bing.com/webmaster/api.svc/json";
 
@@ -137,7 +157,7 @@ export const submitSitemapToBing = createServerFn({ method: "POST" })
           headers: {
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -156,14 +176,18 @@ export const submitSitemapToBing = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const submitUrlsToBing = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    site_url: string;
-    urls: string[];
-    api_key: string;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        site_url: string;
+        urls: string[];
+        api_key: string;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("submitUrlsToBing");
     const admin = getSupabaseAdmin();
-    
+
     try {
       const bingApiUrl = "https://ssl.bing.com/webmaster/api.svc/json";
       const results = [];
@@ -178,7 +202,7 @@ export const submitUrlsToBing = createServerFn({ method: "POST" })
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({ siteUrl: data.site_url, urlList: [url] }),
-            }
+            },
           );
 
           const success = response.ok;
@@ -200,15 +224,19 @@ export const submitUrlsToBing = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const submitToIndexNow = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    host: string;
-    key: string;
-    key_location?: string;
-    urls: string[];
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        host: string;
+        key: string;
+        key_location?: string;
+        urls: string[];
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("submitToIndexNow");
     const admin = getSupabaseAdmin();
-    
+
     try {
       const indexnowUrl = "https://api.indexnow.org/indexnow";
 
@@ -232,8 +260,8 @@ export const submitToIndexNow = createServerFn({ method: "POST" })
       const success = response.status === 202 || response.ok;
 
       // Store submission record
-      const submissionId = Math.random().toString(36).substring(7);
-      
+      const submissionId = crypto.randomUUID();
+
       await admin.from("indexnow_submissions").insert({
         submission_id: submissionId,
         host: data.host,
@@ -262,12 +290,16 @@ export const submitToIndexNow = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const processPendingIndexing = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    host: string;
-    indexnow_key: string;
-    max_batch_size?: number;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        host: string;
+        indexnow_key: string;
+        max_batch_size?: number;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("processPendingIndexing");
     const admin = getSupabaseAdmin();
     const batchSize = data.max_batch_size || 1000;
 
@@ -283,7 +315,7 @@ export const processPendingIndexing = createServerFn({ method: "POST" })
         return { success: true, urls_processed: 0 };
       }
 
-      const urls = pendingItems.map(item => item.url);
+      const urls = pendingItems.map((item) => item.url);
 
       // Submit batch to IndexNow
       const submission = await submitToIndexNow({
@@ -296,11 +328,8 @@ export const processPendingIndexing = createServerFn({ method: "POST" })
 
       if (submission.success) {
         // Update queue status
-        const ids = pendingItems.map(item => item.id);
-        await admin
-          .from("indexing_queue")
-          .update({ status: "submitted" })
-          .in("id", ids);
+        const ids = pendingItems.map((item) => item.id);
+        await admin.from("indexing_queue").update({ status: "submitted" }).in("id", ids);
 
         return { success: true, urls_processed: urls.length };
       } else {
@@ -317,15 +346,25 @@ export const processPendingIndexing = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const validateIndexNowKey = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    host: string;
-    key: string;
-    key_location: string;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        host: string;
+        key: string;
+        key_location: string;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("validateIndexNowKey");
     try {
       // Validate key by checking if it's accessible at key location
-      const keyResponse = await fetch(data.key_location);
+      // key_location comes from the request body; plain fetch() would read
+      // any address the server can reach (localhost, metadata endpoint) and
+      // report back whether it contained a chosen string. It goes through the
+      // checked fetcher instead (lib/seo/public-fetch.server.ts).
+      const { publicFetch } = await import("@/lib/seo/public-fetch.server");
+      const keyResponse = await publicFetch(String(data.key_location ?? ""), { maxBytes: 64_000 });
+      if (keyResponse.error) return { valid: false, error: keyResponse.error };
 
       if (!keyResponse.ok) {
         return {
@@ -334,7 +373,7 @@ export const validateIndexNowKey = createServerFn({ method: "POST" })
         };
       }
 
-      const keyContent = await keyResponse.text();
+      const keyContent = keyResponse.body;
 
       if (!keyContent.includes(data.key)) {
         return {
@@ -354,13 +393,17 @@ export const validateIndexNowKey = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const pingIndexNow = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    host: string;
-    key: string;
-    key_location?: string;
-    url: string;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        host: string;
+        key: string;
+        key_location?: string;
+        url: string;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("pingIndexNow");
     // This used to call https://www.bing-ping.org/?q=<url>, which is not an
     // endpoint Microsoft operates, and then counted a 404 as a success - so it
     // reported "URL pinged to Bing" whatever happened, including when nothing

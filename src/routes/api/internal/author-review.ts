@@ -1,7 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { requireInternalOperator, type GuardResult } from "@/lib/auth/internal-guard";
+import { bearerToken, userFromBearerToken } from "@/lib/auth/bearer-user.server";
 import { REVIEW_TRANSITIONS, rest } from "@/lib/marketplace/author-guard";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Who approved, from the verified session - never from the body. A signed-in
+ * operator could otherwise record the approval under someone else's name. Only
+ * a script holding the internal token, which has no session, may name one.
+ */
+async function reviewerOf(
+  request: Request,
+  gate: Extract<GuardResult, { ok: true }>,
+  claimed: unknown,
+): Promise<string | null> {
+  if (gate.via === "internal token") {
+    const id = String(claimed ?? "").trim();
+    return UUID.test(id) ? id : null;
+  }
+  const token = bearerToken(request.headers.get("authorization"));
+  const user = token ? await userFromBearerToken(token) : null;
+  return user?.id ?? null;
+}
 
 /**
  * The review queue an author's submission goes to, and the decision that
@@ -92,7 +114,10 @@ export const Route = createFileRoute("/api/internal/author-review")({
             { status: 400 },
           );
         }
-        if ((decision === "rejected" || decision === "changes_requested") && !String(body.reason ?? "").trim()) {
+        if (
+          (decision === "rejected" || decision === "changes_requested") &&
+          !String(body.reason ?? "").trim()
+        ) {
           return Response.json(
             { error: "A reason is required so the author knows what to fix" },
             { status: 400 },
@@ -102,8 +127,13 @@ export const Route = createFileRoute("/api/internal/author-review")({
         const currentResponse = await rest(
           `marketplace_products?select=id,seller_id,moderation_status,name&id=eq.${encodeURIComponent(productId)}&limit=1`,
         );
-        const current = ((await currentResponse.json()) as
-          { seller_id: string | null; moderation_status: string; name: string }[])[0];
+        const current = (
+          (await currentResponse.json()) as {
+            seller_id: string | null;
+            moderation_status: string;
+            name: string;
+          }[]
+        )[0];
         if (!current) return Response.json({ error: "No such product" }, { status: 404 });
         if (!current.seller_id) {
           return Response.json(
@@ -130,7 +160,8 @@ export const Route = createFileRoute("/api/internal/author-review")({
         if (effect.visible !== undefined) patch.visible = effect.visible;
         if (effect.approved) {
           patch.approved_at = new Date().toISOString();
-          if (body.reviewerId) patch.approved_by = body.reviewerId;
+          const reviewer = await reviewerOf(request, gate, body.reviewerId);
+          if (reviewer) patch.approved_by = reviewer;
         }
 
         const patched = await rest(`marketplace_products?id=eq.${encodeURIComponent(productId)}`, {

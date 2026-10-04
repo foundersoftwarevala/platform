@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { createFakeSupabase, withQueryClient } from "@/test/utils";
@@ -109,9 +110,7 @@ import LeadInbox from "@/components/sales-support/LeadInbox";
 
 /** Reads the number rendered directly above a KPI/badge caption. */
 function tileValue(label: string) {
-  const captions = screen
-    .getAllByText(label)
-    .filter((el) => el.classList.contains("text-xs"));
+  const captions = screen.getAllByText(label).filter((el) => el.classList.contains("text-xs"));
   const value = captions[0]?.parentElement?.querySelector("div.text-2xl");
   return value?.textContent?.trim() ?? "";
 }

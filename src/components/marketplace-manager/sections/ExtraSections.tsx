@@ -32,12 +32,30 @@ import {
   configureTopBarModule,
   type TopBarModule,
 } from "@/lib/marketplace-manager/topbar.functions";
-function Switch({ on = false }: { on?: boolean }) {
-  const [v, setV] = useState(on);
+/**
+ * A switch that only moves when something stores what it says. It used to
+ * flip its own state, so a channel looked switched off when nothing changed.
+ * Without an onChange it renders disabled and says why on hover.
+ */
+function Switch({
+  on = false,
+  onChange,
+  reason = "Nothing stores this setting yet, so it cannot be switched here.",
+}: {
+  on?: boolean;
+  onChange?: (next: boolean) => void;
+  reason?: string;
+}) {
+  const v = on;
   return (
     <button
-      onClick={() => setV(!v)}
-      className={`relative h-5 w-9 rounded-full transition-colors ${v ? "bg-gradient-to-r from-primary to-accent" : "bg-secondary"}`}
+      type="button"
+      role="switch"
+      aria-checked={v}
+      disabled={!onChange}
+      title={onChange ? undefined : reason}
+      onClick={() => onChange?.(!v)}
+      className={`relative h-5 w-9 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${v ? "bg-gradient-to-r from-primary to-accent" : "bg-secondary"}`}
     >
       <span
         className={`absolute top-0.5 h-4 w-4 rounded-full bg-background shadow transition-transform ${v ? "translate-x-4" : "translate-x-0.5"}`}
@@ -65,7 +83,8 @@ export function StorefrontTopBarSection() {
       void qc.invalidateQueries({ queryKey: ["marketplace", "topbar"] });
       toast.success(t("storeadmin.extra.topbar_updated"));
     },
-    onError: (e: Error) => toast.error(t("storeadmin.extra.change_refused"), { description: e.message }),
+    onError: (e: Error) =>
+      toast.error(t("storeadmin.extra.change_refused"), { description: e.message }),
   });
 
   const modules = data?.modules ?? [];
@@ -103,15 +122,17 @@ export function StorefrontTopBarSection() {
           <div className="text-[11px] text-muted-foreground">
             {isLoading
               ? t("storeadmin.extra.loading")
-              : t("storeadmin.extra.live_count", { count: rendered.filter((m) => m.status === "live").length })}
+              : t("storeadmin.extra.live_count", {
+                  count: rendered.filter((m) => m.status === "live").length,
+                })}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/60 px-4 py-3 text-xs">
-          {isLoading && <span className="text-muted-foreground">{t("storeadmin.extra.reading_registry")}</span>}
+          {isLoading && (
+            <span className="text-muted-foreground">{t("storeadmin.extra.reading_registry")}</span>
+          )}
           {!isLoading && rendered.filter((m) => m.status === "live").length === 0 && (
-            <span className="text-muted-foreground">
-              {t("storeadmin.extra.none_live")}
-            </span>
+            <span className="text-muted-foreground">{t("storeadmin.extra.none_live")}</span>
           )}
           {rendered
             .filter((m) => m.status === "live")
@@ -195,10 +216,16 @@ function ModuleGrid({
 }) {
   const { t } = useTranslation();
   if (loading) {
-    return <div className="text-xs text-muted-foreground">{t("storeadmin.extra.reading_registry")}</div>;
+    return (
+      <div className="text-xs text-muted-foreground">{t("storeadmin.extra.reading_registry")}</div>
+    );
   }
   if (modules.length === 0) {
-    return <div className="text-xs text-muted-foreground">{t("storeadmin.extra.no_module_in_group")}</div>;
+    return (
+      <div className="text-xs text-muted-foreground">
+        {t("storeadmin.extra.no_module_in_group")}
+      </div>
+    );
   }
   return (
     <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -216,13 +243,19 @@ function ModuleGrid({
               <div className="mt-1 text-[10px] text-muted-foreground">
                 {m.rendered
                   ? `${m.component} · ${m.status}`
-                  : t("storeadmin.extra.not_rendered", { reason: m.blocked_reason ?? t("storeadmin.extra.no_component") })}
+                  : t("storeadmin.extra.not_rendered", {
+                      reason: m.blocked_reason ?? t("storeadmin.extra.no_component"),
+                    })}
               </div>
             </div>
             <button
               type="button"
               disabled={!m.rendered}
-              title={m.rendered ? t("storeadmin.extra.toggle_title") : t("storeadmin.extra.nothing_renders")}
+              title={
+                m.rendered
+                  ? t("storeadmin.extra.toggle_title")
+                  : t("storeadmin.extra.nothing_renders")
+              }
               onClick={() =>
                 save.mutate({
                   key: m.module_key,
@@ -237,7 +270,11 @@ function ModuleGrid({
                     : "bg-muted/50 text-muted-foreground"
               }`}
             >
-              {m.rendered ? (m.status === "live" ? t("storeadmin.extra.status_live") : t("storeadmin.extra.status_hidden")) : t("storeadmin.extra.status_planned")}
+              {m.rendered
+                ? m.status === "live"
+                  ? t("storeadmin.extra.status_live")
+                  : t("storeadmin.extra.status_hidden")
+                : t("storeadmin.extra.status_planned")}
             </button>
           </div>
         );
@@ -324,7 +361,9 @@ export function FooterSectionStatic() {
               />
             </div>
             <div className="mt-2 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">{t("storeadmin.extra.show_on_footer")}</span>
+              <span className="text-xs text-muted-foreground">
+                {t("storeadmin.extra.show_on_footer")}
+              </span>
               <Switch on />
             </div>
           </Card>
@@ -490,7 +529,9 @@ export function UpcomingSection() {
         eyebrow={t("storeadmin.extra.upcoming_eyebrow")}
         title={t("storeadmin.extra.upcoming_title")}
         description={t("storeadmin.extra.upcoming_description")}
-        actions={<PillButton variant="premium">{t("storeadmin.extra.upcoming_product")}</PillButton>}
+        actions={
+          <PillButton variant="premium">{t("storeadmin.extra.upcoming_product")}</PillButton>
+        }
       />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {loading && <EmptyHint text={t("storeadmin.extra.reading_catalogue")} />}
@@ -580,7 +621,7 @@ export function NotificationsSection() {
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{d}</p>
               </div>
-              <Switch on />
+              <Switch reason="No table stores which notification channels are enabled; the outgoing mail queue is in the live table above." />
             </div>
           </Card>
         ))}

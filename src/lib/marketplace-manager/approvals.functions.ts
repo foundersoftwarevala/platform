@@ -309,6 +309,10 @@ export const logApprovalExport = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; id?: string }> => {
+    // mm_audit writes whatever it is given and checks nobody, so without this
+    // any signed-in account could add "export" rows to the append-only trail.
+    const { requireMarketplaceOperator } = await import("./mm-operator.server");
+    await requireMarketplaceOperator("Recording an approval export");
     const id = await callAsUser<string>("mm_audit", {
       p_action: "Approval Records Exported",
       p_entity_type: "author_submission",

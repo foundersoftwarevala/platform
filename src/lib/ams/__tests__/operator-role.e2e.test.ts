@@ -10,21 +10,38 @@ import { ROLE_THEMES } from "@/lib/ams/role-themes";
 import { ROLE_ENVIRONMENT, SHOWCASES } from "@/lib/ams/museum";
 
 const ROOT = process.cwd();
-const ROUTES = join(ROOT, "src/routes/_authenticated");
+// The AMS routes are flat files under src/routes (ams.<name>.tsx).
+const ROUTES = join(ROOT, "src/routes");
 const ASSETS = join(ROOT, "src/assets");
 
 /** Every 3D collectible asset directory that must contain an operator piece. */
 const ASSET_DIRS = [
-  "badges", "passports", "certificates", "membership", "ranks", "shields",
-  "awards", "achievements", "reputation-medals", "trust-seals", "recognition-coins",
-  "xp-crystals", "reward-chests", "honor-coins", "legacy-medals", "identity-cards",
-  "license-cards", "founder-seals", "hall-of-fame", "trophies",
+  "badges",
+  "passports",
+  "certificates",
+  "membership",
+  "ranks",
+  "shields",
+  "awards",
+  "achievements",
+  "reputation-medals",
+  "trust-seals",
+  "recognition-coins",
+  "xp-crystals",
+  "reward-chests",
+  "honor-coins",
+  "legacy-medals",
+  "identity-cards",
+  "license-cards",
+  "founder-seals",
+  "hall-of-fame",
+  "trophies",
 ];
 
 const OPERATOR: RoleSlug = "operator";
 
 function routeFiles(): string[] {
-  return readdirSync(ROUTES).filter((f) => f.endsWith(".tsx"));
+  return readdirSync(ROUTES).filter((f) => f.startsWith("ams.") && f.endsWith(".tsx"));
 }
 
 function read(file: string): string {
@@ -45,7 +62,10 @@ describe("Operator role — selectors", () => {
     // RoleFilter builds its options as ["all", ...ROLES]; assert the derived list.
     const options = ["all", ...ROLES.map((r) => r.slug)];
     expect(options).toContain(OPERATOR);
-    const source = readFileSync(join(ROOT, "src/components/ams/collectible/RoleFilter.tsx"), "utf8");
+    const source = readFileSync(
+      join(ROOT, "src/components/ams/collectible/RoleFilter.tsx"),
+      "utf8",
+    );
     expect(source).toMatch(/ROLES\.map/);
   });
 
@@ -89,7 +109,8 @@ describe("Operator role — collection displays", () => {
 
 describe("Operator role — museum showcases", () => {
   it.each(SHOWCASES.map((s) => [s.slug, s] as const))(
-    "%s resolves an Operator collectible", (_slug, showcase) => {
+    "%s resolves an Operator collectible",
+    (_slug, showcase) => {
       const url = showcase.assets[OPERATOR];
       expect(url, `${showcase.slug} has no operator asset`).toBeTruthy();
       expect(url).toMatch(/operator\.png/);

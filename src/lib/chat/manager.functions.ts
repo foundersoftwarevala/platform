@@ -4,11 +4,19 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 /** Server layer for the Chat Manager console. Every call is permission-checked. */
 
 async function assertManager(
-  supabase: { rpc: (fn: "has_permission", args: { _user_id: string; _permission: string }) => Promise<{ data: unknown }> },
+  supabase: {
+    rpc: (
+      fn: "has_permission",
+      args: { _user_id: string; _permission: string },
+    ) => Promise<{ data: unknown }>;
+  },
   userId: string,
   permission = "chat.manage",
 ) {
-  const { data } = await supabase.rpc("has_permission", { _user_id: userId, _permission: permission });
+  const { data } = await supabase.rpc("has_permission", {
+    _user_id: userId,
+    _permission: permission,
+  });
   if (data !== true) throw new Error("You do not have permission to manage chat.");
 }
 
@@ -60,26 +68,27 @@ export const getChatOverview = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const db = context.supabase;
 
-    const [conversationRows, participantRows, messageRows, handoffRows, auditRows] = await Promise.all([
-      db
-        .from("conversations")
-        .select("id, subject, kind, status, priority, department, ai_enabled, last_message_at")
-        .order("last_message_at", { ascending: false })
-        .limit(80),
-      db.from("conversation_participants").select("conversation_id"),
-      db.from("messages").select("id, kind, created_at").gte("created_at", since).limit(5000),
-      db
-        .from("chat_handoffs")
-        .select("id, conversation_id, reason, status, created_at, requested_by")
-        .order("created_at", { ascending: false })
-        .limit(50),
-      db
-        .from("audit_logs")
-        .select("id, action, entity_id, severity, occurred_at, actor")
-        .like("action", "chat.%")
-        .order("occurred_at", { ascending: false })
-        .limit(40),
-    ]);
+    const [conversationRows, participantRows, messageRows, handoffRows, auditRows] =
+      await Promise.all([
+        db
+          .from("conversations")
+          .select("id, subject, kind, status, priority, department, ai_enabled, last_message_at")
+          .order("last_message_at", { ascending: false })
+          .limit(80),
+        db.from("conversation_participants").select("conversation_id"),
+        db.from("messages").select("id, kind, created_at").gte("created_at", since).limit(5000),
+        db
+          .from("chat_handoffs")
+          .select("id, conversation_id, reason, status, created_at, requested_by")
+          .order("created_at", { ascending: false })
+          .limit(50),
+        db
+          .from("audit_logs")
+          .select("id, action, entity_id, severity, occurred_at, actor")
+          .like("action", "chat.%")
+          .order("occurred_at", { ascending: false })
+          .limit(40),
+      ]);
 
     const conversations = conversationRows.data ?? [];
     const counts = new Map<string, number>();
@@ -123,6 +132,8 @@ export const resolveHandoff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { handoffId: string; status: "accepted" | "resolved" | "rejected" }) => {
     if (!input?.handoffId) throw new Error("handoffId is required");
+    if (!["accepted", "resolved", "rejected"].includes(input.status))
+      throw new Error("Unknown handoff status");
     return input;
   })
   .handler(async ({ data, context }) => {
@@ -132,7 +143,10 @@ export const resolveHandoff = createServerFn({ method: "POST" })
       assigned_to: context.userId,
     };
     if (data.status !== "accepted") patch.resolved_at = new Date().toISOString();
-    const { error } = await context.supabase.from("chat_handoffs").update(patch).eq("id", data.handoffId);
+    const { error } = await context.supabase
+      .from("chat_handoffs")
+      .update(patch)
+      .eq("id", data.handoffId);
     if (error) return { ok: false as const, error: error.message };
     return { ok: true as const };
   });
@@ -140,14 +154,21 @@ export const resolveHandoff = createServerFn({ method: "POST" })
 export const updateConversationControls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (input: { conversationId: string; status?: string; priority?: string; aiEnabled?: boolean; department?: string }) => {
+    (input: {
+      conversationId: string;
+      status?: string;
+      priority?: string;
+      aiEnabled?: boolean;
+      department?: string;
+    }) => {
       if (!input?.conversationId) throw new Error("conversationId is required");
       return input;
     },
   )
   .handler(async ({ data, context }) => {
     await assertManager(context.supabase as never, context.userId);
-    const patch: { status?: string; priority?: string; ai_enabled?: boolean; department?: string } = {};
+    const patch: { status?: string; priority?: string; ai_enabled?: boolean; department?: string } =
+      {};
     if (data.status) patch.status = data.status;
     if (data.priority) patch.priority = data.priority;
     if (typeof data.aiEnabled === "boolean") patch.ai_enabled = data.aiEnabled;
@@ -161,14 +182,40 @@ export const updateConversationControls = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-export type RoleMatrix = { roles: string[]; permissions: string[]; granted: Record<string, string[]> };
+/** The chat permissions this matrix manages, and the roles that may hold them. */
+const CHAT_PERMISSION = /^chat\.[a-z_]+$/;
+const CHAT_STAFF_ROLES = new Set([
+  "admin",
+  "boss",
+  "founder",
+  "super_admin",
+  "boss_owner",
+  "employee",
+  "developer",
+  "support",
+  "sales",
+  "finance",
+  "sales_support_manager",
+  "marketing",
+  "seo",
+  "legal",
+]);
+
+export type RoleMatrix = {
+  roles: string[];
+  permissions: string[];
+  granted: Record<string, string[]>;
+};
 
 export const getRoleMatrix = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<RoleMatrix> => {
     await assertManager(context.supabase as never, context.userId);
-    const { data } = await context.supabase.from("role_permissions").select("role, permission");
-    const rows = data ?? [];
+    const { data } = await context.supabase
+      .from("role_permissions")
+      .select("role, permission")
+      .like("permission", "chat.%");
+    const rows = (data ?? []).filter((r) => CHAT_PERMISSION.test(r.permission));
     const roles = Array.from(new Set(rows.map((r) => r.role as string))).sort();
     const permissions = Array.from(new Set(rows.map((r) => r.permission))).sort();
     const granted: Record<string, string[]> = {};
@@ -187,6 +234,17 @@ export const setRolePermission = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     await assertManager(context.supabase as never, context.userId);
+    // This writes role_permissions with the service role, and that table is the
+    // permission source for the whole platform (decision.approve, knowledge.*,
+    // report.* ...), not only chat. The matrix is the chat matrix: anything
+    // outside chat.* is refused, and a chat permission is only granted to a
+    // staff role - never to customers, partners or the public.
+    if (typeof data.permission !== "string" || !CHAT_PERMISSION.test(data.permission)) {
+      return { ok: false as const, error: "Only chat permissions can be changed here." };
+    }
+    if (typeof data.role !== "string" || (data.enabled && !CHAT_STAFF_ROLES.has(data.role))) {
+      return { ok: false as const, error: "Chat permissions can only be granted to staff roles." };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     if (data.enabled) {
       const { error } = await supabaseAdmin

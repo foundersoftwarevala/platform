@@ -288,7 +288,8 @@ export function AuthorApprovalSection() {
       void qc.invalidateQueries({ queryKey: MODERATION_KEY });
       toast.success(String(r.message ?? t("storeadmin.gov.recorded")));
     },
-    onError: (e: Error) => toast.error(t("storeadmin.gov.decision_refused"), { description: e.message }),
+    onError: (e: Error) =>
+      toast.error(t("storeadmin.gov.decision_refused"), { description: e.message }),
   });
 
   const rows = view.data?.products ?? [];
@@ -339,7 +340,13 @@ export function AuthorApprovalSection() {
           <StatCard
             key={s.id}
             label={s.label}
-            value={view.isLoading ? "—" : view.isError ? t("storeadmin.gov.unavailable") : String(counted(s.id))}
+            value={
+              view.isLoading
+                ? "—"
+                : view.isError
+                  ? t("storeadmin.gov.unavailable")
+                  : String(counted(s.id))
+            }
             tone={s.tone === "muted" ? "default" : s.tone === "info" ? "default" : (s.tone as any)}
           />
         ))}
@@ -383,7 +390,9 @@ export function AuthorApprovalSection() {
           {!view.isLoading && !view.isError && rows.length === 0 && (
             <div className="px-4 py-6 text-sm text-muted-foreground">
               {typeof view.data?.total_catalog === "number"
-                ? t("storeadmin.gov.nothing_awaiting_total", { total: new Intl.NumberFormat().format(view.data.total_catalog) })
+                ? t("storeadmin.gov.nothing_awaiting_total", {
+                    total: new Intl.NumberFormat().format(view.data.total_catalog),
+                  })
                 : t("storeadmin.gov.nothing_awaiting")}
             </div>
           )}
@@ -402,12 +411,19 @@ export function AuthorApprovalSection() {
                 <div className="col-span-4">
                   <div className="text-sm font-bold">{r.name}</div>
                   <div className="text-[11px] text-muted-foreground">
-                    {t("storeadmin.gov.by")} <span className="text-foreground/80">{r.owner ?? t("storeadmin.gov.unassigned")}</span> ·{" "}
-                    <span className="font-mono tabular">{r.slug}</span>
+                    {t("storeadmin.gov.by")}{" "}
+                    <span className="text-foreground/80">
+                      {r.owner ?? t("storeadmin.gov.unassigned")}
+                    </span>{" "}
+                    · <span className="font-mono tabular">{r.slug}</span>
                   </div>
                 </div>
                 <div className="col-span-1">
-                  <Tone tone={kind === "New" ? "premium" : "info"}>{kind === "New" ? t("storeadmin.gov.kind_new") : t("storeadmin.gov.kind_update")}</Tone>
+                  <Tone tone={kind === "New" ? "premium" : "info"}>
+                    {kind === "New"
+                      ? t("storeadmin.gov.kind_new")
+                      : t("storeadmin.gov.kind_update")}
+                  </Tone>
                 </div>
                 <div className="col-span-2 text-[11px] text-muted-foreground">
                   {t("storeadmin.gov.submitted", { when: ago(r.created_at, t) })}
@@ -620,11 +636,15 @@ export function ModerationSection() {
               <div className="col-span-4">
                 <div className="text-sm font-bold">{r.name}</div>
                 <div className="text-[11px] text-muted-foreground">
-                  {t("storeadmin.gov.by")} {r.author} · <span className="font-mono tabular">{r.id}</span>
+                  {t("storeadmin.gov.by")} {r.author} ·{" "}
+                  <span className="font-mono tabular">{r.id}</span>
                   {r.dup ? (
                     <>
                       {" "}
-                      · <span className="text-warning">{t("storeadmin.gov.duplicates_count", { count: r.dup })}</span>
+                      ·{" "}
+                      <span className="text-warning">
+                        {t("storeadmin.gov.duplicates_count", { count: r.dup })}
+                      </span>
                     </>
                   ) : null}
                 </div>
@@ -664,7 +684,9 @@ export function ModerationSection() {
                   <div className="text-[12px] font-semibold">
                     {d.a} <span className="text-muted-foreground">↔</span> {d.b}
                   </div>
-                  <Tone tone={d.score > 85 ? "danger" : "warning"}>{t("storeadmin.gov.percent_match", { score: d.score })}</Tone>
+                  <Tone tone={d.score > 85 ? "danger" : "warning"}>
+                    {t("storeadmin.gov.percent_match", { score: d.score })}
+                  </Tone>
                 </div>
                 <div className="mt-2 flex items-center gap-1.5">
                   <IconBtn icon={GitMerge} label={t("storeadmin.gov.merge")} tone="accent" />
@@ -1635,7 +1657,7 @@ export function SecurityScanSectionStatic() {
  * first outright, so they are stated as behaviour rather than offered as
  * choices nobody can revoke.
  */
-export function QualityCheckSection() {
+export function QualityCheckSection({ onNavigate }: { onNavigate?: (id: string) => void } = {}) {
   const qc = useQueryClient();
 
   const snapshot = useQuery<PublishReadiness>({
@@ -1775,14 +1797,19 @@ export function QualityCheckSection() {
                 {rerun.isPending ? "Running…" : "Re-run"}
               </span>
             </PillButton>
+            {/* Publishing is decided per product in Author Approval, where a
+                reviewer answers for it; this screen only measures the gate. The
+                button used to explain that in a toast. It now takes the reader
+                there. */}
             <PillButton
               variant="primary"
-              onClick={() =>
-                notBuilt(
-                  "Publish",
-                  "Publishing is decided per product in Author Approval, where a reviewer answers for it. This screen measures the gate across the catalogue; it does not publish.",
-                )
+              disabled={!onNavigate}
+              title={
+                onNavigate
+                  ? "Open Author Approval, where each product is published by a reviewer"
+                  : "Publishing is decided per product in Author Approval. This screen measures the gate; it does not publish."
               }
+              onClick={onNavigate ? () => onNavigate("approval") : undefined}
             >
               <span className="inline-flex items-center gap-1.5">
                 <Rocket className="h-3.5 w-3.5" /> Publish

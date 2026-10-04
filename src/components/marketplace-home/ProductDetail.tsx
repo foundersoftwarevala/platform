@@ -29,10 +29,38 @@ import { LIFETIME_LABEL, LIFETIME_MRP, LIFETIME_PRICE } from "@/lib/site-content
 // rendered - the marketplace layout swallowed it - so the reference error sat
 // unnoticed until the page was finally drawn.
 import { useEffect, useState } from "react";
+import { useTranslation } from "@/lib/i18n/use-translation";
+
+/**
+ * The page's own "Product Not Found" screen. Exported so the route can draw the
+ * very same screen as its notFoundComponent when the loader answers a real 404.
+ */
+export function ProductNotFound({ slug }: { slug: string }) {
+  const { t } = useTranslation();
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950">
+      <Card className="max-w-md mx-auto border-red-500/30 bg-red-500/5 p-6">
+        <h2 className="text-lg font-semibold text-red-400 mb-2">
+          {t("marketplace.product.not_found_title")}
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          {t("marketplace.product.not_found_body", { slug })}
+        </p>
+        <Link to="/marketplace" className="inline-block">
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            {t("marketplace.product.back")}
+          </Button>
+        </Link>
+      </Card>
+    </div>
+  );
+}
 
 export function ProductDetail() {
   const { slug } = useParams({ from: "/marketplace/product/$slug" });
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const getProductFn = useServerFn(getPublicProduct);
   const addToCart = useServerFn(addMarketplaceCartItem);
@@ -163,22 +191,7 @@ export function ProductDetail() {
   }
 
   if (error || !data?.product) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950">
-        <Card className="max-w-md mx-auto border-red-500/30 bg-red-500/5 p-6">
-          <h2 className="text-lg font-semibold text-red-400 mb-2">Product Not Found</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            The product with slug "{slug}" could not be found.
-          </p>
-          <Link to="/marketplace" className="inline-block">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Marketplace
-            </Button>
-          </Link>
-        </Card>
-      </div>
-    );
+    return <ProductNotFound slug={slug} />;
   }
 
   const product = data.product as PublicProduct;
@@ -194,7 +207,7 @@ export function ProductDetail() {
             className="inline-flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="text-sm font-medium">Back to Marketplace</span>
+            <span className="text-sm font-medium">{t("marketplace.product.back")}</span>
           </Link>
         </div>
       </div>

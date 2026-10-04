@@ -20,7 +20,10 @@ import { useManyRecords } from "@/lib/manager-queries";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/manager")({
-  head: pageHead("AI API Manager", "Providers, models, keys, usage and billing for every AI call the platform makes."),
+  head: pageHead(
+    "AI API Manager",
+    "Providers, models, keys, usage and billing for every AI call the platform makes.",
+  ),
   component: ManagerLayout,
 });
 
@@ -99,8 +102,12 @@ function SidebarContent({
           </span>
           {!collapsed && (
             <span className="min-w-0 leading-tight">
-              <span className="block truncate text-sm font-semibold tracking-tight">Software Vala</span>
-              <span className="block truncate text-[11px] text-muted-foreground">AI API Manager</span>
+              <span className="block truncate text-sm font-semibold tracking-tight">
+                Software Vala
+              </span>
+              <span className="block truncate text-[11px] text-muted-foreground">
+                AI API Manager
+              </span>
             </span>
           )}
         </Link>
@@ -183,7 +190,10 @@ function SidebarContent({
                     className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <ChevronDown
-                      className={cn("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")}
+                      className={cn(
+                        "h-3.5 w-3.5 transition-transform duration-200",
+                        open && "rotate-180",
+                      )}
                     />
                   </button>
                 )}
@@ -219,7 +229,9 @@ function SidebarContent({
           );
         })}
         {filtered && filtered.length === 0 ? (
-          <p className="px-3 py-6 text-center text-xs text-muted-foreground">No modules match “{query}”.</p>
+          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+            No modules match “{query}”.
+          </p>
         ) : null}
       </nav>
     </div>
@@ -232,25 +244,30 @@ function TopBar({ onOpenMobile }: { onOpenMobile: () => void }) {
   const { data } = useManyRecords([
     { table: "api_services", select: "id,status" },
     { table: "wallets", select: "id,name,balance,status" },
-    { table: "security_alerts", select: "id,status", filters: [{ column: "status", value: "open" }] },
+    {
+      table: "security_alerts",
+      select: "id,status",
+      filters: [{ column: "status", value: "open" }],
+    },
     { table: "emergency_controls", select: "id,engaged" },
   ]);
 
   const stats = useMemo(() => {
     const [services = [], wallets = [], alerts = [], controls = []] = data ?? [];
-    const online = services.filter((s) => s['status'] === "active" || s['status'] === "healthy").length;
+    const online = services.filter(
+      (s) => s["status"] === "active" || s["status"] === "healthy",
+    ).length;
     const primary = wallets[0];
     return {
       online,
       total: services.length,
-      balance: Number(primary?.['balance'] ?? 0),
+      balance: Number(primary?.["balance"] ?? 0),
       alerts: alerts.length,
-      frozen: controls.some((c) => c['engaged']),
+      frozen: controls.some((c) => c["engaged"]),
     };
   }, [data]);
 
-  const pill =
-    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium";
+  const pill = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-xl sm:px-6">
@@ -262,14 +279,19 @@ function TopBar({ onOpenMobile }: { onOpenMobile: () => void }) {
         <Menu className="h-[18px] w-[18px]" />
       </button>
 
-      <p className="truncate text-sm font-semibold tracking-tight">{group?.label ?? "AI API Manager"}</p>
+      <p className="truncate text-sm font-semibold tracking-tight">
+        {group?.label ?? "AI API Manager"}
+      </p>
 
       <div className="ml-auto flex items-center gap-2">
-        <span className={cn(pill, "hidden border-status-success/40 text-status-success sm:inline-flex")}>
-          <Activity className="h-3.5 w-3.5" /> {num(stats.online)}/{num(stats.total)} online
+        <span
+          className={cn(pill, "hidden border-status-success/40 text-status-success sm:inline-flex")}
+        >
+          <Activity className="h-3.5 w-3.5" />{" "}
+          {data ? `${num(stats.online)}/${num(stats.total)} online` : "— online"}
         </span>
         <span className={cn(pill, "hidden border-primary/40 text-primary-glow md:inline-flex")}>
-          <Wallet className="h-3.5 w-3.5" /> {inr(stats.balance)}
+          <Wallet className="h-3.5 w-3.5" /> {data ? inr(stats.balance) : "—"}
         </span>
         <span
           className={cn(
@@ -279,7 +301,7 @@ function TopBar({ onOpenMobile }: { onOpenMobile: () => void }) {
               : "border-border text-muted-foreground",
           )}
         >
-          <Bell className="h-3.5 w-3.5" /> {num(stats.alerts)}
+          <Bell className="h-3.5 w-3.5" /> {data ? num(stats.alerts) : "—"}
         </span>
         {stats.frozen ? (
           <span className={cn(pill, "border-status-error/40 text-status-error")}>
@@ -333,10 +355,14 @@ function ManagerLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {!isFinanceRoute ? <TopBar onOpenMobile={() => setMobileOpen(true)} /> : null}
-        <main className={cn(
-          "mx-auto w-full flex-1",
-          isFinanceRoute ? "p-0" : "max-w-[1600px] space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10",
-        )}>
+        <main
+          className={cn(
+            "mx-auto w-full flex-1",
+            isFinanceRoute
+              ? "p-0"
+              : "max-w-[1600px] space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10",
+          )}
+        >
           <Outlet />
         </main>
       </div>

@@ -24,7 +24,13 @@ export const Route = createFileRoute("/api/demo/ops")({
         const base = (process.env.SUPABASE_URL ?? "").replace(/\/+$/, "");
         const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
         if (!base || !key) {
-          return Response.json({ error: "The database is not configured on this server." }, { status: 503 });
+          // i18n-ignore: an API error message; this API answers in English.
+          return Response.json(
+            {
+              error: "The database is not configured on this server." /* i18n-ignore: API error */,
+            },
+            { status: 503 },
+          );
         }
 
         const days = Number(new URL(request.url).searchParams.get("days") ?? 30);

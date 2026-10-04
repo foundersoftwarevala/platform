@@ -155,11 +155,13 @@ export async function openDocument(row: DocumentRow): Promise<Response> {
       { status: 502 },
     );
   }
-  const name = row.original_name.replace(/"/g, "");
+  // A header value must be Latin-1; a name in any other script would throw
+  // here. The plain-ASCII form is the fallback, the encoded form the real name.
+  const ascii = row.original_name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "");
   return new Response(file.body, {
     headers: {
       "Content-Type": row.mime_type,
-      "Content-Disposition": `inline; filename="${name}"`,
+      "Content-Disposition": `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(row.original_name)}`,
       // A person's identity document is not something a proxy should keep.
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",

@@ -1,8 +1,18 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Play, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, Info, Play, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { RESELLER_BANNERS } from "@/lib/reseller-extras";
 
-export function ResellerHero({ onAction }: { onAction?: (key: string) => void }) {
+export function ResellerHero({
+  onAction,
+  unavailable,
+}: {
+  onAction?: (key: string) => void;
+  /**
+   * Banner actions with no screen behind them yet, by CTA text, with the
+   * reason. Such a button is disabled and shows the reason instead of acting.
+   */
+  unavailable?: Record<string, string>;
+}) {
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
 
@@ -13,6 +23,7 @@ export function ResellerHero({ onAction }: { onAction?: (key: string) => void })
   }, [paused]);
 
   const b = RESELLER_BANNERS[idx];
+  const blocked = unavailable?.[b.cta];
   const next = () => setIdx((i) => (i + 1) % RESELLER_BANNERS.length);
   const prev = () => setIdx((i) => (i - 1 + RESELLER_BANNERS.length) % RESELLER_BANNERS.length);
 
@@ -31,8 +42,13 @@ export function ResellerHero({ onAction }: { onAction?: (key: string) => void })
             ` radial-gradient(520px 240px at 5% 100%, oklch(1 0 0 / 0.08), transparent)`,
         }}
       />
-      <div className="absolute inset-0 opacity-[0.04] mix-blend-overlay pointer-events-none"
-           style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
+      <div
+        className="absolute inset-0 opacity-[0.04] mix-blend-overlay pointer-events-none"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        }}
+      />
 
       <div className="relative grid md:grid-cols-[1.5fr_1fr] gap-6 p-6 md:p-10">
         <div key={idx} className="min-w-0 text-white animate-fade-in">
@@ -46,10 +62,19 @@ export function ResellerHero({ onAction }: { onAction?: (key: string) => void })
           <p className="mt-3 text-sm md:text-base text-white/75 max-w-xl">{b.sub}</p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
-              onClick={() => onAction?.(b.cta)}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-glow transition hover:opacity-95"
+              type="button"
+              onClick={() => !blocked && onAction?.(b.cta)}
+              disabled={!!blocked}
+              title={blocked}
+              aria-describedby={blocked ? "sv-reseller-hero-notice" : undefined}
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-glow transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Play className="h-4 w-4 fill-current" /> {b.cta}
+              {blocked ? (
+                <Info className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Play className="h-4 w-4 fill-current" />
+              )}{" "}
+              {b.cta}
             </button>
             <button
               type="button"
@@ -59,16 +84,33 @@ export function ResellerHero({ onAction }: { onAction?: (key: string) => void })
               Learn more <ArrowRight className="h-4 w-4" />
             </button>
           </div>
+          {blocked && (
+            <p id="sv-reseller-hero-notice" className="mt-2 max-w-xl text-xs text-white/70">
+              {blocked}
+            </p>
+          )}
         </div>
 
         <div className="relative hidden md:flex items-end justify-end gap-2">
-          <div className="absolute -top-10 -right-10 h-72 w-72 rounded-full blur-3xl opacity-50"
-               style={{ background: b.accent }} />
+          <div
+            className="absolute -top-10 -right-10 h-72 w-72 rounded-full blur-3xl opacity-50"
+            style={{ background: b.accent }}
+          />
           <div className="relative flex items-center gap-1.5 z-10">
-            <button type="button" onClick={prev} aria-label="Previous slide" className="press-3d grid h-9 w-9 place-items-center rounded-full bg-white/10 border border-white/15 hover:bg-white/20 transition text-white">
+            <button
+              type="button"
+              onClick={prev}
+              aria-label="Previous slide"
+              className="press-3d grid h-9 w-9 place-items-center rounded-full bg-white/10 border border-white/15 hover:bg-white/20 transition text-white"
+            >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <button type="button" onClick={next} aria-label="Next slide" className="press-3d grid h-9 w-9 place-items-center rounded-full bg-white/10 border border-white/15 hover:bg-white/20 transition text-white">
+            <button
+              type="button"
+              onClick={next}
+              aria-label="Next slide"
+              className="press-3d grid h-9 w-9 place-items-center rounded-full bg-white/10 border border-white/15 hover:bg-white/20 transition text-white"
+            >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>

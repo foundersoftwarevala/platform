@@ -35,8 +35,8 @@ const inputSchema = z.object({
   count: z.number().int().min(1).max(8).default(4),
   context: z
     .object({
-      categories: z.array(z.string()).max(20).default([]),
-      members: z.array(z.string()).max(40).default([]),
+      categories: z.array(z.string().max(80)).max(20).default([]),
+      members: z.array(z.string().max(80)).max(40).default([]),
     })
     .default({ categories: [], members: [] }),
 });

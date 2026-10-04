@@ -232,7 +232,15 @@ export const listAiRegistry = createServerFn({ method: "GET" }).handler(
 );
 
 /** Everyone the AI API Manager screen admits (RequireRole operators + finance). */
-const MANAGER_VIEW_ROLES = ["admin", "boss", "boss_owner", "super_admin", "founder", "owner", "finance"] as const;
+const MANAGER_VIEW_ROLES = [
+  "admin",
+  "boss",
+  "boss_owner",
+  "super_admin",
+  "founder",
+  "owner",
+  "finance",
+] as const;
 
 async function authenticatedManager(allowed: readonly string[] = ["admin", "boss"]) {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
@@ -256,7 +264,9 @@ async function authenticatedManager(allowed: readonly string[] = ["admin", "boss
     }),
   );
   if (!roles.some(Boolean)) {
-    throw new Error(allowed.length > 2 ? "AI API Manager access required." : "Boss or admin permission required.");
+    throw new Error(
+      allowed.length > 2 ? "AI API Manager access required." : "Boss or admin permission required.",
+    );
   }
   return { db, user: caller };
 }
@@ -358,64 +368,185 @@ export type AiRequest = {
 };
 
 export async function executeAiRequest(data: AiRequest) {
-    const { url } = resolveSupabaseEnv();
-    const serverKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? "";
-    const sb = createClient(url, serverKey || resolveSupabaseEnv().key, { auth: { persistSession: false } }) as any;
-    let target: { id: string; name: string; provider: string; route: string; status: string; providerId: string | null } | null = null;
-    if (data.serviceId) {
-      const { data: row } = await sb.from("api_services").select("id, name, provider_id, endpoint_url, status").eq("id", data.serviceId).maybeSingle();
-      if (row) target = { id: row.id, name: row.name, provider: "", route: row.endpoint_url, status: row.status, providerId: row.provider_id };
-      else {
-        throw new Error("The selected AI service is not registered in AI API Manager.");
-      }
-    } else if (data.serviceName) {
-      const { data: rows } = await sb.from("api_services").select("id, name, provider_id, endpoint_url, status").ilike("name", `%${data.serviceName}%`).order("updated_at", { ascending: false }).limit(1);
-      const row = rows?.[0];
-      if (row) target = { id: row.id, name: row.name, provider: "", route: row.endpoint_url, status: row.status, providerId: row.provider_id };
-    } else {
-      // Categories as the registry actually spells them. This asked for
-      // category "llm" and the two LLM services in api_services - OpenAI and
-      // Anthropic, both active, both with an endpoint - are filed under "ai",
-      // so the default selection matched nothing and every caller that did
-      // not name a service by hand was told no provider was configured.
-      const { data: rows } = await sb.from("api_services").select("id, name, provider_id, endpoint_url, status").eq("status", "active").in("category", ["llm", "ai"]).order("updated_at", { ascending: false }).limit(1);
-      const row = rows?.[0];
-      if (row) target = { id: row.id, name: row.name, provider: "", route: row.endpoint_url, status: row.status, providerId: row.provider_id };
+  const { url } = resolveSupabaseEnv();
+  const serverKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? "";
+  const sb = createClient(url, serverKey || resolveSupabaseEnv().key, {
+    auth: { persistSession: false },
+  }) as any;
+  let target: {
+    id: string;
+    name: string;
+    provider: string;
+    route: string;
+    status: string;
+    providerId: string | null;
+  } | null = null;
+  if (data.serviceId) {
+    const { data: row } = await sb
+      .from("api_services")
+      .select("id, name, provider_id, endpoint_url, status")
+      .eq("id", data.serviceId)
+      .maybeSingle();
+    if (row)
+      target = {
+        id: row.id,
+        name: row.name,
+        provider: "",
+        route: row.endpoint_url,
+        status: row.status,
+        providerId: row.provider_id,
+      };
+    else {
+      throw new Error("The selected AI service is not registered in AI API Manager.");
     }
+  } else if (data.serviceName) {
+    const { data: rows } = await sb
+      .from("api_services")
+      .select("id, name, provider_id, endpoint_url, status")
+      .ilike("name", `%${data.serviceName}%`)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    const row = rows?.[0];
+    if (row)
+      target = {
+        id: row.id,
+        name: row.name,
+        provider: "",
+        route: row.endpoint_url,
+        status: row.status,
+        providerId: row.provider_id,
+      };
+  } else {
+    // Categories as the registry actually spells them. This asked for
+    // category "llm" and the two LLM services in api_services - OpenAI and
+    // Anthropic, both active, both with an endpoint - are filed under "ai",
+    // so the default selection matched nothing and every caller that did
+    // not name a service by hand was told no provider was configured.
+    const { data: rows } = await sb
+      .from("api_services")
+      .select("id, name, provider_id, endpoint_url, status")
+      .eq("status", "active")
+      .in("category", ["llm", "ai"])
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    const row = rows?.[0];
+    if (row)
+      target = {
+        id: row.id,
+        name: row.name,
+        provider: "",
+        route: row.endpoint_url,
+        status: row.status,
+        providerId: row.provider_id,
+      };
+  }
 
-    if (!target || target.status !== "active") throw new Error("No active AI provider is configured in AI API Manager.");
-    if (!target.route) throw new Error(`AI service ${target.name} has no execution endpoint configured.`);
+  if (!target || target.status !== "active")
+    throw new Error("No active AI provider is configured in AI API Manager.");
+  if (!target.route)
+    throw new Error(`AI service ${target.name} has no execution endpoint configured.`);
 
-    const { data: provider } = await sb.from("ai_providers").select("name, slug").eq("id", target.providerId).maybeSingle();
-    const providerSlug = String(provider?.slug ?? provider?.name ?? target.name).toLowerCase();
-    const { data: model } = await sb.from("ai_models").select("id, model_id").eq("provider_id", target.providerId).eq("status", "active").eq("is_default", true).maybeSingle();
-    const { data: keyRows } = await sb.from("api_keys").select("secret_encrypted, status, environment").eq("service_id", target.id).eq("status", "active").eq("environment", "production").limit(1);
-    const envKey = providerSlug.includes("anthropic") ? process.env.ANTHROPIC_API_KEY : providerSlug.includes("google") ? process.env.GOOGLE_API_KEY : process.env.OPENAI_API_KEY;
-    const storedKey = keyRows?.[0]?.secret_encrypted;
-    const credential = envKey || (typeof storedKey === "string" && /^(sk-|key-|AIza|anthropic)/i.test(storedKey) ? storedKey : "");
-    if (!credential) throw new Error(`No real production credential is configured for ${target.name}. Add it in AI API Manager or server environment.`);
+  const { data: provider } = await sb
+    .from("ai_providers")
+    .select("name, slug")
+    .eq("id", target.providerId)
+    .maybeSingle();
+  const providerSlug = String(provider?.slug ?? provider?.name ?? target.name).toLowerCase();
+  const { data: model } = await sb
+    .from("ai_models")
+    .select("id, model_id")
+    .eq("provider_id", target.providerId)
+    .eq("status", "active")
+    .eq("is_default", true)
+    .maybeSingle();
+  const { data: keyRows } = await sb
+    .from("api_keys")
+    .select("secret_encrypted, status, environment")
+    .eq("service_id", target.id)
+    .eq("status", "active")
+    .eq("environment", "production")
+    .limit(1);
+  const envKey = providerSlug.includes("anthropic")
+    ? process.env.ANTHROPIC_API_KEY
+    : providerSlug.includes("google")
+      ? process.env.GOOGLE_API_KEY
+      : process.env.OPENAI_API_KEY;
+  const storedKey = keyRows?.[0]?.secret_encrypted;
+  const credential =
+    envKey ||
+    (typeof storedKey === "string" && /^(sk-|key-|AIza|anthropic)/i.test(storedKey)
+      ? storedKey
+      : "");
+  if (!credential)
+    throw new Error(
+      `No real production credential is configured for ${target.name}. Add it in AI API Manager or server environment.`,
+    );
 
-    const prompt = data.prompt ?? String(data.payload?.prompt ?? "");
-    if (!prompt.trim()) throw new Error("AI request prompt is required.");
-    const started = Date.now();
-    const isAnthropic = providerSlug.includes("anthropic");
-    const headers: Record<string, string> = { "content-type": "application/json" };
-    let body: Record<string, unknown>;
-    if (isAnthropic) {
-      headers["x-api-key"] = credential;
-      headers["anthropic-version"] = "2023-06-01";
-      body = { model: model?.model_id ?? "claude-3-5-sonnet-latest", max_tokens: 1200, system: data.system, messages: [{ role: "user", content: prompt }] };
-    } else {
-      headers.authorization = `Bearer ${credential}`;
-      body = { model: model?.model_id ?? "gpt-4o-mini", temperature: 0.2, max_tokens: 1200, messages: [{ role: "system", content: data.system ?? "You are a careful Sales & Support operations assistant." }, { role: "user", content: prompt }] };
-    }
-    const response = await fetch(target.route, { method: "POST", headers, body: JSON.stringify(body) });
-    const result = await response.json().catch(() => ({})) as Record<string, any>;
-    const latency = Date.now() - started;
-    const output = isAnthropic ? result.content?.find((item: any) => item.type === "text")?.text : result.choices?.[0]?.message?.content;
-    await sb.from("usage_events").insert({ service_id: target.id, model_id: model?.id ?? null, product: data.module ?? "sales-support", requests: 1, tokens_in: result.usage?.input_tokens ?? result.usage?.prompt_tokens ?? 0, tokens_out: result.usage?.output_tokens ?? result.usage?.completion_tokens ?? 0, latency_ms: latency, status_code: response.status, success: response.ok, source: "ai-api-manager" });
-    if (!response.ok || !output) throw new Error(result.error?.message ?? result.error?.[0]?.message ?? `AI provider returned HTTP ${response.status}.`);
-    return { text: String(output), service: target.name, provider: provider?.name ?? target.provider, model: model?.model_id ?? null, latencyMs: latency };
+  const prompt = data.prompt ?? String(data.payload?.prompt ?? "");
+  if (!prompt.trim()) throw new Error("AI request prompt is required.");
+  const started = Date.now();
+  const isAnthropic = providerSlug.includes("anthropic");
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  let body: Record<string, unknown>;
+  if (isAnthropic) {
+    headers["x-api-key"] = credential;
+    headers["anthropic-version"] = "2023-06-01";
+    body = {
+      model: model?.model_id ?? "claude-3-5-sonnet-latest",
+      max_tokens: 1200,
+      system: data.system,
+      messages: [{ role: "user", content: prompt }],
+    };
+  } else {
+    headers.authorization = `Bearer ${credential}`;
+    body = {
+      model: model?.model_id ?? "gpt-4o-mini",
+      temperature: 0.2,
+      max_tokens: 1200,
+      messages: [
+        {
+          role: "system",
+          content: data.system ?? "You are a careful Sales & Support operations assistant.",
+        },
+        { role: "user", content: prompt },
+      ],
+    };
+  }
+  const response = await fetch(target.route, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  const result = (await response.json().catch(() => ({}))) as Record<string, any>;
+  const latency = Date.now() - started;
+  const output = isAnthropic
+    ? result.content?.find((item: any) => item.type === "text")?.text
+    : result.choices?.[0]?.message?.content;
+  await sb.from("usage_events").insert({
+    service_id: target.id,
+    model_id: model?.id ?? null,
+    product: data.module ?? "sales-support",
+    requests: 1,
+    tokens_in: result.usage?.input_tokens ?? result.usage?.prompt_tokens ?? 0,
+    tokens_out: result.usage?.output_tokens ?? result.usage?.completion_tokens ?? 0,
+    latency_ms: latency,
+    status_code: response.status,
+    success: response.ok,
+    source: "ai-api-manager",
+  });
+  if (!response.ok || !output)
+    throw new Error(
+      result.error?.message ??
+        result.error?.[0]?.message ??
+        `AI provider returned HTTP ${response.status}.`,
+    );
+  return {
+    text: String(output),
+    service: target.name,
+    provider: provider?.name ?? target.provider,
+    model: model?.model_id ?? null,
+    latencyMs: latency,
+  };
 }
 
 /** The same routing, for a browser to call. */
@@ -423,12 +554,16 @@ export const routeAiRequest = createServerFn({ method: "POST" })
   .inputValidator((v) =>
     z
       .object({
-        serviceId: z.string().optional(),
-        serviceName: z.string().optional(),
-        module: z.string().optional(),
-        system: z.string().optional(),
-        prompt: z.string().optional(),
-        payload: z.record(z.any()).optional(),
+        // Bounded: every character is sent to a paid provider.
+        serviceId: z.string().max(64).optional(),
+        serviceName: z.string().max(120).optional(),
+        module: z.string().max(120).optional(),
+        system: z.string().max(4000).optional(),
+        prompt: z.string().max(16000).optional(),
+        payload: z
+          .record(z.any())
+          .refine((p) => JSON.stringify(p).length <= 20000, "The AI request payload is too large.")
+          .optional(),
       })
       .parse(v ?? {}),
   )

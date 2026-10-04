@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { aiComplete } from "@/lib/ai-gateway.server";
 
 type SeoInput = {
@@ -63,7 +64,17 @@ function fallback(input: SeoInput, reason: string): SeoOutput {
 }
 
 export const generateSeo = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as SeoInput)
+  // Bounded: the topic and locale go into a prompt for a paid model. The limits
+  // match what generateWithAi (its caller) already accepts.
+  .inputValidator((d: unknown): SeoInput =>
+    z
+      .object({
+        topic: z.string().max(4000),
+        type: z.enum(["homepage", "category", "product", "collection"]).optional(),
+        locale: z.string().max(8000).optional(),
+      })
+      .parse(d ?? {}),
+  )
   .handler(async ({ data }): Promise<SeoOutput> => {
     // A metered provider call that nothing gated: any caller who could POST to
     // /_serverFn could spend the platform's AI credit here. Its only caller,

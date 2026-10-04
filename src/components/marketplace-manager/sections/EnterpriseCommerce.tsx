@@ -103,6 +103,7 @@ function useResourceRows(resource: string, limit = 20) {
 
 import { notBuilt } from "@/lib/ui/not-built";
 import { useQuery } from "@tanstack/react-query";
+import { useResource, figure } from "@/lib/manager/use-resource";
 // ReleaseStats reads this; it was called without being imported, so the
 // Release Management section crashed when it opened.
 import { getReleaseOverview } from "@/lib/marketplace-manager/customers.functions";
@@ -116,12 +117,32 @@ import {
    Shared atoms
    ============================================================= */
 
-function Switch({ on = false }: { on?: boolean }) {
-  const [v, setV] = useState(on);
+/**
+ * A switch that only moves when something stores what it says.
+ *
+ * It used to flip its own local state, so every switch on these screens looked
+ * as though it had changed a setting that nothing kept. Without an onChange it
+ * now renders disabled and says why on hover.
+ */
+function Switch({
+  on = false,
+  onChange,
+  reason = "Nothing stores this setting yet, so it cannot be switched here.",
+}: {
+  on?: boolean;
+  onChange?: (next: boolean) => void;
+  reason?: string;
+}) {
+  const v = on;
   return (
     <button
-      onClick={() => setV(!v)}
-      className={`relative h-5 w-9 rounded-full transition-colors ${v ? "bg-gradient-to-r from-primary to-accent" : "bg-secondary"}`}
+      type="button"
+      role="switch"
+      aria-checked={v}
+      disabled={!onChange}
+      title={onChange ? undefined : reason}
+      onClick={() => onChange?.(!v)}
+      className={`relative h-5 w-9 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${v ? "bg-gradient-to-r from-primary to-accent" : "bg-secondary"}`}
     >
       <span
         className={`absolute top-0.5 h-4 w-4 rounded-full bg-background shadow transition-transform ${v ? "translate-x-4" : "translate-x-0.5"}`}
@@ -206,7 +227,15 @@ function EmptyTable({ title, hint, cta }: { title: string; hint: string; cta?: s
       </div>
       <div className="text-sm font-bold">{title}</div>
       <div className="max-w-md text-[12px] text-muted-foreground">{hint}</div>
-      {cta && <PillButton variant="primary">{cta}</PillButton>}
+      {cta && (
+        <PillButton
+          variant="primary"
+          disabled
+          title="There is no module behind this action yet, so it cannot run."
+        >
+          {cta}
+        </PillButton>
+      )}
     </div>
   );
 }
@@ -2182,8 +2211,42 @@ export function DownloadsSection() {
    PRICING
    ============================================================= */
 
+/**
+ * Pricing, over the records that exist.
+ *
+ * This screen used to sit under the live products table with an MRR of
+ * "₹18.4L", four plans at ₹1,499 / ₹4,999 / ₹14,999 / Custom, and four coupons
+ * (LAUNCH50, DIWALI25, PARTNER10, TRIAL7) with usage counts. None of them was a
+ * record: there is no plan table for marketplace software, no subscription
+ * billing to take an MRR from, and marketplace_coupons - the table behind the
+ * Offers resource - holds whatever the owner has created and nothing else.
+ *
+ * Prices are owner-controlled. Every product carries its own price_label, which
+ * the live table above edits; coupons are read from marketplace_coupons. Where
+ * there is no table at all (plans, gift cards, trials, EMI, tax, regions) the
+ * tab says so rather than drawing a sample.
+ */
+const NO_PLAN_TABLE =
+  "There is no plan table for marketplace software. Each product carries its own price, edited in the Products table above.";
+
+function couponValue(row: Record<string, unknown>): string {
+  const value = row.value === null || row.value === undefined ? null : Number(row.value);
+  if (value === null || !Number.isFinite(value)) return "no value recorded";
+  const kind = String(row.kind ?? "").toLowerCase();
+  if (kind.includes("percent")) return `${value}% off`;
+  const currency = String(row.currency ?? "").trim();
+  return `${currency ? `${currency} ` : ""}${value.toLocaleString("en-IN")} off`;
+}
+
 export function PricingSection() {
   const [tab, setTab] = useState("Plans");
+  const priced = useResource("products", { limit: 1, filters: ["price_label.not.is.null"] });
+  const coupons = useResource("offers", { limit: 100 });
+  const activeCoupons = useResource("offers", { limit: 1, filters: ["active.eq.true"] });
+  const currencies = new Set(
+    coupons.rows.map((r) => String(r.currency ?? "").trim()).filter(Boolean),
+  );
+
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
@@ -2191,7 +2254,7 @@ export function PricingSection() {
         title="Pricing & Plans"
         description="Multi-currency plans, trials, EMI, coupons, gift cards, regional taxation and subscription billing controls."
         actions={
-          <PillButton variant="primary">
+          <PillButton variant="primary" disabled title={NO_PLAN_TABLE}>
             <span className="inline-flex items-center gap-1.5">
               <Plus className="h-3.5 w-3.5" /> New plan
             </span>
@@ -2200,16 +2263,33 @@ export function PricingSection() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <MiniStat label="Active plans" value="24" tone="success" icon={DollarSign} />
-        <MiniStat label="Currencies" value="14" tone="premium" icon={Globe2} />
+        <MiniStat
+          label="Priced products"
+          value={figure(priced.total, priced)}
+          delta="marketplace_products"
+          tone="success"
+          icon={DollarSign}
+        />
+        <MiniStat
+          label="Coupon currencies"
+          value={coupons.loading ? "…" : coupons.failed ? "—" : String(currencies.size)}
+          tone="premium"
+          icon={Globe2}
+        />
         <MiniStat
           label="Active coupons"
-          value="38"
-          delta="6 expiring soon"
+          value={figure(activeCoupons.total, activeCoupons)}
+          delta="marketplace_coupons"
           tone="warning"
           icon={TicketPercent}
         />
-        <MiniStat label="MRR" value="₹18.4L" delta="+9.2% MoM" tone="premium" icon={TrendingUp} />
+        <MiniStat
+          label="MRR"
+          value="—"
+          delta="no subscription billing is recorded"
+          tone="premium"
+          icon={TrendingUp}
+        />
       </div>
 
       <SubNav
@@ -2218,115 +2298,57 @@ export function PricingSection() {
         onChange={setTab}
       />
 
-      {tab === "Plans" && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[
-            {
-              n: "Starter",
-              p: "₹1,499",
-              per: "/ mo",
-              tone: "info" as const,
-              feats: ["1 user", "5 GB", "Email support"],
-            },
-            {
-              n: "Growth",
-              p: "₹4,999",
-              per: "/ mo",
-              tone: "success" as const,
-              feats: ["5 users", "50 GB", "Priority support", "API"],
-            },
-            {
-              n: "Business",
-              p: "₹14,999",
-              per: "/ mo",
-              tone: "premium" as const,
-              feats: ["25 users", "500 GB", "SLA 99.9%", "SSO"],
-            },
-            {
-              n: "Enterprise",
-              p: "Custom",
-              per: "",
-              tone: "premium" as const,
-              feats: ["Unlimited", "On-prem/Cloud", "Dedicated CSM", "Audit"],
-            },
-          ].map((pl) => (
-            <Card key={pl.n} className="relative overflow-hidden">
-              <Chip tone={pl.tone}>{pl.n}</Chip>
-              <div className="mt-3 text-3xl font-bold">
-                {pl.p}
-                <span className="text-sm font-normal text-muted-foreground">{pl.per}</span>
-              </div>
-              <div className="mt-3 space-y-1.5 text-[12px]">
-                {pl.feats.map((f) => (
-                  <div key={f} className="flex items-center gap-2 text-muted-foreground">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-success" /> {f}
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 flex gap-2">
-                <PillButton variant="ghost">Edit</PillButton>
-                <PillButton variant="primary">Publish</PillButton>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
+      {tab === "Plans" && <EmptyTable title="No plans exist" hint={NO_PLAN_TABLE} />}
 
-      {tab === "Coupons" && (
+      {tab === "Coupons" && coupons.loading && <EmptyHint text="Reading the coupons…" />}
+      {tab === "Coupons" && coupons.failed && <EmptyHint text="The coupons could not be read." />}
+      {tab === "Coupons" && !coupons.loading && !coupons.failed && coupons.rows.length === 0 && (
+        <EmptyTable
+          title="No coupon has been created"
+          hint="Company coupons are controlled by Software Vala. marketplace_coupons, the table behind the Offers section, holds none yet, so there is nothing to list."
+        />
+      )}
+      {tab === "Coupons" && coupons.rows.length > 0 && (
         <div className="grid gap-3">
-          {[
-            {
-              c: "LAUNCH50",
-              d: "50% off first invoice",
-              u: "1,204 / 5,000",
-              tone: "success" as const,
-            },
-            { c: "DIWALI25", d: "25% off — festival", u: "418 / 2,000", tone: "premium" as const },
-            { c: "PARTNER10", d: "10% — reseller wallet", u: "982 / ∞", tone: "info" as const },
-            { c: "TRIAL7", d: "Extend trial by 7 days", u: "77 / 500", tone: "warning" as const },
-          ].map((r) => (
-            <div key={r.c} className="glass flex items-center justify-between rounded-xl p-4">
-              <div className="flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-background/60 text-accent">
-                  <Percent className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-bold">
-                    <span className="font-mono tabular">{r.c}</span>
-                    <Chip tone={r.tone}>active</Chip>
+          {coupons.rows.map((r) => {
+            const on = r.active === true;
+            const cap =
+              r.max_redemptions === null || r.max_redemptions === undefined
+                ? "no redemption limit"
+                : `limit ${Number(r.max_redemptions).toLocaleString("en-IN")}`;
+            const expires = r.expires_at
+              ? `expires ${String(r.expires_at).slice(0, 10)}`
+              : "no expiry";
+            return (
+              <div
+                key={String(r.id ?? r.code)}
+                className="glass flex items-center justify-between rounded-xl p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-background/60 text-accent">
+                    <Percent className="h-4 w-4" />
                   </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {r.d} · used {r.u}
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-bold">
+                      <span className="font-mono tabular">{String(r.code ?? "—")}</span>
+                      <Chip tone={on ? "success" : "neutral"}>{on ? "active" : "inactive"}</Chip>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {couponValue(r)} · {cap} · {expires}
+                    </div>
                   </div>
                 </div>
               </div>
-              <RowActions ids={["view", "edit", "duplicate", "archive", "delete"]} />
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {tab === "Gift Cards" && (
-        <div className="grid gap-4 md:grid-cols-3">
-          {[500, 1000, 5000].map((v) => (
-            <Card key={v} className="relative overflow-hidden">
-              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-premium/20 blur-2xl" />
-              <div className="relative">
-                <Chip tone="premium">
-                  <Gift className="h-3 w-3" /> Gift Card
-                </Chip>
-                <div className="mt-3 text-3xl font-bold">₹{v.toLocaleString()}</div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  Delivered via email · Personal note supported
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <PillButton variant="ghost">Preview</PillButton>
-                  <PillButton variant="primary">Issue</PillButton>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <EmptyTable
+          title="No gift cards exist"
+          hint="There is no gift card table, so no card can be issued or previewed from here."
+        />
       )}
 
       {tab === "Currency" && (
@@ -2349,7 +2371,7 @@ export function PricingSection() {
           ].map((c) => (
             <div key={c} className="glass flex items-center justify-between rounded-xl p-3">
               <div className="text-sm font-bold">{c}</div>
-              <Switch on />
+              <Switch reason="No table stores which currencies are enabled, so this cannot be switched here." />
             </div>
           ))}
         </div>
@@ -2366,15 +2388,27 @@ export function PricingSection() {
               <Select options={["All products", "Category: ERP", "Category: CRM", "Custom"]} />
             </Field>
             <Field label="Regions">
-              <TextInput value="Global · except: CN, RU" />
+              <TextInput placeholder="e.g. Global" />
             </Field>
             <Field label="Status">
               <Select options={["Active", "Draft", "Paused"]} />
             </Field>
           </div>
           <div className="mt-4 flex justify-end gap-2">
-            <PillButton variant="ghost">Reset</PillButton>
-            <PillButton variant="primary">Save {tab.toLowerCase()}</PillButton>
+            <PillButton
+              variant="ghost"
+              disabled
+              title={`No table stores ${tab.toLowerCase()} rules, so there is nothing to reset.`}
+            >
+              Reset
+            </PillButton>
+            <PillButton
+              variant="primary"
+              disabled
+              title={`No table stores ${tab.toLowerCase()} rules, so this cannot be saved.`}
+            >
+              Save {tab.toLowerCase()}
+            </PillButton>
           </div>
         </Card>
       )}
@@ -3448,6 +3482,11 @@ const GATEWAYS_SUPERSEDED = [
  * The card keeps its shape. What changes is that the name, the state and the
  * switch now describe a gateway that exists.
  */
+const GATEWAY_OWNER =
+  "Payment gateways, their credentials and their status are managed in Finance Manager (finance_gateways).";
+const NO_QR =
+  "No table stores a merchant VPA or QR settings for this manager, so nothing here can be saved or generated.";
+
 export function PaymentsSection() {
   const [tab, setTab] = useState("Gateways");
   const gateways = useResourceRows("finance_gateways", 50);
@@ -3489,6 +3528,23 @@ export function PaymentsSection() {
       status,
     };
   });
+  // The same records the cards print: each gateway's stored success_rate,
+  // weighted by its monthly_txn_count. It was a literal "98.7%".
+  const successRate = (() => {
+    let weighted = 0;
+    let count = 0;
+    for (const row of gateways.rows ?? []) {
+      const rate =
+        row.success_rate === null || row.success_rate === undefined
+          ? NaN
+          : Number(row.success_rate);
+      const txns = Number(row.monthly_txn_count);
+      if (!Number.isFinite(rate) || !Number.isFinite(txns) || txns <= 0) continue;
+      weighted += rate * txns;
+      count += txns;
+    }
+    return count > 0 ? Math.round((weighted / count) * 10) / 10 : null;
+  })();
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
@@ -3497,12 +3553,16 @@ export function PaymentsSection() {
         description="Cards, UPI, wallets, EMI, bank transfer, crypto — enable per region, route smartly, and reconcile automatically."
         actions={
           <>
-            <PillButton variant="ghost">
+            <PillButton
+              variant="ghost"
+              disabled
+              title="No PCI assessment is recorded anywhere, so there is no status to show."
+            >
               <span className="inline-flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5" /> PCI status
               </span>
             </PillButton>
-            <PillButton variant="primary">
+            <PillButton variant="primary" disabled title={GATEWAY_OWNER}>
               <span className="inline-flex items-center gap-1.5">
                 <Plus className="h-3.5 w-3.5" /> Add gateway
               </span>
@@ -3511,21 +3571,51 @@ export function PaymentsSection() {
         }
       />
 
+      {/* These five were literals - 9 live, 98.7%, 1.4s, 42 fraud blocks,
+          ₹1.8L saved. Only the first is something the records can count. */}
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
-        <MiniStat label="Live gateways" value="9" tone="success" icon={CheckCircle2} />
-        <MiniStat label="Success rate" value="98.7%" delta="24h" tone="premium" icon={TrendingUp} />
-        <MiniStat label="Auth-to-capture" value="1.4s" delta="p95" tone="success" icon={Zap} />
+        <MiniStat
+          label="Live gateways"
+          value={
+            gateways.loading ? "…" : gateways.failed ? "—" : String(live.filter((g) => g.on).length)
+          }
+          delta="finance_gateways"
+          tone="success"
+          icon={CheckCircle2}
+        />
+        <MiniStat
+          label="Success rate"
+          value={
+            gateways.loading
+              ? "…"
+              : gateways.failed || successRate === null
+                ? "—"
+                : `${successRate}%`
+          }
+          delta={
+            successRate === null ? "no transaction counts recorded" : "finance_gateways, by volume"
+          }
+          tone="premium"
+          icon={TrendingUp}
+        />
+        <MiniStat
+          label="Auth-to-capture"
+          value="—"
+          delta="not measured"
+          tone="success"
+          icon={Zap}
+        />
         <MiniStat
           label="Fraud blocks"
-          value="42"
-          delta="last 24h"
+          value="—"
+          delta="no fraud screening is recorded"
           tone="warning"
           icon={ShieldAlert}
         />
         <MiniStat
           label="Fees savings"
-          value="₹1.8L"
-          delta="smart routing"
+          value="—"
+          delta="no smart routing exists"
           tone="premium"
           icon={Wallet}
         />
@@ -3561,14 +3651,20 @@ export function PaymentsSection() {
                     <div className="text-[11px] text-muted-foreground">{g.desc}</div>
                   </div>
                 </div>
-                <Switch on={g.on} />
+                <Switch on={g.on} reason={GATEWAY_OWNER} />
               </div>
               <div className="mt-3 flex gap-2">
-                <PillButton variant="ghost">Configure</PillButton>
+                <PillButton variant="ghost" disabled title={GATEWAY_OWNER}>
+                  Configure
+                </PillButton>
                 {g.on ? (
-                  <PillButton variant="ghost">Webhooks</PillButton>
+                  <PillButton variant="ghost" disabled title={GATEWAY_OWNER}>
+                    Webhooks
+                  </PillButton>
                 ) : (
-                  <PillButton variant="primary">Connect</PillButton>
+                  <PillButton variant="primary" disabled title={GATEWAY_OWNER}>
+                    Connect
+                  </PillButton>
                 )}
               </div>
             </Card>
@@ -3576,127 +3672,63 @@ export function PaymentsSection() {
         </div>
       )}
 
+      {/* The QR card printed a VPA, an amount of ₹14,999 and a countdown that
+          belonged to no order; the settings beside it were prefilled with the
+          same VPA. No dynamic QR is generated by this manager. */}
       {tab === "QR Payment" && (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <div className="mb-3 text-sm font-bold">Dynamic UPI QR</div>
-            <div className="flex items-center gap-4">
-              <div className="grid h-40 w-40 place-items-center rounded-2xl border border-border bg-[repeating-conic-gradient(oklch(0.8_0.13_192/0.85)_0_25%,transparent_0_50%)_50%/16px_16px]">
-                <QrCode className="h-16 w-16 text-background" />
-              </div>
-              <div className="space-y-2 text-[12px]">
-                <div>
-                  <span className="text-muted-foreground">VPA</span>{" "}
-                  <div className="font-mono">softwarevala@razorpay</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Amount</span>{" "}
-                  <div className="font-mono text-accent">₹14,999.00</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Expires</span> <div>in 4:58</div>
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <PillButton variant="ghost">Regenerate</PillButton>
-                  <PillButton variant="primary">Share</PillButton>
-                </div>
-              </div>
+            <EmptyHint text="No dynamic UPI QR is generated here. A QR exists only for a real order, through its gateway." />
+            <div className="mt-3 flex gap-2">
+              <PillButton variant="ghost" disabled title={NO_QR}>
+                Regenerate
+              </PillButton>
+              <PillButton variant="primary" disabled title={NO_QR}>
+                Share
+              </PillButton>
             </div>
           </Card>
           <Card>
             <div className="mb-3 text-sm font-bold">QR Payment Settings</div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Merchant VPA">
-                <TextInput value="softwarevala@razorpay" mono />
+                <TextInput placeholder="not configured" mono />
               </Field>
               <Field label="Merchant name">
-                <TextInput value="Software Vala" />
+                <TextInput placeholder="not configured" />
               </Field>
               <Field label="Expiry (min)">
-                <TextInput value="5" mono />
+                <TextInput placeholder="not configured" mono />
               </Field>
               <Field label="Amount lock">
                 <Select options={["Locked", "Editable"]} />
               </Field>
             </div>
+            <div className="mt-3 text-[11px] text-muted-foreground">{NO_QR}</div>
           </Card>
         </div>
       )}
 
       {tab === "Subscriptions" && (
-        <div className="grid gap-3">
-          {[
-            {
-              p: "Vala CRM · Growth",
-              cy: "Monthly",
-              who: "1,208 subs",
-              mrr: "₹6.02L",
-              tone: "success" as const,
-            },
-            {
-              p: "Vala ERP · Business",
-              cy: "Yearly",
-              who: "412 subs",
-              mrr: "₹9.14L",
-              tone: "premium" as const,
-            },
-            {
-              p: "Vala POS · Starter",
-              cy: "Monthly",
-              who: "3,144 subs",
-              mrr: "₹4.71L",
-              tone: "success" as const,
-            },
-          ].map((r) => (
-            <div key={r.p} className="glass flex items-center justify-between rounded-xl p-4">
-              <div>
-                <div className="text-sm font-bold">{r.p}</div>
-                <div className="text-[11px] text-muted-foreground">
-                  {r.cy} · {r.who}
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Chip tone={r.tone}>MRR {r.mrr}</Chip>
-                <RowActions ids={["view", "edit", "archive"]} />
-              </div>
-            </div>
-          ))}
-        </div>
+        <EmptyTable
+          title="No subscriptions recorded"
+          hint="No subscription billing exists for marketplace software, so there are no subscribers or MRR to show."
+        />
       )}
 
       {tab === "Payouts" && (
         <EmptyTable
-          title="Next payout · 15 Jul 2027"
-          hint="Payouts to your primary bank account happen on the 1st and 15th. Add split payouts to route partner and vendor shares automatically."
-          cta="Add payout account"
+          title="No payout schedule recorded"
+          hint="Payouts are not scheduled from this manager. Partner and vendor payouts are held by their own programmes and Finance Manager."
         />
       )}
 
       {tab === "Wallets" && (
-        <div className="grid gap-3 md:grid-cols-3">
-          {[
-            { l: "Vala Wallet", b: "₹1,24,300", tone: "premium" as const, i: Wallet },
-            { l: "Reseller Wallet", b: "₹48,900", tone: "success" as const, i: Building2 },
-            { l: "Refund Reserve", b: "₹28,000", tone: "warning" as const, i: RotateCcw },
-          ].map((r) => (
-            <Card key={r.l}>
-              <div className="flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-background/60 text-accent">
-                  <r.i className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-sm font-bold">{r.l}</div>
-                  <div className="text-[11px] text-muted-foreground">Available</div>
-                </div>
-              </div>
-              <div className="mt-3 text-3xl font-bold">{r.b}</div>
-              <div className="mt-3 flex gap-2">
-                <PillButton variant="ghost">Top up</PillButton>
-                <PillButton variant="primary">Withdraw</PillButton>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <EmptyTable
+          title="Wallets are held by Finance Manager"
+          hint="Wallet balances live in finance_wallets and are managed in Finance Manager; this screen does not hold or move money."
+        />
       )}
 
       {tab === "Coupons" && (
@@ -3713,6 +3745,10 @@ export function PaymentsSection() {
    RELEASES / PRODUCT RELEASE MANAGEMENT
    ============================================================= */
 
+/**
+ * Superseded, kept as the record of what the timeline used to claim. None of
+ * these six releases exists in marketplace_product_versions; nothing reads it.
+ */
 const RELEASES = [
   {
     v: "5.0.0-beta.2",
@@ -3811,16 +3847,81 @@ function ReleaseStats() {
         <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
           <b>No release exists yet.</b> marketplace_product_versions is the version table this
           schema has, and it holds no rows. Also absent: {missing.map(([k]) => k).join(", ")}. The
-          timeline, changelog, roadmap, beta programme and deprecation tabs below are the original
-          layout and are not reading data.
+          timeline, changelog and deprecation tabs below read that table; roadmap and beta programme
+          have no table behind them.
         </div>
       )}
     </>
   );
 }
 
+/**
+ * The release rows, from marketplace_product_versions.
+ *
+ * The timeline used to draw six invented releases - "5.0.0-beta.2 · Vala ERP
+ * Pro · by release-bot" and five more - with a changelog, a roadmap with vote
+ * counts and two deprecations to match. The version table is the record; it is
+ * read through /api/governance/console, which already returns its newest rows,
+ * and product names come from the catalogue the same way every other section
+ * reads it. Nothing here is drawn when the table is empty.
+ */
+type VersionRow = {
+  id?: string;
+  product_id?: string | null;
+  version?: string | null;
+  release_notes?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  published_at?: string | null;
+};
+
+const NO_RELEASE_WRITER =
+  "No server action creates a release or a branch yet. marketplace_product_versions is read here; nothing in this manager writes it.";
+
+function useVersionRows() {
+  return useQuery({
+    queryKey: ["marketplace", "release-rows"],
+    queryFn: async (): Promise<VersionRow[]> => {
+      const response = await fetch("/api/governance/console", { headers: await authHeaders() });
+      const body = (await response.json().catch(() => ({}))) as {
+        versions?: VersionRow[];
+        error?: string;
+      };
+      if (!response.ok)
+        throw new Error(body.error ?? `The versions could not be read (${response.status})`);
+      return body.versions ?? [];
+    },
+    staleTime: 30_000,
+  });
+}
+
+function versionTone(row: VersionRow): "success" | "warning" | "danger" | "neutral" {
+  const status = String(row.status ?? "").toLowerCase();
+  if (/deprecat|retired|withdrawn/.test(status)) return "danger";
+  if (row.published_at) return "success";
+  if (status) return "warning";
+  return "neutral";
+}
+
 export function ReleasesSection() {
   const [tab, setTab] = useState("Timeline");
+  const versions = useVersionRows();
+  const products = useResource("products", { limit: 200 });
+  const nameOf = (id: string | null | undefined) => {
+    if (!id) return "no product";
+    const hit = products.rows.find((p) => String(p.id) === id);
+    return hit ? String(hit.name ?? id) : `product ${id.slice(0, 8)}`;
+  };
+  const rows = versions.data ?? [];
+  const withNotes = rows.filter((r) => String(r.release_notes ?? "").trim());
+  const deprecated = rows.filter((r) => versionTone(r) === "danger");
+
+  const loadingOrFailed = versions.isLoading ? (
+    <EmptyHint text="Reading the versions…" />
+  ) : versions.isError ? (
+    <EmptyHint text={(versions.error as Error).message} />
+  ) : null;
+
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
@@ -3829,12 +3930,12 @@ export function ReleasesSection() {
         description="Ship Beta → Stable → LTS with signed builds, structured changelogs, roadmap voting and deprecation notices."
         actions={
           <>
-            <PillButton variant="ghost">
+            <PillButton variant="ghost" disabled title={NO_RELEASE_WRITER}>
               <span className="inline-flex items-center gap-1.5">
                 <GitBranch className="h-3.5 w-3.5" /> New branch
               </span>
             </PillButton>
-            <PillButton variant="primary">
+            <PillButton variant="primary" disabled title={NO_RELEASE_WRITER}>
               <span className="inline-flex items-center gap-1.5">
                 <Rocket className="h-3.5 w-3.5" /> New release
               </span>
@@ -3851,134 +3952,104 @@ export function ReleasesSection() {
         onChange={setTab}
       />
 
-      {tab === "Timeline" && (
-        <div className="relative pl-6">
-          <div className="absolute left-2 top-2 bottom-2 w-px bg-border" />
-          {RELEASES.map((r) => (
-            <div key={r.v + r.p} className="relative mb-3">
-              <span className="absolute -left-[18px] top-3 h-3 w-3 rounded-full border-2 border-accent bg-background shadow-[0_0_10px_oklch(0.80_0.13_192/0.7)]" />
-              <div className="glass flex items-center justify-between rounded-xl p-4">
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-bold">
-                    <GitCommit className="h-3.5 w-3.5 text-accent" />
-                    <span className="font-mono">v{r.v}</span>
-                    <span className="text-muted-foreground">·</span>
-                    <span>{r.p}</span>
-                    <Chip tone={r.tone}>{r.tag}</Chip>
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {r.when} · by {r.by}
+      {tab === "Timeline" &&
+        (loadingOrFailed ??
+          (rows.length === 0 ? (
+            <EmptyTable
+              title="No release exists yet"
+              hint="marketplace_product_versions holds no rows, so there is no timeline to draw."
+            />
+          ) : (
+            <div className="relative pl-6">
+              <div className="absolute left-2 top-2 bottom-2 w-px bg-border" />
+              {rows.map((r) => (
+                <div key={String(r.id ?? `${r.product_id}-${r.version}`)} className="relative mb-3">
+                  <span className="absolute -left-[18px] top-3 h-3 w-3 rounded-full border-2 border-accent bg-background shadow-[0_0_10px_oklch(0.80_0.13_192/0.7)]" />
+                  <div className="glass flex items-center justify-between rounded-xl p-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-bold">
+                        <GitCommit className="h-3.5 w-3.5 text-accent" />
+                        <span className="font-mono">v{String(r.version ?? "—")}</span>
+                        <span className="text-muted-foreground">·</span>
+                        <span>{nameOf(r.product_id)}</span>
+                        <Chip tone={versionTone(r)}>
+                          {String(r.status ?? (r.published_at ? "published" : "draft"))}
+                        </Chip>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {r.published_at
+                          ? `published ${String(r.published_at).slice(0, 10)}`
+                          : `created ${String(r.created_at ?? "").slice(0, 10) || "—"}`}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <PillButton variant="ghost">Notes</PillButton>
-                  <PillButton variant="ghost">Downloads</PillButton>
-                  <PillButton variant="primary">Promote</PillButton>
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )))}
 
-      {tab === "Changelog" && (
-        <Card>
-          <div className="mb-3 flex items-center gap-2 text-sm font-bold">
-            <GitMerge className="h-4 w-4 text-accent" /> v4.2.0 — Vala ERP Pro
-          </div>
-          <div className="space-y-3 text-[12px]">
-            {[
-              {
-                t: "Added",
-                items: ["Offline sync for POS", "AI copilot beta flag", "Bulk license issuance"],
-                tone: "success" as const,
-              },
-              {
-                t: "Changed",
-                items: [
-                  "Faster PDP render (+18%)",
-                  "Redesigned invoice PDF",
-                  "Refactored tax engine",
-                ],
-                tone: "premium" as const,
-              },
-              {
-                t: "Fixed",
-                items: ["Rare crash in report export", "Coupon stacking edge case"],
-                tone: "info" as const,
-              },
-              {
-                t: "Security",
-                items: ["Upgraded crypto to Ed25519", "Signed all binaries with Root CA"],
-                tone: "warning" as const,
-              },
-            ].map((g) => (
-              <div key={g.t}>
-                <Chip tone={g.tone}>{g.t}</Chip>
-                <ul className="mt-1.5 ml-4 list-disc space-y-0.5 text-muted-foreground">
-                  {g.items.map((it) => (
-                    <li key={it}>{it}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+      {tab === "Changelog" &&
+        (loadingOrFailed ??
+          (withNotes.length === 0 ? (
+            <EmptyTable
+              title="No changelog recorded"
+              hint="release_notes on marketplace_product_versions is the only changelog field, and no version carries notes."
+            />
+          ) : (
+            <div className="grid gap-3">
+              {withNotes.map((r) => (
+                <Card key={String(r.id ?? `${r.product_id}-${r.version}`)}>
+                  <div className="mb-3 flex items-center gap-2 text-sm font-bold">
+                    <GitMerge className="h-4 w-4 text-accent" /> v{String(r.version ?? "—")} —{" "}
+                    {nameOf(r.product_id)}
+                  </div>
+                  <p className="whitespace-pre-wrap text-[12px] text-muted-foreground">
+                    {String(r.release_notes)}
+                  </p>
+                </Card>
+              ))}
+            </div>
+          )))}
 
       {tab === "Roadmap" && (
-        <div className="grid gap-3 md:grid-cols-3">
-          {[
-            { st: "Now", items: ["5.0 core rewrite", "AI copilot"], tone: "success" as const },
-            { st: "Next", items: ["Native mobile POS", "Payroll v2"], tone: "premium" as const },
-            { st: "Later", items: ["Data warehouse", "Marketplace API v2"], tone: "info" as const },
-          ].map((c) => (
-            <Card key={c.st}>
-              <Chip tone={c.tone}>{c.st}</Chip>
-              <ul className="mt-3 space-y-2 text-[12px]">
-                {c.items.map((it) => (
-                  <li
-                    key={it}
-                    className="flex items-center justify-between rounded-lg bg-background/40 px-3 py-2"
-                  >
-                    <span>{it}</span>
-                    <span className="font-mono text-[10px] tabular text-accent">▲ 128</span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          ))}
-        </div>
+        <EmptyTable
+          title="No roadmap recorded"
+          hint="There is no roadmap table, so there are no items or votes to show."
+        />
       )}
 
       {tab === "Beta Program" && (
         <EmptyTable
           title="Beta program — invite-only"
-          hint="Ship pre-release builds to opted-in customers, collect crash reports and feedback, and promote to Stable in one click."
-          cta="Manage testers"
+          hint="There is no tester or beta-channel table yet, so no tester can be managed from here."
         />
       )}
 
-      {tab === "Deprecations" && (
-        <Card>
-          <div className="divide-y divide-border/60">
-            {[
-              { v: "3.9.7", p: "Vala Restaurant", sunset: "2028-01-01", reason: "End of life" },
-              { v: "2.x", p: "Vala HRMS", sunset: "2027-09-30", reason: "Merged into 3.0" },
-            ].map((r) => (
-              <div key={r.v} className="flex items-center justify-between py-3 text-[12px]">
-                <div>
-                  <div className="font-bold">
-                    {r.p} · <span className="font-mono">{r.v}</span>
+      {tab === "Deprecations" &&
+        (loadingOrFailed ??
+          (deprecated.length === 0 ? (
+            <EmptyTable
+              title="No deprecation recorded"
+              hint="There is no deprecation table, and no version in marketplace_product_versions is marked deprecated."
+            />
+          ) : (
+            <Card>
+              <div className="divide-y divide-border/60">
+                {deprecated.map((r) => (
+                  <div
+                    key={String(r.id ?? `${r.product_id}-${r.version}`)}
+                    className="flex items-center justify-between py-3 text-[12px]"
+                  >
+                    <div className="font-bold">
+                      {nameOf(r.product_id)} ·{" "}
+                      <span className="font-mono">{String(r.version ?? "—")}</span>
+                    </div>
+                    <Chip tone="danger">{String(r.status)}</Chip>
                   </div>
-                  <div className="text-[11px] text-muted-foreground">{r.reason}</div>
-                </div>
-                <Chip tone="danger">sunset {r.sunset}</Chip>
+                ))}
               </div>
-            ))}
-          </div>
-        </Card>
-      )}
+            </Card>
+          )))}
     </div>
   );
 }

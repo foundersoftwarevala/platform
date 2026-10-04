@@ -40,14 +40,8 @@ const OPEN_STATUSES = [
   "escalated",
 ];
 
-export class ForbiddenError extends Error {}
-
-/** Permission enforcement: only boss_owner / ceo / dev_manager may proceed. */
-export async function assertDevManager(supabase: Db, userId: string): Promise<void> {
-  const { data, error } = await supabase.rpc("is_dev_manager", { _user_id: userId });
-  if (error) throw new Error(`Permission check failed: ${error.message}`);
-  if (!data) throw new ForbiddenError("Forbidden: Developer Manager role required");
-}
+// Permission enforcement lives in requireDevManager (dev-manager.functions.ts),
+// which every Developer Manager server function calls before reaching here.
 
 /** Durable audit trail. Failures are loud, never silent. */
 export async function writeAudit(
@@ -138,8 +132,12 @@ async function autoEscalate(
   openEscalationTaskIds: Set<string>,
   now: number,
 ): Promise<number> {
-  const pending: { task_id: string; reason: string; auto_escalated: boolean; escalated_to: string }[] =
-    [];
+  const pending: {
+    task_id: string;
+    reason: string;
+    auto_escalated: boolean;
+    escalated_to: string;
+  }[] = [];
 
   for (const task of tasks) {
     if (task.status === "completed" || task.status === "cancelled") continue;
@@ -172,7 +170,10 @@ async function autoEscalate(
 
   if (pending.length === 0) return 0;
 
-  const { data, error } = await supabase.from("developer_task_escalations").insert(pending).select("id, task_id");
+  const { data, error } = await supabase
+    .from("developer_task_escalations")
+    .insert(pending)
+    .select("id, task_id");
   if (error) throw new Error(`Auto-escalation failed: ${error.message}`);
 
   // One audit request for the whole sweep, not one round trip per escalation.
@@ -214,7 +215,8 @@ function buildPerformance(tasks: TaskRow[], devById: Map<string, DeveloperRow>, 
       .filter((t) => t.started_at && t.completed_at)
       .map(
         (t) =>
-          (new Date(t.completed_at as string).getTime() - new Date(t.started_at as string).getTime()) /
+          (new Date(t.completed_at as string).getTime() -
+            new Date(t.started_at as string).getTime()) /
           3_600_000,
       );
     const quality = completed
@@ -248,9 +250,7 @@ function buildPerformance(tasks: TaskRow[], devById: Map<string, DeveloperRow>, 
           ? 0
           : Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10,
       qualityScore:
-        quality.length === 0
-          ? 0
-          : Math.round(quality.reduce((a, b) => a + b, 0) / quality.length),
+        quality.length === 0 ? 0 : Math.round(quality.reduce((a, b) => a + b, 0) / quality.length),
       trend,
     });
   }
@@ -267,7 +267,10 @@ export async function loadDeliveryOverview(
   const [devRes, taskRes, escRes, noteRes] = await Promise.all([
     supabase.from("developers").select("*").order("vala_id", { ascending: true }),
     supabase.from("developer_tasks").select("*").order("created_at", { ascending: false }),
-    supabase.from("developer_task_escalations").select("*").order("created_at", { ascending: false }),
+    supabase
+      .from("developer_task_escalations")
+      .select("*")
+      .order("created_at", { ascending: false }),
     supabase
       .from("developer_task_internal_notes")
       .select("*")
@@ -334,7 +337,8 @@ export async function loadDeliveryOverview(
 
   const escalatedAtByTask = new Map<string, string>();
   for (const e of escalations) {
-    if (e.task_id && !escalatedAtByTask.has(e.task_id)) escalatedAtByTask.set(e.task_id, e.created_at);
+    if (e.task_id && !escalatedAtByTask.has(e.task_id))
+      escalatedAtByTask.set(e.task_id, e.created_at);
   }
 
   const risks: SLARiskDTO[] = openTasks
@@ -452,12 +456,19 @@ export async function reassignTaskInDb(
   });
   if (noteError) throw new Error(`Reassignment note failed: ${noteError.message}`);
 
-  await writeAudit(supabase, userId, "dev_manager.tasks", "REASSIGN_TASK", {
-    task_id: taskId,
-    from_developer_id: task.developer_id,
-    to_developer_id: newDeveloperId,
-    reason,
-  }, actor);
+  await writeAudit(
+    supabase,
+    userId,
+    "dev_manager.tasks",
+    "REASSIGN_TASK",
+    {
+      task_id: taskId,
+      from_developer_id: task.developer_id,
+      to_developer_id: newDeveloperId,
+      reason,
+    },
+    actor,
+  );
 
   // The developer who receives the task hears about it (the bell reads
   // user_notifications). A failed notice does not undo the reassignment.
@@ -519,11 +530,18 @@ export async function escalateTaskInDb(
     .in("status", ["blocked", "in_progress", "working", "pending", "assigned", "accepted"]);
   if (statusError) throw new Error(`Task status update failed: ${statusError.message}`);
 
-  await writeAudit(supabase, userId, "dev_manager.escalations", "MANUAL_ESCALATE", {
-    escalation_id: data.id,
-    task_id: taskId,
-    reason,
-  }, actor);
+  await writeAudit(
+    supabase,
+    userId,
+    "dev_manager.escalations",
+    "MANUAL_ESCALATE",
+    {
+      escalation_id: data.id,
+      task_id: taskId,
+      reason,
+    },
+    actor,
+  );
 
   return { ok: true as const, alreadyOpen: false };
 }
@@ -538,19 +556,31 @@ export async function updateEscalationInDb(
 ) {
   // The table is developer_task_escalations (there is no `escalations`); these
   // are the columns this update writes.
-  const patch: { status: EscalationStatus; resolved_at?: string; resolution?: string | null } = { status };
+  const patch: { status: EscalationStatus; resolved_at?: string; resolution?: string | null } = {
+    status,
+  };
   if (status === "resolved" || status === "rejected") {
     patch.resolved_at = new Date().toISOString();
     patch.resolution = resolution;
   }
 
-  const { error } = await supabase.from("developer_task_escalations").update(patch).eq("id", escalationId);
+  const { error } = await supabase
+    .from("developer_task_escalations")
+    .update(patch)
+    .eq("id", escalationId);
   if (error) throw new Error(`Escalation update failed: ${error.message}`);
 
-  await writeAudit(supabase, userId, "dev_manager.escalations", `ESCALATION_${status.toUpperCase()}`, {
-    escalation_id: escalationId,
-    resolution,
-  }, actor);
+  await writeAudit(
+    supabase,
+    userId,
+    "dev_manager.escalations",
+    `ESCALATION_${status.toUpperCase()}`,
+    {
+      escalation_id: escalationId,
+      resolution,
+    },
+    actor,
+  );
 
   return { ok: true as const };
 }
@@ -569,10 +599,17 @@ export async function addInternalNoteInDb(
     .single();
   if (error) throw new Error(`Note insert failed: ${error.message}`);
 
-  await writeAudit(supabase, userId, "dev_manager.notes", "ADD_INTERNAL_NOTE", {
-    note_id: data.id,
-    task_id: taskId,
-  }, actor);
+  await writeAudit(
+    supabase,
+    userId,
+    "dev_manager.notes",
+    "ADD_INTERNAL_NOTE",
+    {
+      note_id: data.id,
+      task_id: taskId,
+    },
+    actor,
+  );
 
   return { ok: true as const };
 }
@@ -633,7 +670,6 @@ export async function loadAuditTrail(
 
   return { entries, total: count ?? entries.length, page, pageSize };
 }
-
 
 /** Live Developer Registry: real developers plus their open task load. */
 export async function loadDeveloperRegistry(supabase: Db): Promise<RegistryDeveloperDTO[]> {

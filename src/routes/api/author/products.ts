@@ -27,6 +27,28 @@ import {
  *   POST /api/author/products  {id, action:"submit"|"withdraw"}
  */
 
+/**
+ * Links an author supplies are opened by reviewers and, once published, by
+ * every visitor. Only web addresses are accepted - a javascript: or data: link
+ * here would run in whoever clicks it.
+ */
+const LINK_FIELDS = ["demo_url", "public_repo_url"] as const;
+
+function badLink(fields: Record<string, unknown>): string | null {
+  for (const key of LINK_FIELDS) {
+    const value = fields[key];
+    if (value === undefined || value === null || value === "") continue;
+    if (typeof value !== "string") return key;
+    try {
+      const parsed = new URL(value.trim());
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return key;
+    } catch {
+      return key;
+    }
+  }
+  return null;
+}
+
 const SUMMARY =
   "id,name,slug,description,category_id,subcategory,demo_url,thumbnail_url,price_label," +
   "content_status,moderation_status,visible,seller_id,created_at,updated_at,approved_at,version";
@@ -73,9 +95,19 @@ export const Route = createFileRoute("/api/author/products")({
         // ---------------------------------------------------- create a draft
         if (!id) {
           const fields = pickAuthorFields(body);
+          const invalidLink = badLink(fields);
+          if (invalidLink) {
+            return Response.json(
+              { error: `${invalidLink} must be an http(s) web address` },
+              { status: 400 },
+            );
+          }
           const name = String(fields.name ?? "").trim();
           if (name.length < 3) {
-            return Response.json({ error: "A product name of at least 3 characters is required" }, { status: 400 });
+            return Response.json(
+              { error: "A product name of at least 3 characters is required" },
+              { status: 400 },
+            );
           }
           const suffix = Math.random().toString(36).slice(2, 8);
           const created = await rest("marketplace_products", {
@@ -96,7 +128,12 @@ export const Route = createFileRoute("/api/author/products")({
             const detail = await created.text();
             console.error("[author products] create failed", created.status, detail.slice(0, 300));
             return Response.json(
-              { error: created.status === 409 ? "That slug is already taken" : "Could not create the product" },
+              {
+                error:
+                  created.status === 409
+                    ? "That slug is already taken"
+                    : "Could not create the product",
+              },
               { status: created.status === 409 ? 409 : 502 },
             );
           }
@@ -106,7 +143,10 @@ export const Route = createFileRoute("/api/author/products")({
 
         // Everything below acts on an existing product, so ownership first.
         if (!(await ownsProduct(gate.seller.id, id))) {
-          return Response.json({ error: "That product does not belong to this author" }, { status: 403 });
+          return Response.json(
+            { error: "That product does not belong to this author" },
+            { status: 403 },
+          );
         }
 
         const currentResponse = await rest(
@@ -145,13 +185,22 @@ export const Route = createFileRoute("/api/author/products")({
         // to the author; they withdraw it to a draft to work on it again.
         if (!["draft", "changes_requested", "rejected"].includes(state)) {
           return Response.json(
-            { error: `A product that is "${state}" cannot be edited. Withdraw it to a draft first.` },
+            {
+              error: `A product that is "${state}" cannot be edited. Withdraw it to a draft first.`,
+            },
             { status: 409 },
           );
         }
         const fields = pickAuthorFields(body);
         if (Object.keys(fields).length === 0) {
           return Response.json({ error: "Nothing to change" }, { status: 400 });
+        }
+        const invalidEdit = badLink(fields);
+        if (invalidEdit) {
+          return Response.json(
+            { error: `${invalidEdit} must be an http(s) web address` },
+            { status: 400 },
+          );
         }
         const patched = await rest(`marketplace_products?id=eq.${encodeURIComponent(id)}`, {
           method: "PATCH",
@@ -161,8 +210,13 @@ export const Route = createFileRoute("/api/author/products")({
         if (!patched.ok) {
           const detail = await patched.text();
           return Response.json(
-            { error: patched.status === 409 ? "That slug is already taken" : "Could not save the product",
-              detail: detail.slice(0, 200) },
+            {
+              error:
+                patched.status === 409
+                  ? "That slug is already taken"
+                  : "Could not save the product",
+              detail: detail.slice(0, 200),
+            },
             { status: patched.status === 409 ? 409 : 502 },
           );
         }

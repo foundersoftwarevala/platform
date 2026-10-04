@@ -3,6 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { DEMO_ROUTE_ROLES } from "@/lib/auth/demo-roles";
 
 async function audit(
   context: any,
@@ -21,6 +22,25 @@ async function audit(
   } catch (e) {
     console.warn("[demo-audit] failed", action, e);
   }
+}
+
+/**
+ * The service-role client, for a caller the Demo Manager admits.
+ *
+ * mm_demo_health, mm_demo_uptime_series and mm_demo_click_analytics are
+ * SECURITY DEFINER with no caller check, and mm_demo_health returns every
+ * demo's real address - the one thing the demo gateway exists to keep out of
+ * a browser. Called with the caller's token they answered any signed-in
+ * account, customers included. The check is made here, against the roles the
+ * demo consoles' route gate admits, and the functions are read with the
+ * service key, so the database can close them to everyone else
+ * (20261107T239040_demo_and_influencer_summaries_service_only.sql).
+ */
+async function demoConsoleReader(action: string): Promise<any> {
+  const { requireOperator } = await import("@/lib/auth/require-operator.server");
+  await requireOperator(action, { alsoAllow: [...DEMO_ROUTE_ROLES] });
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
 }
 
 export type DemoAuditEntry = {
@@ -488,7 +508,9 @@ export const listDemoHealth = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ days: z.number().int().min(1).max(365).optional() }).parse(v ?? {}))
   .handler(async ({ data, context }): Promise<DemoHealth[]> => {
-    const { data: rows, error } = await (context.supabase as any).rpc("mm_demo_health", {
+    const { data: rows, error } = await (
+      await demoConsoleReader("Reading demo health")
+    ).rpc("mm_demo_health", {
       p_days: data.days ?? 30,
     });
     if (error) throw new Error(error.message);
@@ -594,7 +616,9 @@ export const getDemoUptimeSeries = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ hours: z.number().int().min(1).max(720).optional() }).parse(v ?? {}))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await (context.supabase as any).rpc("mm_demo_uptime_series", {
+    const { data: row, error } = await (
+      await demoConsoleReader("Reading demo uptime")
+    ).rpc("mm_demo_uptime_series", {
       p_hours: data.hours ?? 24,
     });
     if (error) throw new Error(error.message);
@@ -621,7 +645,9 @@ export const getDemoClickAnalytics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ days: z.number().int().min(1).max(365).optional() }).parse(v ?? {}))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await (context.supabase as any).rpc("mm_demo_click_analytics", {
+    const { data: row, error } = await (
+      await demoConsoleReader("Reading demo analytics")
+    ).rpc("mm_demo_click_analytics", {
       p_days: data.days ?? 7,
     });
     if (error) throw new Error(error.message);

@@ -21,7 +21,14 @@ import { createFileRoute } from "@tanstack/react-router";
  */
 
 type Summary = {
-  profile: { id: string; full_name: string | null; status: string; niche: string | null; country: string | null; since: string } | null;
+  profile: {
+    id: string;
+    full_name: string | null;
+    status: string;
+    niche: string | null;
+    country: string | null;
+    since: string;
+  } | null;
   metrics: Record<string, number | null>;
 };
 
@@ -45,11 +52,18 @@ export const Route = createFileRoute("/api/influencer/metrics")({
       GET: async ({ request }) => {
         const header = request.headers.get("authorization");
         const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+        // i18n-ignore: an API error message; this API answers in English.
         if (!token) return Response.json({ error: "Sign in required" }, { status: 401 });
 
         const base = gateway();
         if (!base) {
-          return Response.json({ error: "The database is not configured on this server." }, { status: 503 });
+          // i18n-ignore: an API error message; this API answers in English.
+          return Response.json(
+            {
+              error: "The database is not configured on this server." /* i18n-ignore: API error */,
+            },
+            { status: 503 },
+          );
         }
 
         const response = await fetch(`${base}/rest/v1/rpc/influencer_self_summary`, {
@@ -63,7 +77,11 @@ export const Route = createFileRoute("/api/influencer/metrics")({
         });
 
         if (response.status === 401 || response.status === 403) {
-          return Response.json({ error: "Not an influencer account" }, { status: 403 });
+          // i18n-ignore: an API error message; this API answers in English.
+          return Response.json(
+            { error: "Not an influencer account" /* i18n-ignore: API error */ },
+            { status: 403 },
+          );
         }
         if (!response.ok) {
           const detail = await response.text().catch(() => "");
@@ -75,7 +93,12 @@ export const Route = createFileRoute("/api/influencer/metrics")({
 
         const summary = (await response.json()) as Summary;
         // Signed in, but this account holds no influencer profile.
-        if (!summary?.profile) return Response.json({ error: "Not an influencer account" }, { status: 403 });
+        // i18n-ignore: an API error message; this API answers in English.
+        if (!summary?.profile)
+          return Response.json(
+            { error: "Not an influencer account" /* i18n-ignore: API error */ },
+            { status: 403 },
+          );
 
         return Response.json({
           profile: summary.profile,

@@ -1,6 +1,5 @@
 import { memo } from "react";
 import { Inbox, Plus } from "lucide-react";
-import { toast } from "sonner";
 import type { RoleConfig } from "@/lib/roles";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
@@ -9,21 +8,40 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
   const label = (m: RoleConfig["modules"][number]) => (m.labelKey ? t(m.labelKey) : m.label);
   const firstModule = role.modules[0];
   const firstLabel = firstModule ? label(firstModule) : undefined;
-  const open = (k?: string) => { if (k && onOpen) onOpen(k); };
+  const open = (k?: string) => {
+    if (k && onOpen) onOpen(k);
+  };
   const settingsModule =
     role.modules.find((m) => /setting|profile|account/i.test(m.label)) ?? firstModule;
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4">
       <div className="space-y-4">
         <Card
-          title={firstLabel ? t("dashboard.rows.recent", { module: firstLabel }) : t("dashboard.rows.recent_activity")}
+          title={
+            firstLabel
+              ? t("dashboard.rows.recent", { module: firstLabel })
+              : t("dashboard.rows.recent_activity")
+          }
           action={t("dashboard.rows.see_all")}
           onAction={() => open(firstModule?.key)}
         >
           <EmptyBlock
-            label={firstLabel ? t("dashboard.rows.none_yet", { module: firstLabel.toLowerCase() }) : t("dashboard.rows.no_items_yet")}
+            // This card reads no records, so it cannot say there are none ("No
+            // products yet" was shown to sellers with live products): it points
+            // to the module that holds them.
+            label={
+              firstLabel
+                ? t("dashboard.rows.open_to_view", { module: firstLabel })
+                : t("dashboard.rows.no_items_yet")
+            }
             sub={t("dashboard.rows.items_note")}
-            cta={firstLabel ? t("dashboard.rows.create", { item: firstModule?.labelKey ? firstLabel : firstLabel.replace(/s$/, "") }) : t("dashboard.rows.create_item")}
+            cta={
+              firstLabel
+                ? t("dashboard.rows.create", {
+                    item: firstModule?.labelKey ? firstLabel : firstLabel.replace(/s$/, ""),
+                  })
+                : t("dashboard.rows.create_item")
+            }
             onCta={() => open(firstModule?.key)}
           />
         </Card>
@@ -46,7 +64,9 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
                   </div>
                   <div className="min-w-0">
                     <div className="text-sm font-semibold truncate">{label(m)}</div>
-                    <div className="text-[11px] text-muted-foreground">{t("dashboard.rows.open_module")}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {t("dashboard.rows.open_module")}
+                    </div>
                   </div>
                 </button>
               ))}
@@ -56,20 +76,22 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
           <Card
             title={t("dashboard.rows.activity_feed")}
             action={t("dashboard.rows.mark_all_read")}
-            // Nothing feeds this card yet, so it cannot know whether anything is
-            // unread; it used to report "already clear" regardless.
-            onAction={() =>
-              toast.info(t("dashboard.rows.feed_not_connected"), {
-                description: t("dashboard.rows.feed_bell"),
-              })
-            }
+            // Nothing feeds this card yet, so there is nothing to mark read:
+            // the action is disabled and says why (it used to toast).
+            onAction={() => {}}
+            actionDisabledReason={`${t("dashboard.rows.feed_not_connected")}. ${t("dashboard.rows.feed_bell")}`}
           >
             <div className="py-6 grid place-items-center text-center">
               <div className="grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-muted-foreground">
                 <Inbox className="h-4 w-4" />
               </div>
-              <div className="mt-3 text-sm font-semibold">{t("dashboard.rows.all_caught_up")}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">{t("dashboard.rows.events_note")}</div>
+              {/* "All caught up" was a claim this card cannot make - it reads nothing. */}
+              <div className="mt-3 text-sm font-semibold">
+                {t("dashboard.rows.feed_not_connected")}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                {t("dashboard.rows.events_note")}
+              </div>
             </div>
           </Card>
         </div>
@@ -77,15 +99,25 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
 
       {/* Right column: role-specific spotlight */}
       <aside className="rounded-2xl border border-border bg-card p-5 depth-3d flex flex-col">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{t("dashboard.rows.workspace")}</div>
-        <div className="mt-2 text-lg font-bold">{role.titleKey ? t(role.titleKey) : role.title}</div>
-        <div className="text-xs text-muted-foreground">{role.taglineKey ? t(role.taglineKey) : role.tagline}</div>
+        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          {t("dashboard.rows.workspace")}
+        </div>
+        <div className="mt-2 text-lg font-bold">
+          {role.titleKey ? t(role.titleKey) : role.title}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {role.taglineKey ? t(role.taglineKey) : role.tagline}
+        </div>
 
         <div className="mt-4 rounded-xl border border-dashed border-border bg-surface/40 p-4">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{t("dashboard.rows.benchmark")}</div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            {t("dashboard.rows.benchmark")}
+          </div>
           <div className="mt-1 text-sm font-semibold">{role.benchmarks.join(" + ")}</div>
           <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">
-            {t("dashboard.rows.modeled_after", { role: (role.nameKey ? t(role.nameKey) : role.name).toLowerCase() })}
+            {t("dashboard.rows.modeled_after", {
+              role: (role.nameKey ? t(role.nameKey) : role.name).toLowerCase(),
+            })}
           </p>
         </div>
 
@@ -101,7 +133,9 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-semibold">{label(m)}</div>
-                <div className="text-[10px] text-muted-foreground">{t("dashboard.rows.ready_no_data")}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {t("dashboard.rows.open_to_view_short")}
+                </div>
               </div>
               <span className="text-[10px] text-muted-foreground">{t("dashboard.rows.open")}</span>
             </button>
@@ -112,15 +146,32 @@ function ContentRowsBase({ role, onOpen }: { role: RoleConfig; onOpen?: (k: stri
   );
 }
 
-function Card({ title, action, onAction, children }: { title: string; action?: string; onAction?: () => void; children: React.ReactNode }) {
+function Card({
+  title,
+  action,
+  onAction,
+  actionDisabledReason,
+  children,
+}: {
+  title: string;
+  action?: string;
+  onAction?: () => void;
+  /** When set, the action has nothing behind it: disabled, with this reason. */
+  actionDisabledReason?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="rounded-2xl bg-card border border-border p-4 md:p-5 depth-3d">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
         {action && onAction && (
           <button
+            type="button"
             onClick={onAction}
-            className="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
+            disabled={!!actionDisabledReason}
+            title={actionDisabledReason}
+            aria-label={actionDisabledReason ? `${action} - ${actionDisabledReason}` : undefined}
+            className="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-white/5 transition disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
           >
             {action}
           </button>
@@ -131,7 +182,17 @@ function Card({ title, action, onAction, children }: { title: string; action?: s
   );
 }
 
-function EmptyBlock({ label, sub, cta, onCta }: { label: string; sub: string; cta: string; onCta?: () => void }) {
+function EmptyBlock({
+  label,
+  sub,
+  cta,
+  onCta,
+}: {
+  label: string;
+  sub: string;
+  cta: string;
+  onCta?: () => void;
+}) {
   return (
     <div className="grid place-items-center text-center rounded-xl bg-surface/40 border border-dashed border-border p-8">
       <div className="grid h-11 w-11 place-items-center rounded-full bg-surface-2 text-muted-foreground">

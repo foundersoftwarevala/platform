@@ -1,9 +1,9 @@
 /**
  * Server Function: Seed Marketplace Data
- * 
+ *
  * This runs server-side with service role privileges, bypassing RLS.
  * PROTECTED: Requires admin/boss authentication
- * 
+ *
  * Usage (client-side):
  *   const seedFn = useServerFn(seedMarketplaceData);
  *   await seedFn();
@@ -17,17 +17,21 @@ export const seedMarketplaceData = createServerFn({
   method: "POST",
 })
   .middleware([requireSupabaseAuth])
-  .handler(async (ctx) => {
-    // Verify user is admin/boss
-    const { user } = await ctx.auth();
-    if (!user) throw new Error("Not authenticated");
+  .handler(async () => {
+    // Verify the caller runs the platform. This called ctx.auth(), which does
+    // not exist, so the "admin/boss" check above was never made: requireSupabaseAuth
+    // only proves somebody is signed in, and the writes below use the service key.
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Seeding the marketplace");
 
     // Get service role client (runs with full privileges)
     const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error("Service role key not configured on server; set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.");
+      throw new Error(
+        "Service role key not configured on server; set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+      );
     }
 
     const sb = createClient(supabaseUrl, serviceRoleKey);
@@ -296,7 +300,7 @@ export const seedMarketplaceData = createServerFn({
         .select("id", { count: "exact" });
 
       console.log(
-        `[seed] Complete - Categories: ${catCount?.length || 0}, Products: ${prodCount?.length || 0}, Demos: ${demoCount?.length || 0}`
+        `[seed] Complete - Categories: ${catCount?.length || 0}, Products: ${prodCount?.length || 0}, Demos: ${demoCount?.length || 0}`,
       );
 
       return {

@@ -1,21 +1,28 @@
-import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import {
   Zap,
   Plus,
   Trash2,
   Edit,
-  Play,
-  Pause,
   MessageSquare,
   Mail,
   Receipt,
   BarChart3,
   Clock,
-  CheckCircle,
   AlertCircle,
   Workflow,
 } from "lucide-react";
-import { PageHeader, GlassCard, StatCard, StatusBadge } from "../primitives";
+import {
+  PageHeader,
+  GlassCard,
+  StatCard,
+  StatusBadge,
+  EmptyState,
+  ErrorState,
+  LoadingBlock,
+  formatDateTime,
+  num,
+} from "../primitives";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,59 +35,43 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { useRecords, type Row } from "@/lib/manager-queries";
 
-import { notBuilt } from "@/lib/ui/not-built";
+/**
+ * Traffic & Automation reads the real automation_rules table (the same rules
+ * the Registry and Alerts screens toggle). Auto-reply, auto-invoice, email
+ * sequences and social posting have no engine behind this console, so they
+ * show "Not connected" and their controls are disabled with that reason.
+ */
+const NOT_CONNECTED = "No automation engine for this is connected to this console.";
+const DELETE_REASON = "Automation rules are paused in the Registry, not deleted.";
+
+function isEnabled(rule: Row): boolean {
+  return Boolean(rule["is_enabled"] ?? rule["enabled"]);
+}
+
+/**
+ * automation_rules carries two run counters: run_count (legacy, unused) and
+ * runs_count (the one the rule engine increments). Take whichever is recorded.
+ */
+function runs(rule: Row): number {
+  const a = Number(rule["runs_count"] ?? 0);
+  const b = Number(rule["run_count"] ?? 0);
+  return Math.max(Number.isFinite(a) ? a : 0, Number.isFinite(b) ? b : 0);
+}
+
 export default function TrafficAutomationScreen() {
-  const [workflows, setWorkflows] = useState<any[]>([
-    {
-      id: 1,
-      name: "Auto Reply to New Leads",
-      type: "email",
-      status: "active",
-      triggered: 1240,
-      lastRun: "2 minutes ago",
-    },
-    {
-      id: 2,
-      name: "Invoice on Order",
-      type: "invoice",
-      status: "active",
-      triggered: 845,
-      lastRun: "5 minutes ago",
-    },
-    {
-      id: 3,
-      name: "Weekly Report Auto-Send",
-      type: "email",
-      status: "active",
-      triggered: 12,
-      lastRun: "1 day ago",
-    },
-  ]);
-
-  const [campaigns, setCampaigns] = useState<any[]>([
-    {
-      id: 1,
-      title: "Welcome Series",
-      posts: 3,
-      schedule: "Daily",
-      published: 45,
-    },
-    {
-      id: 2,
-      title: "Feature Highlights",
-      posts: 5,
-      schedule: "3x Weekly",
-      published: 28,
-    },
-  ]);
-
-  const stats = [
-    { label: "Active Workflows", value: 12, tone: "primary" },
-    { label: "Automations Triggered", value: "2,847", tone: "cyan" },
-    { label: "Time Saved (hrs)", value: "156", tone: "green" },
-    { label: "Error Rate", value: "0.2%", tone: "amber" },
-  ];
+  const rulesQuery = useRecords({
+    table: "automation_rules",
+    select:
+      "id,name,scope,trigger_type,trigger_event,action_type,enabled,is_enabled,run_count,runs_count,last_run_at,created_at",
+    orderBy: "created_at",
+    limit: 300,
+  });
+  const workflows = rulesQuery.data ?? [];
+  const loaded = !rulesQuery.isLoading && !rulesQuery.error;
+  const dash = rulesQuery.isLoading ? "…" : "—";
+  const totalRuns = workflows.reduce((sum, r) => sum + runs(r), 0);
 
   return (
     <>
@@ -91,16 +82,37 @@ export default function TrafficAutomationScreen() {
 
       <div className="space-y-6">
         {/* Stats Grid */}
+        {rulesQuery.error ? (
+          <ErrorState error={rulesQuery.error} onRetry={() => rulesQuery.refetch()} />
+        ) : null}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((s, i) => (
-            <StatCard
-              key={i}
-              label={s.label}
-              value={s.value}
-              tone={s.tone as any}
-              icon={[<Zap className="h-4 w-4" />, <BarChart3 className="h-4 w-4" />, <Clock className="h-4 w-4" />, <AlertCircle className="h-4 w-4" />][i]}
-            />
-          ))}
+          <StatCard
+            label="Active Workflows"
+            value={loaded ? num(workflows.filter(isEnabled).length) : dash}
+            tone="primary"
+            icon={<Zap className="h-4 w-4" />}
+            change={loaded ? `${num(workflows.length)} rules` : undefined}
+          />
+          <StatCard
+            label="Automations Triggered"
+            value={loaded ? num(totalRuns) : dash}
+            tone="cyan"
+            icon={<BarChart3 className="h-4 w-4" />}
+          />
+          <StatCard
+            label="Time Saved (hrs)"
+            value="—"
+            tone="green"
+            icon={<Clock className="h-4 w-4" />}
+            change="Not tracked"
+          />
+          <StatCard
+            label="Error Rate"
+            value="—"
+            tone="amber"
+            icon={<AlertCircle className="h-4 w-4" />}
+            change="Not tracked"
+          />
         </div>
 
         {/* Tabs */}
@@ -128,61 +140,75 @@ export default function TrafficAutomationScreen() {
 
           {/* Workflows Tab */}
           <TabsContent value="workflows">
-            <GlassCard
-              title="Automation Workflows"
-              actions={
-                <Button size="sm">
-                  <Plus className="mr-2 h-4 w-4" /> New Workflow
-                </Button>
-              }
-            >
-              <div className="space-y-4">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Workflow</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Triggered</TableHead>
-                        <TableHead>Last Run</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {workflows.map((wf) => (
-                        <TableRow key={wf.id}>
-                          <TableCell className="font-medium">{wf.name}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{wf.type}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right">{wf.triggered}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {wf.lastRun}
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge value={wf.status} />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <button
-        type="button"
-        onClick={() => notBuilt("Edit")} className="text-muted-foreground hover:text-foreground">
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-        type="button"
-        onClick={() => notBuilt("Delete")} className="text-muted-foreground hover:text-foreground">
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </TableCell>
+            <GlassCard title="Automation Workflows">
+              {rulesQuery.isLoading ? (
+                <LoadingBlock />
+              ) : rulesQuery.error ? (
+                <ErrorState error={rulesQuery.error} onRetry={() => rulesQuery.refetch()} />
+              ) : workflows.length === 0 ? (
+                <EmptyState message="No automation rules are defined." />
+              ) : (
+                <div className="space-y-4">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Workflow</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead className="text-right">Triggered</TableHead>
+                          <TableHead>Last Run</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {workflows.map((wf) => (
+                          <TableRow key={String(wf["id"])}>
+                            <TableCell className="font-medium">
+                              {String(wf["name"] ?? "—")}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {String(
+                                  wf["scope"] ?? wf["trigger_event"] ?? wf["trigger_type"] ?? "—",
+                                )}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">{num(runs(wf))}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {formatDateTime(wf["last_run_at"] as string | null)}
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge value={isEnabled(wf) ? "active" : "paused"} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Link
+                                  to="/manager/$section"
+                                  params={{ section: "registry" }}
+                                  aria-label={`Manage ${String(wf["name"] ?? "rule")} in the Registry`}
+                                  className="text-muted-foreground hover:text-foreground"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Link>
+                                <button
+                                  type="button"
+                                  disabled
+                                  title={DELETE_REASON}
+                                  aria-label={`Delete — ${DELETE_REASON}`}
+                                  className="cursor-not-allowed text-muted-foreground opacity-50"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
-              </div>
+              )}
             </GlassCard>
           </TabsContent>
 
@@ -202,12 +228,13 @@ export default function TrafficAutomationScreen() {
                   />
                 </div>
                 <div className="flex gap-2">
-                  <input type="checkbox" id="active" />
+                  <input type="checkbox" id="active" disabled />
                   <label htmlFor="active" className="text-sm">
                     Enable auto-reply
                   </label>
                 </div>
-                <Button>
+                <p className="text-xs text-muted-foreground">Not connected: {NOT_CONNECTED}</p>
+                <Button disabled title={NOT_CONNECTED}>
                   <Zap className="mr-2 h-4 w-4" /> Save Auto Reply
                 </Button>
               </div>
@@ -222,19 +249,19 @@ export default function TrafficAutomationScreen() {
                   <p className="text-sm font-medium">Auto-generate invoices on:</p>
                   <div className="mt-2 space-y-2">
                     <div className="flex items-center gap-2">
-                      <input type="checkbox" id="order" defaultChecked />
+                      <input type="checkbox" id="order" disabled />
                       <label htmlFor="order" className="text-sm">
                         Order Completion
                       </label>
                     </div>
                     <div className="flex items-center gap-2">
-                      <input type="checkbox" id="payment" defaultChecked />
+                      <input type="checkbox" id="payment" disabled />
                       <label htmlFor="payment" className="text-sm">
                         Payment Received
                       </label>
                     </div>
                     <div className="flex items-center gap-2">
-                      <input type="checkbox" id="subscription" />
+                      <input type="checkbox" id="subscription" disabled />
                       <label htmlFor="subscription" className="text-sm">
                         Subscription Renewal
                       </label>
@@ -245,7 +272,8 @@ export default function TrafficAutomationScreen() {
                   <label className="text-sm font-medium">Invoice Template</label>
                   <Input placeholder="Select template..." />
                 </div>
-                <Button>
+                <p className="text-xs text-muted-foreground">Not configured: {NOT_CONNECTED}</p>
+                <Button disabled title={NOT_CONNECTED}>
                   <Receipt className="mr-2 h-4 w-4" /> Configure Invoicing
                 </Button>
               </div>
@@ -256,55 +284,18 @@ export default function TrafficAutomationScreen() {
           <TabsContent value="emails">
             <GlassCard title="Email Sequence Manager">
               <div className="space-y-4">
-                <Button>
+                <Button disabled title={NOT_CONNECTED}>
                   <Plus className="mr-2 h-4 w-4" /> Create Sequence
                 </Button>
-                <div className="rounded-lg bg-surface p-4">
-                  <p className="text-sm font-medium">Example Sequence:</p>
-                  <ol className="mt-2 space-y-2 text-sm">
-                    <li>Day 0: Welcome email</li>
-                    <li>Day 2: Product overview</li>
-                    <li>Day 5: Case study</li>
-                    <li>Day 7: Special offer</li>
-                    <li>Day 14: Win-back offer</li>
-                  </ol>
-                </div>
+                <EmptyState message={`No email sequences are configured. ${NOT_CONNECTED}`} />
               </div>
             </GlassCard>
           </TabsContent>
 
           {/* Social Posts Tab */}
           <TabsContent value="social">
-            <GlassCard
-              title="Auto Social Media Posts"
-              actions={
-                <Button size="sm">
-                  <Plus className="mr-2 h-4 w-4" /> Schedule Post
-                </Button>
-              }
-            >
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Campaign</TableHead>
-                      <TableHead className="text-right">Posts</TableHead>
-                      <TableHead>Schedule</TableHead>
-                      <TableHead className="text-right">Published</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {campaigns.map((camp) => (
-                      <TableRow key={camp.id}>
-                        <TableCell className="font-medium">{camp.title}</TableCell>
-                        <TableCell className="text-right">{camp.posts}</TableCell>
-                        <TableCell>{camp.schedule}</TableCell>
-                        <TableCell className="text-right">{camp.published}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+            <GlassCard title="Auto Social Media Posts">
+              <EmptyState message={`No social posting is connected. ${NOT_CONNECTED}`} />
             </GlassCard>
           </TabsContent>
 
@@ -314,15 +305,19 @@ export default function TrafficAutomationScreen() {
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-lg bg-surface p-4">
                   <p className="text-sm text-muted-foreground">Total Executions</p>
-                  <p className="text-2xl font-bold text-primary">2,847</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {loaded ? num(totalRuns) : dash}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-surface p-4">
                   <p className="text-sm text-muted-foreground">Success Rate</p>
-                  <p className="text-2xl font-bold text-status-success">99.8%</p>
+                  <p className="text-2xl font-bold text-status-success">—</p>
+                  <p className="text-xs text-muted-foreground">Not tracked</p>
                 </div>
                 <div className="rounded-lg bg-surface p-4">
                   <p className="text-sm text-muted-foreground">Failures</p>
-                  <p className="text-2xl font-bold text-status-error">6</p>
+                  <p className="text-2xl font-bold text-status-error">—</p>
+                  <p className="text-xs text-muted-foreground">Not tracked</p>
                 </div>
               </div>
             </GlassCard>

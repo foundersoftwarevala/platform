@@ -26,15 +26,63 @@ const OPERATOR_ROLES = new Set(["boss", "boss_owner", "admin", "super_admin", "f
  * no one is signed in or they hold no dashboard role.
  */
 export async function getAuthenticatedRole(): Promise<RoleKey | null> {
-  if (typeof window === "undefined") return null;
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth.user?.id;
-  if (!userId) return null;
-  const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-  if (error) throw error;
-  const held = new Set((data ?? []).map((row) => String(row.role).trim().toLowerCase()));
+  const held = await getHeldRoles();
   if ([...held].some((role) => OPERATOR_ROLES.has(role))) return "admin";
   return ROLE_ORDER.find((role) => held.has(role)) ?? null;
+}
+
+/**
+ * Every app_role the signed-in account actually holds, lower-cased, from
+ * `user_roles`. Empty when no one is signed in (or on the server). Unlike
+ * getAuthenticatedRole this does not collapse an operator to "admin", so a
+ * caller can ask whether the account itself is, say, a vendor.
+ */
+export async function getHeldRoles(): Promise<Set<string>> {
+  if (typeof window === "undefined") return new Set();
+  const { data: auth } = await supabase.auth.getUser();
+  const userId = auth.user?.id;
+  if (!userId) return new Set();
+  const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+  if (error) throw error;
+  return new Set((data ?? []).map((row) => String(row.role).trim().toLowerCase()));
+}
+
+/**
+ * Whether the signed-in account itself would be answered by /api/seller/metrics:
+ * it owns a `marketplace_sellers` record that is not suspended (the endpoint's
+ * requireAuthor gate, with pending allowed). The row is the caller's own, which
+ * the marketplace_sellers_member_read policy lets them read. A vendor/author
+ * role without a seller record, or an operator viewing a seller dashboard,
+ * gets false - the endpoint would only answer them 403.
+ */
+export async function ownsActiveSellerRecord(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const { data: auth } = await supabase.auth.getUser();
+  const userId = auth.user?.id;
+  if (!userId) return false;
+  // marketplace_sellers is not in the generated client types.
+  const client = supabase as unknown as {
+    from: (table: string) => {
+      select: (columns: string) => {
+        eq: (
+          column: string,
+          value: string,
+        ) => {
+          limit: (
+            n: number,
+          ) => Promise<{ data: { status: string | null }[] | null; error: unknown }>;
+        };
+      };
+    };
+  };
+  const { data, error } = await client
+    .from("marketplace_sellers")
+    .select("status")
+    .eq("owner_user_id", userId)
+    .limit(1);
+  if (error) throw error;
+  const row = data?.[0];
+  return !!row && row.status !== "suspended";
 }
 
 /** Ends the Supabase session. */

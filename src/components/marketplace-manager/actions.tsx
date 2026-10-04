@@ -1,5 +1,5 @@
-import { useState, useEffect, type ComponentType, type ReactNode } from "react";
-import { notBuilt } from "@/lib/ui/not-built";
+import { useState, type ComponentType, type ReactNode } from "react";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import {
   Plus,
   Pencil,
@@ -147,30 +147,11 @@ export const BULK_ACTIONS: {
 
 // ---------- single button ----------
 /**
- * Sections wire their own behaviour through `onAction`. Until one does, the
- * button reports that the action is not connected rather than doing nothing at
- * all, so a missing wire is visible instead of looking like a broken button.
+ * Sections wire their own behaviour through `onClick` / `onAction`. Until one
+ * does, the button renders disabled with the reason on hover. It used to stay
+ * live and print "not connected" after the press, which still read as a
+ * control that might work.
  */
-function useActionNotice() {
-  const [notice, setNotice] = useState<string | null>(null);
-  useEffect(() => {
-    if (!notice) return;
-    const timer = setTimeout(() => setNotice(null), 4000);
-    return () => clearTimeout(timer);
-  }, [notice]);
-  const report = (label: string) => setNotice(`"${label}" is not connected to an action yet.`);
-  return { notice, report };
-}
-
-function ActionNotice({ notice }: { notice: string | null }) {
-  if (!notice) return null;
-  return (
-    <p role="status" className="w-full px-2 pt-1 text-[11px] text-muted-foreground">
-      {notice}
-    </p>
-  );
-}
-
 export function ActionButton({
   action,
   size = "md",
@@ -182,14 +163,20 @@ export function ActionButton({
   label?: boolean;
   onClick?: () => void;
 }) {
+  const { t } = useTranslation();
   const a = ACTIONS[action];
   const Icon = a.icon;
   const pad = size === "sm" ? "h-7 px-2 text-[11px]" : "h-8 px-3 text-[12px]";
+  // A button with no handler used to look live and do nothing (or report
+  // "not connected" after the press). It now renders disabled and says why.
   return (
     <button
+      type="button"
       onClick={onClick}
-      title={a.label}
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg font-semibold transition-all active:scale-[0.98] ${pad} ${TONE[a.tone]}`}
+      disabled={!onClick}
+      aria-label={a.label}
+      title={onClick ? a.label : t("manager.module.action_not_connected")}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${pad} ${TONE[a.tone]}`}
     >
       <Icon className="h-3.5 w-3.5" />
       {label !== false && <span>{a.label}</span>}
@@ -210,7 +197,6 @@ export function RowActions({
   onAction?: (id: ActionId) => void;
 }) {
   const allowed = ids.filter((id) => (can ? can(id) : true));
-  const { notice, report } = useActionNotice();
   return (
     <div className="flex flex-wrap items-center gap-1">
       {allowed.map((id) => (
@@ -219,10 +205,9 @@ export function RowActions({
           action={id}
           size="sm"
           label={!compact}
-          onClick={() => (onAction ? onAction(id) : report(ACTIONS[id].label))}
+          {...(onAction ? { onClick: () => onAction(id) } : {})}
         />
       ))}
-      <ActionNotice notice={notice} />
     </div>
   );
 }
@@ -233,14 +218,18 @@ export function TableToolbar({
   count,
   extraActions,
   onAdd,
+  onSearch,
   searchPlaceholder = "Search…",
 }: {
   title?: string;
   count?: number;
   extraActions?: ActionId[];
   onAdd?: () => void;
+  /** Without it the box has nothing to search and renders disabled. */
+  onSearch?: (query: string) => void;
   searchPlaceholder?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="glass mb-5 flex flex-wrap items-center gap-2 rounded-2xl p-2.5">
       {title && (
@@ -257,7 +246,10 @@ export function TableToolbar({
         <Search className="h-3.5 w-3.5 text-muted-foreground" />
         <input
           placeholder={searchPlaceholder}
-          className="flex-1 bg-transparent text-[12px] placeholder:text-muted-foreground focus:outline-none"
+          disabled={!onSearch}
+          title={onSearch ? undefined : t("manager.module.action_not_connected")}
+          onChange={onSearch ? (e) => onSearch(e.target.value) : undefined}
+          className="flex-1 bg-transparent text-[12px] placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed"
         />
       </div>
       <ToolBtn icon={SlidersHorizontal} label="Filter" />
@@ -284,11 +276,15 @@ function ToolBtn({
   label?: string;
   onClick?: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <button
+      type="button"
       onClick={onClick}
-      title={label}
-      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-white/[0.04] px-2.5 text-[11px] font-semibold text-muted-foreground transition-all hover:bg-white/[0.08] hover:text-foreground"
+      disabled={!onClick}
+      aria-label={label}
+      title={onClick ? label : t("manager.module.action_not_connected")}
+      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-white/[0.04] px-2.5 text-[11px] font-semibold text-muted-foreground transition-all hover:bg-white/[0.08] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
     >
       <Icon className="h-3.5 w-3.5" />
       {label && <span>{label}</span>}
@@ -308,7 +304,7 @@ export function BulkActionBar({
   can?: (id: BulkActionId) => boolean;
   onAction?: (id: BulkActionId) => void;
 }) {
-  const { notice, report } = useActionNotice();
+  const { t } = useTranslation();
   if (selectedCount <= 0) return null;
   const items = BULK_ACTIONS.filter((b) => (can ? can(b.id) : true));
   return (
@@ -326,8 +322,10 @@ export function BulkActionBar({
           <button
             key={b.id}
             type="button"
-            onClick={() => (onAction ? onAction(b.id) : report(b.label))}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold transition-all active:scale-[0.98] ${TONE[b.tone]}`}
+            onClick={onAction ? () => onAction(b.id) : undefined}
+            disabled={!onAction}
+            title={onAction ? undefined : t("manager.module.action_not_connected")}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${TONE[b.tone]}`}
           >
             <Icon className="h-3.5 w-3.5" />
             {b.label}
@@ -335,12 +333,13 @@ export function BulkActionBar({
         );
       })}
       <button
+        type="button"
         onClick={onClear}
+        disabled={!onClear}
         className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-white/[0.04] px-2.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
       >
         <X className="h-3.5 w-3.5" /> Clear
       </button>
-      <ActionNotice notice={notice} />
     </div>
   );
 }
@@ -386,19 +385,28 @@ export function DetailActionRail({
     { label: "Purchase History", icon: Receipt },
     { label: "Audit Logs", icon: ClipboardList },
   ];
+  const { t } = useTranslation();
   const allowed = primary.filter((id) => (can ? can(id) : true));
+  const unwired = t("manager.module.action_not_connected");
   return (
     <div className="glass mb-4 flex flex-wrap items-center gap-2 rounded-2xl p-2.5">
       {allowed.map((id) => (
-        <ActionButton key={id} action={id} size="sm" onClick={() => onAction?.(id)} />
+        <ActionButton
+          key={id}
+          action={id}
+          size="sm"
+          {...(onAction ? { onClick: () => onAction(id) } : {})}
+        />
       ))}
       <span className="mx-1 h-5 w-px bg-border" />
       {extras.map((e) => (
         <button
           type="button"
-          onClick={() => onExtra?.(e.label)}
+          onClick={onExtra ? () => onExtra(e.label) : undefined}
+          disabled={!onExtra}
+          title={onExtra ? undefined : unwired}
           key={e.label}
-          className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-white/[0.04] px-2.5 text-[11px] font-semibold text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+          className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-white/[0.04] px-2.5 text-[11px] font-semibold text-muted-foreground hover:bg-white/[0.08] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
         >
           <e.icon className="h-3.5 w-3.5" />
           {e.label}
@@ -406,8 +414,11 @@ export function DetailActionRail({
       ))}
       <button
         type="button"
-        onClick={() => onExtra?.("More actions")}
-        className="ml-auto inline-flex h-7 items-center justify-center rounded-lg border border-border bg-white/[0.04] px-2 text-muted-foreground hover:text-foreground"
+        onClick={onExtra ? () => onExtra("More actions") : undefined}
+        disabled={!onExtra}
+        aria-label={t("manager.module.more_actions")}
+        title={onExtra ? undefined : unwired}
+        className="ml-auto inline-flex h-7 items-center justify-center rounded-lg border border-border bg-white/[0.04] px-2 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>

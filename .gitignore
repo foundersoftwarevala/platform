@@ -16,6 +16,8 @@
 .dev.vars
 .env
 .env.*
+# The template carries variable NAMES only, never values - keep it tracked.
+!.env.example
 .idea
 .nitro
 .output

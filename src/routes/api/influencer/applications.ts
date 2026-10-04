@@ -29,9 +29,7 @@ function gateway(): string {
 }
 function publishableKey(): string {
   return (
-    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ??
-    process.env.SUPABASE_ANON_KEY?.trim() ??
-    ""
+    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? ""
   );
 }
 function bearer(request: Request): string | null {
@@ -44,8 +42,10 @@ export const Route = createFileRoute("/api/influencer/applications")({
     handlers: {
       GET: async ({ request }) => {
         const token = bearer(request);
+        // i18n-ignore: an API error message; this API answers in English.
         if (!token) return Response.json({ error: "Please sign in" }, { status: 401 });
         const base = gateway();
+        // i18n-ignore: an API error message; this API answers in English.
         if (!base) return Response.json({ error: "Not configured" }, { status: 503 });
 
         const url = new URL(request.url);
@@ -74,28 +74,40 @@ export const Route = createFileRoute("/api/influencer/applications")({
 
       POST: async ({ request }) => {
         const token = bearer(request);
+        // i18n-ignore: an API error message; this API answers in English.
         if (!token) return Response.json({ error: "Please sign in" }, { status: 401 });
         const base = gateway();
+        // i18n-ignore: an API error message; this API answers in English.
         if (!base) return Response.json({ error: "Not configured" }, { status: 503 });
 
         let body: Record<string, unknown>;
         try {
           body = (await request.json()) as Record<string, unknown>;
         } catch {
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Expected a JSON body" }, { status: 400 });
         }
 
         const id = String(body.id ?? "").trim();
         const status = String(body.status ?? "").trim();
         const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+        // i18n-ignore: an API error message; this API answers in English.
         if (!id) return Response.json({ error: "An application id is required" }, { status: 400 });
         if (!["in_review", "approved", "rejected"].includes(status)) {
-          return Response.json({ error: "That is not a decision this queue makes" }, { status: 400 });
+          // i18n-ignore: an API error message; this API answers in English.
+          return Response.json(
+            { error: "That is not a decision this queue makes" /* i18n-ignore: API error */ },
+            { status: 400 },
+          );
         }
         // The database refuses this too; saying it here gives the operator the
         // message on the screen instead of a raw failure.
         if (status === "rejected" && !note) {
-          return Response.json({ error: "Record why the application is rejected" }, { status: 400 });
+          // i18n-ignore: an API error message; this API answers in English.
+          return Response.json(
+            { error: "Record why the application is rejected" /* i18n-ignore: API error */ },
+            { status: 400 },
+          );
         }
 
         const response = await fetch(`${base}/rest/v1/rpc/review_influencer_application`, {
@@ -123,7 +135,10 @@ export const Route = createFileRoute("/api/influencer/applications")({
           } catch {
             /* the raw text is the message */
           }
-          return Response.json({ error: message }, { status: response.status === 500 ? 400 : response.status });
+          return Response.json(
+            { error: message },
+            { status: response.status === 500 ? 400 : response.status },
+          );
         }
 
         return Response.json((await response.json()) as Record<string, unknown>);

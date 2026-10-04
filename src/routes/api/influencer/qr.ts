@@ -78,6 +78,7 @@ export const Route = createFileRoute("/api/influencer/qr")({
     handlers: {
       GET: async ({ request }) => {
         const authorization = request.headers.get("authorization");
+        // i18n-ignore: an API error message; this API answers in English.
         if (!authorization) return Response.json({ error: "Please sign in" }, { status: 401 });
 
         const base = (process.env.SUPABASE_URL ?? "").replace(/\/+$/, "");
@@ -94,6 +95,7 @@ export const Route = createFileRoute("/api/influencer/qr")({
           body: "{}",
         });
         if (!response.ok) {
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Your QR codes could not be read" }, { status: 502 });
         }
         return Response.json(await response.json());
@@ -101,24 +103,34 @@ export const Route = createFileRoute("/api/influencer/qr")({
 
       POST: async ({ request }) => {
         const user = await currentUser(request);
+        // i18n-ignore: an API error message; this API answers in English.
         if (!user) return Response.json({ error: "Please sign in" }, { status: 401 });
 
         const profile = await profileFor(user.id);
         if (!profile) {
-          return Response.json({ error: "This account is not enrolled as an influencer" }, { status: 403 });
+          // i18n-ignore: an API error message; this API answers in English.
+          return Response.json(
+            { error: "This account is not enrolled as an influencer" /* i18n-ignore: API error */ },
+            { status: 403 },
+          );
         }
         if (profile.status !== "active") {
-          return Response.json({ error: `This influencer account is ${profile.status}` }, { status: 403 });
+          return Response.json(
+            { error: `This influencer account is ${profile.status}` },
+            { status: 403 },
+          );
         }
 
         let body: Record<string, unknown>;
         try {
           body = (await request.json()) as Record<string, unknown>;
         } catch {
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Expected a JSON body" }, { status: 400 });
         }
         const productId = String(body.productId ?? "").trim();
         if (!/^[0-9a-f-]{36}$/i.test(productId)) {
+          // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "A product is required" }, { status: 400 });
         }
 
@@ -128,13 +140,32 @@ export const Route = createFileRoute("/api/influencer/qr")({
           `marketplace_products?select=id,slug,name,visible&id=eq.${encodeURIComponent(productId)}&limit=1`,
         );
         const product = productResponse.ok
-          ? ((await productResponse.json()) as { id: string; slug: string; name: string; visible: boolean }[])[0]
+          ? (
+              (await productResponse.json()) as {
+                id: string;
+                slug: string;
+                name: string;
+                visible: boolean;
+              }[]
+            )[0]
           : undefined;
-        if (!product?.slug) return Response.json({ error: "That product was not found" }, { status: 404 });
+        // A hidden product (unpublished, rejected, suspended) is answered as not
+        // found, so this neither mints a QR for it nor reveals its name and slug.
+        if (!product?.slug || product.visible !== true) {
+          // i18n-ignore: an API error message; this API answers in English.
+          return Response.json({ error: "That product was not found" }, { status: 404 });
+        }
 
         const referral = await referralCodeFor(profile.id);
         if (!referral) {
-          return Response.json({ error: "Could not allocate a referral code, please retry" }, { status: 503 });
+          // i18n-ignore: an API error message; this API answers in English.
+          return Response.json(
+            {
+              error:
+                "Could not allocate a referral code, please retry" /* i18n-ignore: API error */,
+            },
+            { status: 503 },
+          );
         }
 
         const productUrl = `${siteUrl()}/marketplace/product/${product.slug}?ref=${referral.code}`;
@@ -147,8 +178,12 @@ export const Route = createFileRoute("/api/influencer/qr")({
             `&product_id=eq.${encodeURIComponent(productId)}&limit=1`,
         );
         if (already.ok) {
-          const rows = (await already.json()) as
-            { qr_code: string; target_url: string; scan_count: number | null; active: boolean }[];
+          const rows = (await already.json()) as {
+            qr_code: string;
+            target_url: string;
+            scan_count: number | null;
+            active: boolean;
+          }[];
           if (rows[0]) {
             return Response.json({
               ok: true,

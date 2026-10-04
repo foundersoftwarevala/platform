@@ -5,7 +5,10 @@
  */
 export const DEMO_MESSAGES = {
   // Re-process panel (demo-ops/OpsReprocessPanel)
-  "demo.reprocess.title": ["Re-process", "panel title and the button that runs a demo through the pipeline again"],
+  "demo.reprocess.title": [
+    "Re-process",
+    "panel title and the button that runs a demo through the pipeline again",
+  ],
   "demo.reprocess.description":
     "Run a demo through the real pipeline again to apply the current branding. Stops at review; publishing stays a separate act.",
   "demo.reprocess.assigned": "{count, plural, one {# assigned} other {# assigned}}",
@@ -14,8 +17,12 @@ export const DEMO_MESSAGES = {
   "demo.reprocess.product_fallback": ["product", "shown when a demo's product has no name"],
   "demo.reprocess.refused": "The pipeline refused it",
   "demo.reprocess.done": "Re-processed {title}",
-  "demo.reprocess.done_review": "Branding recomputed. Activate it to put the new presentation live.",
-  "demo.reprocess.done_state": ["The pipeline left it at {state}.", "state is a pipeline status code"],
+  "demo.reprocess.done_review":
+    "Branding recomputed. Activate it to put the new presentation live.",
+  "demo.reprocess.done_state": [
+    "The pipeline left it at {state}.",
+    "state is a pipeline status code",
+  ],
   "demo.reprocess.failed": "Could not re-process {title}",
 
   // Review queue and category mismatches (demo-ops/OpsReviewQueue)
@@ -34,7 +41,10 @@ export const DEMO_MESSAGES = {
   "demo.review.assigned_next": "It is not live yet — investigate and activate it next.",
   "demo.review.not_assigned": "Not assigned",
   "demo.review.ai_suggests": ["AI suggests {name}", "the AI's suggested product for a demo"],
-  "demo.review.ai_confidence": [" ({confidence} confidence)", "follows the suggested product; keep the leading space"],
+  "demo.review.ai_confidence": [
+    " ({confidence} confidence)",
+    "follows the suggested product; keep the leading space",
+  ],
   "demo.review.ai_confirm_below": [
     " — confirm it below; it assigns nothing on its own.",
     "follows the AI suggestion; keep the leading space",
@@ -107,7 +117,8 @@ export const DEMO_MESSAGES = {
   "demo.bulk_add.rules_title": "Bulk Upload Rules",
   "demo.bulk_add.rule_checked":
     "• The file is checked before anything is written, and you see what will happen first",
-  "demo.bulk_add.rule_duplicate": "• A demo URL already in the catalogue is skipped, not duplicated",
+  "demo.bulk_add.rule_duplicate":
+    "• A demo URL already in the catalogue is skipped, not duplicated",
   "demo.bulk_add.rule_category": [
     "• A row with no URL, or a category that is not one of the {count}, is skipped and named",
     "count is the number of categories",
@@ -178,7 +189,10 @@ export const DEMO_MESSAGES = {
     "Separate the fields with {pipe}, a tab, or a comma. A missing title is taken from the URL. A missing or unrecognised category falls back to the one chosen above, and the import says how many did.",
     "{pipe} is the | character",
   ],
-  "demo.bulk_creator.categories_failed": ["Categories could not be loaded:", "followed by the error"],
+  "demo.bulk_creator.categories_failed": [
+    "Categories could not be loaded:",
+    "followed by the error",
+  ],
   "demo.bulk_creator.add_single": "Add Single Demo",
   "demo.bulk_creator.add_n": "Add {count} Demos",
   "demo.bulk_creator.creating": "Creating...",
@@ -211,4 +225,59 @@ export const DEMO_MESSAGES = {
   "demo.bulk_creator.name_required": "Demo name is required for all demos",
   "demo.bulk_creator.manager_only": "Only Demo Manager can create demos",
   "demo.bulk_creator.add_one": "Add at least one demo",
+
+  // Manager / demo / support consoles: real-data states (internal support AI, server manager, demo manager).
+  "demo.alerts.resolved_title": "Alert Resolved",
+  "demo.alerts.resolved_with_note":
+    "The alert has been marked resolved and your note was saved to the activity log.",
+  "demo.alerts.resolved": "The alert has been marked resolved.",
+  "demo.alerts.resolve_failed": "Could not resolve alert",
+  "demo.alerts.update_refused": "The update was refused.",
+  "demo.alerts.checking": "Checking…",
+  "demo.alerts.run_health_check": [
+    "Run Health Check",
+    "button that checks every active demo URL now",
+  ],
+  "demo.alerts.not_checked": "Not checked",
+  "demo.alerts.saving": "Saving…",
+  "demo.alerts.confirm_action": [
+    "Confirm Action",
+    "button that resolves an alert with the action taken",
+  ],
+  "demo.clicks.no_demo_filter":
+    "Per-demo filtering is not available - the analytics function aggregates all demos",
+  "demo.clicks.no_opens": "No demo opens in this window",
+  "demo.clicks.export_csv": "Download this window as CSV",
+  "demo.clicks.nothing_to_export": "Nothing loaded to export",
+  "demo.rentals.not_connected":
+    "Demo rentals are not connected: the platform has no table that stores rental assignments yet.",
+  "demo.rentals.no_matching": "No assignment matching runs on this platform.",
+  "demo.rentals.not_connected_title": "Not connected",
+  "demo.rentals.no_suggestions_reason":
+    "No assignment matching runs on this platform, and there is no rental store to apply a suggestion to.",
+  "demo.rentals.pending_unreadable": "Pending demo requests could not be read",
+  "demo.rentals.pending_note": "Demo requests awaiting a response (demo_requests)",
+  "demo.catalog.count": "{count, plural, one {# demo} other {# demos}}",
+  "demo.catalog.empty_title": "No demos to show",
+  "demo.catalog.empty_none": "No demo URLs are registered yet.",
+  "demo.catalog.empty_filtered": "No demo matches this search or category.",
+  "demo.catalog.no_url": "This demo has no URL stored.",
+  "demo.catalog.no_docs": "No documentation is stored for this demo.",
+  "demo.catalog.no_screenshots": "No screenshots are stored for this demo.",
+  "demo.catalog.open_in_new_tab": "Open {name} in a new tab",
+  "demo.topbar.active_demos": "Active Demos",
+  "demo.topbar.active_demos_note": "Demo URLs whose status is active, from the demo monitor",
+  "demo.topbar.live_visitors": "Live Visitors",
+  "demo.topbar.live_visitors_note": "Not tracked: nothing records who is on a demo right now",
+  "demo.topbar.avg_load_time": "Avg Load Time",
+  "demo.topbar.avg_load_time_note":
+    "Average monitor response time over the last 30 days, weighted by checks",
+  "demo.topbar.regions": ["Regions", "count of regions demos are served from"],
+  "demo.topbar.regions_note": "Not tracked: no region is recorded against a demo",
+  "demo.topbar.view_alerts": "View alerts",
+  "demo.topbar.refresh": "Refresh the data on this screen",
+  "demo.topbar.uptime_note": "Average 30-day uptime across monitored demos",
+  "demo.topbar.uptime": ["{value} UPTIME", "value is a percentage or a dash"],
+  "demo.topbar.no_settings": "There is no Demo Manager settings screen yet.",
+  "demo.topbar.no_search": "Search is not available in this header; use the search on each screen.",
 } as const;

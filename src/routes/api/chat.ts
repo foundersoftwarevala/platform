@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { aiStream } from "@/lib/ai-gateway.server";
 import { requireAuthorizedAiCaller } from "@/lib/ai-request-auth.server";
+import { SlidingWindowLimiter } from "@/lib/i18n/limits";
 
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
 
@@ -22,15 +23,31 @@ Rules:
 - If the Boss asks to open a module (e.g. "open finance"), confirm the action in one line.
 - Never mention which model or provider powers you.`;
 
+/**
+ * Each turn is a paid provider call, so one account - or one stolen token in a
+ * loop - cannot spend the budget unbounded. Well above what a person typing
+ * causes.
+ */
+const CHAT_TURNS_PER_MINUTE = 20;
+const chatLimiter = new SlidingWindowLimiter(60_000);
+
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        let caller: { id: string };
         try {
-          await requireAuthorizedAiCaller();
+          caller = await requireAuthorizedAiCaller();
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Authentication required for AI requests.";
+          const message =
+            error instanceof Error ? error.message : "Authentication required for AI requests.";
           return new Response(message, { status: 401 });
+        }
+        if (chatLimiter.hit(caller.id, CHAT_TURNS_PER_MINUTE)) {
+          return new Response("Too many messages. Please wait a moment and try again.", {
+            status: 429,
+            headers: { "Retry-After": "30" },
+          });
         }
 
         let body: { messages?: ChatMessage[] };
@@ -39,8 +56,17 @@ export const Route = createFileRoute("/api/chat")({
         } catch {
           return new Response("Invalid request", { status: 400 });
         }
-        const messages = (Array.isArray(body.messages) ? body.messages.slice(-20) : [])
-          .filter((message) => message && typeof message.content === "string" && message.role !== "system")
+        // Only the two conversational roles cross from the browser. Anything
+        // else - "system", "developer", "tool" - would let a caller speak with
+        // the authority of the platform's own instructions.
+        const messages = (Array.isArray(body?.messages) ? body.messages.slice(-20) : [])
+          .filter(
+            (message) =>
+              message &&
+              typeof message === "object" &&
+              typeof message.content === "string" &&
+              (message.role === "user" || message.role === "assistant"),
+          )
           .map((message) => ({ role: message.role, content: message.content.slice(0, 4_000) }));
         if (messages.length === 0) {
           return new Response("Messages are required", { status: 400 });

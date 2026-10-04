@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { siteUrl } from "@/lib/seo/site-url";
-import { ProductDetail } from "@/components/marketplace-home/ProductDetail";
+import { ProductDetail, ProductNotFound } from "@/components/marketplace-home/ProductDetail";
 import { getSeoOverride } from "@/lib/seo/page-overrides.functions";
 import { getProductSeo } from "@/lib/seo/category-seo";
 import { getPublicProduct } from "@/lib/marketplace.functions";
@@ -36,8 +36,6 @@ type Loaded = {
   product?: unknown;
 };
 
-
-
 const GENERIC = {
   title: "Product — Software Vala Marketplace",
   description: "Explore this software solution on the Software Vala marketplace.",
@@ -57,6 +55,11 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
       <Toaster />
     </>
   ),
+  // Drawn when the loader throws notFound() for a slug with no product.
+  notFoundComponent: function ProductRouteNotFound() {
+    const { slug } = Route.useParams();
+    return <ProductNotFound slug={slug} />;
+  },
 
   loader: async ({ params }): Promise<Loaded> => {
     // The product and its SEO are unrelated lookups, so one failing must not
@@ -65,8 +68,7 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
       getProductSeo({ data: { slug: params.slug } }),
       getPublicProduct({ data: { slug: params.slug } }),
     ]);
-    const product =
-      productResult.status === "fulfilled" ? productResult.value : null;
+    const product = productResult.status === "fulfilled" ? productResult.value : null;
     /**
      * Both lookups worked and neither found anything: there is no such product.
      *
@@ -83,10 +85,12 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
       !productResult.value?.product &&
       seoResult.status === "fulfilled" &&
       !seoResult.value;
-    // noindex alone left it a 200 - a soft 404. The page still renders.
-    if (missing && typeof window === "undefined") {
-      (await import("@/lib/seo/not-found.server")).respondNotFound();
-    }
+    // noindex alone left it a 200 - a soft 404. Setting the status by hand
+    // (respondNotFound) did not help either: the SSR renderer answers with the
+    // router's own status code, which only notFound() changes. Throwing it
+    // makes the response a real 404, and notFoundComponent below draws the
+    // page's own "Product Not Found" screen, so what a visitor sees is unchanged.
+    if (missing) throw notFound();
     try {
       const seo = seoResult.status === "fulfilled" ? seoResult.value : null;
       if (!seo) {
@@ -94,7 +98,15 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
         // the marketplace's own listed demos - is named for what it is. It
         // used to share one generic title, with no canonical, across every
         // such page.
-        const shown = (product as { product?: { name?: string; description?: string | null; industry_label?: string | null } | null } | null)?.product;
+        const shown = (
+          product as {
+            product?: {
+              name?: string;
+              description?: string | null;
+              industry_label?: string | null;
+            } | null;
+          } | null
+        )?.product;
         if (shown?.name) {
           return {
             name: shown.name,
@@ -137,8 +149,10 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
     }
   },
 
-  head: ({ loaderData }) => {
-    const data = (loaderData ?? {}) as Loaded;
+  head: ({ loaderData, match }) => {
+    const data = { ...((loaderData ?? {}) as Loaded) };
+    // A thrown notFound() leaves no loader data; the match says why.
+    if ((match as { status?: string } | undefined)?.status === "notFound") data.missing = true;
     if (!data.name) {
       const meta: Record<string, string>[] = [
         { title: data.missing ? "Product not found | Software Vala" : GENERIC.title },
@@ -162,9 +176,10 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
     const namesItsCountry = Boolean(
       data.country && data.name.toLowerCase().includes(data.country.toLowerCase()),
     );
-    const defaultTitle = data.country && !namesItsCountry
-      ? `${data.name} — ${data.country} | Software Vala`
-      : `${data.name} | Software Vala`;
+    const defaultTitle =
+      data.country && !namesItsCountry
+        ? `${data.name} — ${data.country} | Software Vala`
+        : `${data.name} | Software Vala`;
     const defaultDescription =
       (data.description && data.description.trim()) ||
       (data.country

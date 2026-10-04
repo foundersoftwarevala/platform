@@ -33,6 +33,7 @@ import { TableToolbar, RowActions, BulkActionBar } from "../actions";
 import { notBuilt, previewOnly } from "@/lib/ui/not-built";
 import { useQuery } from "@tanstack/react-query";
 import { authHeaders } from "@/lib/auth/operator-fetch";
+import { useResource } from "@/lib/manager/use-resource";
 // ---------- HERO BANNER MANAGER ----------
 // Real, DB-backed implementation lives in ./HeroSlidesManager.tsx
 export { HeroBannerSection } from "./HeroSlidesManager";
@@ -42,36 +43,90 @@ export { CategoriesAdmin as CategoriesSection } from "./MarketplaceCatalogAdmin"
 
 // ---------- WALL MANAGER ----------
 const WALL_LIST = [
-  "Featured Products","Top Selling","Trending","New Launches","Recently Updated","AI Ready","Offline","SaaS",
-  "Recommended","Best Rated","Most Downloaded","Most Viewed","Coming Soon","Staff Picks","Editor Choice",
-  "Industry Collections","Product Collections","AI Recommendations"
+  "Featured Products",
+  "Top Selling",
+  "Trending",
+  "New Launches",
+  "Recently Updated",
+  "AI Ready",
+  "Offline",
+  "SaaS",
+  "Recommended",
+  "Best Rated",
+  "Most Downloaded",
+  "Most Viewed",
+  "Coming Soon",
+  "Staff Picks",
+  "Editor Choice",
+  "Industry Collections",
+  "Product Collections",
+  "AI Recommendations",
 ];
+/**
+ * The walls, from marketplace_row_config.
+ *
+ * This drew the eighteen names in WALL_LIST, each marked "Enabled", under the
+ * live table that showed the walls that actually exist. WALL_LIST is kept
+ * above as the record of the old screen; the rows below are the real ones.
+ */
 export function WallsSection() {
+  const walls = useResource("walls", { limit: 100 });
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
-        eyebrow="Wall Manager · 18 walls"
+        eyebrow={`Wall Manager · ${walls.loading ? "…" : walls.failed ? "—" : walls.total} walls`}
         title="Storefront Walls"
         description="Netflix-style content rows. Enable, reorder, assign products manually or via rules."
-        actions={<PillButton variant="primary">Add Wall</PillButton>}
+        actions={
+          <PillButton
+            variant="primary"
+            disabled
+            title="Walls are added and edited in the live Walls table above."
+          >
+            Add Wall
+          </PillButton>
+        }
       />
-      <TableToolbar title="Walls" count={WALL_LIST.length} extraActions={["publish"]} />
+      <TableToolbar title="Walls" count={walls.total} extraActions={["publish"]} />
+      {walls.loading && <EmptyHint text="Reading the walls…" />}
+      {walls.failed && <EmptyHint text="The walls could not be read." />}
+      {!walls.loading && !walls.failed && walls.rows.length === 0 && (
+        <EmptyHint text="No wall exists yet." />
+      )}
       <div className="space-y-3">
-        {WALL_LIST.map((w, i) => (
-          <div key={w} className="glass flex items-center justify-between rounded-xl p-4">
-            <div className="flex items-center gap-3">
-              <GripVertical className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <div className="text-sm font-bold">{w}</div>
-                <div className="text-[11px] text-muted-foreground">Slot #{i + 1} · Auto-fill rule · — products</div>
+        {walls.rows.map((w, i) => {
+          const status = String(w.status ?? "") || "no status";
+          const live = status === "published" || status === "active";
+          const rule = String(w.auto_rule ?? "").trim();
+          return (
+            <div
+              key={String(w.id ?? i)}
+              className="glass flex items-center justify-between rounded-xl p-4"
+            >
+              <div className="flex items-center gap-3">
+                <GripVertical className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <div className="text-sm font-bold">
+                    {String(w.title ?? w.key ?? "Untitled wall")}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Slot #{w.sort_order == null ? i + 1 : String(w.sort_order)} ·{" "}
+                    {String(w.source_mode ?? "") || "no source mode"}
+                    {rule ? ` · ${rule}` : ""} ·{" "}
+                    {w.max_products == null
+                      ? "no product limit"
+                      : `up to ${String(w.max_products)} products`}
+                  </div>
+                </div>
               </div>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${live ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+              >
+                {status}
+              </span>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success">Enabled</span>
-              <RowActions ids={["view","edit","duplicate","feature","pin","archive","delete"]} />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -87,13 +142,22 @@ export { MerchandisingConsole as PlacementSection } from "./MerchandisingConsole
 
 export function PlacementSectionStatic() {
   const cells = [
-    "Homepage Featured", "Trending Placement", "Top Selling Placement",
-    "Recommended Placement", "Collection Placement", "Category Placement",
-    "Manual Placement", "Automatic Placement",
+    "Homepage Featured",
+    "Trending Placement",
+    "Top Selling Placement",
+    "Recommended Placement",
+    "Collection Placement",
+    "Category Placement",
+    "Manual Placement",
+    "Automatic Placement",
   ];
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Product Placement" title="Merchandising Console" description="Pin products into homepage slots. Mix manual and rules-based fill." />
+      <PageHeader
+        eyebrow="Product Placement"
+        title="Merchandising Console"
+        description="Pin products into homepage slots. Mix manual and rules-based fill."
+      />
       <div className="grid gap-4 md:grid-cols-2">
         {cells.map((c) => (
           <Card key={c}>
@@ -103,7 +167,10 @@ export function PlacementSectionStatic() {
             </div>
             <div className="grid grid-cols-4 gap-2">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="aspect-square rounded-lg border border-dashed border-border bg-background/40" />
+                <div
+                  key={i}
+                  className="aspect-square rounded-lg border border-dashed border-border bg-background/40"
+                />
               ))}
             </div>
             <EmptyHint text="Empty slots auto-fill from the rule engine" />
@@ -123,49 +190,105 @@ export { CardComposition as CardsSection } from "./CardComposition";
 
 export function CardsSectionStatic() {
   const fields = [
-    "Premium Thumbnail","Thumbnail Gallery","Hover Preview","3D Thumbnail",
-    "Software Name","Category","Industry","Version","Last Updated","Product Status",
-    "Rating","Reviews","Downloads","Views","Price","License","Delivery Time","Support Status",
+    "Premium Thumbnail",
+    "Thumbnail Gallery",
+    "Hover Preview",
+    "3D Thumbnail",
+    "Software Name",
+    "Category",
+    "Industry",
+    "Version",
+    "Last Updated",
+    "Product Status",
+    "Rating",
+    "Reviews",
+    "Downloads",
+    "Views",
+    "Price",
+    "License",
+    "Delivery Time",
+    "Support Status",
   ];
   const cardActions = [
-    "View Details","Quick View","Buy Now","Add to Cart","Add to Collection",
-    "Wishlist","Compare","Share","Live Demo","Demo Video","Notify Me",
+    "View Details",
+    "Quick View",
+    "Buy Now",
+    "Add to Cart",
+    "Add to Collection",
+    "Wishlist",
+    "Compare",
+    "Share",
+    "Live Demo",
+    "Demo Video",
+    "Notify Me",
   ];
   const badges = [
-    "New","Trending","Featured","Best Seller","Editor Choice","Staff Pick",
-    "AI Ready","Cloud","Offline","SaaS","Enterprise","Verified",
+    "New",
+    "Trending",
+    "Featured",
+    "Best Seller",
+    "Editor Choice",
+    "Staff Pick",
+    "AI Ready",
+    "Cloud",
+    "Offline",
+    "SaaS",
+    "Enterprise",
+    "Verified",
   ];
-  const platforms = ["Windows","macOS","Linux","Android","iOS","Web"];
+  const platforms = ["Windows", "macOS", "Linux", "Android", "iOS", "Web"];
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Product Card Manager" title="Card composition" description="Toggle fields, badges, platforms and actions shown on every product card across the storefront." />
+      <PageHeader
+        eyebrow="Product Card Manager"
+        title="Card composition"
+        description="Toggle fields, badges, platforms and actions shown on every product card across the storefront."
+      />
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <Card>
           <h3 className="mb-3 text-base font-bold">Visible Fields</h3>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            {fields.map((f) => <Toggle key={f} label={f} on />)}
+            {fields.map((f) => (
+              <Toggle key={f} label={f} on />
+            ))}
           </div>
           <h3 className="mb-3 mt-6 text-base font-bold">Card Actions</h3>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            {cardActions.map((a) => <Toggle key={a} label={a} on />)}
+            {cardActions.map((a) => (
+              <Toggle key={a} label={a} on />
+            ))}
           </div>
           <h3 className="mb-3 mt-6 text-base font-bold">Badges</h3>
           <div className="flex flex-wrap gap-2">
             {badges.map((b) => (
-              <span key={b} className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">{b}</span>
+              <span
+                key={b}
+                className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs font-semibold text-accent"
+              >
+                {b}
+              </span>
             ))}
           </div>
           <h3 className="mb-3 mt-6 text-base font-bold">Platform Badges</h3>
           <div className="flex flex-wrap gap-2">
             {platforms.map((p) => (
-              <span key={p} className="rounded-full border border-border bg-background/40 px-3 py-1 text-xs font-semibold text-foreground">{p}</span>
+              <span
+                key={p}
+                className="rounded-full border border-border bg-background/40 px-3 py-1 text-xs font-semibold text-foreground"
+              >
+                {p}
+              </span>
             ))}
           </div>
         </Card>
         <Card className="overflow-hidden">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Live Preview</div>
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Live Preview
+          </div>
           <PreviewProductCard />
-          <div className="mt-3 text-[10px] text-muted-foreground">Hover thumbnail to reveal media reel & quick actions.</div>
+          <div className="mt-3 text-[10px] text-muted-foreground">
+            Hover thumbnail to reveal media reel & quick actions.
+          </div>
         </Card>
       </div>
     </div>
@@ -184,18 +307,31 @@ export function CardsSectionStatic() {
  */
 export function ActionsSectionStatic() {
   const actions = [
-    ["View Details", Eye],["Buy Now", ShoppingCart],["Add to Cart", ShoppingCart],
-    ["Wishlist", Heart],["Compare", TrendingUp],["Share", Share2],["Notify Me", Bell],
-    ["Request Demo", Sparkles],["Live Demo", Sparkles],["Reviews", Star],
+    ["View Details", Eye],
+    ["Buy Now", ShoppingCart],
+    ["Add to Cart", ShoppingCart],
+    ["Wishlist", Heart],
+    ["Compare", TrendingUp],
+    ["Share", Share2],
+    ["Notify Me", Bell],
+    ["Request Demo", Sparkles],
+    ["Live Demo", Sparkles],
+    ["Reviews", Star],
   ] as const;
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Product Action Manager" title="Action layer" description="Enable, disable, reorder and theme every action available on product cards and detail pages." />
+      <PageHeader
+        eyebrow="Product Action Manager"
+        title="Action layer"
+        description="Enable, disable, reorder and theme every action available on product cards and detail pages."
+      />
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {actions.map(([l, I]) => (
           <div key={l} className="glass flex items-center justify-between rounded-xl p-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface text-accent"><I className="h-4 w-4" /></div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface text-accent">
+                <I className="h-4 w-4" />
+              </div>
               <div className="text-sm font-semibold">{l}</div>
             </div>
             <Switch on />
@@ -207,15 +343,31 @@ export function ActionsSectionStatic() {
 }
 
 // ---------- OFFERS ----------
+// Each card used to promise "Up to 70% off bundles" - an offer nobody made.
+// Coupons are owner-controlled and live in marketplace_coupons, which the live
+// Offers table above reads; there is no campaign table behind these cards.
+const NO_CAMPAIGN =
+  "There is no campaign table behind these cards. Coupons are created and edited in the live Offers table above.";
 export function OffersSection() {
-  const types = ["Deal Of The Day","Weekly Offer","Bundle Offer","Festival Offer","New Launch Offer","Limited Time Offer"];
+  const types = [
+    "Deal Of The Day",
+    "Weekly Offer",
+    "Bundle Offer",
+    "Festival Offer",
+    "New Launch Offer",
+    "Limited Time Offer",
+  ];
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
         eyebrow="Offer Manager"
         title="Deals & Promotions"
         description="AppSumo-style campaign rails: countdowns, bundles and seasonal promotions."
-        actions={<PillButton variant="premium">+ New Offer</PillButton>}
+        actions={
+          <PillButton variant="premium" disabled title={NO_CAMPAIGN}>
+            + New Offer
+          </PillButton>
+        }
       />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {types.map((t, i) => (
@@ -225,15 +377,21 @@ export function OffersSection() {
               <div className="mb-2 inline-flex items-center gap-1 rounded bg-premium/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-premium">
                 <Tag className="h-3 w-3" /> {t}
               </div>
-              <h3 className="text-lg font-bold">Up to 70% off bundles</h3>
-              <p className="mt-1 text-xs text-muted-foreground">Schedule, target and track each campaign individually.</p>
+              <h3 className="text-lg font-bold">No campaign scheduled</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Schedule, target and track each campaign individually.
+              </p>
               <div className="mt-4 flex items-center justify-between text-[11px] text-muted-foreground">
                 <span>Slot {i + 1}</span>
                 <span>Ends —</span>
               </div>
               <div className="mt-3 flex gap-2">
-                <PillButton variant="ghost">Edit</PillButton>
-                <PillButton variant="primary">Publish</PillButton>
+                <PillButton variant="ghost" disabled title={NO_CAMPAIGN}>
+                  Edit
+                </PillButton>
+                <PillButton variant="primary" disabled title={NO_CAMPAIGN}>
+                  Publish
+                </PillButton>
               </div>
             </div>
           </Card>
@@ -244,20 +402,45 @@ export function OffersSection() {
 }
 
 // ---------- POPUPS ----------
+const NO_POPUP =
+  "No popup table exists. The live table above holds the storefront's floating elements, which are edited there.";
 export function PopupsSection() {
-  const types = ["Entry Popup","Exit Popup","Scroll Popup","Product Popup","Cart Popup","Apply Popup","Announcement"];
+  const types = [
+    "Entry Popup",
+    "Exit Popup",
+    "Scroll Popup",
+    "Product Popup",
+    "Cart Popup",
+    "Apply Popup",
+    "Announcement",
+  ];
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Popup Manager" title="Popups & Modals" description="Targeted overlays with rule-based triggers." actions={<PillButton variant="primary">+ Popup</PillButton>} />
+      <PageHeader
+        eyebrow="Popup Manager"
+        title="Popups & Modals"
+        description="Targeted overlays with rule-based triggers."
+        actions={
+          <PillButton variant="primary" disabled title={NO_POPUP}>
+            + Popup
+          </PillButton>
+        }
+      />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {types.map((t) => (
           <Card key={t}>
-            <div className="mb-2 inline-flex items-center gap-1 rounded bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">{t}</div>
+            <div className="mb-2 inline-flex items-center gap-1 rounded bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+              {t}
+            </div>
             <h3 className="text-base font-bold">Unconfigured</h3>
-            <p className="mt-1 text-xs text-muted-foreground">Set trigger (entry, scroll %, exit intent), audience and creative.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Set trigger (entry, scroll %, exit intent), audience and creative.
+            </p>
             <div className="mt-4 flex items-center justify-between">
-              <Switch />
-              <PillButton variant="ghost">Configure</PillButton>
+              <Switch label={t} reason={NO_POPUP} />
+              <PillButton variant="ghost" disabled title={NO_POPUP}>
+                Configure
+              </PillButton>
             </div>
           </Card>
         ))}
@@ -277,13 +460,17 @@ type PartnerProgramme = { kind: string; live: number | null; openApplications: n
  * and a programme cannot be switched off, so its switch says so.
  */
 export function PartnersSection() {
-  const types = ["Reseller","Vendor","Author","Affiliate","Influencer","Franchise"];
+  const types = ["Reseller", "Vendor", "Author", "Affiliate", "Influencer", "Franchise"];
   const query = useQuery({
     queryKey: ["control-panel", "partners"],
     queryFn: async () => {
       const response = await fetch("/api/control-panel/partners", { headers: await authHeaders() });
-      const body = (await response.json().catch(() => ({}))) as { programmes?: PartnerProgramme[]; error?: string };
-      if (!response.ok) throw new Error(body.error ?? `The partner figures could not be read (${response.status})`);
+      const body = (await response.json().catch(() => ({}))) as {
+        programmes?: PartnerProgramme[];
+        error?: string;
+      };
+      if (!response.ok)
+        throw new Error(body.error ?? `The partner figures could not be read (${response.status})`);
       return body.programmes ?? [];
     },
     staleTime: 30_000,
@@ -292,7 +479,11 @@ export function PartnersSection() {
   const show = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString());
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Partner Manager" title="Partner Programs" description="HubSpot + PartnerStack style program management." />
+      <PageHeader
+        eyebrow="Partner Manager"
+        title="Partner Programs"
+        description="HubSpot + PartnerStack style program management."
+      />
       {query.isError && (
         <p className="mb-3 text-sm text-destructive">{(query.error as Error).message}</p>
       )}
@@ -301,13 +492,21 @@ export function PartnersSection() {
           <Card key={t}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 text-accent"><Users2 className="h-5 w-5" /></div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 text-accent">
+                  <Users2 className="h-5 w-5" />
+                </div>
                 <div>
                   <div className="text-sm font-bold">{t}</div>
-                  <div className="text-[11px] text-muted-foreground">{query.isLoading ? "…" : show(figure(t)?.live)} active partners</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {query.isLoading ? "…" : show(figure(t)?.live)} active partners
+                  </div>
                 </div>
               </div>
-              <Switch on label={`${t} programme`} />
+              <Switch
+                on
+                label={`${t} programme`}
+                reason="A partner programme is always on; it cannot be switched off."
+              />
             </div>
             <div className="mt-4 grid grid-cols-3 gap-2 text-center">
               {[
@@ -330,18 +529,33 @@ export function PartnersSection() {
 
 // ---------- TRUST ----------
 export function TrustSectionStatic() {
-  const items = ["Verified Product","Verified Vendor","Verified Author","Verified Reviews","Instant Delivery","Secure Purchase"];
+  const items = [
+    "Verified Product",
+    "Verified Vendor",
+    "Verified Author",
+    "Verified Reviews",
+    "Instant Delivery",
+    "Secure Purchase",
+  ];
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Trust Manager" title="Trust Layer" description="Badges, counters and verification ribbons that appear sitewide." />
+      <PageHeader
+        eyebrow="Trust Manager"
+        title="Trust Layer"
+        description="Badges, counters and verification ribbons that appear sitewide."
+      />
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {items.map((t) => (
           <Card key={t}>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/15 text-success"><ShieldCheck className="h-5 w-5" /></div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/15 text-success">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
               <div className="flex-1">
                 <div className="text-sm font-bold">{t}</div>
-                <div className="text-[11px] text-muted-foreground">Shown on cards, PDP and footer</div>
+                <div className="text-[11px] text-muted-foreground">
+                  Shown on cards, PDP and footer
+                </div>
               </div>
               <Switch on />
             </div>
@@ -357,8 +571,16 @@ export function ReviewsSectionStatic() {
   const [tab, setTab] = useState("Queue");
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Review Manager" title="Reviews & Ratings" description="G2-style moderation, replies and analytics." />
-      <SubNav items={["Queue","Latest","Top","Video","Reported","Replies"]} active={tab} onChange={setTab} />
+      <PageHeader
+        eyebrow="Review Manager"
+        title="Reviews & Ratings"
+        description="G2-style moderation, replies and analytics."
+      />
+      <SubNav
+        items={["Queue", "Latest", "Top", "Video", "Reported", "Replies"]}
+        active={tab}
+        onChange={setTab}
+      />
       <TableToolbar title="Reviews" />
       <BulkActionBar selectedCount={0} />
       <div className="grid gap-3">
@@ -370,13 +592,21 @@ export function ReviewsSectionStatic() {
                 <div>
                   <div className="flex items-center gap-2">
                     <div className="text-sm font-bold">Author Name</div>
-                    <div className="flex text-premium">{Array.from({ length: 5 }).map((_, s) => <Star key={s} className="h-3 w-3 fill-current" />)}</div>
+                    <div className="flex text-premium">
+                      {Array.from({ length: 5 }).map((_, s) => (
+                        <Star key={s} className="h-3 w-3 fill-current" />
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-muted-foreground">on Product Name · awaiting moderation</div>
-                  <p className="mt-2 text-sm text-muted-foreground">Review content appears here when live data is connected.</p>
+                  <div className="text-[11px] text-muted-foreground">
+                    on Product Name · awaiting moderation
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Review content appears here when live data is connected.
+                  </p>
                 </div>
               </div>
-              <RowActions ids={["view","approve","reject","archive","delete"]} />
+              <RowActions ids={["view", "approve", "reject", "archive", "delete"]} />
             </div>
           </Card>
         ))}
@@ -389,25 +619,40 @@ export function ReviewsSectionStatic() {
 export function FaqSectionStatic() {
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="FAQ Manager" title="Help Center" description="Notion-style FAQ blocks with categories and ordering." actions={<PillButton variant="primary">+ Question</PillButton>} />
+      <PageHeader
+        eyebrow="FAQ Manager"
+        title="Help Center"
+        description="Notion-style FAQ blocks with categories and ordering."
+        actions={<PillButton variant="primary">+ Question</PillButton>}
+      />
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
         <Card>
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Categories</div>
-          {["General","Pricing","Licensing","Delivery","Refunds","Support"].map((c, i) => (
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Categories
+          </div>
+          {["General", "Pricing", "Licensing", "Delivery", "Refunds", "Support"].map((c, i) => (
             <button
-        type="button"
-        onClick={() => notBuilt("—")} key={c} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm ${i === 0 ? "bg-surface text-foreground" : "text-muted-foreground hover:bg-surface/50"}`}>
-              <span>{c}</span><span className="text-xs">—</span>
+              type="button"
+              onClick={() => notBuilt("—")}
+              key={c}
+              className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm ${i === 0 ? "bg-surface text-foreground" : "text-muted-foreground hover:bg-surface/50"}`}
+            >
+              <span>{c}</span>
+              <span className="text-xs">—</span>
             </button>
           ))}
         </Card>
         <Card>
-          <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">General</div>
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            General
+          </div>
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="rounded-xl border border-border bg-background/40 p-4">
                 <div className="text-sm font-bold">Question title {i + 1}</div>
-                <p className="mt-1 text-xs text-muted-foreground">Answer body — connect to FAQ data source.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Answer body — connect to FAQ data source.
+                </p>
               </div>
             ))}
           </div>
@@ -419,27 +664,42 @@ export function FaqSectionStatic() {
 
 // ---------- CONTACT ----------
 export function ContactSection() {
+  // "hello@softwarevala.com" was printed here and appears nowhere the
+  // storefront shows. These are the channels the storefront footer actually
+  // prints (SiteFooter); a phone line and an address are not published there.
   const items = [
-    ["Email", Mail, "hello@softwarevala.com"],
-    ["Phone", Phone, "+91 —"],
-    ["WhatsApp", MessageCircle, "+91 —"],
+    ["Email", Mail, "hellosoftwarevala@gmail.com"],
+    ["Phone", Phone, "—"],
+    ["WhatsApp", MessageCircle, "+91 83488 38383"],
     ["Address", MapPin, "—"],
   ] as const;
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Contact Manager" title="Storefront contact" description="Channels surfaced in the footer and contact page." />
+      <PageHeader
+        eyebrow="Contact Manager"
+        title="Storefront contact"
+        description="Channels surfaced in the footer and contact page."
+      />
       <div className="grid gap-3 md:grid-cols-2">
         {items.map(([l, I, v]) => (
           <Card key={l}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/15 text-accent"><I className="h-5 w-5" /></div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/15 text-accent">
+                  <I className="h-5 w-5" />
+                </div>
                 <div>
                   <div className="text-xs uppercase tracking-wider text-muted-foreground">{l}</div>
                   <div className="text-sm font-bold">{v}</div>
                 </div>
               </div>
-              <PillButton variant="ghost">Edit</PillButton>
+              <PillButton
+                variant="ghost"
+                disabled
+                title="No table stores the storefront contact channels; they are written in the storefront footer itself."
+              >
+                Edit
+              </PillButton>
             </div>
           </Card>
         ))}
@@ -450,32 +710,57 @@ export function ContactSection() {
 
 // ---------- SEARCH ----------
 export function SearchSection() {
+  // "Result 1" to "Result 6" with "— clicks", and five trending queries that
+  // nothing measured. The box now runs the query against the catalogue.
+  const [query, setQuery] = useState("");
+  const results = useResource("products", { limit: 6, search: query.trim() || undefined });
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Search Manager" title="Storefront Search" description="Algolia-style search with synonyms, ranking and trending queries." />
+      <PageHeader
+        eyebrow="Search Manager"
+        title="Storefront Search"
+        description="Algolia-style search with synonyms, ranking and trending queries."
+      />
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="md:col-span-2">
           <div className="mb-3 flex items-center gap-2 rounded-lg border border-border bg-background/40 px-3 py-2">
             <SearchIcon className="h-4 w-4 text-muted-foreground" />
-            <input placeholder="Test a query…" className="flex-1 bg-transparent text-sm focus:outline-none" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Test a query…"
+              className="flex-1 bg-transparent text-sm focus:outline-none"
+            />
           </div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Top results</div>
-          <div className="mt-2 divide-y divide-border">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="flex items-center justify-between py-2">
-                <div className="text-sm">Result {i + 1}</div>
-                <div className="text-[11px] text-muted-foreground">— clicks</div>
-              </div>
-            ))}
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Top results
           </div>
+          {!query.trim() ? (
+            <EmptyHint text="Type a query to see what the catalogue returns." />
+          ) : results.loading ? (
+            <EmptyHint text="Searching…" />
+          ) : results.failed ? (
+            <EmptyHint text="The catalogue could not be searched." />
+          ) : results.rows.length === 0 ? (
+            <EmptyHint text="No product matches this query." />
+          ) : (
+            <div className="mt-2 divide-y divide-border">
+              {results.rows.map((r, i) => (
+                <div key={String(r.id ?? i)} className="flex items-center justify-between py-2">
+                  <div className="text-sm">{String(r.name ?? "Untitled")}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {String(r.industry_label ?? "")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
         <Card>
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Trending</div>
-          <div className="mt-2 space-y-2">
-            {["erp","crm","ai","pos","hospital"].map((q) => (
-              <div key={q} className="flex items-center justify-between rounded-lg bg-background/40 px-3 py-2 text-sm"><span>{q}</span><TrendingUp className="h-4 w-4 text-success" /></div>
-            ))}
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Trending
           </div>
+          <EmptyHint text="Trending is not measured. Storefront searches are recorded as events, but nothing ranks them yet." />
         </Card>
       </div>
     </div>
@@ -486,17 +771,31 @@ export function SearchSection() {
 export function AiSection() {
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="AI Recommendation Manager" title="Recommendation Engines" description="Netflix-style personalization across storefront surfaces." />
+      <PageHeader
+        eyebrow="AI Recommendation Manager"
+        title="Recommendation Engines"
+        description="Netflix-style personalization across storefront surfaces."
+      />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {["Recommended For You","AI Recommended","Recently Viewed","Continue Browsing","Save For Later","Personalized Collections"].map((t) => (
+        {[
+          "Recommended For You",
+          "AI Recommended",
+          "Recently Viewed",
+          "Continue Browsing",
+          "Save For Later",
+          "Personalized Collections",
+        ].map((t) => (
           <Card key={t}>
             <div className="mb-2 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-primary/20 to-accent/20 px-2 py-0.5 text-[10px] font-bold text-accent">
               <Sparkles className="h-3 w-3" /> AI
             </div>
             <h3 className="text-base font-bold">{t}</h3>
-            <p className="mt-1 text-xs text-muted-foreground">Toggle on PDP, cart and homepage. Tune signals: views, downloads, ratings.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Toggle on PDP, cart and homepage. Tune signals: views, downloads, ratings.
+            </p>
             <div className="mt-3 flex items-center justify-between">
-              <Switch on /><PillButton variant="ghost">Tune</PillButton>
+              <Switch label={t} />
+              <PillButton variant="ghost">Tune</PillButton>
             </div>
           </Card>
         ))}
@@ -514,17 +813,28 @@ export { TopBarManagerSection } from "./TopBarManagerSection";
 export { HomepageRowsSection } from "./HomepageRowsSection";
 export { CardManagerSection } from "./CardManagerSection";
 export {
-  ProductsSection, ProductContentSection, ProductMediaSection,
+  ProductsSection,
+  ProductContentSection,
+  ProductMediaSection,
   BlogSection,
   CustomersSection,
   AuthorsSection as AuthorsSectionStatic,
   VendorsSection as VendorsSectionStatic,
-  AffiliateSection, QrSection,
+  AffiliateSection,
+  QrSection,
   ResellersSection as ResellersSectionStatic,
   InfluencerSection as InfluencerSectionStatic,
-  SupportSection, MediaLibrarySection, AiProvidersSection, ApiSection,
-  ReportsSection, MarketingSection, AutomationSection, SecuritySection,
-  SystemSection, IntegrationsSection, ExtraSection,
+  SupportSection,
+  MediaLibrarySection,
+  AiProvidersSection,
+  ApiSection,
+  ReportsSection,
+  MarketingSection,
+  AutomationSection,
+  SecuritySection,
+  SystemSection,
+  IntegrationsSection,
+  ExtraSection,
 } from "./CatalogSections";
 export { DemoUrlManagerSection as DemoSection } from "./DemoUrlManager";
 
@@ -611,8 +921,12 @@ export { ProductUrlManager as ProductUrlSection } from "./ProductUrlManager";
 
 // Enterprise-grade commerce (License / Downloads / Pricing / Orders / Payments / Releases)
 export {
-  LicenseSection, DownloadsSection, PricingSection,
-  OrdersSection, PaymentsSection, ReleasesSection,
+  LicenseSection,
+  DownloadsSection,
+  PricingSection,
+  OrdersSection,
+  PaymentsSection,
+  ReleasesSection,
 } from "./EnterpriseCommerce";
 
 // Enterprise governance (Approval / Moderation / Demo domain / Sandbox / URLs /
@@ -623,12 +937,14 @@ export {
   ModerationSection as ModerationSectionStatic,
   DemoSandboxSection as DemoSandboxSectionStatic,
   DemoDomainSection as DemoDomainSectionStatic,
-  SeoAutomationSectionStatic, LeadsSectionStatic,
+  SeoAutomationSectionStatic,
+  LeadsSectionStatic,
   ProductUrlSection as ProductUrlSectionStatic,
   FaviconProtectionSection as FaviconProtectionSectionStatic,
   AiContentSection as AiContentSectionStatic,
   SecurityScanSectionStatic,
-  QualityCheckSection, ProductAnalyticsSectionStatic,
+  QualityCheckSection,
+  ProductAnalyticsSectionStatic,
   AuditLogSectionStatic,
 } from "./EnterpriseGovernance";
 
@@ -658,10 +974,14 @@ export {
 export { StickySection } from "./StorefrontChrome";
 
 export function StickySectionStatic() {
-  const items = ["AI Chat","Support Button","Request Demo","Floating Actions"];
+  const items = ["AI Chat", "Support Button", "Request Demo", "Floating Actions"];
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Sticky Element Manager" title="Floating Elements" description="Intercom/Crisp-style floating widgets." />
+      <PageHeader
+        eyebrow="Sticky Element Manager"
+        title="Floating Elements"
+        description="Intercom/Crisp-style floating widgets."
+      />
       <div className="grid gap-3 md:grid-cols-2">
         {items.map((t) => (
           <Card key={t}>
@@ -678,10 +998,16 @@ export function StickySectionStatic() {
 }
 
 // ---------- ANALYTICS ----------
+const NO_SERIES =
+  "No series is read for this chart yet. The events behind it are in the live table above.";
 export function AnalyticsSection() {
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Analytics" title="Marketplace Analytics" description="GA4 + Mixpanel + Power BI style cross-channel reporting." />
+      <PageHeader
+        eyebrow="Analytics"
+        title="Marketplace Analytics"
+        description="GA4 + Mixpanel + Power BI style cross-channel reporting."
+      />
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Homepage Traffic" value="—" />
         <StatCard label="Banner CTR" value="—" tone="success" />
@@ -689,10 +1015,24 @@ export function AnalyticsSection() {
         <StatCard label="Revenue Today" value="—" tone="premium" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card><h3 className="mb-3 text-base font-bold">Traffic by source</h3><FakeChart /></Card>
-        <Card><h3 className="mb-3 text-base font-bold">Revenue trend</h3><FakeChart /></Card>
-        <Card><h3 className="mb-3 text-base font-bold">Top categories</h3><FakeChart /></Card>
-        <Card><h3 className="mb-3 text-base font-bold">Conversion funnel</h3><FakeChart /></Card>
+        {/* Each of these drew FakeChart - bar heights from (i * 37) % 70.
+            No series is read for them, so they say so. */}
+        <Card>
+          <h3 className="mb-3 text-base font-bold">Traffic by source</h3>
+          <EmptyHint text={NO_SERIES} />
+        </Card>
+        <Card>
+          <h3 className="mb-3 text-base font-bold">Revenue trend</h3>
+          <EmptyHint text={NO_SERIES} />
+        </Card>
+        <Card>
+          <h3 className="mb-3 text-base font-bold">Top categories</h3>
+          <EmptyHint text={NO_SERIES} />
+        </Card>
+        <Card>
+          <h3 className="mb-3 text-base font-bold">Conversion funnel</h3>
+          <EmptyHint text={NO_SERIES} />
+        </Card>
       </div>
     </div>
   );
@@ -701,14 +1041,18 @@ export function AnalyticsSection() {
 // ---------- SETTINGS ----------
 export function SettingsSection() {
   const groups = [
-    ["Homepage Settings", ["Layout density","Header style","Footer columns","Wall defaults"]],
-    ["Display Settings", ["Dark mode","Glass cards","Banner autoplay","Animations"]],
-    ["Localization", ["Default language","Supported languages","Currency","RTL support"]],
-    ["Caching Rules", ["Edge cache TTL","Wall cache","Banner cache","Search cache"]],
+    ["Homepage Settings", ["Layout density", "Header style", "Footer columns", "Wall defaults"]],
+    ["Display Settings", ["Dark mode", "Glass cards", "Banner autoplay", "Animations"]],
+    ["Localization", ["Default language", "Supported languages", "Currency", "RTL support"]],
+    ["Caching Rules", ["Edge cache TTL", "Wall cache", "Banner cache", "Search cache"]],
   ] as const;
   return (
     <div className="px-4 py-8 md:px-8">
-      <PageHeader eyebrow="Settings" title="Module Settings" description="Shopify/Stripe-style settings for the Marketplace module." />
+      <PageHeader
+        eyebrow="Settings"
+        title="Module Settings"
+        description="Shopify/Stripe-style settings for the Marketplace module."
+      />
       <div className="grid gap-4 lg:grid-cols-2">
         {groups.map(([title, rows]) => (
           <Card key={title}>
@@ -717,7 +1061,7 @@ export function SettingsSection() {
               {rows.map((r) => (
                 <div key={r} className="flex items-center justify-between py-3">
                   <div className="text-sm">{r}</div>
-                  <Switch on />
+                  <Switch label={r} />
                 </div>
               ))}
             </div>
@@ -729,16 +1073,46 @@ export function SettingsSection() {
 }
 
 // ---------- shared atoms ----------
-function IconBtn({ icon }: { icon: ReactNode }) {
+// The shared atoms used to answer every press with a "not connected" toast,
+// which still looks like a control that might work. Without a handler they now
+// render disabled and say why on hover; given one, they act.
+const NO_HANDLER = "Nothing stores this setting yet, so it cannot be changed here.";
+
+export function IconBtn({
+  icon,
+  onClick,
+  title,
+  reason = "There is no action behind this button yet.",
+}: {
+  icon: ReactNode;
+  onClick?: () => void;
+  title?: string;
+  reason?: string;
+}) {
   return (
     <button
-        type="button"
-        onClick={() => notBuilt("Quick action")} className="rounded-lg border border-border bg-background/40 p-1.5 text-muted-foreground hover:text-foreground">
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      title={onClick ? title : reason}
+      aria-label={title}
+      className="rounded-lg border border-border bg-background/40 p-1.5 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+    >
       {icon}
     </button>
   );
 }
-function Switch({ on = false, label = "This switch" }: { on?: boolean; label?: string }) {
+function Switch({
+  on = false,
+  label = "This switch",
+  onChange,
+  reason = NO_HANDLER,
+}: {
+  on?: boolean;
+  label?: string;
+  onChange?: (next: boolean) => void;
+  reason?: string;
+}) {
   const v = on;
   return (
     <button
@@ -746,10 +1120,14 @@ function Switch({ on = false, label = "This switch" }: { on?: boolean; label?: s
       role="switch"
       aria-checked={v}
       aria-label={label}
-      onClick={() => notBuilt(label)}
-      className={`relative h-5 w-9 rounded-full transition-colors ${v ? "bg-gradient-to-r from-primary to-accent" : "bg-secondary"}`}
+      disabled={!onChange}
+      title={onChange ? undefined : reason}
+      onClick={() => onChange?.(!v)}
+      className={`relative h-5 w-9 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${v ? "bg-gradient-to-r from-primary to-accent" : "bg-secondary"}`}
     >
-      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-background shadow transition-transform ${v ? "translate-x-4" : "translate-x-0.5"}`} />
+      <span
+        className={`absolute top-0.5 h-4 w-4 rounded-full bg-background shadow transition-transform ${v ? "translate-x-4" : "translate-x-0.5"}`}
+      />
     </button>
   );
 }
@@ -761,7 +1139,8 @@ function Toggle({ label, on = false }: { label: string; on?: boolean }) {
     </div>
   );
 }
-function FakeChart() {
+/** Superseded: invented bar heights. Nothing renders it any more. */
+export function FakeChart() {
   return (
     <div className="flex h-40 items-end gap-1.5">
       {Array.from({ length: 24 }).map((_, i) => {
@@ -785,35 +1164,67 @@ function PreviewProductCard() {
         <div className="absolute inset-0 dot-matrix opacity-30" />
         {/* Top-left badges stack */}
         <div className="absolute left-2 top-2 flex flex-col gap-1">
-          <span className="rounded bg-premium px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-md">FEATURED</span>
-          <span className="rounded bg-destructive/90 px-2 py-0.5 text-[10px] font-bold text-white">-40%</span>
+          <span className="rounded bg-premium px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow-md">
+            FEATURED
+          </span>
+          <span className="rounded bg-destructive/90 px-2 py-0.5 text-[10px] font-bold text-white">
+            -40%
+          </span>
         </div>
         {/* Top-right badges */}
         <div className="absolute right-2 top-2 flex flex-col items-end gap-1">
-          <span className="rounded bg-accent px-2 py-0.5 text-[10px] font-bold text-accent-foreground">AI READY</span>
-          <span className="rounded bg-success/90 px-2 py-0.5 text-[10px] font-bold text-white">VERIFIED</span>
+          <span className="rounded bg-accent px-2 py-0.5 text-[10px] font-bold text-accent-foreground">
+            AI READY
+          </span>
+          <span className="rounded bg-success/90 px-2 py-0.5 text-[10px] font-bold text-white">
+            VERIFIED
+          </span>
         </div>
         {/* Hover quick actions */}
         <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
           <button
-        type="button"
-        onClick={() => previewOnly("Quick View")} title="Quick View" className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"><Eye className="h-4 w-4" /></button>
+            type="button"
+            onClick={() => previewOnly("Quick View")}
+            title="Quick View"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"
+          >
+            <Eye className="h-4 w-4" />
+          </button>
           <button
-        type="button"
-        onClick={() => previewOnly("Live Demo")} title="Live Demo" className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"><Sparkles className="h-4 w-4" /></button>
+            type="button"
+            onClick={() => previewOnly("Live Demo")}
+            title="Live Demo"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"
+          >
+            <Sparkles className="h-4 w-4" />
+          </button>
           <button
-        type="button"
-        onClick={() => previewOnly("Compare")} title="Compare" className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"><TrendingUp className="h-4 w-4" /></button>
+            type="button"
+            onClick={() => previewOnly("Compare")}
+            title="Compare"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-accent hover:text-accent-foreground"
+          >
+            <TrendingUp className="h-4 w-4" />
+          </button>
         </div>
         {/* Gallery dots */}
         <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1">
-          {[0,1,2,3,4].map((i) => (
-            <span key={i} className={`h-1 rounded-full transition-all ${i === 0 ? "w-4 bg-accent" : "w-1.5 bg-white/40"}`} />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <span
+              key={i}
+              className={`h-1 rounded-full transition-all ${i === 0 ? "w-4 bg-accent" : "w-1.5 bg-white/40"}`}
+            />
           ))}
         </div>
         {/* Platform strip */}
         <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-foreground backdrop-blur">
-          <span>Win</span><span className="opacity-40">·</span><span>Mac</span><span className="opacity-40">·</span><span>Linux</span><span className="opacity-40">·</span><span>Cloud</span>
+          <span>Win</span>
+          <span className="opacity-40">·</span>
+          <span>Mac</span>
+          <span className="opacity-40">·</span>
+          <span>Linux</span>
+          <span className="opacity-40">·</span>
+          <span>Cloud</span>
         </div>
       </div>
 
@@ -822,9 +1233,13 @@ function PreviewProductCard() {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="truncate text-sm font-bold">Vala ERP Pro</div>
-            <div className="truncate text-[11px] text-muted-foreground">by Software Vala · ERP · v4.2 · Updated 2d ago</div>
+            <div className="truncate text-[11px] text-muted-foreground">
+              by Software Vala · ERP · v4.2 · Updated 2d ago
+            </div>
           </div>
-          <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-success">Live</span>
+          <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-success">
+            Live
+          </span>
         </div>
 
         <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
@@ -840,28 +1255,54 @@ function PreviewProductCard() {
         <div className="mt-3 flex items-end justify-between">
           <div>
             <div className="text-[10px] text-muted-foreground line-through">₹24,999</div>
-            <div className="text-lg font-bold leading-none">₹14,999<span className="ml-1 text-[10px] font-normal text-muted-foreground">lifetime</span></div>
+            <div className="text-lg font-bold leading-none">
+              ₹14,999
+              <span className="ml-1 text-[10px] font-normal text-muted-foreground">lifetime</span>
+            </div>
           </div>
           <div className="flex items-center gap-1">
             <button
-        type="button"
-        onClick={() => previewOnly("Wishlist")} title="Wishlist" className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"><Heart className="h-3.5 w-3.5" /></button>
+              type="button"
+              onClick={() => previewOnly("Wishlist")}
+              title="Wishlist"
+              className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"
+            >
+              <Heart className="h-3.5 w-3.5" />
+            </button>
             <button
-        type="button"
-        onClick={() => previewOnly("Share")} title="Share" className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"><Share2 className="h-3.5 w-3.5" /></button>
+              type="button"
+              onClick={() => previewOnly("Share")}
+              title="Share"
+              className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+            </button>
             <button
-        type="button"
-        onClick={() => previewOnly("Add to Cart")} title="Add to Cart" className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"><ShoppingCart className="h-3.5 w-3.5" /></button>
+              type="button"
+              onClick={() => previewOnly("Add to Cart")}
+              title="Add to Cart"
+              className="rounded-md border border-border bg-background/60 p-1.5 hover:border-accent/50 hover:text-accent"
+            >
+              <ShoppingCart className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
         <div className="mt-3 flex gap-1.5">
           <button
-        type="button"
-        onClick={() => previewOnly("Buy Now")} className="flex-1 rounded-md bg-gradient-to-r from-primary to-accent px-2 py-2 text-[11px] font-bold text-primary-foreground shadow-[0_8px_20px_-8px_oklch(0.62_0.20_255/0.6)] hover:brightness-110">Buy Now</button>
+            type="button"
+            onClick={() => previewOnly("Buy Now")}
+            className="flex-1 rounded-md bg-gradient-to-r from-primary to-accent px-2 py-2 text-[11px] font-bold text-primary-foreground shadow-[0_8px_20px_-8px_oklch(0.62_0.20_255/0.6)] hover:brightness-110"
+          >
+            Buy Now
+          </button>
           <button
-        type="button"
-        onClick={() => previewOnly("Details")} className="rounded-md border border-border bg-background/60 px-2.5 py-2 text-[11px] font-bold hover:border-accent/50 hover:text-accent">Details</button>
+            type="button"
+            onClick={() => previewOnly("Details")}
+            className="rounded-md border border-border bg-background/60 px-2.5 py-2 text-[11px] font-bold hover:border-accent/50 hover:text-accent"
+          >
+            Details
+          </button>
         </div>
       </div>
     </div>
