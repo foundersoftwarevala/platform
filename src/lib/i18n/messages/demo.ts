@@ -4,6 +4,7 @@
  * (src/pages/product-demo-manager). English only.
  */
 export const DEMO_MESSAGES = {
+  "demo.creator.publish": "Investigate, verify and publish",
   // Re-process panel (demo-ops/OpsReprocessPanel)
   "demo.reprocess.title": [
     "Re-process",

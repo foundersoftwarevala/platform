@@ -1,3 +1,40 @@
+## Locked demo presentation workflow
+
+Every submitted URL follows the same pipeline: resolve its real product and
+category, use the configured OpenAI service, extract contacts from the complete
+SPA bundle, apply Software Vala favicon/contact presentation, verify, and publish
+only through `/demo/<product-slug>`. The original vendor URL is retained privately
+and is not modified. Demo cards lead their related marketplace rows.
+
+JavaScript evidence uses a real lexer so empty strings, long literals, comments
+and regular expressions cannot desynchronize contact extraction.
+
+AI findings are accepted only for verified contact and navigation evidence.
+Login/account records, form placeholders, SVG geometry/namespaces and API
+endpoints remain intact. JavaScript rewrites preserve those properties and
+proxy root-relative images/styles. Rewritten text assets are private/no-store,
+and script/style URLs carry a presentation version to avoid stale branding.
+
+Rendered tables, forms and record contact-information cards retain their data;
+only public contact areas are rewritten. The canonical database types include
+the existing VPS `user_xp` and `user_streaks` columns, nullability and defaults,
+avoiding deep type-instantiation failures on these real wildcard-read relations.
+
+
+The Add Demo submit action uses `POST /api/demo/process` with `action: "publish"`.
+It runs investigation and activation together; category mismatches and failed
+verification remain explicit errors, not automatic overrides. Bulk intake keeps
+its 500-row, duplicate-safe batches and review gates for unresolved mappings.
+
+## Demo intake and row order
+
+Live-demo cards precede other cards in each category and curated row. Existing
+relative order is preserved inside each group, including country order after
+demo cards. Ranking happens before pagination. Apply
+`20261004181500_catalog_demo_first.sql` before deploying the catalogue reader.
+Bulk intake accepts at most 500 addresses per batch: 12,000 addresses require
+24 batches. Preview with `register: false` does not persist a batch or a demo.
+
 # Production server — configuration of record
 
 Everything the production VPS runs that is not application code, kept here so

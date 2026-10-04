@@ -1,5 +1,6 @@
 import { SingleFlightCache } from "@/lib/server/single-flight-cache";
 import { CARD_FIELDS, toCard, type CatalogCard } from "./catalog-card";
+import { demoFirst } from "./demo-first";
 import { RAIL_COUNTRIES, RAIL_COUNTRY_BY_MARKER } from "./rail-countries";
 import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
 
@@ -67,12 +68,14 @@ const PUBLISHED = "&visible=eq.true&content_status=eq.published";
 const registryCache = new SingleFlightCache<RegistryRow[]>(30_000, 4);
 const configuredCache = new SingleFlightCache<Set<string>>(30_000, 4);
 const orderCache = new SingleFlightCache<string[]>(60_000, 500);
-// A Manager write empties all three, so what it saved is what the next
+const demoCache = new SingleFlightCache<Set<string>>(60_000, 1);
+// A Manager write empties these caches, so what it saved is what the next
 // visitor sees (catalogue-invalidation.ts).
 onCatalogueChange(() => {
   registryCache.clear();
   configuredCache.clear();
   orderCache.clear();
+  demoCache.clear();
 });
 
 class Unavailable extends Error {}
@@ -88,7 +91,8 @@ async function cachedOrNull<T>(
       if (value === null) throw new Unavailable();
       return value;
     });
-  } catch {
+  } catch (error) {
+    if (!(error instanceof Unavailable)) console.error("[catalogue] ordering read failed", error);
     return null;
   }
 }
@@ -110,8 +114,50 @@ async function configuredRows(): Promise<Set<string>> {
  * The product order a configured row renders in, from the resolver the manager
  * writes through. Null means "not configured, or unavailable".
  */
+async function activeDemoProducts(): Promise<Set<string> | null> {
+  return cachedOrNull(demoCache, "active", async () => {
+    const ids = new Set<string>();
+    for (let offset = 0; ; offset += 1000) {
+      const response = await fetch(
+        `${url()}/rest/v1/product_demo_urls?select=product_id,url&status=eq.active` +
+          `&product_id=not.is.null&order=id.asc&limit=1000&offset=${offset}`,
+        { headers: admin() },
+      );
+      if (response.status === 416) return ids;
+      if (!response.ok) throw new Error(`Active demo ordering read failed (${response.status}).`);
+      const rows = (await response.json()) as Row[];
+      for (const row of rows) {
+        if (typeof row.url === "string" && row.url.trim()) ids.add(String(row.product_id));
+      }
+      if (rows.length < 1000) return ids;
+    }
+  });
+}
+
+async function categoryOrder(categoryId: string): Promise<string[] | null> {
+  return cachedOrNull(orderCache, `category:${categoryId}`, async () => {
+    const demos = await activeDemoProducts();
+    if (!demos) return null;
+    const ids: string[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const response = await fetch(
+        `${url()}/rest/v1/marketplace_products?select=id${PUBLISHED}` +
+          `&category_id=eq.${encodeURIComponent(categoryId)}` +
+          `&order=sort_order.asc,name.asc,id.asc&limit=1000&offset=${offset}`,
+        { headers: admin() },
+      );
+      if (response.status === 416) break;
+      if (!response.ok) throw new Error(`Category ordering read failed (${response.status}).`);
+      const rows = (await response.json()) as Row[];
+      ids.push(...rows.map((row) => String(row.id)));
+      if (rows.length < 1000) break;
+    }
+    return demoFirst(ids, (id) => demos.has(id));
+  });
+}
+
 async function configuredOrder(key: string): Promise<string[] | null> {
-  return cachedOrNull(orderCache, key, async () => {
+  return cachedOrNull(orderCache, `row:${key}`, async () => {
     const response = await fetch(`${url()}/rest/v1/rpc/mm_row_products`, {
       method: "POST",
       headers: { ...admin(), "Content-Type": "application/json" },
@@ -124,7 +170,10 @@ async function configuredOrder(key: string): Promise<string[] | null> {
     };
     if (!data?.ok || !Array.isArray(data.products)) return null;
     // A product placed by hand and later unpublished is not shown.
-    return data.products.filter((x) => x.live !== false).map((x) => String(x.product_id));
+    const demos = await activeDemoProducts();
+    if (!demos) return null;
+    const ids = data.products.filter((x) => x.live !== false).map((x) => String(x.product_id));
+    return demoFirst(ids, (id) => demos.has(id));
   });
 }
 
@@ -160,12 +209,19 @@ async function rowRegistry(): Promise<RegistryRow[] | null> {
 /** Cards for the given product ids, in that order. */
 async function cardsById(ids: string[]): Promise<CatalogCard[] | null> {
   if (!ids.length) return [];
-  const response = await fetch(
-    `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}${PUBLISHED}&id=in.(${ids.join(",")})`,
-    { headers: admin() },
-  );
-  if (!response.ok) return null;
-  const rows = (await response.json()) as Row[];
+  const rows: Row[] = [];
+  for (let offset = 0; offset < ids.length; offset += 50) {
+    const batch = ids.slice(offset, offset + 50);
+    const response = await fetch(
+      `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}${PUBLISHED}&id=in.(${batch.join(",")})`,
+      { headers: admin() },
+    );
+    if (!response.ok) {
+      console.error("[catalogue] card batch read failed", response.status, batch.length);
+      return null;
+    }
+    rows.push(...((await response.json()) as Row[]));
+  }
   const index = new Map(rows.map((r) => [String(r.id), r]));
   return ids
     .map((id) => index.get(id))
@@ -173,29 +229,12 @@ async function cardsById(ids: string[]): Promise<CatalogCard[] | null> {
     .map(toCard);
 }
 
-/** A page of one category's products in catalogue order. */
+/** Rank the complete row before paging, so demos never hide on a later page. */
 async function categoryCards(categoryId: string, offset: number, limit: number) {
-  const response = await fetch(
-    `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}${PUBLISHED}` +
-      `&category_id=eq.${encodeURIComponent(categoryId)}` +
-      `&order=sort_order.asc,name.asc,id.asc&limit=${limit}&offset=${offset}`,
-    { headers: { ...admin(), Prefer: "count=exact" } },
-  );
-  // A page past the end is an empty page, not a failure. PostgREST answers it
-  // with 416 and the total ("*/131"); treated as an error it surfaced as
-  // "No such category" for a category that exists.
-  if (response.status === 416) {
-    return { cards: [], total: totalFromRange(response.headers.get("content-range")) ?? 0 };
-  }
-  if (!response.ok) return null;
-  const rows = (await response.json()) as Row[];
-  const range = response.headers.get("content-range") ?? "";
-  return { cards: rows.map(toCard), total: Number(range.split("/")[1]) || rows.length };
-}
-
-function totalFromRange(range: string | null): number | null {
-  const total = Number(String(range ?? "").split("/")[1]);
-  return Number.isFinite(total) ? total : null;
+  const order = await categoryOrder(categoryId);
+  if (!order) return null;
+  const cards = await cardsById(order.slice(offset, offset + limit));
+  return cards ? { cards, total: order.length } : null;
 }
 
 /**
@@ -382,22 +421,11 @@ export async function readCountryRow(
   const category = ((await categoryResponse.json()) as Row[])[0];
   if (!category) return null;
 
-  // The whole row, once. A category holds sixty to a hundred and twelve
-  // products today and the ceiling is the country list, so this is bounded by
-  // how many countries the platform targets rather than by the catalogue.
-  const ceiling = Math.max(limit, RAIL_COUNTRIES.length) + 40;
-  const response = await fetch(
-    `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}${PUBLISHED}` +
-      `&category_id=eq.${encodeURIComponent(String(category.id))}` +
-      `&order=sort_order.asc,name.asc,id.asc&limit=${ceiling}`,
-    { headers: { ...admin(), Prefer: "count=exact" } },
-  );
-  if (!response.ok) return null;
-  const rows = (await response.json()) as Row[];
-  const range = response.headers.get("content-range") ?? "";
-  const total = Number(range.split("/")[1]) || rows.length;
-
-  const cards = rows.map(toCard);
+  const order = await categoryOrder(String(category.id));
+  if (!order) return null;
+  const cards = await cardsById(order);
+  if (!cards) return null;
+  const total = order.length;
   const placed: CatalogCard[] = [];
   const unplaced: CatalogCard[] = [];
   const takenByCountry = new Map<string, CatalogCard>();
@@ -424,7 +452,7 @@ export async function readCountryRow(
 
   return {
     category: { name: String(category.name ?? ""), slug: String(category.slug ?? "") },
-    cards: [...placed, ...unplaced].slice(0, limit),
+    cards: demoFirst([...placed, ...unplaced], (card) => card.hasDemo).slice(0, limit),
     total,
     countries: placed.length,
     missing,

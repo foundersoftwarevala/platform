@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, ExternalLink, Loader2, Search, ShieldCheck, Sparkles, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  XCircle,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authHeaders } from "@/lib/auth/operator-fetch";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 /**
  * Demo Manager → Add Demo.
@@ -52,14 +61,23 @@ type DemoRow = {
   updated_at: string;
   marketplace_products?: { name: string; slug: string } | null;
 };
-type Product = { id: string; name: string; slug: string; marketplace_categories?: { name: string } | null };
+type Product = {
+  id: string;
+  name: string;
+  slug: string;
+  marketplace_categories?: { name: string } | null;
+};
 
 const ENDPOINT = "/api/demo/process";
 
 async function call<T>(init?: RequestInit, query = ""): Promise<T> {
   const response = await fetch(`${ENDPOINT}${query}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(await authHeaders()), ...(init?.headers ?? {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(await authHeaders()),
+      ...(init?.headers ?? {}),
+    },
   });
   const body = (await response.json().catch(() => ({}))) as T & { error?: string };
   if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
@@ -90,7 +108,15 @@ function List({ title, items, tone }: { title: string; items?: Finding[]; tone: 
   );
 }
 
-function DemoResult({ demo, onActivate, busy }: { demo: DemoRow; onActivate: () => void; busy: boolean }) {
+function DemoResult({
+  demo,
+  onActivate,
+  busy,
+}: {
+  demo: DemoRow;
+  onActivate: () => void;
+  busy: boolean;
+}) {
   const p = demo.processing ?? {};
   const slug = demo.marketplace_products?.slug;
   return (
@@ -102,7 +128,10 @@ function DemoResult({ demo, onActivate, busy }: { demo: DemoRow; onActivate: () 
             {demo.marketplace_products?.name} · <code>{demo.url}</code>
           </p>
         </div>
-        <Badge className={STATE_STYLE[demo.processing_status] ?? ""} data-processing-status={demo.processing_status}>
+        <Badge
+          className={STATE_STYLE[demo.processing_status] ?? ""}
+          data-processing-status={demo.processing_status}
+        >
           {demo.processing_status.toUpperCase()}
         </Badge>
       </div>
@@ -119,22 +148,43 @@ function DemoResult({ demo, onActivate, busy }: { demo: DemoRow; onActivate: () 
             <span className="text-muted-foreground">Category: </span>
             <strong data-detected-category>{p.identity.category_name ?? "—"}</strong>
             {p.identity.product_category_matches === false && (
-              <span className="text-amber-400"> (differs from the product's catalogue category, which is not changed)</span>
+              <span className="text-amber-400">
+                {" "}
+                (differs from the product's catalogue category, which is not changed)
+              </span>
             )}
           </p>
           <p className="md:col-span-2 text-muted-foreground">{p.identity.summary}</p>
-          <p className="md:col-span-2 text-xs text-muted-foreground">{p.identity.category_reason}</p>
+          <p className="md:col-span-2 text-xs text-muted-foreground">
+            {p.identity.category_reason}
+          </p>
         </div>
       )}
 
       {p.findings && (
         <div className="grid gap-4 md:grid-cols-2">
-          <List title="Developer contact removed" items={p.findings.contacts} tone="bg-red-500/15" />
-          <List title="Developer links removed" items={p.findings.developer_links} tone="bg-red-500/15" />
+          <List
+            title="Developer contact removed"
+            items={p.findings.contacts}
+            tone="bg-red-500/15"
+          />
+          <List
+            title="Developer links removed"
+            items={p.findings.developer_links}
+            tone="bg-red-500/15"
+          />
           <List title="Shown as Software Vala" items={p.findings.branding} tone="bg-sky-500/15" />
-          <List title="Logo replaced with Software Vala logo" items={p.findings.logos} tone="bg-sky-500/15" />
+          <List
+            title="Logo replaced with Software Vala logo"
+            items={p.findings.logos}
+            tone="bg-sky-500/15"
+          />
           <List title="Kept (application data)" items={p.findings.kept} tone="bg-emerald-500/15" />
-          <List title="Ignored (not verifiable in the demo)" items={p.findings.dropped} tone="bg-muted" />
+          <List
+            title="Ignored (not verifiable in the demo)"
+            items={p.findings.dropped}
+            tone="bg-muted"
+          />
           <p className="text-xs text-muted-foreground md:col-span-2">
             Favicon: {p.evidence?.favicons?.length ?? 0} → Software Vala favicon.
           </p>
@@ -145,8 +195,13 @@ function DemoResult({ demo, onActivate, busy }: { demo: DemoRow; onActivate: () 
         <ul className="space-y-1 text-xs" data-verification={p.verification.ok ? "pass" : "fail"}>
           {p.verification.checks.map((c) => (
             <li key={c.check} className="flex items-center gap-2">
-              {c.ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <XCircle className="h-3.5 w-3.5 text-red-400" />}
-              {c.check} {c.detail ? <span className="text-muted-foreground">— {c.detail}</span> : null}
+              {c.ok ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+              ) : (
+                <XCircle className="h-3.5 w-3.5 text-red-400" />
+              )}
+              {c.check}{" "}
+              {c.detail ? <span className="text-muted-foreground">— {c.detail}</span> : null}
             </li>
           ))}
         </ul>
@@ -155,14 +210,21 @@ function DemoResult({ demo, onActivate, busy }: { demo: DemoRow; onActivate: () 
       <div className="flex flex-wrap gap-2">
         {demo.processing_status === "review" && (
           <Button onClick={onActivate} disabled={busy} data-action="activate">
-            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+            {busy ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="mr-2 h-4 w-4" />
+            )}
             Verify and activate
           </Button>
         )}
         {demo.processing_status === "live" && slug && (
           <>
             <a href={`/demo/${slug}`} target="_blank" rel="noreferrer">
-              <Button variant="outline"><ExternalLink className="mr-2 h-4 w-4" />Open live demo</Button>
+              <Button variant="outline">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Open live demo
+              </Button>
             </a>
             <a href={`/marketplace/product/${slug}`} target="_blank" rel="noreferrer">
               <Button variant="outline">Marketplace product</Button>
@@ -175,6 +237,7 @@ function DemoResult({ demo, onActivate, busy }: { demo: DemoRow; onActivate: () 
 }
 
 const DemoCreator = () => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [product, setProduct] = useState<Product | null>(null);
@@ -223,29 +286,51 @@ const DemoCreator = () => {
       <div>
         <h1 className="text-2xl font-mono font-bold text-foreground">Add Demo</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Submit a demo address. It is investigated with the AI Manager, shown with Software Vala branding, and goes live only after it is verified.
+          Submit a demo address. It is investigated with the AI Manager, shown with Software Vala
+          branding, and goes live only after it is verified.
         </p>
       </div>
 
       <div className="glass-panel space-y-4 p-6">
         <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="demo-product">Product</label>
+          <label className="text-sm font-medium" htmlFor="demo-product">
+            Product
+          </label>
           {product ? (
             <div className="flex items-center gap-2 text-sm" data-selected-product={product.slug}>
               <strong>{product.name}</strong>
               <span className="text-muted-foreground">{product.marketplace_categories?.name}</span>
-              <Button variant="ghost" size="sm" onClick={() => setProduct(null)}>Change</Button>
+              <Button variant="ghost" size="sm" onClick={() => setProduct(null)}>
+                Change
+              </Button>
             </div>
           ) : (
             <div className="relative">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input id="demo-product" className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the catalogue by product name" />
+              <Input
+                id="demo-product"
+                className="pl-9"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search the catalogue by product name"
+              />
               {products.length > 0 && (
                 <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover text-sm shadow-lg">
                   {products.map((p) => (
                     <li key={p.id}>
-                      <button type="button" className="w-full px-3 py-2 text-left hover:bg-muted" data-product-option={p.slug} onClick={() => { setProduct(p); setProducts([]); }}>
-                        {p.name} <span className="text-muted-foreground">· {p.marketplace_categories?.name}</span>
+                      <button
+                        type="button"
+                        className="w-full px-3 py-2 text-left hover:bg-muted"
+                        data-product-option={p.slug}
+                        onClick={() => {
+                          setProduct(p);
+                          setProducts([]);
+                        }}
+                      >
+                        {p.name}{" "}
+                        <span className="text-muted-foreground">
+                          · {p.marketplace_categories?.name}
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -255,17 +340,35 @@ const DemoCreator = () => {
           )}
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="demo-url">Demo address</label>
-          <Input id="demo-url" type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" />
+          <label className="text-sm font-medium" htmlFor="demo-url">
+            Demo address
+          </label>
+          <Input
+            id="demo-url"
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://"
+          />
         </div>
-        {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+        {error && (
+          <p className="text-sm text-red-400" role="alert">
+            {error}
+          </p>
+        )}
         <Button
           data-action="investigate"
           disabled={!product || !url.trim() || busy !== null}
-          onClick={() => void act("investigate", { action: "investigate", productId: product?.id, url: url.trim() })}
+          onClick={() =>
+            void act("investigate", { action: "publish", productId: product?.id, url: url.trim() })
+          }
         >
-          {busy === "investigate" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-          Investigate with AI
+          {busy === "investigate" ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-2 h-4 w-4" />
+          )}
+          {t("demo.creator.publish")}
         </Button>
       </div>
 

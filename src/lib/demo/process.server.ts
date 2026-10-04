@@ -1,11 +1,14 @@
 import { aiComplete } from "@/lib/ai-gateway.server";
+import { catalogueChanged } from "@/lib/marketplace/catalogue-invalidation";
 import { parseStructured } from "@/lib/ai/content-provider";
 import {
   applyPresentation,
+  cleanBundle,
   evidenceCorpus,
   extractEvidence,
   hasBrandFavicon,
   remainingViolations,
+  remainingBundleViolations,
   type Evidence,
   type PresentationRules,
 } from "./presentation";
@@ -142,6 +145,10 @@ Decide:
 4. Which evidence is ORDINARY APPLICATION DATA that belongs to the software's working demo content and must stay:
    sample customers, sample patients, sample students, sample orders, demo records, the software's own feature text.
    When unsure whether a value is developer contact or application data, keep it and say why.
+   Public site-wide footer/header contact details and "Contact us" phone/email are vendor-facing
+   contacts to replace with Software Vala. Form placeholders, login accounts, student/patient
+   records and example users are application data to keep. Use the contact_contexts snippets to
+   distinguish the two; do not treat a login placeholder as the developer's email.
 
 Copy every value exactly as it appears in the evidence, character for character. Do not add values that are not in the evidence.
 
@@ -178,7 +185,7 @@ function findings(value: unknown): Finding[] {
     }));
 }
 
-function evidenceForPrompt(e: Evidence) {
+function evidenceForPrompt(e: Evidence, sources: string[]) {
   return {
     title: e.title,
     meta: e.meta,
@@ -189,6 +196,17 @@ function evidenceForPrompt(e: Evidence) {
     whatsapp: e.whatsapp,
     outside_links: e.externalLinks.slice(0, 30),
     credits: e.credits,
+    protected_application_values: e.protectedValues
+      .slice(0, 40)
+      .map((value) => value.slice(0, 160)),
+    contact_contexts: [...e.emails, ...e.phones, ...e.whatsapp].map((value) => {
+      const source = sources.find((text) => text.includes(value)) ?? "";
+      const at = source.indexOf(value);
+      return {
+        value,
+        context: at < 0 ? "" : source.slice(Math.max(0, at - 400), at + value.length + 400),
+      };
+    }),
     interface_strings: e.strings.slice(0, 200).map((s) => s.slice(0, 300)),
   };
 }
@@ -335,7 +353,7 @@ export async function investigateDemo(input: { productId: string; url: string; a
             demo_address: page.url,
             marketplace_product: product.name,
             categories: categories.map((c) => `${c.slug}: ${c.name}`),
-            evidence: evidenceForPrompt(evidence),
+            evidence: evidenceForPrompt(evidence, [page.body, ...bundles]),
           }),
         },
       ],
@@ -351,9 +369,27 @@ export async function investigateDemo(input: { productId: string; url: string; a
       dropped.push({ value: f.value, reason: "not found in the demo" });
       return false;
     };
-    const contacts = findings(answer.contacts_to_remove).filter(present);
+    const navigable = new Set(evidence.externalLinks.map((link) => link.href));
+    const contactValues = new Set([...evidence.emails, ...evidence.phones, ...evidence.whatsapp]);
+    const navigableFinding = (finding: Finding) => {
+      if (navigable.has(finding.value)) return true;
+      dropped.push({ value: finding.value, reason: "not a navigable external link" });
+      return false;
+    };
+    const contacts = findings(answer.contacts_to_remove)
+      .filter(present)
+      .filter((finding) => {
+        if (finding.kind === "link" || finding.kind === "whatsapp")
+          return navigableFinding(finding);
+        if (contactValues.has(finding.value)) return true;
+        dropped.push({
+          value: finding.value,
+          reason: "application/form/vector data, not a public contact",
+        });
+        return false;
+      });
     const branding = findings(answer.developer_branding).filter(present);
-    const devLinks = findings(answer.developer_links).filter(present);
+    const devLinks = findings(answer.developer_links).filter(present).filter(navigableFinding);
     const logos = findings(answer.logo_images).filter(
       (f) =>
         evidence.logos.includes(f.value) ||
@@ -435,9 +471,22 @@ export async function investigateDemo(input: { productId: string; url: string; a
     return row;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const previous = same?.processing;
+    const lastGoodProcessing =
+      same?.status === "active" &&
+      previous &&
+      typeof previous === "object" &&
+      !Array.isArray(previous)
+        ? previous
+        : {};
     row = await store.patch(`product_demo_urls?id=eq.${row.id}`, {
       processing_status: "failed",
-      processing: { failed_at: new Date().toISOString(), stage: "investigate", error: message },
+      processing: {
+        ...lastGoodProcessing,
+        failed_at: new Date().toISOString(),
+        stage: "investigate",
+        error: message,
+      },
       ...(same?.status === "active" ? {} : { status: "inactive" }),
     });
     await audit(String(row.id), "demo_url.investigate.failed", input.actor, { error: message });
@@ -523,15 +572,23 @@ export async function activateDemo(input: {
     );
   }
 
+  const rules = processing.rules;
   const checks: { check: string; ok: boolean; detail?: string }[] = [];
   let ok = false;
   try {
-    const { page } = await fetchDemo(String(row.url));
+    const { page, bundles } = await fetchDemo(String(row.url));
     checks.push({ check: "demo answers", ok: true, detail: `HTTP ${page.status}` });
-    const presented = applyPresentation(page.body, processing.rules, DEMO_BRAND);
+    const presented = applyPresentation(page.body, rules, DEMO_BRAND);
     const favicon = hasBrandFavicon(presented, DEMO_BRAND.favicon);
     checks.push({ check: "Software Vala favicon", ok: favicon });
-    const left = remainingViolations(presented, processing.rules);
+    const left = [
+      ...new Set([
+        ...remainingViolations(presented, rules),
+        ...bundles.flatMap((bundle) =>
+          remainingBundleViolations(cleanBundle(bundle, rules, DEMO_BRAND.name), rules),
+        ),
+      ]),
+    ];
     checks.push({
       check: "developer contact and branding removed",
       ok: left.length === 0,
@@ -584,7 +641,34 @@ export async function activateDemo(input: {
     last_result: "working",
   });
   await audit(String(row.id), "demo_url.activate", input.actor, { checks });
+  catalogueChanged();
   return updated;
+}
+
+export async function publishDemo(input: { productId: string; url: string; actor: Actor }) {
+  const investigated = await investigateDemo(input);
+  if (investigated.processing_status === "failed") {
+    const processing = investigated.processing;
+    const message =
+      processing &&
+      typeof processing === "object" &&
+      "error" in processing &&
+      typeof processing.error === "string"
+        ? processing.error
+        : "Demo investigation failed; publication was not attempted.";
+    throw new Error(message);
+  }
+  const demo = await activateDemo({ id: String(investigated.id), actor: input.actor });
+  if (demo.processing_status !== "live") {
+    throw new Error(
+      "Demo presentation verification failed. Its recorded checks must pass before publication.",
+    );
+  }
+  const [product] = await db().get<Row[]>(
+    `marketplace_products?select=slug&id=eq.${encodeURIComponent(input.productId)}&limit=1`,
+  );
+  if (!product?.slug) throw new Error("The published demo product could not be read.");
+  return { demo, demoUrl: `/demo/${String(product.slug)}` };
 }
 
 /** Demos the Demo Manager has processed or is processing, newest first. */

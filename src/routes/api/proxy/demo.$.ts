@@ -1,8 +1,15 @@
+import { createHash } from "node:crypto";
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { DEMO_COOKIE, ticketFromRequest } from "@/lib/demo/ticket";
 import { DEMO_BRAND } from "@/lib/demo/brand";
-import { applyPresentation, cleanText, type PresentationRules } from "@/lib/demo/presentation";
+import {
+  applyPresentation,
+  cleanBundle,
+  cleanText,
+  rewriteDemoAssetPaths,
+  type PresentationRules,
+} from "@/lib/demo/presentation";
 import { safeFetchResponse } from "@/lib/demo/safe-fetch.server";
 
 /**
@@ -160,7 +167,7 @@ async function fetchFromOriginalDomain(demoUrl: string, path: string): Promise<R
   }
 }
 
-function rewriteHtmlAssetUrls(html: string, slug: string, originalDomainOrigin: string): string {
+function rewriteHtmlAssetUrls(html: string, slug: string): string {
   // Rewrite asset URLs to route through our proxy
   // IMPORTANT: Only rewrite URLs that are NOT already proxied
 
@@ -181,6 +188,14 @@ function rewriteHtmlAssetUrls(html: string, slug: string, originalDomainOrigin: 
   );
 
   return rewritten;
+}
+
+function versionAssetUrls(html: string, version: string): string {
+  return html.replace(
+    /((?:src|href)\s*=\s*["'])(\/api\/proxy\/demo\/[^"']+\.(?:m?js|css)(?:\?[^"']*)?)(["'])/gi,
+    (_match, start: string, url: string, end: string) =>
+      `${start}${url}${url.includes("?") ? "&amp;" : "?"}sv=${version}${end}`,
+  );
 }
 
 export const Route = createFileRoute("/api/proxy/demo/$")({
@@ -257,7 +272,12 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
             console.log(`[demo-proxy] >>> HTML length: ${html.length}`);
 
             // Rewrite asset URLs to go through our proxy
-            html = rewriteHtmlAssetUrls(html, slug, new URL(originalDemoUrl).origin);
+            const presentationVersion = createHash("sha256")
+              .update(`syntax-aware-v1:${JSON.stringify(originalDemo.rules)}`)
+              .digest("hex")
+              .slice(0, 16);
+            html = rewriteHtmlAssetUrls(html, slug);
+            html = versionAssetUrls(html, presentationVersion);
 
             // The three replacements that used to sit here caught the phrase
             // "powered by lovable" and nothing else. applyPresentation now runs
@@ -333,12 +353,15 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
           // A single-page app carries its words, and the developer's contact
           // details, in its scripts and data files: clean those as well.
           if (originalDemo.rules && /javascript|json|css|text\//i.test(contentType)) {
-            const cleaned = cleanText(
-              new TextDecoder().decode(responseBuffer),
-              originalDemo.rules,
-              DEMO_BRAND.name,
-            );
-            responseBuffer = new TextEncoder().encode(cleaned).buffer as ArrayBuffer;
+            const text = new TextDecoder().decode(responseBuffer);
+            const prefix = `/api/proxy/demo/${slug}`;
+            const cleaned = /javascript/i.test(contentType)
+              ? cleanBundle(text, originalDemo.rules, DEMO_BRAND.name, prefix)
+              : cleanText(text, originalDemo.rules, DEMO_BRAND.name);
+            const presented = /css/i.test(contentType)
+              ? rewriteDemoAssetPaths(cleaned, prefix)
+              : cleaned;
+            responseBuffer = new TextEncoder().encode(presented).buffer as ArrayBuffer;
           }
           console.log(`[demo-proxy] >>> Buffer size: ${responseBuffer.byteLength}`);
 
@@ -361,6 +384,12 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
               responseHeaders.set(header, value);
             }
           });
+
+          if (originalDemo.rules && /javascript|json|css|text\//i.test(contentType)) {
+            responseHeaders.set("Cache-Control", "private, no-store");
+            responseHeaders.delete("etag");
+            responseHeaders.delete("last-modified");
+          }
 
           // Set correct content-length for uncompressed content
           responseHeaders.set("Content-Length", responseBuffer.byteLength.toString());

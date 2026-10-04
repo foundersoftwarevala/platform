@@ -6,6 +6,7 @@ import {
   intakeDemo,
   investigateDemo,
   listProcessedDemos,
+  publishDemo,
   searchProducts,
   type Actor,
 } from "@/lib/demo/process.server";
@@ -17,6 +18,7 @@ import { assertPublicUrl, UnsafeUrlError } from "@/lib/demo/safe-fetch.server";
  *   GET  ?products=<name>            products to attach a demo to
  *   GET                              demos processed so far
  *   POST {action:"intake", productId, url}      take the address in, do not scan
+ *   POST {action:"publish", productId, url}     investigate, verify and publish
  *   POST {action:"investigate", productId, url}
  *   POST {action:"activate", id}
  *
@@ -30,7 +32,9 @@ async function actorOf(request: Request): Promise<Actor> {
   const authorization = request.headers.get("authorization");
   if (!url || !key || !authorization) return { id: null, email: null };
   try {
-    const r = await fetch(`${url}/auth/v1/user`, { headers: { apikey: key, Authorization: authorization } });
+    const r = await fetch(`${url}/auth/v1/user`, {
+      headers: { apikey: key, Authorization: authorization },
+    });
     const user = (await r.json()) as { id?: string; email?: string };
     return { id: user.id ?? null, email: user.email ?? null };
   } catch {
@@ -70,12 +74,15 @@ export const Route = createFileRoute("/api/demo/process")({
         }
         const actor = await actorOf(request);
         try {
-          if (body.action === "investigate") {
+          if (body.action === "investigate" || body.action === "publish") {
             const productId = String(body.productId ?? "");
             if (!UUID.test(productId)) return refuse("Choose the product this demo belongs to.");
             const raw = String(body.url ?? "").trim();
             if (raw.length > 2048) return refuse("That address is too long.");
             const url = assertPublicUrl(raw).toString();
+            if (body.action === "publish") {
+              return Response.json(await publishDemo({ productId, url, actor }));
+            }
             return Response.json({ demo: await investigateDemo({ productId, url, actor }) });
           }
           // The same address checks as "investigate", and deliberately the

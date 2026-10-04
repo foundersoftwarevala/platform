@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyPresentation,
+  bundleStrings,
   cleanText,
+  cleanBundle,
+  remainingBundleViolations,
+  rewriteDemoAssetPaths,
   contactKey,
   extractEvidence,
   keyHash,
@@ -62,6 +66,19 @@ describe("demo evidence", () => {
 
 describe("Software Vala presentation", () => {
   const out = applyPresentation(PAGE, RULES, BRAND);
+  it("keeps actual table/form data even when it duplicates a public footer contact", () => {
+    const data =
+      '<table><tbody><tr><td>+91 98765 43210</td><td><a href="mailto:sales@acme-devs.example">sales@acme-devs.example</a></td></tr></tbody></table><input placeholder="sales@acme-devs.example">';
+    const presented = applyPresentation(PAGE.replace("</body>", `${data}</body>`), RULES, BRAND);
+    expect(presented).toContain(data);
+    expect(remainingViolations(presented, RULES)).toEqual([]);
+    expect(
+      extractEvidence(`<html><body>${data}</body></html>`, "https://example.com/").emails,
+    ).toEqual([]);
+    expect(
+      extractEvidence(`<html><body>${data}</body></html>`, "https://example.com/").phones,
+    ).toEqual([]);
+  });
 
   it("replaces every favicon with Software Vala's", () => {
     expect(hasBrandFavicon(out, BRAND.favicon)).toBe(true);
@@ -75,7 +92,11 @@ describe("Software Vala presentation", () => {
 
   it("removes developer contact details and links, keeps application data", () => {
     expect(remainingViolations(out, RULES)).toEqual([]);
-    expect(out).not.toContain("wa.me");
+    expect(out).not.toContain("https://wa.me/919876543210");
+    expect(out).toContain(
+      `<a href="https://wa.me/${SOFTWARE_VALA_CONTACT.phone.replace(/\D/g, "")}">`,
+    );
+    expect(out).toContain(`<a href="mailto:${SOFTWARE_VALA_CONTACT.email}">`);
     expect(out).not.toContain('acme-devs.example"');
     // The sample patient is the software's own data and stays.
     expect(out).toContain("jane.roe@patient.test");
@@ -213,5 +234,164 @@ describe("cleanText contact replacement", () => {
     expect(cleaned).toContain(SOFTWARE_VALA_CONTACT.phone);
     // A studio name still becomes ours rather than being replaced by a contact.
     expect(cleaned).toContain("Made by Software Vala");
+  });
+  describe("SPA bundle contact evidence", () => {
+    it("preserves real record identities, barcodes, licenses and displayed admin accounts", () => {
+      const bundle = `const user={phone:"9876543210",parentPhone:"9876543211",emergencyContact:"9876543212"};
+        const item={barcode:"8901725111113",licenseKey:"2345-3456-4567",backupKey:"5678-2345-3456"};
+        const credentials={usernames:["softwarevala@admin.com"],keys:["234534564567"]};
+        const vector={viewBox:"0 0 600 450"};
+        jsx("div",{children:[jsx("p",{children:"Admin User"}),jsx("p",{children:"admin@vtc.com"})]});
+        jsx("div",{children:[jsx("p",{children:"License Key"}),jsx("p",{children:"2345-3456-4567"})]});
+        const footer=[" info@nursinginstitute.edu"," +91 98765 43210"];`;
+      const evidence = extractEvidence("<html></html>", "https://health-prep-forge.lovable.app/", [
+        bundle,
+      ]);
+      expect(evidence.emails).toEqual(["info@nursinginstitute.edu"]);
+      expect(evidence.phones).toEqual(["+91 98765 43210"]);
+      const rules: PresentationRules = {
+        remove: [
+          "9876543210",
+          "9876543211",
+          "9876543212",
+          "8901725111113",
+          "2345-3456-4567",
+          "5678-2345-3456",
+          "softwarevala@admin.com",
+          "234534564567",
+          "0 0 600 450",
+          "admin@vtc.com",
+          "info@nursinginstitute.edu",
+          "+91 98765 43210",
+        ],
+        links: [],
+        logos: [],
+        rebrand: [],
+      };
+      const cleaned = cleanBundle(bundle, rules, BRAND.name);
+      expect(cleaned).toContain('barcode:"8901725111113"');
+      expect(cleaned).toContain('phone:"9876543210"');
+      expect(cleaned).toContain('usernames:["softwarevala@admin.com"]');
+      expect(cleaned).toContain('children:"admin@vtc.com"');
+      expect(cleaned).toContain('children:"2345-3456-4567"');
+      expect(remainingBundleViolations(cleaned, rules)).toEqual([]);
+    });
+
+    it("proxies real root-relative CSS images and literal assets without changing app routes", () => {
+      const prefix = "/api/proxy/demo/nursing-training-institute";
+      expect(rewriteDemoAssetPaths("url('/images/hero-bg.jpg')", prefix)).toBe(
+        `url('${prefix}/images/hero-bg.jpg')`,
+      );
+      expect(rewriteDemoAssetPaths("/images/hero-bg.jpg", prefix)).toBe(
+        `${prefix}/images/hero-bg.jpg`,
+      );
+      expect(rewriteDemoAssetPaths("/student", prefix)).toBe("/student");
+      expect(rewriteDemoAssetPaths("https://example.com/image.jpg", prefix)).toBe(
+        "https://example.com/image.jpg",
+      );
+      expect(rewriteDemoAssetPaths(`${prefix}/images/hero-bg.jpg`, prefix)).toBe(
+        `${prefix}/images/hero-bg.jpg`,
+      );
+      const rules: PresentationRules = { remove: [], links: [], logos: [], rebrand: [] };
+      const cleaned = cleanBundle(
+        `const style="url('/images/hero-bg.jpg')"; const route="/student";`,
+        rules,
+        BRAND.name,
+        prefix,
+      );
+      expect(cleaned).toContain(`${prefix}/images/hero-bg.jpg`);
+      expect(cleaned).toContain('route="/student"');
+    });
+
+    it("protects actual login, placeholder and vector properties while replacing footer literals", () => {
+      const bundle = `const login={email:"admin@nursing.edu"};
+        const form={placeholder:"+91 98765 43210"};
+        const vector={points:"12 6 12 12 16 14",xmlns:"http://www.w3.org/2000/svg"};
+        const api="https://project.supabase.co";
+        const link={href:"https://vendor.example/contact"};
+        const footer=[" info@nursinginstitute.edu"," +91 98765 43210"];`;
+      const evidence = extractEvidence("<html></html>", "https://health-prep-forge.lovable.app/", [
+        bundle,
+      ]);
+      expect(evidence.emails).toEqual(["info@nursinginstitute.edu"]);
+      expect(evidence.phones).toEqual(["+91 98765 43210"]);
+      expect(evidence.externalLinks.map((link) => link.href)).toEqual([
+        "https://vendor.example/contact",
+      ]);
+      const rules: PresentationRules = {
+        remove: [
+          "admin@nursing.edu",
+          "info@nursinginstitute.edu",
+          "+91 98765 43210",
+          "12 6 12 12 16 14",
+        ],
+        rebrand: [],
+        logos: [],
+        links: [
+          "http://www.w3.org/2000/svg",
+          "https://project.supabase.co",
+          "https://vendor.example/contact",
+        ],
+      };
+      const cleaned = cleanBundle(bundle, rules, BRAND.name);
+      expect(cleaned).toContain('email:"admin@nursing.edu"');
+      expect(cleaned).toContain('placeholder:"+91 98765 43210"');
+      expect(cleaned).toContain('points:"12 6 12 12 16 14"');
+      expect(cleaned).toContain('xmlns:"http://www.w3.org/2000/svg"');
+      expect(cleaned).toContain('"https://project.supabase.co"');
+      expect(cleaned).toContain(SOFTWARE_VALA_CONTACT.email);
+      expect(cleaned).toContain(` ${SOFTWARE_VALA_CONTACT.phone}`);
+      expect(remainingBundleViolations(cleaned, rules)).toEqual([]);
+    });
+
+    it("does not manufacture phone evidence by joining unrelated interface strings", () => {
+      const bundle = 'const a="office extension 12345"; const b="56789 reception desk";';
+      const evidence = extractEvidence("<html></html>", "https://health-prep-forge.lovable.app/", [
+        bundle,
+      ]);
+      expect(evidence.phones).toEqual([]);
+    });
+
+    it("lexes real footer literals after empty strings, long strings, comments and quote regexes", () => {
+      const bundle = `/* a developer's comment */
+        const quote = /["']/;
+        const empty = "";
+        const long = "${"x".repeat(400)}";
+        u.jsxs("div",{className:"space-y-2",children:[
+          u.jsxs("div",{className:"flex items-center gap-2 text-sm text-primary-foreground/60",children:[u.jsx(UU,{className:"h-4 w-4"})," +91 98765 43210"]}),
+          u.jsxs("div",{className:"flex items-center gap-2 text-sm text-primary-foreground/60",children:[u.jsx(GN,{className:"h-4 w-4"})," info@nursinginstitute.edu"]})
+        ]});`;
+      const evidence = extractEvidence("<html></html>", "https://health-prep-forge.lovable.app/", [
+        bundle,
+      ]);
+      expect(evidence.emails).toContain("info@nursinginstitute.edu");
+      expect(evidence.phones).toContain("+91 98765 43210");
+      expect(bundleStrings(bundle)).not.toContain("x".repeat(400));
+    });
+
+    it("reads footer contacts after the old library-string ceiling", () => {
+      const prefix = Array.from({ length: 2500 }, (_, index) =>
+        JSON.stringify(`Framework library message ${index}`),
+      ).join(";");
+      const bundle = `${prefix};["info@nursinginstitute.edu","+91 98765 43210","Contact Us"];`;
+      const evidence = extractEvidence(
+        "<html><body></body></html>",
+        "https://health-prep-forge.lovable.app/",
+        [bundle],
+      );
+      expect(evidence.emails).toContain("info@nursinginstitute.edu");
+      expect(evidence.phones).toContain("+91 98765 43210");
+      expect(bundleStrings(bundle).length).toBeLessThanOrEqual(600);
+    });
+
+    it("retains phone-only literals and contact links within the evidence budget", () => {
+      const strings = bundleStrings(
+        '["+91 98765 43210","tel:+919876543210","mailto:info@nursinginstitute.edu","https://vendor.example/contact"]',
+      );
+      expect(strings).toContain("+91 98765 43210");
+      expect(strings).toContain("tel:+919876543210");
+      expect(strings).toContain("mailto:info@nursinginstitute.edu");
+      expect(strings).toContain("https://vendor.example/contact");
+    });
   });
 });

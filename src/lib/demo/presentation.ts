@@ -1,3 +1,5 @@
+import { tokenizer, type Token } from "acorn";
+
 /**
  * The Software Vala presentation of a demo.
  *
@@ -35,6 +37,7 @@ export type Evidence = {
   externalLinks: { href: string; text: string }[];
   credits: string[];
   strings: string[];
+  protectedValues: string[];
 };
 
 export type PresentationRules = {
@@ -47,6 +50,24 @@ export type PresentationRules = {
   /** Link targets containing any of these are unlinked and their text dropped. */
   links: string[];
 };
+
+const PROTECTED_MARKUP =
+  /<(script|style|textarea|select|table)\b[^>]*>[\s\S]*?<\/\1\s*>|<input\b[^>]*>/gi;
+
+function publicMarkup(html: string): string {
+  return html.replace(PROTECTED_MARKUP, "");
+}
+
+function mapPublicMarkup(html: string, transform: (markup: string) => string): string {
+  const chunks: string[] = [];
+  let cursor = 0;
+  for (const match of html.matchAll(PROTECTED_MARKUP)) {
+    chunks.push(transform(html.slice(cursor, match.index)), match[0]);
+    cursor = match.index + match[0].length;
+  }
+  chunks.push(transform(html.slice(cursor)));
+  return chunks.join("");
+}
 
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)*\.[A-Z]{2,24}/gi;
 // A number worth a second look: at least 8 digits, allowing the usual separators.
@@ -184,27 +205,104 @@ function phonesIn(text: string): string[] {
  * String literals from a JavaScript bundle that read like interface text.
  * A single-page app ships its words in its bundle, not in its HTML.
  */
+function* bundleLiterals(js: string) {
+  let previous: Token | null = null;
+  let beforePrevious: Token | null = null;
+  const arrayFields: (string | null)[] = [];
+  let caption: { kind: "account" | "license" | "contact"; at: number } | null = null;
+  for (const token of tokenizer(js, { ecmaVersion: "latest" })) {
+    const property =
+      previous?.type.label === ":" && beforePrevious && "value" in beforePrevious
+        ? beforePrevious.value
+        : null;
+    beforePrevious = previous;
+    previous = token;
+    if (token.type.label === "[")
+      arrayFields.push(typeof property === "string" ? property : (arrayFields.at(-1) ?? null));
+    if (token.type.label === "]") arrayFields.pop();
+    if (token.type.label !== "string" && token.type.label !== "template") continue;
+    if (!("value" in token) || typeof token.value !== "string") continue;
+    const field = typeof property === "string" ? property : arrayFields.at(-1);
+    const protectedField =
+      typeof field === "string" &&
+      /^(?:placeholder|email|usernames?|login|points|d|viewBox|xmlns|defaultValue|value|password|barcode|licenseKey|backupKey|keys|emergencyContact|(?:parent|guardian|student|customer|employee|trainer|emergency|primary|alternate|contact)?(?:phone|mobile)(?:number)?)$/i.test(
+        field,
+      );
+    const protectedDisplay =
+      field === "children" &&
+      caption &&
+      token.start - caption.at < 300 &&
+      caption.kind !== "contact";
+    const protectedValue = Boolean(protectedField || protectedDisplay);
+    if (property === "children") {
+      const kind = /^(?:Admin User|Demo Login|Login Credentials|Demo Credentials)$/i.test(
+        token.value,
+      )
+        ? "account"
+        : /^(?:License Key|Backup Key)$/i.test(token.value)
+          ? "license"
+          : /^(?:Contact Us|Contact|Support)$/i.test(token.value)
+            ? "contact"
+            : null;
+      caption = kind ? { kind, at: token.end } : null;
+    }
+    const navigation =
+      property === "href" ||
+      /^(?:https?:)?\/\/(?:wa\.me|(?:api\.|web\.|chat\.)?whatsapp\.com)\//i.test(token.value);
+    yield {
+      token,
+      value: token.value,
+      protectedValue,
+      navigation,
+    };
+  }
+}
+
+function isProtectedLiteral(literal: {
+  value: string;
+  protectedValue: boolean;
+  navigation: boolean;
+}) {
+  return literal.protectedValue || (/^https?:\/\//i.test(literal.value) && !literal.navigation);
+}
+
 export function bundleStrings(js: string, limit = 600): string[] {
   const out: string[] = [];
-  const re = /(["'`])((?:(?!\1)[^\\\n]|\\.){3,160})\1/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(js)) && out.length < limit * 4) {
-    const s = m[2];
-    if (!/[a-z]{2,}\s+[a-z]{2,}/i.test(s) && !EMAIL.test(s) && !/wa\.me|whatsapp|\+\d/i.test(s)) {
-      EMAIL.lastIndex = 0;
-      continue;
-    }
+  const contacts: string[] = [];
+  for (const literal of bundleLiterals(js)) {
+    if (literal.protectedValue) continue;
+    const s = literal.value;
+    if (s.length < 3 || s.length > 160) continue;
+    const email = EMAIL.test(s);
     EMAIL.lastIndex = 0;
+    const contact =
+      email ||
+      /wa\.me|whatsapp|^(?:mailto|tel):|^https?:\/\//i.test(s) ||
+      phonesIn(s).some((phone) => phone === s.trim());
+    if (!contact && !/[a-z]{2,}\s+[a-z]{2,}/i.test(s)) continue;
     if (/[{};=<>]|function|return |\bvar |\bconst |\\u/.test(s)) continue;
-    out.push(s.trim());
+    if (contact && contacts.length < limit) contacts.push(s.trim());
+    else if (out.length < limit) out.push(s.trim());
   }
-  return unique(out).slice(0, limit);
+  return unique([...contacts, ...out]).slice(0, limit);
 }
 
 export function extractEvidence(html: string, pageUrl: string, bundles: string[] = []): Evidence {
   const origin = new URL(pageUrl);
   const text = visibleText(html);
+  const publicHtml = publicMarkup(html);
+  const contactText = visibleText(publicHtml);
   const strings = unique([...bundles.flatMap((b) => bundleStrings(b))]);
+  const literals = bundles.flatMap((bundle) => [...bundleLiterals(bundle)]);
+  const protectedValues = unique(
+    literals.filter(isProtectedLiteral).map((literal) => literal.value),
+  );
+  const navigationLinks = unique(
+    literals.filter((literal) => literal.navigation).map((literal) => literal.value),
+  );
+  const mailLinks = (publicHtml.match(/href\s*=\s*["']mailto:[^"']+["']/gi) ?? []).flatMap(
+    (link) => link.match(EMAIL) ?? [],
+  );
   const corpus = [text, ...strings].join("\n");
 
   const meta: Record<string, string> = {};
@@ -249,23 +347,27 @@ export function extractEvidence(html: string, pageUrl: string, bundles: string[]
   ).slice(0, 20);
 
   const emails = unique(
-    [...(html.match(EMAIL) ?? []), ...(corpus.match(EMAIL) ?? [])].filter(
+    [...mailLinks, ...([contactText, ...strings].join("\n").match(EMAIL) ?? [])].filter(
       (e) => !ASSET_EMAIL.test(e),
     ),
   ).slice(0, 40);
 
-  const telLinks = (html.match(/href\s*=\s*["']tel:([^"']+)["']/gi) ?? []).map((h) =>
+  const telLinks = (publicHtml.match(/href\s*=\s*["']tel:([^"']+)["']/gi) ?? []).map((h) =>
     h.replace(/^href\s*=\s*["']tel:/i, "").replace(/["']$/, ""),
   );
-  const phones = unique([...telLinks, ...phonesIn(corpus)]).slice(0, 40);
+  const phones = unique([
+    ...telLinks,
+    ...phonesIn(contactText),
+    ...strings.flatMap((value) => phonesIn(value)),
+  ]).slice(0, 40);
 
   const whatsapp = unique([
-    ...(html.match(WHATSAPP) ?? []),
+    ...(publicHtml.match(WHATSAPP) ?? []),
     ...(corpus.match(WHATSAPP) ?? []),
   ]).slice(0, 20);
 
   const externalLinks: { href: string; text: string }[] = [];
-  for (const m of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+  for (const m of publicHtml.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
     const href = attr(`<a ${m[1]}>`, "href");
     if (!href || !/^https?:\/\//i.test(href)) continue;
     try {
@@ -276,7 +378,7 @@ export function extractEvidence(html: string, pageUrl: string, bundles: string[]
     externalLinks.push({ href, text: visibleText(m[2]).slice(0, 80) });
     if (externalLinks.length >= 30) break;
   }
-  for (const s of strings) {
+  for (const s of navigationLinks) {
     const m = s.match(/^https?:\/\/[^\s"'<>]+$/i);
     if (m && externalLinks.length < 40) {
       try {
@@ -304,6 +406,7 @@ export function extractEvidence(html: string, pageUrl: string, bundles: string[]
     externalLinks,
     credits,
     strings: [text.slice(0, 3000), ...strings].filter(Boolean).slice(0, 300),
+    protectedValues,
   };
 }
 
@@ -351,28 +454,42 @@ export function applyPresentation(
     );
   }
 
-  // 3. Links to the developer (mail, phone, WhatsApp, their site) are removed.
+  // 3. Keep contact actions with our destination; remove developer backlinks.
   const linkNeedles = unique([...rules.links, ...rules.remove]).filter((n) => n.length >= 4);
   if (linkNeedles.length) {
-    out = out.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (whole, attrs: string) => {
-      const href = attr(`<a ${attrs}>`, "href") ?? "";
-      const hrefDigits = digits(href);
-      const hit = linkNeedles.some(
-        (n) => href.includes(n) || (digits(n).length >= 8 && hrefDigits.includes(digits(n))),
-      );
-      return hit ? "" : whole;
-    });
+    out = mapPublicMarkup(out, (markup) =>
+      markup.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (whole, attrs: string) => {
+        const href = attr(`<a ${attrs}>`, "href") ?? "";
+        const hrefDigits = digits(href);
+        const hit = linkNeedles.some(
+          (n) => href.includes(n) || (digits(n).length >= 8 && hrefDigits.includes(digits(n))),
+        );
+        if (!hit) return whole;
+        const replacement = contactReplacement(href);
+        return replacement ? whole.replace(href, escapeHtml(replacement)) : "";
+      }),
+    );
   }
 
   // 4. Contact details left in the text are removed; developer credits read
   //    "Software Vala". Longest first, so a number is not half-removed by a
   //    shorter one inside it.
-  out = cleanText(out, rules, brand.name);
+  out = mapPublicMarkup(out, (markup) => cleanText(markup, rules, brand.name));
 
   // 5. The same rules for what a single-page app draws after it loads.
   const script = `<script data-sv-presentation>${presentationScript(rules, brand)}</script>`;
   out = /<\/head>/i.test(out) ? out.replace(/<\/head>/i, `${script}</head>`) : out + script;
   return out;
+}
+
+function contactReplacement(value: string): string | null {
+  if (/^mailto:/i.test(value)) return `mailto:${SOFTWARE_VALA_CONTACT.email}`;
+  if (/^tel:/i.test(value)) return `tel:${SOFTWARE_VALA_CONTACT.phone.replace(/\s/g, "")}`;
+  if (/^https?:\/\/(?:wa\.me|(?:api\.|web\.)?whatsapp\.com)\//i.test(value)) {
+    return `https://wa.me/${SOFTWARE_VALA_CONTACT.phone.replace(/\D/g, "")}`;
+  }
+  if (value.includes("@")) return SOFTWARE_VALA_CONTACT.email;
+  return /^\+?[\d\s().-]{8,}$/.test(value) ? SOFTWARE_VALA_CONTACT.phone : null;
 }
 
 /**
@@ -394,11 +511,7 @@ export function cleanText(text: string, rules: PresentationRules, brandName: str
        * instead of reaching nobody. Anything else - a link, a studio name -
        * still goes, because there is nothing of ours to put in its place.
        */
-      const replacement = value.includes("@")
-        ? SOFTWARE_VALA_CONTACT.email
-        : /^\+?[\d\s().-]{8,}$/.test(value)
-          ? SOFTWARE_VALA_CONTACT.phone
-          : "";
+      const replacement = contactReplacement(value) ?? "";
       out = out.split(value).join(replacement);
     }
   }
@@ -406,6 +519,48 @@ export function cleanText(text: string, rules: PresentationRules, brandName: str
     if (value.length >= 3) out = out.split(value).join(brandName);
   }
   return out;
+}
+
+export function rewriteDemoAssetPaths(text: string, prefix: string): string {
+  const asset =
+    /^\/(?!\/|api\/proxy\/demo\/)[^\s"'<>?#]+\.(?:png|jpe?g|gif|webp|svg|ico|avif|woff2?|ttf|eot|mp4|webm|ogg|mp3|css|m?js)(?:[?#][^\s"'<>]*)?$/i;
+  const path = (value: string) => (asset.test(value) ? `${prefix}${value}` : value);
+  return path(text).replace(
+    /(\burl\(\s*["']?)(\/[^"'()]+)(["']?\s*\))/gi,
+    (_match, start: string, value: string, end: string) => `${start}${path(value)}${end}`,
+  );
+}
+
+export function cleanBundle(
+  js: string,
+  rules: PresentationRules,
+  brandName: string,
+  assetPrefix?: string,
+): string {
+  const chunks: string[] = [];
+  let cursor = 0;
+  for (const literal of bundleLiterals(js)) {
+    if (isProtectedLiteral(literal)) continue;
+    const presented = cleanText(literal.value, rules, brandName);
+    const cleaned = assetPrefix ? rewriteDemoAssetPaths(presented, assetPrefix) : presented;
+    if (cleaned === literal.value) continue;
+    chunks.push(js.slice(cursor, literal.token.start));
+    chunks.push(
+      literal.token.type.label === "string"
+        ? JSON.stringify(cleaned)
+        : cleanText(js.slice(literal.token.start, literal.token.end), rules, brandName),
+    );
+    cursor = literal.token.end;
+  }
+  chunks.push(js.slice(cursor));
+  return chunks.join("");
+}
+
+export function remainingBundleViolations(js: string, rules: PresentationRules): string[] {
+  const values = [...bundleLiterals(js)]
+    .filter((literal) => !isProtectedLiteral(literal))
+    .flatMap((literal) => remainingViolations(literal.value, rules));
+  return unique(values);
 }
 
 /**
@@ -453,22 +608,29 @@ export function presentationScript(
       .filter((k): k is string => Boolean(k))
       .map(keyHash),
   );
-  const payload = JSON.stringify({ h: hashes, b: rules.rebrand, l: rules.logos, brand }).replace(
-    /</g,
-    "\\u003c",
-  );
+  const payload = JSON.stringify({
+    h: hashes,
+    b: rules.rebrand,
+    l: rules.logos,
+    brand,
+    contact: SOFTWARE_VALA_CONTACT,
+  }).replace(/</g, "\\u003c");
   return `(function(){var R=${payload};var H={};if(new RegExp("^/api/proxy/demo/[^/]+(?:/.*)?$").test(window.location.pathname))window.history.replaceState(window.history.state,"","/");R.h.forEach(function(x){H[x]=1});
 function hash(k){var h=0x811c9dc5;for(var i=0;i<k.length;i++){h^=k.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h.toString(16);}
 function key(v){v=String(v||"").trim().toLowerCase().replace(/^(mailto|tel):/,"");var d=v.replace(/\\D/g,"");
 if(/wa\\.me|whatsapp/.test(v))return d.length>=8?"d:"+d:null;if(v.indexOf("@")>=0)return "e:"+v.split("?")[0];
 if(/^https?:\\/\\//.test(v)){try{return "h:"+new URL(v).hostname.replace(/^www\\./,"")}catch(e){return null}}return d.length>=8?"d:"+d:null;}
 function hit(v){var k=key(v);return !!(k&&H[hash(k)]);}
+function publicContact(el){if(!el||!el.closest||el.closest("table,[role=table],[role=grid],input,textarea,select,option,[contenteditable]"))return false;
+if(el.closest("footer,header,address"))return true;
+for(var p=el,i=0;p&&i<5;p=p.parentElement,i++){var hs=p.querySelectorAll(":scope > h1,:scope > h2,:scope > h3,:scope > h4,:scope > h5,:scope > h6");
+for(var j=0;j<hs.length;j++)if(/^(?:Contact Us|Get In Touch|Reach Us)$/i.test(hs[j].textContent.trim()))return true;}return false;}
 var EM=/[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\\.[A-Z0-9-]+)*\\.[A-Z]{2,24}/gi,PH=/(?:\\+|\\b00)?\\d[\\d\\s().-]{6,18}\\d/g;
 function fixText(node){var v=node.nodeValue,o=v;
-v=v.replace(EM,function(m){return hit(m)?"":m}).replace(PH,function(m){return hit(m)?"":m});
+if(publicContact(node.parentElement))v=v.replace(EM,function(m){return hit(m)?R.contact.email:m}).replace(PH,function(m){return hit(m)?R.contact.phone:m});
 R.b.slice().sort(function(a,b){return b.length-a.length}).forEach(function(n){if(n.length>=3&&v.indexOf(n)>=0)v=v.split(n).join(R.brand.name)});
 if(v!==o)node.nodeValue=v;}
-function fixEl(el){var badge=el.id==="lovable-badge"?el:(el.closest?el.closest("#lovable-badge"):null);if(badge){badge.remove();return;}if(el.tagName==="A"&&hit(el.getAttribute("href"))){el.remove();return;}
+function fixEl(el){var badge=el.id==="lovable-badge"?el:(el.closest?el.closest("#lovable-badge"):null);if(badge){badge.remove();return;}if(el.tagName==="A"&&hit(el.getAttribute("href"))){var href=el.getAttribute("href");if(/^(?:mailto|tel):|wa\\.me|whatsapp/i.test(href)&&!publicContact(el))return;if(/^mailto:/i.test(href))el.setAttribute("href","mailto:"+R.contact.email);else if(/^tel:/i.test(href))el.setAttribute("href","tel:"+R.contact.phone.replace(/\\s/g,""));else if(/wa\\.me|whatsapp/i.test(href))el.setAttribute("href","https://wa.me/"+R.contact.phone.replace(/\\D/g,""));else{el.remove();return;}}
 if(el.tagName==="IMG"){var s=el.getAttribute("src")||"";for(var j=0;j<R.l.length;j++){var l=R.l[j];if(l&&(s===l||s.slice(-l.length)===l||l.slice(-s.length)===s&&s.length>4)){el.setAttribute("src",R.brand.logo);break;}}}
 if(el.tagName==="LINK"&&/icon/i.test(el.getAttribute("rel")||"")&&el.getAttribute("href")!==R.brand.favicon)el.setAttribute("href",R.brand.favicon);}
 function walk(root){if(!root)return;if(root.nodeType===3){fixText(root);return;}if(root.nodeType!==1)return;fixEl(root);
@@ -486,10 +648,10 @@ if(document.readyState!=="loading")run();else document.addEventListener("DOMCont
  * needs the name to replace it).
  */
 export function remainingViolations(presented: string, rules: PresentationRules): string[] {
-  const body = presented.replace(/<script data-sv-presentation>[\s\S]*?<\/script>/i, "");
+  const body = publicMarkup(presented);
   const left: string[] = [];
   for (const value of unique([...rules.remove, ...rules.links])) {
-    if (value.length >= 4 && presented.includes(value)) left.push(value);
+    if (value.length >= 4 && body.includes(value)) left.push(value);
   }
   for (const value of rules.rebrand) {
     if (value.length >= 3 && body.includes(value)) left.push(value);

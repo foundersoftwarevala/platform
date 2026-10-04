@@ -3298,6 +3298,57 @@ export type Database = {
         }
         Relationships: []
       }
+      user_streaks: {
+        Row: {
+          current_streak: number;
+          last_active_date: string | null;
+          longest_streak: number;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          current_streak?: number;
+          last_active_date?: string | null;
+          longest_streak?: number;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          current_streak?: number;
+          last_active_date?: string | null;
+          longest_streak?: number;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      user_xp: {
+        Row: {
+          current_level: number;
+          current_rank: number;
+          role: string;
+          total_xp: number;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          current_level?: number;
+          current_rank?: number;
+          role: string;
+          total_xp?: number;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          current_level?: number;
+          current_rank?: number;
+          role?: string;
+          total_xp?: number;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       wallet_transactions: {
         Row: {
           amount: number
