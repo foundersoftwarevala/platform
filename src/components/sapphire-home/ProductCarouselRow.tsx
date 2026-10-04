@@ -130,6 +130,7 @@ export function ProductCarouselRow({
           }
         }}
         className={`sv-product-rail ${isReady ? "is-ready" : "is-loading"}`}
+        role="group"
         aria-label={`${title} products`}
         aria-busy={!isReady}
       >

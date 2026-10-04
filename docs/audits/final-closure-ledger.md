@@ -7,12 +7,12 @@ OWNER-DECISION · EXTERNAL-BLOCKER · NOT-AN-ISSUE.
 
 ## Refreshed state (2026-10-04)
 
-- Local `main` is `4994182`, one commit ahead of `origin/main` at `6091187`.
-  The worktree has 194 staged, unstaged, and untracked status entries; all were
-  preserved. No commit or push has been made for this release pass.
-- VPS source and production remain on `6091187`. The app was previously
-  verified online with nginx, PostgreSQL, and PostgREST active. Deployment of
-  the new canonical source and post-deploy verification are still pending.
+- Local `main` and `origin/main` are aligned at `8547c3541da500b58176823d90223095cb722efe`.
+  The only source changes in this release pass are the retired `/marketplace`
+  redirect, the product-rail accessibility role, and legal-sidebar contrast.
+- VPS source and the running production app remain on `8547c3541da500b58176823d90223095cb722efe`.
+  Production `/` returned HTTP 200 before the candidate changes; the route
+  redirect and accessibility fixes are not deployed yet.
 - Applied and postcondition-verified on VPS `sv_platform`: migrations
   `192000`, `233000`, `234000`, `238000`, `238100`, `239040`, `239050`,
   `239060`, and `239070`. Hosted Supabase received and verified `239050`,
@@ -26,12 +26,16 @@ OWNER-DECISION · EXTERNAL-BLOCKER · NOT-AN-ISSUE.
   remain in service.
 - Latest validation: 984 tests pass across 60 files; production build passes;
   full and production dependency audits report zero vulnerabilities;
-  `i18n:check` passes (3,175 keyed strings, 164 exempt, no new hardcoded
-  strings). Targeted SSRF ESLint passes. Full-repository ESLint still reports
-  repo-wide formatting/type-rule errors, and the CLI TypeScript checks did not
-  finish within the bounded run; VS Code workspace diagnostics report no
-  errors. Deployment, browser/accessibility/performance smoke, and the required
-  fresh post-deployment forensic scan remain pending.
+  `i18n:check` passes (3,202 keyed strings, 164 exempt, no new hardcoded
+  strings). The 45-row post-deployment scan completed against `8547c35`: all
+  built routes returned HTTP 200, with no page JavaScript errors or mobile
+  overflow; six configured entries were not built. It reported serious
+  accessibility issues (color contrast, prohibited ARIA attributes,
+  unlabeled progress bars, scrollable regions, and SVG alternatives), so
+  accessibility is not clean. Full-repository ESLint still reports repo-wide
+  formatting/type-rule errors; the CLI TypeScript check did not finish within
+  the bounded run. Changed-file checks, deployment of the candidate source,
+  and the post-candidate forensic scan remain pending.
 - One local branch, 13 tags (10 archive tags and 3 other preserved tags), no
   stashes, and one worktree.
 
@@ -50,8 +54,11 @@ OWNER-DECISION · EXTERNAL-BLOCKER · NOT-AN-ISSUE.
 | FC-09 | Safe Assist                  | Verification codes from `Math.random()`                                                                                                                                                                            | FIXED             | `crypto.getRandomValues` (the module is currently unreachable; see dead-code list).                                                                                                                                                                                                                                                                                                 |
 | FC-10 | SEO                          | IndexNow submission id from `Math.random()`                                                                                                                                                                        | FIXED             | `crypto.randomUUID()`.                                                                                                                                                                                                                                                                                                                                                              |
 | FC-11 | Dead code                    | Unreferenced root-level implementations `src/useNavigate.ts`, `use-toast.ts`, `useDataRetry.tsx`, `data-access.ts`, `src/GlobalNotificationHeader.tsx`, `src/api/apiService.ts` — no imports of these paths remain | FIXED             | Removed after confirming callers use the canonical hook/lib/component paths. These were not byte-identical to those implementations.                                                                                                                                                                                                                                                |
-| FC-12 | Demo health / SSRF           | The first server-side reachability checker resolved and screened a host, then used native `fetch`, which performs its own DNS lookup; a rebinding response could change the connected address after validation.    | FIXED             | `safe-fetch.server.ts` now performs proxy requests through guarded socket-time DNS lookup, bounded response handling, and guarded redirects. The demo checker reuses that transport. The private-DNS regression and focused ESLint pass; deploy is still pending.                                                                                                                    |
+| FC-12 | Demo health / SSRF           | The first server-side reachability checker resolved and screened a host, then used native `fetch`, which performs its own DNS lookup; a rebinding response could change the connected address after validation.    | FIXED             | `safe-fetch.server.ts` now performs proxy requests through guarded socket-time DNS lookup, bounded response handling, and guarded redirects. The demo checker reuses that transport. Private-DNS regression and focused ESLint passed; deployed in the canonical source at `8547c35`.                                                                                                                                              |
 | FC-13 | VPS SQL verification         | `scripts/ops/db.mjs` returned the status of `rm` after `psql`, masking database statement failures as success.                                                                                                     | FIXED             | Preserve and return `psql`'s exit status after deleting its remote scratch file. Verified that a deliberately missing relation now produces exit code 1.                                                                                                                                                                                                                            |
 | FC-14 | Franchise audit integrity    | `franchise_audit_logs` allowed any franchise staff account to insert rows with a caller-supplied actor/action, contrary to its server-only audit contract.                                                         | FIXED             | `20261107T239060_franchise_audit_server_only.sql` applied to hosted Supabase and VPS. Live checks confirm anon/authenticated insert denied and service-role insert allowed; staff reads remain available.                                                                                                                                                                             |
 | FC-15 | Public fetch resource limits | `safeFetch` capped compressed response bytes but decompressed gzip/Brotli/deflate bodies without a decoded-size limit, allowing a small response to expand into excessive memory use.                              | FIXED             | `safe-fetch.server.ts` passes the configured limit to each zlib decompressor's `maxOutputLength`; regression tests verify rejection above the cap and success below it.                                                                                                                                                                                                             |
 | FC-16 | Supabase Realtime            | Six active affiliate/Safe Assist subscriptions targeted tables absent from the hosted `supabase_realtime` publication, so updates were not delivered.                                                              | FIXED             | `20261107T239070_active_realtime_publication.sql` applied to hosted Supabase and VPS, adding only `activity_logs`, `marketplace_affiliate_partners`, `partner_commissions`, `partner_payouts`, `safe_assist_notifications`, and `safe_assist_sessions`. Both publications now contain all six active tables with RLS and authenticated SELECT policies.                    |
+| FC-17 | Retired marketplace landing  | The old `/marketplace` landing duplicated the live homepage at `/` and presented the obsolete design.                                                                                                               | FIXED-NOT-APPLIED | The route now issues a permanent redirect to `/`. Built-app smoke returned `/` 200 and `/marketplace` 301 to `/`; `/marketplace/` is normalized by the router (307) and then receives the permanent redirect. Candidate is not deployed.                                                                                                                                              |
+| FC-18 | Homepage accessibility       | Product-carousel labels were attached to generic `div` elements, which axe reports as prohibited ARIA attributes (56 instances on the homepage).                                                                   | FIXED-NOT-APPLIED | The carousel rail now declares `role="group"` for its accessible label and busy state. Candidate is not deployed; verify with axe after deployment.                                                                                                                                                                                                                                  |
+| FC-19 | Legal Manager accessibility  | The legal sidebar reduced navigation-label opacity to 80%, causing low-contrast text on the live manager theme.                                                                                                    | FIXED-NOT-APPLIED | Removed the opacity modifier from the inactive navigation-label color. Candidate is not deployed; verify the route's contrast findings after deployment.                                                                                                                                                                                                                           |
