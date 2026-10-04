@@ -19,7 +19,8 @@
  *   - an automated accessibility check (axe-core, loaded into the page)
  *   - and, signed in as someone without an operator role, is it refused
  *
- *   node scripts/ops/control-panel-scan.mjs [base] [--only=<route,route>] [--workers=3]
+ *   node scripts/ops/control-panel-scan.mjs [base] [--operator=ADMIN]
+ *     [--only=<route,route>] [--workers=3]
  *
  * Writes one line per module to $TEMP/control-panel-scan.jsonl; a run that
  * stops part-way resumes from there. Several modules are scanned at once, each
@@ -39,7 +40,17 @@ const ONLY = (process.argv.find((a) => a.startsWith("--only=")) ?? "")
   .slice(7)
   .split(",")
   .filter(Boolean);
-const OPERATOR = { email: ops.SV_LOGIN_CONTROL_PANEL, password: ops.SV_PW_CONTROL_PANEL };
+const OPERATOR_ACCOUNT =
+  process.argv.find((a) => a.startsWith("--operator="))?.slice("--operator=".length) ??
+  "CONTROL_PANEL";
+const OPERATOR = {
+  email: ops[`SV_LOGIN_${OPERATOR_ACCOUNT}`],
+  password:
+    ops[`SV_PW_${OPERATOR_ACCOUNT}`] ??
+    (OPERATOR_ACCOUNT === "CONTROL_PANEL"
+      ? ops.SV_PW_TEST ?? ops.SV_PW_CONTROL_PANEL
+      : undefined),
+};
 const OUTSIDER = {
   email: ops.SV_LOGIN_AUTHOR,
   password: ops.SV_PW_TEST ?? ops.SV_PW_CONTROL_PANEL,
