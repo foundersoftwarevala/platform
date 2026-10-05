@@ -32,6 +32,9 @@ SSR hydration manifests use the same proxied asset URLs as their HTML preload
 tags; application route IDs, employee accounts and credentials remain intact.
 Inline module entry imports also use the isolated proxy, including SSR pages
 that bootstrap with `import("/assets/main.js")` rather than a script `src`.
+Serialized bootstrap children replayed by SSR hydration are rewritten too.
+Native root-relative link clicks remain inside the same demo; handled SPA router
+clicks and external links retain their original behavior.
 Proxied service-worker registrations requesting root or sibling-demo scope are
 limited to their script directory. The gateway never grants root-origin worker
 control; original registration failures still surface. Offline behavior requires

@@ -260,6 +260,7 @@ function* bundleLiterals(js: string) {
     yield {
       token,
       value: token.value,
+      property,
       protectedValue,
       navigation,
     };
@@ -553,7 +554,23 @@ export function rewriteDemoHydrationAssets(html: string, prefix: string): string
         return whole;
       }
       if (type?.toLowerCase() !== "module" && !code.includes("$_TSR.router=")) return whole;
-      return `${start}${cleanBundle(code, rules, "", prefix)}${end}`;
+      let rewritten = cleanBundle(code, rules, "", prefix);
+      const replacements = [...bundleLiterals(rewritten)]
+        .filter(
+          (literal) =>
+            literal.property === "children" &&
+            !isProtectedLiteral(literal) &&
+            /^\s*import\s*\(\s*["'][^"']+["']\s*\)\s*;?\s*$/.test(literal.value),
+        )
+        .reverse();
+      for (const literal of replacements) {
+        const bootstrap = cleanBundle(literal.value, rules, "", prefix);
+        rewritten =
+          rewritten.slice(0, literal.token.start) +
+          JSON.stringify(bootstrap) +
+          rewritten.slice(literal.token.end);
+      }
+      return `${start}${rewritten}${end}`;
     },
   );
 }
@@ -663,6 +680,7 @@ export function presentationScript(
     contact: SOFTWARE_VALA_CONTACT,
   }).replace(/</g, "\\u003c");
   return `(function(){var R=${payload};var H={};var route=window.location.pathname.match(new RegExp("^/api/proxy/demo/[^/]+(/.*)?$"));if(route&&navigator.serviceWorker){var demoPrefix=route[0].split("/").slice(0,5).join("/")+"/";var register=navigator.serviceWorker.register.bind(navigator.serviceWorker);navigator.serviceWorker.register=function(url,options){var target=new URL(url,window.location.href);var scope=options&&options.scope?new URL(options.scope,window.location.href):new URL("./",target);if(target.origin===window.location.origin&&target.pathname.indexOf(demoPrefix)===0&&(scope.origin!==target.origin||scope.pathname.indexOf(demoPrefix)!==0)){options=Object.assign({},options,{scope:new URL("./",target).href});}return register(url,options);};}if(route)window.history.replaceState(window.history.state,"",(route[1]||"/")+window.location.search+window.location.hash);R.h.forEach(function(x){H[x]=1});
+if(route)document.addEventListener("click",function(event){if(event.defaultPrevented)return;var anchor=event.target.closest&&event.target.closest("a[href]");if(!anchor)return;var href=anchor.getAttribute("href");if(/^\\/(?!\\/|api\\/proxy\\/demo\\/)/.test(href)){var prefix=route[0].split("/").slice(0,5).join("/");anchor.setAttribute("href",prefix+href);}});
 function hash(k){var h=0x811c9dc5;for(var i=0;i<k.length;i++){h^=k.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h.toString(16);}
 function key(v){v=String(v||"").trim().toLowerCase().replace(/^(mailto|tel):/,"");var d=v.replace(/\\D/g,"");
 if(/wa\\.me|whatsapp/.test(v))return d.length>=8?"d:"+d:null;if(v.indexOf("@")>=0)return "e:"+v.split("?")[0];

@@ -2,6 +2,39 @@
 import { expect, it, vi } from "vitest";
 import { presentationScript, SOFTWARE_VALA_CONTACT } from "./presentation";
 
+it("proxies native root-relative links but leaves handled router clicks and external links alone", () => {
+  window.history.replaceState(null, "", "/api/proxy/demo/clinical-health-suite/");
+  window.eval(
+    presentationScript(
+      { remove: [], rebrand: [], logos: [], links: [] },
+      { name: "Software Vala", favicon: "/favicon.png", logo: "/assets/sv-logo.jpg" },
+    ),
+  );
+  for (const [href, handled, expected] of [
+    [
+      "/analytics?range=90#revenue",
+      false,
+      "/api/proxy/demo/clinical-health-suite/analytics?range=90#revenue",
+    ],
+    ["/patients", true, "/patients"],
+    ["https://example.test/report", false, "https://example.test/report"],
+    [
+      "/api/proxy/demo/clinical-health-suite/analytics",
+      false,
+      "/api/proxy/demo/clinical-health-suite/analytics",
+    ],
+  ] as const) {
+    const anchor = document.createElement("a");
+    anchor.setAttribute("href", href);
+    if (handled) anchor.addEventListener("click", (event) => event.preventDefault());
+    document.body.append(anchor);
+    window.addEventListener("click", (event) => event.preventDefault(), { once: true });
+    anchor.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(anchor.getAttribute("href")).toBe(expected);
+    anchor.remove();
+  }
+});
+
 it("keeps a proxied service worker inside its demo without allowing root or sibling scope", async () => {
   const register = vi.fn().mockResolvedValue({ scope: "registered" });
   Object.defineProperty(navigator, "serviceWorker", {

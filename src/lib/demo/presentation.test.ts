@@ -42,6 +42,17 @@ describe("template literal asset paths", () => {
 });
 
 describe("SSR hydration manifest assets", () => {
+  it("proxies serialized module bootstrap children that the router replays after hydration", () => {
+    const prefix = "/api/proxy/demo/clinical-health-suite";
+    const bootstrap = 'import("/assets/main.js")';
+    const code = `$_TSR.router={assets:[{tag:"script",attrs:{type:"module"},children:${JSON.stringify(bootstrap)}}],password:${JSON.stringify(bootstrap)},label:"/patients"};`;
+    const result = rewriteDemoHydrationAssets(`<script>${code}</script>`, prefix);
+    expect(result).toContain(`children:${JSON.stringify(`import("${prefix}/assets/main.js")`)}`);
+    expect(result).toContain(`password:${JSON.stringify(bootstrap)}`);
+    expect(result).toContain('label:"/patients"');
+    expect(rewriteDemoHydrationAssets(result, prefix)).toBe(result);
+  });
+
   it("proxies inline module entry imports without rewriting external scripts or data", () => {
     const prefix = "/api/proxy/demo/clinical-health-suite";
     const html =
