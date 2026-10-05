@@ -521,9 +521,8 @@ function contactReplacement(value: string): string | null {
  */
 export function cleanText(text: string, rules: PresentationRules, brandName: string): string {
   let out = text;
-  for (const value of unique([...rules.remove, ...rules.links]).sort(
-    (a, b) => b.length - a.length,
-  )) {
+  const contacts = unique([...rules.remove, ...rules.links]).sort((a, b) => b.length - a.length);
+  for (const [index, value] of contacts.entries()) {
     if (value.length >= 4) {
       /**
        * Replaced, not deleted. An e-mail address becomes ours and a phone
@@ -531,8 +530,16 @@ export function cleanText(text: string, rules: PresentationRules, brandName: str
        * instead of reaching nobody. Anything else - a link, a studio name -
        * still goes, because there is nothing of ours to put in its place.
        */
-      const replacement = contactReplacement(value) ?? "";
-      out = out.split(value).join(replacement);
+      const replacement = contactReplacement(value);
+      if (replacement) {
+        if (replacement === value) continue;
+        const marker = `\u0000sv-contact-${index}\u0000`;
+        out = out.split(replacement).join(marker);
+        out = out.split(value).join(replacement);
+        out = out.split(marker).join(replacement);
+      } else {
+        out = out.split(value).join("");
+      }
     }
   }
   for (const value of [...rules.rebrand].sort((a, b) => b.length - a.length)) {
@@ -718,7 +725,13 @@ if(document.readyState!=="loading")run();else document.addEventListener("DOMCont
  * needs the name to replace it).
  */
 export function remainingViolations(presented: string, rules: PresentationRules): string[] {
-  const body = publicMarkup(presented);
+  let body = publicMarkup(presented);
+  for (const value of unique([...rules.remove, ...rules.links])) {
+    const replacement = contactReplacement(value);
+    if (replacement && replacement !== value) {
+      body = body.split(replacement).join("");
+    }
+  }
   const left: string[] = [];
   for (const value of unique([...rules.remove, ...rules.links])) {
     if (value.length >= 4 && body.includes(value)) left.push(value);

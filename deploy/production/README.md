@@ -1,15 +1,6 @@
-### Shared demo access text
+### Demo access details
 
-`DEMO_ACCESS_DETAILS` is server-only JSON with `username`, `password`, `licenseKey`,
-and `backupKey` string fields. Keep it in the protected VPS environment, never in
-source, public catalog responses, build-time `VITE_*` variables, or logs.
-Only the existing signed-in, verified demo ticket response returns these values
-with private/no-store caching. The shared gateway applies to existing and future
-demos. The proxy reports visible one-click Super Admin controls without sending
-credentials into the iframe; the gateway hides fallback text on those screens.
-Rich role cards are recognized by their primary role label; disabled controls do not hide fallback text.
-These are owner-supplied demo credentials, not automatically provisioned accounts
-or a license bypass. A visible panel is not proof that an upstream accepts them.
+The public demo gateway does not display shared login, password, license, or backup values. It preserves each upstream product's access gate and does not supply credentials. Do not configure global credentials for the shared gateway; only source-specific instructions verified for that exact product may be shown.
 
 ## Locked demo presentation workflow
 

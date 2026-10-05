@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { issueDemoTicket } from "@/lib/demo/ticket";
-import { getDemoAccessDetails } from "@/lib/demo/access.server";
 
 /**
  * The door to a demo.
@@ -187,18 +186,10 @@ export const Route = createFileRoute("/api/demo/ticket")({
 
         await recordLead(visitor, { id: product.id, name: product.name, slug, category: null });
 
-        try {
-          return Response.json(
-            { ticket, demoId: demos[0].id, demoAccess: getDemoAccessDetails() },
-            { headers: { "Cache-Control": "private, no-store" } },
-          );
-        } catch (error) {
-          console.error(
-            "[demo ticket] invalid demo access configuration",
-            error instanceof Error ? error.name : "unknown",
-          );
-          return Response.json({ error: "Demo access details are unavailable." }, { status: 503 });
-        }
+        return Response.json(
+          { ticket, demoId: demos[0].id },
+          { headers: { "Cache-Control": "private, no-store" } },
+        );
       },
     },
   },

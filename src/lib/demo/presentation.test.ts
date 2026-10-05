@@ -242,6 +242,25 @@ describe("Software Vala presentation", () => {
     expect(out).toContain("Developed by Software Vala");
   });
 
+  it("accepts a branded WhatsApp replacement when the original link is only a base URL", () => {
+    const rules: PresentationRules = {
+      remove: [],
+      rebrand: [],
+      logos: [],
+      links: ["https://wa.me/"],
+    };
+    const presented = applyPresentation(
+      '<html><head></head><body><a href="https://wa.me/">WhatsApp</a></body></html>',
+      rules,
+      BRAND,
+    );
+
+    expect(presented).toContain(
+      `<a href="https://wa.me/${SOFTWARE_VALA_CONTACT.phone.replace(/\D/g, "")}">`,
+    );
+    expect(remainingViolations(presented, rules)).toEqual([]);
+  });
+
   it("installs the script that applies the same rules after a single-page app renders", () => {
     expect(out).toContain("<script data-sv-presentation>");
     expect(out).toContain('el.closest("#lovable-badge")');
@@ -272,6 +291,19 @@ describe("Software Vala presentation", () => {
     expect(cleanText(js, RULES, BRAND.name)).toBe(
       `var a={email:"${SOFTWARE_VALA_CONTACT.email}",by:"Software Vala",n:1};`,
     );
+  });
+
+  it("rewrites a base WhatsApp URL in a bundle without duplicating the new destination", () => {
+    const rules: PresentationRules = {
+      remove: [],
+      rebrand: [],
+      logos: [],
+      links: ["https://wa.me/"],
+    };
+    const cleaned = cleanBundle('const contact = "https://wa.me/";', rules, BRAND.name);
+
+    expect(cleaned).toContain(`"https://wa.me/${SOFTWARE_VALA_CONTACT.phone.replace(/\D/g, "")}"`);
+    expect(remainingBundleViolations(cleaned, rules)).toEqual([]);
   });
 
   it("keys contact details the same way however they are written", () => {

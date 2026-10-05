@@ -8,7 +8,6 @@ import { getPublicProduct, recordPublicDemoClick } from "@/lib/marketplace.funct
 import { useServerFn } from "@/lib/serverFn";
 import { AlertCircle, Loader, ArrowLeft, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { DemoAccessDetails } from "@/lib/demo/access";
 
 export const Route = createFileRoute("/demo/$slug")({
   head: pageHead("Live Demo", "A working demo of the product, running on real software."),
@@ -47,27 +46,8 @@ function DemoBrandedGatewayPage() {
   const [isSafeUrl, setIsSafeUrl] = useState(false);
   const [isEmbeddable, setIsEmbeddable] = useState(true);
   const [pass, setPass] = useState<string | null>(null);
-  const [demoAccess, setDemoAccess] = useState<DemoAccessDetails>();
-  const [oneClickSuperAdmin, setOneClickSuperAdmin] = useState(false);
   const demoFrame = useRef<HTMLIFrameElement>(null);
 
-  useEffect(() => {
-    const receive = (event: MessageEvent) => {
-      if (
-        event.source !== demoFrame.current?.contentWindow ||
-        event.origin !== "https://www.softwarevala.net"
-      )
-        return;
-      if (
-        event.data?.type === "sv-demo-login-options" &&
-        typeof event.data.oneClickSuperAdmin === "boolean"
-      ) {
-        setOneClickSuperAdmin(event.data.oneClickSuperAdmin);
-      }
-    };
-    window.addEventListener("message", receive);
-    return () => window.removeEventListener("message", receive);
-  }, []);
   const [gate, setGate] = useState<"checking" | "open" | "sign_in" | "verify" | "unavailable">(
     "checking",
   );
@@ -99,7 +79,6 @@ function DemoBrandedGatewayPage() {
         });
         const payload = (await response.json().catch(() => ({}))) as {
           ticket?: string;
-          demoAccess?: DemoAccessDetails;
           error?: string;
           reason?: string;
         };
@@ -107,7 +86,6 @@ function DemoBrandedGatewayPage() {
 
         if (response.ok && payload.ticket) {
           setPass(payload.ticket);
-          setDemoAccess(payload.demoAccess);
           setGate("open");
           return;
         }
@@ -406,32 +384,6 @@ function DemoBrandedGatewayPage() {
       </div>
 
       {/* Demo Container - Iframe with Software Vala Context */}
-      {demoAccess && !oneClickSuperAdmin && (
-        <details
-          open
-          className="shrink-0 border-b border-slate-700 bg-slate-900 px-6 py-3 text-sm text-slate-200"
-          data-demo-access
-        >
-          <summary className="cursor-pointer font-semibold">Super Admin Login (Demo only)</summary>
-          <dl className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              ["Username", demoAccess.username],
-              ["Password", demoAccess.password],
-              ["12-Digit License Key", demoAccess.licenseKey],
-              ["Backup Key", demoAccess.backupKey],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <dt className="text-xs text-slate-400">{label}</dt>
-                <dd className="select-all break-all font-mono">{value}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="mt-2 text-xs text-slate-400">
-            Use these only in the demo. Access works after the demo owner configures this account
-            and license.
-          </p>
-        </details>
-      )}
       <div className="flex-1 overflow-hidden">
         <iframe
           ref={demoFrame}
