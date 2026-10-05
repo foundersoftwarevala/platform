@@ -7,6 +7,7 @@ Only the existing signed-in, verified demo ticket response returns these values
 with private/no-store caching. The shared gateway applies to existing and future
 demos. The proxy reports visible one-click Super Admin controls without sending
 credentials into the iframe; the gateway hides fallback text on those screens.
+Rich role cards are recognized by their primary role label; disabled controls do not hide fallback text.
 These are owner-supplied demo credentials, not automatically provisioned accounts
 or a license bypass. A visible panel is not proof that an upstream accepts them.
 
