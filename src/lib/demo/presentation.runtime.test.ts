@@ -1,6 +1,45 @@
 // @vitest-environment jsdom
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { presentationScript, SOFTWARE_VALA_CONTACT } from "./presentation";
+
+it("keeps a proxied service worker inside its demo without allowing root or sibling scope", async () => {
+  const register = vi.fn().mockResolvedValue({ scope: "registered" });
+  Object.defineProperty(navigator, "serviceWorker", {
+    configurable: true,
+    value: { register },
+  });
+  try {
+    window.history.replaceState(null, "", "/api/proxy/demo/charity-donation-platform/");
+    window.eval(
+      presentationScript(
+        { remove: [], rebrand: [], logos: [], links: [] },
+        { name: "Software Vala", favicon: "/favicon.png", logo: "/assets/sv-logo.jpg" },
+      ),
+    );
+    const prefix = "/api/proxy/demo/charity-donation-platform/";
+    const script = `${prefix}sw.js`;
+    const options: RegistrationOptions = { scope: "/", type: "module" };
+    await navigator.serviceWorker.register(script, options);
+    expect(register).toHaveBeenLastCalledWith(script, {
+      scope: new URL(prefix, window.location.origin).href,
+      type: "module",
+    });
+    expect(options.scope).toBe("/");
+    await navigator.serviceWorker.register(script, { scope: "/api/proxy/demo/another/" });
+    expect(register).toHaveBeenLastCalledWith(script, {
+      scope: new URL(prefix, window.location.origin).href,
+    });
+    await navigator.serviceWorker.register(script, { scope: `${prefix}offline/` });
+    expect(register).toHaveBeenLastCalledWith(script, { scope: `${prefix}offline/` });
+    await navigator.serviceWorker.register(script);
+    expect(register).toHaveBeenLastCalledWith(script, undefined);
+    const failure = new Error("registration denied");
+    register.mockRejectedValueOnce(failure);
+    await expect(navigator.serviceWorker.register(script)).rejects.toBe(failure);
+  } finally {
+    Reflect.deleteProperty(navigator, "serviceWorker");
+  }
+});
 
 it("replaces late-rendered vendor contacts without deleting contact actions or application data", async () => {
   window.history.replaceState(

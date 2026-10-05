@@ -662,7 +662,7 @@ export function presentationScript(
     brand,
     contact: SOFTWARE_VALA_CONTACT,
   }).replace(/</g, "\\u003c");
-  return `(function(){var R=${payload};var H={};var route=window.location.pathname.match(new RegExp("^/api/proxy/demo/[^/]+(/.*)?$"));if(route)window.history.replaceState(window.history.state,"",(route[1]||"/")+window.location.search+window.location.hash);R.h.forEach(function(x){H[x]=1});
+  return `(function(){var R=${payload};var H={};var route=window.location.pathname.match(new RegExp("^/api/proxy/demo/[^/]+(/.*)?$"));if(route&&navigator.serviceWorker){var demoPrefix=route[0].split("/").slice(0,5).join("/")+"/";var register=navigator.serviceWorker.register.bind(navigator.serviceWorker);navigator.serviceWorker.register=function(url,options){var target=new URL(url,window.location.href);var scope=options&&options.scope?new URL(options.scope,window.location.href):new URL("./",target);if(target.origin===window.location.origin&&target.pathname.indexOf(demoPrefix)===0&&(scope.origin!==target.origin||scope.pathname.indexOf(demoPrefix)!==0)){options=Object.assign({},options,{scope:new URL("./",target).href});}return register(url,options);};}if(route)window.history.replaceState(window.history.state,"",(route[1]||"/")+window.location.search+window.location.hash);R.h.forEach(function(x){H[x]=1});
 function hash(k){var h=0x811c9dc5;for(var i=0;i<k.length;i++){h^=k.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h.toString(16);}
 function key(v){v=String(v||"").trim().toLowerCase().replace(/^(mailto|tel):/,"");var d=v.replace(/\\D/g,"");
 if(/wa\\.me|whatsapp/.test(v))return d.length>=8?"d:"+d:null;if(v.indexOf("@")>=0)return "e:"+v.split("?")[0];
