@@ -601,7 +601,9 @@ export function cleanBundle(
   let cursor = 0;
   for (const literal of bundleLiterals(js)) {
     if (isProtectedLiteral(literal)) continue;
-    const presented = cleanText(literal.value, rules, brandName);
+    const presented = rules.brandLabels?.includes(literal.value)
+      ? brandName
+      : cleanText(literal.value, rules, brandName);
     const cleaned = assetPrefix ? rewriteDemoAssetPaths(presented, assetPrefix) : presented;
     if (cleaned === literal.value) continue;
     chunks.push(js.slice(cursor, literal.token.start));

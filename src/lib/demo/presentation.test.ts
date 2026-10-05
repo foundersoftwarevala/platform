@@ -42,6 +42,25 @@ describe("template literal asset paths", () => {
 });
 
 describe("SSR hydration manifest assets", () => {
+  it("brands exact bundle labels without changing organization names or account fields", () => {
+    const rules: PresentationRules = {
+      remove: [],
+      rebrand: [],
+      logos: [],
+      links: [],
+      brandLabels: ["Loomcart"],
+    };
+    expect(
+      cleanBundle(
+        'const label="Loomcart";const organization="Loomcart Central";const credentials={password:"Loomcart",email:"user@loomcart.test"};',
+        rules,
+        BRAND.name,
+      ),
+    ).toBe(
+      'const label="Software Vala";const organization="Loomcart Central";const credentials={password:"Loomcart",email:"user@loomcart.test"};',
+    );
+  });
+
   it("proxies serialized module bootstrap children that the router replays after hydration", () => {
     const prefix = "/api/proxy/demo/clinical-health-suite";
     const bootstrap = 'import("/assets/main.js")';
