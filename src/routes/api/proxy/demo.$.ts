@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { DEMO_COOKIE, ticketFromRequest } from "@/lib/demo/ticket";
 import { DEMO_BRAND } from "@/lib/demo/brand";
+import { demoLoginMonitorScript } from "@/lib/demo/access-monitor";
 import {
   applyPresentation,
   cleanBundle,
@@ -309,6 +310,7 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
               `<title>Software Vala™ — ${demoName}</title>`,
             );
 
+            html = html.replace(/<\/body>/i, `${demoLoginMonitorScript()}</body>`);
             console.log(`[demo-proxy] >>> Returning HTML response`);
 
             const htmlHeaders = new Headers({

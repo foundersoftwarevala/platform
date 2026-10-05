@@ -1,3 +1,15 @@
+### Shared demo access text
+
+`DEMO_ACCESS_DETAILS` is server-only JSON with `username`, `password`, `licenseKey`,
+and `backupKey` string fields. Keep it in the protected VPS environment, never in
+source, public catalog responses, build-time `VITE_*` variables, or logs.
+Only the existing signed-in, verified demo ticket response returns these values
+with private/no-store caching. The shared gateway applies to existing and future
+demos. The proxy reports visible one-click Super Admin controls without sending
+credentials into the iframe; the gateway hides fallback text on those screens.
+These are owner-supplied demo credentials, not automatically provisioned accounts
+or a license bypass. A visible panel is not proof that an upstream accepts them.
+
 ## Locked demo presentation workflow
 
 Every submitted URL follows the same pipeline: resolve its real product and

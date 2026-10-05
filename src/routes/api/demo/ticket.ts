@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { issueDemoTicket } from "@/lib/demo/ticket";
+import { getDemoAccessDetails } from "@/lib/demo/access.server";
 
 /**
  * The door to a demo.
@@ -24,9 +25,7 @@ function admin() {
 
 function anonKey() {
   return (
-    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ??
-    process.env.SUPABASE_ANON_KEY?.trim() ??
-    ""
+    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? ""
   );
 }
 
@@ -162,7 +161,11 @@ export const Route = createFileRoute("/api/demo/ticket")({
           { headers: admin() },
         );
         const products = productResponse.ok
-          ? ((await productResponse.json()) as { id: string; name: string; category_id: string | null }[])
+          ? ((await productResponse.json()) as {
+              id: string;
+              name: string;
+              category_id: string | null;
+            }[])
           : [];
         const product = products[0];
         if (!product) return Response.json({ error: "No such product." }, { status: 404 });
@@ -184,7 +187,18 @@ export const Route = createFileRoute("/api/demo/ticket")({
 
         await recordLead(visitor, { id: product.id, name: product.name, slug, category: null });
 
-        return Response.json({ ticket, demoId: demos[0].id });
+        try {
+          return Response.json(
+            { ticket, demoId: demos[0].id, demoAccess: getDemoAccessDetails() },
+            { headers: { "Cache-Control": "private, no-store" } },
+          );
+        } catch (error) {
+          console.error(
+            "[demo ticket] invalid demo access configuration",
+            error instanceof Error ? error.name : "unknown",
+          );
+          return Response.json({ error: "Demo access details are unavailable." }, { status: 503 });
+        }
       },
     },
   },

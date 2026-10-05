@@ -8,6 +8,7 @@ import { getPublicProduct, recordPublicDemoClick } from "@/lib/marketplace.funct
 import { useServerFn } from "@/lib/serverFn";
 import { AlertCircle, Loader, ArrowLeft, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { DemoAccessDetails } from "@/lib/demo/access";
 
 export const Route = createFileRoute("/demo/$slug")({
   head: pageHead("Live Demo", "A working demo of the product, running on real software."),
@@ -23,15 +24,20 @@ export const Route = createFileRoute("/demo/$slug")({
 function DemoBrandedGatewayPage() {
   // Extract slug from URL - TanStack Router params seem to have issues
   const [slug, setSlug] = useState<string>("");
-  
+
   useEffect(() => {
     const pathname = window.location.pathname;
-    const match = pathname.match(/^\/demo\/([^\/]+)/);
+    const match = pathname.match(/^\/demo\/([^/]+)/);
     const extractedSlug = match?.[1] || "";
-    console.log('[demo-gateway] Extracted slug from URL:', extractedSlug, 'from pathname:', pathname);
+    console.log(
+      "[demo-gateway] Extracted slug from URL:",
+      extractedSlug,
+      "from pathname:",
+      pathname,
+    );
     setSlug(extractedSlug);
   }, []);
-  
+
   const getProductFn = useServerFn(getPublicProduct);
   const recordClickFn = useServerFn(recordPublicDemoClick);
   const clickRecorded = useRef(false);
@@ -41,6 +47,27 @@ function DemoBrandedGatewayPage() {
   const [isSafeUrl, setIsSafeUrl] = useState(false);
   const [isEmbeddable, setIsEmbeddable] = useState(true);
   const [pass, setPass] = useState<string | null>(null);
+  const [demoAccess, setDemoAccess] = useState<DemoAccessDetails>();
+  const [oneClickSuperAdmin, setOneClickSuperAdmin] = useState(false);
+  const demoFrame = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    const receive = (event: MessageEvent) => {
+      if (
+        event.source !== demoFrame.current?.contentWindow ||
+        event.origin !== "https://www.softwarevala.net"
+      )
+        return;
+      if (
+        event.data?.type === "sv-demo-login-options" &&
+        typeof event.data.oneClickSuperAdmin === "boolean"
+      ) {
+        setOneClickSuperAdmin(event.data.oneClickSuperAdmin);
+      }
+    };
+    window.addEventListener("message", receive);
+    return () => window.removeEventListener("message", receive);
+  }, []);
   const [gate, setGate] = useState<"checking" | "open" | "sign_in" | "verify" | "unavailable">(
     "checking",
   );
@@ -72,6 +99,7 @@ function DemoBrandedGatewayPage() {
         });
         const payload = (await response.json().catch(() => ({}))) as {
           ticket?: string;
+          demoAccess?: DemoAccessDetails;
           error?: string;
           reason?: string;
         };
@@ -79,6 +107,7 @@ function DemoBrandedGatewayPage() {
 
         if (response.ok && payload.ticket) {
           setPass(payload.ticket);
+          setDemoAccess(payload.demoAccess);
           setGate("open");
           return;
         }
@@ -105,7 +134,7 @@ function DemoBrandedGatewayPage() {
     queryFn: async () => {
       try {
         if (!slug) {
-          console.warn('[demo-gateway] Slug is undefined');
+          console.warn("[demo-gateway] Slug is undefined");
           return null;
         }
         const result = await getProductFn({ data: { slug } });
@@ -144,7 +173,7 @@ function DemoBrandedGatewayPage() {
   // Validate and resolve demo URL
   useEffect(() => {
     const resolve = async () => {
-      console.log('[demo-gateway] Resolving demo for slug:', slug);
+      console.log("[demo-gateway] Resolving demo for slug:", slug);
       if (!pass) return;
       if (!activeDemo) {
         setError(`No active demo found for product: ${slug}`);
@@ -153,28 +182,28 @@ function DemoBrandedGatewayPage() {
 
       const demoName = activeDemo.demo_name || productData?.product?.name || "Demo";
       setDemoName(demoName);
-      console.log('[demo-gateway] Demo name:', demoName);
+      console.log("[demo-gateway] Demo name:", demoName);
 
       // Use the API proxy endpoint with query parameters
       const proxyUrl = `/api/proxy/demo/${slug}?t=${encodeURIComponent(pass)}`;
-      console.log('[demo-gateway] Proxy URL:', proxyUrl);
-      console.log('[demo-gateway] Resolving proxy URL:', proxyUrl);
-      
+      console.log("[demo-gateway] Proxy URL:", proxyUrl);
+      console.log("[demo-gateway] Resolving proxy URL:", proxyUrl);
+
       const resolution = await resolveDemoUrl(slug, proxyUrl);
-      console.log('[demo-gateway] Resolution result:', resolution);
-      
+      console.log("[demo-gateway] Resolution result:", resolution);
+
       if (resolution.safe) {
         setDemoUrl(resolution.url);
         setIsSafeUrl(true);
         setIsEmbeddable(resolution.embeddable ?? true);
         setError(null);
-        console.log('[demo-gateway] Demo URL set successfully:', resolution.url);
+        console.log("[demo-gateway] Demo URL set successfully:", resolution.url);
       } else {
         setError(resolution.error || "Demo URL validation failed");
         setDemoUrl(null);
         setIsSafeUrl(false);
         setIsEmbeddable(false);
-        console.log('[demo-gateway] Demo URL validation failed:', resolution.error);
+        console.log("[demo-gateway] Demo URL validation failed:", resolution.error);
       }
     };
 
@@ -184,7 +213,7 @@ function DemoBrandedGatewayPage() {
   // Set page title and favicon
   useEffect(() => {
     document.title = BRANDING_CONFIG.title;
-    
+
     // Set favicon
     const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
     if (favicon) {
@@ -269,9 +298,14 @@ function DemoBrandedGatewayPage() {
               </p>
             </div>
             <div className="space-y-2 text-xs text-slate-500">
-              <p>Product: <code className="bg-slate-800 px-2 py-1 rounded">{slug}</code></p>
+              <p>
+                Product: <code className="bg-slate-800 px-2 py-1 rounded">{slug}</code>
+              </p>
               {demoUrl && (
-                <p>Intended URL: <code className="bg-slate-800 px-2 py-1 rounded block break-all">{demoUrl}</code></p>
+                <p>
+                  Intended URL:{" "}
+                  <code className="bg-slate-800 px-2 py-1 rounded block break-all">{demoUrl}</code>
+                </p>
               )}
             </div>
             <a
@@ -291,11 +325,7 @@ function DemoBrandedGatewayPage() {
     return (
       <div className="flex h-screen flex-col bg-slate-950">
         <div className="flex h-16 items-center gap-3 border-b border-slate-700 bg-linear-to-r from-slate-900 to-slate-800 px-6 shadow-lg">
-          <img
-            src={BRANDING_CONFIG.favicon}
-            alt="Software Vala™"
-            className="h-7 w-7"
-          />
+          <img src={BRANDING_CONFIG.favicon} alt="Software Vala™" className="h-7 w-7" />
           <div className="flex items-center gap-2 flex-1">
             <span className="text-sm font-semibold text-white">Software Vala™</span>
             <span className="text-xs text-slate-500">Demo</span>
@@ -317,10 +347,14 @@ function DemoBrandedGatewayPage() {
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300">
               <img src={BRANDING_CONFIG.favicon} alt="Software Vala™" className="h-10 w-10" />
             </div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300">External Demo</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300">
+              External Demo
+            </p>
             <h1 className="text-3xl font-bold text-white">{demoName}</h1>
             <p className="mt-4 text-sm text-slate-300">
-              This demo is hosted by an external provider that does not allow in-page embedding. Open it in a new tab to continue with the full experience while keeping the Software Vala branded flow.
+              This demo is hosted by an external provider that does not allow in-page embedding.
+              Open it in a new tab to continue with the full experience while keeping the Software
+              Vala branded flow.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
               <a
@@ -354,11 +388,7 @@ function DemoBrandedGatewayPage() {
     <div className="flex h-screen flex-col bg-slate-950">
       {/* Software Vala Branded Header */}
       <div className="flex h-16 items-center gap-3 border-b border-slate-700 bg-linear-to-r from-slate-900 to-slate-800 px-6 shadow-lg">
-        <img
-          src={BRANDING_CONFIG.favicon}
-          alt="Software Vala™"
-          className="h-7 w-7"
-        />
+        <img src={BRANDING_CONFIG.favicon} alt="Software Vala™" className="h-7 w-7" />
         <div className="flex items-center gap-2 flex-1">
           <span className="text-sm font-semibold text-white">Software Vala™</span>
           <span className="text-xs text-slate-500">Demo</span>
@@ -376,8 +406,35 @@ function DemoBrandedGatewayPage() {
       </div>
 
       {/* Demo Container - Iframe with Software Vala Context */}
+      {demoAccess && !oneClickSuperAdmin && (
+        <details
+          open
+          className="shrink-0 border-b border-slate-700 bg-slate-900 px-6 py-3 text-sm text-slate-200"
+          data-demo-access
+        >
+          <summary className="cursor-pointer font-semibold">Super Admin Login (Demo only)</summary>
+          <dl className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["Username", demoAccess.username],
+              ["Password", demoAccess.password],
+              ["12-Digit License Key", demoAccess.licenseKey],
+              ["Backup Key", demoAccess.backupKey],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-xs text-slate-400">{label}</dt>
+                <dd className="select-all break-all font-mono">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-2 text-xs text-slate-400">
+            Use these only in the demo. Access works after the demo owner configures this account
+            and license.
+          </p>
+        </details>
+      )}
       <div className="flex-1 overflow-hidden">
         <iframe
+          ref={demoFrame}
           key={demoUrl}
           src={demoUrl}
           title={`Software Vala™ — ${demoName}`}
