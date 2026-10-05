@@ -42,6 +42,27 @@ describe("template literal asset paths", () => {
 });
 
 describe("SSR hydration manifest assets", () => {
+  it("proxies inline module entry imports without rewriting external scripts or data", () => {
+    const prefix = "/api/proxy/demo/clinical-health-suite";
+    const html =
+      '<script type="module">import("/assets/main-BYNDnh8n.js")</script>' +
+      '<script type="MODULE">import app from "/assets/app.js";import("https://vendor.test/app.js");const route="/patients";</script>' +
+      '<script type="module" src="/assets/external.js"></script>' +
+      '<script type="application/json">{"entry":"/assets/data.js"}</script>' +
+      '<script>const untouched="/assets/ordinary.js";</script>';
+    const result = rewriteDemoHydrationAssets(html, prefix);
+    expect(result).toContain(`import("${prefix}/assets/main-BYNDnh8n.js")`);
+    expect(result).toContain(`import app from "${prefix}/assets/app.js"`);
+    expect(result).toContain('import("https://vendor.test/app.js")');
+    expect(result).toContain('const route="/patients"');
+    expect(result).toContain('<script type="module" src="/assets/external.js"></script>');
+    expect(result).toContain(
+      '<script type="application/json">{"entry":"/assets/data.js"}</script>',
+    );
+    expect(result).toContain('<script>const untouched="/assets/ordinary.js";</script>');
+    expect(rewriteDemoHydrationAssets(result, prefix)).toBe(result);
+  });
+
   it("proxies hydration preloads without changing route IDs or account values", () => {
     const code =
       '$_TSR.router={preloads:["/assets/login.js"],scripts:[{attrs:{src:"/assets/index.js"}}],matches:[{id:"/login"}],email:"gm.mumbai@nexora.io",password:"nexora-demo"};';

@@ -30,6 +30,8 @@ card replacement even with nested page headings. Other routes, forms and
 record cards remain excluded.
 SSR hydration manifests use the same proxied asset URLs as their HTML preload
 tags; application route IDs, employee accounts and credentials remain intact.
+Inline module entry imports also use the isolated proxy, including SSR pages
+that bootstrap with `import("/assets/main.js")` rather than a script `src`.
 Direct proxied application routes retain their original pathname, query and
 fragment when removing the proxy prefix, including employee login deep links.
 Official demo contact replacements use the owner's support email

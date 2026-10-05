@@ -552,7 +552,7 @@ export function rewriteDemoHydrationAssets(html: string, prefix: string): string
       ) {
         return whole;
       }
-      if (!code.includes("$_TSR.router=")) return whole;
+      if (type?.toLowerCase() !== "module" && !code.includes("$_TSR.router=")) return whole;
       return `${start}${cleanBundle(code, rules, "", prefix)}${end}`;
     },
   );
