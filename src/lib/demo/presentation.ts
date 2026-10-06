@@ -61,6 +61,12 @@ export type PresentationRules = {
   links: string[];
 };
 
+export function activeDemoRules(
+  processing: { rules?: PresentationRules } | null | undefined,
+): PresentationRules {
+  return processing?.rules ?? { remove: [], rebrand: [], logos: [], links: [] };
+}
+
 /** Re-investigation must not discard previously browser-verified chrome rules. */
 export function retainVerifiedScopes(
   rules: PresentationRules,

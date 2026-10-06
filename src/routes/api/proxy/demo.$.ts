@@ -5,6 +5,7 @@ import { DEMO_BRAND } from "@/lib/demo/brand";
 import {
   applyPresentation,
   cleanBundle,
+  activeDemoRules,
   cleanText,
   rewriteDemoAssetPaths,
   rewriteDemoHydrationAssets,
@@ -57,29 +58,12 @@ async function getOriginalDemo(slug: string): Promise<OriginalDemo | null> {
     .limit(1)
     .maybeSingle();
   if (!demo?.url) return null;
-  // A demo the Demo Manager processed and verified is shown with its Software
-  // Vala presentation; one added before that is served as it always was.
+  // Revalidation never makes an existing active demo shed its saved branding.
   const processed = demo as {
     processing_status?: string;
     processing?: { rules?: PresentationRules } | null;
   };
-  /**
-   * Every demo served gets the Software Vala presentation, not only one the
-   * pipeline has processed.
-   *
-   * This used to apply the rules only when processing_status was "live", and
-   * pass null otherwise - so a demo added straight through the URL Manager was
-   * served exactly as its developer built it: their logo, their contact details,
-   * and the hosting platform's "Edit with Lovable" badge pointing at the
-   * project. All seventeen demos happen to be processed today, so nothing was
-   * leaking; the next one added by hand would have been.
-   *
-   * With no rules of its own a demo still gets the favicon, the logo swap and
-   * the platform furniture stripped, which is the floor rather than nothing.
-   */
-  const rules: PresentationRules = (processed.processing_status === "live"
-    ? processed.processing?.rules
-    : null) ?? { remove: [], rebrand: [], logos: [], links: [] };
+  const rules = activeDemoRules(processed.processing);
   return { url: demo.url, name: demo.demo_name || product.name, rules };
 }
 

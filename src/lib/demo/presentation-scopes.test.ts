@@ -1,7 +1,13 @@
 import { expect, it } from "vitest";
-import { retainVerifiedScopes } from "./presentation";
+import { activeDemoRules, retainVerifiedScopes } from "./presentation";
 
 const rules = { remove: [], rebrand: [], logos: [], links: [] };
+
+it("continues presenting saved rules while an active demo is revalidated or a transient check fails", () => {
+  const saved = { ...rules, remove: ["vendor@example.test"], brandLabels: ["CoachPro"] };
+  expect(activeDemoRules({ rules: saved })).toBe(saved);
+  expect(activeDemoRules(null)).toEqual(rules);
+});
 
 it("retains verified branding/contact scope after a fresh investigation", () => {
   expect(
