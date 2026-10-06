@@ -8,6 +8,7 @@ import { getPublicProduct, recordPublicDemoClick } from "@/lib/marketplace.funct
 import { useServerFn } from "@/lib/serverFn";
 import { AlertCircle, Loader, ArrowLeft, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { SOFTWARE_VALA_CONTACT } from "@/lib/demo/brand";
 
 export const Route = createFileRoute("/demo/$slug")({
   head: pageHead("Live Demo", "A working demo of the product, running on real software."),
@@ -353,11 +354,7 @@ function DemoBrandedGatewayPage() {
           </div>
         </div>
 
-        <div className="border-t border-slate-700 bg-slate-900 px-6 py-2 text-center text-xs text-slate-500">
-          <span>Powered by </span>
-          <span className="font-semibold text-slate-300">Software Vala™</span>
-          <span> — Enterprise Software Solutions</span>
-        </div>
+        <DemoContactFooter />
       </div>
     );
   }
@@ -397,11 +394,22 @@ function DemoBrandedGatewayPage() {
       </div>
 
       {/* Footer - Subtle branding */}
-      <div className="border-t border-slate-700 bg-slate-900 px-6 py-2 text-center text-xs text-slate-500">
-        <span>Powered by </span>
-        <span className="font-semibold text-slate-300">Software Vala™</span>
-        <span> — Enterprise Software Solutions</span>
-      </div>
+      <DemoContactFooter />
     </div>
+  );
+}
+
+function DemoContactFooter() {
+  return (
+    <footer className="flex flex-wrap justify-center gap-x-4 gap-y-1 border-t border-slate-700 bg-slate-900 px-4 py-2 text-xs text-slate-300">
+      <a href={SOFTWARE_VALA_CONTACT.website}>Software Vala™</a>
+      <a href={`tel:${SOFTWARE_VALA_CONTACT.phone.replace(/\s/g, "")}`}>
+        {SOFTWARE_VALA_CONTACT.phone}
+      </a>
+      <a href={SOFTWARE_VALA_CONTACT.whatsapp} target="_blank" rel="noopener noreferrer">
+        WhatsApp
+      </a>
+      <a href={`mailto:${SOFTWARE_VALA_CONTACT.email}`}>{SOFTWARE_VALA_CONTACT.email}</a>
+    </footer>
   );
 }

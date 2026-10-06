@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { listDemoHealth } from "@/lib/marketplace-demo.functions";
+import { authHeaders } from "@/lib/auth/operator-fetch";
+import { demoCatalogEntry, type CatalogDemoRow } from "@/lib/demo/catalog";
 import DataStateNotice from "./DataStateNotice";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { motion } from "framer-motion";
@@ -33,6 +34,7 @@ import {
 
 interface Product {
   id: string;
+  number: number;
   name: string;
   category: string;
   description: string;
@@ -47,42 +49,25 @@ interface Product {
   hasIOS: boolean;
   thumbnail: string;
   featured: boolean;
-  /** The demo's own URL, opened by View Demo. Null when none is stored. */
+  /** Verified branded gateway, never the original third-party address. */
   url: string | null;
 }
-
-/**
- * Eight invented products used to live here - "E-Commerce Pro", "Banking
- * Portal", "Food Delivery" - each with a rating, a download count and a tech
- * stack, none of which this platform sells or records. An operator browsing
- * this tab was browsing fiction.
- *
- * It shows the seventeen real demos now, from mm_demo_health, which is the same
- * source the status grid beside it uses. Where the card was designed for a
- * figure the platform does not hold - a star rating per demo, a download count,
- * whether there is an APK or an iOS build - it shows a dash instead of a number.
- * A missing capability should look missing.
- */
-type CatalogDemo = {
-  id: string;
-  demo_name: string | null;
-  product_name: string | null;
-  url: string | null;
-  status: string | null;
-  environment: string | null;
-  uptime_percent: number | null;
-  clicks: number;
-  latest_result: string | null;
-};
 
 const DemoCatalog = () => {
   const { t } = useTranslation();
 
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data, isLoading, isError, error, refetch } = useQuery<CatalogDemo[]>({
-    queryKey: ["demo-health", "catalog"],
-    queryFn: () => listDemoHealth({ data: { days: 30 } }) as Promise<CatalogDemo[]>,
+  const { data, isLoading, isError, error, refetch } = useQuery<CatalogDemoRow[]>({
+    queryKey: ["demo-inventory", "catalog"],
+    queryFn: async () => {
+      const response = await fetch("/api/demo/process", { headers: await authHeaders() });
+      if (!response.ok)
+        throw new Error(`Could not read the demo inventory (HTTP ${response.status}).`);
+      const payload = (await response.json()) as { demos: CatalogDemoRow[] };
+      if (!Array.isArray(payload.demos)) throw new Error("The demo inventory response is invalid.");
+      return payload.demos;
+    },
     staleTime: 60_000,
   });
 
@@ -91,31 +76,28 @@ const DemoCatalog = () => {
    * untouched. Every field that has no source is null, and the card shows a
    * dash for it rather than a number nobody measured.
    */
-  const products: Product[] = (data ?? []).map((d) => ({
-    id: d.id,
-    name: d.product_name ?? d.demo_name ?? "Demo",
-    category: d.environment ?? "demo",
-    description: [
-      d.demo_name,
-      `${d.clicks} open${d.clicks === 1 ? "" : "s"}`,
-      d.uptime_percent == null ? null : `${d.uptime_percent}% uptime`,
-      d.latest_result ? `last check: ${d.latest_result}` : null,
-    ]
-      .filter(Boolean)
-      .join(" · "),
-    stack: "",
-    platforms: ["web"],
-    rating: null,
-    demos: 1,
-    downloads: null,
-    hasAPK: false,
-    hasWeb: true,
-    hasIOS: false,
-    thumbnail: d.status === "active" ? "🟢" : "⚪",
-    featured: d.status === "active",
-    url: d.url,
-  }));
-  const categories = [...new Set(products.map((p) => p.category))].sort();
+  const products: Product[] = (data ?? []).map((d, index) => {
+    const entry = demoCatalogEntry(d, index);
+    return {
+      id: entry.id,
+      number: entry.number,
+      name: entry.name,
+      category: entry.category ?? "—",
+      description: `${d.demo_name} · ${d.processing_status}`,
+      stack: "",
+      platforms: ["web"],
+      rating: null,
+      demos: 1,
+      downloads: null,
+      hasAPK: false,
+      hasWeb: true,
+      hasIOS: false,
+      thumbnail: entry.live ? "🟢" : "⚪",
+      featured: entry.live,
+      url: entry.url,
+    };
+  });
+  const categories = [...new Set(products.map((p) => p.category))];
   const openDemo = (url: string | null) => {
     if (url) window.open(url, "_blank", "noopener,noreferrer");
   };
@@ -204,10 +186,12 @@ const DemoCatalog = () => {
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-mono font-semibold text-foreground">{product.name}</h3>
+                        <h3 className="font-mono font-semibold text-foreground">
+                          {product.number}. {product.name}
+                        </h3>
                         {product.featured && (
                           <Badge className="bg-neon-orange/20 text-neon-orange border-neon-orange/50 text-[10px]">
-                            Featured
+                            Live
                           </Badge>
                         )}
                       </div>

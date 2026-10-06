@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { publishDemo } from "./process.server";
+import { listProcessedDemos, publishDemo } from "./process.server";
 import { safeFetch } from "./safe-fetch.server";
 
 vi.mock("@/lib/ai-gateway.server", () => ({
@@ -21,6 +21,45 @@ vi.mock("./safe-fetch.server", async (importOriginal) => ({
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+});
+
+it("reads every canonical demo, including unprocessed rows, in stable numbered order", async () => {
+  vi.stubEnv("SUPABASE_URL", "https://database.test");
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "unit-test-only");
+  const first = Array.from({ length: 500 }, (_, index) => ({ id: String(index) }));
+  const second = [{ id: "500", processing_status: "unprocessed" }];
+  const requests: URL[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: string) => {
+      const url = new URL(input);
+      requests.push(url);
+      return Response.json(url.searchParams.get("offset") === "0" ? first : second);
+    }),
+  );
+  const rows = await listProcessedDemos();
+  expect(rows).toHaveLength(501);
+  expect(rows.at(-1)).toEqual(second[0]);
+  expect(requests.map((url) => url.searchParams.get("offset"))).toEqual(["0", "500"]);
+  for (const url of requests) {
+    expect(url.searchParams.get("order")).toBe("sort_order.asc,id.asc");
+    expect(url.searchParams.has("processing_status")).toBe(false);
+    expect(url.searchParams.get("select")).not.toMatch(/username|password/);
+  }
+});
+
+it("rejects an incomplete inventory instead of returning a success-shaped partial list", async () => {
+  vi.stubEnv("SUPABASE_URL", "https://database.test");
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "unit-test-only");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: string) =>
+      new URL(input).searchParams.get("offset") === "0"
+        ? Response.json(Array.from({ length: 500 }, (_, index) => ({ id: String(index) })))
+        : new Response("Unavailable", { status: 503 }),
+    ),
+  );
+  await expect(listProcessedDemos()).rejects.toThrow("Database read failed (503)");
 });
 
 it.each([

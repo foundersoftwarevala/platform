@@ -10,3 +10,10 @@ export const DEMO_BRAND = {
   logo: logo as string,
   name: "Software Vala",
 };
+
+export const SOFTWARE_VALA_CONTACT = {
+  email: "hellosoftwarevala@gmail.com",
+  phone: "+91 83488 38383",
+  website: "https://softwarevala.net",
+  whatsapp: "https://wa.me/918348838383",
+};

@@ -135,8 +135,8 @@ export const listDemoUrls = createServerFn({ method: "GET" })
     const { data, error } = await (context.supabase as any)
       .from("product_demo_urls")
       .select("*")
-      .order("sort_order")
-      .order("created_at", { ascending: false });
+      .order("sort_order", { ascending: true })
+      .order("id", { ascending: true });
 
     if (!error && Array.isArray(data)) {
       return (data as any[]).map(mapDemoUrlRecord);
@@ -176,7 +176,8 @@ export const listCentralDemosServer = createServerFn({ method: "GET" })
       .select("*, marketplace_products!inner(id, name, slug, category_id, visible)", {
         count: "exact",
       })
-      .order("created_at", { ascending: false });
+      .order("sort_order", { ascending: true })
+      .order("id", { ascending: true });
 
     if (data.status !== "all") query = query.eq("status", data.status);
     if (data.categoryId) query = query.eq("marketplace_products.category_id", data.categoryId);

@@ -59,7 +59,11 @@ type DemoRow = {
   processing_status: string;
   processing: Processing | null;
   updated_at: string;
-  marketplace_products?: { name: string; slug: string } | null;
+  marketplace_products?: {
+    name: string;
+    slug: string;
+    marketplace_categories?: { name: string } | null;
+  } | null;
 };
 type Product = {
   id: string;
@@ -110,10 +114,12 @@ function List({ title, items, tone }: { title: string; items?: Finding[]; tone: 
 
 function DemoResult({
   demo,
+  number,
   onActivate,
   busy,
 }: {
   demo: DemoRow;
+  number: number;
   onActivate: () => void;
   busy: boolean;
 }) {
@@ -123,8 +129,11 @@ function DemoResult({
     <div className="glass-panel space-y-4 p-5" data-demo-id={demo.id}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="font-semibold text-foreground">{demo.demo_name}</p>
+          <p className="font-semibold text-foreground">
+            {number}. {demo.demo_name}
+          </p>
           <p className="text-xs text-muted-foreground">
+            {demo.marketplace_products?.marketplace_categories?.name ?? "—"} ·{" "}
             {demo.marketplace_products?.name} · <code>{demo.url}</code>
           </p>
         </div>
@@ -145,7 +154,7 @@ function DemoResult({
             {p.ai?.service} {p.ai?.model ? `(${p.ai.model})` : ""}
           </p>
           <p>
-            <span className="text-muted-foreground">Category: </span>
+            <span className="text-muted-foreground">Detected category: </span>
             <strong data-detected-category>{p.identity.category_name ?? "—"}</strong>
             {p.identity.product_category_matches === false && (
               <span className="text-amber-400">
@@ -373,10 +382,11 @@ const DemoCreator = () => {
       </div>
 
       <div className="space-y-4">
-        {demos.map((demo) => (
+        {demos.map((demo, index) => (
           <DemoResult
             key={demo.id}
             demo={demo}
+            number={index + 1}
             busy={busy === demo.id}
             onActivate={() => void act(demo.id, { action: "activate", id: demo.id })}
           />

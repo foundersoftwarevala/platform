@@ -10,6 +10,7 @@ import {
   hasBrandFavicon,
   remainingViolations,
   remainingBundleViolations,
+  retainVerifiedScopes,
   type Evidence,
   type PresentationRules,
 } from "./presentation";
@@ -154,9 +155,11 @@ Decide:
 Copy every value exactly as it appears in the evidence, character for character. Do not add values that are not in the evidence.
 
 Keep the answer short. A demo is full of ordinary interface text and listing every
-piece of it with a reason costs more than it is worth: at most 30 entries in
-"kept", at most 20 in each of the other lists, and every "reason" in ten words or
-fewer. List the clearest cases; a value you do not list is kept by default.
+piece of it with a reason costs more than it is worth: at most 5 entries in
+"kept", at most 20 contact entries, at most 10 entries in each other list,
+and every "reason" in six words or fewer. Summary: at most 30 words.
+Category reason: at most 12 words. Prioritize complete contact/branding findings
+over explanations of data kept. A value you do not list is kept by default.
 
 Answer with one JSON object only:
 {
@@ -405,15 +408,24 @@ export async function investigateDemo(input: { productId: string; url: string; a
     const category = categories.find((c) => c.slug === slug) ?? null;
     if (!category) dropped.push({ value: slug, reason: "not a marketplace category" });
 
-    const rules: PresentationRules = {
-      remove: contacts.filter((c) => c.kind !== "link").map((c) => c.value),
-      rebrand: branding.map((b) => b.value),
-      logos: logos.map((l) => l.value),
-      links: [
-        ...devLinks.map((l) => l.value),
-        ...contacts.filter((c) => c.kind === "link" || c.kind === "whatsapp").map((c) => c.value),
-      ],
-    };
+    const previousProcessing = same?.processing;
+    const previousRules =
+      previousProcessing && typeof previousProcessing === "object" && "rules" in previousProcessing
+        ? previousProcessing.rules
+        : null;
+    const rules: PresentationRules = retainVerifiedScopes(
+      {
+        remove: contacts.filter((c) => c.kind !== "link").map((c) => c.value),
+        rebrand: branding.map((b) => b.value),
+        logos: logos.map((l) => l.value),
+        links: [
+          ...devLinks.map((l) => l.value),
+          ...contacts.filter((c) => c.kind === "link" || c.kind === "whatsapp").map((c) => c.value),
+        ],
+      },
+      previousRules,
+      corpus,
+    );
     const softwareName = String(answer.software_name ?? "")
       .trim()
       .slice(0, 120);
@@ -685,13 +697,18 @@ export async function publishDemo(input: { productId: string; url: string; actor
   return { demo, demoUrl: `/demo/${String(product.slug)}` };
 }
 
-/** Demos the Demo Manager has processed or is processing, newest first. */
+/** Complete canonical inventory in the manager's persistent numbered order. */
 export async function listProcessedDemos() {
-  const rows = await db().get<Row[]>(
-    `product_demo_urls?select=${DEMO_ROW_FIELDS},marketplace_products(name,slug)` +
-      `&processing_status=neq.unprocessed&order=updated_at.desc&limit=50`,
-  );
-  // Operators see the source address (they submitted it); visitors never do.
+  const rows: Row[] = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const page = await db().get<Row[]>(
+      `product_demo_urls?select=${DEMO_ROW_FIELDS},marketplace_products(name,slug,marketplace_categories(name))` +
+        `&order=sort_order.asc,id.asc&limit=${pageSize}&offset=${offset}`,
+    );
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
   return rows;
 }
 

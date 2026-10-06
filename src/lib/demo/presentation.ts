@@ -1,4 +1,6 @@
 import { tokenizer, type Token } from "acorn";
+import { SOFTWARE_VALA_CONTACT } from "./brand";
+export { SOFTWARE_VALA_CONTACT } from "./brand";
 
 /**
  * The Software Vala presentation of a demo.
@@ -59,6 +61,34 @@ export type PresentationRules = {
   links: string[];
 };
 
+/** Re-investigation must not discard previously browser-verified chrome rules. */
+export function retainVerifiedScopes(
+  rules: PresentationRules,
+  previous: unknown,
+  corpus: string,
+): PresentationRules {
+  if (!previous || typeof previous !== "object" || Array.isArray(previous)) return rules;
+  const old = previous as Record<string, unknown>;
+  const strings = (key: string) => {
+    const values = old[key];
+    return Array.isArray(values)
+      ? values.filter((value): value is string => typeof value === "string")
+      : [];
+  };
+  const result = { ...rules };
+  for (const key of ["brandLabels", "brandMonograms"] as const) {
+    const present = strings(key).filter(
+      (value) => value.trim().length > 0 && corpus.includes(value),
+    );
+    if (present.length) result[key] = [...new Set([...(rules[key] ?? []), ...present])];
+  }
+  for (const key of ["brandLabelPaths", "publicContactPaths"] as const) {
+    const paths = strings(key).filter((value) => /^\/[^\s?#]*$/.test(value));
+    if (paths.length) result[key] = [...new Set([...(rules[key] ?? []), ...paths])];
+  }
+  return result;
+}
+
 const PROTECTED_MARKUP =
   /<(script|style|textarea|select|table)\b[^>]*>[\s\S]*?<\/\1\s*>|<input\b[^>]*>/gi;
 
@@ -87,19 +117,6 @@ const CREDIT =
 const ASSET_EMAIL = /\.(?:png|jpe?g|gif|svg|webp|avif|js|css|woff2?)$/i;
 
 const unique = <T>(list: T[]) => [...new Set(list)];
-
-/**
- * Software Vala's own contact, put in place of the developer's.
- *
- * Until now a developer's e-mail or phone number was deleted and nothing took
- * its place, so a demo's "Contact us" read as an empty line - the page looked
- * broken rather than rebranded, and a visitor who wanted to buy had nobody to
- * write to.
- */
-export const SOFTWARE_VALA_CONTACT = {
-  email: "hellosoftwarevala@gmail.com",
-  phone: "+91 83488 38383",
-};
 
 /**
  * The hosting platform's own furniture, which is not the developer's branding
