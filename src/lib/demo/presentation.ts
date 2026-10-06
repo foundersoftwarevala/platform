@@ -474,7 +474,6 @@ export function applyPresentation(
   html: string,
   rules: PresentationRules,
   brand: { favicon: string; logo: string; name: string },
-  pathname = "/",
 ): string {
   /**
    * The hosting platform's furniture goes first, before anything else looks at
@@ -520,30 +519,9 @@ export function applyPresentation(
   //    shorter one inside it.
   out = mapPublicMarkup(out, (markup) => cleanText(markup, rules, brand.name));
 
-  // Match chrome labels in server HTML to the literals already rewritten in
-  // the client bundle, so React hydrates the same text it rendered on the server.
-  const labels = rules.brandLabels ?? [];
-  if (labels.length) {
-    const replaceLabels = (markup: string) =>
-      markup.replace(/>([^<>]*)</g, (whole, raw: string) => {
-        const label = raw.trim();
-        if (!labels.includes(label)) return whole;
-        const leading = raw.match(/^\s*/)?.[0] ?? "";
-        const trailing = raw.match(/\s*$/)?.[0] ?? "";
-        return `>${leading}${escapeHtml(brand.name)}${trailing}<`;
-      });
-    if ((rules.brandLabelPaths ?? []).includes(pathname)) {
-      out = mapPublicMarkup(out, replaceLabels);
-    } else {
-      out = out.replace(/<(header|footer|nav)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, (chrome) =>
-        mapPublicMarkup(chrome, replaceLabels),
-      );
-    }
-  }
-
-  // 5. The same rules for what a single-page app draws after it loads. The
-  // server-rendered labels above match the client bundle; defer DOM mutations
-  // until load so they cannot race React hydration.
+  // 5. The same rules for what a single-page app draws after it loads. Keep
+  // chrome labels unchanged in SSR and bundles so React hydrates identical
+  // markup, then let the browser presentation script rebrand them after load.
   const script = `<script data-sv-presentation>${presentationScript(rules, brand)}</script>`;
   out = /<\/head>/i.test(out) ? out.replace(/<\/head>/i, `${script}</head>`) : out + script;
   return out;
@@ -655,9 +633,7 @@ export function cleanBundle(
   let cursor = 0;
   for (const literal of bundleLiterals(js)) {
     if (isProtectedLiteral(literal)) continue;
-    const presented = rules.brandLabels?.includes(literal.value)
-      ? brandName
-      : cleanText(literal.value, rules, brandName);
+    const presented = cleanText(literal.value, rules, brandName);
     const cleaned = assetPrefix ? rewriteDemoAssetPaths(presented, assetPrefix) : presented;
     if (cleaned === literal.value) continue;
     chunks.push(js.slice(cursor, literal.token.start));

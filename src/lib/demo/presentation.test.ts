@@ -44,7 +44,7 @@ describe("template literal asset paths", () => {
 });
 
 describe("SSR hydration manifest assets", () => {
-  it("brands exact bundle labels without changing organization names or account fields", () => {
+  it("preserves verified chrome labels in bundles until React hydration completes", () => {
     const rules: PresentationRules = {
       remove: [],
       rebrand: [],
@@ -59,7 +59,7 @@ describe("SSR hydration manifest assets", () => {
         BRAND.name,
       ),
     ).toBe(
-      'const label="Software Vala";const organization="Loomcart Central";const credentials={password:"Loomcart",email:"user@loomcart.test"};',
+      'const label="Loomcart";const organization="Loomcart Central";const credentials={password:"Loomcart",email:"user@loomcart.test"};',
     );
   });
 
@@ -225,7 +225,7 @@ describe("Software Vala presentation", () => {
     expect(out).not.toContain("dev-favicon.ico");
   });
 
-  it("rewrites verified chrome labels in SSR HTML without touching protected application data", () => {
+  it("preserves verified chrome labels in SSR HTML until React hydration completes", () => {
     const rules: PresentationRules = {
       remove: [],
       rebrand: [],
@@ -238,10 +238,9 @@ describe("Software Vala presentation", () => {
       "<html><head></head><body><header><span>Example ERP</span></header><table><tr><td>Example ERP</td></tr></table></body></html>",
       rules,
       BRAND,
-      "/",
     );
 
-    expect(html).toContain("<header><span>Software Vala</span></header>");
+    expect(html).toContain("<header><span>Example ERP</span></header>");
     expect(html).toContain("<td>Example ERP</td>");
   });
 
@@ -308,7 +307,7 @@ describe("Software Vala presentation", () => {
       brandLabelPaths: ["/"],
     };
     const dom = new JSDOM(
-      "<!doctype html><html><head></head><body><header>Example ERP</header></body></html>",
+      "<!doctype html><html><head></head><body><header><span>Example</span><span> ERP</span></header><table><tr><td>Example ERP</td></tr></table></body></html>",
       {
         url: "https://softwarevala.net/api/proxy/demo/example?t=pass",
         pretendToBeVisual: true,
@@ -335,6 +334,7 @@ describe("Software Vala presentation", () => {
     expect(dom.window.document.querySelector("header")?.textContent).toBe("Example ERP");
     frames.shift()?.(16);
     expect(dom.window.document.querySelector("header")?.textContent).toBe("Software Vala");
+    expect(dom.window.document.querySelector("table")?.textContent).toBe("Example ERP");
 
     dom.window.close();
   });
