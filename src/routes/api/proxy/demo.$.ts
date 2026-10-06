@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { DEMO_COOKIE, demoCookiePath, ticketFromRequest } from "@/lib/demo/ticket";
 import { DEMO_BRAND } from "@/lib/demo/brand";
+import { initialDemoPath } from "@/lib/demo/entry-path";
 import {
   applyPresentation,
   cleanBundle,
@@ -219,6 +220,13 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
 
           // Extract the asset path (everything after /api/proxy/demo/{slug})
           const assetPath = extractAssetPath(pathname, slug);
+          const entryPath = initialDemoPath(slug, assetPath, url.searchParams.has("t"));
+          if (entryPath) {
+            return Response.redirect(
+              new URL(`/api/proxy/demo/${slug}${entryPath}${url.search}`, url),
+              307,
+            );
+          }
 
           const originalDemoUrl = originalDemo.url;
           console.log(
