@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
-import { DEMO_COOKIE, ticketFromRequest } from "@/lib/demo/ticket";
+import { DEMO_COOKIE, demoCookiePath, ticketFromRequest } from "@/lib/demo/ticket";
 import { DEMO_BRAND } from "@/lib/demo/brand";
 import {
   applyPresentation,
@@ -217,7 +217,7 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
           // steal, so an anonymous caller is refused here rather than being
           // handed a page it can read the origin out of. The pass names the one
           // product it opens, so a pass for another demo does not work.
-          const pass = ticketFromRequest(request);
+          const pass = ticketFromRequest(request, slug);
           if (!pass || pass.slug !== slug) {
             return new Response(
               JSON.stringify({ error: "Sign in to open this demo.", reason: "sign_in_required" }),
@@ -329,7 +329,7 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
               const remaining = Math.max(0, Math.floor((pass.expiresAt - Date.now()) / 1000));
               htmlHeaders.append(
                 "Set-Cookie",
-                `${DEMO_COOKIE}=${encodeURIComponent(passFromQuery)}; Path=/api/proxy/demo; ` +
+                `${DEMO_COOKIE}=${encodeURIComponent(passFromQuery)}; Path=${demoCookiePath(slug)}; ` +
                   `Max-Age=${remaining}; HttpOnly; SameSite=Lax; Secure`,
               );
             }

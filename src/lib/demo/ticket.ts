@@ -19,6 +19,11 @@ const TTL_MS = 30 * 60 * 1000;
 /** The cookie the proxy reads for the asset requests an iframe makes itself. */
 export const DEMO_COOKIE = "sv_demo_pass";
 
+/** Keep each iframe's pass independent when several products are open. */
+export function demoCookiePath(slug: string): string {
+  return `/api/proxy/demo/${encodeURIComponent(slug)}`;
+}
+
 export type DemoTicket = { slug: string; userId: string; expiresAt: number };
 
 function secret(): string | null {
@@ -79,15 +84,19 @@ export function readDemoTicket(value: string | null | undefined): DemoTicket | n
 }
 
 /** The pass carried on a request, from the query string or the cookie. */
-export function ticketFromRequest(request: Request): DemoTicket | null {
+export function ticketFromRequest(request: Request, slug: string): DemoTicket | null {
   const fromQuery = new URL(request.url).searchParams.get("t");
   const direct = readDemoTicket(fromQuery);
-  if (direct) return direct;
+  if (direct) return direct.slug === slug ? direct : null;
 
   const cookies = request.headers.get("cookie") ?? "";
   for (const part of cookies.split(";")) {
     const [name, ...rest] = part.trim().split("=");
-    if (name === DEMO_COOKIE) return readDemoTicket(decodeURIComponent(rest.join("=")));
+    if (name === DEMO_COOKIE) {
+      // Signed tokens contain only base64url and a dot, so no URI decoding is needed.
+      const pass = readDemoTicket(rest.join("="));
+      if (pass?.slug === slug) return pass;
+    }
   }
   return null;
 }
