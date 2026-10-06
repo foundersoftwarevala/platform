@@ -123,29 +123,14 @@ export const Route = createFileRoute("/api/demo/ticket")({
             headers: { apikey: anonKey(), Authorization: authorization },
           });
           if (!userResponse.ok) {
-            return Response.json(
-              { error: "Your session has expired. Sign in again.", reason: "sign_in_required" },
-              { status: 401 },
-            );
+            return Response.json({ reason: "sign_in_required" }, { status: 401 });
           }
           visitor = (await userResponse.json()) as Visitor;
           if (!visitor?.id) {
-            return Response.json(
-              {
-                error: "Your session could not be verified. Sign in again.",
-                reason: "sign_in_required",
-              },
-              { status: 401 },
-            );
+            return Response.json({ reason: "sign_in_required" }, { status: 401 });
           }
           if (!isVerified(visitor)) {
-            return Response.json(
-              {
-                error: "Confirm your email address, then the demo will open.",
-                reason: "verification_required",
-              },
-              { status: 403 },
-            );
+            return Response.json({ reason: "verification_required" }, { status: 403 });
           }
         }
 
