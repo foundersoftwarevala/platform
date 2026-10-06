@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { marketplaceDemoHref } from "./demo-link";
+import { demoNumbersInRow, marketplaceDemoHref } from "./demo-link";
 
 describe("marketplace demo links", () => {
   it("opens the Software Vala demo gateway for a catalogue product with an active demo", () => {
@@ -17,5 +17,13 @@ describe("marketplace demo links", () => {
       marketplaceDemoHref({ hasDemo: false, slug: "product", url: "https://example.com" }),
     ).toBe(null);
     expect(marketplaceDemoHref({ hasDemo: true, url: "https://example.com" })).toBe(null);
+  });
+
+  it("numbers matching demos from one at the start of every row", () => {
+    const firstRow = [{ hasDemo: false }, { hasDemo: true }, { hasDemo: true }];
+    const secondRow = [{ hasDemo: true }, { hasDemo: false }, { hasDemo: true }];
+
+    expect(demoNumbersInRow(firstRow)).toEqual([null, 1, 2]);
+    expect(demoNumbersInRow(secondRow)).toEqual([1, null, 2]);
   });
 });

@@ -123,7 +123,7 @@ import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { buildRow } from "@/data/rowFill";
 import { GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
 import { useProductActions } from "@/lib/marketplace/useActionLayer";
-import { marketplaceDemoHref } from "@/lib/marketplace/demo-link";
+import { demoNumbersInRow, marketplaceDemoHref } from "@/lib/marketplace/demo-link";
 import { useDebouncedValue, useFavorites } from "@/lib/marketplace-home/persistentState";
 import { useMatch } from "@tanstack/react-router";
 import { useHomeRouteData, useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
@@ -4035,6 +4035,7 @@ const CARD_COLORS = [
 export function toDemo(card: CatalogCard, index: number): Demo {
   return {
     id: card.id,
+    slug: card.slug,
     name: card.name,
     category: card.subcategory ?? card.industry ?? "",
     masterCategory: card.industry ?? "",
@@ -4126,6 +4127,7 @@ function CatalogRowStrip({
   }, [wanted, cards.length]);
 
   const remaining = row.total - cards.length;
+  const demoNumbers = demoNumbersInRow(cards);
 
   return (
     <CategoryRow title={row.title} count={row.total}>
@@ -4135,6 +4137,7 @@ function CatalogRowStrip({
           <DemoCard
             demo={toDemo(card, index)}
             index={index}
+            demoNumber={demoNumbers[index]}
             isFavorite={favorites.includes(card.id)}
             onToggleFavorite={() => onToggleFavorite(card.id)}
           />
@@ -4357,11 +4360,13 @@ export const DemoCard = memo(
   ({
     demo,
     index,
+    demoNumber,
     isFavorite,
     onToggleFavorite,
   }: {
     demo: Demo;
     index: number;
+    demoNumber?: number | null;
     isFavorite: boolean;
     onToggleFavorite: () => void;
   }) => {
@@ -4453,7 +4458,7 @@ export const DemoCard = memo(
                 )}
                 {demo.status === "ACTIVE" && (
                   <Badge className="bg-cyan-500/20 text-cyan-300 text-[10px] shrink-0 ml-2">
-                    #{index + 1}
+                    #{demoNumber ?? index + 1}
                   </Badge>
                 )}
               </div>
