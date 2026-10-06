@@ -738,7 +738,7 @@ var w=document.createTreeWalker(root,5,null),n;while((n=w.nextNode())){if(n.node
 function run(){walk(document.documentElement);}
 function start(){var queued=false;new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(walk);if(m.type==="characterData")fixText(m.target);if(m.type==="attributes")fixEl(m.target);});
 if(!queued){queued=true;setTimeout(function(){queued=false;run();},400);}}).observe(document.documentElement,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:["href","src","rel"]});run();}
-function ready(){requestAnimationFrame(function(){requestAnimationFrame(start);});}
+function ready(){setTimeout(function(){requestAnimationFrame(function(){requestAnimationFrame(start);});},2000);}
 if(document.readyState==="complete")ready();else window.addEventListener("load",ready,{once:true});})();`;
 }
 

@@ -315,10 +315,15 @@ describe("Software Vala presentation", () => {
       },
     );
     const frames: FrameRequestCallback[] = [];
+    const timers: { callback: () => void; delay: number }[] = [];
     dom.window.requestAnimationFrame = (callback) => {
       frames.push(callback);
       return frames.length;
     };
+    dom.window.setTimeout = ((callback: () => void, delay = 0) => {
+      timers.push({ callback, delay });
+      return timers.length;
+    }) as typeof dom.window.setTimeout;
     Object.defineProperty(dom.window.document, "readyState", {
       configurable: true,
       get: () => "loading",
@@ -329,6 +334,11 @@ describe("Software Vala presentation", () => {
     expect(dom.window.location.pathname).toBe("/");
     expect(dom.window.document.querySelector("header")?.textContent).toBe("Example ERP");
     dom.window.dispatchEvent(new dom.window.Event("load"));
+    expect(timers).toHaveLength(1);
+    expect(timers[0].delay).toBe(2000);
+    expect(frames).toHaveLength(0);
+    expect(dom.window.document.querySelector("header")?.textContent).toBe("Example ERP");
+    timers.shift()?.callback();
     expect(frames).toHaveLength(1);
     frames.shift()?.(0);
     expect(dom.window.document.querySelector("header")?.textContent).toBe("Example ERP");
