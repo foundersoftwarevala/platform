@@ -3555,17 +3555,33 @@ const CountryRailCards = memo(function CountryRailCards({
     };
   }, [slug, shelf, colour, onLoaded, skip]);
 
+  const staticDemoCount = allDemos.filter(
+    (candidate) =>
+      candidate.masterCategory === shelf &&
+      candidate.status === "ACTIVE" &&
+      Boolean(candidate.slug),
+  ).length;
+
   return (
     <>
       <span ref={anchor} aria-hidden className="block w-0 shrink-0" />
-      {cards.map((demo, index) => (
-        <DemoCard
-          key={`${shelf}-country-${demo.id}`}
-          demo={demo}
-          isFavorite={favorites.includes(catalogueSlug(demo.name))}
-          onToggleFavorite={() => onToggleFavorite(catalogueSlug(demo.name))}
-        />
-      ))}
+      {cards.map((card, index) => {
+        const demo = railCardToDemo(card, shelf, colour);
+        const earlierRailDemoCount = cards
+          .slice(0, index)
+          .filter((candidate) => candidate.hasDemo).length;
+        const demoNumber = card.hasDemo ? staticDemoCount + earlierRailDemoCount + 1 : null;
+
+        return (
+          <DemoCard
+            key={`${shelf}-country-${demo.id}`}
+            demo={demo}
+            demoNumberOverride={demoNumber}
+            isFavorite={favorites.includes(catalogueSlug(demo.name))}
+            onToggleFavorite={() => onToggleFavorite(catalogueSlug(demo.name))}
+          />
+        );
+      })}
     </>
   );
 });
@@ -3837,10 +3853,12 @@ const shareNatively = async (demo: Demo) => {
 const DemoCard = memo(
   ({
     demo,
+    demoNumberOverride,
     isFavorite,
     onToggleFavorite,
   }: {
     demo: Demo;
+    demoNumberOverride?: number | null;
     isFavorite: boolean;
     onToggleFavorite: () => void;
   }) => {
@@ -3848,7 +3866,7 @@ const DemoCard = memo(
     const navigate = useNavigate();
     const { t } = useTranslation();
     const demoHref = marketplaceDemoHref({
-      hasDemo: Boolean(demo.slug),
+      hasDemo: demo.status === "ACTIVE",
       slug: demo.slug,
       url: demo.url,
     });
@@ -3856,10 +3874,17 @@ const DemoCard = memo(
       (candidate) => candidate.masterCategory === demo.masterCategory,
     );
     const categoryDemoNumbers = demoNumbersInRow(
-      categoryCards.map((candidate) => ({ hasDemo: Boolean(candidate.slug) })),
+      categoryCards.map((candidate) => ({
+        hasDemo: candidate.status === "ACTIVE" && Boolean(candidate.slug),
+      })),
     );
     const cardPosition = categoryCards.findIndex((candidate) => candidate.id === demo.id);
-    const demoNumber = cardPosition < 0 ? null : categoryDemoNumbers[cardPosition];
+    const demoNumber =
+      demoNumberOverride !== undefined
+        ? demoNumberOverride
+        : cardPosition < 0
+          ? null
+          : categoryDemoNumbers[cardPosition];
     // The page this card opens. An author's upload takes the same address, so
     // the card keeps working when the real product arrives behind it.
     const productSlug = demo.slug ?? catalogueSlug(demo.name);
