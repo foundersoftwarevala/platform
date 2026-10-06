@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEMO_COOKIE, demoCookiePath, issueDemoTicket, ticketFromRequest } from "./ticket";
+import {
+  DEMO_COOKIE,
+  demoCookiePath,
+  issueDemoTicket,
+  PUBLIC_DEMO_VISITOR,
+  readDemoTicket,
+  ticketFromRequest,
+} from "./ticket";
 
 describe("demo asset tickets", () => {
   beforeEach(() => {
@@ -43,6 +50,14 @@ describe("demo asset tickets", () => {
 
   it("accepts a still-valid legacy cookie for the same product", () => {
     expect(ticketFromRequest(request("art", [token("art")]), "art")?.slug).toBe("art");
+  });
+
+  it("issues a product-scoped ticket for public demo visitors", () => {
+    const guest = issueDemoTicket("art", PUBLIC_DEMO_VISITOR);
+    expect(readDemoTicket(guest)).toMatchObject({ slug: "art", userId: PUBLIC_DEMO_VISITOR });
+    expect(ticketFromRequest(request("art", [], `?t=${guest}`), "art")?.userId).toBe(
+      PUBLIC_DEMO_VISITOR,
+    );
   });
 
   it("does not authorize another product's assets", () => {

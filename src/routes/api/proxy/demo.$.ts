@@ -196,11 +196,8 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
             });
           }
 
-          // Only a signed-in, verified visitor may see a demo. The products are
-          // hosted elsewhere and their addresses are the only thing there is to
-          // steal, so an anonymous caller is refused here rather than being
-          // handed a page it can read the origin out of. The pass names the one
-          // product it opens, so a pass for another demo does not work.
+          // Require a valid short-lived pass for this product, whether issued
+          // to a signed-in visitor or a public guest.
           const pass = ticketFromRequest(request, slug);
           if (!pass || pass.slug !== slug) {
             return new Response(

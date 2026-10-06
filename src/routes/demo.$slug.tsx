@@ -53,14 +53,7 @@ function DemoBrandedGatewayPage() {
     "checking",
   );
 
-  /**
-   * Ask for a pass before anything is loaded.
-   *
-   * A demo is the only public thread back to the catalogue, so it opens for a
-   * signed-in, verified visitor and for nobody else. The same step is where the
-   * business gets the lead, which is why it happens before the demo is shown
-   * rather than after.
-   */
+  /** Obtain a short-lived, product-scoped pass before loading the demo. */
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
@@ -69,13 +62,13 @@ function DemoBrandedGatewayPage() {
       try {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
-        if (!token) {
-          if (!cancelled) setGate("sign_in");
-          return;
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
         }
         const response = await fetch("/api/demo/ticket", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers,
           body: JSON.stringify({ slug }),
         });
         const payload = (await response.json().catch(() => ({}))) as {

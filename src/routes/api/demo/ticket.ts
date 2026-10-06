@@ -1,13 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { issueDemoTicket } from "@/lib/demo/ticket";
+import { issueDemoTicket, PUBLIC_DEMO_VISITOR } from "@/lib/demo/ticket";
 
 /**
  * The door to a demo.
  *
- * A visitor who wants to see a product working signs in and confirms their
- * address first. That is what stops the catalogue being walked and copied, and
- * it is also where the business gets its customer: the address attached to the
- * lead this raises is one the person has already proved they can read.
+ * Anyone can preview a published product's active demo. Signed-in, verified
+ * visitors are attributed to a lead; guests receive a non-identifying pass.
  *
  * Nothing here reveals where a demo is hosted. The reply is a short-lived pass
  * that the proxy accepts; the address itself never leaves the server.
@@ -110,14 +108,6 @@ export const Route = createFileRoute("/api/demo/ticket")({
           return Response.json({ error: "Demos are not available right now." }, { status: 503 });
         }
 
-        const authorization = request.headers.get("authorization");
-        if (!authorization) {
-          return Response.json(
-            { error: "Sign in to open this demo.", reason: "sign_in_required" },
-            { status: 401 },
-          );
-        }
-
         let slug = "";
         try {
           slug = String(((await request.json()) as { slug?: string })?.slug ?? "").trim();
@@ -126,31 +116,37 @@ export const Route = createFileRoute("/api/demo/ticket")({
         }
         if (!slug) return Response.json({ error: "Which demo?" }, { status: 400 });
 
-        // Who is asking.
-        const userResponse = await fetch(`${url()}/auth/v1/user`, {
-          headers: { apikey: anonKey(), Authorization: authorization },
-        });
-        if (!userResponse.ok) {
-          return Response.json(
-            { error: "Sign in to open this demo.", reason: "sign_in_required" },
-            { status: 401 },
-          );
-        }
-        const visitor = (await userResponse.json()) as Visitor;
-        if (!visitor?.id) {
-          return Response.json(
-            { error: "Sign in to open this demo.", reason: "sign_in_required" },
-            { status: 401 },
-          );
-        }
-        if (!isVerified(visitor)) {
-          return Response.json(
-            {
-              error: "Confirm your email address, then the demo will open.",
-              reason: "verification_required",
-            },
-            { status: 403 },
-          );
+        let visitor: Visitor | null = null;
+        const authorization = request.headers.get("authorization");
+        if (authorization) {
+          const userResponse = await fetch(`${url()}/auth/v1/user`, {
+            headers: { apikey: anonKey(), Authorization: authorization },
+          });
+          if (!userResponse.ok) {
+            return Response.json(
+              { error: "Your session has expired. Sign in again.", reason: "sign_in_required" },
+              { status: 401 },
+            );
+          }
+          visitor = (await userResponse.json()) as Visitor;
+          if (!visitor?.id) {
+            return Response.json(
+              {
+                error: "Your session could not be verified. Sign in again.",
+                reason: "sign_in_required",
+              },
+              { status: 401 },
+            );
+          }
+          if (!isVerified(visitor)) {
+            return Response.json(
+              {
+                error: "Confirm your email address, then the demo will open.",
+                reason: "verification_required",
+              },
+              { status: 403 },
+            );
+          }
         }
 
         // The product must be on sale and must actually have a live demo.
@@ -159,13 +155,18 @@ export const Route = createFileRoute("/api/demo/ticket")({
             `&slug=eq.${encodeURIComponent(slug)}&visible=eq.true&limit=1`,
           { headers: admin() },
         );
-        const products = productResponse.ok
-          ? ((await productResponse.json()) as {
-              id: string;
-              name: string;
-              category_id: string | null;
-            }[])
-          : [];
+        if (!productResponse.ok) {
+          console.error("[demo ticket] product lookup failed", productResponse.status);
+          return Response.json(
+            { error: "Could not check this demo right now. Please try again." },
+            { status: 503 },
+          );
+        }
+        const products = (await productResponse.json()) as {
+          id: string;
+          name: string;
+          category_id: string | null;
+        }[];
         const product = products[0];
         if (!product) return Response.json({ error: "No such product." }, { status: 404 });
 
@@ -174,17 +175,26 @@ export const Route = createFileRoute("/api/demo/ticket")({
             `&status=eq.active&limit=1`,
           { headers: admin() },
         );
-        const demos = demoResponse.ok ? ((await demoResponse.json()) as { id: string }[]) : [];
+        if (!demoResponse.ok) {
+          console.error("[demo ticket] active demo lookup failed", demoResponse.status);
+          return Response.json(
+            { error: "Could not check this demo right now. Please try again." },
+            { status: 503 },
+          );
+        }
+        const demos = (await demoResponse.json()) as { id: string }[];
         if (demos.length === 0) {
           return Response.json({ error: "This product has no live demo yet." }, { status: 404 });
         }
 
-        const ticket = issueDemoTicket(slug, visitor.id);
+        const ticket = issueDemoTicket(slug, visitor?.id ?? PUBLIC_DEMO_VISITOR);
         if (!ticket) {
           return Response.json({ error: "Demos are not available right now." }, { status: 503 });
         }
 
-        await recordLead(visitor, { id: product.id, name: product.name, slug, category: null });
+        if (visitor) {
+          await recordLead(visitor, { id: product.id, name: product.name, slug, category: null });
+        }
 
         return Response.json(
           { ticket, demoId: demos[0].id },
