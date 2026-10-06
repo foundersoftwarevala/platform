@@ -123,6 +123,7 @@ import {
 } from "@/components/sapphire-home/RefSections";
 import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { catalogueSlugForShelf } from "@/lib/marketplace/home-category-map";
+import { demoNumbersInRow, marketplaceDemoHref } from "@/lib/marketplace/demo-link";
 import { fetchCountryRail, railCardToDemo, shelfColour } from "@/lib/marketplace/country-rail";
 import { RAIL_COUNTRIES } from "@/lib/marketplace/rail-countries";
 import { useTranslation } from "@/lib/i18n/use-translation";
@@ -166,6 +167,7 @@ export const allDemos: Demo[] = [
     description:
       "Complete school management with student records, attendance, timetable, and parent communication.",
     url: "/demo/school-erp",
+    slug: "school-management",
     icon: GraduationCap,
     status: "ACTIVE",
     features: ["Student Records", "Attendance", "Timetable", "Parent Portal"],
@@ -1770,6 +1772,7 @@ export const allDemos: Demo[] = [
     description:
       "Complete HMS with reservations, front desk, housekeeping, and revenue management.",
     url: "/demo/hotel-booking",
+    slug: "hotel-management",
     icon: Hotel,
     status: "ACTIVE",
     features: ["Reservations", "Front Desk", "Housekeeping", "Revenue"],
@@ -3559,7 +3562,6 @@ const CountryRailCards = memo(function CountryRailCards({
         <DemoCard
           key={`${shelf}-country-${demo.id}`}
           demo={demo}
-          index={index}
           isFavorite={favorites.includes(catalogueSlug(demo.name))}
           onToggleFavorite={() => onToggleFavorite(catalogueSlug(demo.name))}
         />
@@ -3690,7 +3692,6 @@ const Index = () => {
                       <DemoCard
                         key={`${masterCat}-${demo.id}-${index}`}
                         demo={demo}
-                        index={index}
                         isFavorite={favorites.includes(catalogueSlug(demo.name))}
                         onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
                       />
@@ -3718,7 +3719,6 @@ const Index = () => {
                     <DemoCard
                       key={`${activeCategory}-${demo.id}-${index}`}
                       demo={demo}
-                      index={index}
                       isFavorite={favorites.includes(catalogueSlug(demo.name))}
                       onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
                     />
@@ -3837,18 +3837,29 @@ const shareNatively = async (demo: Demo) => {
 const DemoCard = memo(
   ({
     demo,
-    index,
     isFavorite,
     onToggleFavorite,
   }: {
     demo: Demo;
-    index: number;
     isFavorite: boolean;
     onToggleFavorite: () => void;
   }) => {
     const Icon = demo.icon;
     const navigate = useNavigate();
     const { t } = useTranslation();
+    const demoHref = marketplaceDemoHref({
+      hasDemo: Boolean(demo.slug),
+      slug: demo.slug,
+      url: demo.url,
+    });
+    const categoryCards = allDemos.filter(
+      (candidate) => candidate.masterCategory === demo.masterCategory,
+    );
+    const categoryDemoNumbers = demoNumbersInRow(
+      categoryCards.map((candidate) => ({ hasDemo: Boolean(candidate.slug) })),
+    );
+    const cardPosition = categoryCards.findIndex((candidate) => candidate.id === demo.id);
+    const demoNumber = cardPosition < 0 ? null : categoryDemoNumbers[cardPosition];
     // The page this card opens. An author's upload takes the same address, so
     // the card keeps working when the real product arrives behind it.
     const productSlug = demo.slug ?? catalogueSlug(demo.name);
@@ -3923,7 +3934,7 @@ const DemoCard = memo(
                   />
                 </button>
                 <a
-                  href={demo.url && demo.url !== "#" ? demo.url : productHref}
+                  href={demoHref ?? productHref}
                   onClick={(e) => e.stopPropagation()}
                   aria-label={`Preview ${demo.name}`}
                   className="sv-icon-btn"
@@ -3946,8 +3957,8 @@ const DemoCard = memo(
                     {demo.name}
                   </h3>
                 </Link>
-                {demo.status === "ACTIVE" && (
-                  <Badge className="sv-card-rank text-[10px] shrink-0 ml-2">#{index + 1}</Badge>
+                {demo.status === "ACTIVE" && demoNumber !== null && (
+                  <Badge className="sv-card-rank text-[10px] shrink-0 ml-2">#{demoNumber}</Badge>
                 )}
               </div>
               <p className="sv-card-category text-[11px] font-semibold uppercase tracking-normal mb-2 flex items-center gap-1">
@@ -4030,8 +4041,8 @@ const DemoCard = memo(
                     <Button
                       className="sv-btn sv-btn-cyan flex-1"
                       onClick={() => {
-                        if (demo.url && demo.url !== "#") {
-                          window.open(demo.url, "_blank", "noopener,noreferrer");
+                        if (demoHref) {
+                          window.open(demoHref, "_blank", "noopener,noreferrer");
                           return;
                         }
                         openProduct();
