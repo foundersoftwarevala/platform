@@ -123,6 +123,7 @@ import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { buildRow } from "@/data/rowFill";
 import { GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
 import { useProductActions } from "@/lib/marketplace/useActionLayer";
+import { marketplaceDemoHref } from "@/lib/marketplace/demo-link";
 import { useDebouncedValue, useFavorites } from "@/lib/marketplace-home/persistentState";
 import { useMatch } from "@tanstack/react-router";
 import { useHomeRouteData, useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
@@ -4565,7 +4566,7 @@ export const DemoCard = memo(
                   d.href ?? d.url ?? (d.slug ? `/marketplace/product/${d.slug}` : "#");
                 const demoHref =
                   d.demoUrl ??
-                  (d.hasDemo ? productHref : d.url && d.url.startsWith("/demo/") ? d.url : null);
+                  marketplaceDemoHref({ hasDemo: d.hasDemo, slug: d.slug, url: d.url });
                 const buyHref = `${productHref}${productHref.includes("?") ? "&" : "?"}buy=1`;
                 return (
                   <div className="flex gap-2 mt-auto">
