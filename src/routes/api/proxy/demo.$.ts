@@ -315,7 +315,8 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
               "Content-Type": "text/html; charset=utf-8",
               "X-Software-Vala": "true",
               "X-Demo-Slug": slug,
-              "X-Demo-Name": demoName,
+              // Fetch Headers only accepts ByteString values; product names may contain Unicode.
+              "X-Demo-Name": encodeURIComponent(demoName),
               "X-Content-Type-Options": "nosniff",
               "Content-Security-Policy": "frame-ancestors https://softwarevala.net",
             });
