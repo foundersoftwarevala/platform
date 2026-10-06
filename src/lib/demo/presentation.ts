@@ -607,15 +607,31 @@ export function rewriteDemoHydrationAssets(html: string, prefix: string): string
   );
 }
 
+export function cacheBustDemoAssetUrl(value: string): string {
+  const queryAt = value.indexOf("?");
+  const hashAt = value.indexOf("#");
+  const end = [queryAt, hashAt]
+    .filter((index) => index >= 0)
+    .reduce((a, b) => Math.min(a, b), value.length);
+  const pathname = value.slice(0, end);
+  if (!/^\/?api\/proxy\/demo\/[^/]+\/.+\.(?:m?js|css)$/i.test(pathname)) return value;
+  if (/[?&]__sv_presentation=/.test(value)) return value;
+  const hash = hashAt >= 0 ? value.slice(hashAt) : "";
+  const query = queryAt >= 0 ? value.slice(queryAt, hashAt >= 0 ? hashAt : undefined) : "";
+  return `${pathname}${query ? `${query}&` : "?"}__sv_presentation=2${hash}`;
+}
+
 export function rewriteDemoAssetPaths(text: string, prefix: string): string {
   const asset =
     /^\/(?!\/|api\/proxy\/demo\/)[^\s"'<>?#]+\.(?:png|jpe?g|gif|webp|svg|ico|avif|woff2?|ttf|eot|mp4|webm|ogg|mp3|css|m?js)(?:[?#][^\s"'<>]*)?$/i;
   const path = (value: string) => {
     const normalized = value.replace(/^(?:\.\/)?assets\//, "/assets/");
+    if (/^\/?api\/proxy\/demo\//.test(normalized)) return cacheBustDemoAssetUrl(normalized);
     if (!asset.test(normalized)) return value;
-    return value.startsWith("/")
+    const proxied = value.startsWith("/")
       ? `${prefix}${normalized}`
       : `${prefix.replace(/^\//, "")}${normalized}`;
+    return cacheBustDemoAssetUrl(proxied);
   };
   return path(text).replace(
     /(\burl\(\s*["']?)(\/[^"'()]+)(["']?\s*\))/gi,

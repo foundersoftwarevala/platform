@@ -35,7 +35,7 @@ describe("template literal asset paths", () => {
         "/api/proxy/demo/hotel-management",
       ),
     ).toBe(
-      "const css=`/api/proxy/demo/hotel-management/assets/style.css`;const dynamic=`hello ${name}`;",
+      "const css=`/api/proxy/demo/hotel-management/assets/style.css?__sv_presentation=2`;const dynamic=`hello ${name}`;",
     );
     expect(
       cleanBundle("const label=`Vendor`;", { ...rules, rebrand: ["Vendor"] }, "Brand `${safe}`"),
@@ -68,7 +68,9 @@ describe("SSR hydration manifest assets", () => {
     const bootstrap = 'import("/assets/main.js")';
     const code = `$_TSR.router={assets:[{tag:"script",attrs:{type:"module"},children:${JSON.stringify(bootstrap)}}],password:${JSON.stringify(bootstrap)},label:"/patients"};`;
     const result = rewriteDemoHydrationAssets(`<script>${code}</script>`, prefix);
-    expect(result).toContain(`children:${JSON.stringify(`import("${prefix}/assets/main.js")`)}`);
+    expect(result).toContain(
+      `children:${JSON.stringify(`import("${prefix}/assets/main.js?__sv_presentation=2")`)}`,
+    );
     expect(result).toContain(`password:${JSON.stringify(bootstrap)}`);
     expect(result).toContain('label:"/patients"');
     expect(rewriteDemoHydrationAssets(result, prefix)).toBe(result);
@@ -83,8 +85,8 @@ describe("SSR hydration manifest assets", () => {
       '<script type="application/json">{"entry":"/assets/data.js"}</script>' +
       '<script>const untouched="/assets/ordinary.js";</script>';
     const result = rewriteDemoHydrationAssets(html, prefix);
-    expect(result).toContain(`import("${prefix}/assets/main-BYNDnh8n.js")`);
-    expect(result).toContain(`import app from "${prefix}/assets/app.js"`);
+    expect(result).toContain(`import("${prefix}/assets/main-BYNDnh8n.js?__sv_presentation=2")`);
+    expect(result).toContain(`import app from "${prefix}/assets/app.js?__sv_presentation=2"`);
     expect(result).toContain('import("https://vendor.test/app.js")');
     expect(result).toContain('const route="/patients"');
     expect(result).toContain('<script type="module" src="/assets/external.js"></script>');
@@ -100,8 +102,12 @@ describe("SSR hydration manifest assets", () => {
       '$_TSR.router={preloads:["/assets/login.js"],scripts:[{attrs:{src:"/assets/index.js"}}],matches:[{id:"/login"}],email:"gm.mumbai@nexora.io",password:"nexora-demo"};';
     const html = `<script>${code}</script><script type="application/json">{"src":"/assets/data.js"}</script>`;
     const result = rewriteDemoHydrationAssets(html, "/api/proxy/demo/hotel-management");
-    expect(result).toContain('preloads:["/api/proxy/demo/hotel-management/assets/login.js"]');
-    expect(result).toContain('src:"/api/proxy/demo/hotel-management/assets/index.js"');
+    expect(result).toContain(
+      'preloads:["/api/proxy/demo/hotel-management/assets/login.js?__sv_presentation=2"]',
+    );
+    expect(result).toContain(
+      'src:"/api/proxy/demo/hotel-management/assets/index.js?__sv_presentation=2"',
+    );
     expect(result).toContain('id:"/login"');
     expect(result).toContain('email:"gm.mumbai@nexora.io"');
     expect(result).toContain('password:"nexora-demo"');
@@ -116,22 +122,27 @@ describe("Vite lazy module preload paths", () => {
     const rules: PresentationRules = { remove: [], rebrand: [], logos: [], links: [] };
     const bundle = 'const files=["assets/Landing.js","assets/hero.js","./assets/style.css"];';
     expect(cleanBundle(bundle, rules, BRAND.name, prefix)).toBe(
-      'const files=["api/proxy/demo/smart-pos-billing/assets/Landing.js","api/proxy/demo/smart-pos-billing/assets/hero.js","api/proxy/demo/smart-pos-billing/assets/style.css"];',
+      'const files=["api/proxy/demo/smart-pos-billing/assets/Landing.js?__sv_presentation=2","api/proxy/demo/smart-pos-billing/assets/hero.js?__sv_presentation=2","api/proxy/demo/smart-pos-billing/assets/style.css?__sv_presentation=2"];',
     );
     expect(rewriteDemoAssetPaths("assets/Landing.js", prefix)).toBe(
-      `${prefix.slice(1)}/assets/Landing.js`,
+      `${prefix.slice(1)}/assets/Landing.js?__sv_presentation=2`,
     );
     expect(
       new URL(
         "/" + rewriteDemoAssetPaths("assets/Landing.js", prefix),
         "https://www.softwarevala.net",
       ).href,
-    ).toBe(`https://www.softwarevala.net${prefix}/assets/Landing.js`);
+    ).toBe(`https://www.softwarevala.net${prefix}/assets/Landing.js?__sv_presentation=2`);
+    expect(rewriteDemoAssetPaths(`${prefix}/assets/app.js?v=3`, prefix)).toBe(
+      `${prefix}/assets/app.js?v=3&__sv_presentation=2`,
+    );
+    expect(rewriteDemoAssetPaths(`${prefix}/assets/app.js?__sv_presentation=2`, prefix)).toBe(
+      `${prefix}/assets/app.js?__sv_presentation=2`,
+    );
     for (const untouched of [
       "assets/customer",
       "../assets/private.js",
       "https://vendor.test/assets/app.js",
-      "/api/proxy/demo/smart-pos-billing/assets/app.js",
       "/api/data",
     ]) {
       expect(rewriteDemoAssetPaths(untouched, prefix)).toBe(untouched);

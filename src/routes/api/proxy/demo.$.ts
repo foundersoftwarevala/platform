@@ -6,6 +6,7 @@ import {
   applyPresentation,
   cleanBundle,
   activeDemoRules,
+  cacheBustDemoAssetUrl,
   cleanText,
   rewriteDemoAssetPaths,
   rewriteDemoHydrationAssets,
@@ -171,7 +172,11 @@ function rewriteHtmlAssetUrls(html: string, slug: string): string {
     `$1'/api/proxy/demo/${slug}$2'`,
   );
 
-  return rewritten;
+  return rewritten.replace(
+    /((?:src|href|data-src)\s*=\s*["'])(\/api\/proxy\/demo\/[^"']+)(["'])/gi,
+    (_whole, open: string, value: string, close: string) =>
+      `${open}${cacheBustDemoAssetUrl(value)}${close}`,
+  );
 }
 
 export const Route = createFileRoute("/api/proxy/demo/$")({
