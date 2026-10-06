@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { JSDOM } from "jsdom";
 
 import {
   applyPresentation,
@@ -13,6 +14,7 @@ import {
   keyHash,
   hasBrandFavicon,
   hasStarterApp,
+  presentationScript,
   remainingViolations,
   SOFTWARE_VALA_CONTACT,
   stripPlatformBranding,
@@ -223,6 +225,26 @@ describe("Software Vala presentation", () => {
     expect(out).not.toContain("dev-favicon.ico");
   });
 
+  it("rewrites verified chrome labels in SSR HTML without touching protected application data", () => {
+    const rules: PresentationRules = {
+      remove: [],
+      rebrand: [],
+      logos: [],
+      links: [],
+      brandLabels: ["Example ERP"],
+      brandLabelPaths: ["/"],
+    };
+    const html = applyPresentation(
+      "<html><head></head><body><header><span>Example ERP</span></header><table><tr><td>Example ERP</td></tr></table></body></html>",
+      rules,
+      BRAND,
+      "/",
+    );
+
+    expect(html).toContain("<header><span>Software Vala</span></header>");
+    expect(html).toContain("<td>Example ERP</td>");
+  });
+
   it("replaces the developer logo", () => {
     expect(out).toContain(`src="${BRAND.logo}"`);
     expect(out).not.toMatch(/<img[^>]*acme-logo/);
@@ -274,6 +296,47 @@ describe("Software Vala presentation", () => {
     expect(out).not.toMatch(
       /<script data-sv-presentation>[^<]*<\/script>[\s\S]*<script data-sv-presentation>/,
     );
+  });
+
+  it("defers DOM rewriting until after load while keeping proxy route normalization immediate", () => {
+    const rules: PresentationRules = {
+      remove: [],
+      rebrand: [],
+      logos: [],
+      links: [],
+      brandLabels: ["Example ERP"],
+      brandLabelPaths: ["/"],
+    };
+    const dom = new JSDOM(
+      "<!doctype html><html><head></head><body><header>Example ERP</header></body></html>",
+      {
+        url: "https://softwarevala.net/api/proxy/demo/example?t=pass",
+        pretendToBeVisual: true,
+        runScripts: "outside-only",
+      },
+    );
+    const frames: FrameRequestCallback[] = [];
+    dom.window.requestAnimationFrame = (callback) => {
+      frames.push(callback);
+      return frames.length;
+    };
+    Object.defineProperty(dom.window.document, "readyState", {
+      configurable: true,
+      get: () => "loading",
+    });
+
+    dom.window.eval(presentationScript(rules, BRAND));
+
+    expect(dom.window.location.pathname).toBe("/");
+    expect(dom.window.document.querySelector("header")?.textContent).toBe("Example ERP");
+    dom.window.dispatchEvent(new dom.window.Event("load"));
+    expect(frames).toHaveLength(1);
+    frames.shift()?.(0);
+    expect(dom.window.document.querySelector("header")?.textContent).toBe("Example ERP");
+    frames.shift()?.(16);
+    expect(dom.window.document.querySelector("header")?.textContent).toBe("Software Vala");
+
+    dom.window.close();
   });
 
   it("reports what is left when a rule did not take", () => {

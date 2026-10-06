@@ -7,38 +7,13 @@ import { eligibleCount } from "@/lib/seo/sitemap-gate";
  *
  * A single sitemap may hold fifty thousand URLs, and the catalogue is heading
  * for far more than that, so this points at paged child sitemaps rather than
- * listing anything itself. Adding products changes the page count and nothing
- * else.
+ * listing anything itself. Only pages approved by the SEO gate are advertised.
  *
  * A deployment that is not the production domain serves an empty index, so a
  * testing copy can never put a competing set of the same URLs into the index.
  */
 
 const PAGE_SIZE = 1000; // matches the per-page cap in the product sitemap
-
-function url() {
-  return process.env.SUPABASE_URL?.trim() ?? "";
-}
-
-function admin() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
-  return { apikey: key, Authorization: `Bearer ${key}` };
-}
-
-async function countPublished(): Promise<number> {
-  if (!url()) return 0;
-  try {
-    const response = await fetch(
-      `${url()}/rest/v1/marketplace_products?select=id&visible=eq.true` +
-        `&content_status=eq.published&limit=1`,
-      { headers: { ...admin(), Prefer: "count=exact" } },
-    );
-    const range = response.headers.get("content-range") ?? "";
-    return Number(range.split("/")[1]) || 0;
-  } catch {
-    return 0;
-  }
-}
 
 /**
  * How many card slots the safety gate passed.
@@ -70,8 +45,12 @@ export const Route = createFileRoute("/sitemap.xml")({
           );
         }
 
-        const [total, slots] = await Promise.all([countPublished(), countEligibleSlots()]);
-        const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        const [products, slots, blogs] = await Promise.all([
+          eligibleCount("product"),
+          countEligibleSlots(),
+          eligibleCount("blog"),
+        ]);
+        const pages = Math.ceil(products / PAGE_SIZE);
         const slotPages = Math.ceil(slots / PAGE_SIZE);
         const today = new Date().toISOString().slice(0, 10);
 
@@ -79,7 +58,11 @@ export const Route = createFileRoute("/sitemap.xml")({
           `<sitemap><loc>${absoluteUrl("/sitemap-pages.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
           `<sitemap><loc>${absoluteUrl("/sitemap-categories.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
           `<sitemap><loc>${absoluteUrl("/sitemap-countries.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
-          `<sitemap><loc>${absoluteUrl("/sitemap-blog.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
+          ...(blogs > 0
+            ? [
+                `<sitemap><loc>${absoluteUrl("/sitemap-blog.xml")}</loc><lastmod>${today}</lastmod></sitemap>`,
+              ]
+            : []),
           // The card slots: the canonical address of every category-and-country
           // card. Nothing appears until a slot has a product in it, so this is
           // empty rather than misleading on a fresh database.

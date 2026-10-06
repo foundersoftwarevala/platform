@@ -474,6 +474,7 @@ export function applyPresentation(
   html: string,
   rules: PresentationRules,
   brand: { favicon: string; logo: string; name: string },
+  pathname = "/",
 ): string {
   /**
    * The hosting platform's furniture goes first, before anything else looks at
@@ -519,7 +520,30 @@ export function applyPresentation(
   //    shorter one inside it.
   out = mapPublicMarkup(out, (markup) => cleanText(markup, rules, brand.name));
 
-  // 5. The same rules for what a single-page app draws after it loads.
+  // Match chrome labels in server HTML to the literals already rewritten in
+  // the client bundle, so React hydrates the same text it rendered on the server.
+  const labels = rules.brandLabels ?? [];
+  if (labels.length) {
+    const replaceLabels = (markup: string) =>
+      markup.replace(/>([^<>]*)</g, (whole, raw: string) => {
+        const label = raw.trim();
+        if (!labels.includes(label)) return whole;
+        const leading = raw.match(/^\s*/)?.[0] ?? "";
+        const trailing = raw.match(/\s*$/)?.[0] ?? "";
+        return `>${leading}${escapeHtml(brand.name)}${trailing}<`;
+      });
+    if ((rules.brandLabelPaths ?? []).includes(pathname)) {
+      out = mapPublicMarkup(out, replaceLabels);
+    } else {
+      out = out.replace(/<(header|footer|nav)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, (chrome) =>
+        mapPublicMarkup(chrome, replaceLabels),
+      );
+    }
+  }
+
+  // 5. The same rules for what a single-page app draws after it loads. The
+  // server-rendered labels above match the client bundle; defer DOM mutations
+  // until load so they cannot race React hydration.
   const script = `<script data-sv-presentation>${presentationScript(rules, brand)}</script>`;
   out = /<\/head>/i.test(out) ? out.replace(/<\/head>/i, `${script}</head>`) : out + script;
   return out;
@@ -736,9 +760,10 @@ if(el.tagName==="LINK"&&/icon/i.test(el.getAttribute("rel")||"")&&el.getAttribut
 function walk(root){if(!root)return;if(root.nodeType===3){fixText(root);return;}if(root.nodeType!==1)return;fixEl(root);
 var w=document.createTreeWalker(root,5,null),n;while((n=w.nextNode())){if(n.nodeType===3)fixText(n);else fixEl(n);}}
 function run(){walk(document.documentElement);}
-var queued=false;new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(walk);if(m.type==="characterData")fixText(m.target);if(m.type==="attributes")fixEl(m.target);});
-if(!queued){queued=true;setTimeout(function(){queued=false;run();},400);}}).observe(document.documentElement,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:["href","src","rel"]});
-if(document.readyState!=="loading")run();else document.addEventListener("DOMContentLoaded",run);})();`;
+function start(){var queued=false;new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(walk);if(m.type==="characterData")fixText(m.target);if(m.type==="attributes")fixEl(m.target);});
+if(!queued){queued=true;setTimeout(function(){queued=false;run();},400);}}).observe(document.documentElement,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:["href","src","rel"]});run();}
+function ready(){requestAnimationFrame(function(){requestAnimationFrame(start);});}
+if(document.readyState==="complete")ready();else window.addEventListener("load",ready,{once:true});})();`;
 }
 
 /**

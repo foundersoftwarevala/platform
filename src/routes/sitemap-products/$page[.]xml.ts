@@ -1,31 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { absoluteUrl, indexable } from "@/lib/seo/site-url";
+import { eligibleUrls } from "@/lib/seo/sitemap-gate";
 
 /**
  * One page of product URLs.
  *
- * Only products that are visible and published appear, so a draft is never
- * advertised to a crawler. Each entry carries the date the record last changed
- * rather than today's date, so a crawler can tell what actually moved.
+ * Only product pages that passed the central SEO gate appear. Each entry
+ * carries the date the gate last evaluated the page.
  */
 
-// PostgREST caps a response at a thousand rows, so a page is a thousand.
-// Asking for more would silently return fewer and drop products from the map.
+// The SEO gate is the single source of truth for pages search engines may see.
 const PAGE_SIZE = 1000;
-
-function url() {
-  return process.env.SUPABASE_URL?.trim() ?? "";
-}
-
-function admin() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
-  return { apikey: key, Authorization: `Bearer ${key}` };
-}
 
 function escapeXml(value: string): string {
   return value
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 export const Route = createFileRoute("/sitemap-products/$page.xml")({
@@ -39,14 +32,12 @@ export const Route = createFileRoute("/sitemap-products/$page.xml")({
         const open = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
         const close = "</urlset>";
 
-        if (!indexable() || !url()) {
+        if (!indexable()) {
           return new Response(`${open}\n${close}`, { headers });
         }
 
-        // Read the page from the path rather than the route parameter. The
-        // parameter carries the ".xml" suffix and did not parse, which
-        // collapsed every page to the first and repeated the same thousand
-        // products in each one. The path is unambiguous.
+        // Read the page from the path rather than the route parameter, which
+        // carries the ".xml" suffix.
         const fromPath = new URL(request.url).pathname.match(/sitemap-products\/(\d+)/);
         const page = Math.max(
           1,
@@ -55,25 +46,12 @@ export const Route = createFileRoute("/sitemap-products/$page.xml")({
         const offset = (page - 1) * PAGE_SIZE;
 
         try {
-          const response = await fetch(
-            `${url()}/rest/v1/marketplace_products?select=slug,updated_at` +
-              `&visible=eq.true&content_status=eq.published` +
-              `&order=sort_order.asc,name.asc&limit=${PAGE_SIZE}&offset=${offset}`,
-            { headers: admin() },
+          const entries = (await eligibleUrls("product", offset, PAGE_SIZE)).map(
+            (entry) =>
+              `<url><loc>${escapeXml(absoluteUrl(entry.url))}</loc>` +
+              (entry.lastmod ? `<lastmod>${entry.lastmod}</lastmod>` : "") +
+              `<changefreq>weekly</changefreq><priority>0.7</priority></url>`,
           );
-          if (!response.ok) return new Response(`${open}\n${close}`, { headers });
-
-          const rows = (await response.json()) as { slug: string; updated_at: string }[];
-          const entries = rows
-            .filter((r) => r.slug)
-            .map((r) => {
-              const lastmod = String(r.updated_at ?? "").slice(0, 10);
-              return (
-                `<url><loc>${escapeXml(absoluteUrl(`/marketplace/product/${r.slug}`))}</loc>` +
-                (lastmod ? `<lastmod>${lastmod}</lastmod>` : "") +
-                `<changefreq>weekly</changefreq><priority>0.7</priority></url>`
-              );
-            });
 
           return new Response(`${open}\n${entries.join("\n")}\n${close}`, { headers });
         } catch (error) {

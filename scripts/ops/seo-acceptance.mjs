@@ -87,6 +87,25 @@ async function measure(path, kind, expect) {
     return null;
   }
 
+  if (expect.redirectTo) {
+    const location = res.headers.get("location");
+    const target = location ? new URL(location, url) : null;
+    if (
+      res.status !== expect.status ||
+      !target ||
+      target.origin !== new URL(SITE).origin ||
+      normalise(target.href) !== expect.redirectTo
+    ) {
+      note(
+        "critical",
+        "redirect",
+        path,
+        `expected HTTP ${expect.status} to ${expect.redirectTo}, received HTTP ${res.status} to ${location ?? "nowhere"}`,
+      );
+    }
+    return null;
+  }
+
   if (res.status !== 200) {
     note("critical", "status", path, `HTTP ${res.status}`);
     return null;
@@ -262,9 +281,23 @@ console.log(`site        : ${SITE}`);
 console.log(`per kind    : ${PER_KIND}`);
 
 const slots = await rest(`marketplace_card_slots?select=slot_url&order=slot_url.asc&limit=8000`);
-const products = await rest(
-  `marketplace_products?select=slug&visible=eq.true&content_status=eq.published&order=id.asc&limit=1000`,
+const sitemapIndex = await (await fetch(`${SITE}/sitemap.xml`)).text();
+const sitemapChildren = [...sitemapIndex.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
+const productSitemaps = sitemapChildren.filter((child) =>
+  new URL(child).pathname.startsWith("/sitemap-products/"),
 );
+const productPaths = [];
+for (const child of productSitemaps) {
+  const response = await fetch(child);
+  if (!response.ok) {
+    note("critical", "sitemap", child, `HTTP ${response.status}`);
+    continue;
+  }
+  productPaths.push(
+    ...[...(await response.text()).matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]),
+  );
+}
+const products = productPaths.map((url) => ({ path: normalise(url) }));
 const categories = await rest(`marketplace_categories?select=slug&order=sort_order.asc&limit=200`);
 const countries = await rest(
   `marketplace_card_slots?select=country_marker&order=slot_no.asc&limit=80`,
@@ -286,10 +319,8 @@ for (const row of pick(slots, PER_KIND)) {
   ]);
 }
 for (const row of pick(products, PER_KIND)) {
-  // The product page is client-rendered; that is a known, out-of-scope finding,
-  // so its thresholds record what is there rather than pretending otherwise.
   jobs.push([
-    `/marketplace/product/${row.slug}`,
+    row.path,
     "product",
     {
       indexable: true,
@@ -325,11 +356,7 @@ jobs.push([
   "hub",
   { indexable: true, description: true, minWords: 100, minLinks: 20, hreflang: null },
 ]);
-jobs.push([
-  "/marketplace",
-  "hub",
-  { indexable: true, description: true, minWords: 100, minLinks: 20, hreflang: null },
-]);
+jobs.push(["/marketplace", "redirect", { status: 301, redirectTo: "/" }]);
 jobs.push([
   "/blog",
   "blog-index",
@@ -376,6 +403,7 @@ for (const page of measured) {
 const targets = [...new Set(measured.flatMap((page) => page.links))]
   .filter((href) => !href.startsWith("/api/") && !href.startsWith("/demo/"))
   .slice(0, 120);
+const expectedRedirects = new Map([["/marketplace", "/"]]);
 let checked = 0;
 const linkQueue = [...targets];
 await Promise.all(
@@ -389,7 +417,11 @@ await Promise.all(
         if (res.status >= 400) note("critical", "broken-link", href, `HTTP ${res.status}`);
         else if (res.status >= 300) {
           const to = res.headers.get("location") ?? "";
-          note("warning", "redirect", href, `HTTP ${res.status} -> ${to}`);
+          const expected = expectedRedirects.get(href);
+          const target = to ? normalise(new URL(to, SITE).href) : null;
+          if (!(res.status === 301 && expected && target === expected)) {
+            note("warning", "redirect", href, `HTTP ${res.status} -> ${to}`);
+          }
         }
       } catch (error) {
         note("critical", "broken-link", href, String(error).slice(0, 80));
@@ -399,8 +431,8 @@ await Promise.all(
 );
 
 // ------------------------------------------------ 7 sitemap, 8 robots
-const index = await (await fetch(`${SITE}/sitemap.xml`)).text();
-const children = [...index.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
+const index = sitemapIndex;
+const children = sitemapChildren;
 const sitemapUrls = [];
 for (const child of children) {
   const xml = await (await fetch(child)).text();

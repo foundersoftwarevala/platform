@@ -280,6 +280,7 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
                   ),
                 },
                 DEMO_BRAND,
+                assetPath,
               );
             }
 

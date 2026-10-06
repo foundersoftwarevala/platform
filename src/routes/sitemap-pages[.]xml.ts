@@ -9,7 +9,6 @@ import { absoluteUrl, indexable } from "@/lib/seo/site-url";
 
 const PUBLIC_PAGES: Array<{ path: string; priority: string; changefreq: string }> = [
   { path: "/", priority: "1.0", changefreq: "daily" },
-  { path: "/marketplace", priority: "0.9", changefreq: "daily" },
   { path: "/ai/finder", priority: "0.7", changefreq: "weekly" },
   { path: "/ai/recommend", priority: "0.6", changefreq: "weekly" },
   { path: "/ai/compare", priority: "0.6", changefreq: "weekly" },

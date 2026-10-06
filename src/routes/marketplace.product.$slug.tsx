@@ -5,6 +5,7 @@ import { ProductDetail, ProductNotFound } from "@/components/marketplace-home/Pr
 import { getSeoOverride } from "@/lib/seo/page-overrides.functions";
 import { getProductSeo } from "@/lib/seo/category-seo";
 import { getPublicProduct } from "@/lib/marketplace.functions";
+import { canIndexPage } from "@/lib/seo/sitemap-gate";
 
 /**
  * Every product page used to send the same title and description, so all 3,700+
@@ -28,6 +29,8 @@ type Loaded = {
   deployment?: string | null;
   /** What the SEO Manager says about this page, when it has been given a record. */
   override?: import("@/lib/seo/page-overrides").SeoOverride | null;
+  /** The central SEO gate controls both robots and the product sitemap. */
+  indexable?: boolean;
   /**
    * The product itself, so the page renders on the server instead of shipping
    * a spinner. Null when it cannot be loaded, which leaves the component to
@@ -64,10 +67,12 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
   loader: async ({ params }): Promise<Loaded> => {
     // The product and its SEO are unrelated lookups, so one failing must not
     // cost the other. Settled, not all.
-    const [seoResult, productResult] = await Promise.allSettled([
+    const [seoResult, productResult, gateResult] = await Promise.allSettled([
       getProductSeo({ data: { slug: params.slug } }),
       getPublicProduct({ data: { slug: params.slug } }),
+      canIndexPage({ url: `/marketplace/product/${params.slug}` }),
     ]);
+    const indexable = gateResult.status === "fulfilled" && gateResult.value.indexable;
     const product = productResult.status === "fulfilled" ? productResult.value : null;
     /**
      * Both lookups worked and neither found anything: there is no such product.
@@ -113,9 +118,10 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
             description: shown.description ?? shown.industry_label ?? null,
             slug: params.slug,
             product,
+            indexable,
           };
         }
-        return { product, missing };
+        return { product, missing, indexable };
       }
       // What the SEO Manager says about this page, if anything. A record it has
       // never been given simply resolves to null and the product speaks for
@@ -142,10 +148,11 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
         deployment: seo.deployment,
         override,
         product,
+        indexable,
       };
     } catch (error) {
       console.error("[product head] could not load", params.slug, error);
-      return { product, missing };
+      return { product, missing, indexable: false };
     }
   },
 
@@ -158,7 +165,10 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
         { title: data.missing ? "Product not found | Software Vala" : GENERIC.title },
         { name: "description", content: GENERIC.description },
       ];
-      if (!data.missing) return { meta };
+      if (!data.missing) {
+        if (data.indexable !== true) meta.push({ name: "robots", content: "noindex, follow" });
+        return { meta };
+      }
       // No such product. The page still renders, so a stale link is not a dead
       // end, but it is kept out of the index and points at the marketplace
       // rather than claiming to be a product of its own.
@@ -210,7 +220,7 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
     // A canonical the Manager has set for this page wins, unless it points at
     // the testing domain, which the resolver already refuses.
     const canonical = override?.canonical ?? `${siteUrl()}/marketplace/product/${data.slug}`;
-    if (override?.noindex) {
+    if (data.indexable !== true || override?.noindex) {
       meta.push({ name: "robots", content: "noindex, follow" });
     }
     // og:url names the page a share points at; it was missing on every product.
