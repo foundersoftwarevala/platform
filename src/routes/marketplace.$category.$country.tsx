@@ -324,14 +324,26 @@ function SlotPage() {
                 : t("marketplace.slot.technology_unknown")}
             </p>
 
-            <Link
-              to="/marketplace/product/$slug"
-              params={{ slug: product.slug }}
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-500/90 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-400"
-            >
-              {t("marketplace.slot.open_product", { product: product.name })}
-              <ExternalLink className="h-4 w-4" />
-            </Link>
+            <div className="mt-6 flex flex-wrap gap-3">
+              {product.hasDemo && (
+                <Link
+                  to="/demo/$slug"
+                  params={{ slug: product.slug }}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-emerald-300"
+                >
+                  {t("marketplace.slot.launch_demo")}
+                  <ExternalLink className="h-4 w-4" />
+                </Link>
+              )}
+              <Link
+                to="/marketplace/product/$slug"
+                params={{ slug: product.slug }}
+                className="inline-flex items-center gap-2 rounded-xl bg-cyan-500/90 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-400"
+              >
+                {t("marketplace.slot.open_product", { product: product.name })}
+                <ExternalLink className="h-4 w-4" />
+              </Link>
+            </div>
           </article>
         ) : (
           <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-6">

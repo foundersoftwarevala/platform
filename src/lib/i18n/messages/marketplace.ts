@@ -35,6 +35,7 @@ export const MARKETPLACE_MESSAGES = {
   "marketplace.slot.live_demo": ["Live demo", "whether a working demo can be opened"],
   "marketplace.slot.demo_available": ["Available", "a live demo exists for this product"],
   "marketplace.slot.demo_on_request": ["On request", "no live demo is recorded for this product"],
+  "marketplace.slot.launch_demo": ["Open Demo", "button that opens the product's live demo"],
   "marketplace.slot.technology_listed": [
     "Technology: {stack}.",
     "the stack an author recorded for this product",
