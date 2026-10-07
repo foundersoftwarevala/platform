@@ -1,0 +1,2530 @@
+{
+  "at": "2026-10-07T04:12:39.349Z",
+  "persist": false,
+  "limitations": [
+    "Checks structure and accepted output, not human semantic quality or all fonts."
+  ],
+  "languages": [
+    {
+      "code": "en",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 40,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 5,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 6,
+          "reason": null
+        }
+      ],
+      "failures": []
+    },
+    {
+      "code": "hi",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 16,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 16,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90060,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "bn",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 159,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 12,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90354,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ta",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 172,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 13,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90326,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "te",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 162,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 12,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90302,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "mr",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 158,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 12,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90510,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "gu",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 196,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 18,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90304,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "kn",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 160,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 11,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90338,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ml",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 173,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 14,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90329,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "pa",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 3574,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 10282,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90052,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "or",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 5681,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 10401,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90185,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "as",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 6312,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 10314,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90411,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ur",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 4833,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1730,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90048,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ne",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 10975,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 13446,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90075,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "si",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 3860,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 9307,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90201,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "my",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": false,
+          "shape": false,
+          "attempts": 1,
+          "milliseconds": 37800,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 11806,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90050,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "placeholder:unavailable",
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "th",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 474,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 25910,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90086,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "lo",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 3211,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": false,
+          "shape": false,
+          "attempts": 1,
+          "milliseconds": 46035,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90049,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "icu_select:unavailable",
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "km",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 3129,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 13150,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90579,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "vi",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1216,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1670,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90368,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "id",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 2869,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 4267,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90341,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ms",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1205,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 927,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90344,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "fil",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 5573,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1552,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90191,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "zh-Hans",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 919,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1372,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90355,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "zh-Hant",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 692,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1366,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90193,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "jv",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 11168,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 12722,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90341,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ja",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 292,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 3903,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90434,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ko",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 933,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1683,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90346,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "mn",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 2080,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 32998,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90454,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ar",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1061,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 4074,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90349,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "fa",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 3212,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1106,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90359,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ps",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 2282,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 10736,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90216,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ckb",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1670,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 14143,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90323,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "tt",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 6052,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 8604,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90369,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "he",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 8184,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 478,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90223,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "tr",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 327,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 4405,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90329,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "az",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1026,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1561,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90365,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "hy",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 3971,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 11441,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90214,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ka",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 9100,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 15942,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90275,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "kk",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 2620,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 7610,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90326,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "uz",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 10751,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 8732,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90094,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ky",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1525,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 835,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90202,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "tg",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1704,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 11139,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90369,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "tk",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 18809,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 31524,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90049,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ru",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1566,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 6724,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90333,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "uk",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 2702,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 2264,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90236,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "be",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 6777,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 10671,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90237,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "pl",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 4155,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 867,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90166,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "cs",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1214,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1630,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90551,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "sk",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1897,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 10483,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90053,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "hu",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 19490,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1750,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90207,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "ro",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 602,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 5659,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90377,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "bg",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1304,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 2622,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90295,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "sr",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 4091,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 9256,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90180,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "hr",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 48373,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 11376,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90353,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "bs",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 3173,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 13042,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90213,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "sl",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 636,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 4534,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90373,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "mk",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 4094,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 10702,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90346,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "sq",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 865,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 3102,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90559,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "el",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1260,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": false,
+          "shape": false,
+          "attempts": 1,
+          "milliseconds": 2013,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90485,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "icu_select:unavailable",
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "it",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 871,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1940,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90343,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "fr",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1273,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1677,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90317,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "es",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1231,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 10244,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90303,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "pt",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1090,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 2656,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90328,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "pt-BR",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 607,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 2,
+          "milliseconds": 85347,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90394,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "de",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 619,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 2271,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90320,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "nl",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1573,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 2615,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90325,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "nl-BE",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 332,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 740,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90430,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "da",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 802,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 3429,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90214,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "sv",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 39599,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1527,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90418,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "nb",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 805,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 1997,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90316,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    },
+    {
+      "code": "fi",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 834,
+          "reason": null
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 5266,
+          "reason": null
+        },
+        {
+          "name": "html",
+          "status": 429,
+          "accepted": false,
+          "shape": false,
+          "attempts": 3,
+          "milliseconds": 90343,
+          "reason": "quota_exceeded"
+        }
+      ],
+      "failures": [
+        "html:unavailable"
+      ]
+    }
+  ]
+}

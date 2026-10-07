@@ -89,6 +89,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   beforeLoad: async () => ({ languageBootstrap: await getLanguageBootstrap() }),
+  loader: ({ context }) => context.languageBootstrap,
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -130,7 +131,7 @@ const LANGUAGE_BOOT_SCRIPT = buildLanguageBootScript();
 const SOURCE_LANGUAGE_ENTRY = getLanguage(DEFAULT_LANGUAGE)!;
 
 function RootShell({ children }: { children: ReactNode }) {
-  const { languageBootstrap } = Route.useRouteContext();
+  const languageBootstrap = Route.useLoaderData();
   const language =
     getLanguage(languageBootstrap?.code ?? DEFAULT_LANGUAGE) ?? SOURCE_LANGUAGE_ENTRY;
   return (
@@ -152,7 +153,8 @@ function RootComponent() {
   // every row-level-secured table silently delivers nothing.
   useRealtimeAuth();
 
-  const { queryClient, languageBootstrap } = Route.useRouteContext();
+  const { queryClient } = Route.useRouteContext();
+  const languageBootstrap = Route.useLoaderData();
 
   return (
     <QueryClientProvider client={queryClient}>

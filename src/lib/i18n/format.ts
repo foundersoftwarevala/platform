@@ -18,6 +18,10 @@ import { SOURCE_LANGUAGE, getLanguage, type LanguageDefinition } from "./registr
 
 export type MessageValues = Record<string, unknown>;
 
+export function preserveSourceWhitespace(source: string, translation: string): string {
+  return (source.match(/^\s*/)?.[0] ?? "") + translation.trim() + (source.match(/\s*$/)?.[0] ?? "");
+}
+
 type Node = string | Simple | Block | Pound;
 type Simple = { kind: "simple"; name: string; type?: string; style?: string };
 type Block = {

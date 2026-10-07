@@ -389,3 +389,38 @@ not change the serving application artifact.
 **Decision: NOT READY under the strict 140-language/all-surface acceptance.**
 Native foundation fixes are deployed and verified; remaining engineering work
 has not been relabeled as an owner decision.
+
+## Follow-up: numeric quotas and hydration parity
+
+The fresh pre-repair browser matrix completed 140 languages, with 85 failing
+rows and 18 page exceptions. The operator format attempt reached only 72
+languages: 142 accepted cases and 71 failing rows. These are retained observations,
+not successful acceptance results or proof of model limitations.
+
+Two concrete causes were repaired:
+
+- PostgreSQL can infer two untyped comparison parameters as text. For example,
+  `'92' <= '5000000'` is false, although the numeric comparison is true.
+  The engine quota reservation now explicitly compares bigint parameters;
+  limits and existing counters were not raised or reset. The actual source
+  function passed below-limit, equal-limit and over-limit probes against
+  `sv_platform` as `sv_app`, entirely rolled back with zero probe rows.
+- SSR now follows the client's reviewed regional dictionaries and product-name
+  protection. Request-specific bootstrap is serialized as root loader data;
+  translation-memory lookup normalizes source padding while restoring the
+  original displayed whitespace.
+
+The static source catalogue previously contained 215 strings with embedded CR
+characters from Windows checkouts. Extraction now normalizes physical source
+line endings before parsing, leaving escaped string content unchanged. The
+trusted catalogue still contains 13,575 actual source strings; the strict
+generated-source check passes on the Linux candidate.
+
+Candidate verification: 19 native test files / 475 tests pass, changed-file
+strict TypeScript reports zero errors (7 roots / 515 source files), focused
+ESLint passes, and the production build passes. Browser verification now isolates
+each language in a fresh anonymous context and records page exceptions against
+their actual language, preventing one failed navigation from contaminating
+later cases. Fresh post-deployment matrices remain necessary; this section
+does not certify all 140 languages, voice/AI, signed-in flows or thousand-user
+cold-inference capacity.

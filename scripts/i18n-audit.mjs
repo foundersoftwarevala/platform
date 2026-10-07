@@ -188,8 +188,12 @@ function exempt(node, sourceText, lineStarts) {
   return /i18n-ignore/.test(sourceText.slice(prevStart, end));
 }
 
+export function normalizeSourceLineEndings(text) {
+  return text.replace(/\r\n?/g, "\n");
+}
+
 function scan(file, fullText = false, dataTexts) {
-  const text = readFileSync(file, "utf8");
+  const text = normalizeSourceLineEndings(readFileSync(file, "utf8"));
   const source = ts.createSourceFile(
     file,
     text,

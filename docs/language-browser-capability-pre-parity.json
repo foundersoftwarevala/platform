@@ -1,0 +1,1846 @@
+{
+  "at": "2026-10-07T04:30:04.251Z",
+  "anonymous": true,
+  "languages": [
+    {
+      "code": "en",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "en",
+      "actualDirection": "ltr",
+      "progress": "ready",
+      "fallback": 0,
+      "pending": 0,
+      "reloadStatus": 200,
+      "serverLocale": "en",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "en",
+      "mainVisible": true
+    },
+    {
+      "code": "hi",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "hi",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 21,
+      "pending": 21,
+      "reloadStatus": 200,
+      "serverLocale": "hi",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "hi",
+      "mainVisible": true
+    },
+    {
+      "code": "bn",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "bn",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 22,
+      "pending": 21,
+      "reloadStatus": 200,
+      "serverLocale": "bn",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "bn",
+      "mainVisible": true
+    },
+    {
+      "code": "ta",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "ta",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 22,
+      "pending": 21,
+      "reloadStatus": 200,
+      "serverLocale": "ta",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ta",
+      "mainVisible": true
+    },
+    {
+      "code": "te",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"te\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-125\" data-code=\"te\" data-index=\"125\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not stable\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is not stable\u001b[22m\n\u001b[2m  - retrying click action\u001b[22m\n\u001b[2m    - waiting 100ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - <p translate=\"no\" data-letter=\"U\" class=\"sticky top-0 z-10 scroll-mt-1 bg-popover/95 px-3 py-1 text-xs font-bold text-muted-foreground backdrop-blur\">U</p> intercepts pointer events\u001b[22m\n\u001b[2m  - retrying click action\u001b[22m\n\u001b[2m    - waiting 100ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <p translate=\"no\" data-letter=\"T\" class=\"sticky top-0 z-10 scroll-mt-1 bg-popover/95 px-3 py-1 text-xs font-bold text-muted-foreground backdrop-blur\">T</p> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-129\" data-code=\"tr\" data-index=\"129\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button> intercepts pointer events\u001b[22m\n\u001b[2m  - retrying click action\u001b[22m\n\u001b[2m    - waiting 500ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "mr",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"mr\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-88\" data-code=\"mr\" data-index=\"88\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m  - element was detached from the DOM, retrying\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "gu",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "gu",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 46,
+      "pending": 38,
+      "reloadStatus": 200,
+      "serverLocale": "gu",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "gu",
+      "mainVisible": true
+    },
+    {
+      "code": "kn",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "kn",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 54,
+      "pending": 48,
+      "reloadStatus": 200,
+      "serverLocale": "kn",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "kn",
+      "mainVisible": true
+    },
+    {
+      "code": "ml",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "ml",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 78,
+      "pending": 81,
+      "reloadStatus": 200,
+      "serverLocale": "ml",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ml",
+      "mainVisible": true
+    },
+    {
+      "code": "pa",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "pa",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 48,
+      "pending": 48,
+      "reloadStatus": 200,
+      "serverLocale": "pa",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "pa",
+      "mainVisible": true
+    },
+    {
+      "code": "or",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "or",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 49,
+      "pending": 46,
+      "reloadStatus": 200,
+      "serverLocale": "or",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "or",
+      "mainVisible": true
+    },
+    {
+      "code": "as",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "as",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 50,
+      "pending": 42,
+      "reloadStatus": 200,
+      "serverLocale": "as",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "as",
+      "mainVisible": true
+    },
+    {
+      "code": "ur",
+      "direction": "rtl",
+      "failures": [],
+      "selected": "ur",
+      "actualDirection": "rtl",
+      "progress": "partial",
+      "fallback": 37,
+      "pending": 32,
+      "reloadStatus": 200,
+      "serverLocale": "ur",
+      "serverDirection": "rtl",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ur",
+      "mainVisible": true
+    },
+    {
+      "code": "ne",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "ne",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 25,
+      "pending": 24,
+      "reloadStatus": 200,
+      "serverLocale": "ne",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ne",
+      "mainVisible": true
+    },
+    {
+      "code": "si",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "si",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 45,
+      "pending": 41,
+      "reloadStatus": 200,
+      "serverLocale": "si",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "si",
+      "mainVisible": true
+    },
+    {
+      "code": "my",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "my",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 32,
+      "pending": 24,
+      "reloadStatus": 200,
+      "serverLocale": "my",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "my",
+      "mainVisible": true
+    },
+    {
+      "code": "th",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "th",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 60,
+      "pending": 57,
+      "reloadStatus": 200,
+      "serverLocale": "th",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "th",
+      "mainVisible": true
+    },
+    {
+      "code": "lo",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"lo\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-75\" data-code=\"lo\" data-index=\"75\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "km",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"km\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-71\" data-code=\"km\" data-index=\"71\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - <p translate=\"no\" data-letter=\"K\" class=\"sticky top-0 z-10 scroll-mt-1 bg-popover/95 px-3 py-1 text-xs font-bold text-muted-foreground backdrop-blur\">K</p> intercepts pointer events\u001b[22m\n\u001b[2m  - retrying click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n\u001b[2m    - click action done\u001b[22m\n\u001b[2m    - waiting for scheduled navigations to finish\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "vi",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"ភាសា: ខ្មែរ. ជ្រើសភាសាផ្សេងទៀត\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "id",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"id\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ms",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "ms",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 92,
+      "pending": 92,
+      "reloadStatus": 200,
+      "serverLocale": "ms",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ms",
+      "mainVisible": true
+    },
+    {
+      "code": "fil",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "fil",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 25,
+      "pending": 23
+    },
+    {
+      "code": "zh-Hans",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "zh-Hant",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "zh-Hant",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 34,
+      "pending": 29,
+      "reloadStatus": 200,
+      "serverLocale": "zh-Hant",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "zh-Hant",
+      "mainVisible": true
+    },
+    {
+      "code": "jv",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"jv\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-68\" data-code=\"jv\" data-index=\"68\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ja",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "ja",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 43,
+      "pending": 40
+    },
+    {
+      "code": "ko",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"言語: 日本語。他の言語を選択\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "mn",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"言語: 日本語。他の言語を選択\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ar",
+      "direction": "rtl",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"ar\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "fa",
+      "direction": "rtl",
+      "failures": [],
+      "selected": "fa",
+      "actualDirection": "rtl",
+      "progress": "partial",
+      "fallback": 55,
+      "pending": 39,
+      "reloadStatus": 200,
+      "serverLocale": "fa",
+      "serverDirection": "rtl",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "fa",
+      "mainVisible": true
+    },
+    {
+      "code": "ps",
+      "direction": "rtl",
+      "failures": [],
+      "selected": "ps",
+      "actualDirection": "rtl",
+      "progress": "partial",
+      "fallback": 39,
+      "pending": 30,
+      "reloadStatus": 200,
+      "serverLocale": "ps",
+      "serverDirection": "rtl",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ps",
+      "mainVisible": true
+    },
+    {
+      "code": "ckb",
+      "direction": "rtl",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"ژبه: پښتو. بله ژبه وټاکئ\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "tt",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"tt\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "he",
+      "direction": "rtl",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"he\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_e_-59\" data-code=\"he\" data-index=\"59\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "tr",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "tr",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 41,
+      "pending": 36
+    },
+    {
+      "code": "az",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Dil: TürkçeBaşka bir dil seçin\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "hy",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Dil: TürkçeBaşka bir dil seçin\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ka",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"open\" aria-expanded=\"true\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-controls=\"radix-_r_5_\" data-radix-popper-side=\"top\" data-radix-popper-align=\"start\" aria-label=\"Dil: TürkçeBaşka bir dil seçin\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:…>…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n\u001b[2m    - click action done\u001b[22m\n\u001b[2m    - waiting for scheduled navigations to finish\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "kk",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "kk",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 53,
+      "pending": 48,
+      "reloadStatus": 200,
+      "serverLocale": "kk",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "kk",
+      "mainVisible": true
+    },
+    {
+      "code": "uz",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"uz\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_e_-134\" data-code=\"uz\" data-index=\"134\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ky",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "ky",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 87,
+      "pending": 87,
+      "reloadStatus": 200,
+      "serverLocale": "ky",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ky",
+      "mainVisible": true
+    },
+    {
+      "code": "tg",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "tg",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 47,
+      "pending": 36
+    },
+    {
+      "code": "tk",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ru",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "ru",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 37,
+      "pending": 31,
+      "reloadStatus": 200,
+      "serverLocale": "ru",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ru",
+      "mainVisible": true
+    },
+    {
+      "code": "uk",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "uk",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 53,
+      "pending": 46,
+      "reloadStatus": 200,
+      "serverLocale": "uk",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "uk",
+      "mainVisible": true
+    },
+    {
+      "code": "be",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "be",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 45,
+      "pending": 48
+    },
+    {
+      "code": "pl",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Мова: БеларускаяВыберыце іншую мову\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "cs",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"cs\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "sk",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "sk",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 30,
+      "pending": 29,
+      "reloadStatus": 200,
+      "serverLocale": "sk",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "sk",
+      "mainVisible": true
+    },
+    {
+      "code": "hu",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "hu",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 54,
+      "pending": 48
+    },
+    {
+      "code": "ro",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "bg",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "bg",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 54,
+      "pending": 43
+    },
+    {
+      "code": "sr",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "sr",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 37,
+      "pending": 36
+    },
+    {
+      "code": "hr",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "bs",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Језик: СрпскиИзабери други језик\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "sl",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"sl\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-112\" data-code=\"sl\" data-index=\"112\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m  - element was detached from the DOM, retrying\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "mk",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "mk",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 94,
+      "pending": 94,
+      "reloadStatus": 200,
+      "serverLocale": "mk",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "mk",
+      "mainVisible": true
+    },
+    {
+      "code": "sq",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "sq",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 55,
+      "pending": 45,
+      "reloadStatus": 200,
+      "serverLocale": "sq",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "sq",
+      "mainVisible": true
+    },
+    {
+      "code": "el",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "el",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 57,
+      "pending": 48
+    },
+    {
+      "code": "it",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "it",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 61,
+      "pending": 60,
+      "reloadStatus": 200,
+      "serverLocale": "it",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "it",
+      "mainVisible": true
+    },
+    {
+      "code": "fr",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Lingua: Italiano. Scegli un'altra lingua\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "es",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"es\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "pt",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "pt",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 36,
+      "pending": 34
+    },
+    {
+      "code": "pt-BR",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "de",
+      "direction": "ltr",
+      "failures": [
+        "page.waitForFunction: Timeout 30000ms exceeded."
+      ]
+    },
+    {
+      "code": "nl",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "nl",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 45,
+      "pending": 36,
+      "reloadStatus": 200,
+      "serverLocale": "nl",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "nl",
+      "mainVisible": true
+    },
+    {
+      "code": "nl-BE",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "nl-BE",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 23,
+      "pending": 21
+    },
+    {
+      "code": "da",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"da\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-26\" data-code=\"da\" data-index=\"26\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n\u001b[2m    - click action done\u001b[22m\n\u001b[2m    - waiting for scheduled navigations to finish\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "sv",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "sv",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 45,
+      "pending": 38,
+      "reloadStatus": 200,
+      "serverLocale": "sv",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "sv",
+      "mainVisible": true
+    },
+    {
+      "code": "nb",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "nb",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 58,
+      "pending": 48
+    },
+    {
+      "code": "fi",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "fi",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 50,
+      "pending": 48
+    },
+    {
+      "code": "is",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "is",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 56,
+      "pending": 49,
+      "reloadStatus": 200,
+      "serverLocale": "is",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "is",
+      "mainVisible": true
+    },
+    {
+      "code": "et",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "et",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 31,
+      "pending": 30
+    },
+    {
+      "code": "lv",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Keel: Eesti. Valige mõni muu keel\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "lt",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"lt\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ga",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "ga",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 49,
+      "pending": 50
+    },
+    {
+      "code": "gd",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Teanga: Gaeilge. Roghnaigh teanga eile\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "cy",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Teanga: Gaeilge. Roghnaigh teanga eile\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "eu",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"eu\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ca",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"ca\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-20\" data-code=\"ca\" data-index=\"20\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "gl",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"gl\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "mt",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "mt",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 59,
+      "pending": 58,
+      "reloadStatus": 200,
+      "serverLocale": "mt",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "mt",
+      "mainVisible": true
+    },
+    {
+      "code": "lb",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "lb",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 63,
+      "pending": 62
+    },
+    {
+      "code": "af",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"af\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" id=\"_r_e_-2\" type=\"button\" role=\"option\" data-index=\"2\" data-code=\"af\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "zu",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "zu",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 42,
+      "pending": 43,
+      "reloadStatus": 200,
+      "serverLocale": "zu",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "zu",
+      "mainVisible": true
+    },
+    {
+      "code": "xh",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "xh",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 47,
+      "pending": 39
+    },
+    {
+      "code": "sw",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "am",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"U_lwimi: isiXhosa. Khetha enye ulwimi\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ti",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"ti\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "so",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "so",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 62,
+      "pending": 56,
+      "reloadStatus": 200,
+      "serverLocale": "so",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "so",
+      "mainVisible": true
+    },
+    {
+      "code": "ha",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Afka: Soomaali. Dooro af kale\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n\u001b[2m    - click action done\u001b[22m\n\u001b[2m    - waiting for scheduled navigations to finish\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "yo",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"yo\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ig",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "ig",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 69,
+      "pending": 63,
+      "reloadStatus": 200,
+      "serverLocale": "ig",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ig",
+      "mainVisible": true
+    },
+    {
+      "code": "rw",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "rw",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 58,
+      "pending": 52
+    },
+    {
+      "code": "mg",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "mg",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 69,
+      "pending": 66
+    },
+    {
+      "code": "sn",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Teny: Malagasy. Misafidiana teny hafa\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "st",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"st\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "tn",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "tn",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 58,
+      "pending": 48
+    },
+    {
+      "code": "om",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Language: Setswana. Choose another language\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "sg",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "sg",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 73,
+      "pending": 76,
+      "reloadStatus": 200,
+      "serverLocale": "sg",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "sg",
+      "mainVisible": true
+    },
+    {
+      "code": "ak",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"ak\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" id=\"_r_e_-3\" type=\"button\" role=\"option\" data-index=\"3\" data-code=\"ak\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "wo",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" data-radix-popper-side=\"top\" data-radix-popper-align=\"start\" aria-label=\"Language: Akan. Choose another language\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "bm",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "bm",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 48,
+      "pending": 47,
+      "reloadStatus": 200,
+      "serverLocale": "bm",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "bm",
+      "mainVisible": true
+    },
+    {
+      "code": "ff",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "ff",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 55,
+      "pending": 47,
+      "reloadStatus": 200,
+      "serverLocale": "ff",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ff",
+      "mainVisible": true
+    },
+    {
+      "code": "ln",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "ln",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 91,
+      "pending": 75
+    },
+    {
+      "code": "ar-EG",
+      "direction": "rtl",
+      "failures": [],
+      "selected": "ar-EG",
+      "actualDirection": "rtl",
+      "progress": "partial",
+      "fallback": 87,
+      "pending": 54,
+      "reloadStatus": 200,
+      "serverLocale": "ar-EG",
+      "serverDirection": "rtl",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ar-EG",
+      "mainVisible": true
+    },
+    {
+      "code": "ar-AE",
+      "direction": "rtl",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "ar-AE",
+      "actualDirection": "rtl",
+      "progress": "partial",
+      "fallback": 62,
+      "pending": 58
+    },
+    {
+      "code": "ar-MA",
+      "direction": "rtl",
+      "failures": [],
+      "selected": "ar-MA",
+      "actualDirection": "rtl",
+      "progress": "partial",
+      "fallback": 55,
+      "pending": 61,
+      "reloadStatus": 200,
+      "serverLocale": "ar-MA",
+      "serverDirection": "rtl",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ar-MA",
+      "mainVisible": true
+    },
+    {
+      "code": "es-MX",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"اللغة: العربية (المغرب العربي)اختار لغة أخرى\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "es-AR",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"es-AR\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "es-CO",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "es-CO",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 44,
+      "pending": 40,
+      "reloadStatus": 200,
+      "serverLocale": "es-CO",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "es-CO",
+      "mainVisible": true
+    },
+    {
+      "code": "es-CL",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "es-CL",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 62,
+      "pending": 50,
+      "reloadStatus": 200,
+      "serverLocale": "es-CL",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "es-CL",
+      "mainVisible": true
+    },
+    {
+      "code": "es-PE",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "es-PE",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 53,
+      "pending": 53,
+      "reloadStatus": 200,
+      "serverLocale": "es-PE",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "es-PE",
+      "mainVisible": true
+    },
+    {
+      "code": "fr-CA",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "fr-CA",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 44,
+      "pending": 36
+    },
+    {
+      "code": "fr-BE",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "fr-BE",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 58,
+      "pending": 58,
+      "reloadStatus": 200,
+      "serverLocale": "fr-BE",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "fr-BE",
+      "mainVisible": true
+    },
+    {
+      "code": "fr-CH",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Langue: Français (Belgique). Choisir une autre langue\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "de-AT",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"de-AT\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "de-CH",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "de-CH",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 58,
+      "pending": 56
+    },
+    {
+      "code": "en-GB",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "en-GB",
+      "actualDirection": "ltr",
+      "progress": "ready",
+      "fallback": 0,
+      "pending": 0,
+      "reloadStatus": 200,
+      "serverLocale": "en-GB",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "en-GB",
+      "mainVisible": true
+    },
+    {
+      "code": "en-AU",
+      "direction": "ltr",
+      "failures": [
+        "page.reload: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for navigation until \"domcontentloaded\"\u001b[22m\n\u001b[2m    - navigated to \"https://softwarevala.net/\"\u001b[22m\n"
+      ],
+      "selected": "en-AU",
+      "actualDirection": "ltr",
+      "progress": "ready",
+      "fallback": 0,
+      "pending": 0
+    },
+    {
+      "code": "en-CA",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Language: English (Australia). Choose another language\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "en-IN",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "en-IN",
+      "actualDirection": "ltr",
+      "progress": "ready",
+      "fallback": 0,
+      "pending": 0,
+      "reloadStatus": 200,
+      "serverLocale": "en-IN",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "en-IN",
+      "mainVisible": true
+    },
+    {
+      "code": "en-SG",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-label=\"Language: English (India). Choose another language\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:bg-accent sm:h-11 sm:w-auto sm:px-3.5\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "en-NZ",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-language-selector]:visible').first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" data-state=\"open\" aria-expanded=\"true\" aria-haspopup=\"dialog\" data-language-selector=\"\" aria-controls=\"radix-_r_5_\" data-radix-popper-side=\"top\" data-radix-popper-align=\"start\" aria-label=\"Language: English (India). Choose another language\" class=\"inline-flex items-center gap-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-12 w-12 justify-center rounded-full border border-border bg-background/95 shadow-lg backdrop-blur hover:b…>…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "en-IE",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "en-IE",
+      "actualDirection": "ltr",
+      "progress": "ready",
+      "fallback": 0,
+      "pending": 0,
+      "reloadStatus": 200,
+      "serverLocale": "en-IE",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "en-IE",
+      "mainVisible": true
+    },
+    {
+      "code": "haw",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "haw",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 56,
+      "pending": 50,
+      "reloadStatus": 200,
+      "serverLocale": "haw",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "haw",
+      "mainVisible": true
+    },
+    {
+      "code": "sm",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "sm",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 45,
+      "pending": 43,
+      "reloadStatus": 200,
+      "serverLocale": "sm",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "sm",
+      "mainVisible": true
+    },
+    {
+      "code": "to",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "to",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 94,
+      "pending": 92,
+      "reloadStatus": 200,
+      "serverLocale": "to",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "to",
+      "mainVisible": true
+    },
+    {
+      "code": "fj",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "fj",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 89,
+      "pending": 51,
+      "reloadStatus": 200,
+      "serverLocale": "fj",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "fj",
+      "mainVisible": true
+    },
+    {
+      "code": "mi",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"mi\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-87\" data-code=\"mi\" data-index=\"87\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ht",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"ht\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-56\" data-code=\"ht\" data-index=\"56\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is not stable\u001b[22m\n\u001b[2m  - retrying click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - element is outside of the viewport\u001b[22m\n\u001b[2m  - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <span dir=\"ltr\" lang=\"hi\" translate=\"no\" class=\"block truncate font-medium\">हिन्दी</span> from <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-60\" data-code=\"hi\" data-index=\"60\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <p translate=\"no\" data-letter=\"H\" class=\"sticky top-0 z-10 scroll-mt-1 bg-popover/95 px-3 py-1 text-xs font-bold text-muted-foreground backdrop-blur\">H</p> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - <span dir=\"ltr\" lang=\"hi\" translate=\"no\" class=\"block truncate font-medium\">हिन्दी</span> from <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-60\" data-code=\"hi\" data-index=\"60\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button> subtree intercepts pointer events\u001b[22m\n\u001b[2m  - retrying click action\u001b[22m\n\u001b[2m    - waiting 500ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n\u001b[2m    - <span dir=\"rtl\" lang=\"he\" translate=\"no\" class=\"block truncate font-medium\">עברית</span> from <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-59\" data-code=\"he\" data-index=\"59\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button> subtree intercepts pointer events\u001b[22m\n\u001b[2m  2 × retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n\u001b[2m      - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <p translate=\"no\" data-letter=\"H\" class=\"sticky top-0 z-10 scroll-mt-1 bg-popover/95 px-3 py-1 text-xs font-bold text-muted-foreground backdrop-blur\">H</p> intercepts pointer events\u001b[22m\n\u001b[2m  - retrying click action\u001b[22m\n\u001b[2m    - waiting 500ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - <span dir=\"rtl\" lang=\"he\" translate=\"no\" class=\"block truncate font-medium\">עברית</span> from <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-59\" data-code=\"he\" data-index=\"59\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors bg-accent text-accent-foreground\">…</button> subtree intercepts pointer events\u001b[22m\n\u001b[2m  - retrying click action\u001b[22m\n\u001b[2m    - waiting 500ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "gn",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "gn",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 90,
+      "pending": 64,
+      "reloadStatus": 200,
+      "serverLocale": "gn",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "gn",
+      "mainVisible": true
+    },
+    {
+      "code": "mai",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "mai",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 63,
+      "pending": 66,
+      "reloadStatus": 200,
+      "serverLocale": "mai",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "mai",
+      "mainVisible": true
+    },
+    {
+      "code": "dv",
+      "direction": "rtl",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"dv\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-27\" data-code=\"dv\" data-index=\"27\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - performing click action\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "la",
+      "direction": "ltr",
+      "failures": [],
+      "selected": "la",
+      "actualDirection": "ltr",
+      "progress": "partial",
+      "fallback": 46,
+      "pending": 47,
+      "reloadStatus": 200,
+      "serverLocale": "la",
+      "serverDirection": "ltr",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "la",
+      "mainVisible": true
+    },
+    {
+      "code": "eo",
+      "direction": "ltr",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"eo\"]').first()\u001b[22m\n\u001b[2m    - locator resolved to <button data-all=\"\" type=\"button\" role=\"option\" id=\"_r_4_-37\" data-code=\"eo\" data-index=\"37\" aria-selected=\"false\" class=\"flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition-colors hover:bg-accent/60\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "sd",
+      "direction": "rtl",
+      "failures": [
+        "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[role=option][data-code=\"sd\"]').first()\u001b[22m\n"
+      ]
+    },
+    {
+      "code": "ug",
+      "direction": "rtl",
+      "failures": [],
+      "selected": "ug",
+      "actualDirection": "rtl",
+      "progress": "partial",
+      "fallback": 46,
+      "pending": 51,
+      "reloadStatus": 200,
+      "serverLocale": "ug",
+      "serverDirection": "rtl",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "ug",
+      "mainVisible": true
+    },
+    {
+      "code": "yi",
+      "direction": "rtl",
+      "failures": [],
+      "selected": "yi",
+      "actualDirection": "rtl",
+      "progress": "partial",
+      "fallback": 49,
+      "pending": 45,
+      "reloadStatus": 200,
+      "serverLocale": "yi",
+      "serverDirection": "rtl",
+      "layout": {
+        "fontStatus": "loaded",
+        "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", \"Noto Sans\", Arial, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+        "horizontalOverflow": 0
+      },
+      "reload": "yi",
+      "mainVisible": true
+    }
+  ],
+  "errors": [
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+    "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+  ]
+}

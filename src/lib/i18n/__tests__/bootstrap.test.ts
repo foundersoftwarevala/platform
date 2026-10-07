@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { LanguageProvider, useLanguage } from "../../language-catalog";
+import { LanguageProvider, useLanguage, translateText } from "../../language-catalog";
 import { languagePackPayload, type LanguageBootstrap } from "../bootstrap";
 
 const empty = (code: string): LanguageBootstrap => ({
@@ -12,20 +12,39 @@ const empty = (code: string): LanguageBootstrap => ({
   tag: null,
   reason: null,
 });
-function Label() {
+function Label({ text = "publicseo.home_generic_title" }: { text?: string }) {
   const { translate, language, serviceReason } = useLanguage();
   return createElement(
     "span",
     { lang: language.code, "data-reason": serviceReason },
-    translate("publicseo.home_generic_title"),
+    translate(text),
   );
 }
-function render(initial: LanguageBootstrap) {
+function render(initial: LanguageBootstrap, text?: string) {
   return renderToString(
-    createElement(LanguageProvider, { initial, children: createElement(Label) }),
+    createElement(LanguageProvider, { initial, children: createElement(Label, { text }) }),
   );
 }
 describe("native SSR language bootstrap", () => {
+  it("uses the same reviewed regional fallback as the first client render", () => {
+    expect(render(empty("ar-EG"), "Share")).toContain(translateText("Share", "ar-EG"));
+  });
+  it("does not translate a coined product name from a historical pack on the server", () => {
+    expect(
+      render(
+        { ...empty("hi"), entries: { [`${String.fromCharCode(1)}EduNex Pro`]: "Software Vala" } },
+        "EduNex Pro",
+      ),
+    ).toContain(">EduNex Pro</span>");
+  });
+  it("uses normalized memory keys without removing intentional source spacing", () => {
+    expect(
+      render(
+        { ...empty("hi"), entries: { [`${String.fromCharCode(1)}Share`]: "Software Vala" } },
+        " Share ",
+      ),
+    ).toContain("> Software Vala </span>");
+  });
   it("renders accepted keyed pack text without sharing one request's pack with another", () => {
     const source = "Software Vala — Software Solutions Marketplace";
     const accepted = "Software Vala";

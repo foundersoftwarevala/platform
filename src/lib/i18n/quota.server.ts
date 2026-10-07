@@ -24,7 +24,7 @@ export async function reserveEngineQuota(client: Sql, units: number, windows: Qu
         const rows = await tx`
           insert into public.i18n_request_quota as q (subject, window_start, units)
           select ${item.subject}, to_timestamp(floor(extract(epoch from now()) / ${item.seconds}) * ${item.seconds}), ${units}
-          where ${units} <= ${item.limit}
+          where ${units}::bigint <= ${item.limit}::bigint
           on conflict (subject, window_start) do update set units = q.units + excluded.units
           where q.units + excluded.units <= ${item.limit}
           returning window_start

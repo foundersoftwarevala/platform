@@ -1,4 +1,4 @@
-import { formatMessage, type MessageValues } from "./format";
+import { formatMessage, preserveSourceWhitespace, type MessageValues } from "./format";
 import { LANGUAGE_COOKIE, detectBrowserLanguage } from "./language-service";
 import { allMessages, messageContext, messageText, type MessageKey } from "./messages";
 import { PipelineError } from "./pipeline";
@@ -112,7 +112,7 @@ export async function serverTranslator(
             outcome.translation &&
             (outcome.status === "machine" || outcome.status === "verified")
           ) {
-            translated.set(`${context}${SEP}${outcome.text}`, outcome.translation);
+            translated.set(`${context}${SEP}${outcome.text.trim()}`, outcome.translation);
           }
         }
       } catch (error) {
@@ -134,7 +134,8 @@ export async function serverTranslator(
 
   return (key, variables) => {
     const text = messageText(key) ?? key;
-    const found = translated.get(`${messageContext(key) ?? ""}${SEP}${text}`) ?? text;
+    const translatedText = translated.get(`${messageContext(key) ?? ""}${SEP}${text.trim()}`);
+    const found = translatedText ? preserveSourceWhitespace(text, translatedText) : text;
     return variables ? formatMessage(found, variables, language.code) : found;
   };
 }

@@ -29,7 +29,7 @@ import {
   type LanguageDefinition,
   type TextDirection,
 } from "@/lib/i18n/registry";
-import { formatMessage, type MessageValues } from "@/lib/i18n/format";
+import { formatMessage, preserveSourceWhitespace, type MessageValues } from "@/lib/i18n/format";
 import { TIER_LIMITS } from "@/lib/i18n/limits";
 import { looksLikeProductName } from "@/lib/i18n/names";
 import { messageContext, messageText } from "@/lib/i18n/messages";
@@ -873,23 +873,25 @@ export function LanguageProvider({
 
       const exact = UI_DICTIONARY[language.code]?.[key];
       if (exact) return shown(exact);
+      if (looksLikeProductName(english)) return fill(english);
       if (typeof window === "undefined") {
         const context = options?.context ?? messageContext(key) ?? "";
-        return fill(
-          remote.current[language.code]?.held[`${context}${SEPARATOR}${english}`] ?? english,
-        );
+        const held = remote.current[language.code]?.held[`${context}${SEPARATOR}${english.trim()}`];
+        if (held) return fill(preserveSourceWhitespace(english, held));
+        for (const code of getFallbackChain(language.code).slice(1)) {
+          if (code === DEFAULT_LANGUAGE) break;
+          const fallback = UI_DICTIONARY[code]?.[key];
+          if (fallback) return fill(fallback);
+        }
+        return fill(english);
       }
-      // A product name is the same in every language (see src/lib/i18n/names.ts);
-      // there is nothing to ask the server for.
-      if (looksLikeProductName(english)) return fill(english);
-
       const context = options?.context ?? messageContext(key) ?? "";
-      const cacheKey = `${context}${SEPARATOR}${english}`;
+      const cacheKey = `${context}${SEPARATOR}${english.trim()}`;
       const state = stateFor(language.code);
       const held = state.held[cacheKey];
       if (held) {
         state.fallback.delete(cacheKey);
-        return shown(held);
+        return shown(preserveSourceWhitespace(english, held));
       }
       state.fallback.add(cacheKey);
 

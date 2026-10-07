@@ -9,19 +9,25 @@ const compiled = ts.transpileModule(readFileSync(resolve("src/lib/i18n/registry.
 const { SUPPORTED_LANGUAGES } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`
 );
-const base = "https://softwarevala.net";
+const base = process.env.I18N_VERIFY_BASE_URL ?? "https://softwarevala.net";
 const out = process.argv.find((arg) => arg.startsWith("--out="))?.slice(6);
-const browser = await chromium.launch({ channel: "chrome", headless: true });
-const context = await browser.newContext();
-const page = await context.newPage();
+const browser = await chromium.launch({
+  channel: process.env.I18N_BROWSER_CHANNEL ?? "chrome",
+  headless: true,
+});
 const report = { at: new Date().toISOString(), anonymous: true, languages: [], errors: [] };
-page.on("pageerror", (error) => report.errors.push(error.message));
 try {
-  await page.goto(base, { waitUntil: "domcontentloaded" });
-  await page.locator("[data-language-selector]:visible").first().waitFor({ timeout: 60000 });
   for (const language of SUPPORTED_LANGUAGES) {
     const record = { code: language.code, direction: language.direction, failures: [] };
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    page.on("pageerror", (error) => {
+      report.errors.push(`${language.code}: ${error.message}`);
+      record.failures.push(`page_exception: ${error.message}`);
+    });
     try {
+      await page.goto(base, { waitUntil: "domcontentloaded" });
+      await page.locator("[data-language-selector]:visible").first().waitFor({ timeout: 60000 });
       await page.locator("[data-language-selector]:visible").first().click();
       await page.locator(`[role=option][data-code="${language.code}"]`).first().click();
       await page.waitForFunction((code) => document.documentElement.lang === code, language.code);
@@ -58,6 +64,8 @@ try {
         record.failures.push("page_unavailable");
     } catch (error) {
       record.failures.push(error.message);
+    } finally {
+      await context.close();
     }
     report.languages.push(record);
     if (out) writeFileSync(out, JSON.stringify(report, null, 2));

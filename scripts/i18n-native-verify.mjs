@@ -14,6 +14,13 @@ const compiled = ts.transpileModule(source, {
 const { SUPPORTED_LANGUAGES, resolveLanguage } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`
 );
+const quotaCompiled = ts.transpileModule(
+  readFileSync(resolve("src/lib/i18n/quota.server.ts"), "utf8"),
+  { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } },
+).outputText;
+const { reserveEngineQuota } = await import(
+  `data:text/javascript;base64,${Buffer.from(quotaCompiled).toString("base64")}`
+);
 const databaseUrl = process.env.I18N_DATABASE_URL ?? process.env.VPS_DATABASE_URL;
 if (!databaseUrl) throw new Error("A native canonical database URL is required.");
 if (new URL(databaseUrl).pathname !== "/sv_platform")
@@ -72,6 +79,32 @@ try {
     });
   }
   const quotaSubject = `verification:${randomUUID()}`;
+  const rollbackClient = {
+    begin: async (work) => {
+      const marker = new Error("quota-verified-rollback");
+      let result;
+      try {
+        await sql.begin(async (transaction) => {
+          result = await work(transaction);
+          throw marker;
+        });
+      } catch (error) {
+        if (error !== marker) throw error;
+      }
+      return result;
+    },
+  };
+  for (const [units, limit, allowed] of [
+    [92, 5_000_000, true],
+    [5_000_000, 92, false],
+    [92, 92, true],
+  ]) {
+    const reservation = await reserveEngineQuota(rollbackClient, units, [
+      { subject: quotaSubject, limit, seconds: 3600 },
+    ]);
+    if (reservation.allowed !== allowed)
+      throw new Error(`Native numeric quota comparison failed for ${units}/${limit}.`);
+  }
   await rollbackCheck(async (transaction) => {
     const [definition] =
       await transaction`select pg_get_functiondef('public.i18n_consume_quota(text,integer,bigint,integer)'::regprocedure) as definition`;
@@ -102,6 +135,7 @@ try {
     registry: SUPPORTED_LANGUAGES.length,
     migrationRollbackVerified: verifyMigration,
     quotaRollbackVerified: true,
+    numericQuotaComparisonVerified: true,
     probeRowsRemaining: 0,
   };
   if (!databaseOnly) {
