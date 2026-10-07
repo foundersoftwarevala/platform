@@ -34,6 +34,15 @@ const cases = [
 if (cases.some(({ text }) => !text || text.includes("undefined")))
   throw new Error("Real source messages are missing.");
 const base = process.env.I18N_VERIFY_BASE_URL ?? "http://127.0.0.1:3000";
+if (!process.env.INTERNAL_API_TOKEN)
+  throw new Error("A real authorized operator token is required for the complete format matrix.");
+const authorization = await fetch(new URL("/api/i18n/admin", base), {
+  headers: { "x-internal-token": process.env.INTERNAL_API_TOKEN },
+  signal: AbortSignal.timeout(30000),
+  redirect: "error",
+});
+if (authorization.status !== 200)
+  throw new Error(`Operator authorization verification HTTP ${authorization.status}`);
 const out = process.argv.find((arg) => arg.startsWith("--out="))?.slice(6);
 const report = {
   at: new Date().toISOString(),

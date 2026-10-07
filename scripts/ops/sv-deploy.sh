@@ -112,6 +112,17 @@ grep -q "$MARKER" /tmp/sv-smoke.html || fail "the new homepage did not contain '
 echo "  homepage OK: http=200 bytes=$size marker present"
 
 step "5/6 Swapping the build in and restarting"
+if [ -f /etc/nginx/conf.d/sv-html-cache.conf ]; then
+  CACHE_BACKUP="/etc/nginx/conf.d/sv-html-cache.conf.prev-$STAMP"
+  cp -p /etc/nginx/conf.d/sv-html-cache.conf "$CACHE_BACKUP" || fail "could not preserve HTML cache configuration"
+  install -m 644 "$LIVE/deploy/nginx/sv-html-cache.conf" /etc/nginx/conf.d/sv-html-cache.conf ||
+    fail "could not install native locale cache configuration"
+  if ! nginx -t; then
+    cp -p "$CACHE_BACKUP" /etc/nginx/conf.d/sv-html-cache.conf
+    fail "nginx validation failed; prior cache configuration restored"
+  fi
+  nginx -s reload || fail "could not reload native locale cache configuration"
+fi
 cp -a "$BUILD/.output" "$LIVE/.output.new-$STAMP" || fail "could not copy the new build"
 mv "$LIVE/.output" "$LIVE/.output.prev-$STAMP"       || fail "could not set the old build aside"
 mv "$LIVE/.output.new-$STAMP" "$LIVE/.output"        || fail "could not move the new build in"

@@ -54,6 +54,15 @@ const TRANSLATE_CALLS = new Set(["t", "translate", "translateText"]);
 const MESSAGE_CALLS = new Set(["alert", "confirm", "toast"]);
 const TOAST_METHODS = new Set(["success", "error", "info", "warning", "message", "loading"]);
 const SKIP_DIRS = new Set(["node_modules", "__tests__", ".output", "integrations"]);
+const PUBLIC_DATA_FIELDS = new Set([
+  "name",
+  "title",
+  "description",
+  "summary",
+  "label",
+  "placeholder",
+  "ctaLabel",
+]);
 
 function files(dir) {
   const out = [];
@@ -179,7 +188,7 @@ function exempt(node, sourceText, lineStarts) {
   return /i18n-ignore/.test(sourceText.slice(prevStart, end));
 }
 
-function scan(file, fullText = false) {
+function scan(file, fullText = false, dataTexts) {
   const text = readFileSync(file, "utf8");
   const source = ts.createSourceFile(
     file,
@@ -209,6 +218,18 @@ function scan(file, fullText = false) {
     });
   };
   const visit = (node) => {
+    if (dataTexts && !isApiRoute && ts.isPropertyAssignment(node)) {
+      const key = ts.isIdentifier(node.name) || ts.isStringLiteral(node.name) ? node.name.text : "";
+      const value = node.initializer;
+      if (
+        PUBLIC_DATA_FIELDS.has(key) &&
+        (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) &&
+        isUserText(value.text) &&
+        !exempt(value, text, lineStarts)
+      ) {
+        dataTexts.push(value.text.trim(), value.text.replace(/\s+/g, " ").trim());
+      }
+    }
     if (ts.isJsxText(node) && isUserText(node.text)) add(node, "jsx-text", node.text);
     else if (
       (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
@@ -283,52 +304,16 @@ function scan(file, fullText = false) {
   return findings;
 }
 
-export function audit({ fullText = false } = {}) {
+export function audit({ fullText = false, dataTexts } = {}) {
   const all = [];
-  for (const file of files(SRC)) all.push(...scan(file, fullText));
+  for (const file of files(SRC)) all.push(...scan(file, fullText, dataTexts));
   return all;
 }
 
-function publicSourceTexts(findings) {
-  const dataText = [];
-  const fields = new Set([
-    "name",
-    "title",
-    "description",
-    "summary",
-    "label",
-    "placeholder",
-    "ctaLabel",
-  ]);
-  for (const file of files(SRC)) {
-    if (/[\\/]routes[\\/]api[\\/]/.test(file)) continue;
-    const source = ts.createSourceFile(
-      file,
-      readFileSync(file, "utf8"),
-      ts.ScriptTarget.Latest,
-      true,
-    );
-    const visit = (node) => {
-      if (ts.isPropertyAssignment(node)) {
-        const key =
-          ts.isIdentifier(node.name) || ts.isStringLiteral(node.name) ? node.name.text : "";
-        const value = node.initializer;
-        if (
-          fields.has(key) &&
-          (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) &&
-          isUserText(value.text) &&
-          !exempt(value, source.text, source.getLineStarts())
-        ) {
-          dataText.push(value.text.trim(), value.text.replace(/\s+/g, " ").trim());
-        }
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(source);
-  }
+function publicSourceTexts(findings, dataTexts) {
   return [
     ...new Set([
-      ...dataText,
+      ...dataTexts,
       ...findings
         .filter((finding) => finding.status === "hardcoded" && finding.kind !== "api-error")
         .flatMap((finding) => [finding.text, finding.text.replace(/\s+/g, " ").trim()]),
@@ -362,12 +347,16 @@ if (
   import.meta.url === `file://${process.argv[1]}` ||
   process.argv[1]?.endsWith("i18n-audit.mjs")
 ) {
-  const findings = audit({ fullText: args[0] === "--public-source" });
+  const dataTexts = [];
+  const findings = audit({
+    fullText: args[0] === "--public-source" || args[0] === "--check",
+    dataTexts: args[0] === "--public-source" || args[0] === "--check" ? dataTexts : undefined,
+  });
   const { totals, byModule } = summarise(findings);
   const total = totals.keyed + totals.exempt + totals.hardcoded;
 
   if (args[0] === "--public-source") {
-    const texts = publicSourceTexts(findings);
+    const texts = publicSourceTexts(findings, dataTexts);
     writeFileSync(
       join(ROOT, "src", "lib", "i18n", "ui-source.generated.json"),
       JSON.stringify(texts, null, 2) + "\n",
@@ -401,9 +390,7 @@ if (
     const generated = existsSync(generatedPath)
       ? JSON.parse(readFileSync(generatedPath, "utf8"))
       : null;
-    if (
-      JSON.stringify(generated) !== JSON.stringify(publicSourceTexts(audit({ fullText: true })))
-    ) {
+    if (JSON.stringify(generated) !== JSON.stringify(publicSourceTexts(findings, dataTexts))) {
       problems.push(
         "Static source catalogue is stale. Run node scripts/i18n-audit.mjs --public-source.",
       );

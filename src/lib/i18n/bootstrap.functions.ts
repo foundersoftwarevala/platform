@@ -59,9 +59,11 @@ export const getLanguageBootstrap = createIsomorphicFn()
       const response = await fetch(`/api/i18n/pack?lang=${encodeURIComponent(code)}`, {
         signal: AbortSignal.timeout(10000),
       });
-      if (response.status === 403) return { ...empty, code: "en", reason: "language_disabled" };
+      const body = await response.json();
+      if (response.status === 400 && body.reason === "language_disabled")
+        return { ...empty, code: "en", reason: "language_disabled" };
       if (!response.ok) throw new Error(`Native language pack HTTP ${response.status}`);
-      const pack = languagePackPayload.parse(await response.json());
+      const pack = languagePackPayload.parse(body);
       return { ...empty, ...pack, tag: response.headers.get("etag") };
     } catch (error) {
       console.error("[i18n] native navigation pack unavailable", error);

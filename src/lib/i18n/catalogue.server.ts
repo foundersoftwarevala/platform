@@ -5,11 +5,15 @@ import { allMessages } from "./messages";
 import { UI_DICTIONARY } from "./ui-dictionary";
 import { SingleFlight, TtlCache } from "./hot-cache";
 
-export const STATIC_CATALOGUE: ReadonlySet<string> = new Set([
-  ...staticText,
-  ...Object.keys(UI_DICTIONARY.en ?? {}),
-  ...allMessages().map((message) => message.text),
-]);
+export const STATIC_CATALOGUE: ReadonlySet<string> = new Set(
+  [
+    ...staticText,
+    ...Object.keys(UI_DICTIONARY.en ?? {}),
+    ...allMessages().map((message) => message.text),
+  ]
+    .map((text) => text.trim())
+    .filter(Boolean),
+);
 
 const publicCache = new TtlCache<ReadonlySet<string>>(1);
 const publicFlight = new SingleFlight<ReadonlySet<string>>();

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Sql } from "postgres";
 
 import { STATIC_CATALOGUE, publicCatalogue, invalidatePublicCatalogue } from "../catalogue.server";
+import { allMessages } from "../messages";
 
 function client(rows: { source_text: string }[]) {
   const query = vi.fn<(strings: TemplateStringsArray) => Promise<{ source_text: string }[]>>(
@@ -15,6 +16,11 @@ beforeEach(() => {
 });
 
 describe("trusted native source catalogue", () => {
+  it("accepts every real keyed message after the queue's whitespace normalization", () => {
+    expect(allMessages().filter((message) => !STATIC_CATALOGUE.has(message.text.trim()))).toEqual(
+      [],
+    );
+  });
   it("includes existing unkeyed UI strings without trusting visitor text", () => {
     expect(STATIC_CATALOGUE.has("Share")).toBe(true);
     expect(STATIC_CATALOGUE.has("Private customer order 7744")).toBe(false);

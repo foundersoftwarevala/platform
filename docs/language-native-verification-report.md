@@ -35,6 +35,36 @@ These implementation improvements do not change the RED acceptance decision
 without fresh production evidence. Original baseline measurements below are
 retained as dated observations, not represented as measurements of this update.
 
+### Fresh live findings and immediate repairs
+
+The first fresh anonymous browser could not hydrate because nginx returned
+`X-SV-Cache: STALE` HTML referencing a removed application asset (HTTP 404).
+This was not a failed language selector. The canonical nginx configuration now
+bypasses the legacy URI-only HTML cache; its prior configuration was preserved,
+`nginx -t` passed, and the anonymous canonical homepage subsequently hydrated
+with zero browser page exceptions. Deployment installs and validates this
+configuration rather than leaving a VPS-only repair.
+
+Runtime logs also identified catalogue synchronization rejecting real messages
+after the queue trimmed whitespace. The trusted static catalogue now uses the
+same normalization; a regression checks every real keyed message against the
+allowlist. No private text was added and no real jobs were deleted.
+
+The generated-source check previously parsed the full application repeatedly
+and exceeded its existing 120-second test limit under host contention. Data
+labels and rendered literals now share one scan; the generated catalogue remains
+13,575 strings. The original threshold was not increased.
+
+Final follow-up validation: 19 files / 470 tests passed, focused ESLint passed,
+strict changed-file types passed and the production build passed.
+Real native DB rollback verification confirmed `sv_app` / `sv_platform`, 140
+registry languages, an actual preserved queue claim and zero probe quota rows.
+Public API security smoke passed (200 packs, 304 ETag, rejected invalid session,
+400 malformed sign-in, 403 cross-origin, 401 unauthorized operator/jobs).
+Twenty-four actual locale HTML requests at concurrency four passed 24/24:
+p50 482ms, p95 2,132ms, maximum 2,676ms. This is not a thousands-user capacity
+certificate.
+
 Date: 2026-10-07T02:14:22.147Z. Application build: `8b689218ab2c006473426f8d37f4f68566fc544b`.
 
 ## Final status: 🔴 RED - NOT READY
