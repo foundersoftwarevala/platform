@@ -248,6 +248,46 @@ describe("translation pipeline", () => {
     expect(provider.calls).toHaveLength(0);
   });
 
+  it("reads allowed memory without writing and does not read excluded page text", async () => {
+    const memory = new MemoryStore();
+    const ctx = await contextHash("ui", null);
+    for (const text of ["Language", "Apply Now"]) {
+      memory.rows.push({
+        sourceHash: await sourceHash(text),
+        contextHash: ctx,
+        sourceLanguage: "en",
+        targetLanguage: "hi",
+        translatedText: HINDI[text]!,
+        status: "verified",
+        qualityScore: 1,
+        version: 1,
+        engine: null,
+      });
+    }
+    const lookup = vi.spyOn(memory, "lookup");
+    const provider = dictionaryProvider();
+    const result = await runTranslationPipeline(
+      {
+        texts: ["Language", "Apply Now"],
+        source: "en",
+        target: "hi",
+        persist: false,
+        mayPersist: (text) => text === "Language",
+      },
+      { engine: engineWith(provider), memory },
+    );
+    expect(lookup).toHaveBeenCalledWith({
+      sourceLanguage: "en",
+      targetLanguage: "hi",
+      sourceHashes: [await sourceHash("Language")],
+    });
+    expect(result.outcomes).toMatchObject([
+      { origin: "memory", status: "verified" },
+      { origin: "engine" },
+    ]);
+    expect(memory.saved).toEqual([]);
+  });
+
   it("keeps memory separate per context", async () => {
     const memory = new MemoryStore();
     const provider = dictionaryProvider();

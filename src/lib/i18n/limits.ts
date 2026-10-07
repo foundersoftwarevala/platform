@@ -28,7 +28,7 @@ export type TierLimits = {
 export const TIER_LIMITS: Record<CallerTier, TierLimits> = {
   anonymous: {
     maxItems: 40,
-    maxItemChars: 300,
+    maxItemChars: 2_000,
     maxTotalChars: 6_000,
     // A page sends its strings in batches (src/lib/language-catalog.ts), about
     // eighteen requests for the homepage, so this leaves room for a visitor to
@@ -160,7 +160,11 @@ export function clientAddress(
   }
   const socket = peer ? normalizeAddress(peer) : null;
   if (socket && trusted.has(socket)) {
-    const forwarded = headers.get("x-forwarded-for")?.split(",").map((part) => part.trim()).filter(Boolean);
+    const forwarded = headers
+      .get("x-forwarded-for")
+      ?.split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
     return (
       headers.get("cf-connecting-ip")?.trim() ||
       headers.get("x-real-ip")?.trim() ||

@@ -1,7 +1,8 @@
 # The language system
 
 One registry, one language service, one translation pipeline, one engine
-interface. 140 languages, translated by the platform's own engine.
+interface. 140 registered languages; runtime capability is verified separately.
+Registration does not certify every application screen, AI model or voice model.
 
 **Writing code that shows text? Read [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)**:
 `const { t } = useTranslation(); t("module.key", { count })`, keys in
@@ -10,7 +11,7 @@ interface. 140 languages, translated by the platform's own engine.
 ```
  UI:  t("checkout.pay_now")               use-translation.ts -> useLanguage() in language-catalog.ts
         |                                    1. reviewed dictionary (ui-dictionary.ts)
-        |                                    2. strings already received (localStorage)
+        |                                    2. strings already received (page memory)
         |                                    3. the language's fallback chain
         v                                    4. English, while it waits
  GET  /api/i18n/pack?lang=xx              routes/api/i18n/pack.ts (once per language)
@@ -23,7 +24,7 @@ interface. 140 languages, translated by the platform's own engine.
  engine/engine.ts                         provider-independent
         |
         +-- owned-engine   (services/translation-engine, MADLAD-400 + LibreTranslate)
-        +-- ai-api-manager (external; only with TRANSLATION_ALLOW_EXTERNAL=true)
+        +-- additional owned replicas (TRANSLATE_PROVIDER_URLS; no external AI gateway)
 ```
 
 ## Files
@@ -35,14 +36,16 @@ interface. 140 languages, translated by the platform's own engine.
 | `server-translate.server.ts` | `serverTranslator()` and `languageOf()` for e-mails and other server text. |
 | `DEVELOPER_GUIDE.md` | How to use all of the above. |
 | `registry.ts` | The 140 supported languages and 5 retired ones: codes, scripts, direction, formatting and plural locales, fallback chains, aliases, old catalogue codes. Everything resolves through `resolveLanguage`. |
-| `language-service.ts` | The visitor's language: get, set, validate, detect from the browser, persist (localStorage + cookie), write `<html lang dir>`, and the pre-paint boot script. |
+| `language-service.ts` | The visitor's language: get, set, validate, browser detection, locale cookie, `<html lang dir>`, and the pre-paint boot script. |
 | `ui-dictionary.ts` | Reviewed interface text. `en` is the source catalogue; 11 other languages are partly covered. |
 | `format.ts` | ICU messages (plural, selectordinal, select, `#`, offset) and Intl number/date/currency formatting per language. |
 | `pipeline.ts` | The translation pipeline. Pure; every dependency is injected. |
 | `engine/` | The provider interface, the engine that picks a provider, and the two adapters. |
 | `glossary.ts`, `quality.ts`, `hash.ts` | Terminology protection, output validation, memory keys. |
 | `limits.ts` | Caller tiers (anonymous, user, operator) and their limits. |
-| `service.server.ts` | Server wiring: Supabase-backed memory and glossary (cached in the process), quota, caller resolution, language packs. |
+| `service.server.ts` | Native PostgreSQL memory/glossary, atomic shared quotas, native sessions, owned engine replicas, and language packs. |
+| `database.server.ts`, `quota.server.ts` | A bounded native pool, canonical database validation, transactional cross-worker reservation/refund. |
+| `session.server.ts`, `session-contract.ts` | Revocable hashed sessions, secure HttpOnly cookies, and same-origin mutation checks. |
 | `hot-cache.ts` | The TTL/LRU cache and single-flight used on the translate path. |
 | `metrics.server.ts` | Request, latency, cache and process measurements for the metrics view. |
 | `names.ts` | Recognises product names, which are not translated (shared by server and browser). |
@@ -72,6 +75,12 @@ Rules of the road:
   translation and its reasons, and the caller shows the fallback.
 - Private text (chat) is translated with `persist: false`: it is never read
   from or written to shared translation memory.
+- Public packs contain only registered interface catalogue text. Historical
+  non-catalogue page rows remain in the database but are not published.
+  The same catalogue privacy predicate controls shared-memory reads and writes;
+  `persist: false` suppresses writes without disabling permitted cache reads.
+- Legacy raw-table public read policies are removed. The existing separately
+  authorized operator SEO console retains its operator-only RLS access.
 
 ## Database
 
@@ -84,15 +93,24 @@ Rules of the road:
 - `i18n_glossary_terms` — locked, preferred and forbidden terms.
 - `i18n_translation_jobs` — the background queue, claimed with SKIP LOCKED.
 - `i18n_request_quota` + `i18n_consume_quota()` — cost control across instances.
+- `i18n_sessions` — hashed, one-hour native language sessions. Constrained
+  native auth functions access accounts; the app role cannot read account
+  records. Verify and apply the native migration in
+  `deploy/postgres/20261006220000_i18n_native_sessions.sql`.
+
+The authoritative database is **sv_platform**. On this VPS the unrelated
+`VPS_DATABASE_URL` points at a legacy database; `I18N_DATABASE_URL` selects
+the existing canonical database without changing other modules. There is no
+HTTP database gateway or alternate persistence fallback.
 
 ## Environment
 
 | Variable | Meaning |
 |---|---|
+| `I18N_DATABASE_URL` | Native PostgreSQL URL for `sv_platform`. If omitted, `VPS_DATABASE_URL` must itself select `sv_platform`; another database is refused. |
 | `TRANSLATE_PROVIDER_URL` | The platform's engine, e.g. `http://127.0.0.1:5100/v1/translate`. |
+| `TRANSLATE_PROVIDER_URLS` | Optional comma-separated owned replicas, attempted in order, each with bounded concurrency and an independent circuit breaker. |
 | `TRANSLATE_PROVIDER_TOKEN` | Bearer token for it. |
-| `TRANSLATION_ALLOW_EXTERNAL` | `true` also allows the external AI API Manager adapter. Off by default. |
-| `TRANSLATION_PROVIDER_ORDER` | Provider order; default `owned-engine,ai-api-manager`. |
 | `I18N_JOB_WORKER` | `off` stops this instance from working the job queue. |
 | `I18N_JOB_MAX_LOAD` | Load average above which background translation pauses (default 120 % of the CPUs; the engine's own work already holds it near the CPU count). |
 
@@ -101,6 +119,19 @@ Rules of the road:
 `/language-manager` (admin or boss) shows the engine's state, what memory holds
 per language, the review queue, the glossary and the job queue, and can
 pre-translate the catalogue into any language.
+
+Native password sign-in uses existing confirmed VPS accounts. MFA/SSO is never
+bypassed: this password-only flow refuses those accounts. Platform authentication
+outside this module remains unchanged; its sessions are not automatically
+inherited by language administration.
+Native sign-out revokes the session and resets protected console queries.
+The console's sign-in page is reachable without the unrelated platform session;
+every data/action endpoint still independently requires a native operator.
+Chat translation uses this same native cookie, never a platform JWT.
+
+The page exposes `data-translation-status`, `data-translation-fallback`,
+`data-translation-pending` and `data-translation-missing`; the selector also
+reports incomplete translation. A source fallback is not a success.
 
 `POST /api/i18n/jobs` with `x-internal-token` runs one batch, for a scheduler.
 The application works the queue inside the server process, batch after batch
@@ -121,9 +152,10 @@ language's fallback and English.
 The engine is one CPU-bound model on one host, so the first visitor in a
 language that nothing has been translated into yet waits for the whole page to
 be translated segment by segment. Pre-translating that language first — the
-Language Manager's "pre-translate" action, or `enqueue_texts` with the strings
-the page shows — fills translation memory, and every later visit is then served
-from memory. Languages the second local backend (LibreTranslate/Argos) covers
+Language Manager's "pre-translate" action, or `enqueue_texts` with registered
+catalogue strings — fills public interface memory. Arbitrary screen text is
+translated without shared persistence; it is not silently published from a
+private dashboard. Languages the second local backend (LibreTranslate/Argos) covers
 are fast enough without it; the ones it does not cover, such as Divehi, should
 be pre-translated before they are offered.
 
@@ -142,22 +174,23 @@ A page shown in a language other than English costs, on the server:
 
 1. `GET /api/i18n/pack?lang=xx` - every interface string memory holds for the
    language, plus the strings held for review (`withheld`) and the locked brand
-   names (`locked`). Built from the database once per five minutes and
+   names (`locked`). Built from the database once per minute and
    language, kept in the process, served with `Cache-Control: public,
-   max-age=300` and an ETag (304 on repeat).
+   max-age=60` and an ETag (304 on repeat). Browser revalidation is once per minute.
 2. `POST /api/marketplace/translate` for what the pack did not contain, in
    batches of 36. Product names and brand-only strings are answered in the
    browser and never sent; text already in another script is not source text
    and is never sent back.
 
-On the server the translate path reads translation memory, the glossary and
-the caller from in-process caches (`src/lib/i18n/hot-cache.ts`): the database
-is about 280 ms away from the production host, and without them a cached page
-batch took 0.9 s and the endpoint stopped near 10 requests a second. Engine
-quota is decided in the process and written to the database in the background.
+Memory and glossary use bounded in-process caches and single-flight reads.
+Request and engine quotas are reserved transactionally in native PostgreSQL
+before work begins, so every instance obeys the same limits. Refunds are
+idempotent and refer to the original quota windows. Private/non-catalogue
+visitor text is never sent to the persistent background queue.
 
-Measured on the production host (2 vCPU, shared with the engine, the site and
-the load generator), 20-second runs:
+Historical measurements below describe the previous HTTP-backed deployment,
+not certification of this native release or thousands of concurrent cold
+inference requests. New release evidence must be recorded separately:
 
 | Path | Requests/s | p50 | p99 |
 |---|---|---|---|

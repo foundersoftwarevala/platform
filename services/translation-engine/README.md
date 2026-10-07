@@ -18,8 +18,11 @@ knows nothing about the rest of the platform.
 Both model files are pinned by revision and checked against their published
 SHA-256 by `deploy/install-models.sh`.
 
-MADLAD covers all 140 languages in the registry. LibreTranslate covers 71 of
-them and is used when the model is busy and the request is interactive.
+Routing declares 140 registry languages. Actual model/pair and application
+coverage must be verified against the running service; a routing entry alone
+does not certify support. LibreTranslate base codes and regional routing aliases
+have different counts and must not be compared as if they were the same thing.
+It is used when the model is busy and the request is interactive.
 
 ## Endpoints
 

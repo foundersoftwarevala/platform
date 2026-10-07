@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { sameOriginMutation } from "@/lib/i18n/session-contract";
+import { messageText } from "@/lib/i18n/messages";
 
 /**
  * Language Manager API (admin and boss only).
@@ -50,6 +52,11 @@ export const Route = createFileRoute("/api/i18n/admin")({
         const admin = await import("@/lib/i18n/admin.server");
         const caller = await admin.requireLanguageOperator(request);
         if (caller instanceof Response) return caller;
+        if (caller.subject !== "internal:token" && !sameOriginMutation(request))
+          return Response.json(
+            { error: messageText("common.language_origin_refused") },
+            { status: 403 },
+          );
         let body: unknown;
         try {
           body = await request.json();

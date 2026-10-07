@@ -31,19 +31,34 @@ export const DEVMANAGER_MESSAGES = {
   // Alerts & Escalation.
   "devmanager.alerts.title": "Alerts & Escalation",
   "devmanager.alerts.subtitle": "System alerts and escalation queue",
-  "devmanager.alerts.sla_past": ["{title}: {hours} h past its SLA", "a task is overdue; h is hours"],
-  "devmanager.alerts.sla_left": ["{title}: {hours} h left on its SLA", "time left on a task; h is hours"],
+  "devmanager.alerts.sla_past": [
+    "{title}: {hours} h past its SLA",
+    "a task is overdue; h is hours",
+  ],
+  "devmanager.alerts.sla_left": [
+    "{title}: {hours} h left on its SLA",
+    "time left on a task; h is hours",
+  ],
   "devmanager.alerts.escalated_at": ["escalated {time}", "when a task was escalated"],
   "devmanager.alerts.blocked_message": "{title} is blocked: {reason}",
-  "devmanager.alerts.blocked_for": ["blocked {hours} h", "how long a task has been blocked; h is hours"],
+  "devmanager.alerts.blocked_for": [
+    "blocked {hours} h",
+    "how long a task has been blocked; h is hours",
+  ],
   "devmanager.alerts.performance_message":
     "On-time rate {onTime}%, quality {quality}%, trending down",
   "devmanager.alerts.escalation_time": [
     "{kind, select, auto {auto-escalated} other {escalated}} {time} · {status, select, pending {pending} acknowledged {acknowledged} resolved {resolved} other {{status}}}",
     "when and how an escalation was raised, and its state",
   ],
-  "devmanager.alerts.resolve_prompt": ["How was it resolved?", "title of the dialog resolving an escalation"],
-  "devmanager.alerts.resolution_label": ["Resolution", "label of the text box for how it was resolved"],
+  "devmanager.alerts.resolve_prompt": [
+    "How was it resolved?",
+    "title of the dialog resolving an escalation",
+  ],
+  "devmanager.alerts.resolution_label": [
+    "Resolution",
+    "label of the text box for how it was resolved",
+  ],
   "devmanager.alerts.resolution_too_short": "A resolution of at least 5 characters is needed.",
   "devmanager.alerts.delay_alerts": "Delay Alerts",
   "devmanager.alerts.security_alerts": "Security Alerts (not tracked)",
@@ -76,7 +91,10 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.audit.csv_module": ["Module", "column heading in the exported CSV"],
   "devmanager.audit.csv_action": ["Action", "column heading in the exported CSV"],
   "devmanager.audit.csv_actor": ["Actor", "column heading in the exported CSV: who did it"],
-  "devmanager.audit.csv_target": ["Target", "column heading in the exported CSV: what it was done to"],
+  "devmanager.audit.csv_target": [
+    "Target",
+    "column heading in the exported CSV: what it was done to",
+  ],
   "devmanager.audit.csv_metadata": ["Metadata", "column heading in the exported CSV"],
   "devmanager.audit.title": "Audit Logs",
   "devmanager.audit.recorded_actions":
@@ -84,7 +102,10 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.audit.subtitle": "Complete system activity log",
   "devmanager.audit.refresh": "Refresh audit logs",
   "devmanager.audit.export_csv": "Export CSV",
-  "devmanager.audit.read_only": ["READ ONLY • NO EDIT • NO DELETE", "banner: the log cannot be changed"],
+  "devmanager.audit.read_only": [
+    "READ ONLY • NO EDIT • NO DELETE",
+    "banner: the log cannot be changed",
+  ],
   "devmanager.audit.activity_log": "Activity Log",
   "devmanager.audit.search_placeholder": "Search actions…",
   "devmanager.audit.search_label": "Search audit actions",
@@ -143,7 +164,8 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.bugs.empty": "No task is filed as a bug.",
   "devmanager.bugs.linked_task": "Linked Task: {task}",
   "devmanager.bugs.assign_fix": ["Assign Fix", "button"],
-  "devmanager.bugs.verify_info": "A fix is verified by approving its code submission in Review & QA.",
+  "devmanager.bugs.verify_info":
+    "A fix is verified by approving its code submission in Review & QA.",
   "devmanager.bugs.verify_fix": ["Verify Fix", "button"],
   "devmanager.bugs.close_info": "A bug closes when its fix is approved in Review & QA.",
   "devmanager.bugs.close_bug": ["Close Bug", "button"],
@@ -201,7 +223,8 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.compliance.title": "Compliance & NDA",
   "devmanager.compliance.subtitle": "NDA status and policy compliance",
   "devmanager.compliance.status": "Compliance Status",
-  "devmanager.compliance.status_empty": "NDA and policy acceptance are not recorded for developers yet.",
+  "devmanager.compliance.status_empty":
+    "NDA and policy acceptance are not recorded for developers yet.",
   "devmanager.compliance.nda_state": [
     "NDA {state, select, signed {signed} pending {pending} other {{state}}}",
     "a developer's NDA state",
@@ -256,7 +279,10 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.registry.no_open_task": "No open task to assign",
   "devmanager.registry.no_open_task_detail":
     "Every open task is already with this developer, or none is open.",
-  "devmanager.registry.assign_prompt": ["Assign which task?", "title of the dialog assigning a task to a developer"],
+  "devmanager.registry.assign_prompt": [
+    "Assign which task?",
+    "title of the dialog assigning a task to a developer",
+  ],
   "devmanager.registry.task_label": ["Task", "label of the list of tasks to pick from"],
   "devmanager.registry.task_option": ["{code} - {title}", "a task in a list: its code and title"],
   "devmanager.registry.task_option_assigned": [
@@ -308,7 +334,8 @@ export const DEVMANAGER_MESSAGES = {
     "title of the dialog rejecting a developer",
   ],
   "devmanager.onboarding.reject": ["Reject", "button"],
-  "devmanager.onboarding.hold_info": "Left as it is: it stays in this queue until approved or rejected.",
+  "devmanager.onboarding.hold_info":
+    "Left as it is: it stays in this queue until approved or rejected.",
   "devmanager.onboarding.hold": ["Hold", "button: leave the request waiting"],
 
   // Payment & Incentive.
@@ -341,7 +368,10 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.performance.ai_score": "AI Score",
 
   // Review & QA.
-  "devmanager.review.submission_default": ["Submission", "name of a code submission with no message"],
+  "devmanager.review.submission_default": [
+    "Submission",
+    "name of a code submission with no message",
+  ],
   "devmanager.review.approve_prompt": [
     "Review note for the developer:",
     "title of the dialog approving a submission",
@@ -384,7 +414,8 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.skills.eligibility_empty": "No open task names a tech stack.",
   "devmanager.skills.eligible": ["{count} eligible", "how many developers can take a task"],
   "devmanager.skills.ai_match": "AI Skill Match Score",
-  "devmanager.skills.ai_match_none": "No AI matching model is connected, so no alignment score is claimed.",
+  "devmanager.skills.ai_match_none":
+    "No AI matching model is connected, so no alignment score is claimed.",
 
   // Security & Access.
   "devmanager.security.access_full": ["Full Access", "access level"],
@@ -459,8 +490,14 @@ export const DEVMANAGER_MESSAGES = {
 
   // Task Management.
   "devmanager.tasks.no_other_developer": "No other developer is registered.",
-  "devmanager.tasks.assign_prompt": ["Assign to which developer?", "title of the dialog moving a task"],
-  "devmanager.tasks.move_reason": ["Why is it moving?", "label of the text box asking why a task is moved"],
+  "devmanager.tasks.assign_prompt": [
+    "Assign to which developer?",
+    "title of the dialog moving a task",
+  ],
+  "devmanager.tasks.move_reason": [
+    "Why is it moving?",
+    "label of the text box asking why a task is moved",
+  ],
   "devmanager.tasks.title": "Task Management",
   "devmanager.tasks.subtitle": "Manage developer tasks and assignments",
   "devmanager.tasks.task_list": "Task List",
@@ -482,7 +519,8 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.tasks.pause_info":
     "A task is paused by the developer working it, from their own dashboard.",
   "devmanager.tasks.pause": ["Pause", "button"],
-  "devmanager.tasks.close_info": "A task is closed when its work is approved in review, not from here.",
+  "devmanager.tasks.close_info":
+    "A task is closed when its work is approved in review, not from here.",
   "devmanager.tasks.close": ["Close", "button: close a task"],
 
   // The console's menu, top bar and bell.
@@ -508,14 +546,20 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.nav.alerts_escalation": ["Alerts & Escalation", "menu item"],
   "devmanager.nav.audit_logs": ["Audit Logs", "menu item"],
   "devmanager.nav.settings": ["Settings", "menu item"],
-  "devmanager.nav.fallback_title": ["Developer Management", "top bar title when no screen is chosen"],
+  "devmanager.nav.fallback_title": [
+    "Developer Management",
+    "top bar title when no screen is chosen",
+  ],
   "devmanager.nav.notify_onboarding":
     "{count, plural, one {# developer awaiting onboarding approval} other {# developers awaiting onboarding approval}}",
   "devmanager.nav.notify_review":
     "{count, plural, one {# submission awaiting review} other {# submissions awaiting review}}",
   "devmanager.nav.notify_alerts":
     "{count, plural, one {# active alert or escalation} other {# active alerts or escalations}}",
-  "devmanager.nav.brand_title": ["Developer Mgmt", "short name of the Developer Manager in its sidebar"],
+  "devmanager.nav.brand_title": [
+    "Developer Mgmt",
+    "short name of the Developer Manager in its sidebar",
+  ],
   "devmanager.nav.brand_subtitle": ["Enterprise Mode", "line under the Developer Manager's name"],
   "devmanager.nav.back_label": ["Control Panel", "back button: returns to the Control Panel"],
 

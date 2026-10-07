@@ -26,7 +26,16 @@ import { messageContext, type MessageKey } from "./messages";
  * language too: formatCurrency(1299, "INR"), formatDate(order.created_at).
  */
 export function useTranslation() {
-  const { translate, lang, language, dir, setLanguage, serviceReady } = useLanguage();
+  const {
+    translate,
+    lang,
+    language,
+    dir,
+    setLanguage,
+    serviceReady,
+    serviceReason,
+    translationState,
+  } = useLanguage();
   const t = useCallback(
     (key: MessageKey, variables?: MessageValues, context?: string) =>
       translate(key, variables, { context: context ?? messageContext(key) }),
@@ -42,7 +51,17 @@ export function useTranslation() {
     }),
     [language],
   );
-  return { t, lang, language, dir, setLanguage, serviceReady, ...formats };
+  return {
+    t,
+    lang,
+    language,
+    dir,
+    setLanguage,
+    serviceReady,
+    serviceReason,
+    translationState,
+    ...formats,
+  };
 }
 
 export type Translate = ReturnType<typeof useTranslation>["t"];

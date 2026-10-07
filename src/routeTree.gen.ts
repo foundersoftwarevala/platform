@@ -287,6 +287,7 @@ import { Route as ApiI18nAdminRouteImport } from './routes/api/i18n/admin'
 import { Route as ApiI18nJobsRouteImport } from './routes/api/i18n/jobs'
 import { Route as ApiI18nLanguagesRouteImport } from './routes/api/i18n/languages'
 import { Route as ApiI18nPackRouteImport } from './routes/api/i18n/pack'
+import { Route as ApiI18nSessionRouteImport } from './routes/api/i18n/session'
 import { Route as ApiInfluencerApplicationsRouteImport } from './routes/api/influencer/applications'
 import { Route as ApiInfluencerApplyRouteImport } from './routes/api/influencer/apply'
 import { Route as ApiInfluencerMetricsRouteImport } from './routes/api/influencer/metrics'
@@ -1785,6 +1786,11 @@ const ApiI18nPackRoute = ApiI18nPackRouteImport.update({
   path: '/api/i18n/pack',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiI18nSessionRoute = ApiI18nSessionRouteImport.update({
+  id: '/api/i18n/session',
+  path: '/api/i18n/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInfluencerApplicationsRoute =
   ApiInfluencerApplicationsRouteImport.update({
     id: '/api/influencer/applications',
@@ -2476,6 +2482,7 @@ export interface FileRoutesByFullPath {
   '/api/i18n/jobs': typeof ApiI18nJobsRoute
   '/api/i18n/languages': typeof ApiI18nLanguagesRoute
   '/api/i18n/pack': typeof ApiI18nPackRoute
+  '/api/i18n/session': typeof ApiI18nSessionRoute
   '/api/influencer/applications': typeof ApiInfluencerApplicationsRoute
   '/api/influencer/apply': typeof ApiInfluencerApplyRoute
   '/api/influencer/metrics': typeof ApiInfluencerMetricsRoute
@@ -2826,6 +2833,7 @@ export interface FileRoutesByTo {
   '/api/i18n/jobs': typeof ApiI18nJobsRoute
   '/api/i18n/languages': typeof ApiI18nLanguagesRoute
   '/api/i18n/pack': typeof ApiI18nPackRoute
+  '/api/i18n/session': typeof ApiI18nSessionRoute
   '/api/influencer/applications': typeof ApiInfluencerApplicationsRoute
   '/api/influencer/apply': typeof ApiInfluencerApplyRoute
   '/api/influencer/metrics': typeof ApiInfluencerMetricsRoute
@@ -3187,6 +3195,7 @@ export interface FileRoutesById {
   '/api/i18n/jobs': typeof ApiI18nJobsRoute
   '/api/i18n/languages': typeof ApiI18nLanguagesRoute
   '/api/i18n/pack': typeof ApiI18nPackRoute
+  '/api/i18n/session': typeof ApiI18nSessionRoute
   '/api/influencer/applications': typeof ApiInfluencerApplicationsRoute
   '/api/influencer/apply': typeof ApiInfluencerApplyRoute
   '/api/influencer/metrics': typeof ApiInfluencerMetricsRoute
@@ -3549,6 +3558,7 @@ export interface FileRouteTypes {
     | '/api/i18n/jobs'
     | '/api/i18n/languages'
     | '/api/i18n/pack'
+    | '/api/i18n/session'
     | '/api/influencer/applications'
     | '/api/influencer/apply'
     | '/api/influencer/metrics'
@@ -3899,6 +3909,7 @@ export interface FileRouteTypes {
     | '/api/i18n/jobs'
     | '/api/i18n/languages'
     | '/api/i18n/pack'
+    | '/api/i18n/session'
     | '/api/influencer/applications'
     | '/api/influencer/apply'
     | '/api/influencer/metrics'
@@ -4259,6 +4270,7 @@ export interface FileRouteTypes {
     | '/api/i18n/jobs'
     | '/api/i18n/languages'
     | '/api/i18n/pack'
+    | '/api/i18n/session'
     | '/api/influencer/applications'
     | '/api/influencer/apply'
     | '/api/influencer/metrics'
@@ -4460,6 +4472,7 @@ export interface RootRouteChildren {
   ApiI18nJobsRoute: typeof ApiI18nJobsRoute
   ApiI18nLanguagesRoute: typeof ApiI18nLanguagesRoute
   ApiI18nPackRoute: typeof ApiI18nPackRoute
+  ApiI18nSessionRoute: typeof ApiI18nSessionRoute
   ApiInfluencerApplicationsRoute: typeof ApiInfluencerApplicationsRoute
   ApiInfluencerApplyRoute: typeof ApiInfluencerApplyRoute
   ApiInfluencerMetricsRoute: typeof ApiInfluencerMetricsRoute
@@ -6476,6 +6489,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiI18nPackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/i18n/session': {
+      id: '/api/i18n/session'
+      path: '/api/i18n/session'
+      fullPath: '/api/i18n/session'
+      preLoaderRoute: typeof ApiI18nSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/influencer/applications': {
       id: '/api/influencer/applications'
       path: '/api/influencer/applications'
@@ -7629,6 +7649,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiI18nJobsRoute: ApiI18nJobsRoute,
   ApiI18nLanguagesRoute: ApiI18nLanguagesRoute,
   ApiI18nPackRoute: ApiI18nPackRoute,
+  ApiI18nSessionRoute: ApiI18nSessionRoute,
   ApiInfluencerApplicationsRoute: ApiInfluencerApplicationsRoute,
   ApiInfluencerApplyRoute: ApiInfluencerApplyRoute,
   ApiInfluencerMetricsRoute: ApiInfluencerMetricsRoute,

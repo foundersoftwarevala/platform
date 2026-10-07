@@ -11,7 +11,8 @@ import { NAMESPACE_PATTERN } from "./pipeline";
 import { DICTIONARY_LANGUAGES, SUPPORTED_LANGUAGES, getLanguage } from "./registry";
 import {
   db,
-  getTranslationEngine,
+  translationEngineStatus,
+  translationEngineCounters,
   invalidateLanguageOverrides,
   invalidateTranslationCaches,
   translationCacheStats,
@@ -19,6 +20,7 @@ import {
   type Caller,
 } from "./service.server";
 import { UI_DICTIONARY } from "./ui-dictionary";
+import { languageAuthorization } from "./session-contract";
 
 /**
  * Language Manager: what the /language-manager console reads and changes.
@@ -30,7 +32,7 @@ const REVIEW_STATUSES = ["needs_review", "machine", "verified", "rejected", "leg
 
 export async function requireLanguageOperator(request: Request): Promise<Caller | Response> {
   const caller = await resolveCaller(
-    request.headers.get("authorization"),
+    languageAuthorization(request),
     "operator",
     request.headers.get("x-internal-token"),
   );
@@ -43,50 +45,18 @@ export async function requireLanguageOperator(request: Request): Promise<Caller 
   return caller;
 }
 
-function database() {
-  const client = db();
-  if (!client) throw new Error("The database is not configured on this server.");
-  return client;
+async function database() {
+  return db();
 }
 
 /** The translation engine's own readiness, asked directly. */
 export async function engineStatus(): Promise<Record<string, unknown>> {
-  const endpoint = process.env.TRANSLATE_PROVIDER_URL?.trim();
-  const engine = getTranslationEngine();
-  const providers = engine.describe();
-  if (!endpoint) return { configured: false, providers };
-  try {
-    const base = new URL(endpoint);
-    const response = await fetch(new URL("/ready", base), { signal: AbortSignal.timeout(5000) });
-    const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    return { configured: true, reachable: true, ready: response.ok, status: body, providers };
-  } catch (error) {
-    return { configured: true, reachable: false, error: String(error), providers };
-  }
+  return translationEngineStatus();
 }
 
 /** The engine's own counters (Prometheus text from its /metrics), as name -> value. */
 async function engineCounters(): Promise<Record<string, number> | null> {
-  const endpoint = process.env.TRANSLATE_PROVIDER_URL?.trim();
-  if (!endpoint) return null;
-  try {
-    const token = process.env.TRANSLATE_PROVIDER_TOKEN?.trim();
-    const response = await fetch(new URL("/metrics", new URL(endpoint)), {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) return null;
-    const counters: Record<string, number> = {};
-    for (const line of (await response.text()).split("\n")) {
-      if (!line.startsWith("svt_")) continue;
-      const cut = line.lastIndexOf(" ");
-      const value = Number(line.slice(cut + 1));
-      if (Number.isFinite(value)) counters[line.slice(0, cut)] = value;
-    }
-    return counters;
-  } catch {
-    return null;
-  }
+  return translationEngineCounters();
 }
 
 /**
@@ -97,12 +67,13 @@ async function engineCounters(): Promise<Record<string, number> | null> {
  */
 export async function metrics() {
   const { metricsSnapshot } = await import("./metrics.server");
-  const client = database();
+  const client = await database();
   const started = performance.now();
-  const jobs = await client.rpc("i18n_job_summary");
+  const jobs = await reportRows(client<{ status: string; jobs: number | string }[]>`
+    select * from public.i18n_job_summary()`);
   const databaseMs = Math.round(performance.now() - started);
   const queue: Record<string, number> = {};
-  for (const row of (jobs.data ?? []) as { status: string; jobs: number }[]) {
+  for (const row of jobs.data ?? []) {
     queue[row.status] = (queue[row.status] ?? 0) + Number(row.jobs);
   }
   const [engine, counters] = await Promise.all([engineStatus(), engineCounters()]);
@@ -115,26 +86,31 @@ export async function metrics() {
 }
 
 export async function overview() {
-  const client = database();
+  const client = await database();
   const [coverage, jobs, languages, glossary] = await Promise.all([
-    client.rpc("i18n_translation_coverage"),
-    client.rpc("i18n_job_summary"),
-    client.from("i18n_languages").select("code, enabled, translation_status, updated_at"),
-    client.from("i18n_glossary_terms").select("id", { count: "exact", head: true }),
+    reportRows(client<({ target_language: string } & Record<string, unknown>)[]>`
+      select target_language, verified::double precision as verified,
+        machine::double precision as machine, needs_review::double precision as needs_review,
+        rejected::double precision as rejected, legacy::double precision as legacy
+      from public.i18n_translation_coverage()`),
+    reportRows(client<Record<string, unknown>[]>`
+      select status, target_language, jobs::double precision as jobs from public.i18n_job_summary()`),
+    reportRows(client<
+      { code: string; enabled: boolean; translation_status: string; updated_at: Date }[]
+    >`
+      select code, enabled, translation_status, updated_at from public.i18n_languages`),
+    reportRows(client<{ total: number | string }[]>`
+      select count(*) as total from public.i18n_glossary_terms`),
   ]);
   const catalogue = Object.keys(UI_DICTIONARY.en ?? {});
   const translatable = new Set(translatableLanguages().map((l) => l.code));
-  const dbLanguages = new Map(
-    ((languages.data ?? []) as { code: string; enabled: boolean }[]).map((r) => [r.code, r]),
-  );
-  const coverageByCode = new Map(
-    ((coverage.data ?? []) as { target_language: string }[]).map((r) => [r.target_language, r]),
-  );
+  const dbLanguages = new Map((languages.data ?? []).map((r) => [r.code, r]));
+  const coverageByCode = new Map((coverage.data ?? []).map((r) => [r.target_language, r]));
 
   return {
     engine: await engineStatus(),
     catalogueSize: catalogue.length,
-    glossaryTerms: glossary.count ?? null,
+    glossaryTerms: glossary.data?.[0] ? Number(glossary.data[0].total) : null,
     languages: SUPPORTED_LANGUAGES.map((language) => ({
       code: language.code,
       name: language.name,
@@ -152,8 +128,16 @@ export async function overview() {
     jobs: jobs.data ?? [],
     errors: [coverage.error, jobs.error, languages.error, glossary.error]
       .filter(Boolean)
-      .map((e) => (e as { message: string }).message),
+      .map((e) => e!.message),
   };
+}
+
+async function reportRows<T>(query: PromiseLike<T>) {
+  try {
+    return { data: await query, error: null };
+  } catch (error) {
+    return { data: null, error: error instanceof Error ? error : new Error(String(error)) };
+  }
 }
 
 const reviewQuery = z.object({
@@ -166,47 +150,46 @@ const reviewQuery = z.object({
 
 export async function reviewQueue(params: URLSearchParams) {
   const query = reviewQuery.parse(Object.fromEntries(params));
-  let request = database()
-    .from("marketplace_translations")
-    .select(
-      "id, source_text, translated_text, source_language, target_language, namespace, context, status, quality_score, quality_flags, engine, engine_version, version, reviewed_at, updated_at",
-      { count: "exact" },
-    )
-    .eq("status", query.status)
-    .order("updated_at", { ascending: false })
-    .range(query.offset, query.offset + query.limit - 1);
+  const client = await database();
+  let languageCode: string | null = null;
   if (query.language) {
     const language = getLanguage(query.language);
     if (!language) throw new Error("Unknown language.");
-    request = request.eq("target_language", language.code);
+    languageCode = language.code;
   }
-  if (query.q) request = request.ilike("source_text", `%${query.q.replace(/[%_]/g, "\\$&")}%`);
-  const { data, error, count } = await request;
-  if (error) throw new Error(error.message);
-  return { rows: data ?? [], total: count ?? 0 };
+  const search = query.q ? `%${query.q.replace(/[\\%_]/g, "\\$&")}%` : null;
+  const filter = client`
+    status = ${query.status} and target_language is not null
+    and (${languageCode}::text is null or target_language = ${languageCode})
+    and (${search}::text is null or source_text ilike ${search})`;
+  const [rows, totals] = await Promise.all([
+    client`
+      select id, source_text, translated_text, source_language, target_language,
+        namespace, context, status, quality_score::double precision as quality_score, quality_flags, engine, engine_version,
+        version, reviewed_at, updated_at
+      from public.marketplace_translations where ${filter}
+      order by updated_at desc, id limit ${query.limit} offset ${query.offset}`,
+    client<{ total: number | string }[]>`
+      select count(*) as total from public.marketplace_translations where ${filter}`,
+  ]);
+  return { rows: [...rows], total: Number(totals[0]?.total ?? 0) };
 }
 
 export async function revisions(id: string) {
   z.string().uuid().parse(id);
-  const { data, error } = await database()
-    .from("i18n_translation_revisions")
-    .select(
-      "version, translated_text, status, quality_score, engine, engine_version, changed_by, changed_at",
-    )
-    .eq("translation_id", id)
-    .order("version", { ascending: false });
-  if (error) throw new Error(error.message);
-  return { revisions: data ?? [] };
+  const client = await database();
+  const rows = await client`
+    select version, translated_text, status, quality_score::double precision as quality_score, engine, engine_version, changed_by, changed_at
+    from public.i18n_translation_revisions
+    where translation_id = ${id}::uuid order by version desc`;
+  return { revisions: [...rows] };
 }
 
 export async function glossaryList() {
-  const { data, error } = await database()
-    .from("i18n_glossary_terms")
-    .select("*")
-    .order("source_term", { ascending: true })
-    .limit(1000);
-  if (error) throw new Error(error.message);
-  return { terms: data ?? [] };
+  const client = await database();
+  const rows = await client`
+    select * from public.i18n_glossary_terms order by source_term asc limit 1000`;
+  return { terms: [...rows] };
 }
 
 const glossaryTerm = z
@@ -234,6 +217,7 @@ export const action = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("enqueue_texts"),
+    source: z.string().max(32).default("en"),
     texts: z.array(z.string().min(1).max(5000)).min(1).max(500),
     languages: z.union([z.literal("all"), z.array(z.string().max(32)).min(1).max(200)]),
     namespace: z.string().regex(NAMESPACE_PATTERN).default("catalogue"),
@@ -264,7 +248,7 @@ export const action = z.discriminatedUnion("action", [
 
 export async function performAction(body: unknown, caller: Caller) {
   const input = action.parse(body);
-  const client = database();
+  const client = await database();
   switch (input.action) {
     case "enqueue_catalogue":
       return enqueueCatalogue(input.languages, {
@@ -277,6 +261,7 @@ export async function performAction(body: unknown, caller: Caller) {
       const items = targets.flatMap((target) =>
         input.texts.map((text) => ({
           text,
+          source: input.source,
           target,
           namespace: input.namespace,
           context: input.context,
@@ -298,31 +283,24 @@ export async function performAction(body: unknown, caller: Caller) {
       // review_note marks this as a person's decision; the database lets only
       // such writes change a verified or rejected row.
       const note = `${input.decision} by ${caller.userId ?? "operator"} at ${now}`;
-      const patch: Record<string, unknown> =
-        input.decision === "verify"
-          ? { status: "verified", reviewed_by: caller.userId, reviewed_at: now, review_note: note }
-          : input.decision === "reject"
-            ? {
-                status: "rejected",
-                reviewed_by: caller.userId,
-                reviewed_at: now,
-                review_note: note,
-              }
-            : { status: "needs_review", reviewed_by: null, reviewed_at: null, review_note: note };
       if (input.text !== undefined) {
         if (input.decision !== "verify")
           throw new Error("An edited translation can only be saved as verified.");
-        patch.translated_text = input.text;
-        patch.engine = "human";
       }
-      const { data, error } = await client
-        .from("marketplace_translations")
-        .update(patch)
-        .eq("id", input.id)
-        .not("target_language", "is", null)
-        .select("id, status, translated_text, version")
-        .maybeSingle();
-      if (error) throw new Error(error.message);
+      const status =
+        input.decision === "verify"
+          ? "verified"
+          : input.decision === "reject"
+            ? "rejected"
+            : "needs_review";
+      const [data] = await client`
+        update public.marketplace_translations set
+          status = ${status}, reviewed_by = ${input.decision === "reopen" ? null : caller.userId}::uuid,
+          reviewed_at = ${input.decision === "reopen" ? null : now}::timestamptz, review_note = ${note},
+          translated_text = case when ${input.text !== undefined} then ${input.text ?? null} else translated_text end,
+          engine = case when ${input.text !== undefined} then 'human' else engine end
+        where id = ${input.id}::uuid and target_language is not null
+        returning id, status, translated_text, version`;
       if (!data) throw new Error("Translation not found.");
       invalidateTranslationCaches();
       return data;
@@ -332,11 +310,10 @@ export async function performAction(body: unknown, caller: Caller) {
       if (!language || language.replacedBy) throw new Error("Unknown or retired language.");
       if (language.code === "en" && !input.enabled)
         throw new Error("The source language cannot be disabled.");
-      const { error } = await client
-        .from("i18n_languages")
-        .update({ enabled: input.enabled })
-        .eq("code", language.code);
-      if (error) throw new Error(error.message);
+      const rows = await client`
+        update public.i18n_languages set enabled = ${input.enabled}
+        where code = ${language.code} returning code`;
+      if (!rows.length) throw new Error("Language not found in the database.");
       invalidateLanguageOverrides();
       invalidateTranslationCaches();
       return { code: language.code, enabled: input.enabled };
@@ -345,24 +322,28 @@ export async function performAction(body: unknown, caller: Caller) {
       const term = input.term;
       const target = term.target_language ? getLanguage(term.target_language) : null;
       if (term.target_language && !target?.enabled) throw new Error("Unknown target language.");
-      const row = {
-        ...term,
-        target_language: target?.code ?? null,
-        source_language: "en",
-        ...(term.status === "approved"
-          ? { approved_by: caller.userId, approved_at: new Date().toISOString() }
-          : {}),
-        ...(term.id ? {} : { created_by: caller.userId }),
-      };
-      const { data, error } = term.id
-        ? await client
-            .from("i18n_glossary_terms")
-            .update(row)
-            .eq("id", term.id)
-            .select()
-            .maybeSingle()
-        : await client.from("i18n_glossary_terms").insert(row).select().maybeSingle();
-      if (error) throw new Error(error.message);
+      const now = new Date().toISOString();
+      const rows = term.id
+        ? await client`
+            update public.i18n_glossary_terms set
+              source_term = ${term.source_term}, target_term = ${term.target_term},
+              target_language = ${target?.code ?? null}, source_language = 'en',
+              rule = ${term.rule}, case_sensitive = ${term.case_sensitive}, namespace = ${term.namespace},
+              context = ${term.context}, status = ${term.status}, notes = ${term.notes},
+              approved_by = case when ${term.status === "approved"} then ${caller.userId}::uuid else approved_by end,
+              approved_at = case when ${term.status === "approved"} then ${now}::timestamptz else approved_at end
+            where id = ${term.id}::uuid returning *`
+        : await client`
+            insert into public.i18n_glossary_terms
+              (source_term, target_term, target_language, source_language, rule, case_sensitive,
+               namespace, context, status, notes, approved_by, approved_at, created_by)
+            values (${term.source_term}, ${term.target_term}, ${target?.code ?? null}, 'en', ${term.rule},
+              ${term.case_sensitive}, ${term.namespace}, ${term.context}, ${term.status}, ${term.notes},
+              ${term.status === "approved" ? caller.userId : null}::uuid,
+              ${term.status === "approved" ? now : null}::timestamptz, ${caller.userId}::uuid)
+            returning *`;
+      const data = rows[0];
+      if (!data) throw new Error("Glossary term not found.");
       invalidateTranslationCaches();
       return data;
     }
@@ -392,100 +373,108 @@ async function reviewAction(
   caller: Caller,
   now: string,
 ) {
-  const client = database();
-  const { data: row, error } = await client
-    .from("marketplace_translations")
-    .select(
-      "id, status, source_text, translated_text, target_language, namespace, context, source_hash, context_hash",
-    )
-    .eq("id", id)
-    .not("target_language", "is", null)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  const client = await database();
+  type ReviewRow = {
+    id: string;
+    status: string;
+    source_text: string;
+    translated_text: string | null;
+    source_language: string;
+    target_language: string;
+    namespace: string;
+    context: string | null;
+    source_hash: string;
+    context_hash: string;
+  };
+  const [row] = await client<ReviewRow[]>`
+    select id, status, source_text, translated_text, source_language, target_language,
+      namespace, context, source_hash, context_hash
+    from public.marketplace_translations
+    where id = ${id}::uuid and target_language is not null`;
   if (!row) throw new Error("Translation not found.");
   const note = `${decision} by ${caller.userId ?? "operator"} at ${now}`;
 
   if (decision === "retranslate") {
     if (row.status === "verified")
       throw new Error("A verified translation is locked. Reopen it first to translate it again.");
-    const { error: updateError } = await client
-      .from("marketplace_translations")
-      .update({ status: "stale", review_note: note })
-      .eq("id", row.id);
-    if (updateError) throw new Error(updateError.message);
+    const updated = await client`
+      update public.marketplace_translations set status = 'stale', review_note = ${note}
+      where id = ${row.id}::uuid and status <> 'verified' returning id`;
+    if (!updated.length)
+      throw new Error("A verified translation is locked. Reopen it first to translate it again.");
+    invalidateTranslationCaches();
     const queued = await enqueueJobs(
       [
         {
-          text: String(row.source_text),
-          target: String(row.target_language),
-          namespace: String(row.namespace),
-          context: (row.context as string | null) ?? null,
+          text: row.source_text,
+          source: row.source_language,
+          target: row.target_language,
+          namespace: row.namespace,
+          context: row.context,
           priority: 1,
         },
       ],
       caller.userId,
     );
     // Already queued (the catalogue sync queues every message): move it ahead.
-    const { data: raised, error: raiseError } = await client
-      .from("i18n_translation_jobs")
-      .update({ priority: 1 })
-      .eq("source_hash", row.source_hash)
-      .eq("target_language", row.target_language)
-      .eq("context_hash", row.context_hash)
-      .eq("status", "queued")
-      .select("id");
-    if (raiseError) throw new Error(raiseError.message);
-    invalidateTranslationCaches();
+    const raised = await client`
+      update public.i18n_translation_jobs set priority = 1
+      where source_hash = ${row.source_hash} and source_language = ${row.source_language}
+        and target_language = ${row.target_language} and context_hash = ${row.context_hash}
+        and status = 'queued' returning id`;
     // The update also finds a job inserted just now; count each job once.
     return { id: row.id, status: "stale", queued: Math.max(queued, raised?.length ?? 0) };
   }
 
-  const source = String(row.source_text);
-  const translation = (text ?? String(row.translated_text ?? "")).trim();
+  const source = row.source_text;
+  const translation = (text ?? row.translated_text ?? "").trim();
   if (!translation) throw new Error("There is no translation to lock.");
   if (source.length > LOCKABLE_LENGTH)
     throw new Error(
       `Only terms and labels up to ${LOCKABLE_LENGTH} characters can be locked. Verify this translation instead.`,
     );
-  const { data: verified, error: verifyError } = await client
-    .from("marketplace_translations")
-    .update({
-      status: "verified",
-      reviewed_by: caller.userId,
-      reviewed_at: now,
-      review_note: note,
-      ...(text !== undefined ? { translated_text: translation, engine: "human" } : {}),
-    })
-    .eq("id", row.id)
-    .select("id, status, translated_text, version")
-    .maybeSingle();
-  if (verifyError) throw new Error(verifyError.message);
-
-  const term = {
-    source_term: source,
-    target_term: translation,
-    source_language: "en",
-    target_language: row.target_language,
-    rule: "preferred",
-    case_sensitive: true,
-    namespace: row.namespace,
-    status: "approved",
-    approved_by: caller.userId,
-    approved_at: now,
-    notes: `Locked from the review queue (${row.context ? `context: ${row.context}` : "no context"}).`,
-  };
-  const { data: existing, error: findError } = await client
-    .from("i18n_glossary_terms")
-    .select("id")
-    .eq("source_term", source)
-    .eq("target_language", row.target_language)
-    .eq("namespace", row.namespace)
-    .maybeSingle();
-  if (findError) throw new Error(findError.message);
-  const saved = existing
-    ? await client.from("i18n_glossary_terms").update(term).eq("id", existing.id)
-    : await client.from("i18n_glossary_terms").insert({ ...term, created_by: caller.userId });
-  if (saved.error) throw new Error(saved.error.message);
+  const verified = await client.begin(async (transaction) => {
+    const [locked] = await transaction<ReviewRow[]>`
+      select id, status, source_text, translated_text, source_language, target_language,
+        namespace, context, source_hash, context_hash
+      from public.marketplace_translations where id = ${id}::uuid and target_language is not null
+      for update`;
+    if (!locked) throw new Error("Translation not found.");
+    const lockedTranslation = (text ?? locked.translated_text ?? "").trim();
+    if (!lockedTranslation) throw new Error("There is no translation to lock.");
+    if (locked.source_text.length > LOCKABLE_LENGTH)
+      throw new Error(`Only terms and labels up to ${LOCKABLE_LENGTH} characters can be locked.`);
+    const [saved] = await transaction`
+      update public.marketplace_translations set status = 'verified',
+        reviewed_by = ${caller.userId}::uuid, reviewed_at = ${now}::timestamptz,
+        review_note = ${note},
+        translated_text = case when ${text !== undefined} then ${lockedTranslation} else translated_text end,
+        engine = case when ${text !== undefined} then 'human' else engine end
+      where id = ${id}::uuid returning id, status, translated_text, version`;
+    if (!saved) throw new Error("Translation not found.");
+    const existing = await transaction<{ id: string }[]>`
+      select id from public.i18n_glossary_terms
+      where source_term = ${locked.source_text} and source_language = ${locked.source_language}
+        and target_language = ${locked.target_language} and namespace = ${locked.namespace}`;
+    if (existing.length > 1) throw new Error("Multiple glossary terms match this translation.");
+    const notes = `Locked from the review queue (${locked.context ? `context: ${locked.context}` : "no context"}).`;
+    if (existing[0]) {
+      await transaction`
+        update public.i18n_glossary_terms set target_term = ${lockedTranslation},
+          rule = 'preferred', case_sensitive = true, status = 'approved',
+          approved_by = ${caller.userId}::uuid, approved_at = ${now}::timestamptz, notes = ${notes}
+        where id = ${existing[0].id}::uuid`;
+    } else {
+      await transaction`
+        insert into public.i18n_glossary_terms
+          (source_term, target_term, source_language, target_language, rule, case_sensitive,
+           namespace, status, approved_by, approved_at, notes, created_by)
+        values (${locked.source_text}, ${lockedTranslation}, ${locked.source_language},
+          ${locked.target_language}, 'preferred', true, ${locked.namespace}, 'approved',
+          ${caller.userId}::uuid, ${now}::timestamptz, ${notes}, ${caller.userId}::uuid)`;
+    }
+    return saved;
+  });
   invalidateTranslationCaches();
-  return { ...(verified ?? { id: row.id }), locked: true };
+  return { ...verified, locked: true };
 }

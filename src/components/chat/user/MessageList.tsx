@@ -1,7 +1,17 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Bookmark, Check, CheckCheck, Languages, Loader2, MessageSquareReply, Pin,
-  RotateCcw, ShieldCheck, Smile, Trash2, WifiOff,
+  Bookmark,
+  Check,
+  CheckCheck,
+  Languages,
+  Loader2,
+  MessageSquareReply,
+  Pin,
+  RotateCcw,
+  ShieldCheck,
+  Smile,
+  Trash2,
+  WifiOff,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -39,7 +49,13 @@ interface MessageListProps {
 
 type Row =
   | { type: "date"; key: string; label: string }
-  | { type: "group"; key: string; senderId: string; mine: boolean; items: (ChatMessage | PendingMessage)[] };
+  | {
+      type: "group";
+      key: string;
+      senderId: string;
+      mine: boolean;
+      items: (ChatMessage | PendingMessage)[];
+    };
 
 function sameDay(a: string, b: string) {
   return new Date(a).toDateString() === new Date(b).toDateString();
@@ -64,13 +80,18 @@ function timeLabel(iso: string, formatDate: FormatDate) {
 function Body({ text, profilesById }: { text: string; profilesById: Map<string, Profile> }) {
   const handles = Array.from(profilesById.values()).map((p) => p.handle);
   if (handles.length === 0 || !text.includes("@")) return <>{text}</>;
-  const pattern = new RegExp(`(@(?:${handles.map((h) => h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b)`, "g");
+  const pattern = new RegExp(
+    `(@(?:${handles.map((h) => h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b)`,
+    "g",
+  );
   const parts = text.split(pattern);
   return (
     <>
       {parts.map((part, i) =>
         part.startsWith("@") && handles.includes(part.slice(1)) ? (
-          <span key={i} className="rounded bg-primary/15 px-0.5 font-medium text-primary">{part}</span>
+          <span key={i} className="rounded bg-primary/15 px-0.5 font-medium text-primary">
+            {part}
+          </span>
         ) : (
           <Fragment key={i}>{part}</Fragment>
         ),
@@ -115,14 +136,33 @@ function ReceiptTick({ message, userId }: { message: ChatMessage; userId: string
 
 export function MessageList(props: MessageListProps) {
   const {
-    messages, pending, userId, profilesById, typingUsers, connection,
-    canReact, canReply, canBookmark, canDownload, translateTarget, autoTranslate, density, highlightId,
-    onReact, onBookmark, onReply, onOpenThread, onRetry, onDiscard,
+    messages,
+    pending,
+    userId,
+    profilesById,
+    typingUsers,
+    connection,
+    canReact,
+    canReply,
+    canBookmark,
+    canDownload,
+    translateTarget,
+    autoTranslate,
+    density,
+    highlightId,
+    onReact,
+    onBookmark,
+    onReply,
+    onOpenThread,
+    onRetry,
+    onDiscard,
   } = props;
   const { t, formatDate } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
-  const [translations, setTranslations] = useState<Record<string, { loading: boolean; text?: string; error?: string }>>({});
+  const [translations, setTranslations] = useState<
+    Record<string, { loading: boolean; text?: string; error?: string; authRequired?: boolean }>
+  >({});
 
   const all = useMemo(
     () => [...messages, ...pending].sort((a, b) => a.created_at.localeCompare(b.created_at)),
@@ -136,11 +176,22 @@ export function MessageList(props: MessageListProps) {
       const message = all[i]!;
       const previous = i > 0 ? all[i - 1] : undefined;
       if (!previous || !sameDay(previous.created_at, message.created_at)) {
-        result.push({ type: "date", key: `d-${message.created_at.slice(0, 10)}`, label: dayLabel(message.created_at, t, formatDate) });
+        result.push({
+          type: "date",
+          key: `d-${message.created_at.slice(0, 10)}`,
+          label: dayLabel(message.created_at, t, formatDate),
+        });
         group = null;
       }
-      const gap = previous ? new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() : Infinity;
-      if (group && group.senderId === message.sender_id && gap < 5 * 60 * 1000 && !message.parent_id) {
+      const gap = previous
+        ? new Date(message.created_at).getTime() - new Date(previous.created_at).getTime()
+        : Infinity;
+      if (
+        group &&
+        group.senderId === message.sender_id &&
+        gap < 5 * 60 * 1000 &&
+        !message.parent_id
+      ) {
         group.items.push(message);
       } else {
         const next: Extract<Row, { type: "group" }> = {
@@ -171,12 +222,18 @@ export function MessageList(props: MessageListProps) {
   const translate = useCallback(
     async (message: ChatMessage) => {
       setTranslations((prev) => ({ ...prev, [message.id]: { loading: true } }));
-      const result = await translateMessage({ data: { text: message.body, target: translateTarget } }).catch(
-        () => ({ ok: false as const, error: t("chat.messages.translation_unavailable") }),
-      );
+      const result = await translateMessage({
+        data: { text: message.body, target: translateTarget },
+      }).catch(() => ({ ok: false as const, error: t("chat.messages.translation_unavailable") }));
       setTranslations((prev) => ({
         ...prev,
-        [message.id]: result.ok ? { loading: false, text: result.text } : { loading: false, error: result.error },
+        [message.id]: result.ok
+          ? { loading: false, text: result.text }
+          : {
+              loading: false,
+              error: result.error,
+              authRequired: "reason" in result && result.reason === "native_session_required",
+            },
       }));
     },
     [translateTarget, t],
@@ -187,7 +244,8 @@ export function MessageList(props: MessageListProps) {
   useEffect(() => {
     if (!autoTranslate) return;
     for (const message of messages.slice(-25)) {
-      if (message.sender_id === userId || !message.body || attempted.current.has(message.id)) continue;
+      if (message.sender_id === userId || !message.body || attempted.current.has(message.id))
+        continue;
       attempted.current.add(message.id);
       void translate(message);
     }
@@ -197,7 +255,9 @@ export function MessageList(props: MessageListProps) {
     const optimistic = message.optimistic;
     const translation = translations[message.id];
     const sender = profilesById.get(message.sender_id);
-    const groupedReactions = message.reactions.reduce<Record<string, { count: number; mine: boolean }>>((acc, r) => {
+    const groupedReactions = message.reactions.reduce<
+      Record<string, { count: number; mine: boolean }>
+    >((acc, r) => {
       acc[r.emoji] ??= { count: 0, mine: false };
       acc[r.emoji]!.count += 1;
       if (r.user_id === userId) acc[r.emoji]!.mine = true;
@@ -214,9 +274,18 @@ export function MessageList(props: MessageListProps) {
           highlightId === message.id && "bg-primary/10 ring-1 ring-primary/30",
         )}
       >
-        <div className={cn("flex max-w-[85%] items-end gap-2 sm:max-w-[75%]", mine && "flex-row-reverse")}>
+        <div
+          className={cn(
+            "flex max-w-[85%] items-end gap-2 sm:max-w-[75%]",
+            mine && "flex-row-reverse",
+          )}
+        >
           {!mine && first ? (
-            <UserAvatar name={sender?.display_name ?? "?"} avatarPath={sender?.avatar_path} className="size-7" />
+            <UserAvatar
+              name={sender?.display_name ?? "?"}
+              avatarPath={sender?.avatar_path}
+              className="size-7"
+            />
           ) : !mine ? (
             <span className="size-7 shrink-0" />
           ) : null}
@@ -233,7 +302,12 @@ export function MessageList(props: MessageListProps) {
             )}
           >
             {message.parent_id ? (
-              <p className={cn("mb-0.5 border-l-2 pl-2 text-xs opacity-80", mine ? "border-primary-foreground/40" : "border-primary/50")}>
+              <p
+                className={cn(
+                  "mb-0.5 border-l-2 pl-2 text-xs opacity-80",
+                  mine ? "border-primary-foreground/40" : "border-primary/50",
+                )}
+              >
                 {t("chat.messages.reply_in_thread")}
               </p>
             ) : null}
@@ -243,15 +317,34 @@ export function MessageList(props: MessageListProps) {
               </p>
             ) : null}
             {message.attachments.map((attachment) => (
-              <AttachmentCard key={attachment.id} attachment={attachment} canDownload={canDownload} />
+              <AttachmentCard
+                key={attachment.id}
+                attachment={attachment}
+                canDownload={canDownload}
+              />
             ))}
 
-            <div className={cn("mt-0.5 flex items-center justify-end gap-1 text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
-              {message.pinned ? <Pin className="size-3 fill-current" aria-label={t("chat.messages.pinned")} /> : null}
-              {message.bookmarked ? <Bookmark className="size-3 fill-current" aria-label={t("chat.messages.bookmarked")} /> : null}
+            <div
+              className={cn(
+                "mt-0.5 flex items-center justify-end gap-1 text-[10px]",
+                mine ? "text-primary-foreground/70" : "text-muted-foreground",
+              )}
+            >
+              {message.pinned ? (
+                <Pin className="size-3 fill-current" aria-label={t("chat.messages.pinned")} />
+              ) : null}
+              {message.bookmarked ? (
+                <Bookmark
+                  className="size-3 fill-current"
+                  aria-label={t("chat.messages.bookmarked")}
+                />
+              ) : null}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex cursor-default items-center" aria-label={t("chat.messages.immutable_record")}>
+                  <span
+                    className="inline-flex cursor-default items-center"
+                    aria-label={t("chat.messages.immutable_record")}
+                  >
                     <ShieldCheck className="size-3" />
                   </span>
                 </TooltipTrigger>
@@ -278,7 +371,11 @@ export function MessageList(props: MessageListProps) {
               {canReact ? (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button type="button" aria-label={t("chat.messages.react")} className="rounded-md p-1.5 hover:bg-secondary">
+                    <button
+                      type="button"
+                      aria-label={t("chat.messages.react")}
+                      className="rounded-md p-1.5 hover:bg-secondary"
+                    >
                       <Smile className="size-3.5" />
                     </button>
                   </PopoverTrigger>
@@ -289,7 +386,9 @@ export function MessageList(props: MessageListProps) {
                           key={emoji}
                           type="button"
                           className="rounded p-1 text-lg hover:bg-secondary"
-                          onClick={() => onReact(message.id, emoji, groupedReactions[emoji]?.mine ?? false)}
+                          onClick={() =>
+                            onReact(message.id, emoji, groupedReactions[emoji]?.mine ?? false)
+                          }
                         >
                           {emoji}
                         </button>
@@ -301,7 +400,12 @@ export function MessageList(props: MessageListProps) {
               {canReply ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button type="button" aria-label={t("chat.messages.reply")} onClick={() => onReply(message)} className="rounded-md p-1.5 hover:bg-secondary">
+                    <button
+                      type="button"
+                      aria-label={t("chat.messages.reply")}
+                      onClick={() => onReply(message)}
+                      className="rounded-md p-1.5 hover:bg-secondary"
+                    >
                       <MessageSquareReply className="size-3.5" />
                     </button>
                   </TooltipTrigger>
@@ -314,34 +418,58 @@ export function MessageList(props: MessageListProps) {
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        aria-label={message.pinned ? t("chat.messages.unpin") : t("chat.messages.pin")}
+                        aria-label={
+                          message.pinned ? t("chat.messages.unpin") : t("chat.messages.pin")
+                        }
                         onClick={() => onBookmark(message.id, true, message.pinned)}
                         className="rounded-md p-1.5 hover:bg-secondary"
                       >
-                        <Pin className={cn("size-3.5", message.pinned && "fill-current text-primary")} />
+                        <Pin
+                          className={cn("size-3.5", message.pinned && "fill-current text-primary")}
+                        />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>{message.pinned ? t("chat.messages.unpin") : t("chat.messages.pin")}</TooltipContent>
+                    <TooltipContent>
+                      {message.pinned ? t("chat.messages.unpin") : t("chat.messages.pin")}
+                    </TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        aria-label={message.bookmarked ? t("chat.messages.remove_bookmark") : t("chat.messages.bookmark")}
+                        aria-label={
+                          message.bookmarked
+                            ? t("chat.messages.remove_bookmark")
+                            : t("chat.messages.bookmark")
+                        }
                         onClick={() => onBookmark(message.id, false, message.bookmarked)}
                         className="rounded-md p-1.5 hover:bg-secondary"
                       >
-                        <Bookmark className={cn("size-3.5", message.bookmarked && "fill-current text-primary")} />
+                        <Bookmark
+                          className={cn(
+                            "size-3.5",
+                            message.bookmarked && "fill-current text-primary",
+                          )}
+                        />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>{message.bookmarked ? t("chat.messages.remove_bookmark") : t("chat.messages.bookmark")}</TooltipContent>
+                    <TooltipContent>
+                      {message.bookmarked
+                        ? t("chat.messages.remove_bookmark")
+                        : t("chat.messages.bookmark")}
+                    </TooltipContent>
                   </Tooltip>
                 </>
               ) : null}
               {message.body ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button type="button" aria-label={t("chat.messages.translate_message")} onClick={() => void translate(message)} className="rounded-md p-1.5 hover:bg-secondary">
+                    <button
+                      type="button"
+                      aria-label={t("chat.messages.translate_message")}
+                      onClick={() => void translate(message)}
+                      className="rounded-md p-1.5 hover:bg-secondary"
+                    >
                       <Languages className="size-3.5" />
                     </button>
                   </TooltipTrigger>
@@ -363,7 +491,9 @@ export function MessageList(props: MessageListProps) {
                 aria-label={t("chat.messages.reactions", { count: info.count, emoji })}
                 className={cn(
                   "rounded-full border px-1.5 py-0.5 text-xs transition-colors",
-                  info.mine ? "border-primary/50 bg-primary/10" : "border-border/60 bg-secondary/60 hover:bg-secondary",
+                  info.mine
+                    ? "border-primary/50 bg-primary/10"
+                    : "border-border/60 bg-secondary/60 hover:bg-secondary",
                 )}
               >
                 {emoji} {info.count}
@@ -376,18 +506,40 @@ export function MessageList(props: MessageListProps) {
           <button
             type="button"
             onClick={() => onOpenThread(message)}
-            className={cn("text-xs font-medium text-primary hover:underline", mine ? "pr-1 self-end" : "pl-9")}
+            className={cn(
+              "text-xs font-medium text-primary hover:underline",
+              mine ? "pr-1 self-end" : "pl-9",
+            )}
           >
             {t("chat.messages.open_thread", { count: message.replyCount })}
           </button>
         ) : null}
 
         {translation ? (
-          <div className={cn("max-w-[85%] rounded-lg border border-border/50 bg-secondary/40 px-2.5 py-1 text-xs sm:max-w-[75%]", mine && "self-end")}>
+          <div
+            className={cn(
+              "max-w-[85%] rounded-lg border border-border/50 bg-secondary/40 px-2.5 py-1 text-xs sm:max-w-[75%]",
+              mine && "self-end",
+            )}
+          >
             {translation.loading ? (
-              <span className="inline-flex items-center gap-1 text-muted-foreground"><Loader2 className="size-3 animate-spin" /> {t("chat.messages.translating")}</span>
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" /> {t("chat.messages.translating")}
+              </span>
             ) : translation.error ? (
-              <span className="text-destructive">{translation.error}</span>
+              <span className="text-destructive">
+                {translation.error}
+                {translation.authRequired && (
+                  <a
+                    href="/language-manager"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-2 text-primary underline"
+                  >
+                    {t("common.language_native_sign_in")}
+                  </a>
+                )}
+              </span>
             ) : (
               <span className="whitespace-pre-wrap">{translation.text}</span>
             )}
@@ -397,10 +549,18 @@ export function MessageList(props: MessageListProps) {
         {optimistic?.state === "failed" ? (
           <div className="flex items-center gap-2 pr-1 text-xs">
             <span className="text-destructive">{optimistic.error ?? t("chat.send_failed")}</span>
-            <button type="button" onClick={() => onRetry(message.id)} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+            <button
+              type="button"
+              onClick={() => onRetry(message.id)}
+              className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+            >
               <RotateCcw className="size-3" /> {t("chat.messages.retry")}
             </button>
-            <button type="button" onClick={() => onDiscard(message.id)} className="inline-flex items-center gap-1 text-muted-foreground hover:underline">
+            <button
+              type="button"
+              onClick={() => onDiscard(message.id)}
+              className="inline-flex items-center gap-1 text-muted-foreground hover:underline"
+            >
               <Trash2 className="size-3" /> {t("chat.messages.discard")}
             </button>
           </div>
@@ -423,7 +583,11 @@ export function MessageList(props: MessageListProps) {
       {connection !== "live" ? (
         <div className="mb-2 flex items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-600 dark:text-amber-400">
           <WifiOff className="size-3.5" />
-          {connection === "connecting" ? t("chat.messages.connecting") : connection === "reconnecting" ? t("chat.messages.reconnecting") : t("chat.messages.offline")}
+          {connection === "connecting"
+            ? t("chat.messages.connecting")
+            : connection === "reconnecting"
+              ? t("chat.messages.reconnecting")
+              : t("chat.messages.offline")}
         </div>
       ) : null}
 
@@ -439,11 +603,16 @@ export function MessageList(props: MessageListProps) {
         row.type === "date" ? (
           <div key={row.key} className="my-3 flex items-center gap-3" aria-hidden>
             <span className="h-px flex-1 bg-border/60" />
-            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">{row.label}</span>
+            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {row.label}
+            </span>
             <span className="h-px flex-1 bg-border/60" />
           </div>
         ) : (
-          <div key={row.key} className={cn("mb-2 flex flex-col gap-0.5", row.mine ? "items-end" : "items-start")}>
+          <div
+            key={row.key}
+            className={cn("mb-2 flex flex-col gap-0.5", row.mine ? "items-end" : "items-start")}
+          >
             {!row.mine ? (
               <span className={cn("pl-9 text-xs font-medium text-muted-foreground")}>
                 {profilesById.get(row.senderId)?.display_name ?? t("chat.messages.unknown_user")}
@@ -455,7 +624,10 @@ export function MessageList(props: MessageListProps) {
       )}
 
       {typingUsers.length > 0 ? (
-        <div className="flex items-center gap-2 pl-9 pt-1 text-xs text-muted-foreground" role="status">
+        <div
+          className="flex items-center gap-2 pl-9 pt-1 text-xs text-muted-foreground"
+          role="status"
+        >
           <span className="flex gap-1">
             <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:0ms]" />
             <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:150ms]" />

@@ -21,9 +21,17 @@ import { RequireRole } from "@/components/auth/RequireRole";
 
 /** Path prefix -> the app_roles allowed there, on top of platform operators. */
 const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
-  { prefix: "/control-panel", roles: ["developer", "finance", "support", "sales_support_manager"], label: "Control Panel" },
+  {
+    prefix: "/control-panel",
+    roles: ["developer", "finance", "support", "sales_support_manager"],
+    label: "Control Panel",
+  },
   { prefix: "/boss", roles: [], label: "Boss Console" },
-  { prefix: "/manager", roles: ["developer", "finance", "support", "sales_support_manager"], label: "Manager" },
+  {
+    prefix: "/manager",
+    roles: ["developer", "finance", "support", "sales_support_manager"],
+    label: "Manager",
+  },
   // These are the roles public.mm_is_operator() honours, on top of the
   // platform operators RequireRole always admits. The list used to be
   // finance/support/sales_support_manager, none of which that function
@@ -32,16 +40,40 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   // SEO, which the database does accept, were kept out of it entirely.
   { prefix: "/marketplace-manager", roles: ["marketing", "seo"], label: "Marketplace Manager" },
   { prefix: "/marketplace-recovery", roles: ["developer"], label: "Marketplace Recovery" },
-  { prefix: "/reseller-manager", roles: ["finance", "support", "sales_support_manager"], label: "Reseller Manager" },
-  { prefix: "/franchise-manager", roles: ["finance", "support", "sales_support_manager"], label: "Franchise Manager" },
-  { prefix: "/influencer-manager", roles: ["finance", "support", "sales_support_manager"], label: "Influencer Manager" },
-  { prefix: "/affiliate-manager", roles: ["finance", "support", "sales_support_manager"], label: "Affiliate Manager" },
-  { prefix: "/vendor-manager", roles: ["finance", "support", "sales_support_manager"], label: "Vendor Manager" },
+  {
+    prefix: "/reseller-manager",
+    roles: ["finance", "support", "sales_support_manager"],
+    label: "Reseller Manager",
+  },
+  {
+    prefix: "/franchise-manager",
+    roles: ["finance", "support", "sales_support_manager"],
+    label: "Franchise Manager",
+  },
+  {
+    prefix: "/influencer-manager",
+    roles: ["finance", "support", "sales_support_manager"],
+    label: "Influencer Manager",
+  },
+  {
+    prefix: "/affiliate-manager",
+    roles: ["finance", "support", "sales_support_manager"],
+    label: "Affiliate Manager",
+  },
+  {
+    prefix: "/vendor-manager",
+    roles: ["finance", "support", "sales_support_manager"],
+    label: "Vendor Manager",
+  },
   // The same roles the database's application_staff() lets decide an application.
   { prefix: "/application-manager", roles: ["marketing"], label: "Application Manager" },
   { prefix: "/creator-manager", roles: ["finance", "support"], label: "Creator Manager" },
   { prefix: "/finance-manager", roles: ["finance"], label: "Finance Manager" },
-  { prefix: "/lead-manager", roles: ["sales", "marketing", "support", "sales_support_manager"], label: "Lead Manager" },
+  {
+    prefix: "/lead-manager",
+    roles: ["sales", "marketing", "support", "sales_support_manager"],
+    label: "Lead Manager",
+  },
   { prefix: "/seo-manager", roles: ["seo", "marketing"], label: "SEO Manager" },
   { prefix: "/ai-api-manager", roles: ["developer"], label: "AI API Manager" },
   { prefix: "/ams-manager", roles: ["developer", "support"], label: "AMS Manager" },
@@ -56,7 +88,11 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/demo-workspace", roles: [...DEMO_ROUTE_ROLES], label: "Demo Workspace" },
   { prefix: "/product-demo-manager", roles: [...DEMO_ROUTE_ROLES], label: "Product Demo Manager" },
   { prefix: "/sales-crm", roles: ["sales", "sales_support_manager"], label: "Sales CRM" },
-  { prefix: "/sales-support-manager", roles: ["sales", "support", "sales_support_manager"], label: "Sales Support Manager" },
+  {
+    prefix: "/sales-support-manager",
+    roles: ["sales", "support", "sales_support_manager"],
+    label: "Sales Support Manager",
+  },
   { prefix: "/support-agent", roles: ["support"], label: "Support Agent" },
   { prefix: "/support-chatbot", roles: ["support"], label: "Support Chatbot" },
   { prefix: "/internal-support-ai", roles: ["support", "developer"], label: "Internal Support AI" },
@@ -133,6 +169,8 @@ export function RouteAccessGate({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const rule = matchFor(pathname);
   if (!rule) return <>{children}</>;
+  // Language Manager has its own native sign-in and server-side operator guard.
+  if (rule.prefix === "/language-manager") return <>{children}</>;
   return (
     <RequireRole key={rule.prefix} role={rule.roles}>
       {children}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyTranslations,
+  currentOriginal,
   isTranslatableText,
   restoreOriginals,
   uniqueStrings,
@@ -63,6 +64,25 @@ function element(attributes: Record<string, string>) {
 }
 
 describe("applying and restoring", () => {
+  it("keeps non-Latin translations reachable for restoration, but recognizes runtime source updates", () => {
+    const key = {};
+    const originals = new WeakMap<object, Map<string, string>>();
+    originals.set(
+      key,
+      new Map([
+        ["text", "Apply Now"],
+        ["text:applied", "अभी आवेदन करें"],
+      ]),
+    );
+    expect(currentOriginal(originals, key, "text", "अभी आवेदन करें")).toBe("Apply Now");
+    expect(isTranslatableText(currentOriginal(originals, key, "text", "अभी आवेदन करें"))).toBe(
+      true,
+    );
+    expect(currentOriginal(originals, key, "text", "Your cart is empty.")).toBe(
+      "Your cart is empty.",
+    );
+    expect(originals.get(key)?.has("text")).toBe(false);
+  });
   it("writes translations and keeps the whitespace around them", () => {
     const node = textNode("\n  Apply Now  ");
     const targets: Target[] = [{ kind: "text", node, original: "\n  Apply Now  " }];
@@ -98,6 +118,15 @@ describe("applying and restoring", () => {
     const targets: Target[] = [{ kind: "text", node, original: "Not translated yet" }];
     expect(applyTranslations(targets, () => undefined, new WeakMap())).toBe(0);
     expect(node.nodeValue).toBe("Not translated yet");
+  });
+
+  it("replaces a withdrawn translation with the actual source fallback", () => {
+    const node = textNode("Apply Now");
+    const targets: Target[] = [{ kind: "text", node, original: "Apply Now" }];
+    const originals = new WeakMap<object, Map<string, string>>();
+    applyTranslations(targets, () => "अभी आवेदन करें", originals);
+    expect(applyTranslations(targets, (source) => source, originals)).toBe(1);
+    expect(node.nodeValue).toBe("Apply Now");
   });
 
   it("does not rewrite a node that already holds the translation", () => {

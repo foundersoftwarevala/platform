@@ -26,6 +26,11 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 step() { echo; echo "=== $* ==="; }
 fail() { echo "DEPLOY ABORTED: $*"; exit 1; }
 
+# Carry the native language connection into both the spare-port smoke and PM2.
+I18N_DATABASE_URL="$(node --env-file="$LIVE/.env" -e 'process.stdout.write(process.env.I18N_DATABASE_URL || process.env.VPS_DATABASE_URL || "")')" ||
+  fail "could not load native language database configuration"
+export I18N_DATABASE_URL
+
 step "1/6 Staging a build tree (the live directory is not touched)"
 mkdir -p "$BUILD"
 # --exclude '.output' matches that exact name and nothing else, so every
@@ -68,10 +73,27 @@ for i in $(seq 1 30); do
   [ "$code" = "200" ] && { ok=1; break; }
 done
 size=$(wc -c < /tmp/sv-smoke.html 2>/dev/null || echo 0)
+language_code=$(curl -s -o /tmp/sv-smoke-language.json -w '%{http_code}' -m 30 \
+  "http://127.0.0.1:$TEST_PORT/api/i18n/pack?lang=hi")
+language_ok=0
+if [ "$language_code" = "200" ]; then
+  node -e 'const p=JSON.parse(require("fs").readFileSync("/tmp/sv-smoke-language.json","utf8"));process.exit(p.source==="vps-postgresql"&&p.count>0?0:1)' &&
+    language_ok=1
+fi
+session_code=$(curl -s -o /tmp/sv-smoke-session.json -w '%{http_code}' -m 15 \
+  -H "Cookie: __Host-sv_language_session=$(printf 'a%.0s' {1..64})" \
+  "http://127.0.0.1:$TEST_PORT/api/i18n/session")
+session_ok=0
+if [ "$session_code" = "200" ]; then
+  node -e 'const p=JSON.parse(require("fs").readFileSync("/tmp/sv-smoke-session.json","utf8"));process.exit(p.authenticated===false&&p.tier==="anonymous"?0:1)' &&
+    session_ok=1
+fi
 kill "$SMOKE_PID" 2>/dev/null; wait "$SMOKE_PID" 2>/dev/null
 [ "$ok" = "1" ] || { tail -20 /tmp/sv-deploy-smoke.log; fail "the new build did not answer with 200 on / — NOT deployed"; }
 [ "$size" -ge "$MIN_BYTES" ] || fail "the new homepage rendered only $size bytes — NOT deployed"
 grep -q "$MARKER" /tmp/sv-smoke.html || fail "the new homepage did not contain '$MARKER' — NOT deployed"
+[ "$language_ok" = "1" ] || fail "native language pack smoke failed — NOT deployed"
+[ "$session_ok" = "1" ] || fail "native language session verification failed — NOT deployed"
 echo "  homepage OK: http=200 bytes=$size marker present"
 
 step "5/6 Swapping the build in and restarting"

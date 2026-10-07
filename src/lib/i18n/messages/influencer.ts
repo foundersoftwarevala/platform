@@ -42,10 +42,7 @@ export const INFLUENCER_MESSAGES = {
     "Held {days} days before payout · paid from {floor}",
     "how long commission is held, and the smallest payout raised",
   ],
-  "influencer.tier.next": [
-    "{name} pays {percent}%.",
-    "the next tier up and what it pays",
-  ],
+  "influencer.tier.next": ["{name} pays {percent}%.", "the next tier up and what it pays"],
   "influencer.tier.needs_followers": [
     "{count} more verified followers",
     "how many more followers are needed for the next tier",

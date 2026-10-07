@@ -20,6 +20,7 @@ import {
   setCurrentLanguage as setCurrentLanguageInService,
 } from "@/lib/i18n/language-service";
 import { retryAfterFor } from "@/lib/i18n/realtime-budget";
+import { LANGUAGE_SESSION_CHANGE_EVENT } from "@/lib/i18n/session-contract";
 import {
   LANGUAGE_REGISTRY,
   getFallbackChain,
@@ -102,14 +103,6 @@ export function translateText(key: string, lang: string) {
 
 /* ------------------------------------------------------------------ remote */
 
-/**
- * Where a language's received strings are remembered between visits. The
- * previous key (sv_lang_remote_v1_*) held answers produced from ambiguous
- * codes, so it is not read.
- */
-const REMOTE_PREFIX = "sv_i18n_memory_v3_";
-const REMOTE_MAX_ENTRIES = 3000;
-
 /** Held strings are keyed `context + separator + source text`, so one word can differ by place. */
 const SEPARATOR = "\u0001";
 
@@ -161,9 +154,13 @@ function requestLimits() {
 }
 
 /** How often the language pack is checked again while the page is open. */
-const PACK_REFRESH_MS = 5 * 60_000;
+const PACK_REFRESH_MS = 60_000;
+const MAX_CACHED_LANGUAGES = 8;
+const MAX_HELD_STRINGS = 10_000;
 
 type RemoteState = {
+  /** Source text currently shown because an exact translation is unavailable. */
+  fallback: Set<string>;
   /** source string -> translation, for one language. */
   held: Record<string, string>;
   /** Strings asked for and not yet answered. */
@@ -181,6 +178,7 @@ type RemoteState = {
   refusedShape: Set<string>;
   /** ETag of the last language pack applied. */
   packTag: string | null;
+  packKeys: Set<string>;
   /** The service refused this language. */
   refused: boolean;
   /** No requests before this time (rate limit, quota, transient failure). */
@@ -214,11 +212,16 @@ type LanguagePack = {
   tag: string | null;
 };
 
-async function fetchLanguagePack(code: string): Promise<LanguagePack | "disabled" | null> {
+async function fetchLanguagePack(
+  code: string,
+  etag?: string | null,
+): Promise<LanguagePack | "disabled" | "unchanged" | null> {
   try {
     const response = await fetch(`/api/i18n/pack?lang=${encodeURIComponent(code)}`, {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...(etag ? { "If-None-Match": etag } : {}) },
+      signal: AbortSignal.timeout(10_000),
     });
+    if (response.status === 304) return "unchanged";
     if (!response.ok) {
       // An operator switched the language off: nothing for it will be served.
       if (response.status === 400) {
@@ -268,31 +271,6 @@ export function engineBackoffSeconds(failures: number): number {
   return Math.min(300, 15 * 2 ** Math.max(0, failures - 1));
 }
 
-function loadRemote(code: string): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(REMOTE_PREFIX + code);
-    const parsed = raw ? (JSON.parse(raw) as unknown) : {};
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveRemote(code: string, held: Record<string, string>) {
-  if (typeof window === "undefined") return;
-  try {
-    const entries = Object.entries(held);
-    const bounded =
-      entries.length > REMOTE_MAX_ENTRIES
-        ? Object.fromEntries(entries.slice(-REMOTE_MAX_ENTRIES))
-        : held;
-    window.localStorage.setItem(REMOTE_PREFIX + code, JSON.stringify(bounded));
-  } catch {
-    /* a full or blocked store is not a reason to break the page */
-  }
-}
-
 type FetchOutcome = {
   translations: Record<string, string>;
   /** Strings answered without a usable translation. */
@@ -314,15 +292,17 @@ type FetchOutcome = {
   reason: string | null;
 };
 
-async function authorizationHeader(): Promise<Record<string, string>> {
+async function refreshLanguageSession(): Promise<void> {
   try {
-    const { supabase } = await import("@/integrations/supabase/client");
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    signedIn = Boolean(token);
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  } catch {
-    return {};
+    const response = await fetch("/api/i18n/session", { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error("Language session lookup failed.");
+    const session = (await response.json()) as { authenticated?: boolean };
+    signedIn = session.authenticated === true;
+  } catch (error) {
+    console.error(
+      "[i18n] language session unavailable",
+      error instanceof Error ? error.name : "error",
+    );
   }
 }
 
@@ -344,7 +324,8 @@ async function fetchTranslations(
   try {
     const response = await fetch("/api/marketplace/translate", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(await authorizationHeader()) },
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(25_000),
       body: JSON.stringify({
         texts,
         target,
@@ -400,6 +381,7 @@ async function fetchTranslations(
 /* ---------------------------------------------------------------- provider */
 
 type LanguageContextValue = {
+  translationState: { pending: number; missing: number; fallback: number };
   /** Canonical registry code of the current language. */
   lang: string;
   language: LanguageDefinition;
@@ -428,6 +410,7 @@ type LanguageContextValue = {
 const SOURCE_LANGUAGE_DEFINITION = getLanguage(DEFAULT_LANGUAGE)!;
 
 const LanguageContext = createContext<LanguageContextValue>({
+  translationState: { pending: 0, missing: 0, fallback: 0 },
   lang: DEFAULT_LANGUAGE,
   language: SOURCE_LANGUAGE_DEFINITION,
   dir: SOURCE_LANGUAGE_DEFINITION.direction,
@@ -453,8 +436,38 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   // stored or detected language before paint.
   const [lang, setLangState] = useState<string>(DEFAULT_LANGUAGE);
   const [version, setVersion] = useState(0);
+  const [translationState, setTranslationState] = useState({ pending: 0, missing: 0, fallback: 0 });
 
   const remote = useRef<Record<string, RemoteState>>({});
+  const activeLanguage = useRef(lang);
+  activeLanguage.current = lang;
+  useEffect(() => {
+    const publish = () => {
+      const state = remote.current[lang];
+      const status = {
+        pending: state ? new Set([...state.pending, ...state.inFlight]).size : 0,
+        missing: state ? new Set([...state.unavailable, ...state.refusedShape]).size : 0,
+        fallback: state?.fallback.size ?? 0,
+      };
+      setTranslationState((previous) =>
+        previous.pending === status.pending &&
+        previous.missing === status.missing &&
+        previous.fallback === status.fallback
+          ? previous
+          : status,
+      );
+      document.documentElement.setAttribute(
+        "data-translation-status",
+        status.fallback || status.pending || status.missing ? "partial" : "ready",
+      );
+      document.documentElement.setAttribute("data-translation-fallback", String(status.fallback));
+      document.documentElement.setAttribute("data-translation-pending", String(status.pending));
+      document.documentElement.setAttribute("data-translation-missing", String(status.missing));
+    };
+    publish();
+    const interval = setInterval(publish, 500);
+    return () => clearInterval(interval);
+  }, [lang, version]);
   // One timer per language. A single shared timer let a new string for one
   // language cancel another language's pending retry.
   const timers = useRef(new Map<string, { handle: ReturnType<typeof setTimeout>; due: number }>());
@@ -474,10 +487,13 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const existing = timers.current.get(code);
     if (existing && existing.due <= due) return;
     if (existing) clearTimeout(existing.handle);
-    const handle = setTimeout(() => {
-      timers.current.delete(code);
-      drainRef.current?.(code);
-    }, Math.max(0, delay));
+    const handle = setTimeout(
+      () => {
+        timers.current.delete(code);
+        drainRef.current?.(code);
+      },
+      Math.max(0, delay),
+    );
     timers.current.set(code, { handle, due });
   }, []);
 
@@ -492,7 +508,31 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   // The session decides which request limits apply; learn it early, so the
   // first batch is already built within the right ones.
   useEffect(() => {
-    if (typeof window !== "undefined") void authorizationHeader();
+    const clearTranslations = () => {
+      remote.current = {};
+      rendered.clear();
+      for (const timer of timers.current.values()) clearTimeout(timer.handle);
+      timers.current.clear();
+      setVersion((v) => v + 1);
+    };
+    const refresh = async () => {
+      const previous = signedIn;
+      await refreshLanguageSession();
+      if (previous !== signedIn) clearTranslations();
+    };
+    const changed = () => {
+      clearTranslations();
+      void refresh();
+    };
+    void refresh();
+    const interval = setInterval(() => {
+      void refresh();
+    }, 5 * 60_000);
+    window.addEventListener(LANGUAGE_SESSION_CHANGE_EVENT, changed);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(LANGUAGE_SESSION_CHANGE_EVENT, changed);
+    };
   }, []);
 
   const sync = useCallback(() => {
@@ -512,14 +552,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const onChange = (event: Event) => {
       if ((event as CustomEvent<string>).detail) sync();
     };
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === LANGUAGE_STORAGE_KEY && event.newValue) sync();
-    };
     window.addEventListener(LANGUAGE_CHANGE_EVENT, onChange as EventListener);
-    window.addEventListener("storage", onStorage);
     return () => {
       window.removeEventListener(LANGUAGE_CHANGE_EVENT, onChange as EventListener);
-      window.removeEventListener("storage", onStorage);
     };
   }, [sync]);
 
@@ -538,11 +573,16 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
    * are asked about again (a reviewer may have approved them since).
    */
   const applyPack = useCallback(
-    (code: string, state: RemoteState, pack: LanguagePack | "disabled" | null) => {
+    (code: string, state: RemoteState, pack: LanguagePack | "disabled" | "unchanged" | null) => {
+      if (remote.current[code] !== state) return;
       state.packUntil = 0;
+      if (pack === "unchanged") return;
       if (pack === "disabled") {
         state.refused = true;
         state.pending.clear();
+        state.held = {};
+        rendered.delete(code);
+        setVersion((v) => v + 1);
         return;
       }
       if (pack) {
@@ -550,8 +590,16 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         if (pack.tag !== state.packTag) {
           if (state.packTag !== null) state.unavailable.clear();
           state.packTag = pack.tag;
+          rendered.delete(code);
         }
         state.locked = pack.locked;
+        for (const key of state.packKeys) {
+          if (!(key in pack.entries) && key in state.held) {
+            delete state.held[key];
+            changed = true;
+          }
+        }
+        state.packKeys = new Set(Object.keys(pack.entries));
         // Held for review or refused on the server: shown in the fallback and
         // not asked for, and no longer served from this browser's memory.
         for (const key of pack.withheld) {
@@ -572,10 +620,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
           state.unavailable.delete(key);
           state.pending.delete(key);
         }
-        if (changed) {
-          saveRemote(code, state.held);
-          setVersion((v) => v + 1);
-        }
+        const held = Object.keys(state.held);
+        for (const key of held.slice(0, Math.max(0, held.length - MAX_HELD_STRINGS)))
+          delete state.held[key];
+        if (changed) setVersion((v) => v + 1);
       }
       // Whatever the pack did not contain is asked for now.
       if (state.pending.size > 0) schedule(code, 0);
@@ -587,12 +635,25 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     (code: string): RemoteState => {
       let state = remote.current[code];
       if (!state) {
+        const cached = Object.keys(remote.current);
+        if (cached.length >= MAX_CACHED_LANGUAGES) {
+          const oldest = cached.find((candidate) => candidate !== activeLanguage.current);
+          if (oldest) {
+            delete remote.current[oldest];
+            rendered.delete(oldest);
+            const timer = timers.current.get(oldest);
+            if (timer) clearTimeout(timer.handle);
+            timers.current.delete(oldest);
+          }
+        }
         state = {
-          held: loadRemote(code),
+          fallback: new Set(),
+          held: {},
           pending: new Set(),
           unavailable: new Set(),
           refusedShape: new Set(),
           packTag: null,
+          packKeys: new Set(),
           refused: false,
           blockedUntil: 0,
           engineFailures: 0,
@@ -621,7 +682,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState !== "visible") return;
       const state = remote.current[language.code];
       if (!state || state.refused) return;
-      void fetchLanguagePack(language.code).then((pack) => {
+      void fetchLanguagePack(language.code, state.packTag).then((pack) => {
         if (pack) applyPack(language.code, state, pack);
       });
     }, PACK_REFRESH_MS);
@@ -700,7 +761,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       void fetchTranslations(batch, code, context || null).then((outcome) => {
         for (const entry of keys) state.inFlight.delete(entry);
         const current = remote.current[code];
-        if (!current) return;
+        if (!current || current !== state) return;
 
         if (outcome.refused) {
           current.refused = true;
@@ -737,6 +798,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
             changed = true;
           }
         }
+        const held = Object.keys(current.held);
+        for (const key of held.slice(0, Math.max(0, held.length - MAX_HELD_STRINGS)))
+          delete current.held[key];
         for (const text of outcome.unavailable) current.unavailable.add(cacheKey(text));
 
         // Anything in the batch that came back with nothing is asked again
@@ -754,8 +818,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        if (changed) {
-          saveRemote(code, current.held);
+        if (changed || outcome.unavailable.length || outcome.retryAfter) {
           setVersion((v) => v + 1);
         }
         if (current.pending.size > 0) {
@@ -792,7 +855,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       const cacheKey = `${context}${SEPARATOR}${english}`;
       const state = stateFor(language.code);
       const held = state.held[cacheKey];
-      if (held) return shown(held);
+      if (held) {
+        state.fallback.delete(cacheKey);
+        return shown(held);
+      }
+      state.fallback.add(cacheKey);
 
       if (
         !state.refused &&
@@ -821,6 +888,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const value = useMemo<LanguageContextValue>(() => {
     const language = getLanguage(lang) ?? SOURCE_LANGUAGE_DEFINITION;
     return {
+      translationState,
       lang: language.code,
       language,
       dir: language.direction,
@@ -831,7 +899,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       serviceReady: service.ready,
       serviceReason: service.reason,
     };
-  }, [lang, setLanguage, translate, version, service]);
+  }, [lang, setLanguage, translate, version, service, translationState]);
 
   return createElement(LanguageContext.Provider, { value }, children);
 }
@@ -873,15 +941,9 @@ export function useLanguageSync() {
       const detail = (event as CustomEvent<string>).detail;
       if (detail) applyDocumentLanguage(detail);
     };
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === LANGUAGE_STORAGE_KEY && event.newValue)
-        applyDocumentLanguage(event.newValue);
-    };
     window.addEventListener(LANGUAGE_CHANGE_EVENT, onChange as EventListener);
-    window.addEventListener("storage", onStorage);
     return () => {
       window.removeEventListener(LANGUAGE_CHANGE_EVENT, onChange as EventListener);
-      window.removeEventListener("storage", onStorage);
     };
   }, []);
 }

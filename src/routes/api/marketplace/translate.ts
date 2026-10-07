@@ -2,13 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getRequestIP } from "@tanstack/react-start/server";
 import { z } from "zod";
 
-import {
-  MAX_BODY_BYTES,
-  SlidingWindowLimiter,
-  TIER_LIMITS,
-  checkRequestShape,
-  clientAddress,
-} from "@/lib/i18n/limits";
+import { MAX_BODY_BYTES, TIER_LIMITS, checkRequestShape, clientAddress } from "@/lib/i18n/limits";
 import { MAX_CONTEXT_LENGTH, NAMESPACE_PATTERN, PipelineError } from "@/lib/i18n/pipeline";
 import {
   REALTIME_BUDGET_MS,
@@ -17,6 +11,7 @@ import {
   withinBudget,
 } from "@/lib/i18n/realtime-budget";
 import { SOURCE_LANGUAGE } from "@/lib/i18n/registry";
+import { languageAuthorization } from "@/lib/i18n/session-contract";
 
 /**
  * Translate text.
@@ -43,8 +38,6 @@ import { SOURCE_LANGUAGE } from "@/lib/i18n/registry";
  * rate_limited, quota_exceeded, engine_unavailable, service_error.
  */
 
-const limiter = new SlidingWindowLimiter(60_000);
-
 /**
  * Engine work still running after its request answered, by batch
  * (src/lib/i18n/realtime-budget.ts). A visitor's request waits at most
@@ -65,6 +58,8 @@ const bodySchema = z
     context: z.string().max(MAX_CONTEXT_LENGTH).optional(),
     // Answer from translation memory only; allowed in any namespace for every caller.
     memory_only: z.boolean().optional(),
+    // Callers may suppress persistence, never broaden what they may publish.
+    persist: z.boolean().optional(),
     // Operators may ask for the slower, higher-quality engine mode.
     mode: z.enum(["realtime", "quality"]).optional(),
   })
@@ -129,7 +124,7 @@ async function handleTranslate(request: Request): Promise<Response> {
   // Forwarding headers count only when the socket peer is the trusted proxy.
   const address = clientAddress(request.headers, socketPeer());
   const caller = await resolveCaller(
-    request.headers.get("authorization"),
+    languageAuthorization(request),
     address,
     request.headers.get("x-internal-token"),
   );
@@ -144,7 +139,16 @@ async function handleTranslate(request: Request): Promise<Response> {
     );
   }
 
-  if (limiter.hit(caller.subject, TIER_LIMITS[caller.tier].requestsPerMinute)) {
+  const { db } = await import("@/lib/i18n/database.server");
+  const { reserveEngineQuota } = await import("@/lib/i18n/quota.server");
+  const requestQuota = await reserveEngineQuota(await db(), 1, [
+    {
+      subject: `i18n-request:${caller.subject}`,
+      limit: TIER_LIMITS[caller.tier].requestsPerMinute,
+      seconds: 60,
+    },
+  ]);
+  if (!requestQuota.allowed) {
     return fail(429, "rate_limited", "Too many translation requests. Try again shortly.", {
       "Retry-After": "60",
     });
@@ -157,7 +161,7 @@ async function handleTranslate(request: Request): Promise<Response> {
       target,
       namespace,
       context: parsed.context ?? null,
-      persist: true,
+      persist: parsed.persist !== false,
       memoryOnly,
       mode: caller.tier === "operator" ? parsed.mode : ("realtime" as const),
     };
@@ -169,7 +173,14 @@ async function handleTranslate(request: Request): Promise<Response> {
     } else {
       const { work } = joinOrStart(
         inFlight,
-        batchKey(target, namespace, parsed.context, texts),
+        batchKey(
+          target,
+          namespace,
+          parsed.context,
+          texts,
+          parsed.source ?? SOURCE_LANGUAGE,
+          caller.subject,
+        ),
         () => translateForCaller(request, caller),
       );
       const first = await withinBudget(work, REALTIME_BUDGET_MS);
@@ -181,9 +192,17 @@ async function handleTranslate(request: Request): Promise<Response> {
         const unfinished = result.outcomes.filter((o) => o.translation === null).map((o) => o.text);
         if (unfinished.length) {
           const { enqueueJobs } = await import("@/lib/i18n/jobs.server");
+          const { isCatalogueText } = await import("@/lib/i18n/service.server");
+          // Never publish a visitor's arbitrary page text or private chat to
+          // the shared background translation memory after a timeout.
+          const publicTexts =
+            namespace === "ui" && parsed.persist !== false
+              ? unfinished.filter(isCatalogueText)
+              : [];
           enqueueJobs(
-            unfinished.map((text) => ({
+            publicTexts.map((text) => ({
               text,
+              source: parsed.source ?? SOURCE_LANGUAGE,
               target: result.target.code,
               namespace,
               context: parsed.context ?? null,
@@ -223,7 +242,15 @@ async function handleTranslate(request: Request): Promise<Response> {
         issues: o.issues,
       })),
       pending_reason: inProgress ? "in_progress" : result.pendingReason,
-      engine: result.engine ? { provider: result.engine.provider, kind: result.engine.kind } : null,
+      engine: result.engine
+        ? {
+            provider: result.engine.provider,
+            kind: result.engine.kind,
+            ...(caller.tier === "operator"
+              ? { model: result.engine.model, version: result.engine.version }
+              : {}),
+          }
+        : null,
       fromCache: result.stats.fromMemory,
       translated: result.stats.translated,
       needsReview: result.stats.needsReview,

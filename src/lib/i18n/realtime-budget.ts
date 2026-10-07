@@ -66,8 +66,10 @@ export function batchKey(
   namespace: string,
   context: string | null | undefined,
   texts: string[],
+  source = "en",
+  subject = "anonymous",
 ): string {
-  return [target, namespace, context ?? "", ...texts].join("");
+  return JSON.stringify([source, target, namespace, context ?? "", subject, texts]);
 }
 
 /**

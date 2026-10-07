@@ -142,7 +142,7 @@ export function LanguageSelector({
   side = "bottom",
   register = true,
 }: LanguageSelectorProps) {
-  const { t, lang, language, setLanguage, serviceReady } = useTranslation();
+  const { t, lang, language, setLanguage, serviceReady, translationState } = useTranslation();
   const disabled = useDisabledLanguages();
   const offered = useMemo(
     () => (disabled.size ? ENTRIES.filter((entry) => !disabled.has(entry.code)) : ENTRIES),
@@ -359,6 +359,11 @@ export function LanguageSelector({
             // English (or the language's fallback) until it does, and says so.
             <p role="status" className="mt-2 text-xs text-muted-foreground">
               {t("common.translation_paused")}
+            </p>
+          )}
+          {serviceReady && translationState.fallback > 0 && (
+            <p role="status" className="mt-2 text-xs text-muted-foreground">
+              {t("common.language_partial")}
             </p>
           )}
           {letters.length > 1 && (

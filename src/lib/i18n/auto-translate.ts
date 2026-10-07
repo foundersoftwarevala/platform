@@ -79,6 +79,29 @@ export type Target =
   | { kind: "text"; node: Text; original: string }
   | { kind: "attribute"; element: Element; attribute: string; original: string };
 
+export function currentOriginal(
+  originals: WeakMap<object, Map<string, string>>,
+  key: object,
+  slot: string,
+  current: string,
+): string {
+  const saved = originals.get(key);
+  const original = saved?.get(slot);
+  const applied = saved?.get(`${slot}:applied`);
+  // A framework/runtime update is new source, not our previous translation.
+  if (
+    original !== undefined &&
+    applied !== undefined &&
+    current !== applied &&
+    current !== original
+  ) {
+    saved!.delete(slot);
+    saved!.delete(`${slot}:applied`);
+    return current;
+  }
+  return original ?? current;
+}
+
 /** Everything on the page that can be translated, with its English text. */
 export function collectTargets(
   root: ParentNode & Node,
@@ -89,9 +112,9 @@ export function collectTargets(
 
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) => {
-      const text = node.nodeValue ?? "";
-      if (!isTranslatableText(text)) return NodeFilter.FILTER_REJECT;
       if (skipped(node)) return NodeFilter.FILTER_REJECT;
+      const text = currentOriginal(originals, node, "text", node.nodeValue ?? "");
+      if (!isTranslatableText(text)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },
   });
@@ -106,9 +129,10 @@ export function collectTargets(
     if (skipped(element)) continue;
     for (const attribute of ATTRIBUTES) {
       const value = element.getAttribute(attribute);
-      if (!value || !isTranslatableText(value)) continue;
-      const remembered = originals.get(element)?.get(attribute);
-      targets.push({ kind: "attribute", element, attribute, original: remembered ?? value });
+      if (!value) continue;
+      const original = currentOriginal(originals, element, attribute, value);
+      if (!isTranslatableText(original)) continue;
+      targets.push({ kind: "attribute", element, attribute, original });
     }
   }
   return targets;
@@ -140,19 +164,21 @@ export function applyTranslations(
     const original = target.original;
     const trimmed = original.trim();
     const translated = lookup(trimmed);
-    if (translated === undefined || translated === trimmed) continue;
+    if (translated === undefined) continue;
     // Keep the surrounding whitespace the markup had.
     const lead = original.slice(0, original.length - original.trimStart().length);
     const trail = original.slice(original.trimEnd().length);
     if (target.kind === "text") {
       remember(originals, target.node, "text", original);
       const next = `${lead}${translated}${trail}`;
+      originals.get(target.node)!.set("text:applied", next);
       if (target.node.nodeValue !== next) {
         target.node.nodeValue = next;
         written += 1;
       }
     } else {
       remember(originals, target.element, target.attribute, original);
+      originals.get(target.element)!.set(`${target.attribute}:applied`, translated);
       if (target.element.getAttribute(target.attribute) !== translated) {
         target.element.setAttribute(target.attribute, translated);
         written += 1;
@@ -173,12 +199,14 @@ export function restoreOriginals(
       const original = originals.get(target.node)?.get("text");
       if (original !== undefined && target.node.nodeValue !== original) {
         target.node.nodeValue = original;
+        originals.get(target.node)!.set("text:applied", original);
         restored += 1;
       }
     } else {
       const original = originals.get(target.element)?.get(target.attribute);
       if (original !== undefined && target.element.getAttribute(target.attribute) !== original) {
         target.element.setAttribute(target.attribute, original);
+        originals.get(target.element)!.set(`${target.attribute}:applied`, original);
         restored += 1;
       }
     }

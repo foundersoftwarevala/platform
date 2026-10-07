@@ -107,7 +107,12 @@ export interface TranslationMemoryStore {
    * catalogue sync does not queue them for an upgrade again.
    */
   markQualityAttempted?(
-    rows: { sourceHash: string; sourceLanguage: string; targetLanguage: string; contextHash: string }[],
+    rows: {
+      sourceHash: string;
+      sourceLanguage: string;
+      targetLanguage: string;
+      contextHash: string;
+    }[],
   ): Promise<void>;
 }
 
@@ -127,7 +132,7 @@ export type PipelineDeps = {
    * Give back units `quota` reserved for engine work that never happened (the
    * engine was unavailable), so an outage does not use up a caller's allowance.
    */
-  refundQuota?: ((units: number) => void) | null;
+  refundQuota?: ((units: number) => void | Promise<void>) | null;
   /** Operator overrides from i18n_languages; false disables a language. */
   isLanguageEnabled?: (code: string) => boolean;
   log?: (message: string, detail?: unknown) => void;
@@ -189,7 +194,11 @@ export type PipelineResult = {
 };
 
 export type PipelineErrorReason =
-  "invalid_language" | "invalid_request" | "engine_unavailable" | "quota_exceeded";
+  | "invalid_language"
+  | "invalid_request"
+  | "engine_unavailable"
+  | "quota_exceeded"
+  | "service_error";
 
 export class PipelineError extends Error {
   constructor(
@@ -288,14 +297,15 @@ export async function runTranslationPipeline(
   // Machine translations a refresh is replacing: kept if the new one fails the
   // quality gate, so an upgrade never turns a served translation into a held one.
   const replacing = new Map<string, MemoryEntry>();
-  if (deps.memory && source && persist) {
+  const readableTexts = texts.filter((text) => request.mayPersist?.(text) !== false);
+  if (deps.memory && source && !PRIVATE_NAMESPACES.has(namespace) && readableTexts.length) {
     try {
       const found = await deps.memory.lookup({
         sourceLanguage: source.code,
         targetLanguage: target.code,
-        sourceHashes: Array.from(new Set(hashes.values())),
+        sourceHashes: Array.from(new Set(readableTexts.map((text) => hashes.get(text)!))),
       });
-      for (const text of texts) {
+      for (const text of readableTexts) {
         const entry = found.get(`${hashes.get(text)}:${ctxHash}`);
         if (!entry) continue;
         if (entry.status === "machine" && request.refresh) {
@@ -327,6 +337,7 @@ export async function runTranslationPipeline(
       }
     } catch (error) {
       log("[i18n] memory lookup failed", error);
+      throw new PipelineError("service_error", "Translation memory is unavailable.");
     }
   }
 
@@ -344,6 +355,7 @@ export async function runTranslationPipeline(
       );
     } catch (error) {
       log("[i18n] glossary load failed", error);
+      throw new PipelineError("service_error", "Translation glossary is unavailable.");
     }
   }
 
@@ -413,7 +425,7 @@ export async function runTranslationPipeline(
     if (!(error instanceof EngineUnavailableError)) throw error;
     log("[i18n] engine unavailable", error.attempts);
     // Nothing was translated, so nothing is charged.
-    if (charged > 0) deps.refundQuota?.(charged);
+    if (charged > 0) await deps.refundQuota?.(charged);
     if (byText.size === 0) {
       throw new PipelineError("engine_unavailable", "No translation engine is available.");
     }
@@ -423,7 +435,12 @@ export async function runTranslationPipeline(
   // 8. Validate, score, collect for storage.
   const answers = new Map(response.segments.map((segment) => [segment.id, segment]));
   const records: MemoryRecord[] = [];
-  const qualityAttempted: { sourceHash: string; sourceLanguage: string; targetLanguage: string; contextHash: string }[] = [];
+  const qualityAttempted: {
+    sourceHash: string;
+    sourceLanguage: string;
+    targetLanguage: string;
+    contextHash: string;
+  }[] = [];
   for (const [index, text] of misses.entries()) {
     const id = String(index);
     const answer = answers.get(id);
@@ -501,6 +518,7 @@ export async function runTranslationPipeline(
       await deps.memory.save(storable);
     } catch (error) {
       log("[i18n] memory save failed", error);
+      throw new PipelineError("service_error", "Translation memory could not be saved.");
     }
   }
   if (deps.memory?.markQualityAttempted && qualityAttempted.length > 0) {

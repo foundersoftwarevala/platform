@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { sameOriginMutation } from "@/lib/i18n/session-contract";
+import { messageText } from "@/lib/i18n/messages";
 
 /**
  * Runs one batch of background translation jobs.
@@ -13,8 +14,14 @@ export const Route = createFileRoute("/api/i18n/jobs")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const guard = await requireInternalOperator(request);
-        if (!guard.ok) return guard.response;
+        const { requireLanguageOperator } = await import("@/lib/i18n/admin.server");
+        const caller = await requireLanguageOperator(request);
+        if (caller instanceof Response) return caller;
+        if (caller.subject !== "internal:token" && !sameOriginMutation(request))
+          return Response.json(
+            { error: messageText("common.language_origin_refused") },
+            { status: 403 },
+          );
         const { runJobBatch } = await import("@/lib/i18n/jobs.server");
         try {
           return Response.json(await runJobBatch());

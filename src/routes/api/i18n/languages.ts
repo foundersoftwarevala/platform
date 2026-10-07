@@ -15,15 +15,20 @@ export const Route = createFileRoute("/api/i18n/languages")({
       GET: async () => {
         try {
           const { db, disabledLanguages } = await import("@/lib/i18n/service.server");
-          const disabled = [...(await disabledLanguages(db()))].sort();
+          const disabled = [...(await disabledLanguages(await db()))].sort();
           return Response.json(
             { disabled },
             { headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=60" } },
           );
         } catch (error) {
           console.error("[i18n] language list failed", error);
-          // Nothing known to be off: the selector shows every language, as before.
-          return Response.json({ disabled: [] }, { headers: { "Cache-Control": "no-store" } });
+          return Response.json(
+            { reason: "service_error" },
+            {
+              status: 503,
+              headers: { "Cache-Control": "no-store", "Retry-After": "30" },
+            },
+          );
         }
       },
     },

@@ -53,7 +53,13 @@ export function languageOf(request: Request): string {
   const cookie = request.headers.get("cookie") ?? "";
   const match = cookie.match(new RegExp(`(?:^|;\\s*)${LANGUAGE_COOKIE}=([^;]+)`));
   if (match) {
-    const chosen = resolveLanguage(decodeURIComponent(match[1]!));
+    let value = "";
+    try {
+      value = decodeURIComponent(match[1]!);
+    } catch {
+      log("[i18n] malformed locale cookie");
+    }
+    const chosen = resolveLanguage(value);
     if (chosen) return chosen.code;
   }
   const accept = request.headers.get("accept-language") ?? "";

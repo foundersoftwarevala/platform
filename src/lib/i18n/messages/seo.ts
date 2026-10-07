@@ -13,7 +13,8 @@
 export const SEO_MESSAGES = {
   "seo.1200_630_no_og_image_is_stored": "1200 × 630 · no og:image is stored",
   "seo.1200_675_no_twitter_image_is_stored": "1200 × 675 · no twitter:image is stored",
-  "seo.a_type_is_counted_where_the_stored_json_declar": "A type is counted where the stored JSON declares it. Nothing here validates the JSON against schema.org, so no \"valid\" or \"error\" count is shown: that would be a claim nothing has checked.",
+  "seo.a_type_is_counted_where_the_stored_json_declar":
+    'A type is counted where the stored JSON declares it. Nothing here validates the JSON against schema.org, so no "valid" or "error" count is shown: that would be a claim nothing has checked.',
   "seo.accepted": "Accepted",
   "seo.active": "Active",
   "seo.activity": "Activity",
@@ -108,14 +109,16 @@ export const SEO_MESSAGES = {
   "seo.no_competitor_is_being_tracked_yet": "No competitor is being tracked yet.",
   "seo.no_content_item_is_recorded": "No content item is recorded.",
   "seo.no_content_item_matches_this_tab": "No content item matches this tab.",
-  "seo.no_crawled_page_or_product_entry_carries_struc": "No crawled page or product entry carries structured data. The site emits JSON-LD on its product pages; what is stored against a record is what this screen can count.",
+  "seo.no_crawled_page_or_product_entry_carries_struc":
+    "No crawled page or product entry carries structured data. The site emits JSON-LD on its product pages; what is stored against a record is what this screen can count.",
   "seo.no_image_is_held_in_the_asset_library": "No image is held in the asset library.",
   "seo.no_integration_is_recorded": "No integration is recorded.",
   "seo.no_integration_of_this_kind_is_recorded": "No integration of this kind is recorded.",
   "seo.no_keyword_is_tracked_yet": "No keyword is tracked yet.",
   "seo.no_keyword_suggestion_has_been_recorded": "No keyword suggestion has been recorded.",
   "seo.no_keywords_are_tracked_yet": "No keywords are tracked yet.",
-  "seo.no_meta_rule_is_configured_pages_serve_their_o": "No meta rule is configured; pages serve their own title and description.",
+  "seo.no_meta_rule_is_configured_pages_serve_their_o":
+    "No meta rule is configured; pages serve their own title and description.",
   "seo.no_open_issue_is_recorded": "No open issue is recorded.",
   "seo.no_page_behaviour_has_been_recorded_yet": "No page behaviour has been recorded yet.",
   "seo.no_page_has_been_crawled": "No page has been crawled.",
@@ -132,7 +135,8 @@ export const SEO_MESSAGES = {
   "seo.no_technical_check_has_been_recorded": "No technical check has been recorded.",
   "seo.no_video_is_published_yet": "No video is published yet.",
   "seo.not_webp": "Not WebP",
-  "seo.nothing_carries_a_tag_yet_tags_are_read_from_t": "Nothing carries a tag yet. Tags are read from the tags on questions and the target keyword on content; there is no separate tag table to score or merge.",
+  "seo.nothing_carries_a_tag_yet_tags_are_read_from_t":
+    "Nothing carries a tag yet. Tags are read from the tags on questions and the target keyword on content; there is no separate tag table to score or merge.",
   "seo.nothing_has_been_recorded": "Nothing has been recorded.",
   "seo.nothing_records_this_yet": "Nothing records this yet",
   "seo.og_image": "og:image",
@@ -162,7 +166,8 @@ export const SEO_MESSAGES = {
   "seo.published": "Published",
   "seo.questions": "Questions",
   "seo.rankings_could_not_be_read": "Rankings could not be read.",
-  "seo.read_from_the_crawl_record_for_this_page_open": "Read from the crawl record for this page. Open Graph and Twitter tags are shown on their own screens, from the same record.",
+  "seo.read_from_the_crawl_record_for_this_page_open":
+    "Read from the crawl record for this page. Open Graph and Twitter tags are shown on their own screens, from the same record.",
   "seo.reading_the_activity_log": "Reading the activity log…",
   "seo.reading_the_asset_library": "Reading the asset library…",
   "seo.reading_the_audit_table": "Reading the audit table…",
@@ -199,7 +204,8 @@ export const SEO_MESSAGES = {
   "seo.regions_could_not_be_read": "Regions could not be read.",
   "seo.report_library": "Report Library",
   "seo.reports_could_not_be_read": "Reports could not be read.",
-  "seo.research_is_not_run_from_this_screen_nothing_h": "Research is not run from this screen: nothing here calls a keyword API, and a Research button that returned invented rows is what this replaced. Below are the keyword suggestions that have been recorded, and the keywords already planned but not yet tracked.",
+  "seo.research_is_not_run_from_this_screen_nothing_h":
+    "Research is not run from this screen: nothing here calls a keyword API, and a Research button that returned invented rows is what this replaced. Below are the keyword suggestions that have been recorded, and the keywords already planned but not yet tracked.",
   "seo.rising": "Rising",
   "seo.rules": "Rules",
   "seo.runs": "Runs",
@@ -219,15 +225,19 @@ export const SEO_MESSAGES = {
   "seo.the_activity_log_could_not_be_read": "The activity log could not be read.",
   "seo.the_asset_library_could_not_be_read": "The asset library could not be read.",
   "seo.the_file_could_not_be_fetched": "The file could not be fetched.",
-  "seo.the_latest_audit_carries_no_category_breakdown": "The latest audit carries no category breakdown.",
+  "seo.the_latest_audit_carries_no_category_breakdown":
+    "The latest audit carries no category breakdown.",
   "seo.the_rules_in_the_order_they_are_applied": "The rules, in the order they are applied",
   "seo.the_run_log_could_not_be_read": "The run log could not be read.",
   "seo.the_sitemap_could_not_be_fetched": "The sitemap could not be fetched.",
   "seo.the_sitemap_index_names_no_child_sitemaps": "The sitemap index names no child sitemaps.",
   "seo.the_video_library_could_not_be_read": "The video library could not be read.",
-  "seo.there_is_no_generation_endpoint_on_this_platfo": "There is no generation endpoint on this platform yet, so nothing is generated from this screen. The rows below are the output and the suggestions that are already recorded.",
-  "seo.this_is_the_file_a_crawler_receives_fetched_fr": "This is the file a crawler receives, fetched from the site. It is served as a static file, so it is shown here rather than edited: an editor over it would save nothing.",
-  "seo.thresholds_are_the_published_core_web_vitals_o": "Thresholds are the published Core Web Vitals ones: LCP 2.5s, INP 200ms, CLS 0.1. The SEO score is the mean of the scores held against the pages that have been crawled.",
+  "seo.there_is_no_generation_endpoint_on_this_platfo":
+    "There is no generation endpoint on this platform yet, so nothing is generated from this screen. The rows below are the output and the suggestions that are already recorded.",
+  "seo.this_is_the_file_a_crawler_receives_fetched_fr":
+    "This is the file a crawler receives, fetched from the site. It is served as a static file, so it is shown here rather than edited: an editor over it would save nothing.",
+  "seo.thresholds_are_the_published_core_web_vitals_o":
+    "Thresholds are the published Core Web Vitals ones: LCP 2.5s, INP 200ms, CLS 0.1. The SEO score is the mean of the scores held against the pages that have been crawled.",
   "seo.top_10": "Top 10",
   "seo.top_3": "Top 3",
   "seo.top_ranking_keywords": "Top ranking keywords",
@@ -247,7 +257,8 @@ export const SEO_MESSAGES = {
   "seo.visible": "Visible",
   "seo.volume": "Volume",
   "seo.what_a_page_serves": "What a page serves",
-  "seo.what_has_been_drafted_and_what_is_being_sugges": "What has been drafted, and what is being suggested.",
+  "seo.what_has_been_drafted_and_what_is_being_sugges":
+    "What has been drafted, and what is being suggested.",
   "seo.what_it_would_take": "What it would take",
   "seo.with_seo_title": "With SEO title",
   "seo.words": "Words",
@@ -256,7 +267,8 @@ export const SEO_MESSAGES = {
 
   // Language SEO.
   "seo.language_seo": "Language SEO",
-  "seo.language_seo_note": "Every enabled language is an hreflang target and a localized URL on every page of the catalogue. A language that is enabled while its strings are still queued is advertised to search engines before it is ready, which is the one thing this screen exists to show.",
+  "seo.language_seo_note":
+    "Every enabled language is an hreflang target and a localized URL on every page of the catalogue. A language that is enabled while its strings are still queued is advertised to search engines before it is ready, which is the one thing this screen exists to show.",
   "seo.languages": "Languages",
   "seo.registered": ["Registered", "languages in the registry"],
   "seo.enabled": ["Enabled", "languages switched on"],
@@ -277,7 +289,8 @@ export const SEO_MESSAGES = {
   "seo.reading_the_language_registry": "Reading the language registry…",
 
   // IndexNow.
-  "seo.indexnow_note": "The free, official way to tell Bing, Yandex, Seznam and Naver that a URL changed rather than waiting to be crawled. Every submission, and the answer it got.",
+  "seo.indexnow_note":
+    "The free, official way to tell Bing, Yandex, Seznam and Naver that a URL changed rather than waiting to be crawled. Every submission, and the answer it got.",
   "seo.submissions": ["Submissions", "URL batches sent to IndexNow"],
   "seo.urls_in_the_newest": ["URLs in the newest", "URLs in the most recent submission"],
   "seo.nothing_submitted_to_indexnow": "Nothing has been submitted to IndexNow yet.",

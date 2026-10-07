@@ -105,7 +105,8 @@ export const RESELLER_MESSAGES = {
   "reseller.pricing.title": "Pricing",
   "reseller.pricing.standing": "Your reseller price",
   "reseller.pricing.loading": "Loading",
-  "reseller.pricing.active": "{plan} membership is active: {percent}% off every marketplace product at checkout.",
+  "reseller.pricing.active":
+    "{plan} membership is active: {percent}% off every marketplace product at checkout.",
   "reseller.pricing.inactive":
     "No active membership plan — you pay list price. Choose a plan in Membership & Plans to unlock your discount.",
   "reseller.pricing.rule":
@@ -120,7 +121,8 @@ export const RESELLER_MESSAGES = {
   "reseller.pricing.you_pay": "You pay",
   "reseller.pricing.reason_active": "{plan} membership discount.",
   "reseller.pricing.reason_no_membership": "No active reseller membership, so list price applies.",
-  "reseller.pricing.reason_not_active": "This reseller account is not active and approved, so list price applies.",
+  "reseller.pricing.reason_not_active":
+    "This reseller account is not active and approved, so list price applies.",
   "reseller.pricing.quote_failed": "That product could not be priced right now. Please try again.",
   "reseller.pricing.orders": "Your orders",
   "reseller.pricing.no_orders": "No orders yet.",
@@ -139,23 +141,40 @@ export const RESELLER_MESSAGES = {
   "reseller.licences.no_expiry": "No expiry",
   "reseller.local_only":
     "This module is not connected to server storage yet: entries stay in this browser tab only and are lost on reload.",
-  "reseller.manager.nothing_to_release": "Nothing to release: no commission line has passed its holding period.",
+  "reseller.manager.nothing_to_release":
+    "Nothing to release: no commission line has passed its holding period.",
   "reseller.manager.link_copied": ["Copied {url}", "confirmation after a referral link is copied"],
-  "reseller.manager.link_copy_failed": "The link could not be copied; select it and copy it by hand.",
-  "reseller.manager.pause_prompt": "Pause this reseller? Their referral links stop attributing until they are approved again. Reason (optional):",
-  "reseller.manager.suspend_prompt": "Why is this reseller being suspended? Their referral links stop attributing and this is recorded.",
-  "reseller.manager.reject_prompt": "Why is this application being rejected? This is recorded and sent to the applicant.",
-  "reseller.manager.terminate_prompt": "Why is this reseller being terminated? Termination is final: the reseller role is removed, referral links stop, and returning means a new application.",
-  "reseller.manager.terminate_confirm": ["Terminate {name}? This cannot be undone.", "confirmation before ending a reseller account"],
-  "reseller.walls.audience_recorded": ["Audience recorded:", "label before the audience a broadcast was saved for"],
+  "reseller.manager.link_copy_failed":
+    "The link could not be copied; select it and copy it by hand.",
+  "reseller.manager.pause_prompt":
+    "Pause this reseller? Their referral links stop attributing until they are approved again. Reason (optional):",
+  "reseller.manager.suspend_prompt":
+    "Why is this reseller being suspended? Their referral links stop attributing and this is recorded.",
+  "reseller.manager.reject_prompt":
+    "Why is this application being rejected? This is recorded and sent to the applicant.",
+  "reseller.manager.terminate_prompt":
+    "Why is this reseller being terminated? Termination is final: the reseller role is removed, referral links stop, and returning means a new application.",
+  "reseller.manager.terminate_confirm": [
+    "Terminate {name}? This cannot be undone.",
+    "confirmation before ending a reseller account",
+  ],
+  "reseller.walls.audience_recorded": [
+    "Audience recorded:",
+    "label before the audience a broadcast was saved for",
+  ],
   "reseller.walls.not_delivered": "(not delivered from this wall)",
-  "reseller.manager.released": "{count, plural, one {# commission line released and now payable.} other {# commission lines released and now payable.}}",
-  "reseller.manager.list_capped": "Showing the newest {limit} matching resellers; there may be more.",
+  "reseller.manager.released":
+    "{count, plural, one {# commission line released and now payable.} other {# commission lines released and now payable.}}",
+  "reseller.manager.list_capped":
+    "Showing the newest {limit} matching resellers; there may be more.",
   "reseller.manager.list_narrow": "Narrow the search or status to see the rest.",
   "reseller.manager.pause": ["Pause", "button that pauses a reseller account"],
   "reseller.manager.suspend": ["Suspend", "button that suspends a reseller account"],
   "reseller.manager.reject": ["Reject", "button that rejects a reseller application"],
   "reseller.manager.terminate": ["Terminate", "button that ends a reseller account for good"],
   "reseller.manager.show_more": "Show more",
-  "reseller.manager.plan_confirm": ["Put {name} on the {plan} plan ({percent}% margin)? It sets what they earn on every sale.", "confirmation before assigning a reseller plan"],
+  "reseller.manager.plan_confirm": [
+    "Put {name} on the {plan} plan ({percent}% margin)? It sets what they earn on every sale.",
+    "confirmation before assigning a reseller plan",
+  ],
 } as const;

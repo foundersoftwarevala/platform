@@ -20,8 +20,8 @@ import { useLanguage } from "@/lib/language-catalog";
  * product list arriving, a dialog opening - is picked up by a MutationObserver.
  * The document title is translated the same way.
  *
- * This is what makes the homepage, the chat and every other screen available
- * in all 140 languages without rewriting the locked copy. Anything marked
+ * This covers legacy static and dynamic UI, not AI/voice model capabilities.
+ * Anything marked
  * data-no-translate is left alone, and so is text the page already shows
  * through t() (useTranslation): that is a translation in its own context, not
  * English to translate again.
@@ -80,7 +80,7 @@ export function PageTranslator() {
       const answers = new Map<string, string>();
       for (const source of strings) {
         const translated = translate(source);
-        if (translated && translated !== source) answers.set(source, translated);
+        if (translated) answers.set(source, translated);
       }
       applyTranslations(targets, (source) => answers.get(source), originals.current);
       pass.current += 1;
@@ -98,6 +98,7 @@ export function PageTranslator() {
       const relevant = records.some(
         (record) =>
           record.type === "childList" ||
+          (record.type === "characterData" && !isRendered(record.target.textContent ?? "")) ||
           (record.type === "attributes" && record.attributeName !== "dir"),
       );
       if (relevant) schedule();
@@ -105,7 +106,7 @@ export function PageTranslator() {
     observer.observe(document.body, {
       childList: true,
       subtree: true,
-      characterData: false,
+      characterData: true,
       attributes: true,
       attributeFilter: ["placeholder", "title", "aria-label", "alt"],
     });

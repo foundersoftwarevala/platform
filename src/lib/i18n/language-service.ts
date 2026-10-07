@@ -48,15 +48,6 @@ type DocumentLike = {
   cookie?: string;
 };
 
-function browserStorage(): StorageLike | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
 function browserNavigator(): NavigatorLike | null {
   return typeof navigator === "undefined" ? null : navigator;
 }
@@ -96,7 +87,7 @@ export function detectBrowserLanguage(
 }
 
 /** The stored choice, migrating a value written by the previous catalogue. */
-export function readStoredLanguage(storage: StorageLike | null = browserStorage()): string | null {
+export function readStoredLanguage(storage: StorageLike | null = null): string | null {
   if (!storage) return null;
   try {
     const current = normalizeLanguage(storage.getItem(LANGUAGE_STORAGE_KEY));
@@ -113,10 +104,23 @@ export function readStoredLanguage(storage: StorageLike | null = browserStorage(
 
 /** Stored choice, else browser preference, else the source language. */
 export function getCurrentLanguage(
-  storage: StorageLike | null = browserStorage(),
+  storage: StorageLike | null = null,
   nav: NavigatorLike | null = browserNavigator(),
+  doc: DocumentLike | null = browserDocument(),
 ): string {
-  return readStoredLanguage(storage) ?? detectBrowserLanguage(nav) ?? DEFAULT_LANGUAGE;
+  const cookie = doc?.cookie
+    ?.split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${LANGUAGE_COOKIE}=`));
+  let chosen: string | null = null;
+  if (cookie) {
+    try {
+      chosen = normalizeLanguage(decodeURIComponent(cookie.slice(LANGUAGE_COOKIE.length + 1)));
+    } catch {
+      /* A malformed preference is ignored, never executed. */
+    }
+  }
+  return chosen ?? readStoredLanguage(storage) ?? detectBrowserLanguage(nav) ?? DEFAULT_LANGUAGE;
 }
 
 export function getCurrentLanguageDefinition(): LanguageDefinition {
@@ -157,7 +161,7 @@ export function setCurrentLanguage(
 ): string | null {
   const code = normalizeLanguage(input);
   if (!code) return null;
-  const storage = env.storage === undefined ? browserStorage() : env.storage;
+  const storage = env.storage ?? null;
   const doc = env.doc === undefined ? browserDocument() : env.doc;
   const target =
     env.target === undefined ? (typeof window === "undefined" ? null : window) : env.target;
@@ -207,16 +211,17 @@ export function buildLanguageBootScript(): string {
     if (language.legacyCode) legacy[language.legacyCode] = code;
   }
   const payload = JSON.stringify({
-    k: LANGUAGE_STORAGE_KEY,
-    l: LEGACY_LANGUAGE_STORAGE_KEY,
+    k: LANGUAGE_COOKIE,
     c: codes,
     g: legacy,
     r: rtl,
   });
   return (
-    `(function(){try{var d=${payload};var s=localStorage;` +
-    `var v=s.getItem(d.k);var c=v&&d.c[String(v).toLowerCase()];` +
-    `if(!c){var o=s.getItem(d.l);c=o&&d.g[String(o).toUpperCase()];}` +
+    `(function(){try{var d=${payload};` +
+    `var a=String(document.cookie||"").split(";");var v="";` +
+    `for(var j=0;a.length>j;j++){var h=a[j].trim();if(h.indexOf(d.k+"=")===0){` +
+    `try{v=decodeURIComponent(h.slice(d.k.length+1));}catch(x){}break;}}` +
+    `var c=v&&(d.c[String(v).toLowerCase()]||d.g[String(v).toUpperCase()]);` +
     // Nothing chosen yet: the browser's languages, trying each tag and then
     // shorter ones ("de-lu" -> "de"), so a first visit with an Arabic or
     // Hebrew browser is laid out right-to-left from the first paint.

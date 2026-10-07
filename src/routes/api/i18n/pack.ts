@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequestIP } from "@tanstack/react-start/server";
 
-import { SlidingWindowLimiter, clientAddress } from "@/lib/i18n/limits";
+import { clientAddress } from "@/lib/i18n/limits";
 import { SOURCE_LANGUAGE, getLanguage, resolveLanguage } from "@/lib/i18n/registry";
 
 /**
@@ -36,7 +36,6 @@ function socketPeer(): string | null {
   }
 }
 
-const limiter = new SlidingWindowLimiter(60_000);
 const REQUESTS_PER_MINUTE = 120;
 
 const EMPTY_SOURCE = new Set([SOURCE_LANGUAGE]);
@@ -74,39 +73,49 @@ export const Route = createFileRoute("/api/i18n/pack")({
             ),
           );
         }
-        if (limiter.hit(clientAddress(request.headers, socketPeer()), REQUESTS_PER_MINUTE)) {
-          return finish(
-            Response.json(
-              { error: "Too many requests.", reason: "rate_limited" },
-              { status: 429, headers: { "Retry-After": "60" } },
-            ),
-          );
-        }
-
-        const { db, disabledLanguages } = await import("@/lib/i18n/service.server");
-        if ((await disabledLanguages(db())).has(language.code)) {
-          return finish(
-            Response.json(
-              // i18n-ignore: an API error message; the client reads `reason`.
-              { error: "This language is switched off.", reason: "language_disabled" },
-              { status: 400, headers: { "Cache-Control": "public, max-age=60" } },
-            ),
-          );
-        }
-
-        const headers = {
-          "Content-Type": "application/json; charset=utf-8",
-          "Cache-Control": "public, max-age=60, stale-while-revalidate=60",
-        };
-        if (EMPTY_SOURCE.has(language.code) || isSourceVariety(language.code)) {
-          return finish(
-            new Response(JSON.stringify({ lang: language.code, count: 0, entries: {} }), {
-              headers,
-            }),
-          );
-        }
-
         try {
+          const { db } = await import("@/lib/i18n/database.server");
+          const { sourceHash } = await import("@/lib/i18n/hash");
+          const { reserveEngineQuota } = await import("@/lib/i18n/quota.server");
+          const requestQuota = await reserveEngineQuota(await db(), 1, [
+            {
+              subject: `i18n-pack:${await sourceHash(clientAddress(request.headers, socketPeer()))}`,
+              limit: REQUESTS_PER_MINUTE,
+              seconds: 60,
+            },
+          ]);
+          if (!requestQuota.allowed) {
+            return finish(
+              Response.json(
+                { error: "Too many requests.", reason: "rate_limited" },
+                { status: 429, headers: { "Retry-After": "60" } },
+              ),
+            );
+          }
+
+          const { disabledLanguages } = await import("@/lib/i18n/service.server");
+          if ((await disabledLanguages(await db())).has(language.code)) {
+            return finish(
+              Response.json(
+                // i18n-ignore: an API error message; the client reads `reason`.
+                { error: "This language is switched off.", reason: "language_disabled" },
+                { status: 400, headers: { "Cache-Control": "public, max-age=60" } },
+              ),
+            );
+          }
+
+          const headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "public, max-age=60",
+          };
+          if (EMPTY_SOURCE.has(language.code) || isSourceVariety(language.code)) {
+            return finish(
+              new Response(JSON.stringify({ lang: language.code, count: 0, entries: {} }), {
+                headers,
+              }),
+            );
+          }
+
           const { languagePack } = await import("@/lib/i18n/service.server");
           const pack = await languagePack(language.code);
           if (request.headers.get("if-none-match") === pack.etag) {

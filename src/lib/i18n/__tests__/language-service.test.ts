@@ -178,11 +178,11 @@ describe("applyDocumentLanguage", () => {
 describe("buildLanguageBootScript", () => {
   function runBootScript(stored: Record<string, string>, languages: string[] = []) {
     const doc = fakeDocument();
-    const storage = memoryStorage(stored);
+    doc.cookie = `${LANGUAGE_COOKIE}=${stored[LANGUAGE_STORAGE_KEY] ?? stored[LEGACY_LANGUAGE_STORAGE_KEY] ?? ""}`;
     const script = buildLanguageBootScript();
     const nav = { languages, language: languages[0] };
     // The script reads the page's globals; give it stand-ins.
-    new Function("localStorage", "document", "navigator", script)(storage, doc, nav);
+    new Function("document", "navigator", script)(doc, nav);
     return doc;
   }
 
@@ -238,5 +238,14 @@ describe("buildLanguageBootScript", () => {
 
   it("cannot close the surrounding script element", () => {
     expect(buildLanguageBootScript()).not.toContain("<");
+    expect(buildLanguageBootScript()).not.toContain("localStorage");
+  });
+
+  it("uses the same cookie after reload and ignores malformed preferences", () => {
+    const doc = fakeDocument();
+    doc.cookie = `${LANGUAGE_COOKIE}=ar-EG`;
+    expect(getCurrentLanguage(null, { languages: ["en"] }, doc)).toBe("ar-EG");
+    doc.cookie = `${LANGUAGE_COOKIE}=%ZZ`;
+    expect(getCurrentLanguage(null, { languages: ["hi"] }, doc)).toBe("hi");
   });
 });

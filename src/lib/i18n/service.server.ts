@@ -1,16 +1,17 @@
-import { aiComplete } from "@/lib/ai-gateway.server";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { timingSafeEqual } from "node:crypto";
+import type { Sql } from "postgres";
 
+import { db } from "./database.server";
 import { TranslationEngine } from "./engine/engine";
-import { createAiApiManagerProvider } from "./engine/providers/ai-api-manager";
 import { createOwnedEngineProvider } from "./engine/providers/owned-engine";
 import type { TranslationProvider } from "./engine/types";
 import type { GlossaryTerm } from "./glossary";
 import { sourceHash } from "./hash";
 import { SingleFlight, TtlCache } from "./hot-cache";
 import { ANONYMOUS_DAILY_ENGINE_CHARS, TIER_LIMITS, type CallerTier } from "./limits";
+import { allMessages } from "./messages";
 import { count, observe, type CacheStats } from "./metrics.server";
-import { persistenceRule, requiresOwnedEngine } from "./persist-policy";
+import { persistenceRule } from "./persist-policy";
 import {
   runTranslationPipeline,
   type GlossaryStore,
@@ -21,42 +22,21 @@ import {
   type PipelineResult,
   type TranslationMemoryStore,
 } from "./pipeline";
-import { allMessages } from "./messages";
+import { reserveEngineQuota } from "./quota.server";
+import { sessionCaller } from "./session.server";
 import { UI_DICTIONARY } from "./ui-dictionary";
 
-/**
- * Server side of the translation system: the pipeline wired to the database
- * and to the configured providers. Server-only; it holds the service-role
- * client and must never be imported from browser code.
- *
- * Environment:
- *   TRANSLATE_PROVIDER_URL      the platform's own translation service
- *   TRANSLATE_PROVIDER_TOKEN    bearer token for it (optional)
- *   TRANSLATION_PROVIDER_ORDER  comma list, default "owned-engine,ai-api-manager"
- *   TRANSLATION_ALLOW_EXTERNAL  "true" also allows the external AI API Manager adapter;
- *                               by default only the platform's own engine is used
- */
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type UntypedDb = any;
-
-export function db(): UntypedDb | null {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null;
-  return supabaseAdmin as UntypedDb;
-}
+export { db };
+export const QUALITY_ATTEMPTED_MODE = "quality_attempted";
+export const PACK_SEPARATOR = String.fromCharCode(1);
 
 export function log(message: string, detail?: unknown) {
   console.error(message, detail ?? "");
 }
 
-/* ------------------------------------------------------------------ engine */
-
-/** The provider with its calls measured (engine latency, outcomes, segments). */
 function timed(provider: TranslationProvider): TranslationProvider {
   return {
     ...provider,
-    isConfigured: () => provider.isConfigured(),
-    supports: (...args: Parameters<TranslationProvider["supports"]>) => provider.supports(...args),
     async translate(request) {
       const started = performance.now();
       try {
@@ -74,489 +54,367 @@ function timed(provider: TranslationProvider): TranslationProvider {
   };
 }
 
-let engine: TranslationEngine | null = null;
-let ownedEngine: TranslationEngine | null = null;
+let engine: TranslationEngine | undefined;
 
-function externalAllowed(): boolean {
-  return process.env.TRANSLATION_ALLOW_EXTERNAL?.trim().toLowerCase() === "true";
+function engineEndpoints(): string[] {
+  return [
+    ...new Set(
+      (process.env.TRANSLATE_PROVIDER_URLS ?? process.env.TRANSLATE_PROVIDER_URL ?? "")
+        .split(",")
+        .map((endpoint) => endpoint.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
-/*
- * Whether AI API Manager has a service the external adapter could use. It is
- * only known by asking the database, and isConfigured() must answer at once,
- * so the answer is kept and refreshed in the background every few minutes.
- * Until the first answer arrives the adapter counts as not configured.
- */
-const EXTERNAL_CHECK_MS = 5 * 60_000;
-const externalState = { at: 0, usable: false, checking: false };
-
-function externalConfigured(): boolean {
-  if (!externalAllowed()) return false;
-  if (!externalState.checking && Date.now() - externalState.at > EXTERNAL_CHECK_MS) {
-    externalState.checking = true;
-    void import("@/lib/ai-gateway.server")
-      .then(({ resolveAiTargets }) => resolveAiTargets())
-      .then((targets) => {
-        externalState.usable = targets.length > 0;
-      })
-      .catch(() => {
-        externalState.usable = false;
-      })
-      .finally(() => {
-        externalState.at = Date.now();
-        externalState.checking = false;
-      });
+export function getTranslationEngine(): TranslationEngine {
+  if (!engine) {
+    engine = new TranslationEngine(
+      engineEndpoints().map((endpoint, index) =>
+        timed(
+          createOwnedEngineProvider({
+            id: index === 0 ? "owned-engine" : `owned-engine-${index + 1}`,
+            endpoint,
+            token: process.env.TRANSLATE_PROVIDER_TOKEN,
+            timeoutMs: Number(process.env.TRANSLATE_PROVIDER_TIMEOUT_MS || 60_000),
+          }),
+        ),
+      ),
+      { allowExternal: false },
+    );
   }
-  return externalState.usable;
-}
-
-function ownedProvider(): TranslationProvider {
-  return timed(
-    createOwnedEngineProvider({
-      endpoint: process.env.TRANSLATE_PROVIDER_URL,
-      token: process.env.TRANSLATE_PROVIDER_TOKEN,
-      ...(process.env.TRANSLATE_PROVIDER_TIMEOUT_MS
-        ? { timeoutMs: Number(process.env.TRANSLATE_PROVIDER_TIMEOUT_MS) }
-        : {}),
-    }),
-  );
-}
-
-/**
- * The engine for a request. `ownedOnly` leaves out every external provider:
- * it is what page text that is not the interface catalogue is translated
- * with, so a signed-in user's dashboard never goes to a third-party model.
- */
-export function getTranslationEngine(options: { ownedOnly?: boolean } = {}): TranslationEngine {
-  if (options.ownedOnly) {
-    if (!ownedEngine) ownedEngine = new TranslationEngine([ownedProvider()], { allowExternal: false });
-    return ownedEngine;
-  }
-  if (engine) return engine;
-  const available: Record<string, TranslationProvider> = {
-    "owned-engine": ownedProvider(),
-    "ai-api-manager": createAiApiManagerProvider({
-      complete: aiComplete,
-      isConfigured: externalConfigured,
-    }),
-  };
-  const order = (process.env.TRANSLATION_PROVIDER_ORDER ?? "owned-engine,ai-api-manager")
-    .split(",")
-    .map((id) => id.trim())
-    .filter((id) => id in available);
-  engine = new TranslationEngine(
-    order.map((id) => available[id]!),
-    { allowExternal: externalAllowed() },
-  );
   return engine;
 }
 
-/*
- * Whether the engine can take work right now, not only whether it is
- * configured. The owned engine answers GET /ready with {"ready": true} once its
- * models are loaded; the answer is kept for 30 seconds so the job worker can
- * ask before every batch for the price of one cheap request.
- */
-const READY_TTL_MS = 30_000;
-const READY_TIMEOUT_MS = 3_000;
 const readyState = { at: 0, ok: false };
 
 export async function engineReachable(): Promise<boolean> {
-  const endpoint = process.env.TRANSLATE_PROVIDER_URL?.trim();
-  const externalUsable = externalAllowed() && externalConfigured();
-  if (!endpoint) return externalUsable;
-  if (Date.now() - readyState.at < READY_TTL_MS) return readyState.ok || externalUsable;
-  let ok = false;
-  try {
-    const token = process.env.TRANSLATE_PROVIDER_TOKEN?.trim();
-    const response = await fetch(new URL("/ready", endpoint), {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      signal: AbortSignal.timeout(READY_TIMEOUT_MS),
-    });
-    const body = (await response.json().catch(() => null)) as { ready?: unknown } | null;
-    ok = response.ok && body?.ready === true;
-  } catch {
-    ok = false;
-  }
+  const endpoints = engineEndpoints();
+  if (!endpoints.length) return false;
+  if (Date.now() - readyState.at < 30_000) return readyState.ok;
+  const checks = await Promise.all(
+    endpoints.map(async (endpoint) => {
+      try {
+        const response = await fetch(new URL("/ready", endpoint), {
+          signal: AbortSignal.timeout(3000),
+          redirect: "error",
+        });
+        const body: unknown = await response.json();
+        return (
+          response.ok &&
+          typeof body === "object" &&
+          body !== null &&
+          "ready" in body &&
+          body.ready === true
+        );
+      } catch (error) {
+        log(
+          "[i18n] readiness request failed",
+          error instanceof Error ? error.name : "request error",
+        );
+        return false;
+      }
+    }),
+  );
+  const ok = checks.some(Boolean);
   readyState.at = Date.now();
   readyState.ok = ok;
   count(ok ? "engine.ready" : "engine.not_ready");
-  return ok || externalUsable;
+  return ok;
 }
 
-/* ------------------------------------------------------------------ memory */
+export function translationWorkerConfig(): { enabled: boolean; maxLoad: number | null } {
+  const raw = process.env.I18N_JOB_MAX_LOAD;
+  const maxLoad = raw ? Number(raw) : null;
+  if (maxLoad !== null && (!Number.isFinite(maxLoad) || maxLoad <= 0))
+    throw new Error("I18N_JOB_MAX_LOAD must be a finite positive number.");
+  return { enabled: process.env.I18N_JOB_WORKER !== "off", maxLoad };
+}
 
-const STATUS_RANK: Record<MemoryStatus, number> = {
-  verified: 5,
-  rejected: 4,
-  needs_review: 3,
-  machine: 2,
-  stale: 1,
-  legacy: 0,
-};
+export async function translationEngineStatus(): Promise<Record<string, unknown>> {
+  const replicas = await Promise.all(
+    engineEndpoints().map(async (endpoint) => {
+      try {
+        const response = await fetch(new URL("/ready", endpoint), {
+          signal: AbortSignal.timeout(5000),
+          redirect: "error",
+        });
+        const body: unknown = await response.json();
+        return typeof body === "object" && body !== null && !Array.isArray(body)
+          ? { ...body, ready: response.ok && "ready" in body && body.ready === true }
+          : { ready: false, error: "invalid_readiness" };
+      } catch (error) {
+        log(
+          "[i18n] engine status unavailable",
+          error instanceof Error ? error.name : "request error",
+        );
+        return { ready: false, error: "engine_unavailable" };
+      }
+    }),
+  );
+  return {
+    ...(replicas.find((replica) => replica.ready) ?? replicas[0] ?? {}),
+    configured: replicas.length > 0,
+    ready: replicas.some((replica) => replica.ready),
+    reachable: replicas.some((replica) => replica.ready),
+    status: replicas.find((replica) => replica.ready) ?? replicas[0] ?? null,
+    providers: getTranslationEngine().describe(),
+    replicas,
+  };
+}
 
-/*
- * Translation memory, glossary and callers are read on every request, and the
- * database is a network round trip away (about 280 ms from the production
- * host). Measured before these caches: a page's batch of 36 strings that were
- * all in memory took about 0.9 s and the endpoint topped out near 10 requests
- * a second. The caches below keep that path in the process; the database is
- * read when something is not known yet and written as before.
- *
- * Freshness: an engine result saved here is written into the cache as it is
- * stored (and dropped again if storing fails); reviews, glossary edits and
- * language switches made through the Language
- * Manager clear the caches (invalidateTranslationCaches). Entries otherwise
- * expire after the TTLs below.
- */
-const MEMORY_TTL_MS = 10 * 60_000;
-/** A string memory does not hold yet is looked up again after this long. */
-const MEMORY_ABSENT_TTL_MS = 60_000;
-const memoryCache = new TtlCache<Map<string, MemoryEntry>>(200_000);
+export async function translationEngineCounters(): Promise<Record<string, number> | null> {
+  const values = await Promise.all(
+    engineEndpoints().map(async (endpoint) => {
+      try {
+        const token = process.env.TRANSLATE_PROVIDER_TOKEN;
+        const response = await fetch(new URL("/metrics", endpoint), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: AbortSignal.timeout(5000),
+          redirect: "error",
+        });
+        if (!response.ok) throw new Error("Engine metrics request failed.");
+        const counters: Record<string, number> = {};
+        for (const line of (await response.text()).split("\n")) {
+          const match = line.match(/^([a-zA-Z_:][a-zA-Z0-9_:]*)\s+(-?[\d.eE+]+)$/);
+          if (match && Number.isFinite(Number(match[2]))) counters[match[1]!] = Number(match[2]);
+        }
+        return counters;
+      } catch (error) {
+        log(
+          "[i18n] engine metrics unavailable",
+          error instanceof Error ? error.name : "request error",
+        );
+        return null;
+      }
+    }),
+  );
+  if (values.every((value) => value === null)) return null;
+  const combined: Record<string, number> = {};
+  for (const value of values)
+    if (value)
+      for (const [key, number] of Object.entries(value))
+        combined[key] = (combined[key] ?? 0) + number;
+  return combined;
+}
+
+const MEMORY_TTL_MS = 60_000;
+const memoryCache = new TtlCache<Map<string, MemoryEntry>>(50_000);
 const memoryFlight = new SingleFlight<void>();
-
-const GLOSSARY_TTL_MS = 5 * 60_000;
-const glossaryCache = new TtlCache<GlossaryTerm[]>(1_000);
+const glossaryCache = new TtlCache<GlossaryTerm[]>(400);
 const glossaryFlight = new SingleFlight<GlossaryTerm[]>();
+const packCache = new TtlCache<LanguagePack>(400);
+const packFlight = new SingleFlight<LanguagePack>();
 
 function memoryKey(source: string, target: string, hash: string) {
   return `${source}|${target}|${hash}`;
 }
 
-async function fetchMemoryRows(
-  client: UntypedDb,
-  sourceLanguage: string,
-  targetLanguage: string,
-  hashes: string[],
-): Promise<void> {
-  const started = performance.now();
-  const { data, error } = await client
-    .from("marketplace_translations")
-    .select("source_hash, context_hash, translated_text, status, quality_score, version, engine")
-    .eq("source_language", sourceLanguage)
-    .eq("target_language", targetLanguage)
-    .in("source_hash", hashes)
-    .in("status", ["verified", "machine", "needs_review", "rejected"]);
-  observe("db.memory_lookup", performance.now() - started);
-  if (error) {
-    count("db.error");
-    throw new Error(error.message);
-  }
+type StoredMemory = {
+  source_hash: string;
+  source_language: string;
+  target_language: string;
+  context_hash: string;
+  translated_text: string;
+  status: MemoryStatus;
+  quality_score: string | number | null;
+  version: number;
+  engine: string | null;
+};
+
+function cacheRows(rows: StoredMemory[], source: string, target: string, hashes: string[]) {
   const byHash = new Map<string, Map<string, MemoryEntry>>(hashes.map((h) => [h, new Map()]));
-  for (const row of (data ?? []) as Record<string, unknown>[]) {
-    const entry: MemoryEntry = {
-      sourceHash: String(row.source_hash),
-      contextHash: String(row.context_hash),
-      translatedText: String(row.translated_text ?? ""),
-      status: row.status as MemoryStatus,
+  for (const row of rows) {
+    byHash.get(row.source_hash)?.set(row.context_hash, {
+      sourceHash: row.source_hash,
+      contextHash: row.context_hash,
+      translatedText: row.translated_text,
+      status: row.status,
       qualityScore: row.quality_score === null ? null : Number(row.quality_score),
-      version: Number(row.version ?? 1),
-      engine: (row.engine as string | null) ?? null,
-    };
-    const contexts = byHash.get(entry.sourceHash);
-    if (!contexts) continue;
-    const current = contexts.get(entry.contextHash);
-    if (!current || STATUS_RANK[entry.status] > STATUS_RANK[current.status]) {
-      contexts.set(entry.contextHash, entry);
-    }
+      version: Number(row.version),
+      engine: row.engine,
+    });
   }
   for (const [hash, contexts] of byHash) {
     memoryCache.set(
-      memoryKey(sourceLanguage, targetLanguage, hash),
+      memoryKey(source, target, hash),
       contexts,
-      contexts.size ? MEMORY_TTL_MS : MEMORY_ABSENT_TTL_MS,
+      contexts.size ? MEMORY_TTL_MS : 5000,
     );
   }
 }
 
-export function createSupabaseMemoryStore(client: UntypedDb): TranslationMemoryStore {
+export function createPostgresMemoryStore(client: Sql): TranslationMemoryStore {
   return {
     async lookup({ sourceLanguage, targetLanguage, sourceHashes }) {
       const found = new Map<string, MemoryEntry>();
-      if (sourceHashes.length === 0) return found;
       const collect = (hash: string) => {
-        const contexts = memoryCache.get(memoryKey(sourceLanguage, targetLanguage, hash));
-        if (!contexts) return false;
-        for (const [contextHash, entry] of contexts) found.set(`${hash}:${contextHash}`, entry);
+        const rows = memoryCache.get(memoryKey(sourceLanguage, targetLanguage, hash));
+        if (!rows) return false;
+        for (const [context, entry] of rows) found.set(`${hash}:${context}`, entry);
         return true;
       };
-      const missing = [...new Set(sourceHashes)].filter((hash) => !collect(hash)).sort();
-      if (missing.length > 0) {
-        // Visitors of the same page in the same language ask for the same
-        // batch at the same time; they share one read.
-        await memoryFlight.run(`${sourceLanguage}|${targetLanguage}|${missing.join(",")}`, () =>
-          fetchMemoryRows(client, sourceLanguage, targetLanguage, missing),
+      const missing = [...new Set(sourceHashes)].filter((h) => !collect(h)).sort();
+      if (missing.length) {
+        await memoryFlight.run(
+          JSON.stringify([sourceLanguage, targetLanguage, missing]),
+          async () => {
+            const started = performance.now();
+            const rows = await client<StoredMemory[]>`
+            select source_hash, source_language, target_language, context_hash, translated_text,
+              status, quality_score, version, engine
+            from public.marketplace_translations
+            where source_language = ${sourceLanguage} and target_language = ${targetLanguage}
+              and source_hash in ${client(missing)}
+              and status in ('verified', 'machine', 'needs_review', 'rejected')
+          `;
+            cacheRows(rows, sourceLanguage, targetLanguage, missing);
+            observe("db.memory_lookup", performance.now() - started);
+          },
         );
         for (const hash of missing) collect(hash);
       }
       return found;
     },
     async save(records: MemoryRecord[]) {
-      const rows = records.map((record) => ({
-        source_hash: record.sourceHash,
-        source_language: record.sourceLanguage,
-        target_language: record.targetLanguage,
-        locale: record.targetLanguage,
-        context_hash: record.contextHash,
-        namespace: record.namespace,
-        context: record.context,
-        translation_key: record.translationKey,
-        source_text: record.sourceText,
-        translated_text: record.translatedText,
-        status: record.status,
-        quality_score: record.qualityScore,
-        quality_flags: record.qualityFlags,
-        engine: record.engine,
-        engine_version: record.engineVersion,
-        provider: record.engine,
-        model: record.engineVersion,
-        metadata: { provider_kind: record.providerKind, mode: record.mode ?? null },
+      if (!records.length) return;
+      const rows = records.map((r) => ({
+        source_hash: r.sourceHash,
+        source_language: r.sourceLanguage,
+        target_language: r.targetLanguage,
+        locale: r.targetLanguage,
+        context_hash: r.contextHash,
+        namespace: r.namespace,
+        context: r.context,
+        translation_key: r.translationKey,
+        source_text: r.sourceText,
+        translated_text: r.translatedText,
+        status: r.status,
+        quality_score: r.qualityScore,
+        quality_flags: r.qualityFlags,
+        engine: r.engine,
+        engine_version: r.engineVersion,
+        provider: r.engine,
+        model: r.engineVersion,
+        metadata: { provider_kind: r.providerKind, mode: r.mode ?? null },
       }));
-      // Write through: the next request for these strings is answered from
-      // the process at once, instead of reading them back (or, while "not
-      // in memory" is still cached, sending them to the engine again).
-      for (const record of records) {
-        const key = memoryKey(record.sourceLanguage, record.targetLanguage, record.sourceHash);
-        const contexts = new Map(memoryCache.peek(key) ?? []);
-        const current = contexts.get(record.contextHash);
-        if (!current || STATUS_RANK[record.status] >= STATUS_RANK[current.status]) {
-          contexts.set(record.contextHash, {
-            sourceHash: record.sourceHash,
-            contextHash: record.contextHash,
-            translatedText: record.translatedText,
-            status: record.status,
-            qualityScore: record.qualityScore,
-            version: current ? current.version + 1 : 1,
-            engine: record.engine,
-          });
-        }
-        memoryCache.set(key, contexts, MEMORY_TTL_MS);
-      }
       const started = performance.now();
-      const { error } = await client
-        .from("marketplace_translations")
-        .upsert(rows, { onConflict: "source_hash,source_language,target_language,context_hash" });
-      observe("db.memory_save", performance.now() - started);
-      if (error) {
-        // Not stored: forget it here too, so the process and the database agree.
-        for (const record of records) {
-          memoryCache.delete(
-            memoryKey(record.sourceLanguage, record.targetLanguage, record.sourceHash),
-          );
-        }
-        count("db.error");
-        throw new Error(error.message);
+      await client`
+        insert into public.marketplace_translations ${client(rows)}
+        on conflict (source_hash, source_language, target_language, context_hash)
+        do update set translated_text = excluded.translated_text, status = excluded.status,
+          quality_score = excluded.quality_score, quality_flags = excluded.quality_flags,
+          engine = excluded.engine, engine_version = excluded.engine_version,
+          metadata = excluded.metadata
+      `;
+      // The database review guard is authoritative; never cache the requested
+      // overwrite before checking what the database actually accepted.
+      for (const r of records) {
+        memoryCache.delete(memoryKey(r.sourceLanguage, r.targetLanguage, r.sourceHash));
+        packCache.delete(r.targetLanguage);
       }
+      observe("db.memory_save", performance.now() - started);
     },
     async markQualityAttempted(rows) {
-      // Only metadata.mode changes, and only on unreviewed machine rows: the
-      // translation, its status and a reviewer's decision are left as they are.
       for (const row of rows) {
-        const match = client
-          .from("marketplace_translations")
-          .select("id, metadata")
-          .eq("source_hash", row.sourceHash)
-          .eq("source_language", row.sourceLanguage)
-          .eq("target_language", row.targetLanguage)
-          .eq("context_hash", row.contextHash)
-          .eq("status", "machine")
-          .limit(1);
-        const { data, error } = await match;
-        if (error) throw new Error(error.message);
-        const found = (data ?? [])[0] as { id: string; metadata: Record<string, unknown> | null } | undefined;
-        if (!found) continue;
-        const { error: updateError } = await client
-          .from("marketplace_translations")
-          .update({ metadata: { ...(found.metadata ?? {}), mode: QUALITY_ATTEMPTED_MODE } })
-          .eq("id", found.id)
-          .eq("status", "machine");
-        if (updateError) throw new Error(updateError.message);
+        await client`
+          update public.marketplace_translations
+          set metadata = metadata || jsonb_build_object('mode', ${QUALITY_ATTEMPTED_MODE}::text)
+          where source_hash = ${row.sourceHash} and source_language = ${row.sourceLanguage}
+            and target_language = ${row.targetLanguage} and context_hash = ${row.contextHash}
+            and status = 'machine'
+        `;
         count("memory.quality_attempted");
       }
     },
   };
 }
 
-/**
- * metadata.mode of a realtime translation whose quality-mode refresh did not
- * pass the gate: the realtime text was kept, and the catalogue sync does not
- * queue it for the same upgrade again (src/lib/i18n/jobs.server.ts).
- */
-export const QUALITY_ATTEMPTED_MODE = "quality_attempted";
-
-export function createSupabaseGlossaryStore(client: UntypedDb): GlossaryStore {
+export function createPostgresGlossaryStore(client: Sql): GlossaryStore {
   return {
     async load({ source, target }) {
       const key = `${source}|${target}`;
       const cached = glossaryCache.get(key);
       if (cached) return cached;
       return glossaryFlight.run(key, async () => {
-        const { data, error } = await client
-          .from("i18n_glossary_terms")
-          .select(
-            "source_term, target_term, source_language, target_language, rule, case_sensitive, namespace",
-          )
-          .eq("status", "approved")
-          .eq("source_language", source)
-          .or(`target_language.is.null,target_language.eq.${target}`);
-        if (error) {
-          count("db.error");
-          throw new Error(error.message);
-        }
-        const terms = ((data ?? []) as Record<string, unknown>[]).map((row): GlossaryTerm => ({
-          sourceTerm: String(row.source_term),
-          targetTerm: (row.target_term as string | null) ?? null,
-          sourceLanguage: String(row.source_language),
-          targetLanguage: (row.target_language as string | null) ?? null,
-          rule: row.rule as GlossaryTerm["rule"],
-          caseSensitive: Boolean(row.case_sensitive),
-          namespace: (row.namespace as string | null) ?? null,
+        const rows = await client`
+          select source_term, target_term, source_language, target_language,
+            rule, case_sensitive, namespace from public.i18n_glossary_terms
+          where status = 'approved' and source_language = ${source}
+            and (target_language is null or target_language = ${target})
+        `;
+        const terms = rows.map((row): GlossaryTerm => ({
+          sourceTerm: row.source_term,
+          targetTerm: row.target_term,
+          sourceLanguage: row.source_language,
+          targetLanguage: row.target_language,
+          rule: row.rule,
+          caseSensitive: row.case_sensitive,
+          namespace: row.namespace,
         }));
-        glossaryCache.set(key, terms, GLOSSARY_TTL_MS);
+        glossaryCache.set(key, terms, 60_000);
         return terms;
       });
     },
   };
 }
 
-/* ---------------------------------------------------------- language packs */
-
-/** Between context and source text; the browser keys the strings it holds the same way. */
-export const PACK_SEPARATOR = String.fromCharCode(1);
-/*
- * A pack is rebuilt at most once a minute per instance. Operator changes
- * (reviews, glossary, language switches) clear this instance's copy at once
- * (invalidateTranslationCaches); other instances, and browsers (Cache-Control
- * in src/routes/api/i18n/pack.ts), pick them up within about a minute.
- */
-const PACK_TTL_MS = 60_000;
-/**
- * Upper bound on strings in one pack. Every interface-catalogue string comes
- * first, then the most recently written page text.
- */
-const PACK_MAX_ENTRIES = 6_000;
-/** Rows read to build one pack: all of a language's interface rows, bounded. */
-const PACK_SCAN_MAX = 30_000;
-const PACK_PAGE = 1_000;
-
 export type LanguagePack = { body: string; etag: string; count: number };
 
-const packCache = new TtlCache<LanguagePack>(400);
-const packFlight = new SingleFlight<LanguagePack>();
-/** The last pack built per language, served when a rebuild fails (database unreachable). */
-const lastGoodPack = new Map<string, LanguagePack>();
-
-/**
- * Every interface string translation memory holds for a language, in one
- * response: the page loads it once instead of asking string by string, and
- * only what it does not contain goes to the translation endpoint. Text comes
- * only from servable rows (machine, verified) of the "ui" namespace - never
- * private namespaces such as chat. Strings held for review or rejected are
- * listed without text under `withheld`, so the page does not keep asking.
- */
 export async function languagePack(code: string): Promise<LanguagePack> {
   const cached = packCache.get(code);
   if (cached) return cached;
-  return packFlight.run(code, () =>
-    buildLanguagePack(code).catch((error: unknown) => {
-      const stale = lastGoodPack.get(code);
-      if (!stale) throw error;
-      count("pack.served_stale");
-      log("[i18n] language pack rebuild failed; serving the previous one", error);
-      return stale;
-    }),
-  );
-}
-
-async function buildLanguagePack(code: string): Promise<LanguagePack> {
-  const client = db();
-  // Every servable string, newest first: catalogue and page text apart, so the
-  // catalogue is never pushed out of the pack by page text.
-  const catalogueEntries = new Map<string, string>();
-  const pageEntries = new Map<string, string>();
-  const locked: string[] = [];
-  const verified = new Set<string>();
-  // Strings memory holds but will not serve (waiting for review or rejected):
-  // the page is told, so it does not ask for them on every visit.
-  const withheld = new Set<string>();
-  if (client) {
+  return packFlight.run(code, async () => {
+    const client = await db();
     const started = performance.now();
-    for (let from = 0; from < PACK_SCAN_MAX; from += PACK_PAGE) {
-      const { data, error } = await client
-        .from("marketplace_translations")
-        .select("source_text, context, translated_text, status")
-        .eq("source_language", "en")
-        .eq("target_language", code)
-        .eq("namespace", "ui")
-        .in("status", ["machine", "verified", "needs_review", "rejected"])
-        .order("updated_at", { ascending: false })
-        .range(from, from + PACK_PAGE - 1);
-      if (error) {
-        count("db.error");
-        throw new Error(error.message);
+    const rows = await client`
+      select source_text, context, translated_text, status
+      from public.marketplace_translations
+      where source_language = 'en' and target_language = ${code} and namespace = 'ui'
+        and status in ('machine', 'verified', 'needs_review', 'rejected', 'stale')
+      order by updated_at desc, id limit 30000
+    `;
+    const catalogue = new Map<string, string>();
+    const withheld: string[] = [];
+    for (const row of rows) {
+      if (!isCatalogueText(row.source_text)) continue;
+      const key = `${row.context ?? ""}${PACK_SEPARATOR}${row.source_text}`;
+      if (["needs_review", "rejected", "stale"].includes(row.status)) {
+        withheld.push(key);
+      } else if (row.translated_text) {
+        if (!catalogue.has(key)) catalogue.set(key, row.translated_text);
       }
-      const rows = (data ?? []) as Record<string, unknown>[];
-      for (const row of rows) {
-        const key = `${(row.context as string | null) ?? ""}${PACK_SEPARATOR}${String(row.source_text)}`;
-        if (row.status === "needs_review" || row.status === "rejected") {
-          withheld.add(key);
-          continue;
-        }
-        const text = String(row.translated_text ?? "");
-        if (!text) continue;
-        if (verified.has(key)) continue;
-        const target = isCatalogueText(String(row.source_text)) ? catalogueEntries : pageEntries;
-        if (row.status === "verified") verified.add(key);
-        else if (target.has(key)) continue;
-        target.set(key, text);
-      }
-      if (rows.length < PACK_PAGE) break;
     }
-    observe("db.pack_build", performance.now() - started);
-    // Brand names that are never translated: a string made only of these is
-    // shown as it is, without asking.
-    const terms = await createSupabaseGlossaryStore(client).load({
+    const entries = Object.fromEntries([...catalogue].slice(0, 6000));
+    const terms = await createPostgresGlossaryStore(client).load({
       source: "en",
       target: code,
       namespace: "ui",
     });
-    for (const term of terms) {
-      if (term.rule === "locked" && !term.targetTerm && !term.namespace)
-        locked.push(term.sourceTerm);
-    }
-  }
-  // The whole catalogue first, then page text newest first, up to the cap.
-  const entries: Record<string, string> = {};
-  let total = 0;
-  for (const source of [catalogueEntries, pageEntries]) {
-    for (const [key, text] of source) {
-      if (total >= PACK_MAX_ENTRIES) break;
-      entries[key] = text;
-      total += 1;
-    }
-  }
-  const dropped = catalogueEntries.size + pageEntries.size - total;
-  if (dropped > 0) count("pack.entries_over_cap", dropped);
-  for (const key of [...catalogueEntries.keys(), ...pageEntries.keys()]) withheld.delete(key);
-  const body = JSON.stringify({
-    lang: code,
-    count: total,
-    entries,
-    withheld: [...withheld],
-    locked,
+    const body = JSON.stringify({
+      lang: code,
+      count: Object.keys(entries).length,
+      entries,
+      withheld,
+      locked: terms
+        .filter((t) => t.rule === "locked" && !t.targetTerm && !t.namespace)
+        .map((t) => t.sourceTerm),
+      truncated: rows.length === 30000 || catalogue.size > 6000,
+      source: "vps-postgresql",
+      fallback: "en",
+    });
+    const pack = {
+      body,
+      etag: `W/"${(await sourceHash(body)).slice(0, 20)}"`,
+      count: Object.keys(entries).length,
+    };
+    packCache.set(code, pack, 60_000);
+    observe("db.pack_build", performance.now() - started);
+    count("pack.built");
+    return pack;
   });
-  const pack: LanguagePack = {
-    body,
-    etag: `W/"${(await sourceHash(body)).slice(0, 20)}"`,
-    count: total,
-  };
-  packCache.set(code, pack, PACK_TTL_MS);
-  lastGoodPack.set(code, pack);
-  count("pack.built");
-  return pack;
 }
 
-/** Drop cached memory, glossary and packs (after a review, glossary edit or language switch). */
 export function invalidateTranslationCaches() {
   memoryCache.deletePrefix("");
   glossaryCache.deletePrefix("");
@@ -569,345 +427,83 @@ export function translationCacheStats(): CacheStats {
     hits: c.hits,
     misses: c.misses,
   });
-  return {
-    memory: stats(memoryCache),
-    glossary: stats(glossaryCache),
-    packs: stats(packCache),
-    callers: stats(callerCache),
-  };
+  return { memory: stats(memoryCache), glossary: stats(glossaryCache), packs: stats(packCache) };
 }
 
-/* --------------------------------------------------------------- overrides */
-
-// Invalidated on the instance that made the change; other instances (several
-// app servers) see it when this runs out, so it is kept short.
-const OVERRIDE_TTL_MS = 60_000;
-let overrides: { at: number; disabled: Set<string> } | null = null;
-
-/** Languages an operator switched off in i18n_languages (cached briefly). */
+let overrides: { at: number; disabled: Set<string> } | undefined;
 export function invalidateLanguageOverrides() {
-  overrides = null;
+  overrides = undefined;
 }
 
-export async function disabledLanguages(client: UntypedDb | null): Promise<Set<string>> {
-  if (!client) return new Set();
-  if (overrides && Date.now() - overrides.at < OVERRIDE_TTL_MS) return overrides.disabled;
-  try {
-    const { data, error } = await client.from("i18n_languages").select("code").eq("enabled", false);
-    if (error) throw new Error(error.message);
-    overrides = {
-      at: Date.now(),
-      disabled: new Set(((data ?? []) as { code: string }[]).map((r) => r.code)),
-    };
-  } catch (error) {
-    log("[i18n] language overrides unavailable", error);
-    overrides = { at: Date.now(), disabled: overrides?.disabled ?? new Set() };
-  }
+export async function disabledLanguages(client: Sql): Promise<Set<string>> {
+  if (overrides && Date.now() - overrides.at < 60_000) return overrides.disabled;
+  const rows = await client`select code from public.i18n_languages where not enabled`;
+  overrides = { at: Date.now(), disabled: new Set(rows.map((r) => String(r.code))) };
   return overrides.disabled;
 }
 
-/* ------------------------------------------------------------------- quota */
+export type Caller = { tier: CallerTier; subject: string; userId: string | null };
 
-// Each window expires when it ends; when full, the least recently used goes
-// first, so the shared anonymous budget ("anon:all"), used on every request,
-// is never dropped by a crowd of one-off visitors.
-const localWindows = new TtlCache<{ window: number; units: number }>(200_000);
-
-/** The same quota as i18n_consume_quota, kept in this process. */
-function localQuota(subject: string, units: number, limit: number, windowSeconds: number): boolean {
-  const now = Date.now();
-  const window = Math.floor(now / 1000 / windowSeconds);
-  const key = `${subject}:${windowSeconds}`;
-  const current = localWindows.peek(key, now);
-  const used = (current && current.window === window ? current.units : 0) + units;
-  const windowEnds = (window + 1) * windowSeconds * 1000;
-  localWindows.set(key, { window, units: used }, windowEnds - now, now);
-  return used <= limit;
-}
-
-/** Give back units localQuota counted in the current window. */
-function localRefund(subject: string, units: number, windowSeconds: number) {
-  const now = Date.now();
-  const window = Math.floor(now / 1000 / windowSeconds);
-  const key = `${subject}:${windowSeconds}`;
-  const current = localWindows.peek(key, now);
-  if (!current || current.window !== window) return;
-  const windowEnds = (window + 1) * windowSeconds * 1000;
-  localWindows.set(key, { window, units: Math.max(0, current.units - units) }, windowEnds - now, now);
-}
-
-async function consumeQuota(
-  client: UntypedDb,
-  subject: string,
-  units: number,
-  limit: number,
-  windowSeconds: number,
-) {
-  const { data, error } = await client.rpc("i18n_consume_quota", {
-    p_subject: subject,
-    p_units: units,
-    p_limit: limit,
-    p_window_seconds: windowSeconds,
-  });
-  if (error) throw new Error(error.message);
-  return data === true;
-}
-
-/*
- * Usage is written to i18n_request_quota in the background: summed per
- * subject and window, and sent every few seconds, so a burst of requests
- * costs one database call instead of two per request. When the database says
- * a subject is over its limit (usage from before a restart, or from another
- * instance), that subject is refused locally until the window ends.
- */
-const QUOTA_FLUSH_MS = 5_000;
-const pendingUsage = new Map<
-  string,
-  { subject: string; units: number; limit: number; windowSeconds: number; window: number }
->();
-const quotaBlocked = new Map<string, number>(); // subject -> blocked until (ms)
-let quotaFlushTimer: ReturnType<typeof setTimeout> | null = null;
-
-function isQuotaBlocked(subject: string): boolean {
-  const until = quotaBlocked.get(subject);
-  if (until === undefined) return false;
-  if (until > Date.now()) return true;
-  quotaBlocked.delete(subject);
-  return false;
-}
-
-function recordQuotaUsage(
-  client: UntypedDb,
-  subject: string,
-  units: number,
-  limit: number,
-  windowSeconds: number,
-) {
-  const key = `${subject}|${windowSeconds}`;
-  const window = Math.floor(Date.now() / 1000 / windowSeconds);
-  const entry = pendingUsage.get(key);
-  if (entry && entry.window === window) {
-    entry.units += units;
-    entry.limit = limit;
-  } else pendingUsage.set(key, { subject, units, limit, windowSeconds, window });
-  if (quotaFlushTimer) return;
-  quotaFlushTimer = setTimeout(() => {
-    quotaFlushTimer = null;
-    void flushQuotaUsage(client);
-  }, QUOTA_FLUSH_MS);
-  (quotaFlushTimer as unknown as { unref?: () => void }).unref?.();
-}
-
-/**
- * Give back usage recordQuotaUsage holds for the current window. What has not
- * been written yet is reduced; what has already been written is kept as a
- * credit taken off this subject's next write in the same window (the database
- * function takes no negative amounts).
- */
-function refundQuotaUsage(subject: string, units: number, windowSeconds: number) {
-  const key = `${subject}|${windowSeconds}`;
-  const window = Math.floor(Date.now() / 1000 / windowSeconds);
-  const entry = pendingUsage.get(key);
-  if (entry && entry.window === window) entry.units -= units;
-  else pendingUsage.set(key, { subject, units: -units, limit: 0, windowSeconds, window });
-  count("quota.refunded", units);
-}
-
-async function flushQuotaUsage(client: UntypedDb) {
-  const batch = [...pendingUsage.values()];
-  pendingUsage.clear();
-  for (const item of batch) {
-    if (item.units <= 0) {
-      // Nothing to charge. A credit (refunded usage already written) waits
-      // for the subject's next usage in the same window and lapses with it.
-      const window = Math.floor(Date.now() / 1000 / item.windowSeconds);
-      if (item.units < 0 && item.window === window) {
-        const key = `${item.subject}|${item.windowSeconds}`;
-        const fresh = pendingUsage.get(key);
-        if (fresh && fresh.window === window) fresh.units += item.units;
-        else pendingUsage.set(key, item);
-      }
-      continue;
-    }
-    try {
-      const allowed = await consumeQuota(
-        client,
-        item.subject,
-        item.units,
-        item.limit,
-        item.windowSeconds,
-      );
-      count("quota.flushed");
-      if (!allowed) {
-        const windowMs = item.windowSeconds * 1000;
-        quotaBlocked.set(item.subject, (Math.floor(Date.now() / windowMs) + 1) * windowMs);
-        count("quota.blocked");
-      }
-    } catch (error) {
-      count("quota.flush_error");
-      log("[i18n] quota usage not recorded", error);
-    }
-  }
-}
-
-/* ------------------------------------------------------------------ caller */
-
-function timingSafeEqual(a: string, b: string): boolean {
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-export type Caller = {
-  tier: CallerTier;
-  /** Quota subject: a user id or a hashed address. Never logged. */
-  subject: string;
-  userId: string | null;
-};
-
-/** Checked tokens (keyed by their hash): the caller, or null for a token that did not check out. */
-const CALLER_TTL_MS = 60_000;
-const callerCache = new TtlCache<Caller | null>(50_000);
-const callerFlight = new SingleFlight<Caller | null>();
-
-/**
- * Who is asking. A missing or invalid token is an anonymous caller, not an
- * error: the storefront translates for visitors too.
- */
 export async function resolveCaller(
   authorization: string | null,
   address: string,
   internalToken?: string | null,
 ): Promise<Caller> {
-  // A caller holding INTERNAL_API_TOKEN is the platform itself (schedulers,
-  // operator scripts). Same trust level as src/lib/auth/internal-guard.ts.
   const expected = process.env.INTERNAL_API_TOKEN?.trim();
   const presented = internalToken?.trim();
   if (
     expected &&
     presented &&
-    expected.length === presented.length &&
-    timingSafeEqual(expected, presented)
+    Buffer.byteLength(expected) === Buffer.byteLength(presented) &&
+    timingSafeEqual(Buffer.from(expected), Buffer.from(presented))
   ) {
     return { tier: "operator", subject: "internal:token", userId: null };
   }
   const token = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-  const client = db();
-  if (token && client) {
-    // A signed-in page sends its token with every batch; checking it costs two
-    // database round trips, so the answer is kept for a minute. Tokens that
-    // do not check out are remembered too, so a stream of made-up tokens
-    // cannot be turned into a stream of auth lookups.
-    const key = await sourceHash(token);
-    const known = callerCache.get(key);
-    if (known !== undefined) {
-      if (known) return known;
-    } else {
-      const resolved = await callerFlight.run(key, async () => {
-        let caller: Caller | null = null;
-        try {
-          const started = performance.now();
-          const { data, error } = await client.auth.getUser(token);
-          const user = data?.user;
-          if (!error && user) {
-            const { data: roles, error: rolesError } = await client
-              .from("user_roles")
-              .select("role")
-              .eq("user_id", user.id)
-              .in("role", ["admin", "boss"]);
-            const operator = !rolesError && Array.isArray(roles) && roles.length > 0;
-            caller = {
-              tier: operator ? "operator" : "user",
-              subject: `user:${user.id}`,
-              userId: user.id,
-            };
-          }
-          observe("db.caller", performance.now() - started);
-        } catch (error) {
-          log("[i18n] caller lookup failed", error);
-          return null; // not cached: the next request tries again
-        }
-        callerCache.set(key, caller, CALLER_TTL_MS);
-        return caller;
-      });
-      if (resolved) return resolved;
-    }
+  if (token) {
+    const caller = await sessionCaller(token);
+    if (caller) return caller;
   }
   return { tier: "anonymous", subject: `anon:${await sourceHash(address)}`, userId: null };
 }
 
-/* ----------------------------------------------------------------- service */
-
-// The interface catalogue: the dictionary's English wording and the keyed
-// messages (src/lib/i18n/messages). Only these are written to shared memory on
-// behalf of visitors; anything else a page sends is translated but not kept.
 const CATALOGUE = new Set([
   ...Object.keys(UI_DICTIONARY.en ?? {}),
   ...allMessages().map((m) => m.text),
 ]);
-
-/** Whether a source string is part of the interface catalogue. */
 export function isCatalogueText(text: string): boolean {
   return CATALOGUE.has(text);
 }
 
-/**
- * Translate on behalf of a caller: the tier decides what may be written to
- * shared memory and how much engine work may be spent.
- */
 export async function translateForCaller(
   request: Omit<PipelineRequest, "mayPersist">,
   caller: Caller,
 ): Promise<PipelineResult> {
-  const client = db();
+  const client = await db();
   const disabled = await disabledLanguages(client);
   const limits = TIER_LIMITS[caller.tier];
-
-  // Decided in this process, so engine work never waits on the database; the
-  // usage is recorded there in the background (recordQuotaUsage), and a
-  // caller the database finds over its limit is refused here until its
-  // window ends.
+  let refund: (() => Promise<void>) | undefined;
   const quota = async (units: number) => {
-    if (isQuotaBlocked(caller.subject)) return false;
-    if (!localQuota(caller.subject, units, limits.engineCharsPerHour, 3600)) return false;
-    if (caller.tier === "anonymous") {
-      if (isQuotaBlocked("anon:all")) return false;
-      if (!localQuota("anon:all", units, ANONYMOUS_DAILY_ENGINE_CHARS, 86_400)) return false;
-    }
-    if (client) {
-      recordQuotaUsage(client, caller.subject, units, limits.engineCharsPerHour, 3600);
-      if (caller.tier === "anonymous") {
-        recordQuotaUsage(client, "anon:all", units, ANONYMOUS_DAILY_ENGINE_CHARS, 86_400);
-      }
-    }
-    return true;
+    const windows = [{ subject: caller.subject, limit: limits.engineCharsPerHour, seconds: 3600 }];
+    if (caller.tier === "anonymous")
+      windows.push({ subject: "anon:all", limit: ANONYMOUS_DAILY_ENGINE_CHARS, seconds: 86400 });
+    const reservation = await reserveEngineQuota(client, units, windows);
+    refund = reservation.refund;
+    return reservation.allowed;
   };
-
-  // Give back what `quota` reserved when the engine never ran (it was
-  // unavailable), in this process and in the usage still to be written.
-  const refundQuota = (units: number) => {
-    localRefund(caller.subject, units, 3600);
-    if (client) refundQuotaUsage(caller.subject, units, 3600);
-    if (caller.tier === "anonymous") {
-      localRefund("anon:all", units, 86_400);
-      if (client) refundQuotaUsage("anon:all", units, 86_400);
-    }
-  };
-
-  // Page text keeps only the interface catalogue, whoever is looking, and page
-  // text outside it never reaches the external adapter (src/lib/i18n/persist-policy.ts).
-  const namespace = request.namespace ?? "ui";
-  const mayPersist = persistenceRule(namespace, caller.tier, isCatalogueText);
-  const ownedOnly = requiresOwnedEngine(namespace, request.texts, isCatalogueText);
-
   return runTranslationPipeline(
-    { ...request, mayPersist },
     {
-      engine: getTranslationEngine({ ownedOnly }),
-      memory: client ? createSupabaseMemoryStore(client) : null,
-      glossary: client ? createSupabaseGlossaryStore(client) : null,
+      ...request,
+      mayPersist: persistenceRule(request.namespace ?? "ui", caller.tier, isCatalogueText),
+    },
+    {
+      engine: getTranslationEngine(),
+      memory: createPostgresMemoryStore(client),
+      glossary: createPostgresGlossaryStore(client),
       quota,
-      refundQuota,
+      refundQuota: async () => {
+        await refund?.();
+      },
       isLanguageEnabled: (code) => !disabled.has(code),
       log,
     },

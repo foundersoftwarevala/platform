@@ -166,7 +166,8 @@ export const STOREADMIN_MESSAGES = {
   "storeadmin.extra.schedule": ["Schedule", "button: schedule a release"],
   "storeadmin.extra.notifications_eyebrow": "Notifications",
   "storeadmin.extra.notifications_title": "Notification Channels",
-  "storeadmin.extra.notifications_description": "What the storefront can send and where it shows up.",
+  "storeadmin.extra.notifications_description":
+    "What the storefront can send and where it shows up.",
 
   // Merchandising Console
   "storeadmin.merch.change_refused": "The change was refused.",
@@ -176,9 +177,18 @@ export const STOREADMIN_MESSAGES = {
   "storeadmin.merch.placement_updated": "Placement updated",
   "storeadmin.merch.slot_empty_title": "Slot {position} — empty",
   "storeadmin.merch.slot_title": "Slot {position} — {name}",
-  "storeadmin.merch.slot_title_rule": [" (rule engine)", "follows the slot title; keep the leading space"],
-  "storeadmin.merch.slot_title_hand": [" (placed by hand)", "follows the slot title; keep the leading space"],
-  "storeadmin.merch.slot_title_not_live": [" — NOT LIVE", "follows the slot title; keep the leading space"],
+  "storeadmin.merch.slot_title_rule": [
+    " (rule engine)",
+    "follows the slot title; keep the leading space",
+  ],
+  "storeadmin.merch.slot_title_hand": [
+    " (placed by hand)",
+    "follows the slot title; keep the leading space",
+  ],
+  "storeadmin.merch.slot_title_not_live": [
+    " — NOT LIVE",
+    "follows the slot title; keep the leading space",
+  ],
   "storeadmin.merch.not_live": "not live",
   "storeadmin.merch.assign_to_slot": "Assign to slot {position}",
   "storeadmin.merch.assign_intro":

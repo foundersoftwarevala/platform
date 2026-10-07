@@ -16,17 +16,20 @@ describe("Product Manager formatting across every configured language", () => {
     expect(enabled.length).toBe(SUPPORTED_LANGUAGE_COUNT);
   });
 
-  it.each(enabled.map((l) => [l.code, l] as const))("%s formats a date, a timestamp and a count", (_code, language) => {
-    const day = formatDate(when, language, { dateStyle: "medium" });
-    const stamp = formatDate(when, language, { dateStyle: "medium", timeStyle: "short" });
-    const count = formatNumber(7365, language);
-    expect(day).not.toBe("");
-    expect(day).not.toBe(new Date(when).toISOString());
-    expect(stamp.length).toBeGreaterThanOrEqual(day.length);
-    expect(count).not.toBe("");
-    // Placeholder-free: a formatter never returns a template.
-    expect(`${day}${stamp}${count}`).not.toMatch(/[{}]/);
-  });
+  it.each(enabled.map((l) => [l.code, l] as const))(
+    "%s formats a date, a timestamp and a count",
+    (_code, language) => {
+      const day = formatDate(when, language, { dateStyle: "medium" });
+      const stamp = formatDate(when, language, { dateStyle: "medium", timeStyle: "short" });
+      const count = formatNumber(7365, language);
+      expect(day).not.toBe("");
+      expect(day).not.toBe(new Date(when).toISOString());
+      expect(stamp.length).toBeGreaterThanOrEqual(day.length);
+      expect(count).not.toBe("");
+      // Placeholder-free: a formatter never returns a template.
+      expect(`${day}${stamp}${count}`).not.toMatch(/[{}]/);
+    },
+  );
 
   it("uses the language's own script where the locale has one", () => {
     expect(formatDate(when, "zh-Hans", { dateStyle: "medium" })).toMatch(/2026年/);
