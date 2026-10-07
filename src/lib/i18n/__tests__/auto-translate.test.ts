@@ -6,8 +6,24 @@ import {
   isTranslatableText,
   restoreOriginals,
   uniqueStrings,
+  inTranslationViewport,
   type Target,
 } from "../auto-translate";
+
+describe("visible translation demand", () => {
+  const viewport = { width: 1200, height: 800 };
+  const box = { width: 100, height: 30, left: 0, right: 100, top: 0, bottom: 30 };
+  it("prioritizes current and near-viewport content", () => {
+    expect(inTranslationViewport(box, viewport)).toBe(true);
+    expect(inTranslationViewport({ ...box, top: 950, bottom: 980 }, viewport)).toBe(true);
+    expect(inTranslationViewport({ ...box, top: 1100, bottom: 1130 }, viewport)).toBe(false);
+  });
+  it("does not enqueue hidden or horizontally offscreen content", () => {
+    expect(inTranslationViewport({ ...box, width: 0, height: 0 }, viewport)).toBe(false);
+    expect(inTranslationViewport({ ...box, left: 1500, right: 1600 }, viewport)).toBe(false);
+    expect(inTranslationViewport({ ...box, top: -500, bottom: -470 }, viewport)).toBe(false);
+  });
+});
 
 /**
  * The page translator's rules, tested without a browser: which strings it

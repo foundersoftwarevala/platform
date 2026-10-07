@@ -463,6 +463,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       document.documentElement.setAttribute("data-translation-fallback", String(status.fallback));
       document.documentElement.setAttribute("data-translation-pending", String(status.pending));
       document.documentElement.setAttribute("data-translation-missing", String(status.missing));
+      document.documentElement.setAttribute("data-translation-scope", "requested-content");
     };
     publish();
     const interval = setInterval(publish, 500);

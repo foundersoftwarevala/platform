@@ -15,7 +15,7 @@ import { checkRequestShape } from "../limits";
 describe("native language architecture", () => {
   it("does not publish historical non-catalogue page text in public packs", () => {
     const service = readFileSync(resolve("src/lib/i18n/service.server.ts"), "utf8");
-    expect(service).toContain("if (!isCatalogueText(row.source_text)) continue;");
+    expect(service).toContain("if (!isCatalogueText(row.source_text, publicTexts)) continue;");
     expect(service).not.toContain("const page = new Map<string, string>()");
   });
   it("accepts visible paragraph text without increasing the anonymous total work budget", () => {

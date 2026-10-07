@@ -172,6 +172,28 @@ incomplete coverage, not a certification that translations are complete.
 Neither runner alone certifies all screens, semantic quality, AI/voice, fonts,
 multilingual SSR/SEO or thousands of concurrent cold-engine users.
 
+### Trusted public source coverage
+
+The shared-memory allowlist includes existing keyed messages and the generated
+static JSX/attribute/toast source catalogue. Regenerate it after changing source
+copy with `node scripts/i18n-audit.mjs --public-source`; the existing i18n CI
+check rejects a stale generated catalogue.
+
+Native migration `deploy/postgres/20261007030000_i18n_public_catalogue.sql`
+exposes only published, visible, nondeleted, currently scheduled marketplace
+copy and active public category/row labels to the backend role. Draft product
+copy, arbitrary visitor text and private chat/account content are not included.
+The card's real 240-character description variant is included alongside its
+full description. Public source snapshots expire after 30 seconds; packs and
+memory continue to apply this allowlist. No raw product-table grant or
+anonymous function execution is added.
+
+PageTranslator prioritizes text in/near the viewport and observes content as it
+scrolls into view instead of spending every visitor's engine quota on hidden
+and offscreen catalogue rows. Progress counters describe requested content
+(`data-translation-scope="requested-content"`), not whole-application
+certification. English restoration still covers previously translated nodes.
+
 ```sh
 docker run --rm sv-translate:current python -m pytest -q tests --ignore=tests/test_live.py   # no model needed
 docker run --rm -e SVT_LIVE=1 -v /opt/sv-translate/models:/models:ro sv-translate:current \

@@ -27,6 +27,7 @@ import {
 import { allMessages } from "./messages";
 import { UI_DICTIONARY } from "./ui-dictionary";
 import { count } from "./metrics.server";
+import { STATIC_CATALOGUE, publicCatalogue } from "./catalogue.server";
 
 /**
  * Background translation.
@@ -51,15 +52,15 @@ const BATCH = 24;
 
 /** Contexts of the keyed catalogue (the module names in src/lib/i18n/messages). */
 const KEYED_CONTEXTS = new Set(allMessages().map((message) => message.context));
-const CATALOGUE_TEXTS = new Set([
-  ...allMessages().map((message) => message.text),
-  ...Object.keys(UI_DICTIONARY[SOURCE_LANGUAGE] ?? {}),
-]);
-
-function canQueueText(namespace: string, source: string, text: string): boolean {
+function canQueueText(
+  namespace: string,
+  source: string,
+  text: string,
+  catalogue: ReadonlySet<string>,
+): boolean {
   return (
     !PRIVATE_NAMESPACES.has(namespace) &&
-    (namespace !== "ui" || (source === SOURCE_LANGUAGE && CATALOGUE_TEXTS.has(text.trim())))
+    (namespace !== "ui" || (source === SOURCE_LANGUAGE && catalogue.has(text.trim())))
   );
 }
 
@@ -87,6 +88,11 @@ export async function enqueueJobs(
 ): Promise<number> {
   const client = await db();
   const disabled = await disabledLanguages(client);
+  const catalogue = items.some(
+    (item) => (item.namespace ?? "ui") === "ui" && !STATIC_CATALOGUE.has(item.text.trim()),
+  )
+    ? await publicCatalogue(client)
+    : STATIC_CATALOGUE;
   let inserted = 0;
   const rows = [];
   // The same text goes to many languages: each distinct text and context is
@@ -109,7 +115,7 @@ export async function enqueueJobs(
       continue;
     const namespace = item.namespace ?? "ui";
     if (!NAMESPACE_PATTERN.test(namespace)) throw new Error("Invalid namespace.");
-    if (!canQueueText(namespace, source.code, text))
+    if (!canQueueText(namespace, source.code, text, catalogue))
       throw new Error(
         "Private or non-catalogue page text cannot be persisted in the translation job queue.",
       );
@@ -244,7 +250,7 @@ export async function enqueueCatalogue(
     .map((code) => getLanguage(code))
     .filter((l): l is LanguageDefinition => Boolean(l?.enabled) && !disabled.has(l!.code))
     .filter((l) => translatableLanguages().includes(l));
-  const strings = Object.keys(UI_DICTIONARY[SOURCE_LANGUAGE] ?? {});
+  const strings = [...(await publicCatalogue(await db()))];
   const items: EnqueueItem[] = [];
   for (const language of languages) {
     for (const text of strings) {
@@ -327,6 +333,11 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
     const disabled = await disabledLanguages(client);
     const memory = createPostgresMemoryStore(client);
     const glossary = createPostgresGlossaryStore(client);
+    const catalogue = jobs.some(
+      (job) => job.namespace === "ui" && !STATIC_CATALOGUE.has(job.source_text.trim()),
+    )
+      ? await publicCatalogue(client)
+      : STATIC_CATALOGUE;
 
     // Jobs that share a language pair and context go to the engine together.
     const groups = new Map<string, JobRow[]>();
@@ -369,7 +380,11 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
       };
       let result: Awaited<ReturnType<typeof runTranslationPipeline>>;
       try {
-        if (group.some((job) => !canQueueText(job.namespace, job.source_language, job.source_text)))
+        if (
+          group.some(
+            (job) => !canQueueText(job.namespace, job.source_language, job.source_text, catalogue),
+          )
+        )
           throw new Error(
             "Private or non-catalogue page text cannot be processed from the persistent job queue.",
           );
@@ -382,6 +397,7 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
             context: first.context,
             persist: true,
             mode: "quality",
+            mayPersist: first.namespace === "ui" ? (text) => catalogue.has(text.trim()) : undefined,
             // Keyed messages are always translated in quality mode here, even
             // if a visitor's page already got a fast (realtime) translation
             // into memory; the new one replaces it only if it passes the

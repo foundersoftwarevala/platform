@@ -4,6 +4,7 @@ import {
   applyTranslations,
   collectTargets,
   isTranslatableText,
+  inTranslationViewport,
   restoreOriginals,
   uniqueStrings,
   type Target,
@@ -37,6 +38,27 @@ export function PageTranslator() {
     let cancelled = false;
     let scheduled: ReturnType<typeof setTimeout> | null = null;
     const english = lang === "en";
+    const watched = new Set<Element>();
+    const visible = (target: Target) => {
+      const element = target.kind === "text" ? target.node.parentElement : target.element;
+      if (!element) return false;
+      const box = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        style.visibility !== "hidden" &&
+        style.visibility !== "collapse" &&
+        inTranslationViewport(box, { width: window.innerWidth, height: window.innerHeight })
+      );
+    };
+    const intersection =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver(
+            (entries) => {
+              if (entries.some((entry) => entry.isIntersecting)) schedule();
+            },
+            { rootMargin: "200px 0px" },
+          );
 
     const translateTitle = () => {
       const current = document.title;
@@ -65,6 +87,20 @@ export function PageTranslator() {
         restoreOriginals(targets, originals.current);
         return;
       }
+      for (const target of targets) {
+        const element = target.kind === "text" ? target.node.parentElement : target.element;
+        if (element && !watched.has(element)) {
+          watched.add(element);
+          intersection?.observe(element);
+        }
+      }
+      for (const element of watched) {
+        if (!element.isConnected) {
+          intersection?.unobserve(element);
+          watched.delete(element);
+        }
+      }
+      targets = targets.filter(visible);
       // Text rendered through t() is already in this language (see isRendered).
       targets = targets.filter((target) => {
         const current =
@@ -92,6 +128,9 @@ export function PageTranslator() {
     };
 
     schedule(0);
+    const viewportChanged = () => schedule();
+    window.addEventListener("scroll", viewportChanged, { passive: true, capture: true });
+    window.addEventListener("resize", viewportChanged, { passive: true });
 
     const observer = new MutationObserver((records) => {
       // Ignore the writes this component just made.
@@ -122,6 +161,9 @@ export function PageTranslator() {
       if (scheduled) clearTimeout(scheduled);
       observer.disconnect();
       titleObserver.disconnect();
+      intersection?.disconnect();
+      window.removeEventListener("scroll", viewportChanged, true);
+      window.removeEventListener("resize", viewportChanged);
     };
     // `version` changes when a batch of translations arrives, which re-runs the pass.
   }, [lang, translate, isRendered, version]);

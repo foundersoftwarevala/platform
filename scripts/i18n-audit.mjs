@@ -179,7 +179,7 @@ function exempt(node, sourceText, lineStarts) {
   return /i18n-ignore/.test(sourceText.slice(prevStart, end));
 }
 
-function scan(file) {
+function scan(file, fullText = false) {
   const text = readFileSync(file, "utf8");
   const source = ts.createSourceFile(
     file,
@@ -205,7 +205,7 @@ function scan(file) {
       line: line + 1,
       kind,
       status,
-      text: value.replace(/\s+/g, " ").trim().slice(0, 120),
+      text: fullText ? value.trim() : value.replace(/\s+/g, " ").trim().slice(0, 120),
     });
   };
   const visit = (node) => {
@@ -283,10 +283,20 @@ function scan(file) {
   return findings;
 }
 
-export function audit() {
+export function audit({ fullText = false } = {}) {
   const all = [];
-  for (const file of files(SRC)) all.push(...scan(file));
+  for (const file of files(SRC)) all.push(...scan(file, fullText));
   return all;
+}
+
+function publicSourceTexts(findings) {
+  return [
+    ...new Set(
+      findings
+        .filter((finding) => finding.status === "hardcoded" && finding.kind !== "api-error")
+        .flatMap((finding) => [finding.text, finding.text.replace(/\s+/g, " ").trim()]),
+    ),
+  ].sort();
 }
 
 function summarise(findings) {
@@ -315,10 +325,19 @@ if (
   import.meta.url === `file://${process.argv[1]}` ||
   process.argv[1]?.endsWith("i18n-audit.mjs")
 ) {
-  const findings = audit();
+  const findings = audit({ fullText: args[0] === "--public-source" });
   const { totals, byModule } = summarise(findings);
   const total = totals.keyed + totals.exempt + totals.hardcoded;
 
+  if (args[0] === "--public-source") {
+    const texts = publicSourceTexts(findings);
+    writeFileSync(
+      join(ROOT, "src", "lib", "i18n", "ui-source.generated.json"),
+      JSON.stringify(texts, null, 2) + "\n",
+    );
+    console.log(`Registered ${texts.length} existing static interface strings.`);
+    process.exit(0);
+  }
   if (args[0] === "--json") {
     writeFileSync(args[1] ?? "i18n-audit.json", JSON.stringify(findings, null, 1));
   }
@@ -341,6 +360,17 @@ if (
       ),
       ...checkCatalogue(findings),
     ];
+    const generatedPath = join(ROOT, "src", "lib", "i18n", "ui-source.generated.json");
+    const generated = existsSync(generatedPath)
+      ? JSON.parse(readFileSync(generatedPath, "utf8"))
+      : null;
+    if (
+      JSON.stringify(generated) !== JSON.stringify(publicSourceTexts(audit({ fullText: true })))
+    ) {
+      problems.push(
+        "Static source catalogue is stale. Run node scripts/i18n-audit.mjs --public-source.",
+      );
+    }
     if (problems.length) {
       console.error(problems.join("\n"));
       process.exit(1);

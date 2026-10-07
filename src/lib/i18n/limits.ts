@@ -8,9 +8,8 @@
  * operator: admin and boss. Any namespace (catalogue content), everything
  *   they translate is written to memory.
  *
- * Request-rate limits are enforced per server instance. Engine work (measured
- * in source characters) is enforced in the database, so it holds across
- * instances; see public.i18n_consume_quota.
+ * Request-rate and engine-character limits use transactional PostgreSQL
+ * windows shared across instances; see quota.server.ts.
  */
 
 export type CallerTier = "anonymous" | "user" | "operator";

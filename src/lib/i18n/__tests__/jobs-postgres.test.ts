@@ -40,6 +40,11 @@ vi.mock("../pipeline", async (original) => ({
   runTranslationPipeline: mocks.pipeline,
 }));
 
+vi.mock("../catalogue.server", async (original) => ({
+  ...(await original<typeof import("../catalogue.server")>()),
+  publicCatalogue: async () => new Set<string>(),
+}));
+
 import { enqueueJobs, ensureJobWorker, runJobBatch } from "../jobs.server";
 
 const job = {

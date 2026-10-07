@@ -9,7 +9,7 @@ import type { GlossaryTerm } from "./glossary";
 import { sourceHash } from "./hash";
 import { SingleFlight, TtlCache } from "./hot-cache";
 import { ANONYMOUS_DAILY_ENGINE_CHARS, TIER_LIMITS, type CallerTier } from "./limits";
-import { allMessages } from "./messages";
+import { STATIC_CATALOGUE, publicCatalogue, invalidatePublicCatalogue } from "./catalogue.server";
 import { count, observe, type CacheStats } from "./metrics.server";
 import { persistenceRule } from "./persist-policy";
 import {
@@ -24,7 +24,6 @@ import {
 } from "./pipeline";
 import { reserveEngineQuota } from "./quota.server";
 import { sessionCaller } from "./session.server";
-import { UI_DICTIONARY } from "./ui-dictionary";
 
 export { db };
 export const QUALITY_ATTEMPTED_MODE = "quality_attempted";
@@ -362,10 +361,11 @@ export function createPostgresGlossaryStore(client: Sql): GlossaryStore {
 export type LanguagePack = { body: string; etag: string; count: number };
 
 export async function languagePack(code: string): Promise<LanguagePack> {
+  const client = await db();
+  const publicTexts = await publicCatalogue(client);
   const cached = packCache.get(code);
   if (cached) return cached;
   return packFlight.run(code, async () => {
-    const client = await db();
     const started = performance.now();
     const rows = await client`
       select source_text, context, translated_text, status
@@ -377,7 +377,7 @@ export async function languagePack(code: string): Promise<LanguagePack> {
     const catalogue = new Map<string, string>();
     const withheld: string[] = [];
     for (const row of rows) {
-      if (!isCatalogueText(row.source_text)) continue;
+      if (!isCatalogueText(row.source_text, publicTexts)) continue;
       const key = `${row.context ?? ""}${PACK_SEPARATOR}${row.source_text}`;
       if (["needs_review", "rejected", "stale"].includes(row.status)) {
         withheld.push(key);
@@ -416,6 +416,7 @@ export async function languagePack(code: string): Promise<LanguagePack> {
 }
 
 export function invalidateTranslationCaches() {
+  invalidatePublicCatalogue();
   memoryCache.deletePrefix("");
   glossaryCache.deletePrefix("");
   packCache.deletePrefix("");
@@ -467,12 +468,11 @@ export async function resolveCaller(
   return { tier: "anonymous", subject: `anon:${await sourceHash(address)}`, userId: null };
 }
 
-const CATALOGUE = new Set([
-  ...Object.keys(UI_DICTIONARY.en ?? {}),
-  ...allMessages().map((m) => m.text),
-]);
-export function isCatalogueText(text: string): boolean {
-  return CATALOGUE.has(text);
+export function isCatalogueText(
+  text: string,
+  catalogue: ReadonlySet<string> = STATIC_CATALOGUE,
+): boolean {
+  return catalogue.has(text.trim());
 }
 
 export async function translateForCaller(
@@ -480,6 +480,7 @@ export async function translateForCaller(
   caller: Caller,
 ): Promise<PipelineResult> {
   const client = await db();
+  const catalogue = await publicCatalogue(client);
   const disabled = await disabledLanguages(client);
   const limits = TIER_LIMITS[caller.tier];
   let refund: (() => Promise<void>) | undefined;
@@ -494,7 +495,9 @@ export async function translateForCaller(
   return runTranslationPipeline(
     {
       ...request,
-      mayPersist: persistenceRule(request.namespace ?? "ui", caller.tier, isCatalogueText),
+      mayPersist: persistenceRule(request.namespace ?? "ui", caller.tier, (text) =>
+        isCatalogueText(text, catalogue),
+      ),
     },
     {
       engine: getTranslationEngine(),

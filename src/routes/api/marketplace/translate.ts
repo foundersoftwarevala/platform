@@ -195,11 +195,13 @@ async function handleTranslate(request: Request): Promise<Response> {
         if (unfinished.length) {
           const { enqueueJobs } = await import("@/lib/i18n/jobs.server");
           const { isCatalogueText } = await import("@/lib/i18n/service.server");
+          const { publicCatalogue } = await import("@/lib/i18n/catalogue.server");
+          const catalogue = await publicCatalogue(await db());
           // Never publish a visitor's arbitrary page text or private chat to
           // the shared background translation memory after a timeout.
           const publicTexts =
             namespace === "ui" && parsed.persist !== false && request.source !== null
-              ? unfinished.filter(isCatalogueText)
+              ? unfinished.filter((text) => isCatalogueText(text, catalogue))
               : [];
           enqueueJobs(
             publicTexts.map((text) => ({

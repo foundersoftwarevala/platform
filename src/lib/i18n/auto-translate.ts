@@ -44,6 +44,20 @@ const LETTER = /\p{L}/u;
 /** Placeholders and format tokens are not words. */
 const TOKENS = /⟦[^⟧]*⟧|\{\{?[^{}]*\}?\}|%(?:\d+\$)?[sdif@]/g;
 
+export function inTranslationViewport(
+  box: Pick<DOMRect, "width" | "height" | "top" | "bottom" | "left" | "right">,
+  viewport: { width: number; height: number },
+): boolean {
+  return (
+    box.width > 0 &&
+    box.height > 0 &&
+    box.bottom >= -200 &&
+    box.top <= viewport.height + 200 &&
+    box.right >= 0 &&
+    box.left <= viewport.width
+  );
+}
+
 /** Text that is only a placeholder, number, symbol or code-like token is left alone. */
 export function isTranslatableText(value: string): boolean {
   const trimmed = value.trim();
