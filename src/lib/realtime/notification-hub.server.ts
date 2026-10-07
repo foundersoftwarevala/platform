@@ -129,3 +129,61 @@ export function subscribe(userId: string, fn: Listener): () => void {
     if (s.size === 0) listeners.delete(userId);
   };
 }
+
+/**
+ * Chat Manager's live queue. Every Chat change is announced once on
+ * sv_chat_manager (20261108T099000) without a recipient; it is handed only to
+ * streams whose person was verified as a Chat manager when the stream opened.
+ * Managers so see conversations they are not part of, without one database
+ * notification per manager.
+ */
+const managerListeners = new Set<Listener>();
+let managerListening: Promise<boolean> | null = null;
+
+function deliverToManagers(raw: string) {
+  let a: Announcement;
+  try {
+    a = JSON.parse(raw) as Announcement;
+  } catch {
+    return;
+  }
+  for (const fn of managerListeners) {
+    try {
+      fn(a);
+    } catch {
+      /* one broken stream never stops the others */
+    }
+  }
+}
+
+function ensureManagerListening(): Promise<boolean> {
+  if (managerListening) return managerListening;
+  const attempt = (async () => {
+    if (!(await ensureListening()) || !connection) return false;
+    await connection.listen("sv_chat_manager", deliverToManagers);
+    return true;
+  })()
+    .catch((error) => {
+      console.error(
+        "[notification-hub] could not listen for Chat Manager:",
+        error instanceof Error ? error.message : error,
+      );
+      return false;
+    })
+    .then((ok) => {
+      // A failed start is retried by the next manager stream.
+      if (!ok) managerListening = null;
+      return ok;
+    });
+  managerListening = attempt;
+  return attempt;
+}
+
+/** Receive every Chat change, for a stream already verified as a Chat manager's. */
+export async function subscribeChatManager(fn: Listener): Promise<() => void> {
+  if (!(await ensureManagerListening())) return () => {};
+  managerListeners.add(fn);
+  return () => {
+    managerListeners.delete(fn);
+  };
+}

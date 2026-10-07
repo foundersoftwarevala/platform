@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { AppSidebar, useSidebarState } from "@/components/lead-manager/AppSidebar";
+import { ChatAppButton } from "@/components/chat/ChatAppButton";
 
 import { NAV_SECTIONS, SECTION_SCREEN, STAGE_SECTIONS, SOURCE_FILTERS } from "@/lib/lead-manager/nav";
 import { useAgents, useLeads } from "@/lib/lead-manager/queries";
@@ -126,6 +127,7 @@ function LeadManagerPage() {
             >
               <Download className="h-4 w-4" />
             </button>
+            <ChatAppButton className="icon3d grid h-9 w-9 place-items-center rounded-xl text-muted-foreground hover:text-foreground" />
             <CreateLeadDialog onCreated={setSelected} />
           </div>
         </header>

@@ -23,6 +23,7 @@ import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { useMyPermissions, useMyProfile, useSupabaseSession } from "@/hooks/use-session";
 import {
+  MESSAGE_PAGE,
   useConversationRealtime,
   useConversations,
   useMessageActions,
@@ -33,11 +34,8 @@ import {
 import { usePreferences, playCue } from "@/hooks/use-preferences";
 import { fetchProfiles, setFavorite, setMuted, updatePresence } from "@/services/chat/chat-service";
 import type { ChatMessage, Profile } from "@/services/chat/types";
-import {
-  generateAiReply,
-  requestHumanHandoff,
-  setConversationAi,
-} from "@/lib/chat/ai.functions";
+import { generateAiReply, requestHumanHandoff, setConversationAi } from "@/lib/chat/ai.functions";
+import { openSupportConversation } from "@/lib/chat/support.functions";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
@@ -50,6 +48,7 @@ import { UserAvatar } from "./media";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { LanguageSelector } from "@/components/i18n/LanguageSelector";
+import "./chat-workspace.css";
 
 export function ChatWorkspace() {
   const { t } = useTranslation();
@@ -74,18 +73,31 @@ export function ChatWorkspace() {
   const [aiThinking, setAiThinking] = useState(false);
 
   useEffect(() => {
-    if (!sessionLoading && !userId) void navigate({ to: "/login" });
-  }, [sessionLoading, userId, navigate]);
+    if (!sessionLoading && !userId) window.location.assign("/login?redirect=%2Fchat");
+  }, [sessionLoading, userId]);
 
   const conversationsQuery = useConversations(userId);
   const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
 
   useEffect(() => {
-    if (!activeId && conversations.length > 0) setActiveId(conversations[0]!.id);
+    if (activeId) return;
+    const requestedId =
+      typeof window === "undefined"
+        ? null
+        : new URLSearchParams(window.location.search).get("conversationId");
+    if (requestedId) {
+      if (conversations.some((conversation) => conversation.id === requestedId)) {
+        setActiveId(requestedId);
+      }
+      return;
+    }
+    if (conversations.length > 0) setActiveId(conversations[0]!.id);
   }, [activeId, conversations]);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
-  const messagesQuery = useMessages(activeId, userId);
+  const [messageLimit, setMessageLimit] = useState(MESSAGE_PAGE);
+  useEffect(() => setMessageLimit(MESSAGE_PAGE), [activeId]);
+  const messagesQuery = useMessages(activeId, userId, messageLimit);
   const messages = useMemo(() => messagesQuery.data ?? [], [messagesQuery.data]);
 
   const participantIds = useMemo(() => {
@@ -116,7 +128,10 @@ export function ChatWorkspace() {
     onIncomingMessage: onIncoming,
   });
 
-  const { pending, uploads, queueFiles, cancelUpload, send, retry, discard } = useSendMessage(activeId, userId);
+  const { pending, uploads, queueFiles, cancelUpload, send, retry, discard } = useSendMessage(
+    activeId,
+    userId,
+  );
   const actions = useMessageActions(activeId, userId);
   useReadReceipts(activeId, userId, messages);
 
@@ -137,13 +152,18 @@ export function ChatWorkspace() {
   const searchResults = useMemo(() => {
     const clean = term.trim().toLowerCase();
     if (!clean) return [];
-    return messages.filter((m) => m.body.toLowerCase().includes(clean)).slice(-40).reverse();
+    return messages
+      .filter((m) => m.body.toLowerCase().includes(clean))
+      .slice(-40)
+      .reverse();
   }, [messages, term]);
 
   const scrollTo = (id: string) => {
     setHighlightId(id);
     window.setTimeout(() => {
-      document.getElementById(`message-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document
+        .getElementById(`message-${id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 30);
     window.setTimeout(() => setHighlightId(null), 2600);
   };
@@ -151,6 +171,29 @@ export function ChatWorkspace() {
   const askAi = useServerFn(generateAiReply);
   const toggleAi = useServerFn(setConversationAi);
   const askHuman = useServerFn(requestHumanHandoff);
+  const openSupport = useServerFn(openSupportConversation);
+
+  // Only people who run conversations choose participants. Everyone else talks
+  // to Software Vala through the one support conversation the server opens.
+  const canRunConversations =
+    can("conversation.manage") || can("chat.assign") || can("chat.manage");
+  const startConversation = useCallback(async () => {
+    if (canRunConversations) {
+      setNewOpen(true);
+      return;
+    }
+    try {
+      const result = await openSupport();
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
+      setActiveId(result.conversationId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("chat.start_support_failed"));
+    }
+  }, [canRunConversations, openSupport, queryClient, userId, t]);
 
   /** Runs the real AI turn on the server; failures never break the sent message. */
   const runAiTurn = useCallback(
@@ -205,7 +248,11 @@ export function ChatWorkspace() {
   const showList = !activeId;
 
   if (sessionLoading) {
-    return <div className="grid h-screen place-items-center bg-background text-sm text-muted-foreground">{t("chat.loading")}</div>;
+    return (
+      <div className="grid h-screen place-items-center bg-background text-sm text-muted-foreground">
+        {t("chat.loading")}
+      </div>
+    );
   }
   if (!userId) return null;
 
@@ -217,7 +264,8 @@ export function ChatWorkspace() {
         workspace by hand. Typing into the composer is unaffected.
       */}
       <main
-        className="flex h-[100dvh] w-full select-none overflow-hidden bg-background"
+        className="sv-connect-chat flex h-[100dvh] w-full select-none overflow-hidden bg-gradient-to-br from-background via-background to-primary/[0.04]"
+        data-theme={prefs.theme}
         onContextMenu={(event) => {
           const target = event.target as HTMLElement;
           if (target.closest("input, textarea, [contenteditable='true']")) return;
@@ -235,7 +283,12 @@ export function ChatWorkspace() {
         }}
         onDragStart={(event) => event.preventDefault()}
       >
-        <div className={cn("h-full w-full shrink-0 md:w-80 md:border-r md:border-border/60", showList ? "flex" : "hidden md:flex")}>
+        <div
+          className={cn(
+            "h-full w-full shrink-0 md:w-[330px] md:border-r md:border-border/60",
+            showList ? "flex" : "hidden md:flex",
+          )}
+        >
           <ConversationSidebar
             conversations={conversations}
             loading={conversationsQuery.isLoading}
@@ -246,31 +299,46 @@ export function ChatWorkspace() {
               setThreadParent(null);
               setReplyTo(null);
             }}
-            onNew={() => setNewOpen(true)}
+            onNew={() => void startConversation()}
+            canStartNew={
+              canRunConversations ||
+              !conversations.some(
+                (c) => c.kind === "support" && !["closed", "resolved"].includes(c.status),
+              )
+            }
           />
         </div>
 
         <section
           ref={mobilePane}
-          className={cn("flex h-full min-w-0 flex-1 flex-col", showList ? "hidden md:flex" : "flex")}
+          className={cn(
+            "flex h-full min-h-0 min-w-0 flex-1 flex-col",
+            showList ? "hidden md:flex" : "flex",
+          )}
         >
-          <header className="flex items-center gap-2 border-b border-border/60 bg-card/50 px-2 py-1.5 sm:px-3">
+          <header className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border/60 bg-card/90 px-2.5 py-2 shadow-sm sm:gap-2.5 sm:px-5">
             <Button
               variant="ghost"
               size="icon"
-              className="size-8 md:hidden"
+              className="size-8 rounded-lg md:hidden sm:size-9 sm:rounded-xl"
               aria-label={t("chat.header.back")}
               onClick={() => setActiveId(null)}
             >
               <ArrowLeft className="size-4" />
             </Button>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{active?.subject ?? t("chat.header.select_conversation")}</p>
+            <div className="min-w-0 flex-1 basis-[calc(100%-3rem)] xl:basis-0">
+              <p className="truncate text-sm font-semibold tracking-tight">
+                {active?.subject ?? t("chat.header.select_conversation")}
+              </p>
               <p className="flex items-center gap-1.5 truncate text-[11px] text-muted-foreground">
                 <span
                   className={cn(
                     "size-1.5 rounded-full",
-                    connection === "live" ? "bg-emerald-500" : connection === "offline" ? "bg-destructive" : "bg-amber-500",
+                    connection === "live"
+                      ? "bg-emerald-500"
+                      : connection === "offline"
+                        ? "bg-destructive"
+                        : "bg-amber-500",
                   )}
                 />
                 {t("chat.header.connection", { state: connection })}
@@ -285,39 +353,46 @@ export function ChatWorkspace() {
             </Badge>
             {active ? (
               <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={active.ai_enabled ? "default" : "ghost"}
-                      size="icon"
-                      className="size-8"
-                      aria-label={t("chat.header.toggle_ai")}
-                      onClick={async () => {
-                        const result = await toggleAi({
-                          data: { conversationId: active.id, enabled: !active.ai_enabled },
-                        });
-                        if (!result.ok) {
-                          toast.error(result.error);
-                          return;
-                        }
-                        await queryClient.invalidateQueries({ queryKey: ["conversations"] });
-                      }}
-                    >
-                      <Bot className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{active.ai_enabled ? t("chat.header.ai_on") : t("chat.header.ai_off")}</TooltipContent>
-                </Tooltip>
+                {canRunConversations ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={active.ai_enabled ? "default" : "ghost"}
+                        size="icon"
+                        className="size-8 rounded-lg sm:size-9 sm:rounded-xl"
+                        aria-label={t("chat.header.toggle_ai")}
+                        onClick={async () => {
+                          const result = await toggleAi({
+                            data: { conversationId: active.id, enabled: !active.ai_enabled },
+                          });
+                          if (!result.ok) {
+                            toast.error(result.error);
+                            return;
+                          }
+                          await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+                        }}
+                      >
+                        <Bot className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {active.ai_enabled ? t("chat.header.ai_on") : t("chat.header.ai_off")}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : null}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="size-8"
+                      className="size-8 rounded-lg sm:size-9 sm:rounded-xl"
                       aria-label={t("chat.header.talk_to_human_agent")}
                       onClick={async () => {
                         const result = await askHuman({
-                          data: { conversationId: active.id, reason: "User asked for a human agent." },
+                          data: {
+                            conversationId: active.id,
+                            reason: "User asked for a human agent.",
+                          },
                         });
                         if (!result.ok) {
                           toast.error(result.error);
@@ -339,21 +414,26 @@ export function ChatWorkspace() {
                 <Button
                   variant={prefs.autoTranslate ? "default" : "ghost"}
                   size="icon"
-                  className="size-8"
+                  className={cn(
+                    "size-8 rounded-lg sm:size-9 sm:rounded-xl",
+                    prefs.autoTranslate && "chat-brand-gradient",
+                  )}
                   aria-label={t("chat.header.toggle_translation")}
                   onClick={() => update({ autoTranslate: !prefs.autoTranslate })}
                 >
                   <Languages className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{t("chat.header.realtime_translate", { language: prefs.language.toUpperCase() })}</TooltipContent>
+              <TooltipContent>
+                {t("chat.header.realtime_translate", { language: prefs.language.toUpperCase() })}
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="size-8 rounded-lg sm:size-9 sm:rounded-xl"
                   aria-label={t("chat.header.search")}
                   onClick={() => setSearchOpen((v) => !v)}
                 >
@@ -367,7 +447,7 @@ export function ChatWorkspace() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="size-8 rounded-lg sm:size-9 sm:rounded-xl"
                   aria-label={t("chat.header.details")}
                   onClick={() => setDetailsOpen((v) => !v)}
                 >
@@ -379,7 +459,13 @@ export function ChatWorkspace() {
             <LanguageSelector showName={false} />
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="size-8" aria-label={t("chat.header.preferences")} onClick={() => setPrefsOpen(true)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 rounded-lg sm:size-9 sm:rounded-xl"
+                  aria-label={t("chat.header.preferences")}
+                  onClick={() => setPrefsOpen(true)}
+                >
                   <Settings className="size-4" />
                 </Button>
               </TooltipTrigger>
@@ -387,18 +473,29 @@ export function ChatWorkspace() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button type="button" aria-label={t("chat.header.my_profile")} onClick={() => setProfileOpen(true)}>
-                  <UserAvatar name={shownName} avatarPath={myProfile?.avatar_path} className="size-8" />
+                <button
+                  type="button"
+                  aria-label={t("chat.header.my_profile")}
+                  onClick={() => setProfileOpen(true)}
+                >
+                  <UserAvatar
+                    name={shownName}
+                    avatarPath={myProfile?.avatar_path}
+                    className="size-8"
+                  />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>{shownName}{roles[0] ? ` · ${roles[0]}` : ""}</TooltipContent>
+              <TooltipContent>
+                {shownName}
+                {roles[0] ? ` · ${roles[0]}` : ""}
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="size-8 rounded-lg sm:size-9 sm:rounded-xl"
                   aria-label={t("chat.sign_out")}
                   onClick={async () => {
                     await supabase.auth.signOut();
@@ -441,7 +538,9 @@ export function ChatWorkspace() {
               {term.trim() ? (
                 <ul className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-border/60">
                   {searchResults.length === 0 ? (
-                    <li className="px-2 py-2 text-xs text-muted-foreground">{t("chat.search.no_matches")}</li>
+                    <li className="px-2 py-2 text-xs text-muted-foreground">
+                      {t("chat.search.no_matches")}
+                    </li>
                   ) : (
                     searchResults.map((m) => (
                       <li key={m.id}>
@@ -451,7 +550,9 @@ export function ChatWorkspace() {
                           className="block w-full truncate px-2 py-1.5 text-left text-xs hover:bg-secondary/60"
                         >
                           <span className="font-medium">
-                            {t("chat.search.sender", { name: profilesById.get(m.sender_id)?.display_name ?? t("chat.member") })}{" "}
+                            {t("chat.search.sender", {
+                              name: profilesById.get(m.sender_id)?.display_name ?? t("chat.member"),
+                            })}{" "}
                           </span>
                           {m.body}
                         </button>
@@ -476,12 +577,18 @@ export function ChatWorkspace() {
                 canReply={can("message.send")}
                 canBookmark={can("message.bookmark")}
                 canDownload={can("attachment.download")}
+                canSeeOriginal={can("chat.manage")}
+                hasEarlier={messages.length >= messageLimit}
+                loadingEarlier={messagesQuery.isFetching && messagesQuery.isPlaceholderData}
+                onLoadEarlier={() => setMessageLimit((current) => current + MESSAGE_PAGE)}
                 translateTarget={prefs.language}
                 autoTranslate={prefs.autoTranslate}
                 density={prefs.density}
                 highlightId={highlightId}
                 onReact={(id, emoji, activeState) => void actions.react(id, emoji, activeState)}
-                onBookmark={(id, pinned, activeState) => void actions.bookmark(id, pinned, activeState)}
+                onBookmark={(id, pinned, activeState) =>
+                  void actions.bookmark(id, pinned, activeState)
+                }
                 onReply={setReplyTo}
                 onOpenThread={setThreadParent}
                 onRetry={(ref) => void retry(ref)}
@@ -510,8 +617,8 @@ export function ChatWorkspace() {
                 <UserRound className="mx-auto size-8 text-muted-foreground" />
                 <p className="mt-2 text-sm font-medium">{t("chat.empty.title")}</p>
                 <p className="text-xs text-muted-foreground">{t("chat.empty.hint")}</p>
-                <Button className="mt-3 h-8 text-xs" onClick={() => setNewOpen(true)}>
-                  {t("chat.new_conversation")}
+                <Button className="mt-3 h-8 text-xs" onClick={() => void startConversation()}>
+                  {canRunConversations ? t("chat.new_conversation") : t("chat.start_support")}
                 </Button>
               </div>
             </div>
@@ -519,7 +626,7 @@ export function ChatWorkspace() {
         </section>
 
         {active && threadParent ? (
-          <div className="fixed inset-0 z-40 bg-background md:static md:z-auto md:flex">
+          <div className="fixed inset-0 z-40 min-h-0 min-w-0 bg-background lg:static lg:z-auto lg:flex lg:w-80 lg:shrink-0 xl:w-96">
             <ThreadPanel
               parent={threadParent}
               messages={messages}
@@ -534,12 +641,13 @@ export function ChatWorkspace() {
             />
           </div>
         ) : active && detailsOpen ? (
-          <div className="fixed inset-0 z-40 bg-background md:static md:z-auto md:flex">
+          <div className="fixed inset-0 z-40 min-h-0 min-w-0 bg-background lg:static lg:z-auto lg:flex lg:w-72 lg:shrink-0 xl:w-80">
             <ContextPanel
               conversation={active}
               profilesById={profilesById}
               userId={userId}
               onClose={() => setDetailsOpen(false)}
+              canHandle={canRunConversations}
               onToggleFavorite={async () => {
                 await setFavorite(active.id, userId, !(active.membership?.favorite ?? false));
                 await queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
@@ -552,17 +660,29 @@ export function ChatWorkspace() {
           </div>
         ) : null}
 
-        <NewConversationDialog
-          open={newOpen}
-          onOpenChange={setNewOpen}
-          userId={userId}
-          onCreated={(id) => {
-            void queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
-            setActiveId(id);
-          }}
+        {canRunConversations ? (
+          <NewConversationDialog
+            open={newOpen}
+            onOpenChange={setNewOpen}
+            userId={userId}
+            onCreated={(id) => {
+              void queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
+              setActiveId(id);
+            }}
+          />
+        ) : null}
+        <PreferencesDialog
+          open={prefsOpen}
+          onOpenChange={setPrefsOpen}
+          prefs={prefs}
+          update={update}
         />
-        <PreferencesDialog open={prefsOpen} onOpenChange={setPrefsOpen} prefs={prefs} update={update} />
-        <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} userId={userId} profile={myProfile ?? null} />
+        <ProfileDialog
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+          userId={userId}
+          profile={myProfile ?? null}
+        />
       </main>
     </TooltipProvider>
   );

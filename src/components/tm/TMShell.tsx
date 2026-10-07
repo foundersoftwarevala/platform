@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Bell, CheckCheck, Menu, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -153,6 +154,10 @@ export function TMShell() {
           >
             <Search className="h-[18px] w-[18px]" />
           </button>
+          <ChatAppButton
+            className="icon3d relative grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:text-foreground"
+            iconClassName="h-[18px] w-[18px]"
+          />
           <Popover>
             <PopoverTrigger asChild>
               <button

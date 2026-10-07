@@ -55,7 +55,7 @@ function timed(provider: TranslationProvider): TranslationProvider {
 
 let engine: TranslationEngine | undefined;
 
-function engineEndpoints(): string[] {
+export function engineEndpoints(): string[] {
   return [
     ...new Set(
       (process.env.TRANSLATE_PROVIDER_URLS ?? process.env.TRANSLATE_PROVIDER_URL ?? "")

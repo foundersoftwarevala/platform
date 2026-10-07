@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ensureListening, subscribe } from "@/lib/realtime/notification-hub.server";
+import {
+  ensureListening,
+  subscribe,
+  subscribeChatManager,
+  type Announcement,
+} from "@/lib/realtime/notification-hub.server";
 
 /**
  * The signed-in person's notifications, live, as server-sent events.
@@ -48,8 +53,27 @@ export const Route = createFileRoute("/api/notifications/stream")({
           return Response.json({ error: "Live notifications are not available" }, { status: 503 });
         }
 
+        // A Chat manager also follows every Chat change (the live queue), not
+        // only the conversations they are part of. Checked once, here, against
+        // the canonical database; a stream opened later re-checks.
+        let manager = false;
+        try {
+          const { withChatPlatformDatabase } = await import("@/lib/chat/manager-db.server");
+          manager = await withChatPlatformDatabase(async (tx) => {
+            const [row] = await tx<{ allowed: boolean }[]>`
+              select public.has_permission(${user.id}::uuid, 'chat.manage') as allowed
+            `;
+            return row?.allowed === true;
+          });
+        } catch (error) {
+          console.error(
+            "[notifications/stream] Chat manager check failed:",
+            error instanceof Error ? error.message : error,
+          );
+        }
         const encoder = new TextEncoder();
         let cleanup = () => {};
+        let closed = false;
         const body = new ReadableStream<Uint8Array>({
           start(controller) {
             const send = (text: string) => {
@@ -60,17 +84,27 @@ export const Route = createFileRoute("/api/notifications/stream")({
               }
             };
             send(`event: ready\ndata: {}\n\n`);
-            const unsubscribe = subscribe(user.id, (a) => {
-              send(`event: notification\ndata: ${JSON.stringify({ id: a.id, event: a.event, ledger_id: a.ledger_id ?? null, conversation_id: a.conversation_id ?? null, sender_id: a.sender_id ?? null })}\n\n`);
-            });
+            const forward = (a: Announcement) => {
+              send(
+                `event: notification\ndata: ${JSON.stringify({ id: a.id, event: a.event, ledger_id: a.ledger_id ?? null, conversation_id: a.conversation_id ?? null, sender_id: a.sender_id ?? null })}\n\n`,
+              );
+            };
+            const unsubscribe = subscribe(user.id, forward);
+            let unsubscribeManager = () => {};
+            if (manager) {
+              void subscribeChatManager(forward).then((stop) => {
+                if (closed) stop();
+                else unsubscribeManager = stop;
+              });
+            }
             // A comment line every so often keeps proxies from closing an idle stream.
             const beat = setInterval(() => send(`: ping\n\n`), HEARTBEAT_MS);
-            let closed = false;
             cleanup = () => {
               if (closed) return;
               closed = true;
               clearInterval(beat);
               unsubscribe();
+              unsubscribeManager();
               try {
                 controller.close();
               } catch {

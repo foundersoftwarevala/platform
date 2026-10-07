@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { leadApi } from "@/lib/lead-manager/api";
+import { OpenLinkedConversation } from "@/components/chat/user/ConversationLinks";
 import {
   leadKeys,
   useAgents,
@@ -135,6 +136,7 @@ export function LeadDetailSheet({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <OpenLinkedConversation entityType="lead" entityId={lead.id} />
             <Button
               size="sm"
               onClick={() =>

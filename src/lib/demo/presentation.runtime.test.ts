@@ -117,7 +117,9 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
     '<section id="contact"><div><div><h2>Contact Us</h2></div><div><article><h3>Email</h3><p>info@nursinginstitute.edu</p></article><article><h3>Phone</h3><p>+91 98765 43210</p></article></div></div></section>',
   );
   await expect
-    .poll(() => document.querySelector("footer")?.textContent)
+    // The presentation waits 2 s after load (hydration settles) before it
+    // starts rewriting; the first poll covers that deliberate delay.
+    .poll(() => document.querySelector("footer")?.textContent, { timeout: 5000 })
     .toContain(SOFTWARE_VALA_CONTACT.email);
   expect(document.querySelector("footer")?.textContent).toContain(SOFTWARE_VALA_CONTACT.phone);
   expect(document.querySelector('a[href^="mailto:"]')?.getAttribute("href")).toBe(
@@ -182,4 +184,4 @@ it("replaces late-rendered vendor contacts without deleting contact actions or a
   expect(document.querySelector("[data-record-card] a")?.getAttribute("href")).toBe(
     "mailto:info@nursinginstitute.edu",
   );
-});
+}, 15_000);

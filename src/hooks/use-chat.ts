@@ -8,10 +8,11 @@ import {
   insertAttachmentRecord,
   insertMessage,
   markConversationRead,
+  prepareUpload,
   setBookmark,
   toggleReaction,
 } from "@/services/chat/chat-service";
-import { uploadToBucket } from "@/services/chat/upload";
+import { uploadToSignedPath } from "@/services/chat/upload";
 import { subscribeNotificationStream } from "@/lib/realtime/notification-stream";
 import { mediaKindFor, type ChatMessage, type DraftAttachment } from "@/services/chat/types";
 
@@ -38,11 +39,19 @@ export function useConversations(userId: string | null) {
   });
 }
 
-export function useMessages(conversationId: string | null, userId: string | null) {
+export const MESSAGE_PAGE = 100;
+
+export function useMessages(
+  conversationId: string | null,
+  userId: string | null,
+  limit = MESSAGE_PAGE,
+) {
   return useQuery({
-    queryKey: ["messages", conversationId],
+    queryKey: ["messages", conversationId, limit],
     enabled: !!conversationId && !!userId,
-    queryFn: () => fetchMessages(conversationId!, userId!),
+    queryFn: () => fetchMessages(conversationId!, userId!, limit),
+    // Showing the earlier page while a larger one loads avoids a blank list.
+    placeholderData: (previous) => previous,
   });
 }
 
@@ -78,7 +87,12 @@ export function useConversationRealtime(options: {
     channel
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
         (payload) => {
           const row = payload.new as { sender_id: string };
           if (row.sender_id !== userId) incomingRef.current?.(row.sender_id);
@@ -87,7 +101,11 @@ export function useConversationRealtime(options: {
       )
       .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "message_receipts" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "message_attachments" }, refresh)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "message_attachments" },
+        refresh,
+      )
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () =>
         queryClient.invalidateQueries({ queryKey: ["conversations", userId] }),
       )
@@ -95,10 +113,15 @@ export function useConversationRealtime(options: {
         const who = payload as { userId: string; name: string; typing: boolean };
         if (who.userId === userId) return;
         setTypingUsers((prev) =>
-          who.typing ? Array.from(new Set([...prev, who.name])) : prev.filter((n) => n !== who.name),
+          who.typing
+            ? Array.from(new Set([...prev, who.name]))
+            : prev.filter((n) => n !== who.name),
         );
         if (who.typing) {
-          window.setTimeout(() => setTypingUsers((prev) => prev.filter((n) => n !== who.name)), 4000);
+          window.setTimeout(
+            () => setTypingUsers((prev) => prev.filter((n) => n !== who.name)),
+            4000,
+          );
         }
       })
       .on("presence", { event: "sync" }, () => {
@@ -121,8 +144,14 @@ export function useConversationRealtime(options: {
     // database writes.
     const unsubscribe = subscribeNotificationStream((e) => {
       if (e.type === "open") return refresh();
-      if (e.type !== "notification" || e.conversation_id !== conversationId || !e.event?.startsWith("chat.")) return;
-      if (e.event === "chat.message" && e.sender_id && e.sender_id !== userId) incomingRef.current?.(e.sender_id);
+      if (
+        e.type !== "notification" ||
+        e.conversation_id !== conversationId ||
+        !e.event?.startsWith("chat.")
+      )
+        return;
+      if (e.event === "chat.message" && e.sender_id && e.sender_id !== userId)
+        incomingRef.current?.(e.sender_id);
       refresh();
     });
 
@@ -191,7 +220,12 @@ export function useSendMessage(conversationId: string | null, userId: string | n
   }, []);
 
   const send = useCallback(
-    async (input: { body: string; parentId?: string | null | undefined; mentions?: string[] | undefined; files?: DraftAttachment[] | undefined }) => {
+    async (input: {
+      body: string;
+      parentId?: string | null | undefined;
+      mentions?: string[] | undefined;
+      files?: DraftAttachment[] | undefined;
+    }) => {
       if (!conversationId || !userId) return;
       const files = input.files ?? uploads;
       const clientRef = `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -229,10 +263,20 @@ export function useSendMessage(conversationId: string | null, userId: string | n
         });
 
         for (const draft of files) {
-          const path = `${conversationId}/${message.id}/${crypto.randomUUID()}-${draft.file.name.replace(/[^\w.\-]+/g, "_")}`;
-          setUploads((prev) => prev.map((u) => (u.id === draft.id ? { ...u, state: "uploading" } : u)));
-          const handle = uploadToBucket({
-            bucket: "chat-files",
+          // The server authorizes the file against the conversation and signs
+          // a one-time slot in the chat bucket for it.
+          const slot = await prepareUpload({
+            conversationId,
+            messageId: message.id,
+            fileName: draft.file.name,
+            sizeBytes: draft.file.size,
+          });
+          const path = slot.path;
+          setUploads((prev) =>
+            prev.map((u) => (u.id === draft.id ? { ...u, state: "uploading" } : u)),
+          );
+          const handle = uploadToSignedPath({
+            signedPath: slot.signedPath,
             path,
             file: draft.file,
             onProgress: (progress) =>
@@ -270,7 +314,9 @@ export function useSendMessage(conversationId: string | null, userId: string | n
       } catch (error) {
         const messageText = error instanceof Error ? error.message : "Message could not be sent";
         setPending((prev) =>
-          prev.map((p) => (p.id === clientRef ? { ...p, optimistic: { state: "failed", error: messageText } } : p)),
+          prev.map((p) =>
+            p.id === clientRef ? { ...p, optimistic: { state: "failed", error: messageText } } : p,
+          ),
         );
         throw error;
       }
@@ -301,7 +347,11 @@ export function useSendMessage(conversationId: string | null, userId: string | n
 }
 
 /** Marks visible messages delivered + read against the real receipt table. */
-export function useReadReceipts(conversationId: string | null, userId: string | null, messages: ChatMessage[]) {
+export function useReadReceipts(
+  conversationId: string | null,
+  userId: string | null,
+  messages: ChatMessage[],
+) {
   const queryClient = useQueryClient();
   const acknowledged = useRef(new Set<string>());
 

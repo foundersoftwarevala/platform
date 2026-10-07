@@ -1,7 +1,9 @@
-import { createServerFn } from "@tanstack/react-start";
+﻿import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { aiComplete } from "@/lib/ai-gateway.server";
 import { SlidingWindowLimiter } from "@/lib/i18n/limits";
+import { agentReply, type Turn } from "@/lib/chat/agent-turn.server";
+import { ensureLeadForConversation } from "@/lib/chat/links.server";
+import { withChatIdentity, withChatPlatformDatabase } from "@/lib/chat/manager-db.server";
 
 /**
  * Each reply is a metered model call, and any participant could loop this
@@ -11,92 +13,81 @@ const replyLimiter = new SlidingWindowLimiter(60_000, 10_000);
 const REPLIES_PER_MINUTE = 20;
 
 /**
- * AI assistant layer for Connect Chat.
- *
- * The assistant is a real Supabase auth user ("Vala AI") that participates in a
- * conversation, so its replies are ordinary immutable message rows and every
- * client (realtime, receipts, mentions) treats them like any other message.
+ * AI replies use the canonical Chat database and the existing AI CEO registry,
+ * run functions, and gateway/provider.
  */
 
-const BOT_EMAIL = "vala-ai@bot.softwarevala.app";
 const BOT_HANDLE = "vala-ai";
-const MODEL = "openai/gpt-5.6-sol";
-const HANDOFF_MARKER = "[[HANDOFF]]";
+const CHAT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const SYSTEM_PROMPT = `You are Vala AI, the assistant inside Software Vala Connect — the company's enterprise chat workspace.
-You help staff, vendors, resellers, franchise partners and customers with the Software Vala platform: marketplace, demos, licences, billing, support and the manager consoles.
-Rules:
-- Reply in the language the user writes in (English, Hindi or Hinglish).
-- Be concise: 1-5 short sentences or compact bullets. No markdown headings.
-- Never invent revenue, order, ticket or licence data. If you do not have it, say so and point to the right console or offer a human.
-- Every Software Vala product is $249 one-time, lifetime.
-- If the user asks for a human, is angry, or the request needs an account/billing/legal decision you cannot verify, end your reply with the exact token ${HANDOFF_MARKER} on its own line.`;
+type AiConversation = {
+  id: string;
+  subject: string;
+  ai_enabled: boolean;
+  status: string;
+  department: string | null;
+  created_by: string;
+  can_send: boolean;
+};
 
-type GatewayResult =
-  { ok: true; text: string } | { ok: false; status: number; error: string; retryable: boolean };
+type AiHistoryMessage = { sender_id: string; body: string; kind: string };
 
-async function callGateway(
-  input: { role: "system" | "user" | "assistant"; content: string }[],
-): Promise<GatewayResult> {
-  // Routed through AI API Manager rather than a vendor key read from the
-  // environment. The result shape is unchanged, so every caller below is
-  // untouched.
-  try {
-    const { text } = await aiComplete({ module: "chat", messages: input });
-    const trimmed = text.trim();
-    if (!trimmed) {
-      return { ok: false, status: 502, error: "AI returned an empty reply.", retryable: true };
+async function getCanonicalBotId(): Promise<string> {
+  return withChatPlatformDatabase(async (tx) => {
+    const [bot] = await tx<{ id: string }[]>`
+      select p.id::text
+        from public.profiles p
+        join auth.users u on u.id = p.id
+       where p.handle = ${BOT_HANDLE}
+       limit 1
+    `;
+    if (!bot) {
+      throw new Error("The canonical Vala AI account is not provisioned in sv_platform.");
     }
-    return { ok: true, text: trimmed };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "The AI request failed.";
-    // A missing provider or credential is a configuration problem: retrying
-    // will not fix it, and telling the caller otherwise wastes their time.
-    const configuration = /not configured|no active|credential|AI API Manager/i.test(message);
-    return {
-      ok: false,
-      status: configuration ? 503 : 502,
-      error: message,
-      retryable: !configuration,
-    };
-  }
+    return bot.id;
+  });
 }
 
-type AdminClient = Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"];
-
-async function ensureBotUser(admin: AdminClient): Promise<string> {
-  const { data: existing } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("handle", BOT_HANDLE)
-    .maybeSingle();
-  if (existing?.id) return existing.id;
-
-  const { data: created, error } = await admin.auth.admin.createUser({
-    email: BOT_EMAIL,
-    password: `${crypto.randomUUID()}Aa1!`,
-    email_confirm: true,
-    user_metadata: { username: BOT_HANDLE, full_name: "Vala AI", job_title: "AI Assistant" },
+async function recordAiFailure(
+  userId: string,
+  conversationId: string,
+  startedAt: number,
+  reply: Extract<Awaited<ReturnType<typeof agentReply>>, { ok: false }>,
+): Promise<void> {
+  await withChatPlatformDatabase(async (tx) => {
+    await tx`
+      insert into public.audit_logs
+        (actor, action, entity_type, entity_id, severity, metadata)
+      values
+        (${userId}, 'chat.ai.failed', 'conversation', ${conversationId},
+         ${reply.status === 402 || reply.status === 403 ? "high" : "medium"},
+         ${JSON.stringify({
+           status: reply.status,
+           error: reply.error,
+           agent: reply.agentKey,
+         })}::jsonb)
+    `;
+    await tx`
+      insert into public.chat_ai_events
+        (conversation_id, agent_key, agent_run_id, outcome, error, latency_ms)
+      values
+        (${conversationId}::uuid, ${reply.agentKey}, ${reply.runId}::uuid, 'failed',
+         ${reply.error}, ${Date.now() - startedAt})
+    `;
   });
-  if (error || !created.user)
-    throw new Error(error?.message ?? "Could not provision the AI assistant.");
-
-  await admin
-    .from("profiles")
-    .update({ handle: BOT_HANDLE, display_name: "Vala AI", job_title: "AI Assistant" })
-    .eq("id", created.user.id);
-  return created.user.id;
 }
 
 /** Generates and persists the assistant's reply for a conversation. */
 export const generateAiReply = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { conversationId: string }) => {
-    if (!input?.conversationId) throw new Error("conversationId is required");
+    if (!input || !CHAT_UUID.test(input.conversationId)) {
+      throw new Error("A valid conversation identifier is required.");
+    }
     return { conversationId: input.conversationId };
   })
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+    const { userId } = context;
     if (replyLimiter.hit(userId, REPLIES_PER_MINUTE)) {
       return {
         ok: false as const,
@@ -105,141 +96,278 @@ export const generateAiReply = createServerFn({ method: "POST" })
         status: 429,
       };
     }
+    const startedAt = Date.now();
 
-    // RLS: this only returns the row when the caller participates in it.
-    const { data: conversation, error: convError } = await supabase
-      .from("conversations")
-      .select("id, subject, ai_enabled, status, department")
-      .eq("id", data.conversationId)
-      .maybeSingle();
-    if (convError) return { ok: false as const, error: convError.message };
-    if (!conversation) return { ok: false as const, error: "Conversation not found." };
+    const conversation = await withChatIdentity(userId, async (tx) => {
+      const [row] = await tx<AiConversation[]>`
+        select c.id::text, c.subject, c.ai_enabled, c.status, c.department,
+               c.created_by::text, public.has_permission(${userId}::uuid, 'message.send') as can_send
+          from public.conversations c
+         where c.id = ${data.conversationId}::uuid
+           and public.is_participant(c.id, ${userId}::uuid)
+      `;
+      return row ?? null;
+    });
+    if (!conversation || !conversation.can_send) {
+      return { ok: false as const, error: "Conversation not found or you cannot send messages." };
+    }
     if (!conversation.ai_enabled)
       return { ok: false as const, error: "AI is disabled for this conversation." };
+    if (["closed", "resolved"].includes(conversation.status)) {
+      return { ok: false as const, error: "This conversation is closed." };
+    }
 
-    const { data: history, error: historyError } = await supabase
-      .from("messages")
-      .select("sender_id, body, kind, created_at")
-      .eq("conversation_id", data.conversationId)
-      .order("created_at", { ascending: false })
-      .limit(24);
-    if (historyError) return { ok: false as const, error: historyError.message };
+    const history = await withChatIdentity(
+      userId,
+      (tx) =>
+        tx<AiHistoryMessage[]>`
+        select m.sender_id::text,
+               coalesce(corrected.corrected_body, m.body) as body, m.kind
+          from public.messages m
+          left join public.chat_message_moderation corrected
+            on corrected.message_id = m.id and corrected.action = 'corrected'
+         where m.conversation_id = ${data.conversationId}::uuid
+           and not exists (
+             select 1 from public.chat_message_moderation hidden
+              where hidden.message_id = m.id and hidden.action = 'hidden'
+           )
+         order by m.created_at desc, m.id desc
+         limit 24
+      `,
+    );
+    const botId = await getCanonicalBotId();
+    await withChatPlatformDatabase(
+      (tx) =>
+        tx`
+        insert into public.conversation_participants
+          (conversation_id, user_id, role_label)
+        values (${data.conversationId}::uuid, ${botId}::uuid, 'AI Assistant')
+        on conflict (conversation_id, user_id) do nothing
+      `,
+    );
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const botId = await ensureBotUser(supabaseAdmin);
-
-    // The assistant must be a participant before it can appear in the thread.
-    await supabaseAdmin
-      .from("conversation_participants")
-      .upsert(
-        { conversation_id: data.conversationId, user_id: botId, role_label: "AI Assistant" },
-        { onConflict: "conversation_id,user_id" },
-      );
-
-    const turns = (history ?? [])
+    const turns: Turn[] = history
       .slice()
       .reverse()
       .filter((m) => m.body?.trim())
       .map((m) => ({
-        role: (m.sender_id === botId ? "assistant" : "user") as "assistant" | "user",
+        role: m.sender_id === botId ? ("assistant" as const) : ("user" as const),
         content: m.body,
       }));
 
-    const result = await callGateway([
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "system",
-        content: `Conversation subject: ${conversation.subject}. Department: ${conversation.department ?? "unassigned"}.`,
-      },
-      ...turns,
-    ]);
+    const [previous] = await withChatPlatformDatabase(
+      (tx) =>
+        tx<{ agent_key: string }[]>`
+        select agent_key
+          from public.chat_ai_events
+         where conversation_id = ${data.conversationId}::uuid and agent_key is not null
+         order by created_at desc
+         limit 1
+      `,
+    );
 
-    if (!result.ok) {
-      await supabaseAdmin.from("audit_logs").insert({
-        actor: userId,
-        action: "chat.ai.failed",
-        entity_type: "conversation",
-        entity_id: data.conversationId,
-        severity: result.status === 402 || result.status === 403 ? "high" : "medium",
-        metadata: { status: result.status, error: result.error, model: MODEL },
-      });
+    const reply = await agentReply({
+      conversationId: data.conversationId,
+      subject: conversation.subject,
+      department: conversation.department,
+      turns,
+      previousAgentKey: previous?.agent_key ?? null,
+    });
+
+    if (!reply.ok) {
+      await recordAiFailure(userId, data.conversationId, startedAt, reply);
       return {
         ok: false as const,
-        error: result.error,
-        retryable: result.retryable,
-        status: result.status,
+        error: reply.error,
+        retryable: reply.retryable,
+        status: reply.status,
       };
     }
 
-    const wantsHuman = result.text.includes(HANDOFF_MARKER);
-    const body = result.text.replaceAll(HANDOFF_MARKER, "").trim();
+    const persisted = await withChatPlatformDatabase(async (tx) => {
+      const [locked] = await tx<{ ai_enabled: boolean; status: string }[]>`
+        select ai_enabled, status
+          from public.conversations
+         where id = ${data.conversationId}::uuid
+         for update
+      `;
+      if (!locked || !locked.ai_enabled || ["closed", "resolved"].includes(locked.status)) {
+        throw new Error("AI control changed while the reply was being generated; retry the turn.");
+      }
+      const [inserted] = await tx<{ id: string }[]>`
+        insert into public.messages (conversation_id, sender_id, kind, body)
+        values (${data.conversationId}::uuid, ${botId}::uuid, 'ai', ${reply.text})
+        returning id::text
+      `;
+      if (!inserted) throw new Error("The AI reply could not be saved.");
 
-    const { data: inserted, error: insertError } = await supabaseAdmin
-      .from("messages")
-      .insert({ conversation_id: data.conversationId, sender_id: botId, kind: "ai", body })
-      .select("id")
-      .single();
-    if (insertError) return { ok: false as const, error: insertError.message };
+      let leadId: string | null = null;
+      if (reply.leadReady && reply.agentKey) {
+        const lead = await ensureLeadForConversation(tx, {
+          conversationId: data.conversationId,
+          customerId: conversation.created_by,
+          subject: conversation.subject,
+          actorId: botId,
+          messageId: inserted.id,
+          source: "ai_assistant",
+        });
+        if (lead.ok) {
+          leadId = lead.leadId;
+        } else {
+          await tx`
+            insert into public.audit_logs
+              (actor, action, entity_type, entity_id, severity, metadata)
+            values
+              (${botId}::uuid, 'chat.lead.creation_skipped', 'conversation',
+               ${data.conversationId}, 'low',
+               ${JSON.stringify({ reason: lead.error })}::jsonb)
+          `;
+        }
+      }
 
-    if (wantsHuman) {
-      await supabaseAdmin.from("chat_handoffs").insert({
-        conversation_id: data.conversationId,
-        requested_by: userId,
-        reason: "AI escalated the conversation to a human agent.",
-      });
-      await supabaseAdmin
-        .from("conversations")
-        .update({ ai_enabled: false, status: "escalated", priority: "high" })
-        .eq("id", data.conversationId);
-    }
+      if (reply.escalate) {
+        const [pendingHandoff] = await tx<{ id: string }[]>`
+          select id::text from public.chat_handoffs
+           where conversation_id = ${data.conversationId}::uuid and status = 'pending'
+           limit 1
+        `;
+        if (!pendingHandoff) {
+          await tx`
+            insert into public.chat_handoffs (conversation_id, requested_by, reason)
+            values (
+              ${data.conversationId}::uuid, ${userId}::uuid,
+              'AI escalated the conversation to a human agent.'
+            )
+          `;
+        }
+        await tx`
+          update public.conversations
+             set ai_enabled = false, status = 'escalated', priority = 'high'
+           where id = ${data.conversationId}::uuid
+        `;
+      }
 
-    await supabaseAdmin.from("audit_logs").insert({
-      actor: userId,
-      action: "chat.ai.reply",
-      entity_type: "conversation",
-      entity_id: data.conversationId,
-      severity: "low",
-      metadata: { message_id: inserted.id, model: MODEL, escalated: wantsHuman },
+      await tx`
+        insert into public.chat_ai_events
+          (conversation_id, message_id, agent_key, agent_run_id, domain, language,
+           outcome, escalated, lead_id, latency_ms)
+        values
+          (${data.conversationId}::uuid, ${inserted.id}::uuid, ${reply.agentKey},
+           ${reply.runId}::uuid, ${reply.domain}, ${reply.language},
+           ${reply.escalate ? "escalated" : "replied"}, ${reply.escalate},
+           ${leadId}::uuid, ${Date.now() - startedAt})
+      `;
+      await tx`
+        insert into public.audit_logs
+          (actor, action, entity_type, entity_id, severity, metadata)
+        values
+          (${userId}, 'chat.ai.reply', 'conversation', ${data.conversationId}, 'low',
+           ${JSON.stringify({
+             message_id: inserted.id,
+             agent: reply.agentKey,
+             escalated: reply.escalate,
+             lead_id: leadId,
+           })}::jsonb)
+      `;
+      return { messageId: inserted.id, leadId };
     });
 
-    return { ok: true as const, messageId: inserted.id, escalated: wantsHuman };
+    return { ok: true as const, ...persisted, escalated: reply.escalate };
   });
-
 /** Turns the AI assistant on or off for a conversation the caller participates in. */
 export const setConversationAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { conversationId: string; enabled: boolean }) => {
-    if (!input?.conversationId) throw new Error("conversationId is required");
+    if (!input || !CHAT_UUID.test(input.conversationId)) {
+      throw new Error("A valid conversation identifier is required.");
+    }
+    if (typeof input.enabled !== "boolean") throw new Error("A valid AI setting is required.");
     return { conversationId: input.conversationId, enabled: !!input.enabled };
   })
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("conversations")
-      .update({ ai_enabled: data.enabled })
-      .eq("id", data.conversationId);
-    if (error) return { ok: false as const, error: error.message };
-    return { ok: true as const, enabled: data.enabled };
+    const { withChatIdentity } = await import("@/lib/chat/manager-db.server");
+    return withChatIdentity(context.userId, async (tx) => {
+      const [authorization] = await tx<{ allowed: boolean }[]>`
+        select (
+          public.has_permission(${context.userId}::uuid, 'conversation.manage')
+          or public.has_permission(${context.userId}::uuid, 'chat.assign')
+          or public.has_permission(${context.userId}::uuid, 'chat.manage')
+        ) as allowed
+      `;
+      if (!authorization?.allowed) {
+        return {
+          ok: false as const,
+          error: "You do not have permission to change AI for this conversation.",
+        };
+      }
+      const updated = await tx`
+        update public.conversations
+           set ai_enabled = ${data.enabled}
+         where id = ${data.conversationId}::uuid
+           and (public.is_participant(id, ${context.userId}::uuid)
+                or public.has_permission(${context.userId}::uuid, 'chat.manage'))
+         returning id
+      `;
+      if (updated.length === 0) return { ok: false as const, error: "Conversation not found." };
+      return { ok: true as const, enabled: data.enabled };
+    });
   });
 
 /** Explicit "talk to a human" request from a participant. */
 export const requestHumanHandoff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { conversationId: string; reason?: string }) => {
-    if (!input?.conversationId) throw new Error("conversationId is required");
-    return { conversationId: input.conversationId, reason: input.reason ?? "" };
+    if (!input || !CHAT_UUID.test(input.conversationId)) {
+      throw new Error("A valid conversation identifier is required.");
+    }
+    if (input.reason !== undefined && typeof input.reason !== "string") {
+      throw new Error("The handoff reason must be text.");
+    }
+    return {
+      conversationId: input.conversationId,
+      reason: (input.reason ?? "").trim().slice(0, 1000),
+    };
   })
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { error } = await supabase.from("chat_handoffs").insert({
-      conversation_id: data.conversationId,
-      requested_by: userId,
-      reason: data.reason || "Participant requested a human agent.",
-    });
-    if (error) return { ok: false as const, error: error.message };
-
-    await supabase
-      .from("conversations")
-      .update({ ai_enabled: false, status: "escalated" })
-      .eq("id", data.conversationId);
-    return { ok: true as const };
+    const { withChatIdentity } = await import("@/lib/chat/manager-db.server");
+    try {
+      await withChatIdentity(context.userId, async (tx) => {
+        const [conversation] = await tx<{ id: string }[]>`
+          select id::text
+            from public.conversations
+           where id = ${data.conversationId}::uuid
+             and public.is_participant(id, ${context.userId}::uuid)
+           for update
+        `;
+        if (!conversation) throw new Error("Conversation not found.");
+        const [pendingHandoff] = await tx<{ id: string }[]>`
+          select id::text
+            from public.chat_handoffs
+           where conversation_id = ${data.conversationId}::uuid and status = 'pending'
+           limit 1
+        `;
+        if (!pendingHandoff) {
+          await tx`
+            insert into public.chat_handoffs (conversation_id, requested_by, reason)
+            values (
+              ${data.conversationId}::uuid, ${context.userId}::uuid,
+              ${data.reason || "Participant requested a human agent."}
+            )
+          `;
+        }
+        await tx`
+          update public.conversations
+             set ai_enabled = false,
+                 status = 'escalated',
+                 priority = case when priority in ('low', 'normal') then 'high' else priority end
+           where id = ${data.conversationId}::uuid
+        `;
+      });
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : "Could not request a human handoff.",
+      };
+    }
   });

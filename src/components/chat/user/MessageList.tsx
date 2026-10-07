@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { translateMessage } from "@/lib/translate.functions";
+import { translateChatMessages } from "@/services/chat/chat-service";
 import type { ChatMessage, Profile } from "@/services/chat/types";
 import type { ConnectionState, PendingMessage } from "@/hooks/use-chat";
 import { UserAvatar, AttachmentCard } from "./media";
@@ -35,6 +35,11 @@ interface MessageListProps {
   canReply: boolean;
   canBookmark: boolean;
   canDownload: boolean;
+  /** Chat Manager reviewers see a moderated message's original text. */
+  canSeeOriginal?: boolean | undefined;
+  hasEarlier?: boolean | undefined;
+  loadingEarlier?: boolean | undefined;
+  onLoadEarlier?: (() => void) | undefined;
   translateTarget: string;
   autoTranslate?: boolean | undefined;
   density?: "comfortable" | "compact" | undefined;
@@ -74,6 +79,16 @@ function dayLabel(iso: string, t: Translate, formatDate: FormatDate) {
 
 function timeLabel(iso: string, formatDate: FormatDate) {
   return formatDate(new Date(iso), { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * What a reader sees of a message Chat Manager moderated. The original row is
+ * never altered; people who may review it (Chat Manager) still see the original.
+ */
+function visibleText(message: ChatMessage | PendingMessage, canSeeOriginal: boolean) {
+  const moderation = message.moderation;
+  if (!moderation || canSeeOriginal) return message.body;
+  return moderation.action === "corrected" ? (moderation.corrected_body ?? "") : "";
 }
 
 /** Render message text with @mentions highlighted. */
@@ -146,6 +161,10 @@ export function MessageList(props: MessageListProps) {
     canReply,
     canBookmark,
     canDownload,
+    canSeeOriginal = false,
+    hasEarlier = false,
+    loadingEarlier = false,
+    onLoadEarlier,
     translateTarget,
     autoTranslate,
     density,
@@ -219,22 +238,69 @@ export function MessageList(props: MessageListProps) {
     el?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [highlightId]);
 
+  // The stored Chat pipeline (detect -> English -> this language). A row still
+  // being translated, or waiting to retry, is asked for again when the server
+  // says, a bounded number of times; failure is shown, never invented text.
   const translate = useCallback(
-    async (message: ChatMessage) => {
+    async (message: ChatMessage, attempt = 0, retry = false): Promise<void> => {
+      if (message.optimistic || !message.conversation_id) return;
       setTranslations((prev) => ({ ...prev, [message.id]: { loading: true } }));
-      const result = await translateMessage({
-        data: { text: message.body, target: translateTarget },
-      }).catch(() => ({ ok: false as const, error: t("chat.messages.translation_unavailable") }));
-      setTranslations((prev) => ({
-        ...prev,
-        [message.id]: result.ok
-          ? { loading: false, text: result.text }
-          : {
-              loading: false,
-              error: result.error,
-              authRequired: "reason" in result && result.reason === "native_session_required",
-            },
-      }));
+      try {
+        const [view] = await translateChatMessages(
+          message.conversation_id,
+          [message.id],
+          translateTarget,
+          retry,
+        );
+        if (!view) {
+          setTranslations((prev) => ({
+            ...prev,
+            [message.id]: { loading: false, error: t("chat.messages.translation_unavailable") },
+          }));
+          return;
+        }
+        if (view.status === "completed" && view.identity) {
+          // Already in the reader's language: nothing to show beside it.
+          setTranslations((prev) => {
+            const next = { ...prev };
+            delete next[message.id];
+            return next;
+          });
+          return;
+        }
+        if (view.status === "completed" && view.text) {
+          setTranslations((prev) => ({
+            ...prev,
+            [message.id]: { loading: false, text: view.text! },
+          }));
+          return;
+        }
+        if (
+          (view.status === "processing" ||
+            view.status === "pending" ||
+            view.status === "retrying") &&
+          attempt < 6
+        ) {
+          window.setTimeout(
+            () => void translate(message, attempt + 1),
+            Math.min(view.retryAfterMs ?? 1500, 15_000),
+          );
+          return;
+        }
+        setTranslations((prev) => ({
+          ...prev,
+          [message.id]: { loading: false, error: t("chat.messages.translation_unavailable") },
+        }));
+      } catch (error) {
+        setTranslations((prev) => ({
+          ...prev,
+          [message.id]: {
+            loading: false,
+            error:
+              error instanceof Error ? error.message : t("chat.messages.translation_unavailable"),
+          },
+        }));
+      }
     },
     [translateTarget, t],
   );
@@ -255,6 +321,9 @@ export function MessageList(props: MessageListProps) {
     const optimistic = message.optimistic;
     const translation = translations[message.id];
     const sender = profilesById.get(message.sender_id);
+    const moderation = message.moderation ?? null;
+    const removed = moderation?.action === "hidden" && !canSeeOriginal;
+    const shownBody = visibleText(message, canSeeOriginal);
     const groupedReactions = message.reactions.reduce<
       Record<string, { count: number; mine: boolean }>
     >((acc, r) => {
@@ -269,14 +338,14 @@ export function MessageList(props: MessageListProps) {
         key={message.id}
         data-message-id={message.id}
         className={cn(
-          "group/msg relative flex flex-col gap-0.5 rounded-xl px-2 py-1 transition-colors",
+          "group/msg relative flex w-full min-w-0 flex-col gap-1 rounded-xl px-2 py-1 transition-colors",
           mine ? "items-end" : "items-start",
           highlightId === message.id && "bg-primary/10 ring-1 ring-primary/30",
         )}
       >
         <div
           className={cn(
-            "flex max-w-[85%] items-end gap-2 sm:max-w-[75%]",
+            "flex w-fit min-w-0 max-w-[90%] items-end gap-2 sm:max-w-[80%]",
             mine && "flex-row-reverse",
           )}
         >
@@ -292,13 +361,15 @@ export function MessageList(props: MessageListProps) {
 
           <div
             className={cn(
-              "min-w-0 rounded-2xl text-sm shadow-sm",
-              density === "compact" ? "px-2.5 py-1 leading-5" : "px-3 py-1.5 leading-6",
+              "chat-message-bubble min-w-0 max-w-full rounded-3xl text-sm",
+              density === "compact" ? "px-3 py-2 leading-5" : "px-4 py-3 leading-6",
               mine
-                ? "rounded-br-md bg-primary text-primary-foreground"
-                : "rounded-bl-md border border-border/60 bg-card",
+                ? optimistic?.state === "failed"
+                  ? "rounded-br-lg bg-destructive text-destructive-foreground"
+                  : "chat-brand-gradient rounded-br-lg"
+                : "rounded-bl-lg border border-border/60 bg-card/80 backdrop-blur-md",
               optimistic?.state === "pending" && "opacity-70",
-              optimistic?.state === "failed" && "border-destructive/60 bg-destructive/10",
+              optimistic?.state === "failed" && "border-destructive/60",
             )}
           >
             {message.parent_id ? (
@@ -311,23 +382,39 @@ export function MessageList(props: MessageListProps) {
                 {t("chat.messages.reply_in_thread")}
               </p>
             ) : null}
-            {message.body ? (
-              <p className="whitespace-pre-wrap break-words">
-                <Body text={message.body} profilesById={profilesById} />
+            {removed ? (
+              <p className="text-sm italic opacity-80">{t("chat.messages.removed_by_team")}</p>
+            ) : shownBody ? (
+              <p
+                dir="auto"
+                className="whitespace-pre-wrap [overflow-wrap:anywhere] [word-break:normal]"
+              >
+                <Body text={shownBody} profilesById={profilesById} />
               </p>
             ) : null}
-            {message.attachments.map((attachment) => (
-              <AttachmentCard
-                key={attachment.id}
-                attachment={attachment}
-                canDownload={canDownload}
-              />
-            ))}
+            {moderation ? (
+              <p className="mt-1 text-[10px] opacity-70">
+                {canSeeOriginal
+                  ? t("chat.messages.moderated_note", { reason: moderation.reason })
+                  : moderation.action === "corrected"
+                    ? t("chat.messages.corrected_by_team")
+                    : ""}
+              </p>
+            ) : null}
+            {removed
+              ? null
+              : message.attachments.map((attachment) => (
+                  <AttachmentCard
+                    key={attachment.id}
+                    attachment={attachment}
+                    canDownload={canDownload}
+                  />
+                ))}
 
             <div
               className={cn(
-                "mt-0.5 flex items-center justify-end gap-1 text-[10px]",
-                mine ? "text-primary-foreground/70" : "text-muted-foreground",
+                "mt-0.5 flex flex-wrap items-center justify-end gap-1 text-[10px]",
+                mine ? "opacity-70" : "text-muted-foreground",
               )}
             >
               {message.pinned ? (
@@ -350,7 +437,7 @@ export function MessageList(props: MessageListProps) {
                 </TooltipTrigger>
                 <TooltipContent>{t("chat.messages.immutable_tooltip")}</TooltipContent>
               </Tooltip>
-              <span>{timeLabel(message.created_at, formatDate)}</span>
+              <span className="whitespace-nowrap">{timeLabel(message.created_at, formatDate)}</span>
               {optimistic?.state === "pending" ? (
                 <Loader2 className="size-3 animate-spin" aria-label={t("chat.messages.sending")} />
               ) : optimistic?.state === "failed" ? (
@@ -360,126 +447,125 @@ export function MessageList(props: MessageListProps) {
               )}
             </div>
           </div>
-
-          {/* hover actions — only allowed operations (no edit/delete/copy/forward) */}
-          {!optimistic && (
-            <div
-              className={cn(
-                "flex items-center gap-0.5 self-center rounded-lg border border-border/60 bg-popover p-0.5 opacity-0 shadow-sm transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
-              )}
-            >
-              {canReact ? (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label={t("chat.messages.react")}
-                      className="rounded-md p-1.5 hover:bg-secondary"
-                    >
-                      <Smile className="size-3.5" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-1" side="top">
-                    <div className="flex gap-0.5">
-                      {QUICK_REACTIONS.map((emoji) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          className="rounded p-1 text-lg hover:bg-secondary"
-                          onClick={() =>
-                            onReact(message.id, emoji, groupedReactions[emoji]?.mine ?? false)
-                          }
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              ) : null}
-              {canReply ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label={t("chat.messages.reply")}
-                      onClick={() => onReply(message)}
-                      className="rounded-md p-1.5 hover:bg-secondary"
-                    >
-                      <MessageSquareReply className="size-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>{t("chat.messages.reply")}</TooltipContent>
-                </Tooltip>
-              ) : null}
-              {canBookmark ? (
-                <>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={
-                          message.pinned ? t("chat.messages.unpin") : t("chat.messages.pin")
-                        }
-                        onClick={() => onBookmark(message.id, true, message.pinned)}
-                        className="rounded-md p-1.5 hover:bg-secondary"
-                      >
-                        <Pin
-                          className={cn("size-3.5", message.pinned && "fill-current text-primary")}
-                        />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {message.pinned ? t("chat.messages.unpin") : t("chat.messages.pin")}
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={
-                          message.bookmarked
-                            ? t("chat.messages.remove_bookmark")
-                            : t("chat.messages.bookmark")
-                        }
-                        onClick={() => onBookmark(message.id, false, message.bookmarked)}
-                        className="rounded-md p-1.5 hover:bg-secondary"
-                      >
-                        <Bookmark
-                          className={cn(
-                            "size-3.5",
-                            message.bookmarked && "fill-current text-primary",
-                          )}
-                        />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {message.bookmarked
-                        ? t("chat.messages.remove_bookmark")
-                        : t("chat.messages.bookmark")}
-                    </TooltipContent>
-                  </Tooltip>
-                </>
-              ) : null}
-              {message.body ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label={t("chat.messages.translate_message")}
-                      onClick={() => void translate(message)}
-                      className="rounded-md p-1.5 hover:bg-secondary"
-                    >
-                      <Languages className="size-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>{t("chat.messages.translate")}</TooltipContent>
-                </Tooltip>
-              ) : null}
-            </div>
-          )}
         </div>
 
+        {/* Actions do not participate in the bubble's available width. */}
+        {!optimistic && (
+          <div
+            className={cn(
+              "flex max-w-full flex-wrap items-center gap-0.5 rounded-full border border-border/60 bg-card p-1 opacity-100 shadow-sm transition-opacity focus-within:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100",
+            )}
+          >
+            {canReact ? (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t("chat.messages.react")}
+                    className="rounded-full p-1.5 transition-colors hover:bg-secondary"
+                  >
+                    <Smile className="size-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-1" side="top">
+                  <div className="flex gap-0.5">
+                    {QUICK_REACTIONS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        className="rounded p-1 text-lg hover:bg-secondary"
+                        onClick={() =>
+                          onReact(message.id, emoji, groupedReactions[emoji]?.mine ?? false)
+                        }
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            ) : null}
+            {canReply ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t("chat.messages.reply")}
+                    onClick={() => onReply(message)}
+                    className="rounded-full p-1.5 transition-colors hover:bg-secondary"
+                  >
+                    <MessageSquareReply className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{t("chat.messages.reply")}</TooltipContent>
+              </Tooltip>
+            ) : null}
+            {canBookmark ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={
+                        message.pinned ? t("chat.messages.unpin") : t("chat.messages.pin")
+                      }
+                      onClick={() => onBookmark(message.id, true, message.pinned)}
+                      className="rounded-full p-1.5 transition-colors hover:bg-secondary"
+                    >
+                      <Pin
+                        className={cn("size-3.5", message.pinned && "fill-current text-primary")}
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {message.pinned ? t("chat.messages.unpin") : t("chat.messages.pin")}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={
+                        message.bookmarked
+                          ? t("chat.messages.remove_bookmark")
+                          : t("chat.messages.bookmark")
+                      }
+                      onClick={() => onBookmark(message.id, false, message.bookmarked)}
+                      className="rounded-full p-1.5 transition-colors hover:bg-secondary"
+                    >
+                      <Bookmark
+                        className={cn(
+                          "size-3.5",
+                          message.bookmarked && "fill-current text-primary",
+                        )}
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {message.bookmarked
+                      ? t("chat.messages.remove_bookmark")
+                      : t("chat.messages.bookmark")}
+                  </TooltipContent>
+                </Tooltip>
+              </>
+            ) : null}
+            {shownBody ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t("chat.messages.translate_message")}
+                    onClick={() => void translate(message)}
+                    className="rounded-full p-1.5 transition-colors hover:bg-secondary"
+                  >
+                    <Languages className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{t("chat.messages.translate")}</TooltipContent>
+              </Tooltip>
+            ) : null}
+          </div>
+        )}
         {Object.keys(groupedReactions).length > 0 ? (
           <div className={cn("flex flex-wrap gap-1", mine ? "pr-1 justify-end" : "pl-9")}>
             {Object.entries(groupedReactions).map(([emoji, info]) => (
@@ -518,7 +604,7 @@ export function MessageList(props: MessageListProps) {
         {translation ? (
           <div
             className={cn(
-              "max-w-[85%] rounded-lg border border-border/50 bg-secondary/40 px-2.5 py-1 text-xs sm:max-w-[75%]",
+              "w-fit min-w-0 max-w-[90%] rounded-2xl border border-primary/15 bg-card px-3 py-2 text-xs shadow-sm [overflow-wrap:anywhere] [word-break:normal] sm:max-w-[80%]",
               mine && "self-end",
             )}
           >
@@ -541,7 +627,9 @@ export function MessageList(props: MessageListProps) {
                 )}
               </span>
             ) : (
-              <span className="whitespace-pre-wrap">{translation.text}</span>
+              <span dir="auto" className="whitespace-pre-wrap">
+                {translation.text}
+              </span>
             )}
           </div>
         ) : null}
@@ -576,7 +664,7 @@ export function MessageList(props: MessageListProps) {
         const el = e.currentTarget;
         stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
       }}
-      className="flex-1 overflow-y-auto px-3 py-3 sm:px-5"
+      className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5"
       aria-live="polite"
       aria-label={t("chat.messages.list_label")}
     >
@@ -591,6 +679,22 @@ export function MessageList(props: MessageListProps) {
         </div>
       ) : null}
 
+      {hasEarlier && onLoadEarlier ? (
+        <div className="mb-3 flex justify-center">
+          <button
+            type="button"
+            onClick={() => {
+              stickToBottom.current = false;
+              onLoadEarlier();
+            }}
+            disabled={loadingEarlier}
+            className="rounded-full border border-border/60 bg-card/75 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm hover:text-foreground disabled:opacity-60"
+          >
+            {loadingEarlier ? t("chat.messages.loading_earlier") : t("chat.messages.load_earlier")}
+          </button>
+        </div>
+      ) : null}
+
       {all.length === 0 ? (
         <div className="grid h-full place-items-center">
           <p className="max-w-xs text-center text-sm text-muted-foreground">
@@ -601,9 +705,9 @@ export function MessageList(props: MessageListProps) {
 
       {rows.map((row) =>
         row.type === "date" ? (
-          <div key={row.key} className="my-3 flex items-center gap-3" aria-hidden>
+          <div key={row.key} className="my-5 flex items-center gap-3" aria-hidden>
             <span className="h-px flex-1 bg-border/60" />
-            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span className="rounded-full border border-border/60 bg-card/75 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur-md">
               {row.label}
             </span>
             <span className="h-px flex-1 bg-border/60" />
@@ -611,7 +715,10 @@ export function MessageList(props: MessageListProps) {
         ) : (
           <div
             key={row.key}
-            className={cn("mb-2 flex flex-col gap-0.5", row.mine ? "items-end" : "items-start")}
+            className={cn(
+              "mb-2 flex w-full min-w-0 flex-col gap-0.5",
+              row.mine ? "items-end" : "items-start",
+            )}
           >
             {!row.mine ? (
               <span className={cn("pl-9 text-xs font-medium text-muted-foreground")}>

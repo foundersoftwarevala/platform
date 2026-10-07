@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, FileText, Loader2, Play } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { createSignedUrl } from "@/services/chat/chat-service";
+import { attachmentUrl, createSignedUrl } from "@/services/chat/chat-service";
 import { formatBytes, type Attachment } from "@/services/chat/types";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n/use-translation";
@@ -83,15 +83,49 @@ export function UserAvatar({
   );
 }
 
+/** Server-authorized URL for one chat attachment, refreshed before it expires. */
+function useAttachmentUrl(attachmentId: string | null | undefined) {
+  const { t } = useTranslation();
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!attachmentId) {
+      setUrl(null);
+      return;
+    }
+    let active = true;
+    const load = async () => {
+      try {
+        const signed = await attachmentUrl(attachmentId);
+        if (active) {
+          setUrl(signed);
+          setError(null);
+        }
+      } catch (err) {
+        if (active) setError({ message: err instanceof Error ? err.message : null });
+      }
+    };
+    void load();
+    const timer = window.setInterval(load, 4 * 60 * 1000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [attachmentId]);
+
+  return { url, error: error ? (error.message ?? t("chat.media.load_failed")) : null };
+}
+
 export function AttachmentCard({ attachment, canDownload = false }: { attachment: Attachment; canDownload?: boolean }) {
   const { t } = useTranslation();
-  const { url, error } = useSignedUrl("chat-files", attachment.storage_path);
+  const { url, error } = useAttachmentUrl(attachment.id);
   const [downloading, setDownloading] = useState(false);
 
   const download = async () => {
     setDownloading(true);
     try {
-      const signed = await createSignedUrl("chat-files", attachment.storage_path, attachment.file_name);
+      const signed = await attachmentUrl(attachment.id, true);
       window.open(signed, "_blank", "noopener");
     } finally {
       setDownloading(false);
