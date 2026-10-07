@@ -15,6 +15,7 @@ export const Route = createFileRoute("/api/i18n/jobs")({
     handlers: {
       GET: () =>
         Response.json(
+          // i18n-ignore: HTTP protocol error, not rendered interface text.
           { error: "Method not allowed." },
           { status: 405, headers: { Allow: "POST" } },
         ),

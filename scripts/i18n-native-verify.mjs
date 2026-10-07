@@ -114,12 +114,22 @@ try {
     };
     async function request(path, options = {}) {
       const started = performance.now();
-      const response = await fetch(new URL(path, base), {
-        ...options,
-        headers: { ...headers, ...options.headers },
-        signal: AbortSignal.timeout(90000),
-        redirect: "error",
-      });
+      let response;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          response = await fetch(new URL(path, base), {
+            ...options,
+            headers: { ...headers, ...options.headers },
+            signal: AbortSignal.timeout(90000),
+            redirect: "error",
+          });
+          break;
+        } catch (error) {
+          if (attempt === 3) throw error;
+          console.error(JSON.stringify({ path, attempt, transportError: error.message }));
+          await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+        }
+      }
       const body = response.status === 304 ? null : await response.json();
       return {
         status: response.status,
@@ -138,7 +148,7 @@ try {
         result = await request("/api/marketplace/translate", {
           method: "POST",
           body: JSON.stringify({
-            source,
+            source: source ?? "auto",
             target,
             texts: [text],
             namespace: "ui",
@@ -232,12 +242,26 @@ try {
           if (!record.reverse.translated) record.failures.push("language_to_en_unavailable");
           if (!record.pair.translated) record.failures.push("language_pair_unavailable");
           const automatic = await translate(null, "en", translated);
+          const detector = await fetch("http://127.0.0.1:5100/v1/detect", {
+            method: "POST",
+            redirect: "error",
+            signal: AbortSignal.timeout(30000),
+            headers: {
+              "content-type": "application/json",
+              ...(process.env.TRANSLATE_PROVIDER_TOKEN
+                ? { authorization: `Bearer ${process.env.TRANSLATE_PROVIDER_TOKEN}` }
+                : {}),
+            },
+            body: JSON.stringify({ text: translated, k: 1 }),
+          });
+          if (!detector.ok) throw new Error(`Owned detector HTTP ${detector.status}`);
+          const detection = await detector.json();
+          const detected = detection.candidates?.[0]?.language ?? null;
           record.detection = {
             status: automatic.status,
-            detected: automatic.body?.source ?? null,
+            detected,
             translated: Boolean(automatic.body?.translations?.[translated]),
-            matchesBase:
-              resolveLanguage(automatic.body?.source ?? "")?.iso639_3 === language.iso639_3,
+            matchesBase: resolveLanguage(detected ?? "")?.iso639_3 === language.iso639_3,
             milliseconds: automatic.milliseconds,
           };
           if (!record.detection.translated || !record.detection.matchesBase)
@@ -263,6 +287,7 @@ try {
       } catch (error) {
         record.status = "ENGINE_LIMITED";
         record.failures.push(error instanceof Error ? error.name : "request_error");
+        record.error = error instanceof Error ? error.message : "request_error";
       }
       report.languages.push(record);
       if (out) writeFileSync(out, JSON.stringify(report, null, 2));

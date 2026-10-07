@@ -16,10 +16,16 @@
  * of the same text, which only lengthened the engine's queue for everyone.
  */
 
+import { SOURCE_LANGUAGE } from "./registry";
+
 export const REALTIME_BUDGET_MS = 20_000;
 
 /** Seconds the page waits before asking again for a batch still being translated. */
 export const IN_PROGRESS_RETRY_SECONDS = 10;
+
+export function translationSource(source: string | null | undefined): string | null {
+  return source === null || source === "auto" ? null : (source ?? SOURCE_LANGUAGE);
+}
 
 export type BudgetOutcome<T> = { done: true; value: T } | { done: false };
 

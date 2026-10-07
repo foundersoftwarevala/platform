@@ -8,6 +8,7 @@ import {
   REALTIME_BUDGET_MS,
   batchKey,
   joinOrStart,
+  translationSource,
   withinBudget,
 } from "@/lib/i18n/realtime-budget";
 import { SOURCE_LANGUAGE } from "@/lib/i18n/registry";
@@ -24,11 +25,12 @@ import { languageAuthorization } from "@/lib/i18n/session-contract";
  * that fails validation is never returned.
  *
  * Body:
- *   { texts: string[], target: string, source?: string, namespace?: string,
+ *   { texts: string[], target: string, source?: string | null, namespace?: string,
  *     context?: string, memory_only?: boolean, mode?: "realtime" | "quality" }
  * `locale` is accepted in place of `target` for callers written before the
  * registry. Any spelling the registry recognises is accepted ("hi", "HI",
  * "Hindi", "pt-br"); anything else is refused with reason "invalid_language".
+ * Omit source for English; use null or "auto" for owned-engine detection.
  *
  * Callers: visitors may translate interface text; signed-in accounts get a
  * larger allowance; admin and boss may translate any namespace. Requests are
@@ -53,7 +55,7 @@ const bodySchema = z
     texts: z.array(z.string()).max(TIER_LIMITS.operator.maxItems),
     target: z.string().max(64).optional(),
     locale: z.string().max(64).optional(),
-    source: z.string().max(64).optional(),
+    source: z.string().max(64).nullable().optional(),
     namespace: z.string().regex(NAMESPACE_PATTERN).optional(),
     context: z.string().max(MAX_CONTEXT_LENGTH).optional(),
     // Answer from translation memory only; allowed in any namespace for every caller.
@@ -157,7 +159,7 @@ async function handleTranslate(request: Request): Promise<Response> {
   try {
     const request = {
       texts,
-      source: parsed.source ?? SOURCE_LANGUAGE,
+      source: translationSource(parsed.source),
       target,
       namespace,
       context: parsed.context ?? null,
@@ -178,7 +180,7 @@ async function handleTranslate(request: Request): Promise<Response> {
           namespace,
           parsed.context,
           texts,
-          parsed.source ?? SOURCE_LANGUAGE,
+          request.source ?? "auto",
           caller.subject,
         ),
         () => translateForCaller(request, caller),
@@ -196,13 +198,13 @@ async function handleTranslate(request: Request): Promise<Response> {
           // Never publish a visitor's arbitrary page text or private chat to
           // the shared background translation memory after a timeout.
           const publicTexts =
-            namespace === "ui" && parsed.persist !== false
+            namespace === "ui" && parsed.persist !== false && request.source !== null
               ? unfinished.filter(isCatalogueText)
               : [];
           enqueueJobs(
             publicTexts.map((text) => ({
               text,
-              source: parsed.source ?? SOURCE_LANGUAGE,
+              source: request.source ?? SOURCE_LANGUAGE,
               target: result.target.code,
               namespace,
               context: parsed.context ?? null,

@@ -7,11 +7,22 @@ import {
   batchKey,
   joinOrStart,
   retryAfterFor,
+  translationSource,
   withinBudget,
 } from "../realtime-budget";
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("automatic source contract", () => {
+  it("preserves explicit detection while defaulting omitted source to English", () => {
+    expect(translationSource(undefined)).toBe("en");
+    expect(translationSource(null)).toBeNull();
+    expect(translationSource("auto")).toBeNull();
+    expect(translationSource("hi")).toBe("hi");
+    expect(translationSource("invalid")).toBe("invalid");
+  });
 });
 
 function deferred<T>() {

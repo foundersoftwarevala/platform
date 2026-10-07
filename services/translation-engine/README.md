@@ -126,12 +126,16 @@ On the host (installed by hand once; see the scripts' headers):
 | Script | When | What |
 |---|---|---|
 | `deploy/i18n-health.sh` | every minute | One JSON line in `/var/log/sv-i18n-health.log`: site, language pack and translate endpoint status and latency, engine readiness, queue, database latency, the application's latency percentiles and cache hit ratios. Alerts on failure (and to `ALERT_WEBHOOK_URL` when set in `/etc/sv-i18n-health.env`); after three failed checks restarts the engine container or cleanly restarts the application. |
-| `deploy/i18n-backup.sh` | 00:20 UTC | `pg_dump` of the language tables (registry, translation memory, glossary, revisions, jobs) with row counts and checksums, plus `routing.json`, the model checksum, the engine image tag and the nginx real-IP list, under `/root/backups/i18n/<date>/`, kept 14 days. Needs `/etc/sv-i18n-backup.env` (DB_HOST, DB_PASSWORD; mode 600). |
-| `deploy/i18n-restore-test.sh` | Sundays 01:00 UTC | Restores the latest backup into a scratch PostgreSQL and compares row counts. |
+| `deploy/i18n-backup.sh` | 00:20 UTC | Native `sv_platform` snapshot of seven language tables, including quota and hashed sessions, with row counts and checksums, plus engine metadata under `/root/backups/i18n/<date>/`, kept 14 days. Uses the existing local PostgreSQL administrator, not a gateway or credential fallback. |
+| `deploy/i18n-restore-test.sh` | Sundays 01:00 UTC | Restores language table definitions/data into a scratch PostgreSQL, compares counts, then removes the scratch database. This is data recovery verification, not full account/schema/RLS recovery. |
 
 Restoring after data loss:
 
-1. Schema: apply `supabase/migrations/*i18n*` in order (they are idempotent).
+1. Schema: restore the canonical PostgreSQL schema and external account
+   constraints from its full backup. Preserve the historical language SQL in
+   `supabase/migrations`; this directory name does not require a Supabase
+   service. Apply `deploy/postgres/20261006220000_i18n_native_sessions.sql`
+   after its prerequisite tables exist.
 2. Data: `pg_restore --data-only --no-owner --no-privileges --disable-triggers
    -d "<connection>" /root/backups/i18n/<date>/language-data.dump`
    (`--disable-triggers` so the memory guard does not treat the restore as an
@@ -142,6 +146,31 @@ Restoring after data loss:
 4. Application: redeploy; the language packs and caches fill on first use.
 
 ## Tests
+
+The application language module uses `I18N_DATABASE_URL` for the existing
+native `sv_platform` database. It has separate opaque cookie sessions and
+does not use the platform's unrelated Supabase authentication session.
+The public translation API defaults an omitted source to English; explicit
+`source: null` or `source: "auto"` invokes owned-engine detection. Unknown-source
+requests are not published to shared background translation memory.
+
+From the canonical application checkout:
+
+```sh
+npm test -- src/lib/i18n/__tests__ --maxWorkers=2
+node --env-file=.env scripts/i18n-native-verify.mjs --out=/root/i18n-native-capability.json
+node scripts/i18n-browser-verify.mjs --out=/root/i18n-browser-capability.json
+```
+
+The native runner uses real PostgreSQL with rollback-only queue/quota probes
+and real translations with persistence disabled. Its detector check queries
+the authenticated owned detector rather than assuming the public translation
+response exposes the detected source. The anonymous browser runner checks all
+140 selectors, persisted preferences, document direction and actual visible
+page rendering after reload. Its fallback/pending counts are evidence of
+incomplete coverage, not a certification that translations are complete.
+Neither runner alone certifies all screens, semantic quality, AI/voice, fonts,
+multilingual SSR/SEO or thousands of concurrent cold-engine users.
 
 ```sh
 docker run --rm sv-translate:current python -m pytest -q tests --ignore=tests/test_live.py   # no model needed
