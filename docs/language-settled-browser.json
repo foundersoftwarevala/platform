@@ -1,0 +1,246 @@
+{
+  "at": "2026-10-07T02:18:04.169Z",
+  "samples": [
+    {
+      "code": "hi",
+      "direction": "ltr",
+      "status": "partial",
+      "fallback": "1174",
+      "pending": "1160",
+      "title": "Software Vala — 7,557 Software Solutions Marketplace",
+      "visibleEnglishCandidates": [
+        {
+          "text": "Software Vala",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "School Management Software",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "School Management",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Complete school management with student records, attendance, timetable, and parent communication.",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Share",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Childcare",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Daycare management with child profiles, attendance, activities, and parent communication.",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Share",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "College ERP",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "University ERP with admission, courses, faculty, exams, and placement management.",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Share",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Learning Management System",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Complete LMS with courses, videos, quizzes, certificates, and progress tracking.",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Share",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Coaching",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Coaching center management with batch scheduling, test series, and performance analytics.",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Share",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Online Examination System",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Online Exam",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Online exam platform with question banks, proctoring, auto-grading, and result analytics.",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Share",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Student Information System",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Student Info",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Centralized student database with academic records, documents, and communication.",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Share",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        }
+      ],
+      "requests": [
+        {
+          "status": 429,
+          "reason": "quota_exceeded"
+        }
+      ]
+    },
+    {
+      "code": "ar",
+      "direction": "rtl",
+      "status": "partial",
+      "fallback": "1208",
+      "pending": "1184",
+      "title": "Software Vala — 7,557 Software Solutions Marketplace",
+      "visibleEnglishCandidates": [
+        {
+          "text": "Software Vala",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Login",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Business Built on Trust.",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Start Risk-Free",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Shop by Industry",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Real Estate",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Enterprise",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Legal",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Real Estate",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Enterprise",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Legal",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "School Management Software",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "School Management",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Complete school management with student records, attendance, timetable, and parent communication.",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Tech Stack",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Live Demo",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Share",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Childcare",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Daycare management with child profiles, attendance, activities, and parent communication.",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Tech Stack",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Live Demo",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Share",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "College ERP",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "University ERP with admission, courses, faculty, exams, and placement management.",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        },
+        {
+          "text": "Tech Stack",
+          "classification": "UNCLASSIFIED_REQUIRES_CONTEXT"
+        }
+      ],
+      "requests": [
+        {
+          "status": 429,
+          "reason": "quota_exceeded"
+        },
+        {
+          "status": 200,
+          "reason": "in_progress"
+        },
+        {
+          "status": 429,
+          "reason": "quota_exceeded"
+        }
+      ]
+    }
+  ],
+  "errors": []
+}
