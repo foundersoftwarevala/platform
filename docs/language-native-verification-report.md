@@ -1,5 +1,53 @@
 # Native 140-language repair: verified evidence and release decision
 
+## Latest completed production verification
+
+Runtime tested: `e37733e` (native count/hydration repair), on canonical main.
+The older measurements below remain historical evidence, not current results.
+
+| Status    | Area                              | Fresh evidence                                                                                                                                                                                                                                                          |
+| --------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🟢 GREEN  | Browser/SSR/RTL/layout            | 140 unique languages; 140/140 selector and reload flows pass; zero page exceptions and zero horizontal-overflow failures. Real fonts finish loading; this is not glyph-by-glyph certification.                                                                          |
+| 🟢 GREEN  | Owned forward translation         | 140/140 actual forward probes accepted, including source-language identity where appropriate.                                                                                                                                                                           |
+| 🟢 GREEN  | Accepted format structure         | 413/420 cases accepted after an isolated affected-case recheck; zero accepted placeholder/ICU/HTML shape mismatches. All original failures are retained.                                                                                                                |
+| 🟢 GREEN  | Native DB/security                | Actual `sv_platform` / `sv_app`; numeric quota source probes and real queue claims roll back with zero probe residue; anonymous memory/glossary visibility zero, no anonymous session access or raw-account SELECT grant.                                               |
+| 🟢 GREEN  | Code verification                 | 19 files / 476 native tests; focused ESLint; production build; scoped strict types with genuine generated route registration: 4 changed roots, 2,536 source files, zero changed-file errors. Unrelated dependency diagnostics were not enumerated by that scoped check. |
+| 🟡 YELLOW | Model directions/detection        | Reverse 136/140; other pair 138/140; matched automatic detection 91/140; real dynamic description 137/140. 88 PARTIALLY_SUPPORTED / 52 ENGINE_LIMITED in these probes, not full-language certification.                                                                 |
+| 🔴 RED    | Complete translated page coverage | All 132 non-English page samples still report partial coverage; maximum observed pending 50 and fallback 54, substantially lower than the old approximately 1,200-element baseline, but not zero.                                                                       |
+| 🔴 RED    | Real format output holds          | Seven real cases remain held by the existing quality gate: Myanmar greeting; Lao, Greek and Gaelic ICU; Slovenian, Wolof and Bambara HTML. No poor output was promoted or fabricated.                                                                                   |
+| 🟡 YELLOW | Credentials and acceptance limits | Positive native password/chat flows require legitimate existing credentials. All-screen semantic quality, AI/voice/glyph coverage and thousands-user cold-inference capacity remain uncertified.                                                                        |
+
+Fresh evidence:
+[140-language browser](language-browser-capability-current.json),
+[native directions and detection](language-native-capability-current.json),
+[420 format probes](language-format-capability-final.json),
+[isolated rate/timeout recheck](language-format-transport-recheck.json),
+[real quality-mode follow-up](language-owned-quality-current.json).
+
+The initial stable format run accepted 408/420. Concurrent native verification
+shared the real operator's 120-requests/minute allowance and three cases exceeded
+their 90-second inference budget. After the competing run finished, all 12 cases
+in the four affected languages (`sn`, `st`, `tn`, `om`) passed an isolated recheck;
+five formerly unavailable cases were recovered. These are warm follow-up results,
+not a cold-capacity claim. Limits, counters and caller identities were unchanged.
+
+Direct owned-engine evidence explains the remaining holds: Myanmar returned the
+unchanged English greeting; a Lao branch used the wrong script; Gaelic retained
+English branches; the Greek short branch was penalized for mixed-script output.
+Quality mode improved the Lao ICU result to 0.85 without persistence, but Myanmar
+remained held and the Greek quality probe exceeded 180 seconds. That is not proof
+that the realtime failures are repaired. Other held HTML and dynamic outputs
+require genuine model/terminology work, not looser quality thresholds.
+
+The 205 existing failed jobs were checked: all carry the private/non-catalogue
+privacy rejection, not the numeric quota error. They were not blindly requeued
+or deleted. Unrelated `.kilo/` work, all demos, real accounts, translation memory,
+required migrations and active platform dependencies are preserved.
+
+**Decision remains RED / NOT READY for the full requested all-surface acceptance.**
+Known model/coverage work has not been relabeled as an owner decision; the
+credential-dependent checks and unmeasured capacity are stated explicitly.
+
 ## Follow-up implementation (supersedes the original SSR/source-catalogue findings)
 
 The native public catalogue now includes 13,575 existing static UI/data-object

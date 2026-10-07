@@ -44,40 +44,58 @@ const authorization = await fetch(new URL("/api/i18n/admin", base), {
 if (authorization.status !== 200)
   throw new Error(`Operator authorization verification HTTP ${authorization.status}`);
 const out = process.argv.find((arg) => arg.startsWith("--out="))?.slice(6);
+const selection = process.argv
+  .find((arg) => arg.startsWith("--languages="))
+  ?.slice(12)
+  .split(",");
+if (selection?.some((code) => !SUPPORTED_LANGUAGES.some((language) => language.code === code)))
+  throw new Error("Requested format verification language is not in the real registry.");
+const languages = selection
+  ? SUPPORTED_LANGUAGES.filter((language) => selection.includes(language.code))
+  : SUPPORTED_LANGUAGES;
 const report = {
   at: new Date().toISOString(),
   persist: false,
   limitations: ["Checks structure and accepted output, not human semantic quality or all fonts."],
   languages: [],
 };
-for (const language of SUPPORTED_LANGUAGES) {
+for (const language of languages) {
   const record = { code: language.code, cases: [], failures: [] };
   for (const probe of cases) {
     const started = Date.now();
     try {
       let response, body;
       let attempts = 0;
+      const transportErrors = [];
       do {
         attempts++;
-        response = await fetch(new URL("/api/marketplace/translate", base), {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            ...(process.env.INTERNAL_API_TOKEN
-              ? { "x-internal-token": process.env.INTERNAL_API_TOKEN }
-              : {}),
-          },
-          body: JSON.stringify({
-            source: "en",
-            target: language.code,
-            texts: [probe.text],
-            namespace: "ui",
-            context: "language-format-verification",
-            persist: false,
-          }),
-          signal: AbortSignal.timeout(90000),
-          redirect: "error",
-        });
+        try {
+          response = await fetch(new URL("/api/marketplace/translate", base), {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              ...(process.env.INTERNAL_API_TOKEN
+                ? { "x-internal-token": process.env.INTERNAL_API_TOKEN }
+                : {}),
+            },
+            body: JSON.stringify({
+              source: "en",
+              target: language.code,
+              texts: [probe.text],
+              namespace: "ui",
+              context: "language-format-verification",
+              persist: false,
+            }),
+            signal: AbortSignal.timeout(Math.max(1, 90000 - (Date.now() - started))),
+            redirect: "error",
+          });
+        } catch (error) {
+          transportErrors.push(error.message);
+          const delay = Math.min(5000, attempts * 1000);
+          if (Date.now() - started + delay >= 90000) throw error;
+          await new Promise((done) => setTimeout(done, delay));
+          continue;
+        }
         body = await response.json();
         if (
           body.translations?.[probe.text] ||
@@ -110,6 +128,8 @@ for (const language of SUPPORTED_LANGUAGES) {
         attempts,
         milliseconds: Date.now() - started,
         reason: body.pending_reason ?? body.reason ?? null,
+        outcomes: body.results ?? [],
+        transportErrors,
       });
       if (!text || !shape)
         record.failures.push(`${probe.name}:${text ? "shape_mismatch" : "unavailable"}`);
