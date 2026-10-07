@@ -16,5 +16,10 @@ export function languageAuthorization(request: Request): string | null {
 /** Cookie-authenticated mutations require an explicit same-origin caller. */
 export function sameOriginMutation(request: Request): boolean {
   const origin = request.headers.get("origin");
-  return origin === new URL(request.url).origin;
+  const url = new URL(request.url);
+  // The trusted public edge terminates TLS; nginx preserves this host over HTTP.
+  // Never derive an allowed origin from arbitrary forwarded headers.
+  if (["softwarevala.net", "www.softwarevala.net"].includes(url.hostname))
+    return origin === `https://${url.hostname}`;
+  return origin === url.origin;
 }

@@ -13,6 +13,11 @@ import { messageText } from "@/lib/i18n/messages";
 export const Route = createFileRoute("/api/i18n/jobs")({
   server: {
     handlers: {
+      GET: () =>
+        Response.json(
+          { error: "Method not allowed." },
+          { status: 405, headers: { Allow: "POST" } },
+        ),
       POST: async ({ request }) => {
         const { requireLanguageOperator } = await import("@/lib/i18n/admin.server");
         const caller = await requireLanguageOperator(request);

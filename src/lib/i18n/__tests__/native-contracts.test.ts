@@ -112,6 +112,20 @@ describe("native language architecture", () => {
     expect(sameOriginMutation(request)).toBe(true);
     expect(
       sameOriginMutation(
+        new Request("http://softwarevala.net/api/i18n/session", {
+          headers: { origin: "https://softwarevala.net", "x-forwarded-proto": "http" },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      sameOriginMutation(
+        new Request("http://softwarevala.net/api/i18n/session", {
+          headers: { origin: "https://attacker.invalid", "x-forwarded-host": "attacker.invalid" },
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      sameOriginMutation(
         new Request(request.url, { headers: { origin: "https://attacker.invalid" } }),
       ),
     ).toBe(false);

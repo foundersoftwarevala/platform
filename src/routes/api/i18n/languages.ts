@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { SUPPORTED_LANGUAGES } from "@/lib/i18n/registry";
 
 /**
  * GET /api/i18n/languages
@@ -17,7 +18,18 @@ export const Route = createFileRoute("/api/i18n/languages")({
           const { db, disabledLanguages } = await import("@/lib/i18n/service.server");
           const disabled = [...(await disabledLanguages(await db()))].sort();
           return Response.json(
-            { disabled },
+            {
+              disabled,
+              languages: SUPPORTED_LANGUAGES.filter(
+                (language) => !disabled.includes(language.code),
+              ).map((language) => ({
+                code: language.code,
+                nativeName: language.nativeName,
+                script: language.script,
+                direction: language.direction,
+                locale: language.locale ?? language.code,
+              })),
+            },
             { headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=60" } },
           );
         } catch (error) {
