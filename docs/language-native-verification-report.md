@@ -1,5 +1,40 @@
 # Native 140-language repair: verified evidence and release decision
 
+## Follow-up implementation (supersedes the original SSR/source-catalogue findings)
+
+The native public catalogue now includes 13,575 existing static UI/data-object
+strings as well as gated published marketplace copy. No visitor-private text is
+admitted merely because a translation was requested.
+
+Native public packs bootstrap the root locale and keyed UI on the server without
+using the global Supabase server-function middleware. Explicit locale URLs take
+precedence over cookies/browser detection; each request owns its bootstrap state.
+The client uses the existing native pack endpoint. Held-for-review entries are
+not rendered by SSR.
+
+Homepage metadata uses the real catalogue counts and six bounded native source
+templates. Missing accepted translations still fall back to source text; this
+does not certify translated metadata for every locale. Uncertified hreflang
+alternates remain unpublished. Personalized HTML varies on Cookie and
+Accept-Language and is private/no-cache.
+
+Production deployment now additionally gates English, Hindi and Arabic
+server-rendered locale/direction and cache headers before the build swap.
+The all-language browser verifier records server locale, direction, font readiness
+and horizontal overflow. The new format verifier checks actual source-message
+placeholders, ICU select structure and HTML through the real native translation
+API with persistence disabled.
+
+Validation before deployment: production build passed; 19 native test files /
+469 tests passed; focused ESLint passed; strict checks found zero errors in 14
+changed roots (1,029 transitive files), with nine diagnostics outside those
+changed files. The older full-application 4,801-diagnostic baseline is not
+represented as repaired.
+
+These implementation improvements do not change the RED acceptance decision
+without fresh production evidence. Original baseline measurements below are
+retained as dated observations, not represented as measurements of this update.
+
 Date: 2026-10-07T02:14:22.147Z. Application build: `8b689218ab2c006473426f8d37f4f68566fc544b`.
 
 ## Final status: 🔴 RED - NOT READY

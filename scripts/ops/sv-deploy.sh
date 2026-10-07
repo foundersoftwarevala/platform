@@ -88,12 +88,27 @@ if [ "$session_code" = "200" ]; then
   node -e 'const p=JSON.parse(require("fs").readFileSync("/tmp/sv-smoke-session.json","utf8"));process.exit(p.authenticated===false&&p.tier==="anonymous"?0:1)' &&
     session_ok=1
 fi
+locale_ok=1
+for locale in en hi ar; do
+  locale_code=$(curl -s -D /tmp/sv-smoke-locale.headers -o /tmp/sv-smoke-locale.html \
+    -w '%{http_code}' -m 45 "http://127.0.0.1:$TEST_PORT/?lang=$locale")
+  direction=ltr
+  [ "$locale" = "ar" ] && direction=rtl
+  if [ "$locale_code" != "200" ] ||
+     ! grep -q "<html[^>]*lang=\"$locale\"[^>]*dir=\"$direction\"" /tmp/sv-smoke-locale.html ||
+     ! grep -qi '^cache-control: private, no-cache' /tmp/sv-smoke-locale.headers ||
+     ! grep -qi '^vary:.*Cookie' /tmp/sv-smoke-locale.headers ||
+     ! grep -qi '^vary:.*Accept-Language' /tmp/sv-smoke-locale.headers; then
+    locale_ok=0
+  fi
+done
 kill "$SMOKE_PID" 2>/dev/null; wait "$SMOKE_PID" 2>/dev/null
 [ "$ok" = "1" ] || { tail -20 /tmp/sv-deploy-smoke.log; fail "the new build did not answer with 200 on / — NOT deployed"; }
 [ "$size" -ge "$MIN_BYTES" ] || fail "the new homepage rendered only $size bytes — NOT deployed"
 grep -q "$MARKER" /tmp/sv-smoke.html || fail "the new homepage did not contain '$MARKER' — NOT deployed"
 [ "$language_ok" = "1" ] || fail "native language pack smoke failed — NOT deployed"
 [ "$session_ok" = "1" ] || fail "native language session verification failed — NOT deployed"
+[ "$locale_ok" = "1" ] || fail "native locale SSR/cache smoke failed — NOT deployed"
 echo "  homepage OK: http=200 bytes=$size marker present"
 
 step "5/6 Swapping the build in and restarting"

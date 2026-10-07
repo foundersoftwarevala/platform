@@ -290,12 +290,49 @@ export function audit({ fullText = false } = {}) {
 }
 
 function publicSourceTexts(findings) {
+  const dataText = [];
+  const fields = new Set([
+    "name",
+    "title",
+    "description",
+    "summary",
+    "label",
+    "placeholder",
+    "ctaLabel",
+  ]);
+  for (const file of files(SRC)) {
+    if (/[\\/]routes[\\/]api[\\/]/.test(file)) continue;
+    const source = ts.createSourceFile(
+      file,
+      readFileSync(file, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const visit = (node) => {
+      if (ts.isPropertyAssignment(node)) {
+        const key =
+          ts.isIdentifier(node.name) || ts.isStringLiteral(node.name) ? node.name.text : "";
+        const value = node.initializer;
+        if (
+          fields.has(key) &&
+          (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) &&
+          isUserText(value.text) &&
+          !exempt(value, source.text, source.getLineStarts())
+        ) {
+          dataText.push(value.text.trim(), value.text.replace(/\s+/g, " ").trim());
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
   return [
-    ...new Set(
-      findings
+    ...new Set([
+      ...dataText,
+      ...findings
         .filter((finding) => finding.status === "hardcoded" && finding.kind !== "api-error")
         .flatMap((finding) => [finding.text, finding.text.replace(/\s+/g, " ").trim()]),
-    ),
+    ]),
   ].sort();
 }
 

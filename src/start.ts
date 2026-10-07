@@ -25,7 +25,36 @@ const csrfMiddleware = createCsrfMiddleware({
   filter: (ctx) => ctx.handlerType === "serverFn",
 });
 
+const localeCacheMiddleware = createMiddleware().server(async ({ next, handlerType }) => {
+  const result = await next();
+  if (
+    handlerType === "router" &&
+    result.response.headers.get("content-type")?.includes("text/html")
+  ) {
+    const headers = new Headers(result.response.headers);
+    const vary = new Set(
+      (headers.get("vary") ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    );
+    vary.add("Cookie");
+    vary.add("Accept-Language");
+    headers.set("vary", [...vary].join(", "));
+    headers.set("cache-control", "private, no-cache");
+    return {
+      ...result,
+      response: new Response(result.response.body, {
+        status: result.response.status,
+        statusText: result.response.statusText,
+        headers,
+      }),
+    };
+  }
+  return result;
+});
+
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
-  requestMiddleware: [errorMiddleware, csrfMiddleware],
+  requestMiddleware: [errorMiddleware, csrfMiddleware, localeCacheMiddleware],
 }));

@@ -221,7 +221,9 @@ export function buildLanguageBootScript(): string {
     `var a=String(document.cookie||"").split(";");var v="";` +
     `for(var j=0;a.length>j;j++){var h=a[j].trim();if(h.indexOf(d.k+"=")===0){` +
     `try{v=decodeURIComponent(h.slice(d.k.length+1));}catch(x){}break;}}` +
-    `var c=v&&(d.c[String(v).toLowerCase()]||d.g[String(v).toUpperCase()]);` +
+    `var q=typeof location!=="undefined"?new URL(location.href).searchParams.get("lang"):"";` +
+    `var c=q&&d.c[String(q).toLowerCase()];` +
+    `if(!c)c=v&&(d.c[String(v).toLowerCase()]||d.g[String(v).toUpperCase()]);` +
     // Nothing chosen yet: the browser's languages, trying each tag and then
     // shorter ones ("de-lu" -> "de"), so a first visit with an Arabic or
     // Hebrew browser is laid out right-to-left from the first paint.

@@ -34,6 +34,7 @@ import { TIER_LIMITS } from "@/lib/i18n/limits";
 import { looksLikeProductName } from "@/lib/i18n/names";
 import { messageContext, messageText } from "@/lib/i18n/messages";
 import { UI_DICTIONARY } from "@/lib/i18n/ui-dictionary";
+import type { LanguageBootstrap } from "@/lib/i18n/bootstrap";
 
 /**
  * The application's translation interface: <LanguageProvider> and
@@ -198,6 +199,28 @@ type RemoteState = {
 
 /** How long a page waits for its language pack before asking string by string. */
 const PACK_WAIT_MS = 4000;
+
+function remoteState(bootstrap?: LanguageBootstrap): RemoteState {
+  return {
+    fallback: new Set(),
+    held: bootstrap
+      ? Object.fromEntries(
+          Object.entries(bootstrap.entries).filter(([key]) => !bootstrap.withheld.includes(key)),
+        )
+      : {},
+    pending: new Set(),
+    unavailable: new Set(bootstrap?.withheld ?? []),
+    refusedShape: new Set(),
+    packTag: bootstrap?.tag ?? null,
+    packKeys: new Set(Object.keys(bootstrap?.entries ?? {})),
+    refused: false,
+    blockedUntil: 0,
+    engineFailures: 0,
+    packUntil: bootstrap || typeof window === "undefined" ? 0 : Date.now() + PACK_WAIT_MS,
+    inFlight: new Set(),
+    locked: bootstrap?.locked ?? [],
+  };
+}
 
 /**
  * The strings translation memory holds for a language, in one request
@@ -431,14 +454,25 @@ function isSourceVariety(language: LanguageDefinition): boolean {
   );
 }
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  // The server always renders the source language; the client switches to the
-  // stored or detected language before paint.
-  const [lang, setLangState] = useState<string>(DEFAULT_LANGUAGE);
+export function LanguageProvider({
+  children,
+  initial,
+}: {
+  children: ReactNode;
+  initial?: LanguageBootstrap;
+}) {
+  const [lang, setLangState] = useState<string>(
+    getLanguage(initial?.code ?? DEFAULT_LANGUAGE)?.code ?? DEFAULT_LANGUAGE,
+  );
   const [version, setVersion] = useState(0);
   const [translationState, setTranslationState] = useState({ pending: 0, missing: 0, fallback: 0 });
 
   const remote = useRef<Record<string, RemoteState>>({});
+  const seeded = useRef(false);
+  if (!seeded.current) {
+    seeded.current = true;
+    if (initial) remote.current[initial.code] = remoteState(initial);
+  }
   const activeLanguage = useRef(lang);
   activeLanguage.current = lang;
   useEffect(() => {
@@ -475,8 +509,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   // drain is defined below; the language pack loader in stateFor calls it through this.
   const drainRef = useRef<((code: string) => void) | null>(null);
   const [service, setService] = useState<{ ready: boolean; reason: string | null }>({
-    ready: true,
-    reason: null,
+    ready: !initial?.reason,
+    reason: initial?.reason ?? null,
   });
 
   /**
@@ -536,8 +570,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const queryConsumed = useRef(false);
   const sync = useCallback(() => {
-    const current = getCurrentLanguageFromService();
+    const query = queryConsumed.current
+      ? null
+      : resolveLanguage(new URL(window.location.href).searchParams.get("lang") ?? "");
+    queryConsumed.current = true;
+    if (query) setCurrentLanguageInService(query.code, { target: null });
+    const current = query?.code ?? getCurrentLanguageFromService();
     setLangState(current);
     applyDocumentLanguage(current);
     setVersion((v) => v + 1);
@@ -647,21 +687,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
             timers.current.delete(oldest);
           }
         }
-        state = {
-          fallback: new Set(),
-          held: {},
-          pending: new Set(),
-          unavailable: new Set(),
-          refusedShape: new Set(),
-          packTag: null,
-          packKeys: new Set(),
-          refused: false,
-          blockedUntil: 0,
-          engineFailures: 0,
-          packUntil: typeof window === "undefined" ? 0 : Date.now() + PACK_WAIT_MS,
-          inFlight: new Set(),
-          locked: [],
-        };
+        state = remoteState();
         remote.current[code] = state;
         if (typeof window !== "undefined") {
           const created = state;
@@ -839,7 +865,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       // translator never takes it for English source text (see isRendered).
       const shown = (text: string) => {
         const out = fill(text);
-        noteRendered(language.code, out, text);
+        if (typeof window !== "undefined") noteRendered(language.code, out, text);
         return out;
       };
       const english = sourceText(key);
@@ -847,7 +873,12 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
       const exact = UI_DICTIONARY[language.code]?.[key];
       if (exact) return shown(exact);
-      if (typeof window === "undefined") return fill(english);
+      if (typeof window === "undefined") {
+        const context = options?.context ?? messageContext(key) ?? "";
+        return fill(
+          remote.current[language.code]?.held[`${context}${SEPARATOR}${english}`] ?? english,
+        );
+      }
       // A product name is the same in every language (see src/lib/i18n/names.ts);
       // there is nothing to ask the server for.
       if (looksLikeProductName(english)) return fill(english);

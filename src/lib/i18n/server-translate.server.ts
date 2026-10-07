@@ -46,10 +46,12 @@ export function englishTranslator(): ServerT {
 }
 
 /**
- * The language a request asks for: the site's language cookie (the language the
+ * The language a request asks for: an explicit lang URL, the site's language cookie (the language the
  * visitor chose or that was detected for them), then Accept-Language, then English.
  */
 export function languageOf(request: Request): string {
+  const query = resolveLanguage(new URL(request.url).searchParams.get("lang") ?? "");
+  if (query) return query.code;
   const cookie = request.headers.get("cookie") ?? "";
   const match = cookie.match(new RegExp(`(?:^|;\\s*)${LANGUAGE_COOKIE}=([^;]+)`));
   if (match) {

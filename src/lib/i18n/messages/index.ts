@@ -39,6 +39,7 @@ import { DEVMANAGER_MESSAGES } from "./devmanager";
 import { EMAIL_MESSAGES } from "./email";
 import { MANAGER_MESSAGES } from "./manager";
 import { SEO_MESSAGES } from "./seo";
+import { PUBLICSEO_MESSAGES } from "./publicseo";
 import { MARKETPLACE_MESSAGES } from "./marketplace";
 import { NOTIFICATIONS_MESSAGES } from "./notifications";
 import { PAYMENT_MESSAGES } from "./payment";
@@ -68,6 +69,7 @@ export const MODULES = {
   payment: PAYMENT_MESSAGES,
   reseller: RESELLER_MESSAGES,
   seo: SEO_MESSAGES,
+  publicseo: PUBLICSEO_MESSAGES,
   demo: DEMO_MESSAGES,
   storeadmin: STOREADMIN_MESSAGES,
 } as const;

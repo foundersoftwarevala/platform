@@ -38,10 +38,22 @@ try {
       await page.waitForFunction((code) => document.documentElement.lang === code, language.code);
       await page.locator("main").first().waitFor({ state: "visible", timeout: 60000 });
       record.reloadStatus = response.status();
+      const serverHtml = await response.text();
+      record.serverLocale = serverHtml.match(/<html[^>]*lang="([^"]+)"/)?.[1] ?? null;
+      record.serverDirection = serverHtml.match(/<html[^>]*dir="([^"]+)"/)?.[1] ?? null;
+      await page.evaluate(() => document.fonts.ready);
+      record.layout = await page.evaluate(() => ({
+        fontStatus: document.fonts.status,
+        fontFamily: getComputedStyle(document.body).fontFamily,
+        horizontalOverflow: Math.max(0, document.documentElement.scrollWidth - innerWidth),
+      }));
       record.reload = await page.locator("html").getAttribute("lang");
       record.mainVisible = await page.locator("main").first().isVisible();
       if (record.actualDirection !== language.direction) record.failures.push("direction_mismatch");
       if (record.reload !== language.code) record.failures.push("preference_not_restored");
+      if (record.serverLocale !== language.code || record.serverDirection !== language.direction)
+        record.failures.push("server_locale_mismatch");
+      if (record.layout.horizontalOverflow > 1) record.failures.push("horizontal_overflow");
       if (record.reloadStatus !== 200 || !record.mainVisible)
         record.failures.push("page_unavailable");
     } catch (error) {

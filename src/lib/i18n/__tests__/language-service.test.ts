@@ -176,13 +176,17 @@ describe("applyDocumentLanguage", () => {
 });
 
 describe("buildLanguageBootScript", () => {
-  function runBootScript(stored: Record<string, string>, languages: string[] = []) {
+  function runBootScript(
+    stored: Record<string, string>,
+    languages: string[] = [],
+    href = "https://softwarevala.net",
+  ) {
     const doc = fakeDocument();
     doc.cookie = `${LANGUAGE_COOKIE}=${stored[LANGUAGE_STORAGE_KEY] ?? stored[LEGACY_LANGUAGE_STORAGE_KEY] ?? ""}`;
     const script = buildLanguageBootScript();
     const nav = { languages, language: languages[0] };
     // The script reads the page's globals; give it stand-ins.
-    new Function("document", "navigator", script)(doc, nav);
+    new Function("document", "navigator", "location", script)(doc, nav, { href });
     return doc;
   }
 
@@ -210,6 +214,15 @@ describe("buildLanguageBootScript", () => {
     expect(doc.documentElement.lang).toBe("hi");
   });
 
+  it("uses an explicit locale URL before a stored cookie and rejects unsupported URLs", () => {
+    const stored = { [LANGUAGE_STORAGE_KEY]: "hi" };
+    expect(
+      runBootScript(stored, ["en"], "https://softwarevala.net/?lang=ar").documentElement.lang,
+    ).toBe("ar");
+    expect(
+      runBootScript(stored, ["en"], "https://softwarevala.net/?lang=unknown").documentElement.lang,
+    ).toBe("hi");
+  });
   it("applies a stored choice before the app loads", () => {
     const doc = runBootScript({ [LANGUAGE_STORAGE_KEY]: "ar-EG" });
     expect(doc.documentElement.lang).toBe("ar-EG");

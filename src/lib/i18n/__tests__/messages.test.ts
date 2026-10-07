@@ -112,6 +112,18 @@ describe("server translation", () => {
     expect(languageOf(request({}))).toBe("en");
   });
 
+  it("prioritizes valid explicit locale URLs and preserves cookie fallback for invalid ones", () => {
+    expect(
+      languageOf(
+        new Request("https://example.test/?lang=ar", { headers: { cookie: "sv_locale=hi" } }),
+      ),
+    ).toBe("ar");
+    expect(
+      languageOf(
+        new Request("https://example.test/?lang=unknown", { headers: { cookie: "sv_locale=hi" } }),
+      ),
+    ).toBe("hi");
+  });
   it("English needs no pipeline call", async () => {
     const t = await serverTranslator("en", ["email"]);
     expect(t("email.hello", { name: "Asha" })).toBe("Hello Asha,");

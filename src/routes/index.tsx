@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import "@/styles/sapphire-home.css";
 import HomeIndex from "@/components/sapphire-home/HomeIndex";
 import { absoluteUrl } from "@/lib/seo/site-url";
+import { getPublicHomeSeo } from "@/lib/i18n/public-seo.functions";
 
 export const Route = createFileRoute("/")({
   /**
@@ -26,7 +27,7 @@ export const Route = createFileRoute("/")({
    * none of them can fail or stall the page - a missing answer only means that
    * section shows no number, or does not render.
    */
-  loader: async () => {
+  loader: async ({ context }) => {
     const [{ getCatalogueHeadline }, { getHomeStats }, { getStorefrontChrome }] = await Promise.all(
       [
         import("@/lib/seo/catalogue-headline.server"),
@@ -44,18 +45,29 @@ export const Route = createFileRoute("/")({
       capped(() => getHomeStats()),
       capped(() => getStorefrontChrome()),
     ]);
-    return { headline, stats, chrome };
+    const seo = await getPublicHomeSeo({
+      data: {
+        products: headline?.products ?? null,
+        categories: headline?.visibleCategories ?? null,
+        bootstrap: context.languageBootstrap,
+      },
+    });
+    return { headline, stats, chrome, seo };
   },
   head: ({ loaderData }) => {
     const headline = loaderData?.headline ?? null;
     const count = headline ? headline.products.toLocaleString("en-IN") : null;
     const categories = headline ? headline.visibleCategories : null;
-    const title = count
-      ? `Software Vala — ${count} Software Solutions Marketplace`
-      : "Software Vala — Software Solutions Marketplace";
-    const description = count
-      ? `Browse ${count} ready-to-deploy software solutions across ${categories} categories with live demos, full source code and lifetime access.`
-      : "Browse ready-to-deploy software solutions with live demos, full source code and lifetime access.";
+    const title =
+      loaderData?.seo.title ??
+      (count
+        ? `Software Vala — ${count} Software Solutions Marketplace`
+        : "Software Vala — Software Solutions Marketplace");
+    const description =
+      loaderData?.seo.description ??
+      (count
+        ? `Browse ${count} ready-to-deploy software solutions across ${categories} categories with live demos, full source code and lifetime access.`
+        : "Browse ready-to-deploy software solutions with live demos, full source code and lifetime access.");
 
     return {
       links: [{ rel: "canonical", href: absoluteUrl("/") }],
@@ -68,9 +80,11 @@ export const Route = createFileRoute("/")({
         { property: "og:title", content: title },
         {
           property: "og:description",
-          content: categories
-            ? `Live demos, full source code, 1 year free support and lifetime access across ${categories} categories.`
-            : "Live demos, full source code, 1 year free support and lifetime access.",
+          content:
+            loaderData?.seo.social ??
+            (categories
+              ? `Live demos, full source code, 1 year free support and lifetime access across ${categories} categories.`
+              : "Live demos, full source code, 1 year free support and lifetime access."),
         },
         { property: "og:type", content: "website" },
         { property: "og:url", content: absoluteUrl("/") },
