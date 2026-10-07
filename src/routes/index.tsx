@@ -49,6 +49,7 @@ export const Route = createFileRoute("/")({
       data: {
         products: headline?.products ?? null,
         categories: headline?.visibleCategories ?? null,
+        liveDemos: stats?.liveDemos ?? null,
         bootstrap: context.languageBootstrap,
       },
     });

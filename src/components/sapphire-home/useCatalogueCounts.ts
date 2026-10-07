@@ -22,19 +22,22 @@ export type CatalogueCounts = {
 type HomeLoaderData = {
   headline?: { products?: number; visibleCategories?: number } | null;
   stats?: { products?: number; categories?: number; liveDemos?: number } | null;
+  seo?: { language: string; formattedCounts?: Record<string, string> };
 };
 
 const positive = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
 
 export function useCatalogueCounts(): CatalogueCounts {
-  const { formatNumber } = useTranslation();
+  const { formatNumber, lang } = useTranslation();
   const match = useMatch({ from: "/", shouldThrow: false });
   const data = (match?.loaderData ?? {}) as HomeLoaderData;
   return {
     products: positive(data.headline?.products) ?? positive(data.stats?.products),
     categories: positive(data.headline?.visibleCategories) ?? positive(data.stats?.categories),
     liveDemos: positive(data.stats?.liveDemos),
-    format: (value: number) => formatNumber(value),
+    format: (value: number) =>
+      (data.seo?.language === lang ? data.seo.formattedCounts?.[value] : undefined) ??
+      formatNumber(value),
   };
 }

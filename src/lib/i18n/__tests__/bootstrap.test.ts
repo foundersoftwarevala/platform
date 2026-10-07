@@ -3,6 +3,9 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { LanguageProvider, useLanguage, translateText } from "../../language-catalog";
 import { languagePackPayload, type LanguageBootstrap } from "../bootstrap";
+import { formatMessage, formatNumber } from "../format";
+import { messageText } from "../messages";
+import { homeSeo } from "../public-seo.functions";
 
 const empty = (code: string): LanguageBootstrap => ({
   code,
@@ -26,6 +29,24 @@ function render(initial: LanguageBootstrap, text?: string) {
   );
 }
 describe("native SSR language bootstrap", () => {
+  it("serializes locale-formatted catalogue counts with the server metadata", () => {
+    const seo = homeSeo(
+      { products: 7557, categories: 91, liveDemos: 200, bootstrap: empty("be") },
+      (key, values) => formatMessage(messageText(key) ?? key, values ?? {}, "be"),
+    );
+    expect(seo.language).toBe("be");
+    expect(seo.formattedCounts).toEqual({
+      7557: formatNumber(7557, "be"),
+      91: formatNumber(91, "be"),
+      200: formatNumber(200, "be"),
+    });
+    expect(seo.title).toContain(seo.formattedCounts[7557]);
+    expect(seo.description).toContain(seo.formattedCounts[91]);
+    expect(
+      homeSeo({ products: null, categories: null, bootstrap: empty("be") }, (key) => key)
+        .formattedCounts,
+    ).toEqual({});
+  });
   it("uses the same reviewed regional fallback as the first client render", () => {
     expect(render(empty("ar-EG"), "Share")).toContain(translateText("Share", "ar-EG"));
   });

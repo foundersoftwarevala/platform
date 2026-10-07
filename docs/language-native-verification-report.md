@@ -424,3 +424,17 @@ their actual language, preventing one failed navigation from contaminating
 later cases. Fresh post-deployment matrices remain necessary; this section
 does not certify all 140 languages, voice/AI, signed-in flows or thousand-user
 cold-inference capacity.
+
+The first post-parity production reload still produced React hydration error
+418 in Belarusian. A real isolated development server identified the exact
+text mismatch: server `7557` versus browser `7,557`. Actual Chromium reports
+no `be`/`be-BY` number-format support and falls back to `en-US`; the VPS Node
+runtime supports Belarusian CLDR. This was not an unsupported translation model.
+
+Catalogue counts now reuse locale-tagged, server-formatted strings from the
+serialized homepage loader. The real values are unchanged, locale switches do
+not reuse another language's snapshot, and metadata uses the shared registry
+formatter. Real candidate browser reloads in `be`, `tk`, `ar-EG` and `pl`
+subsequently recorded zero page exceptions. Updated native suite: 19 files /
+476 tests pass; focused ESLint passes. Full fresh production verification is
+still required before an acceptance claim.

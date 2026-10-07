@@ -1,11 +1,15 @@
 import { createIsomorphicFn } from "@tanstack/react-start";
-import { formatMessage } from "./format";
+import { formatMessage, formatNumber } from "./format";
 import { messageText, type MessageKey } from "./messages";
-import { getLanguage } from "./registry";
 import type { LanguageBootstrap } from "./bootstrap";
 
 type HomeSeoInput = {
-  data: { products: number | null; categories: number | null; bootstrap: LanguageBootstrap };
+  data: {
+    products: number | null;
+    categories: number | null;
+    liveDemos?: number | null;
+    bootstrap: LanguageBootstrap;
+  };
 };
 
 export function homeSeo(
@@ -13,10 +17,16 @@ export function homeSeo(
   t: (key: MessageKey, values?: Record<string, string>) => string,
 ) {
   const language = data.bootstrap.code;
-  const count = data.products?.toLocaleString(getLanguage(language)?.locale ?? "en-IN");
-  const categories = data.categories?.toLocaleString(getLanguage(language)?.locale ?? "en-IN");
+  const formattedCounts = Object.fromEntries(
+    [data.products, data.categories, data.liveDemos]
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+      .map((value) => [value, formatNumber(value, language)]),
+  );
+  const count = data.products === null ? undefined : formattedCounts[data.products];
+  const categories = data.categories === null ? undefined : formattedCounts[data.categories];
   return {
     language,
+    formattedCounts,
     title: count ? t("publicseo.home_title", { count }) : t("publicseo.home_generic_title"),
     description:
       count && categories
