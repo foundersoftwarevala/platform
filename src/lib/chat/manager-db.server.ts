@@ -101,8 +101,7 @@ export async function getChatManagerAccess(userId: string): Promise<{
   permissions: string[];
 }> {
   if (!CHAT_MANAGER_UUID.test(userId)) throw new Error("A valid signed-in user is required.");
-  const sql = await database();
-  const [access] = await sql<
+  const [access] = await withChatPlatformDatabase((sql) => sql<
     {
       can_manage_chat: boolean;
       can_manage_permissions: boolean;
@@ -116,7 +115,7 @@ export async function getChatManagerAccess(userId: string): Promise<{
            public.has_permission(${userId}::uuid, 'chat.assign') as can_assign,
            public.has_permission(${userId}::uuid, 'chat.moderate') as can_moderate,
            public.has_permission(${userId}::uuid, 'chat.export') as can_export
-  `;
+  `);
   if (!access) throw new Error("Could not verify Chat Manager access.");
   return {
     canManageChat: access.can_manage_chat,
