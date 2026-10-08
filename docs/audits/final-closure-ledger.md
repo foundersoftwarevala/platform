@@ -63,29 +63,45 @@ OWNER-DECISION · EXTERNAL-BLOCKER · NOT-AN-ISSUE.
 | FC-18 | Homepage accessibility       | Product-carousel labels were attached to generic `div` elements, which axe reports as prohibited ARIA attributes (56 instances on the homepage).                                                                   | FIXED             | The deployed carousel rail now declares `role="group"` for its accessible label and busy state. A fresh axe scan of the deployed commit is running.                                                                                                                                                                                                                              |
 | FC-19 | Legal Manager accessibility  | The legal sidebar used 80% opacity for inactive navigation labels appearing among live contrast violations.                                                                                                         | FIXED             | Removed the opacity modifier from the inactive navigation-label color and deployed it. The current post-deployment scan will verify the remaining contrast findings.                                                                                                                                                                                                             |
 
-## Follow-up local scan — 2026-10-08
+## Follow-up scan and production verification — 2026-10-08
 
-This follow-up is local-only. It does not update or certify VPS, PostgreSQL, or
-other hosted production state.
-
-- Local `main`, the cached `origin/main` ref, and GitHub `main` were verified at
-  `5a795c8b59d96f4974b89bdf45094a680e8b8f19` before these uncommitted changes.
 - Payment health no longer converts failed or incomplete database counts to
   zero; the route's existing error path reports a failed measurement. Regression
   tests cover successful counts, database errors, and missing exact counts.
 - SEO credential writes now use the existing AES-256-GCM credential format.
-  SEO and Cloudflare readers upgrade legacy plaintext/Base64 rows on read;
-  Cloudflare's consumer decrypts the same format. The production key and live
-  rows were not inspected or changed.
+  SEO and Cloudflare readers upgrade legacy plaintext/Base64 rows on read.
 - Paged product/slot sitemap routes use valid `$page` parameters while
   continuing to serve numeric `.xml` pages; malformed page segments return 404.
-- Local verification: production build passed, 1,112 tests passed, focused
-  TypeScript check passed for the modified business-logic modules, changed-file
-  lint passed apart from pre-existing `no-explicit-any` violations excluded
-  from that scoped run, and `i18n:check` passed.
-- Full-repository lint remains noisy (34,500 errors in the prior run, mostly
-  formatting); a full TypeScript run exceeded 13 minutes without output.
-- No Git remote is configured in this checkout and `psql` is unavailable.
-  VPS source/build, migrations, RLS, encryption-key availability, production
-  smoke, and deployment therefore remain UNVERIFIED/BLOCKED. No deployment,
-  database write, commit, or push was performed.
+- Local verification: production build passed, all 1,112 tests passed, the
+  focused TypeScript check passed for modified business-logic modules,
+  changed-file ESLint passed, and `i18n:check` passed. Full-repository lint
+  remains noisy (34,500 errors in the earlier run, mostly formatting); the
+  earlier full TypeScript run exceeded 13 minutes without output.
+- Release `bd36dc354fc518c0a3e1900b13f918929e824269` was pushed to `main` and
+  deployed using `scripts/ops/sv-deploy.sh`. The VPS source is clean at that
+  commit; PM2 `softwarevala-staging` is online (PID 292759), with the new build
+  timestamped `2026-10-08 11:57:18 UTC`. The deployment manifest check passed,
+  the spare-port homepage returned 200, and the live homepage returned 200.
+  Three rollback builds remain; no old build was retired.
+- Live smoke: `softwarevala.net/`, `/api/i18n/pack?lang=hi`, `/sitemap.xml`,
+  `/sitemap-products/1.xml`, and `/sitemap-slots/1.xml` return 200; malformed
+  product and slot sitemap pages return 404. The anonymous i18n session
+  endpoint returns `authenticated=false`, `tier=anonymous`. The deployment
+  smoke also verified English, Hindi, and Arabic SSR/cache behavior.
+- Read-only VPS database verification connected to `sv_platform` (PostgreSQL
+  17.11): 101 migrations are recorded, latest `20261004181500`; this release
+  applied no database migration or data write. RLS is enabled on the checked
+  high-impact profile, payment, order, API key/service, demo credential, and
+  SEO integration tables, with policies present.
+- `AI_API_CREDENTIAL_ENCRYPTION_KEY` is present in the running app process and
+  PM2 configuration, but absent from `/var/www/softwarevala/.env`. The
+  deployed restart retained it; keep the PM2 configuration backed up and
+  provision the key there for any future replacement process.
+- The public `seo_api_*` relations are absent from `sv_platform`. The only
+  source references are in currently unreferenced legacy SEO credential
+  functions; active SEO provider execution uses the central `api_services` /
+  `api_keys` path. Do not reactivate those legacy functions without either
+  removing them or designing and applying their schema intentionally.
+- The original local `ChatManagerWorkspace.tsx` edit and untracked `.kilo/`
+  were preserved and excluded from the release. No production data was
+  modified.
