@@ -59,9 +59,22 @@ export type AiRegistryService = {
   last_error: string | null;
 };
 
+export type AiUsagePoint = {
+  /** UTC calendar day in YYYY-MM-DD form. */
+  date: string;
+  requests: number;
+  cost: number;
+  errors: number;
+};
+
 export type AiRegistrySnapshot = {
   services: AiRegistryService[];
   source: "supabase" | "fallback";
+  /** Real per-day totals over the trailing window, oldest day first. */
+  usage_by_day: AiUsagePoint[];
+  usage_window_days: number;
+  /** True when the usage query hit its row cap, so totals are a lower bound. */
+  usage_truncated: boolean;
   summary: {
     active: number;
     warning: number;
@@ -84,6 +97,37 @@ function toNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+const USAGE_WINDOW_DAYS = 7;
+const USAGE_ROW_LIMIT = 5000;
+
+export function usageWindowStart(now: Date, windowDays = USAGE_WINDOW_DAYS): Date {
+  const startDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return new Date(startDay - (windowDays - 1) * 86_400_000);
+}
+
+export function buildUsageDailySeries(
+  rows: Array<Record<string, unknown>>,
+  now: Date,
+  windowDays = USAGE_WINDOW_DAYS,
+): AiUsagePoint[] {
+  const byDate = new Map<string, AiUsagePoint>();
+  const start = usageWindowStart(now, windowDays).getTime();
+  for (let offset = 0; offset < windowDays; offset += 1) {
+    const date = new Date(start + offset * 86_400_000).toISOString().slice(0, 10);
+    byDate.set(date, { date, requests: 0, cost: 0, errors: 0 });
+  }
+  for (const row of rows) {
+    const occurredAt = row.occurred_at ? new Date(String(row.occurred_at)) : null;
+    if (!occurredAt || Number.isNaN(occurredAt.getTime())) continue;
+    const point = byDate.get(occurredAt.toISOString().slice(0, 10));
+    if (!point) continue;
+    point.requests += toNumber(row.requests);
+    point.cost += toNumber(row.cost_usd);
+    if (row.success === false) point.errors += 1;
+  }
+  return [...byDate.values()];
+}
+
 export const listAiRegistry = createServerFn({ method: "GET" }).handler(
   async (): Promise<AiRegistrySnapshot> => {
     // Registry contents (usage, cost, capabilities, approval state) are
@@ -92,6 +136,9 @@ export const listAiRegistry = createServerFn({ method: "GET" }).handler(
     // rendering in the browser. The caller's roles are now checked here.
     const { db } = await authenticatedManager(MANAGER_VIEW_ROLES);
     const sb = db as any;
+
+    const now = new Date();
+    const windowStart = usageWindowStart(now);
 
     const [richServicesResult, providersResult, usageResult, capabilitiesResult] =
       await Promise.allSettled([
@@ -106,23 +153,25 @@ export const listAiRegistry = createServerFn({ method: "GET" }).handler(
         sb
           .from("usage_events")
           .select("service_id, requests, cost_usd, success, latency_ms, occurred_at")
+          .gte("occurred_at", windowStart.toISOString())
           .order("occurred_at", { ascending: false })
-          .limit(500),
+          .limit(USAGE_ROW_LIMIT),
         sb
           .from("api_service_capabilities")
           .select("service_id, capability_name, approval_status, verification_status")
           .limit(500),
       ]);
 
-    let servicesData =
-      richServicesResult.status === "fulfilled" && !richServicesResult.value.error
-        ? (richServicesResult.value.data ?? [])
-        : [];
-    if (
-      !servicesData.length &&
-      richServicesResult.status === "fulfilled" &&
-      richServicesResult.value.error
-    ) {
+    if (richServicesResult.status === "rejected") throw richServicesResult.reason;
+    if (providersResult.status === "rejected") throw providersResult.reason;
+    if (usageResult.status === "rejected") throw usageResult.reason;
+    if (capabilitiesResult.status === "rejected") throw capabilitiesResult.reason;
+    if (providersResult.value.error) throw providersResult.value.error;
+    if (usageResult.value.error) throw usageResult.value.error;
+    if (capabilitiesResult.value.error) throw capabilitiesResult.value.error;
+
+    let servicesData = richServicesResult.value.data ?? [];
+    if (richServicesResult.value.error) {
       const legacy = await sb
         .from("api_services")
         .select(
@@ -130,28 +179,23 @@ export const listAiRegistry = createServerFn({ method: "GET" }).handler(
         )
         .order("created_at", { ascending: false })
         .limit(100);
-      if (!legacy.error) servicesData = legacy.data ?? [];
+      if (legacy.error) throw legacy.error;
+      servicesData = legacy.data ?? [];
     }
-    const providersData =
-      providersResult.status === "fulfilled" && !providersResult.value.error
-        ? (providersResult.value.data ?? [])
-        : [];
-    const usageRows =
-      usageResult.status === "fulfilled" && !usageResult.value.error
-        ? (usageResult.value.data ?? [])
-        : [];
+    const providersData = providersResult.value.data ?? [];
+    const usageRows = usageResult.value.data ?? [];
+    const usageTruncated = usageRows.length >= USAGE_ROW_LIMIT;
+    const usageDaily = buildUsageDailySeries(usageRows, now);
     const providersById = new Map(providersData.map((row: any) => [String(row.id), row]));
     const capabilitiesByService = new Map<string, string[]>();
-    if (capabilitiesResult.status === "fulfilled" && !capabilitiesResult.value.error) {
-      for (const capability of capabilitiesResult.value.data ?? []) {
-        const serviceId = String(capability.service_id);
-        const label = String(capability.capability_name ?? "Capability");
-        const state = `${capability.approval_status ?? "pending"}/${capability.verification_status ?? "unverified"}`;
-        capabilitiesByService.set(serviceId, [
-          ...(capabilitiesByService.get(serviceId) ?? []),
-          `${label} (${state})`,
-        ]);
-      }
+    for (const capability of capabilitiesResult.value.data ?? []) {
+      const serviceId = String(capability.service_id);
+      const label = String(capability.capability_name ?? "Capability");
+      const state = `${capability.approval_status ?? "pending"}/${capability.verification_status ?? "unverified"}`;
+      capabilitiesByService.set(serviceId, [
+        ...(capabilitiesByService.get(serviceId) ?? []),
+        `${label} (${state})`,
+      ]);
     }
 
     const usageByService = new Map<
@@ -208,17 +252,12 @@ export const listAiRegistry = createServerFn({ method: "GET" }).handler(
       } satisfies AiRegistryService;
     });
 
-    if (!services.length) {
-      return {
-        services: [],
-        source: "fallback",
-        summary: { active: 0, warning: 0, inactive: 0, usage: 0, cost: 0, errors: 0 },
-      };
-    }
-
     return {
       services,
       source: "supabase",
+      usage_by_day: usageDaily,
+      usage_window_days: USAGE_WINDOW_DAYS,
+      usage_truncated: usageTruncated,
       summary: {
         active: services.filter((row) => row.status === "active").length,
         warning: services.filter((row) => row.status === "warning").length,

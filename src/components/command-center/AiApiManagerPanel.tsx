@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Zap,
 } from "lucide-react";
+
 import {
   CartesianGrid,
   Line,
@@ -40,7 +41,6 @@ import { cn } from "@/lib/utils";
 import { useServerFn } from "@/lib/serverFn";
 import {
   listAiRegistry,
-  routeAiRequest,
   setAiServiceStatus,
   testAiService,
   type AiRegistryService,
@@ -62,136 +62,100 @@ type ServiceRow = {
   capabilities: string[];
 };
 
-type TrafficPoint = {
-  day: string;
-  requests: number;
-  cost: number;
-};
-
 type AlertItem = {
   title: string;
   detail: string;
   severity: "warning" | "info" | "alert";
 };
 
-type AccessRow = {
-  role: string;
-  services: string;
-  quota: string;
+type TrafficPoint = {
+  day: string;
+  requests: number;
+  cost: number;
+  errors: number;
 };
 
 type ApiManagerSnapshot = {
   serviceRows: ServiceRow[];
-  trafficSeries: TrafficPoint[];
   alerts: AlertItem[];
-  accessRows: AccessRow[];
   source: "supabase" | "fallback";
+  trafficSeries: TrafficPoint[];
+  usageCount: number;
+  totalCost: number;
+  windowDays: number;
+  truncated: boolean;
 };
-
-const WEEK_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function createFallbackSnapshot(): ApiManagerSnapshot {
   return {
-    source: "supabase",
+    source: "fallback",
     serviceRows: [],
-    trafficSeries: [],
     alerts: [],
-    accessRows: [],
+    trafficSeries: [],
+    usageCount: 0,
+    totalCost: 0,
+    windowDays: 0,
+    truncated: false,
   };
 }
 
 async function fetchApiManagerSnapshot(): Promise<ApiManagerSnapshot> {
-  try {
-    const registryFn = useServerFn(listAiRegistry);
-    const snapshot = await registryFn();
-    const serviceRows = (snapshot.services ?? []).map((service: AiRegistryService) => ({
-      id: service.id,
-      name: service.name,
-      owner: service.owner,
-      status: service.status as ServiceRow["status"],
-      traffic: `${service.usage_count} req`,
-      cost: `$${service.total_cost.toFixed(2)}`,
-      latency: service.last_error ? "Errors" : "Live",
-      risk:
-        service.error_count > 0
-          ? "Needs attention"
-          : service.status === "warning"
-            ? "Medium"
-            : "Low",
-      category: service.category,
-      pricing: service.pricing_tier,
-      approval: service.approval_status,
-      credential: service.credential_status,
-      capabilities: service.capabilities,
-    }));
+  const registryFn = useServerFn(listAiRegistry);
+  const snapshot = await registryFn();
+  const serviceRows = (snapshot.services ?? []).map((service: AiRegistryService) => ({
+    id: service.id,
+    name: service.name,
+    owner: service.owner,
+    status: service.status as ServiceRow["status"],
+    traffic: `${service.usage_count} req`,
+    cost: `$${service.total_cost.toFixed(2)}`,
+    latency: service.last_error ? "Errors" : "Not measured",
+    risk:
+      service.error_count > 0
+        ? "Needs attention"
+        : service.status === "warning"
+          ? "Medium"
+          : "Low",
+    category: service.category,
+    pricing: service.pricing_tier,
+    approval: service.approval_status,
+    credential: service.credential_status,
+    capabilities: service.capabilities,
+  }));
 
-    const trafficSeries = serviceRows.length
-      ? [
-          { day: "Active", requests: snapshot.summary.active * 120, cost: snapshot.summary.cost },
-          {
-            day: "Usage",
-            requests: snapshot.summary.usage,
-            cost: Math.max(1, snapshot.summary.cost * 1.15),
-          },
-          {
-            day: "Errors",
-            requests: snapshot.summary.errors,
-            cost: Math.max(1, snapshot.summary.errors),
-          },
-        ]
-      : [];
-
-    const alerts: AlertItem[] = [];
-    if (snapshot.summary.errors > 0) {
-      alerts.push({
-        title: `${snapshot.summary.errors} routing errors`,
-        detail: "Review the latest registry failures and adjust routing.",
-        severity: "warning",
-      });
-    }
-    if (snapshot.summary.warning > 0) {
-      alerts.push({
-        title: `${snapshot.summary.warning} services need review`,
-        detail: "Some registry entries are marked warning or degraded.",
-        severity: "info",
-      });
-    }
-    if (snapshot.summary.active > 0) {
-      alerts.push({
-        title: `${snapshot.summary.active} active registry routes`,
-        detail: "The AI gateway is currently routing through live registry services.",
-        severity: "alert",
-      });
-    }
-
-    const accessRows: AccessRow[] = [
-      {
-        role: "Founder",
-        services: `${snapshot.summary.active} active routes`,
-        quota: `${snapshot.summary.usage} requests`,
-      },
-      {
-        role: "Reseller",
-        services: `${snapshot.summary.warning} warning services`,
-        quota: `$${snapshot.summary.cost.toFixed(2)}`,
-      },
-      {
-        role: "Franchise",
-        services: `${snapshot.summary.errors} tracked errors`,
-        quota: `${snapshot.summary.inactive} inactive`,
-      },
-    ];
-
-    return {
-      source: snapshot.source,
-      serviceRows,
-      trafficSeries,
-      alerts,
-      accessRows,
-    };
-  } catch {
-    return { ...createFallbackSnapshot(), source: "fallback" };
+  const alerts: AlertItem[] = [];
+  if (snapshot.summary.errors > 0) {
+    alerts.push({
+      title: `${snapshot.summary.errors} failed requests`,
+      detail: `Usage events recorded failures in the last ${snapshot.usage_window_days} days.`,
+      severity: "warning",
+    });
   }
+  if (snapshot.summary.warning > 0) {
+    alerts.push({
+      title: `${snapshot.summary.warning} services need review`,
+      detail: "Registry entries are marked warning or degraded.",
+      severity: "info",
+    });
+  }
+
+  const trafficSeries = (snapshot.usage_by_day ?? []).map((point) => ({
+    day: point.date.slice(5),
+    requests: point.requests,
+    cost: point.cost,
+    errors: point.errors,
+  }));
+
+  return {
+    source: snapshot.source,
+    serviceRows,
+    alerts,
+    trafficSeries,
+    usageCount: trafficSeries.reduce((acc, point) => acc + point.requests, 0),
+    totalCost: trafficSeries.reduce((acc, point) => acc + point.cost, 0),
+    windowDays: snapshot.usage_window_days,
+    truncated: snapshot.usage_truncated,
+  };
 }
 
 function StatusPill({ status }: { status: string }) {
@@ -212,12 +176,11 @@ function StatusPill({ status }: { status: string }) {
 export function AiApiManagerPanel() {
   const [activeTab, setActiveTab] = useState("overview");
   const queryClient = useQueryClient();
-  const routeFn = useServerFn(routeAiRequest);
   const testFn = useServerFn(testAiService);
   const statusFn = useServerFn(setAiServiceStatus);
   const [expandedService, setExpandedService] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["ai-api-manager"],
     queryFn: fetchApiManagerSnapshot,
     staleTime: 60_000,
@@ -226,20 +189,6 @@ export function AiApiManagerPanel() {
 
   const snapshot = data ?? createFallbackSnapshot();
 
-  const routeMut = useMutation({
-    mutationFn: async (service: AiRegistryService) =>
-      routeFn({
-        data: {
-          serviceId: service.id,
-          payload: { estimated_cost: Math.max(0.01, service.total_cost + 0.01) },
-        },
-      }),
-    onSuccess: async (_result, service) => {
-      await queryClient.invalidateQueries({ queryKey: ["ai-api-manager"] });
-      toast.success(`Routed request to ${service.name}`);
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
   const testMut = useMutation({
     mutationFn: (service: ServiceRow) => testFn({ data: { serviceId: service.id } }),
     onSuccess: (result) => toast[result.status === "ready" ? "success" : "warning"](result.detail),
@@ -256,15 +205,16 @@ export function AiApiManagerPanel() {
   });
 
   const summary = useMemo(() => {
-    const totalTraffic = snapshot.trafficSeries.reduce((acc, item) => acc + item.requests, 0);
-    const totalCost = snapshot.trafficSeries.reduce((acc, item) => acc + item.cost, 0);
+    const windowLabel = snapshot.windowDays ? `last ${snapshot.windowDays} days` : "no window";
     return {
-      totalTraffic: `${(totalTraffic / 1000).toFixed(1)}k req`,
-      totalCost: `$${totalCost.toFixed(0)}`,
+      windowLabel,
+      totalTraffic: snapshot.usageCount.toLocaleString(),
+      totalCost: `$${snapshot.totalCost.toFixed(2)}`,
       coveredApis: `${snapshot.serviceRows.filter((row) => row.status === "active").length}/${snapshot.serviceRows.length}`,
-      riskAlerts: `${snapshot.alerts.filter((item) => item.severity === "alert").length} critical`,
+      riskAlerts: `${snapshot.alerts.length} signals`,
     };
   }, [snapshot]);
+  const capabilities = [...new Set(snapshot.serviceRows.flatMap((row) => row.capabilities))];
 
   return (
     <div className="rounded-2xl border border-sky-400/25 bg-[linear-gradient(140deg,rgba(13,24,44,0.96),rgba(8,17,34,0.95))] p-4 shadow-[0_22px_60px_-26px_rgba(44,116,255,0.85)]">
@@ -276,28 +226,27 @@ export function AiApiManagerPanel() {
               AI API Manager
             </span>
             <span className="text-[10px] uppercase tracking-[0.2em] text-foreground/45">
-              {snapshot.source === "supabase" ? "Supabase live data" : "Fallback demo data"}
+              {snapshot.source === "supabase" ? "Live registry data" : "Data unavailable"}
             </span>
           </div>
           <h3 className="text-lg font-semibold text-foreground">
             Unified API, AI model, billing and security control
           </h3>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
-            This module is now embedded into the control panel with dashboards backed by Supabase
-            data when available and a safe fallback when the workspace is still using demo-only
-            tables.
+            Requests and cost are aggregated from persisted usage events by calendar day over the
+            {" "}
+            {summary.windowLabel}. No projected, estimated or role-based figures are shown.
+            {snapshot.truncated
+              ? " The usage query reached its row cap, so totals are a lower bound."
+              : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-sky-400/25 bg-sky-400/10 text-sky-200"
-          >
+          <Button size="sm" variant="outline" disabled title="Key rotation is not available here.">
             <KeyRound className="mr-2 h-4 w-4" />
             Rotate Keys
           </Button>
-          <Button size="sm" className="bg-linear-to-r from-sky-500 to-cyan-400 text-black">
+          <Button size="sm" disabled title="An audit action is not available here.">
             <ShieldCheck className="mr-2 h-4 w-4" />
             Run Audit
           </Button>
@@ -308,12 +257,17 @@ export function AiApiManagerPanel() {
         {[
           { label: "Connected APIs", value: summary.coveredApis, icon: Plug, tone: "sky" },
           {
-            label: "Traffic this week",
+            label: `Requests (${summary.windowLabel})`,
             value: summary.totalTraffic,
             icon: Activity,
             tone: "emerald",
           },
-          { label: "Spend tracked", value: summary.totalCost, icon: DollarSign, tone: "amber" },
+          {
+            label: `Cost (${summary.windowLabel})`,
+            value: summary.totalCost,
+            icon: DollarSign,
+            tone: "amber",
+          },
           { label: "Risk alerts", value: summary.riskAlerts, icon: AlertTriangle, tone: "rose" },
         ].map((item) => (
           <div key={item.label} className="rounded-xl border border-white/10 bg-white/4 p-3">
@@ -344,6 +298,11 @@ export function AiApiManagerPanel() {
           Loading live manager data…
         </div>
       ) : null}
+      {isError ? (
+        <div role="alert" className="mt-4 rounded-xl border border-rose-400/25 bg-rose-500/10 p-3 text-sm text-rose-200">
+          AI registry data could not be loaded: {error instanceof Error ? error.message : "Unknown error"}
+        </div>
+      ) : null}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
         <TabsList className="h-auto w-full justify-start gap-1 bg-transparent p-0">
@@ -369,46 +328,54 @@ export function AiApiManagerPanel() {
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-foreground/50">
-                    Demand curve
+                    Usage data
                   </p>
-                  <p className="text-sm font-semibold text-foreground">Weekly requests vs spend</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    Daily requests vs recorded cost
+                  </p>
                 </div>
-                <Badge className="rounded-full border border-emerald-400/25 bg-emerald-500/10 text-emerald-300">
-                  Live pulse
+                <Badge className="rounded-full border border-sky-400/25 bg-sky-400/10 text-sky-300">
+                  {summary.windowLabel}
                 </Badge>
               </div>
               <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={snapshot.trafficSeries}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fill: "#8fb5ff", fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fill: "#8fb5ff", fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip />
-                    <Line
-                      type="monotone"
-                      dataKey="requests"
-                      stroke="#38bdf8"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="cost"
-                      stroke="#34d399"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                {snapshot.trafficSeries.length ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={snapshot.trafficSeries}>
+                      <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
+                      <XAxis
+                        dataKey="day"
+                        tick={{ fill: "#8fb5ff", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "#8fb5ff", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip />
+                      <Line
+                        type="monotone"
+                        dataKey="requests"
+                        stroke="#38bdf8"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="cost"
+                        stroke="#34d399"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="flex h-full items-center text-sm text-foreground/70">
+                    No usage events are available for this window.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -416,13 +383,15 @@ export function AiApiManagerPanel() {
               <div className="rounded-xl border border-white/10 bg-black/20 p-3">
                 <div className="mb-2 flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-amber-300" />
-                  <p className="text-sm font-semibold text-foreground">Optimization suggestions</p>
+                  <p className="text-sm font-semibold text-foreground">Registry signals</p>
                 </div>
-                <ul className="space-y-2 text-sm text-foreground/70">
-                  <li>• Rotate the Midjourney key to reduce provider instability.</li>
-                  <li>• Shift 15% of growth traffic to Claude for lower spend.</li>
-                  <li>• Enable fallback gateway for voice provider.</li>
-                </ul>
+                {snapshot.alerts.length ? (
+                  <ul className="space-y-2 text-sm text-foreground/70">
+                    {snapshot.alerts.map((item) => <li key={item.title}>• {item.title}: {item.detail}</li>)}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-foreground/70">No warning or failed-request signals were returned.</p>
+                )}
               </div>
               <div className="rounded-xl border border-white/10 bg-black/20 p-3">
                 <div className="mb-2 flex items-center gap-2">
@@ -430,14 +399,20 @@ export function AiApiManagerPanel() {
                   <p className="text-sm font-semibold text-foreground">Modalities tracked</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {["Text", "Image", "Voice", "Video"].map((item) => (
-                    <Badge
-                      key={item}
-                      className="rounded-full border border-white/10 bg-white/5 text-foreground/70"
-                    >
-                      {item}
-                    </Badge>
-                  ))}
+                  {capabilities.length ? (
+                    capabilities.map((item) => (
+                      <Badge
+                        key={item}
+                        className="rounded-full border border-white/10 bg-white/5 text-foreground/70"
+                      >
+                        {item}
+                      </Badge>
+                    ))
+                  ) : (
+                    <p className="text-sm text-foreground/70">
+                      No capabilities are catalogued for the registered services.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -563,16 +538,15 @@ export function AiApiManagerPanel() {
                     Billing snapshot
                   </p>
                   <p className="text-sm font-semibold text-foreground">
-                    Spend allocation by role and service
+                    Recorded cost by service
                   </p>
                 </div>
                 <Badge className="rounded-full border border-amber-400/25 bg-amber-500/10 text-amber-300">
-                  Budget
+                  Usage data
                 </Badge>
               </div>
               <div className="space-y-3">
-                {snapshot.serviceRows.slice(0, 3).map((item, index) => {
-                  const value = `$${(index + 1) * 500 + 600}`;
+                {snapshot.serviceRows.slice(0, 3).map((item) => {
                   return (
                     <div
                       key={item.name}
@@ -580,16 +554,9 @@ export function AiApiManagerPanel() {
                     >
                       <span className="text-sm text-foreground/70">{item.name}</span>
                       <span
-                        className={cn(
-                          "font-semibold",
-                          index === 0
-                            ? "text-sky-300"
-                            : index === 1
-                              ? "text-emerald-300"
-                              : "text-amber-300",
-                        )}
+                        className="font-semibold text-sky-300"
                       >
-                        {value}
+                        {item.cost}
                       </span>
                     </div>
                   );
@@ -602,20 +569,9 @@ export function AiApiManagerPanel() {
                 <p className="text-sm font-semibold text-foreground">Role-wise access</p>
               </div>
               <div className="space-y-2">
-                {snapshot.accessRows.map((row) => (
-                  <div
-                    key={row.role}
-                    className="rounded-lg border border-white/10 bg-white/4 p-2.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-foreground">{row.role}</p>
-                      <Badge className="rounded-full border border-sky-400/25 bg-sky-400/10 text-sky-300">
-                        {row.quota}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-foreground/65">{row.services}</p>
-                  </div>
-                ))}
+                <p className="rounded-lg border border-white/10 bg-white/4 p-2.5 text-sm text-foreground/70">
+                  Role-specific access quotas are not available in the registry data.
+                </p>
               </div>
             </div>
           </div>
@@ -657,23 +613,13 @@ export function AiApiManagerPanel() {
             <div className="rounded-xl border border-white/10 bg-black/20 p-3">
               <div className="mb-3 flex items-center gap-2">
                 <Bot className="h-4 w-4 text-sky-300" />
-                <p className="text-sm font-semibold text-foreground">Automations enabled</p>
+                <p className="text-sm font-semibold text-foreground">Automation status</p>
               </div>
               <div className="space-y-2">
-                {[
-                  "Auto-rotate keys every 24h",
-                  "Block abusive IPs in real time",
-                  "Fallback gateway for provider outage",
-                  "Audit export to finance monthly",
-                ].map((item) => (
-                  <div
-                    key={item}
-                    className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/4 px-3 py-2 text-sm text-foreground/70"
-                  >
-                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
-                    {item}
-                  </div>
-                ))}
+                <p className="rounded-lg border border-white/10 bg-white/4 p-2.5 text-sm text-foreground/70">
+                  Automation state is not tracked by the registry, so no automation status is
+                  reported here.
+                </p>
               </div>
             </div>
           </div>
