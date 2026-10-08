@@ -67,8 +67,8 @@ export async function signChatUpload(path: string): Promise<{ path: string; sign
 }
 
 export async function signChatDownload(path: string, fileName?: string): Promise<string> {
-  const { data, error } = await storage().storage
-    .from(CHAT_BUCKET)
+  const { data, error } = await storage()
+    .storage.from(CHAT_BUCKET)
     .createSignedUrl(path, SIGNED_SECONDS, fileName ? { download: fileName } : undefined);
   if (error || !data) throw new Error(error?.message ?? "The file could not be opened.");
   return storageRelative(data.signedUrl);
