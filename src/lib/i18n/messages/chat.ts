@@ -80,6 +80,7 @@ export const CHAT_MESSAGES = {
   "chat.manager.transcript.hide": "Hide",
   "chat.manager.transcript.correct": "Correct",
   "chat.manager.transcript.restore": "Restore",
+  "chat.manager.handoff.resolve_accepted": ["Resolve", "button: close a handoff that a handler accepted"],
   "chat.manager.transcript.recorded": "Recorded",
   "chat.manager.transcript.empty": "No messages yet.",
   "chat.manager.workspace.queue_count": "{count} in this queue view",

@@ -531,6 +531,7 @@ export function LiveConversations() {
 /* ------------------------------ handoff queue ----------------------------- */
 
 export function HandoffQueue() {
+  const { t } = useTranslation();
   const query = useOverview();
   const queryClient = useQueryClient();
   const resolve = useServerFn(resolveHandoff);
@@ -605,6 +606,16 @@ export function HandoffQueue() {
                       Assignment permission required
                     </span>
                   )
+                ) : h.status === "accepted" && can("chat.assign") ? (
+                  // Accepted is work in progress: the handler closes it when done.
+                  <Button
+                    disabled={mutation.isPending}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => mutation.mutate({ handoffId: h.id, status: "resolved" })}
+                  >
+                    {t("chat.manager.handoff.resolve_accepted")}
+                  </Button>
                 ) : null}
               </div>
             </div>
