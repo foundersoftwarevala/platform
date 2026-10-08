@@ -62,12 +62,23 @@ async function countOf(path: string): Promise<number> {
   const response = await fetch(`${url}/rest/v1/${path}&select=id&limit=1`, {
     headers: { ...headers(), Prefer: "count=exact" },
   });
-  if (!response.ok) return 0;
+  if (!response.ok) {
+    throw new Error(
+      `Could not measure ${path.split("?")[0]} payment health (HTTP ${response.status}).`,
+    );
+  }
   // "0-0/12" or "*/0" — the total is what matters, and it is counted by the
   // database rather than worked out from a fetched list.
   const range = response.headers.get("content-range") ?? "";
-  const total = Number(range.split("/")[1]);
-  return Number.isFinite(total) ? total : 0;
+  const match = range.match(/\/(\d+|\*)$/);
+  if (!match || match[1] === "*") {
+    throw new Error(`Could not read the exact count for ${path.split("?")[0]} payment health.`);
+  }
+  const total = Number(match[1]);
+  if (!Number.isSafeInteger(total)) {
+    throw new Error(`Could not read the exact count for ${path.split("?")[0]} payment health.`);
+  }
+  return total;
 }
 
 /**
@@ -111,7 +122,8 @@ export async function paymentHealth() {
 
   const reasons: string[] = [];
   if (failed > 0) reasons.push(`${failed} settlement event(s) failed`);
-  if (stuck > 0) reasons.push(`${stuck} settlement event(s) became due over an hour ago and are still pending`);
+  if (stuck > 0)
+    reasons.push(`${stuck} settlement event(s) became due over an hour ago and are still pending`);
 
   return {
     ok: reasons.length === 0,

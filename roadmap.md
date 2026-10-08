@@ -8,4 +8,4 @@
 - [x] Chat launch button on every role dashboard top bar
 - [x] Backfill roles/profiles so existing accounts can create conversations
 - [ ] Role-specific chat dashboard inside each dashboard (Franchise, Reseller, SEO, Sales & Support and other roles see their own chat feed)
-- [ ] Full end-to-end verification: real message -> real AI reply -> manager console -> handoff -> agent reply
+- [x] Full end-to-end verification: real message -> real AI reply -> manager console -> handoff -> agent reply (89/89 live checks; see CHAT_MANAGER_GAP_MATRIX.md)

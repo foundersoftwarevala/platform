@@ -80,7 +80,7 @@ if (target === "vps") {
   const remote = `/tmp/sv-db-${Date.now().toString(36)}.sql`;
   writeFileSync(local, body, "utf8");
 
-  const ssh = ["-i", keyPath, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes"];
+  const ssh = ["-i", keyPath, "-o", "StrictHostKeyChecking=yes", "-o", "BatchMode=yes"];
   try {
     console.log(`target  : VPS ${database} — the source of truth for this work\n`);
     execFileSync("scp", [...ssh, local, `${host}:${remote}`], { stdio: "pipe" });

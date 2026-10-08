@@ -226,8 +226,8 @@ import { Route as PromiseTrackerInsightsRouteImport } from './routes/promise-tra
 import { Route as PromiseTrackerRulesRouteImport } from './routes/promise-tracker.rules'
 import { Route as PromiseTrackerSettingsRouteImport } from './routes/promise-tracker.settings'
 import { Route as SCodeRouteImport } from './routes/s.$code'
-import { Route as SitemapProductsPageDotxmlRouteImport } from './routes/sitemap-products/$page[.]xml'
-import { Route as SitemapSlotsPageDotxmlRouteImport } from './routes/sitemap-slots/$page[.]xml'
+import { Route as SitemapProductsPageRouteImport } from './routes/sitemap-products/$page'
+import { Route as SitemapSlotsPageRouteImport } from './routes/sitemap-slots/$page'
 import { Route as ValaAiIndexRouteImport } from './routes/vala-ai.index'
 import { Route as ValaAiCreditsRouteImport } from './routes/vala-ai.credits'
 import { Route as ValaAiErrorsRouteImport } from './routes/vala-ai.errors'
@@ -1477,15 +1477,14 @@ const SCodeRoute = SCodeRouteImport.update({
   path: '/s/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SitemapProductsPageDotxmlRoute =
-  SitemapProductsPageDotxmlRouteImport.update({
-    id: '/sitemap-products/$page.xml',
-    path: '/sitemap-products/$page.xml',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const SitemapSlotsPageDotxmlRoute = SitemapSlotsPageDotxmlRouteImport.update({
-  id: '/sitemap-slots/$page.xml',
-  path: '/sitemap-slots/$page.xml',
+const SitemapProductsPageRoute = SitemapProductsPageRouteImport.update({
+  id: '/sitemap-products/$page',
+  path: '/sitemap-products/$page',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapSlotsPageRoute = SitemapSlotsPageRouteImport.update({
+  id: '/sitemap-slots/$page',
+  path: '/sitemap-slots/$page',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ValaAiIndexRoute = ValaAiIndexRouteImport.update({
@@ -2417,8 +2416,8 @@ export interface FileRoutesByFullPath {
   '/promise-tracker/rules': typeof PromiseTrackerRulesRoute
   '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
   '/s/$code': typeof SCodeRoute
-  '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
-  '/sitemap-slots/$page.xml': typeof SitemapSlotsPageDotxmlRoute
+  '/sitemap-products/$page': typeof SitemapProductsPageRoute
+  '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -2768,8 +2767,8 @@ export interface FileRoutesByTo {
   '/promise-tracker/rules': typeof PromiseTrackerRulesRoute
   '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
   '/s/$code': typeof SCodeRoute
-  '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
-  '/sitemap-slots/$page.xml': typeof SitemapSlotsPageDotxmlRoute
+  '/sitemap-products/$page': typeof SitemapProductsPageRoute
+  '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -3130,8 +3129,8 @@ export interface FileRoutesById {
   '/promise-tracker/rules': typeof PromiseTrackerRulesRoute
   '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
   '/s/$code': typeof SCodeRoute
-  '/sitemap-products/$page.xml': typeof SitemapProductsPageDotxmlRoute
-  '/sitemap-slots/$page.xml': typeof SitemapSlotsPageDotxmlRoute
+  '/sitemap-products/$page': typeof SitemapProductsPageRoute
+  '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
   '/vala-ai/credits': typeof ValaAiCreditsRoute
   '/vala-ai/errors': typeof ValaAiErrorsRoute
   '/vala-ai/lock': typeof ValaAiLockRoute
@@ -3493,8 +3492,8 @@ export interface FileRouteTypes {
     | '/promise-tracker/rules'
     | '/promise-tracker/settings'
     | '/s/$code'
-    | '/sitemap-products/$page.xml'
-    | '/sitemap-slots/$page.xml'
+    | '/sitemap-products/$page'
+    | '/sitemap-slots/$page'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -3844,8 +3843,8 @@ export interface FileRouteTypes {
     | '/promise-tracker/rules'
     | '/promise-tracker/settings'
     | '/s/$code'
-    | '/sitemap-products/$page.xml'
-    | '/sitemap-slots/$page.xml'
+    | '/sitemap-products/$page'
+    | '/sitemap-slots/$page'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -4205,8 +4204,8 @@ export interface FileRouteTypes {
     | '/promise-tracker/rules'
     | '/promise-tracker/settings'
     | '/s/$code'
-    | '/sitemap-products/$page.xml'
-    | '/sitemap-slots/$page.xml'
+    | '/sitemap-products/$page'
+    | '/sitemap-slots/$page'
     | '/vala-ai/credits'
     | '/vala-ai/errors'
     | '/vala-ai/lock'
@@ -4439,8 +4438,8 @@ export interface RootRouteChildren {
   PaymentFailRoute: typeof PaymentFailRoute
   PaymentSuccessRoute: typeof PaymentSuccessRoute
   SCodeRoute: typeof SCodeRoute
-  SitemapProductsPageDotxmlRoute: typeof SitemapProductsPageDotxmlRoute
-  SitemapSlotsPageDotxmlRoute: typeof SitemapSlotsPageDotxmlRoute
+  SitemapProductsPageRoute: typeof SitemapProductsPageRoute
+  SitemapSlotsPageRoute: typeof SitemapSlotsPageRoute
   VerifyCodeRoute: typeof VerifyCodeRoute
   AcademyIndexRoute: typeof AcademyIndexRoute
   ApplyIndexRoute: typeof ApplyIndexRoute
@@ -6062,18 +6061,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sitemap-products/$page.xml': {
-      id: '/sitemap-products/$page.xml'
-      path: '/sitemap-products/$page.xml'
-      fullPath: '/sitemap-products/$page.xml'
-      preLoaderRoute: typeof SitemapProductsPageDotxmlRouteImport
+    '/sitemap-products/$page': {
+      id: '/sitemap-products/$page'
+      path: '/sitemap-products/$page'
+      fullPath: '/sitemap-products/$page'
+      preLoaderRoute: typeof SitemapProductsPageRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sitemap-slots/$page.xml': {
-      id: '/sitemap-slots/$page.xml'
-      path: '/sitemap-slots/$page.xml'
-      fullPath: '/sitemap-slots/$page.xml'
-      preLoaderRoute: typeof SitemapSlotsPageDotxmlRouteImport
+    '/sitemap-slots/$page': {
+      id: '/sitemap-slots/$page'
+      path: '/sitemap-slots/$page'
+      fullPath: '/sitemap-slots/$page'
+      preLoaderRoute: typeof SitemapSlotsPageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vala-ai/': {
@@ -7616,8 +7615,8 @@ const rootRouteChildren: RootRouteChildren = {
   PaymentFailRoute: PaymentFailRoute,
   PaymentSuccessRoute: PaymentSuccessRoute,
   SCodeRoute: SCodeRoute,
-  SitemapProductsPageDotxmlRoute: SitemapProductsPageDotxmlRoute,
-  SitemapSlotsPageDotxmlRoute: SitemapSlotsPageDotxmlRoute,
+  SitemapProductsPageRoute: SitemapProductsPageRoute,
+  SitemapSlotsPageRoute: SitemapSlotsPageRoute,
   VerifyCodeRoute: VerifyCodeRoute,
   AcademyIndexRoute: AcademyIndexRoute,
   ApplyIndexRoute: ApplyIndexRoute,

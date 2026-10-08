@@ -158,7 +158,7 @@ export function loadFunctionIds() {
       "-o",
       "BatchMode=yes",
       "-o",
-      "StrictHostKeyChecking=no",
+      "StrictHostKeyChecking=yes",
       ops.SV_SSH_HOST,
       "cat /var/www/softwarevala/.output/server/__23tanstack-start-server-fn-resolver-*.mjs",
     ],

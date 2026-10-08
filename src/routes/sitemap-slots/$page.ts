@@ -28,10 +28,10 @@ function escapeXml(value: string): string {
     .replace(/'/g, "&apos;");
 }
 
-export const Route = createFileRoute("/sitemap-slots/$page.xml")({
+export const Route = createFileRoute("/sitemap-slots/$page")({
   server: {
     handlers: {
-      GET: async ({ request, params }) => {
+      GET: async ({ params }) => {
         const headers = {
           "Content-Type": "application/xml; charset=utf-8",
           "Cache-Control": "public, max-age=3600",
@@ -46,11 +46,11 @@ export const Route = createFileRoute("/sitemap-slots/$page.xml")({
         // The page number comes from the path. The route parameter carries the
         // ".xml" suffix and does not parse, which is what once collapsed every
         // page of the product map to the first.
-        const fromPath = new URL(request.url).pathname.match(/sitemap-slots\/(\d+)/);
-        const page = Math.max(
-          1,
-          parseInt(fromPath?.[1] ?? String((params as { page?: string }).page ?? "1"), 10) || 1,
-        );
+        const pageMatch = params.page?.match(/^([1-9]\d*)\.xml$/);
+        const page = Number(pageMatch?.[1]);
+        if (!Number.isSafeInteger(page)) {
+          return new Response("Not found", { status: 404 });
+        }
 
         try {
           const entries = (await eligibleUrls("slot", (page - 1) * PAGE_SIZE, PAGE_SIZE)).map(

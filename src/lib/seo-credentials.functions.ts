@@ -8,6 +8,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
+import {
+  encryptAiCredential,
+  isEncryptedAiCredential,
+  readStoredCredential,
+} from "@/lib/ai-credentials.server";
+
 /**
  * Every server function in this file is a public RPC endpoint and works with
  * the service role, which reads and writes past every policy. None had a check
@@ -78,18 +84,21 @@ function getSupabaseAdmin() {
   });
 }
 
-// ============================================================================
-// ENCRYPTION UTILITIES (in production, use real encryption)
-// ============================================================================
-
-function encryptCredential(value: string): string {
-  // TODO: In production, use crypto.subtle or libsodium
-  return Buffer.from(value).toString("base64");
-}
-
-function decryptCredential(encrypted: string): string {
-  // TODO: In production, use crypto.subtle or libsodium
-  return Buffer.from(encrypted, "base64").toString("utf-8");
+async function credentialForDisplay(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  id: string,
+  stored: string,
+): Promise<string> {
+  const value = readStoredCredential(stored);
+  if (!isEncryptedAiCredential(stored)) {
+    const { error } = await admin
+      .from("seo_api_credentials")
+      .update({ credential_value: encryptAiCredential(value) })
+      .eq("id", id)
+      .eq("credential_value", stored);
+    if (error) throw new Error(`Could not encrypt the stored SEO credential: ${error.message}`);
+  }
+  return value;
 }
 
 // ============================================================================
@@ -119,7 +128,7 @@ export const registerGoogleCredentials = createServerFn({ method: "POST" })
       {
         provider_id: provider.id,
         credential_type: data.credential_type,
-        credential_value: encryptCredential(credentialValue),
+        credential_value: encryptAiCredential(credentialValue),
         is_active: true,
         expires_at: data.credential_type === "oauth2" ? new Date(Date.now() + 3600 * 1000) : null,
       },
@@ -149,7 +158,7 @@ export const registerBingCredentials = createServerFn({ method: "POST" })
       {
         provider_id: provider.id,
         credential_type: "api_key",
-        credential_value: encryptCredential(data.api_key),
+        credential_value: encryptAiCredential(data.api_key),
         is_active: true,
       },
       {
@@ -169,7 +178,7 @@ export const registerCloudflareCredentials = createServerFn({ method: "POST" })
     // Store in dedicated table for Cloudflare (not through seo_api_providers)
     await admin.from("seo_api_credentials").insert({
       credential_type: "cloudflare",
-      credential_value: encryptCredential(
+      credential_value: encryptAiCredential(
         JSON.stringify({
           api_token: data.api_token,
           zone_id: data.zone_id,
@@ -201,7 +210,7 @@ export const registerIndexNowCredentials = createServerFn({ method: "POST" })
       {
         provider_id: provider.id,
         credential_type: "api_key",
-        credential_value: encryptCredential(data.api_key),
+        credential_value: encryptAiCredential(data.api_key),
         is_active: true,
       },
       {
@@ -230,7 +239,7 @@ export const getGoogleCredentials = createServerFn({ method: "GET" }).handler(as
 
   const { data: cred } = await admin
     .from("seo_api_credentials")
-    .select("credential_type, credential_value")
+    .select("id, credential_type, credential_value")
     .eq("provider_id", provider.id)
     .eq("is_active", true)
     .single();
@@ -239,7 +248,7 @@ export const getGoogleCredentials = createServerFn({ method: "GET" }).handler(as
 
   return {
     credential_type: cred.credential_type,
-    value: maskSecret(decryptCredential(cred.credential_value)),
+    value: maskSecret(await credentialForDisplay(admin, cred.id, cred.credential_value)),
   };
 });
 
@@ -257,7 +266,7 @@ export const getBingCredentials = createServerFn({ method: "GET" }).handler(asyn
 
   const { data: cred } = await admin
     .from("seo_api_credentials")
-    .select("credential_value")
+    .select("id, credential_value")
     .eq("provider_id", provider.id)
     .eq("is_active", true)
     .single();
@@ -265,7 +274,7 @@ export const getBingCredentials = createServerFn({ method: "GET" }).handler(asyn
   if (!cred) return null;
 
   return {
-    api_key: maskSecret(decryptCredential(cred.credential_value)),
+    api_key: maskSecret(await credentialForDisplay(admin, cred.id, cred.credential_value)),
   };
 });
 
@@ -275,14 +284,16 @@ export const getCloudflareCredentials = createServerFn({ method: "GET" }).handle
 
   const { data: cred } = await admin
     .from("seo_api_credentials")
-    .select("credential_value")
+    .select("id, credential_value")
     .eq("credential_type", "cloudflare")
     .eq("is_active", true)
     .single();
 
   if (!cred) return null;
 
-  const stored = JSON.parse(decryptCredential(cred.credential_value)) as Record<string, unknown>;
+  const stored = JSON.parse(
+    await credentialForDisplay(admin, cred.id, cred.credential_value),
+  ) as Record<string, unknown>;
   return { ...stored, api_token: maskSecret(String(stored.api_token ?? "")) };
 });
 
@@ -300,7 +311,7 @@ export const getIndexNowCredentials = createServerFn({ method: "GET" }).handler(
 
   const { data: cred } = await admin
     .from("seo_api_credentials")
-    .select("credential_value")
+    .select("id, credential_value")
     .eq("provider_id", provider.id)
     .eq("is_active", true)
     .single();
@@ -308,7 +319,7 @@ export const getIndexNowCredentials = createServerFn({ method: "GET" }).handler(
   if (!cred) return null;
 
   return {
-    api_key: maskSecret(decryptCredential(cred.credential_value)),
+    api_key: maskSecret(await credentialForDisplay(admin, cred.id, cred.credential_value)),
   };
 });
 

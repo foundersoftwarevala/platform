@@ -6,6 +6,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 
+import {
+  encryptAiCredential,
+  isEncryptedAiCredential,
+  readStoredCredential,
+} from "@/lib/ai-credentials.server";
+
 /**
  * Every function below is a public RPC endpoint that acts on the platform's
  * Cloudflare zone with the stored API token - DNS records, HTTPS, redirects,
@@ -72,15 +78,24 @@ async function getCloudflareCredentials() {
   const admin = getSupabaseAdmin();
   const { data: cred } = await admin
     .from("seo_api_credentials")
-    .select("credential_value")
+    .select("id, credential_value")
     .eq("credential_type", "cloudflare")
     .eq("is_active", true)
     .single();
 
   if (!cred) throw new Error("Cloudflare credentials not configured");
 
-  // In production, decrypt this
-  return JSON.parse(cred.credential_value);
+  const value = readStoredCredential(cred.credential_value);
+  if (!isEncryptedAiCredential(cred.credential_value)) {
+    const { error } = await admin
+      .from("seo_api_credentials")
+      .update({ credential_value: encryptAiCredential(value) })
+      .eq("id", cred.id)
+      .eq("credential_value", cred.credential_value);
+    if (error)
+      throw new Error(`Could not encrypt the stored Cloudflare credential: ${error.message}`);
+  }
+  return JSON.parse(value);
 }
 
 // ============================================================================

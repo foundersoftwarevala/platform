@@ -62,3 +62,30 @@ OWNER-DECISION · EXTERNAL-BLOCKER · NOT-AN-ISSUE.
 | FC-17 | Retired marketplace landing  | The old `/marketplace` landing duplicated the live homepage at `/` and presented the obsolete design.                                                                                                               | FIXED             | The route permanently redirects to `/`. Production verifies `/` 200, `/marketplace` 301 to `/`, and `/marketplace/` normalizes before the same permanent redirect.                                                                                                                                                                                                                |
 | FC-18 | Homepage accessibility       | Product-carousel labels were attached to generic `div` elements, which axe reports as prohibited ARIA attributes (56 instances on the homepage).                                                                   | FIXED             | The deployed carousel rail now declares `role="group"` for its accessible label and busy state. A fresh axe scan of the deployed commit is running.                                                                                                                                                                                                                              |
 | FC-19 | Legal Manager accessibility  | The legal sidebar used 80% opacity for inactive navigation labels appearing among live contrast violations.                                                                                                         | FIXED             | Removed the opacity modifier from the inactive navigation-label color and deployed it. The current post-deployment scan will verify the remaining contrast findings.                                                                                                                                                                                                             |
+
+## Follow-up local scan — 2026-10-08
+
+This follow-up is local-only. It does not update or certify VPS, PostgreSQL, or
+other hosted production state.
+
+- Local `main`, the cached `origin/main` ref, and GitHub `main` were verified at
+  `5a795c8b59d96f4974b89bdf45094a680e8b8f19` before these uncommitted changes.
+- Payment health no longer converts failed or incomplete database counts to
+  zero; the route's existing error path reports a failed measurement. Regression
+  tests cover successful counts, database errors, and missing exact counts.
+- SEO credential writes now use the existing AES-256-GCM credential format.
+  SEO and Cloudflare readers upgrade legacy plaintext/Base64 rows on read;
+  Cloudflare's consumer decrypts the same format. The production key and live
+  rows were not inspected or changed.
+- Paged product/slot sitemap routes use valid `$page` parameters while
+  continuing to serve numeric `.xml` pages; malformed page segments return 404.
+- Local verification: production build passed, 1,112 tests passed, focused
+  TypeScript check passed for the modified business-logic modules, changed-file
+  lint passed apart from pre-existing `no-explicit-any` violations excluded
+  from that scoped run, and `i18n:check` passed.
+- Full-repository lint remains noisy (34,500 errors in the prior run, mostly
+  formatting); a full TypeScript run exceeded 13 minutes without output.
+- No Git remote is configured in this checkout and `psql` is unavailable.
+  VPS source/build, migrations, RLS, encryption-key availability, production
+  smoke, and deployment therefore remain UNVERIFIED/BLOCKED. No deployment,
+  database write, commit, or push was performed.
