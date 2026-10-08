@@ -105,3 +105,40 @@ OWNER-DECISION · EXTERNAL-BLOCKER · NOT-AN-ISSUE.
 - The original local `ChatManagerWorkspace.tsx` edit and untracked `.kilo/`
   were preserved and excluded from the release. No production data was
   modified.
+
+## Public-write RLS closure — 2026-10-08
+
+- The follow-up RLS scan found public INSERT paths on `marketplace_events`,
+  `affiliate_clicks`, `demo_clicks`, `demo_requests`, and marketplace `leads`.
+  The `marketplace_events` path was closed by
+  `20261008T130000_marketplace_events_server_writes.sql`; the remaining four
+  were closed by `20261008T130100_public_writes_server_only.sql`.
+- Public demo-click recording now uses a dedicated service-role client,
+  verifies the requested demo is active and belongs to the supplied product,
+  and applies the existing bounded sliding-window limiter at 30 requests per
+  client address per minute. Invalid demos and database failures are reported
+  rather than counted as successful writes.
+- The migration was applied transactionally to the VPS `sv_platform` database
+  after the new app build was live. Post-apply checks confirm anonymous INSERT
+  is denied on all five tables, authenticated INSERT is denied on both click
+  analytics tables, service-role INSERT remains allowed, and authenticated
+  staff-management policies remain on `demo_requests` and `leads`. The
+  `marketplace_events` staff-read policy remains; no public INSERT policy
+  remains on any of the five tables. The direct SQL apply does not advance the
+  Supabase migration-history table.
+- Commit `5f798538752fa73f31813f603bdff0549994e4aa` was pushed to `main`,
+  fast-forwarded on the VPS, and deployed with `scripts/ops/sv-deploy.sh`.
+  Manifest references resolved, the spare-port smoke passed, the live
+  homepage returned 200, and PM2 reported the deployed app online. Three
+  rollback builds remain.
+- Post-deployment smoke returned 200 for the homepage, Hindi language pack,
+  sitemap index, product sitemap, slot sitemap, and published demo page
+  `/demo/admissionschool-console`. No synthetic click, lead, or demo-request
+  rows were inserted.
+- Final local validation: production build passed; all 77 test files and
+  1,112 tests passed; focused rate-limiter tests passed; changed-module ESLint
+  passed with the repository's pre-existing `no-explicit-any` and unsafe
+  function-type findings excluded. The repository-wide lint and long-running
+  TypeScript limitations documented above remain.
+- The local Chat Manager edit and untracked `.kilo/` remained untouched and
+  were excluded from both commits and deployment.
