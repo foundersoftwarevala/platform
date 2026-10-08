@@ -230,7 +230,7 @@ export function ResellerPricingWorkspace({ onBack }: Props) {
         ) : (orders.data ?? []).length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">
             {t("reseller.pricing.no_orders")}{" "}
-            <Link to="/marketplace" className="text-primary hover:underline">
+            <Link to="/" className="text-primary hover:underline">
               {t("reseller.pricing.browse")}
             </Link>
           </p>

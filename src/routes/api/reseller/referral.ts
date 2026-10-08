@@ -1,6 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ATTRIBUTION_WINDOW_DAYS, currentUser, generateUniqueCode, rest } from "@/lib/affiliate/core";
+import {
+  ATTRIBUTION_WINDOW_DAYS,
+  currentUser,
+  generateUniqueCode,
+  rest,
+} from "@/lib/affiliate/core";
 
 /**
  * A reseller's referral links, and what each one has brought in.
@@ -21,12 +26,24 @@ import { ATTRIBUTION_WINDOW_DAYS, currentUser, generateUniqueCode, rest } from "
  */
 
 type Reseller = { id: string; name: string | null; status: string };
+type ReferralLink = {
+  id: string;
+  code: string;
+  active: boolean;
+  created_at: string;
+  url: string;
+  clicks: number;
+  visitors: number;
+  conversions: number;
+};
 
 async function resellerForUser(userId: string): Promise<Reseller | null> {
   const response = await rest(
     `resellers?select=id,name,status&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
   );
-  if (!response.ok) return null;
+  if (!response.ok) {
+    throw new Error(`Reseller lookup failed (${response.status})`);
+  }
   return ((await response.json()) as Reseller[])[0] ?? null;
 }
 
@@ -35,8 +52,21 @@ type Gate = { ok: true; reseller: Reseller } | { ok: false; response: Response }
 async function requireReseller(request: Request): Promise<Gate> {
   const user = await currentUser(request);
   // i18n-ignore: an API error message; this API answers in English.
-  if (!user) return { ok: false, response: Response.json({ error: "Please sign in" }, { status: 401 }) };
-  const reseller = await resellerForUser(user.id);
+  if (!user)
+    return { ok: false, response: Response.json({ error: "Please sign in" }, { status: 401 }) };
+  let reseller: Reseller | null;
+  try {
+    reseller = await resellerForUser(user.id);
+  } catch (error) {
+    console.error("[reseller referral] reseller lookup failed", error);
+    return {
+      ok: false,
+      response: Response.json(
+        { error: "Your reseller account could not be checked" },
+        { status: 502 },
+      ),
+    };
+  }
   if (!reseller) {
     return {
       ok: false,
@@ -83,32 +113,39 @@ export const Route = createFileRoute("/api/reseller/referral")({
           created_at: string;
         }[];
 
-        const links = await Promise.all(
-          codes.map(async (c) => {
-            const sessionsResponse = await rest(
-              `marketplace_referral_sessions?select=id,metadata,converted_order_id` +
-                `&referral_code_id=eq.${encodeURIComponent(c.id)}&limit=2000`,
-            );
-            const sessions = sessionsResponse.ok
-              ? ((await sessionsResponse.json()) as {
-                  metadata: Record<string, unknown> | null;
-                  converted_order_id: string | null;
-                }[])
-              : [];
-            const clicks = sessions.reduce((sum, s) => sum + Number(s.metadata?.clicks ?? 1), 0);
-            const conversions = sessions.filter((s) => s.converted_order_id).length;
-            return {
-              id: c.id,
-              code: c.code,
-              active: c.active,
-              created_at: c.created_at,
-              url: `/?ref=${c.code}`,
-              clicks,
-              visitors: sessions.length,
-              conversions,
-            };
-          }),
-        );
+        let links: ReferralLink[];
+        try {
+          links = await Promise.all(
+            codes.map(async (c) => {
+              const sessionsResponse = await rest(
+                `marketplace_referral_sessions?select=id,metadata,converted_order_id` +
+                  `&referral_code_id=eq.${encodeURIComponent(c.id)}&limit=2000`,
+              );
+              if (!sessionsResponse.ok) {
+                throw new Error(`Referral-session lookup failed (${sessionsResponse.status})`);
+              }
+              const sessions = (await sessionsResponse.json()) as {
+                metadata: Record<string, unknown> | null;
+                converted_order_id: string | null;
+              }[];
+              const clicks = sessions.reduce((sum, s) => sum + Number(s.metadata?.clicks ?? 1), 0);
+              const conversions = sessions.filter((s) => s.converted_order_id).length;
+              return {
+                id: c.id,
+                code: c.code,
+                active: c.active,
+                created_at: c.created_at,
+                url: `/?ref=${c.code}`,
+                clicks,
+                visitors: sessions.length,
+                conversions,
+              };
+            }),
+          );
+        } catch (error) {
+          console.error("[reseller referral] session metrics lookup failed", error);
+          return Response.json({ error: "Referral activity could not be read" }, { status: 502 });
+        }
 
         return Response.json({ attributionWindowDays: ATTRIBUTION_WINDOW_DAYS, links });
       },
@@ -133,11 +170,20 @@ export const Route = createFileRoute("/api/reseller/referral")({
             `marketplace_referral_codes?select=id&active=is.true` +
               `&reseller_id=eq.${encodeURIComponent(gate.reseller.id)}&limit=${MAX_LINKS}`,
           );
-          const count = countResponse.ok ? ((await countResponse.json()) as unknown[]).length : 0;
+          if (!countResponse.ok) {
+            console.error("[reseller referral] active-link count failed", countResponse.status);
+            return Response.json(
+              { error: "Your existing links could not be checked" },
+              { status: 502 },
+            );
+          }
+          const count = ((await countResponse.json()) as unknown[]).length;
           if (count >= MAX_LINKS) {
             return Response.json(
               // i18n-ignore: an API error message; this API answers in English.
-              { error: `You already have ${MAX_LINKS} links. Deactivate one before creating another.` },
+              {
+                error: `You already have ${MAX_LINKS} links. Deactivate one before creating another.`,
+              },
               { status: 409 },
             );
           }
@@ -146,7 +192,10 @@ export const Route = createFileRoute("/api/reseller/referral")({
           const code = await generateUniqueCode("SVR");
           if (!code) {
             // i18n-ignore: an API error message; this API answers in English.
-            return Response.json({ error: "Could not allocate a code, please retry" }, { status: 503 });
+            return Response.json(
+              { error: "Could not allocate a code, please retry" },
+              { status: 503 },
+            );
           }
           const created = await rest("marketplace_referral_codes", {
             method: "POST",
@@ -161,7 +210,14 @@ export const Route = createFileRoute("/api/reseller/referral")({
           return Response.json(
             {
               ok: true,
-              link: { ...rows[0], url: `/?ref=${rows[0].code}`, active: true, clicks: 0, visitors: 0, conversions: 0 },
+              link: {
+                ...rows[0],
+                url: `/?ref=${rows[0].code}`,
+                active: true,
+                clicks: 0,
+                visitors: 0,
+                conversions: 0,
+              },
             },
             { status: 201 },
           );
@@ -182,10 +238,14 @@ export const Route = createFileRoute("/api/reseller/referral")({
             },
           );
           // i18n-ignore: an API error message; this API answers in English.
-          if (!patched.ok) return Response.json({ error: "Could not update the link" }, { status: 502 });
+          if (!patched.ok)
+            return Response.json({ error: "Could not update the link" }, { status: 502 });
           if (((await patched.json()) as unknown[]).length === 0) {
             // i18n-ignore: an API error message; this API answers in English.
-            return Response.json({ error: "That link does not belong to this reseller" }, { status: 403 });
+            return Response.json(
+              { error: "That link does not belong to this reseller" },
+              { status: 403 },
+            );
           }
           return Response.json({ ok: true, linkId, active: body.active === true });
         }
