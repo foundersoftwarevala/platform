@@ -2,9 +2,11 @@
 // Public reads use a server publishable client (RLS enforced as anon).
 // Admin mutations use requireSupabaseAuth — RLS enforces boss/admin role.
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestIP } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { SlidingWindowLimiter } from "@/lib/i18n/limits";
 import type { Database } from "@/integrations/supabase/types";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
 import { catalogueEntries, type CatalogueEntry } from "@/data/catalogue";
@@ -184,6 +186,15 @@ function publicClient() {
         return fetch(input, { ...init, headers: h });
       },
     },
+  });
+}
+
+function serviceClient() {
+  const url = process.env.SUPABASE_URL?.trim();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !key) throw new Error("Marketplace server write service is not configured.");
+  return createClient<Database>(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
   });
 }
 
@@ -466,6 +477,10 @@ async function loadPublicSeoForProduct(sb: any, productId: string) {
   return result.data;
 }
 
+const DEMO_CLICK_WINDOW_MS = 60_000;
+const DEMO_CLICK_LIMIT = 30;
+const demoClickLimiter = new SlidingWindowLimiter(DEMO_CLICK_WINDOW_MS, 20_000);
+
 export const recordPublicDemoClick = createServerFn({ method: "POST" })
   .validator((value) =>
     z
@@ -480,7 +495,22 @@ export const recordPublicDemoClick = createServerFn({ method: "POST" })
       .parse(value),
   )
   .handler(async ({ data }) => {
-    const sb = publicClient();
+    const address = getRequestIP() ?? "unknown";
+    if (demoClickLimiter.hit(address, DEMO_CLICK_LIMIT)) {
+      return { ok: true, recorded: false, reason: "rate_limited" };
+    }
+
+    const sb = serviceClient();
+    const { data: demo, error: demoError } = await sb
+      .from("product_demo_urls")
+      .select("id")
+      .eq("id", data.demoUrlId)
+      .eq("product_id", data.productId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (demoError) throw new Error(`Could not verify the product demo: ${demoError.message}`);
+    if (!demo) return { ok: false, recorded: false, reason: "demo_not_found" };
+
     const { error } = await sb.from("demo_clicks").insert({
       product_id: data.productId,
       demo_url_id: data.demoUrlId,
@@ -490,7 +520,7 @@ export const recordPublicDemoClick = createServerFn({ method: "POST" })
       browser: data.browser || null,
     });
     if (error) throw new Error(error.message);
-    return { ok: true };
+    return { ok: true, recorded: true };
   });
 
 export const getPublicProduct = createServerFn({ method: "GET" })
