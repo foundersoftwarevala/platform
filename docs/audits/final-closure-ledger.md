@@ -143,7 +143,7 @@ OWNER-DECISION · EXTERNAL-BLOCKER · NOT-AN-ISSUE.
 - The local Chat Manager edit and untracked `.kilo/` remained untouched and
   were excluded from both commits and deployment.
 
-## 2026-10-08 � Platform data integrity and audit-trail fixes (`73068d6`)
+## 2026-10-08 - Platform data integrity and audit-trail fixes (`73068d6`)
 
 Scope for this pass was the Software Vala platform only. No marketplace
 product, demo application, or catalogue record was opened or inspected.
@@ -190,7 +190,7 @@ product, demo application, or catalogue record was opened or inspected.
   append-only audit trail.
 - **Validation.** Production build passed. Targeted suites passed (AI usage
   aggregation, payment jobs, payment initiation, PayU settlement, AI credential
-  encryption, sitemap page routes � 45 tests). ESLint on the changed files
+  encryption, sitemap page routes - 45 tests). ESLint on the changed files
   reported no new findings; the pre-existing `no-explicit-any` findings in
   `ai-api.functions.ts` and the pre-existing Prettier findings in untouched
   Safe Assist hooks remain.
