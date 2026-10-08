@@ -69,7 +69,7 @@ export const openSupportConversation = createServerFn({ method: "POST" })
           await tx`
             insert into public.audit_logs (actor, action, entity_type, entity_id, severity, metadata)
             values (${userId}, 'chat.conversation.created', 'conversation', ${created.id}, 'low',
-                    ${JSON.stringify({ source: "chat_app", kind: "support" })}::jsonb)
+                    ${JSON.stringify({ source: "chat_app", kind: "support" })}::text::jsonb)
           `;
           return { ok: true as const, conversationId: created.id, created: true as const };
         },

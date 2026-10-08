@@ -37,7 +37,6 @@ async function getCanonicalBotId(): Promise<string> {
     const [bot] = await tx<{ id: string }[]>`
       select p.id::text
         from public.profiles p
-        join auth.users u on u.id = p.id
        where p.handle = ${BOT_HANDLE}
        limit 1
     `;
@@ -65,7 +64,7 @@ async function recordAiFailure(
            status: reply.status,
            error: reply.error,
            agent: reply.agentKey,
-         })}::jsonb)
+         })}::text::jsonb)
     `;
     await tx`
       insert into public.chat_ai_events
@@ -220,7 +219,7 @@ export const generateAiReply = createServerFn({ method: "POST" })
             values
               (${botId}::uuid, 'chat.lead.creation_skipped', 'conversation',
                ${data.conversationId}, 'low',
-               ${JSON.stringify({ reason: lead.error })}::jsonb)
+               ${JSON.stringify({ reason: lead.error })}::text::jsonb)
           `;
         }
       }
@@ -267,7 +266,7 @@ export const generateAiReply = createServerFn({ method: "POST" })
              agent: reply.agentKey,
              escalated: reply.escalate,
              lead_id: leadId,
-           })}::jsonb)
+           })}::text::jsonb)
       `;
       return { messageId: inserted.id, leadId };
     });

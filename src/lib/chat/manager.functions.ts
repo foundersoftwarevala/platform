@@ -217,7 +217,7 @@ export const getChatManagerQueue = createServerFn({ method: "GET" })
     const result = await withChatManagerIdentity(context.userId, "chat.manage", async (tx) => {
       const [row] = await tx<{ result: unknown }[]>`
         select public.chat_manager_queue(
-          ${JSON.stringify(data.filters)}::jsonb,
+          ${JSON.stringify(data.filters)}::text::jsonb,
           ${data.limit},
           ${data.cursor?.at ?? null}::timestamptz,
           ${data.cursor?.id ?? null}::uuid
@@ -912,7 +912,7 @@ export const setAgentChatAccess = createServerFn({ method: "POST" })
         insert into public.audit_logs (actor, action, entity_type, entity_id, severity, metadata)
         values (
           ${context.userId}, 'chat.agent.access_changed', 'ai_agent', null, 'medium',
-          ${JSON.stringify({ agent_key: data.agentKey, customer_chat: data.enabled })}::jsonb
+          ${JSON.stringify({ agent_key: data.agentKey, customer_chat: data.enabled })}::text::jsonb
         )
       `;
     });

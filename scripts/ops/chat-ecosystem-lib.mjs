@@ -58,7 +58,7 @@ export async function call(auth, name, method, data) {
   if (auth) headers.authorization = `Bearer ${auth.token}`;
   let body;
   if (method === "GET") { if (payload) url += `?payload=${encodeURIComponent(payload)}`; }
-  else { body = payload; headers["content-type"] = "application/json"; }
+  else if (payload) { body = payload; headers["content-type"] = "application/json"; }
   const res = await fetch(url, { method, headers, body });
   const text = await res.text();
   let value = null;

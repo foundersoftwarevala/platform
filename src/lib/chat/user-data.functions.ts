@@ -47,7 +47,7 @@ export const getUserChatProfiles = createServerFn({ method: "GET" })
                p.presence, p.last_seen_at::text as last_seen_at
           from public.profiles p
          where p.id in (
-           select value::uuid from jsonb_array_elements_text(${JSON.stringify(data.ids)}::jsonb)
+           select value::uuid from jsonb_array_elements_text(${JSON.stringify(data.ids)}::text::jsonb)
          )
            and (
              p.id = ${context.userId}::uuid
@@ -342,10 +342,10 @@ export const sendUserChatMessage = createServerFn({ method: "POST" })
         }
         if (data.mentions.length) {
           const [mentionCheck] = await tx<{ valid: boolean }[]>`
-          select count(*) = jsonb_array_length(${JSON.stringify(data.mentions)}::jsonb) as valid
+          select count(*) = jsonb_array_length(${JSON.stringify(data.mentions)}::text::jsonb) as valid
             from public.conversation_participants
            where conversation_id = ${data.conversationId}::uuid
-             and user_id in (select value::uuid from jsonb_array_elements_text(${JSON.stringify(data.mentions)}::jsonb))
+             and user_id in (select value::uuid from jsonb_array_elements_text(${JSON.stringify(data.mentions)}::text::jsonb))
         `;
           if (!mentionCheck?.valid)
             throw new Error("A mention target is not a conversation participant.");
@@ -366,7 +366,7 @@ export const sendUserChatMessage = createServerFn({ method: "POST" })
           await tx`
           insert into public.message_mentions (message_id, user_id)
           select ${message.id}::uuid, value::uuid
-            from jsonb_array_elements_text(${JSON.stringify(data.mentions)}::jsonb)
+            from jsonb_array_elements_text(${JSON.stringify(data.mentions)}::text::jsonb)
           on conflict do nothing
         `;
         }
@@ -509,7 +509,7 @@ export const acknowledgeUserChatMessages = createServerFn({ method: "POST" })
             on cp.conversation_id = m.conversation_id
            and cp.user_id = ${context.userId}::uuid
          where m.id in (
-           select value::uuid from jsonb_array_elements_text(${JSON.stringify(data.messageIds)}::jsonb)
+           select value::uuid from jsonb_array_elements_text(${JSON.stringify(data.messageIds)}::text::jsonb)
          )
       `;
       if (!eligible?.allowed || eligible.count !== data.messageIds.length) {
@@ -518,7 +518,7 @@ export const acknowledgeUserChatMessages = createServerFn({ method: "POST" })
       await tx`
         insert into public.message_receipts (message_id, user_id, delivered_at, read_at)
         select value::uuid, ${context.userId}::uuid, now(), case when ${data.read} then now() else null end
-          from jsonb_array_elements_text(${JSON.stringify(data.messageIds)}::jsonb)
+          from jsonb_array_elements_text(${JSON.stringify(data.messageIds)}::text::jsonb)
         on conflict (message_id, user_id) do update
           set delivered_at = excluded.delivered_at,
               read_at = coalesce(excluded.read_at, public.message_receipts.read_at)
@@ -796,7 +796,7 @@ export const createUserChatConversation = createServerFn({ method: "POST" })
       await tx`
         insert into public.conversation_participants (conversation_id, user_id)
         select ${conversation.id}::uuid, value::uuid
-          from jsonb_array_elements_text(${JSON.stringify(participants)}::jsonb)
+          from jsonb_array_elements_text(${JSON.stringify(participants)}::text::jsonb)
         on conflict (conversation_id, user_id) do nothing
       `;
       return conversation.id;
@@ -950,7 +950,7 @@ export const translateUserChatMessages = createServerFn({ method: "POST" })
           left join public.chat_message_moderation mm on mm.message_id = m.id
          where m.conversation_id = ${data.conversationId}::uuid
            and m.id in (
-             select value::uuid from jsonb_array_elements_text(${JSON.stringify(data.messageIds)}::jsonb)
+             select value::uuid from jsonb_array_elements_text(${JSON.stringify(data.messageIds)}::text::jsonb)
            )
            and (${access.manager} or mm.action is distinct from 'hidden')
       `;

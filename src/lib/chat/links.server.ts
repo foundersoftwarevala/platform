@@ -58,12 +58,11 @@ export async function ensureLeadForConversation(
   if (existing) return { ok: true, created: false, leadId: existing.entity_id };
 
   const [customer] = await tx<{ email: string | null; display_name: string | null }[]>`
-    select u.email,
-           coalesce(nullif(p.display_name, ''), u.raw_user_meta_data->>'full_name',
-                    u.raw_user_meta_data->>'name', split_part(u.email, '@', 1)) as display_name
-      from auth.users u
-      left join public.profiles p on p.id = u.id
-     where u.id = ${input.customerId}::uuid
+    select p.email,
+           coalesce(nullif(p.display_name, ''), nullif(p.full_name, ''),
+                    split_part(p.email, '@', 1)) as display_name
+      from public.profiles p
+     where p.id = ${input.customerId}::uuid
   `;
   if (!customer?.email)
     return { ok: false, error: "The conversation customer has no email address." };

@@ -94,7 +94,7 @@ async function audit(
       (actor, action, entity_type, entity_id, severity, metadata)
     values
       (${actor}::uuid, ${action}, 'conversation', ${conversationId}, 'low',
-       ${JSON.stringify(metadata)}::jsonb)
+       ${JSON.stringify(metadata)}::text::jsonb)
   `;
 }
 

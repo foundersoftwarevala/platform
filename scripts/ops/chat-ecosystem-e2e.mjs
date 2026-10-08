@@ -93,7 +93,7 @@ try {
   if (!CONV) throw new Error("the Chat App did not open a support conversation");
   created.add(CONV);
   check("setup", "customer opened a support conversation from the Chat App", true, CONV);
-  check("setup", "it has exactly one participant (the customer), AI on", one(`select count(*)||'/'||(select ai_enabled from conversations where id='${CONV}') from conversation_participants where conversation_id='${CONV}'`) === "1/t");
+  check("setup", "it has exactly one participant (the customer), AI on", one(`select count(*)||'/'||(select ai_enabled from conversations where id='${CONV}') from conversation_participants where conversation_id='${CONV}'`) === "1/true");
 
   const manager = await signIn(ops.SV_LOGIN_ADMIN);
   await manager.page.goto(`${BASE}/chat-manager`);
@@ -102,8 +102,9 @@ try {
   await manager.page.waitForTimeout(2500);
 
   // Manager-channel stream, held open across the first tests.
-  const managerStream = listen(M, 40_000);
-  const customerStream = listen(C, 40_000);
+  const managerStream = listen(M, 60_000);
+  const customerStream = listen(C, 60_000);
+  await sleep(4000); // both streams authenticated and subscribed
 
   // ---------------------------------------------------------------- TEST 1
   const t1 = `T1 ${RUN} hello, I need help with my licence`;
@@ -149,12 +150,12 @@ try {
   await customer.page.getByRole("button", { name: "Talk to a human agent" }).click();
   const handoff = await until(async () => one(`select id from chat_handoffs where conversation_id='${CONV}' and status='pending'`) || null, 15_000);
   check("T4", "customer handoff request recorded (pending)", !!handoff);
-  check("T4", "conversation escalated with AI off", one(`select status||'/'||ai_enabled from conversations where id='${CONV}'`) === "escalated/f");
+  check("T4", "conversation escalated with AI off", one(`select status||'/'||ai_enabled from conversations where id='${CONV}'`) === "escalated/false");
   check("T4", "Handoff Queue shows it live, without reload", await manager.page.getByRole("button", { name: "Accept" }).first().waitFor({ timeout: 25_000 }).then(() => true).catch(() => false));
   await manager.page.getByRole("button", { name: "Accept" }).first().click();
   const accepted = await until(async () => one(`select status from chat_handoffs where id='${handoff}'`) === "accepted", 15_000);
   check("T4", "manager accepted the handoff", !!accepted);
-  check("T4", "conversation assigned to the manager, open, AI off", one(`select (assigned_agent_id='${M.id}')||'/'||status||'/'||ai_enabled from conversations where id='${CONV}'`) === "true/open/f");
+  check("T4", "conversation assigned to the manager, open, AI off", one(`select (assigned_agent_id='${M.id}')||'/'||status||'/'||ai_enabled from conversations where id='${CONV}'`) === "true/open/false");
   const t4 = `T4 ${RUN} a human teammate is now with you`;
   const r4 = await call(M, "sendChatManagerMessage", "POST", { conversationId: CONV, body: t4 });
   check("T4", "manager replies after accepting", r4.ok, r4.error ?? "");
