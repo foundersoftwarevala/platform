@@ -31,6 +31,17 @@ I18N_DATABASE_URL="$(node --env-file="$LIVE/.env" -e 'process.stdout.write(proce
   fail "could not load native language database configuration"
 export I18N_DATABASE_URL
 
+# A replacement process must be able to decrypt the credentials already stored
+# by the platform. PM2 retaining this value is not enough: the spare-port smoke
+# and a newly-created PM2 process both load the application environment file.
+node --env-file="$LIVE/.env" -e '
+  const value = process.env.AI_API_CREDENTIAL_ENCRYPTION_KEY || "";
+  const key = /^[0-9a-f]{64}$/i.test(value)
+    ? Buffer.from(value, "hex")
+    : Buffer.from(value, "base64");
+  process.exit(key.length === 32 ? 0 : 1);
+' || fail "AI_API_CREDENTIAL_ENCRYPTION_KEY is missing or invalid"
+
 step "1/6 Staging a build tree (the live directory is not touched)"
 mkdir -p "$BUILD"
 # --exclude '.output' matches that exact name and nothing else, so every

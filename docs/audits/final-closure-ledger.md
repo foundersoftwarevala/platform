@@ -143,7 +143,7 @@ OWNER-DECISION Â· EXTERNAL-BLOCKER Â· NOT-AN-ISSUE.
 - The local Chat Manager edit and untracked `.kilo/` remained untouched and
   were excluded from both commits and deployment.
 
-## 2026-10-08 — Platform data integrity and audit-trail fixes (`73068d6`)
+## 2026-10-08 ï¿½ Platform data integrity and audit-trail fixes (`73068d6`)
 
 Scope for this pass was the Software Vala platform only. No marketplace
 product, demo application, or catalogue record was opened or inspected.
@@ -190,7 +190,7 @@ product, demo application, or catalogue record was opened or inspected.
   append-only audit trail.
 - **Validation.** Production build passed. Targeted suites passed (AI usage
   aggregation, payment jobs, payment initiation, PayU settlement, AI credential
-  encryption, sitemap page routes — 45 tests). ESLint on the changed files
+  encryption, sitemap page routes ï¿½ 45 tests). ESLint on the changed files
   reported no new findings; the pre-existing `no-explicit-any` findings in
   `ai-api.functions.ts` and the pre-existing Prettier findings in untouched
   Safe Assist hooks remain.
@@ -205,3 +205,31 @@ product, demo application, or catalogue record was opened or inspected.
   manager, chat, task manager, Assist Manager, Promise Tracker, Lead Manager,
   SEO Manager, sitemap index, robots.txt and the Hindi language pack.
 - The local Chat Manager edit and untracked `.kilo/` remained untouched.
+
+## 2026-10-08 â€” Database authorization and deployment-key closure
+
+- Removed direct authenticated writes to `assist_audit_logs` and
+  `promise_audit_logs`; their SECURITY DEFINER audit functions remain the only
+  application writers. Restricted Legal, Marketing and Promise health audit
+  inserts to the same staff predicates that govern their manager screens.
+- Restricted direct `assist_emergency_stops` inserts to Assist staff. A
+  participant stopping their own session continues through
+  `assist_emergency_stop`, which performs the actual access revocation and
+  writes the record with the caller identity.
+- Enabled `security_invoker` on the five API-exposed reporting views that were
+  bypassing their base-table RLS. A production non-staff account could read
+  rows through four of the views before the migration; afterwards it received
+  no protected rows, while the service-role self-healing worker retained its
+  required access.
+- A rolled-back database authorization test confirmed that a non-staff
+  authenticated identity cannot insert into any of the six hardened audit or
+  emergency-stop tables. No unconditional authenticated INSERT policy remains.
+- Persisted `AI_API_CREDENTIAL_ENCRYPTION_KEY` from the existing PM2
+  environment into `/var/www/softwarevala/.env` without displaying it and set
+  the file mode to `0600`. The persisted value is valid and exactly matches the
+  running process value. `scripts/ops/sv-deploy.sh` now aborts before staging a
+  build if that key is missing or not a valid 32-byte hex/Base64 key; valid and
+  invalid guard cases and shell syntax were verified.
+- Commits `cc74edf`, `a471a0e`, `dc91120`, and `c50ab1c` contain only
+  migrations and this ledger and were applied directly to PostgreSQL, so no
+  application rebuild or deployment was required.
