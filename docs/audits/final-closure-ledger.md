@@ -142,3 +142,66 @@ OWNER-DECISION Â· EXTERNAL-BLOCKER Â· NOT-AN-ISSUE.
   TypeScript limitations documented above remain.
 - The local Chat Manager edit and untracked `.kilo/` remained untouched and
   were excluded from both commits and deployment.
+
+## 2026-10-08 — Platform data integrity and audit-trail fixes (`73068d6`)
+
+Scope for this pass was the Software Vala platform only. No marketplace
+product, demo application, or catalogue record was opened or inspected.
+
+- **AI API Manager showed figures no row supported.** The overview chart was
+  built from `summary.active * 120`, `summary.cost * 1.15` and an error
+  count rather than dated usage, billing rows used `(index + 1) * 500 + 600`,
+  and role-wise quotas repeated global totals under Founder/Reseller/Franchise
+  labels. `listAiRegistry` now queries `usage_events` over a trailing
+  seven-day window (`occurred_at >= window start`, served by the existing
+  `usage_events_occurred_idx`) and aggregates rows by UTC calendar day, so
+  the chart, the request/cost tiles and per-service figures all come from
+  persisted rows. `buildUsageDailySeries` is covered by
+  `src/lib/ai-api.usage.test.ts` (4 tests), including that out-of-window,
+  undated and unparsable rows contribute nothing.
+- **Partial query failures no longer look like zero usage.** The registry
+  handler previously converted a failed providers/usage/capabilities query
+  into an empty array, which rendered as a successful screen reporting no
+  traffic. Those failures now propagate, and the panel renders an explicit
+  error instead of a success-shaped empty state.
+- **Controls that did nothing no longer imply work.** `Rotate Keys` and
+  `Run Audit` had no handlers and are disabled with a reason. Hardcoded
+  optimisation advice, modality badges and "automations enabled" claims were
+  replaced with what the registry actually returns.
+- **Safe Assist AI-log forgery.** `Participants insert ai logs` only checked
+  `auth.uid() is not null`, so any authenticated user could insert an AI risk
+  log naming another user's session. Migration
+  `20261108T100000_safe_assist_ai_logs_session_scoped.sql` scopes inserts to
+  that session's user or support agent, or support staff, matching
+  `safe_assist_events` and the `log_safe_assist_ai_event` authorization.
+  Applied to `sv_platform`; `pg_policies` confirms the new check
+  references `safe_assist_sessions`.
+- **Assist audit actor forgery.** `assist_audit_insert` used
+  `WITH CHECK (true)`. The actor-stamping trigger overwrites only
+  `actor_user_id`; `actor`, `actor_role`, `action`, `result` and
+  `severity` were kept as submitted, and the table is append-only, so a
+  forged row could not be corrected. Migration
+  `20261108T101000_assist_audit_logs_function_only.sql` removes the
+  permissive policy. The sole writer, `public.assist_audit(...)`, is
+  SECURITY DEFINER and owned by `postgres` while the table is owned by
+  `postgres` with `relforcerowsecurity = false`, so it bypasses RLS and
+  continues to work; no application code inserts into the table directly.
+  Verified by catalogue inspection, without writing a test row into an
+  append-only audit trail.
+- **Validation.** Production build passed. Targeted suites passed (AI usage
+  aggregation, payment jobs, payment initiation, PayU settlement, AI credential
+  encryption, sitemap page routes — 45 tests). ESLint on the changed files
+  reported no new findings; the pre-existing `no-explicit-any` findings in
+  `ai-api.functions.ts` and the pre-existing Prettier findings in untouched
+  Safe Assist hooks remain.
+- **Deployment.** `73068d6` was pushed to `main`, fast-forwarded on the
+  VPS, and deployed with `scripts/ops/sv-deploy.sh`: manifest references
+  resolved, spare-port homepage smoke returned 200, the live site returned
+  200, PM2 `softwarevala-staging` is online as PID 368287, nginx is active,
+  three rollback builds remain and the disk is 145G free (26% used). The VPS
+  source is clean at `73068d6` and the deployed build is dated
+  `2026-10-08T14:04:15Z`. Post-deploy smoke returned 200 for the homepage,
+  login, control panel, marketplace manager, Product & Demo Manager, developer
+  manager, chat, task manager, Assist Manager, Promise Tracker, Lead Manager,
+  SEO Manager, sitemap index, robots.txt and the Hindi language pack.
+- The local Chat Manager edit and untracked `.kilo/` remained untouched.
