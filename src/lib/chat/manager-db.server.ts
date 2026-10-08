@@ -108,13 +108,15 @@ export async function getChatManagerAccess(userId: string): Promise<{
       can_assign: boolean;
       can_moderate: boolean;
       can_export: boolean;
+      can_send: boolean;
     }[]
   >`
     select public.has_permission(${userId}::uuid, 'chat.manage') as can_manage_chat,
            public.has_permission(${userId}::uuid, 'chat.permissions.manage') as can_manage_permissions,
            public.has_permission(${userId}::uuid, 'chat.assign') as can_assign,
            public.has_permission(${userId}::uuid, 'chat.moderate') as can_moderate,
-           public.has_permission(${userId}::uuid, 'chat.export') as can_export
+           public.has_permission(${userId}::uuid, 'chat.export') as can_export,
+           public.has_permission(${userId}::uuid, 'message.send') as can_send
   `);
   if (!access) throw new Error("Could not verify Chat Manager access.");
   return {
@@ -126,6 +128,8 @@ export async function getChatManagerAccess(userId: string): Promise<{
       access.can_assign && "chat.assign",
       access.can_moderate && "chat.moderate",
       access.can_export && "chat.export",
+      // The operator reply needs it too; the server checks it again on send.
+      access.can_send && "message.send",
     ].filter((permission): permission is string => typeof permission === "string"),
   };
 }

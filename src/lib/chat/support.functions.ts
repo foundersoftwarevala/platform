@@ -50,6 +50,10 @@ export const openSupportConversation = createServerFn({ method: "POST" })
             return { ok: true as const, conversationId: existing.id, created: false as const };
           }
 
+          // Written as the trusted server, as before: the insert guard
+          // (20261108T094000) rightly stops a customer's own insert from
+          // switching the AI on, and this conversation is Software Vala's.
+          await tx`select set_config('request.jwt.claim.sub', '', true)`;
           const [created] = await tx<{ id: string }[]>`
             insert into public.conversations
               (subject, kind, created_by, department, ai_enabled)
@@ -61,6 +65,7 @@ export const openSupportConversation = createServerFn({ method: "POST" })
             insert into public.conversation_participants (conversation_id, user_id, role_label)
             values (${created.id}::uuid, ${userId}::uuid, 'Customer')
           `;
+          await tx`select set_config('request.jwt.claim.sub', ${userId}, true)`;
           await tx`
             insert into public.audit_logs (actor, action, entity_type, entity_id, severity, metadata)
             values (${userId}, 'chat.conversation.created', 'conversation', ${created.id}, 'low',
