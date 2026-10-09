@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 
 /**
  * Where Vala AI keeps its state, and the limits it enforces.
@@ -14,6 +14,25 @@ import { resolve } from "node:path";
 
 export function dataDir(): string {
   return resolve(process.env.VALA_AI_DATA_DIR?.trim() || ".vala-ai");
+}
+
+/**
+ * In production the data directory must be named explicitly and live outside
+ * the application directory, where a deploy could delete it or ship it.
+ * Returns the problem, or null when the configuration is acceptable.
+ */
+export function productionDataDirProblem(
+  env: NodeJS.ProcessEnv = process.env,
+  appDir = process.cwd(),
+): string | null {
+  if (env.NODE_ENV !== "production") return null;
+  const configured = env.VALA_AI_DATA_DIR?.trim();
+  if (!configured)
+    return "VALA_AI_DATA_DIR is not set. In production, set it to a directory outside the application, such as /var/lib/vala-ai.";
+  const r = relative(resolve(appDir), resolve(configured));
+  if (r === "" || (!r.startsWith("..") && !isAbsolute(r)))
+    return `VALA_AI_DATA_DIR (${configured}) is inside the application directory. Use a directory outside it, such as /var/lib/vala-ai.`;
+  return null;
 }
 
 export const paths = {
