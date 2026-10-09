@@ -1,0 +1,188 @@
+import type { ReactNode } from "react";
+import { AlertTriangle, Loader2 } from "lucide-react";
+import { useLanguage } from "@/lib/language-catalog";
+import { cn } from "@/lib/utils";
+import type { TaskState } from "./api";
+
+export function PageHeader({
+  title,
+  description,
+  icon: Icon,
+  actions,
+}: {
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  actions?: ReactNode;
+}) {
+  const { translate: t } = useLanguage();
+  return (
+    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-4 py-5 sm:px-6">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+          <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+    </header>
+  );
+}
+
+export function Page({ children }: { children: ReactNode }) {
+  return <div className="space-y-5 px-4 py-5 sm:px-6">{children}</div>;
+}
+
+export function Card({
+  title,
+  actions,
+  children,
+  className,
+}: {
+  title?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  const { translate: t } = useLanguage();
+  return (
+    <section className={cn("rounded-xl border border-border bg-surface/60 p-4", className)}>
+      {title || actions ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          {title ? <h2 className="text-sm font-semibold">{title}</h2> : <span />}
+          {actions}
+        </div>
+      ) : null}
+      {children}
+    </section>
+  );
+}
+
+export function Stat({
+  label,
+  value,
+  tone = "default",
+  hint,
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: "default" | "success" | "warning" | "danger" | "info";
+  hint?: string;
+}) {
+  const { translate: t } = useLanguage();
+  const toneClass = {
+    default: "text-foreground",
+    success: "text-success",
+    warning: "text-warning",
+    danger: "text-destructive",
+    info: "text-info",
+  }[tone];
+  return (
+    <div className="rounded-xl border border-border bg-surface/60 p-4">
+      <p className={cn("text-2xl font-semibold tracking-tight", toneClass)}>{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+      {hint ? <p className="mt-1 text-[11px] text-muted-foreground/80">{hint}</p> : null}
+    </div>
+  );
+}
+
+export function Empty({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
+export function Loading() {
+  const { translate: t } = useLanguage();
+  return (
+    <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin" />
+      {t("Loading…")}
+    </div>
+  );
+}
+
+export function ErrorBox({ error }: { error: { message: string } | null | undefined }) {
+  if (!error) return null;
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+    >
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+      <span className="whitespace-pre-wrap break-words">{error.message}</span>
+    </div>
+  );
+}
+
+const STATE_TONE: Record<string, string> = {
+  PENDING: "border-border text-muted-foreground",
+  ANALYZING: "border-info/50 text-info",
+  BUILDING: "border-info/50 text-info",
+  TESTING: "border-info/50 text-info",
+  FIXING: "border-warning/50 text-warning",
+  RETESTING: "border-warning/50 text-warning",
+  VERIFIED: "border-success/50 text-success",
+  COMPLETE: "border-success/60 bg-success/10 text-success",
+  BLOCKED: "border-warning/60 bg-warning/10 text-warning",
+  FAILED: "border-destructive/60 bg-destructive/10 text-destructive",
+  CANCELLED: "border-border text-muted-foreground line-through",
+  pass: "border-success/50 text-success",
+  fail: "border-destructive/50 text-destructive",
+  unknown: "border-warning/50 text-warning",
+  UNKNOWN: "border-warning/50 text-warning",
+  draft: "border-border text-muted-foreground",
+  approved: "border-success/50 text-success",
+  superseded: "border-border text-muted-foreground",
+  open: "border-warning/50 text-warning",
+  rejected: "border-destructive/50 text-destructive",
+  pending: "border-warning/50 text-warning",
+  executed: "border-success/50 text-success",
+  failed: "border-destructive/50 text-destructive",
+  ready: "border-success/50 text-success",
+  creating: "border-info/50 text-info",
+  built: "border-success/50 text-success",
+  "not built": "border-border text-muted-foreground",
+};
+
+export function Badge({ value, className }: { value: TaskState | string; className?: string }) {
+  const { translate: t } = useLanguage();
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+        STATE_TONE[value] ?? "border-border",
+        className,
+      )}
+    >
+      {t(value)}
+    </span>
+  );
+}
+
+export function Field({
+  label,
+  children,
+  hint,
+}: {
+  label: string;
+  children: ReactNode;
+  hint?: string;
+}) {
+  const { translate: t } = useLanguage();
+  return (
+    <label className="block space-y-1">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+      {hint ? <span className="block text-[11px] text-muted-foreground/80">{hint}</span> : null}
+    </label>
+  );
+}
+
+export const inputClass =
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
