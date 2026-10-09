@@ -14,7 +14,17 @@ import {
   type Release,
 } from "../api";
 import { useCan } from "../session";
-import { Badge, Card, Empty, ErrorBox, inputClass, Loading, Page, PageHeader } from "../ui";
+import {
+  Badge,
+  Card,
+  Empty,
+  ErrorBox,
+  inputClass,
+  Loading,
+  Page,
+  PageHeader,
+  SandboxChip,
+} from "../ui";
 import { relativeTime, shortSha } from "../format";
 import { EvidenceOutput } from "./TaskDetail";
 
@@ -80,6 +90,7 @@ export function QA() {
                   <span className="rounded border border-border px-1.5 text-[11px] uppercase">
                     {t(ev.producer)}
                   </span>
+                  <SandboxChip sandbox={ev.sandbox} />
                   <span>{ev.label}</span>
                   <code className="text-xs text-muted-foreground">{ev.command}</code>
                   <span className="ml-auto text-xs text-muted-foreground">

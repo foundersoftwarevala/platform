@@ -134,6 +134,12 @@ export function SettingsScreen() {
                 <dd>
                   {s.resources.freeMemMb} {t("MB free of")} {s.resources.totalMemMb}
                 </dd>
+                <dt className="text-muted-foreground">{t("Checks run")}</dt>
+                <dd>
+                  {s.sandbox.mode === "docker" && s.sandbox.ready
+                    ? `${t("in a container")} · ${s.sandbox.image}`
+                    : s.sandbox.problem}
+                </dd>
                 <dt className="text-muted-foreground">{t("Audit chain")}</dt>
                 <dd>
                   {s.audit.ok ? t("intact") : `${t("broken at")} #${s.audit.brokenAt}`} ·{" "}

@@ -59,3 +59,31 @@ data directory; workspaces owned by that user; checks started with `systemd-run 
 - Running containers on the VPS (resource budget, image choice) or creating the system user.
 - Network policy for package installation.
 - Server access to build and test it (SSH is currently not available to this session).
+
+## Implementation status (2026-10-09)
+
+Built and tested locally:
+
+- `src/lib/vala-ai/sandbox.server.ts`: policy (`VALA_AI_SANDBOX=off|docker`, docker by default in
+  production, `off` refused in production unless `VALA_AI_SANDBOX_ALLOW_OFF_IN_PRODUCTION=yes`),
+  digest-pinned image required, non-root user required, the `docker run` arguments above, stale
+  container sweep (every 10 minutes from the runner).
+- Checks in docker mode run as `docker run … <image> <tokens>` (no shell), killed by container
+  name at the timeout or on cancel. If Docker or the image is missing the check is **refused**
+  (exit 126, reason in the evidence), never run on the host instead.
+- Every evidence row records where it ran (`none`, `docker <image>`, `refused`); the UI shows it.
+- Host git hardening (applies with or without the sandbox): hooks and fsmonitor off for every
+  git call; external diff drivers and textconv off; git refuses to run in a workspace whose
+  `.git/config` changed after Vala AI created it.
+- Tests: `npx vitest run src/lib/vala-ai/sandbox.server.test.ts src/lib/vala-ai/git-hardening.server.test.ts`.
+
+Not done, blocked on server access (SSH refuses this machine's key; Docker is not installed on
+the development machine):
+
+- The seven container acceptance tests in `sandbox.server.test.ts` (host files, filesystem view,
+  network, pids, memory, timeout cleanup, read-only `.git` and root) are written and skip
+  without Docker. They have **not run**.
+- Server setup: pull and pin the image (`docker pull node:22-bookworm-slim`, then use the
+  `name@sha256:…` it reports as `VALA_AI_SANDBOX_IMAGE`), make workspaces writable by the
+  sandbox uid (`VALA_AI_SANDBOX_USER`, default 10001), set `VALA_AI_SANDBOX=docker`, then run
+  the acceptance tests and the browser end-to-end run on the server.
