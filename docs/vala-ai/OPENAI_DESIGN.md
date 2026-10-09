@@ -11,16 +11,16 @@ request has been made from this machine.
 - AI API Manager's gateway (`src/lib/ai-gateway.server.ts`) already owns providers, models and
   keys: `resolveAiTarget` picks an active, approved `api_services` row; keys are stored encrypted
   (AES-256-GCM, `AI_API_CREDENTIAL_ENCRYPTION_KEY`); `aiComplete({ module, messages, json,
-  maxTokens, temperature, serviceId?, serviceName? })` returns `{ text, model, service }` and
+maxTokens, temperature, serviceId?, serviceName? })` returns `{ text, model, service }` and
   meters each call into `usage_events` with `product = module`.
 
 ## Proposal
 
 Add a second model **source** to Vala AI, selected in Settings, owner only:
 
-| Setting | Values |
-|---|---|
-| `model_source` | `local` (default, today's behaviour) or `ai-api-manager` |
+| Setting           | Values                                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `model_source`    | `local` (default, today's behaviour) or `ai-api-manager`                                                                       |
 | `gateway_service` | the AI API Manager service to use (by service id), chosen from a list the server reads through the gateway; never a URL or key |
 
 `model_url` keeps its loopback/private-network rule and is used only when `model_source = local`.
@@ -30,7 +30,7 @@ No URL, key or provider configuration is stored in Vala AI.
 
 1. `model.server.ts`: `chat()` dispatches on `model_source`.
    For `ai-api-manager` it calls `aiComplete({ module: "vala-ai", messages, json: Boolean(schema),
-   maxTokens, temperature, serviceId: gateway_service })`.
+maxTokens, temperature, serviceId: gateway_service })`.
 2. Structured output: OpenAI's JSON mode does not enforce Vala AI's schemas, so `chatJson()`
    keeps validating required fields and types and fails the step with "malformed JSON" as today.
 3. Evidence: every model event records `source`, `service`, and the `model` the gateway reports,
@@ -53,11 +53,13 @@ No URL, key or provider configuration is stored in Vala AI.
 ## Tests
 
 Without credentials (can run locally):
+
 - Source switch, settings validation, BLOCKED when no service is configured, mapping of
   gateway errors to task states, schema validation of provider output — against a stubbed
   `aiComplete` (clearly a test double).
 
 With credentials (requires approval and access):
+
 - One real request through the gateway to the configured OpenAI service, reaching the agent's
   plan step, with the `usage_events` row read back.
 - Invalid key, rate limit and timeout behaviour against the real provider where safely possible.

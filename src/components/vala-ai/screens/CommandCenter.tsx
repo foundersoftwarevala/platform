@@ -68,8 +68,8 @@ export function CommandCenter() {
                 <p
                   className={
                     s.model.online
-                      ? "text-sm font-semibold text-success"
-                      : "text-sm font-semibold text-destructive"
+                      ? "text-sm font-semibold va-text-success"
+                      : "text-sm font-semibold va-text-danger"
                   }
                 >
                   {s.model.online ? t("Online") : t("Offline")}
@@ -78,7 +78,7 @@ export function CommandCenter() {
                   {s.model.model ?? "—"} · {s.model.url}
                 </p>
                 {s.model.error ? (
-                  <p className="mt-2 text-xs text-destructive">{s.model.error}</p>
+                  <p className="mt-2 text-xs va-text-danger">{s.model.error}</p>
                 ) : null}
                 {!s.model.online ? (
                   <p className="mt-2 text-xs text-muted-foreground">
@@ -96,7 +96,7 @@ export function CommandCenter() {
                   <dd>{s.resources.cpuCount}</dd>
                 </dl>
                 {s.resources.problems.map((p) => (
-                  <p key={p} className="mt-2 text-xs text-warning">
+                  <p key={p} className="mt-2 text-xs va-text-warning">
                     {p}
                   </p>
                 ))}
@@ -112,7 +112,7 @@ export function CommandCenter() {
                   {t("Last tick")} {relativeTime(s.worker.lastTick)}
                 </p>
                 {s.worker.lastError ? (
-                  <p className="mt-2 text-xs text-destructive">{s.worker.lastError}</p>
+                  <p className="mt-2 text-xs va-text-danger">{s.worker.lastError}</p>
                 ) : null}
                 <p className="mt-2 text-xs text-muted-foreground">
                   {t("Audit chain")}:{" "}

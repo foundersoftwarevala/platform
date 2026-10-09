@@ -6,22 +6,24 @@ session (or person) reads first to continue the work.
 
 ## Status
 
-| Area | Status | Evidence |
-|---|---|---|
-| Control Panel sign-in, server-side roles | Built, tested | `platform-auth.server.ts` reuses `requireOperator`; RBAC check per role (owner / operator / viewer / none) |
-| Projects with permanent IDs (`VP-…`), isolated git workspaces | Built, tested | source repo byte-identical after clone (unit test); `workspace.server.ts` |
-| Requirements, scope lock, change requests | Built, tested | approved requirements are immutable; changes only via an approved change request |
-| Agent loop on the local model | Built, tested | PENDING → ANALYZING → BUILDING → TESTING → (FIXING → RETESTING)* → VERIFIED → COMPLETE |
-| Independent verification | Built, tested | verifier re-runs every check on a clean, committed tree; protected check/test files cannot be edited |
-| Crash recovery | Built, tested live | 90 s heartbeat lease; server killed mid-step, task resumed and completed |
-| Evidence | Built, tested | every check's output stored with SHA-256, re-checked when shown |
-| Approvals, releases, rollback | Built, tested | owner approval executes the action and records the verified outcome; releases immutable (DB triggers) |
-| Hash-chained audit log | Built, tested | tamper detection unit test |
-| Resource protection | Built, tested | disk/memory floors, command timeouts with process-tree kill, output caps, write budgets |
-| Live running preview of client apps | Not built | preview = verified diff + file view |
-| Orchestration of existing worker agents | Not built | existing workers depend on the discontinued database |
-| OS-level sandbox for commands | Not built | commands run in the workspace with a scrubbed environment |
-| Licensing & delivery, production deployment, source-library indexing | Not built | later phases; deployment needs separate authorization |
+Audit fixes and their evidence: [REMEDIATION.md](REMEDIATION.md). Designs awaiting approval: [SANDBOX_DESIGN.md](SANDBOX_DESIGN.md), [OPENAI_DESIGN.md](OPENAI_DESIGN.md). Backups: [BACKUP.md](BACKUP.md).
+
+| Area                                                                 | Status             | Evidence                                                                                                   |
+| -------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Control Panel sign-in, server-side roles                             | Built, tested      | `platform-auth.server.ts` reuses `requireOperator`; RBAC check per role (owner / operator / viewer / none) |
+| Projects with permanent IDs (`VP-…`), isolated git workspaces        | Built, tested      | source repo byte-identical after clone (unit test); `workspace.server.ts`                                  |
+| Requirements, scope lock, change requests                            | Built, tested      | approved requirements are immutable; changes only via an approved change request                           |
+| Agent loop on the local model                                        | Built, tested      | PENDING → ANALYZING → BUILDING → TESTING → (FIXING → RETESTING)* → VERIFIED → COMPLETE                     |
+| Independent verification                                             | Built, tested      | verifier re-runs every check on a clean, committed tree; protected check/test files cannot be edited       |
+| Crash recovery                                                       | Built, tested live | 90 s heartbeat lease; server killed mid-step, task resumed and completed                                   |
+| Evidence                                                             | Built, tested      | every check's output stored with SHA-256, re-checked when shown                                            |
+| Approvals, releases, rollback                                        | Built, tested      | owner approval executes the action and records the verified outcome; releases immutable (DB triggers)      |
+| Hash-chained audit log                                               | Built, tested      | tamper detection unit test                                                                                 |
+| Resource protection                                                  | Built, tested      | disk/memory floors, command timeouts with process-tree kill, output caps, write budgets                    |
+| Live running preview of client apps                                  | Not built          | preview = verified diff + file view                                                                        |
+| Orchestration of existing worker agents                              | Not built          | existing workers depend on the discontinued database                                                       |
+| OS-level sandbox for commands                                        | Not built          | commands run in the workspace with a scrubbed environment                                                  |
+| Licensing & delivery, production deployment, source-library indexing | Not built          | later phases; deployment needs separate authorization                                                      |
 
 ## Architecture
 

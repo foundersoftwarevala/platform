@@ -1,3 +1,4 @@
+import "./vala-ai.css";
 import { Outlet } from "@tanstack/react-router";
 import { Loader2, LogIn, ShieldOff } from "lucide-react";
 import { useLanguage } from "@/lib/language-catalog";
@@ -17,7 +18,7 @@ export function ValaAIModuleContainer() {
 
   if (session.isPending)
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+      <div className="vala-ai flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         {t("Loading Vala AI…")}
       </div>
@@ -26,7 +27,7 @@ export function ValaAIModuleContainer() {
     return <Notice icon={ShieldOff} title={t("No Vala AI access")} body={session.error.message} />;
   if (session.error)
     return (
-      <div className="min-h-screen bg-background p-6">
+      <div className="vala-ai min-h-screen bg-background p-6">
         <ErrorBox error={session.error} />
       </div>
     );
@@ -45,7 +46,7 @@ export function ValaAIModuleContainer() {
 
   return (
     <OperatorContext.Provider value={operator}>
-      <div className="flex min-h-screen w-full bg-background text-foreground">
+      <div className="vala-ai flex min-h-screen w-full bg-background text-foreground">
         <aside
           className={cn(
             "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border bg-background/80 backdrop-blur-xl transition-[width] duration-200 lg:flex",
@@ -68,7 +69,7 @@ export function ValaAIModuleContainer() {
         ) : null}
         <div className="flex min-w-0 flex-1 flex-col">
           <ValaTopBar onOpenMenu={() => setMobileOpen(true)} operator={operator} />
-          <main className="min-h-0 flex-1">
+          <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 focus:outline-none">
             <Outlet />
           </main>
         </div>
@@ -90,7 +91,7 @@ function Notice({
 }) {
   const { translate: t } = useLanguage();
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
+    <div className="vala-ai flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface/70 p-6 text-center shadow-xl">
         <span className="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-primary/15 text-primary">
           <Icon className="h-5 w-5" />
@@ -101,7 +102,7 @@ function Notice({
           {login ? (
             <a
               href={`${EXISTING_LOGIN_URL}?redirect=${encodeURIComponent("/vala-ai")}`}
-              className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+              className="rounded-lg va-btn-primary px-3 py-2 text-sm font-medium"
             >
               {t("Sign in")}
             </a>

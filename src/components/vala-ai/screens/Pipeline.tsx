@@ -93,7 +93,7 @@ export function Pipeline() {
                       <Badge value={task.state} />
                       {task.cancel_requested &&
                       !["CANCELLED", "COMPLETE", "FAILED"].includes(task.state) ? (
-                        <span className="ml-1 text-[11px] text-warning">{t("cancelling")}</span>
+                        <span className="ml-1 text-[11px] va-text-warning">{t("cancelling")}</span>
                       ) : null}
                     </td>
                     <td className="px-3 py-2 text-xs">

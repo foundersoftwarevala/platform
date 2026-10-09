@@ -35,7 +35,7 @@ const get = async (as: string, path: string) => {
 };
 
 let projectId = "";
-let evidenceId = "EV-REDACTTEST";
+const evidenceId = "EV-REDACTTEST";
 const leaks = (text: string) => {
   const dir = dataDir();
   const variants = [

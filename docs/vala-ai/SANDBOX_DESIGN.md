@@ -15,18 +15,18 @@ the Vala AI database, other projects' workspaces, and anything else the app user
 Docker is already installed on the VPS (the translation engine runs in it). Each check runs in
 a fresh container that sees only that project's workspace.
 
-| Control | Setting |
-|---|---|
-| Image | Pinned digest of an official `node:22-bookworm-slim` image, rebuilt deliberately, never `latest` |
-| User | `--user 10001:10001` (no root inside), `--security-opt no-new-privileges`, `--cap-drop ALL` |
-| Filesystem | Root filesystem `--read-only`; workspace bind-mounted at `/work` (read-write, this project only); `--tmpfs /tmp:rw,size=256m,noexec`; npm cache on a per-project tmpfs. Nothing else from the host is mounted: no app directory, no `.env`, no data directory, no Docker socket |
-| Network | `--network none` for checks. Package installation is a separate, approval-gated step with network limited to the npm registry through an egress proxy allow-list; after install, checks run offline |
-| Processes | `--pids-limit 256`, `--init` so the whole tree dies with the container |
-| Memory / CPU | `--memory` and `--memory-swap` from settings (default 1 GB), `--cpus` (default 1.0) |
-| Time | Existing `command_timeout_s`; on expiry `docker kill`, then `docker rm -f` |
-| Output | Same output cap as today, captured from the container's stdout and stderr |
-| Cleanup | `--rm`; a sweep removes any container labelled `vala-ai=1` older than the timeout |
-| Environment | Only `CI=1`, `NO_COLOR=1`, `HOME=/tmp`; no host variables |
+| Control      | Setting                                                                                                                                                                                                                                                                         |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Image        | Pinned digest of an official `node:22-bookworm-slim` image, rebuilt deliberately, never `latest`                                                                                                                                                                                |
+| User         | `--user 10001:10001` (no root inside), `--security-opt no-new-privileges`, `--cap-drop ALL`                                                                                                                                                                                     |
+| Filesystem   | Root filesystem `--read-only`; workspace bind-mounted at `/work` (read-write, this project only); `--tmpfs /tmp:rw,size=256m,noexec`; npm cache on a per-project tmpfs. Nothing else from the host is mounted: no app directory, no `.env`, no data directory, no Docker socket |
+| Network      | `--network none` for checks. Package installation is a separate, approval-gated step with network limited to the npm registry through an egress proxy allow-list; after install, checks run offline                                                                             |
+| Processes    | `--pids-limit 256`, `--init` so the whole tree dies with the container                                                                                                                                                                                                          |
+| Memory / CPU | `--memory` and `--memory-swap` from settings (default 1 GB), `--cpus` (default 1.0)                                                                                                                                                                                             |
+| Time         | Existing `command_timeout_s`; on expiry `docker kill`, then `docker rm -f`                                                                                                                                                                                                      |
+| Output       | Same output cap as today, captured from the container's stdout and stderr                                                                                                                                                                                                       |
+| Cleanup      | `--rm`; a sweep removes any container labelled `vala-ai=1` older than the timeout                                                                                                                                                                                               |
+| Environment  | Only `CI=1`, `NO_COLOR=1`, `HOME=/tmp`; no host variables                                                                                                                                                                                                                       |
 
 The agent's own file edits stay on the host, through the existing path guard (now symlink-safe).
 Git operations stay on the host with fixed arguments.

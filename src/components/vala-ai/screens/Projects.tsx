@@ -28,7 +28,7 @@ export function Projects() {
           canEdit ? (
             <button
               onClick={() => setCreating((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+              className="inline-flex items-center gap-1.5 rounded-lg va-btn-primary px-3 py-2 text-sm font-medium"
             >
               <Plus className="h-4 w-4" />
               {t("New project")}
@@ -169,7 +169,7 @@ function NewProject({ onDone }: { onDone: () => void }) {
           <button
             type="submit"
             disabled={create.isPending}
-            className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+            className="rounded-lg va-btn-primary px-3 py-2 text-sm font-medium disabled:opacity-60"
           >
             {create.isPending ? t("Creating workspace…") : t("Create project")}
           </button>
