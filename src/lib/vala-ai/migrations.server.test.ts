@@ -32,10 +32,10 @@ describe("migrations", () => {
     );
   });
 
-  it("creates a new database at version 2 with the indexes", () => {
+  it("creates a new database at the latest version with the indexes", () => {
     process.env.VALA_AI_DATA_DIR = join(root, "fresh");
     closeDb();
-    expect(schemaVersion()).toBe(2);
+    expect(schemaVersion()).toBe(MIGRATIONS.length);
     expect(indexNames("evidence")).toContain("evidence_task");
     expect(indexNames("approvals")).toContain("approvals_status");
     expect(indexNames("releases")).toContain("releases_project");
@@ -70,10 +70,15 @@ describe("migrations", () => {
 
     process.env.VALA_AI_DATA_DIR = dir;
     closeDb();
-    expect(schemaVersion()).toBe(2);
+    expect(schemaVersion()).toBe(MIGRATIONS.length);
     expect(all("select id from projects")).toEqual([{ id: "VP-OLD" }]);
     expect(all("select id from evidence")).toEqual([{ id: "EV-OLD" }]);
     expect(indexNames("evidence")).toContain("evidence_task");
+    // Migration 3: existing evidence is recorded as not sandboxed; workspaces gain the git config hash.
+    expect(all("select sandbox from evidence")).toEqual([{ sandbox: "none" }]);
+    expect(all<{ name: string }>("pragma table_info(workspaces)").map((c) => c.name)).toContain(
+      "git_config_sha256",
+    );
     expect(
       (db().prepare("pragma integrity_check").get() as { integrity_check: string }).integrity_check,
     ).toBe("ok");
@@ -94,9 +99,9 @@ describe("migrations", () => {
     ).toMatch(/releases_project/);
   });
 
-  it("does not run again on a database already at version 2", () => {
+  it("does not run again on a database already at the latest version", () => {
     closeDb();
-    expect(schemaVersion()).toBe(2);
+    expect(schemaVersion()).toBe(MIGRATIONS.length);
     expect(indexNames("evidence").filter((n) => n === "evidence_task")).toHaveLength(1);
   });
 });
