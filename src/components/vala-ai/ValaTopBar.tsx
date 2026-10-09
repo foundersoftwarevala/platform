@@ -23,8 +23,10 @@ export function ValaTopBar({
   const detail = !model
     ? ""
     : model.online
-      ? `${t("Local model")}: ${model.model ?? t("online")}`
-      : `${t("Local model offline")}${model.error ? ` — ${model.error}` : ""}`;
+      ? model.source === "ai-api-manager"
+        ? `${t("AI API Manager")}: ${model.service ?? ""}${model.model ? ` · ${model.model}` : ""}`
+        : `${t("Local model")}: ${model.model ?? t("online")}`
+      : `${model.source === "ai-api-manager" ? t("AI API Manager not ready") : t("Local model offline")}${model.error ? ` — ${model.error}` : ""}`;
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/85 px-3 backdrop-blur-xl sm:px-5">

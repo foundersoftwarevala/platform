@@ -56,6 +56,10 @@ export const DEFAULT_SETTINGS = {
   min_free_mem_mb: 1024,
   chat_per_minute: 6,
   tasks_per_minute: 10,
+  /** "local" (llama.cpp at model_url) or "ai-api-manager" (the platform gateway). */
+  model_source: "local",
+  /** AI API Manager service id; empty lets the gateway pick an active chat service. */
+  gateway_service: "",
 } as const;
 
 export type Settings = {

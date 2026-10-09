@@ -219,6 +219,7 @@ export type Evidence = {
   output_tail: string;
   producer: "agent" | "verifier";
   verdict: "pass" | "fail" | "unknown";
+  sandbox?: string;
   created_at: string;
 };
 export type Verification = {
@@ -300,10 +301,19 @@ export type Settings = {
   min_free_mem_mb: number;
   chat_per_minute: number;
   tasks_per_minute: number;
+  model_source: "local" | "ai-api-manager";
+  gateway_service: string;
+};
+export type GatewayServices = {
+  available: boolean;
+  services: { id: string; name: string; provider: string; model: string | null }[];
+  error: string | null;
 };
 export type Status = {
   model: {
     online: boolean;
+    source: "local" | "ai-api-manager";
+    service: string | null;
     url: string;
     model: string | null;
     error: string | null;
@@ -333,6 +343,7 @@ export type Status = {
   tasksByState: Record<TaskState, number>;
   projects: number;
   pendingApprovals: number;
+  sandbox: { mode: string; image: string | null; ready: boolean; problem: string | null };
   openChangeRequests: number;
   capabilities: { area: string; status: "built" | "not built"; note?: string }[];
 };

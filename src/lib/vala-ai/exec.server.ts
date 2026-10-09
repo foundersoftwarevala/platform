@@ -1,6 +1,8 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { dataDir } from "./config.server.ts";
+import { dockerRunArgs, type SandboxPolicy } from "./sandbox.server.ts";
 import { ValaError } from "./util.server.ts";
 
 /**
@@ -119,7 +121,14 @@ function missingNpxTool(tokens: string[], cwd: string): string | null {
 
 export function runCommand(
   tokens: string[],
-  opts: { cwd: string; timeoutMs: number; maxOutputBytes: number; signal?: AbortSignal },
+  opts: {
+    cwd: string;
+    timeoutMs: number;
+    maxOutputBytes: number;
+    signal?: AbortSignal;
+    /** Run inside a disposable container instead of on this machine. */
+    sandbox?: { policy: SandboxPolicy; name: string };
+  },
 ): Promise<ExecResult> {
   const started = Date.now();
   const missing = missingNpxTool(tokens, opts.cwd);
@@ -135,13 +144,31 @@ export function runCommand(
   return new Promise((resolve) => {
     // shell:true is required on Windows for npm/npx (.cmd shims). Every token
     // was checked against TOKEN above, so no shell syntax can reach it.
-    const child = spawn(tokens[0], tokens.slice(1), {
-      cwd: opts.cwd,
-      env: scrubbedEnv(),
-      shell: true,
-      detached: process.platform !== "win32",
-      windowsHide: true,
-    });
+    const box = opts.sandbox;
+    // In a container the tokens are the container's command (no shell at all);
+    // on this machine shell:true is needed for npm/npx .cmd shims on Windows.
+    const child = box
+      ? spawn(box.policy.dockerBin, dockerRunArgs(tokens, opts.cwd, box.policy, box.name), {
+          env: scrubbedEnv(),
+          shell: false,
+          windowsHide: true,
+        })
+      : spawn(tokens[0], tokens.slice(1), {
+          cwd: opts.cwd,
+          env: scrubbedEnv(),
+          shell: true,
+          detached: process.platform !== "win32",
+          windowsHide: true,
+        });
+    const stop = () => {
+      if (box)
+        spawnSync(box.policy.dockerBin, ["kill", box.name], {
+          stdio: "ignore",
+          timeout: 15000,
+          windowsHide: true,
+        });
+      killTree(child.pid);
+    };
     const chunks: Buffer[] = [];
     let size = 0;
     let truncated = false;
@@ -160,11 +187,11 @@ export function runCommand(
     child.stderr.on("data", collect);
     const timer = setTimeout(() => {
       timedOut = true;
-      killTree(child.pid);
+      stop();
     }, opts.timeoutMs);
     const onAbort = () => {
       cancelled = true;
-      killTree(child.pid);
+      stop();
     };
     opts.signal?.addEventListener("abort", onAbort, { once: true });
     const finish = (exitCode: number | null, extra = "") => {
@@ -189,13 +216,25 @@ export function runCommand(
   });
 }
 
+/**
+ * Settings forced on every git call. A workspace's own hooks and a configured
+ * fsmonitor are commands git would run on this host; project code (a check, an
+ * install script) can create either, so they are switched off for every call.
+ * Hooks point at an empty directory Vala AI owns, never at a shared temp path.
+ */
+export function hardenedGitConfig(): string[] {
+  const noHooks = join(dataDir(), ".no-git-hooks");
+  mkdirSync(noHooks, { recursive: true });
+  return ["-c", `core.hooksPath=${noHooks}`, "-c", "core.fsmonitor=false"];
+}
+
 /** Git with fixed arguments, used by the workspace layer (never model-supplied). */
 export function git(
   cwd: string,
   args: string[],
   input?: string,
 ): { ok: boolean; stdout: string; stderr: string; status: number | null } {
-  const r = spawnSync("git", args, {
+  const r = spawnSync("git", [...hardenedGitConfig(), ...args], {
     cwd,
     input,
     encoding: "utf8",

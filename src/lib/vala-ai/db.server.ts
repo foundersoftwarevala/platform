@@ -216,6 +216,10 @@ export const MIGRATIONS: string[] = [
   create index if not exists approvals_status on approvals(status, requested_at);
   create index if not exists releases_project on releases(project_id, created_at);
   `,
+  /* 3: where each check ran, and the workspace git configuration Vala AI created */ `
+  alter table evidence add column sandbox text not null default 'none';
+  alter table workspaces add column git_config_sha256 text;
+  `,
 ];
 
 let instance: { path: string; db: DatabaseSync } | null = null;

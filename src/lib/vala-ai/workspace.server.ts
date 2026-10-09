@@ -33,6 +33,7 @@ import { newId, now, sha256, ValaError } from "./util.server.ts";
  */
 
 export type Workspace = {
+  git_config_sha256?: string | null;
   id: string;
   project_id: string;
   path: string;
@@ -140,8 +141,9 @@ export function createWorkspace(
   const head = git(wsPath, ["rev-parse", "HEAD"]);
   if (!head.ok) fail("Workspace has no HEAD commit.");
   run(
-    "update workspaces set status = 'ready', base_commit = ?, error = null where id = ?",
+    "update workspaces set status = 'ready', base_commit = ?, error = null, git_config_sha256 = ? where id = ?",
     head.stdout.trim(),
+    gitConfigHash(wsPath),
     id,
   );
   audit(actor, "workspace.create", "workspace", id, {
@@ -151,6 +153,34 @@ export function createWorkspace(
     base: head.stdout.trim(),
   });
   return getWorkspace(projectId)!;
+}
+
+function gitConfigHash(wsPath: string): string | null {
+  const file = resolve(wsPath, ".git", "config");
+  return existsSync(file) ? sha256(readFileSync(file)) : null;
+}
+
+/**
+ * Git inside a workspace. Its .git/config was hashed when Vala AI created the
+ * workspace; if project code has since changed it (a filter, diff driver,
+ * fsmonitor or alias that git would execute), git is not run there at all.
+ * Workspaces created before this check record their hash on first use.
+ */
+function wsGit(ws: Workspace, args: string[]) {
+  const current = gitConfigHash(ws.path);
+  if (!ws.git_config_sha256) {
+    run("update workspaces set git_config_sha256 = ? where id = ?", current, ws.id);
+    ws.git_config_sha256 = current;
+  } else if (current !== ws.git_config_sha256) {
+    audit("vala-ai", "workspace.git_config_tampered", "workspace", ws.id, {
+      projectId: ws.project_id,
+    });
+    throw new ValaError(
+      409,
+      "This workspace's git configuration was changed outside Vala AI (for example by a check or an install script). Git will not run in it; roll the workspace back or recreate it.",
+    );
+  }
+  return git(ws.path, args);
 }
 
 /** Resolves an agent- or operator-supplied path strictly inside the workspace. */
@@ -214,8 +244,8 @@ function realTarget(abs: string): string | null {
 }
 
 export function listFiles(ws: Workspace, limit = 4000): string[] {
-  const tracked = git(ws.path, ["ls-files", "-z"]);
-  const untracked = git(ws.path, ["ls-files", "-z", "--others", "--exclude-standard"]);
+  const tracked = wsGit(ws, ["ls-files", "-z"]);
+  const untracked = wsGit(ws, ["ls-files", "-z", "--others", "--exclude-standard"]);
   const files = new Set(
     [...tracked.stdout.split("\0"), ...untracked.stdout.split("\0")].filter(Boolean),
   );
@@ -277,17 +307,17 @@ export function deleteWorkspaceFile(
 }
 
 export function headCommit(ws: Workspace): string {
-  const r = git(ws.path, ["rev-parse", "HEAD"]);
+  const r = wsGit(ws, ["rev-parse", "HEAD"]);
   if (!r.ok) throw new ValaError(500, "Workspace HEAD unreadable.");
   return r.stdout.trim();
 }
 
 export function isClean(ws: Workspace): boolean {
-  return git(ws.path, ["status", "--porcelain"]).stdout.trim() === "";
+  return wsGit(ws, ["status", "--porcelain"]).stdout.trim() === "";
 }
 
 export function changedFiles(ws: Workspace): { status: string; path: string }[] {
-  return git(ws.path, ["status", "--porcelain"])
+  return wsGit(ws, ["status", "--porcelain"])
     .stdout.split("\n")
     .filter(Boolean)
     .map((l) => ({ status: l.slice(0, 2).trim(), path: l.slice(3) }));
@@ -300,8 +330,8 @@ export function checkpoint(
   taskId: string | null,
   actor: string,
 ): { id: string; sha: string } {
-  git(ws.path, ["add", "-A"]);
-  const commit = git(ws.path, [...GIT_IDENTITY, "commit", "--quiet", "--allow-empty", "-m", label]);
+  wsGit(ws, ["add", "-A"]);
+  const commit = wsGit(ws, [...GIT_IDENTITY, "commit", "--quiet", "--allow-empty", "-m", label]);
   if (!commit.ok)
     throw new ValaError(500, `Checkpoint commit failed: ${commit.stderr.trim().slice(0, 300)}`);
   const sha = headCommit(ws);
@@ -320,14 +350,14 @@ export function checkpoint(
 }
 
 export function commitExists(ws: Workspace, sha: string): boolean {
-  return /^[0-9a-f]{7,64}$/.test(sha) && git(ws.path, ["cat-file", "-e", `${sha}^{commit}`]).ok;
+  return /^[0-9a-f]{7,64}$/.test(sha) && wsGit(ws, ["cat-file", "-e", `${sha}^{commit}`]).ok;
 }
 
 /** Destructive inside the workspace only; callers gate it behind an approval. */
 export function resetWorkspace(ws: Workspace, sha: string) {
   if (!commitExists(ws, sha)) throw new ValaError(400, "Unknown commit.");
-  const reset = git(ws.path, ["reset", "--hard", "--quiet", sha]);
-  const clean = git(ws.path, ["clean", "-fd", "--quiet"]);
+  const reset = wsGit(ws, ["reset", "--hard", "--quiet", sha]);
+  const clean = wsGit(ws, ["clean", "-fd", "--quiet"]);
   if (!reset.ok || !clean.ok)
     throw new ValaError(
       500,
@@ -342,21 +372,37 @@ export function diffBetween(
   maxBytes = 400_000,
 ): { diff: string; truncated: boolean; stat: string } {
   if (!commitExists(ws, from) || !commitExists(ws, to)) throw new ValaError(400, "Unknown commit.");
-  const d = git(ws.path, ["diff", "--no-color", from, to]);
-  const stat = git(ws.path, ["diff", "--stat", "--no-color", from, to]).stdout;
+  const d = wsGit(ws, ["diff", "--no-color", "--no-ext-diff", "--no-textconv", from, to]);
+  const stat = wsGit(ws, [
+    "diff",
+    "--stat",
+    "--no-color",
+    "--no-ext-diff",
+    "--no-textconv",
+    from,
+    to,
+  ]).stdout;
   return { diff: d.stdout.slice(0, maxBytes), truncated: d.stdout.length > maxBytes, stat };
 }
 
 export function changedPathsBetween(ws: Workspace, from: string, to: string): string[] {
   if (!commitExists(ws, from) || !commitExists(ws, to)) throw new ValaError(400, "Unknown commit.");
-  return git(ws.path, ["diff", "--name-only", "--no-color", from, to])
+  return wsGit(ws, ["diff", "--name-only", "--no-color", "--no-ext-diff", from, to])
     .stdout.split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
 }
 
 export function patchBetween(ws: Workspace, from: string, to: string): string {
-  const d = git(ws.path, ["diff", "--binary", "--no-color", from, to]);
+  const d = wsGit(ws, [
+    "diff",
+    "--binary",
+    "--no-color",
+    "--no-ext-diff",
+    "--no-textconv",
+    from,
+    to,
+  ]);
   if (!d.ok) throw new ValaError(500, `Could not produce patch: ${d.stderr.trim().slice(0, 300)}`);
   return d.stdout;
 }
@@ -365,7 +411,7 @@ export function commitLog(
   ws: Workspace,
   limit = 50,
 ): { sha: string; at: string; subject: string }[] {
-  const r = git(ws.path, ["log", `-${limit}`, "--format=%H%x1f%cI%x1f%s"]);
+  const r = wsGit(ws, ["log", `-${limit}`, "--format=%H%x1f%cI%x1f%s"]);
   return r.stdout
     .split("\n")
     .filter(Boolean)

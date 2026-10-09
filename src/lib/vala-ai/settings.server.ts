@@ -37,6 +37,20 @@ export function updateSettings(patch: Record<string, unknown>, actor: string): S
   const changed: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
     if (!(key in DEFAULT_SETTINGS)) throw new ValaError(400, `Unknown setting: ${key}`);
+    if (key === "model_source") {
+      if (value !== "local" && value !== "ai-api-manager")
+        throw new ValaError(400, 'Model source must be "local" or "ai-api-manager".');
+      changed[key] = value;
+      continue;
+    }
+    if (key === "gateway_service") {
+      // An id chosen from AI API Manager's own list; never a URL or a key.
+      const id = String(value ?? "").trim();
+      if (id && !/^[A-Za-z0-9_-]{1,64}$/.test(id))
+        throw new ValaError(400, "Gateway service must be an AI API Manager service id.");
+      changed[key] = id;
+      continue;
+    }
     if (key === "model_url") {
       let url: URL;
       try {
