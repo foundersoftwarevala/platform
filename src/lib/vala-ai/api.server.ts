@@ -38,6 +38,9 @@ import {
   taskEvents,
   verificationOf,
 } from "./tasks.server.ts";
+import { SlidingWindowLimiter } from "@/lib/i18n/limits";
+import { labelerFor, withLabels } from "./identity.server.ts";
+import { redactForRole } from "./redact.server.ts";
 import { sha256, ValaError } from "./util.server.ts";
 import { abortRunning, ensureWorker, workerStatus } from "./worker.server.ts";
 import {
@@ -177,14 +180,18 @@ on("POST", "/projects", "operator", ({ body, op }) =>
     op!,
   ),
 );
-on("GET", "/projects/:id", "viewer", ({ params }) => {
+on("GET", "/projects/:id", "viewer", ({ params, op }) => {
   const project = getProject(params.id);
   const workspace = getWorkspace(project.id) ?? null;
   return {
     project,
     workspace,
     requirements: listRequirements(project.id),
-    changeRequests: listChangeRequests(project.id),
+    changeRequests: withLabels(
+      listChangeRequests(project.id),
+      ["raised_by", "decided_by"],
+      labelerFor(op),
+    ),
     tasks: listTasks({ projectId: project.id }),
     checkpoints: all(
       "select * from checkpoints where project_id = ? order by created_at desc limit 100",
@@ -236,7 +243,9 @@ on("POST", "/projects/:id/change-requests", "operator", ({ params, body, op }) =
     op!.id,
   ),
 );
-on("GET", "/change-requests", "viewer", () => listChangeRequests());
+on("GET", "/change-requests", "viewer", ({ op }) =>
+  withLabels(listChangeRequests(), ["raised_by", "decided_by"], labelerFor(op)),
+);
 on("POST", "/change-requests/:id/decide", "owner", ({ params, body, op }) =>
   decideChangeRequest(params.id, Boolean(body.approve), op!),
 );
@@ -284,8 +293,12 @@ on("GET", "/evidence/:id/output", "viewer", ({ params }) => {
 });
 
 // ---- approvals & releases -----------------------------------------------
-on("GET", "/approvals", "viewer", ({ url }) =>
-  listApprovals(url.searchParams.get("status") ?? undefined),
+on("GET", "/approvals", "viewer", ({ url, op }) =>
+  withLabels(
+    listApprovals(url.searchParams.get("status") ?? undefined),
+    ["requested_by", "decided_by"],
+    labelerFor(op),
+  ),
 );
 on("POST", "/approvals/:id/decide", "owner", ({ params, body, op }) =>
   decideApproval(
@@ -322,8 +335,12 @@ on("GET", "/chat", "viewer", ({ url }) =>
 on("POST", "/chat", "operator", ({ body, op }) =>
   chatApi.send(str(body.projectId) || null, str(body.text), op!),
 );
-on("GET", "/audit", "viewer", ({ url }) => ({
-  entries: listAudit(200, Number(url.searchParams.get("before")) || undefined),
+on("GET", "/audit", "viewer", ({ url, op }) => ({
+  entries: withLabels(
+    listAudit(200, Number(url.searchParams.get("before")) || undefined),
+    ["actor"],
+    labelerFor(op),
+  ),
   chain: verifyAuditChain(),
 }));
 
@@ -340,6 +357,30 @@ const json = (data: unknown, status = 200, headers: Record<string, string> = {})
 
 export type ResolveCaller = (req: Request) => Promise<Operator | null>;
 
+/**
+ * Per-caller limits on the two requests that spend real compute: every chat
+ * message runs the model, and every task queues model and check work. Counted
+ * per account over a sliding minute, invalid requests included, so a flood of
+ * either kind is refused before it reaches the model.
+ */
+const writeLimiter = new SlidingWindowLimiter(60_000);
+const RATE_LIMITED: { method: string; pattern: RegExp; bucket: "chat" | "tasks" }[] = [
+  { method: "POST", pattern: /^\/chat$/, bucket: "chat" },
+  { method: "POST", pattern: /^\/projects\/[^/]+\/tasks$/, bucket: "tasks" },
+];
+
+function enforceRateLimit(method: string, path: string, op: Operator) {
+  const rule = RATE_LIMITED.find((r) => r.method === method && r.pattern.test(path));
+  if (!rule) return;
+  const settings = getSettings();
+  const limit = rule.bucket === "chat" ? settings.chat_per_minute : settings.tasks_per_minute;
+  if (writeLimiter.hit(`${op.id}:${rule.bucket}`, limit))
+    throw new ValaError(
+      429,
+      `Too many ${rule.bucket === "chat" ? "chat messages" : "new tasks"}: the limit is ${limit} per minute for each account. Wait a minute and try again.`,
+    );
+}
+
 export async function handleApi(
   req: Request,
   resolveCaller: ResolveCaller,
@@ -348,6 +389,7 @@ export async function handleApi(
   const url = new URL(req.url);
   const path = url.pathname.slice(prefix.length).replace(/\/+$/, "") || "/";
   const method = req.method.toUpperCase();
+  let role: Role | undefined;
   try {
     ensureWorker();
     let body: Record<string, unknown> = {};
@@ -364,21 +406,28 @@ export async function handleApi(
     }
 
     const op = await resolveCaller(req);
+    role = op?.role;
     if (op) recordPerson(op);
     for (const route of routes) {
       if (route.method !== method) continue;
       const m = route.pattern.exec(path);
       if (!m) continue;
       if (route.minRole) requireRole(op, route.minRole);
+      if (op) enforceRateLimit(method, path, op);
       const params = Object.fromEntries(
         route.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]),
       );
       const out = await route.handler({ req, url, op, params, body });
-      return out instanceof Response ? out : json(out ?? { ok: true });
+      return out instanceof Response ? out : json(redactForRole(out ?? { ok: true }, op?.role));
     }
     throw new ValaError(404, `No Vala AI endpoint ${method} ${path}.`);
   } catch (e) {
-    if (e instanceof ValaError) return json({ error: e.message }, e.status);
+    if (e instanceof ValaError)
+      return json(
+        { error: redactForRole(e.message, role) },
+        e.status,
+        e.status === 429 ? { "retry-after": "60" } : {},
+      );
     console.error("[vala-ai]", method, path, e);
     return json({ error: "Internal error. The server log has the details." }, 500);
   }

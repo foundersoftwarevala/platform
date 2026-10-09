@@ -1,7 +1,8 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { paths } from "./config.server.ts";
+import { paths, productionDataDirProblem } from "./config.server.ts";
+import { ValaError } from "./util.server.ts";
 
 /**
  * Vala AI's own database: one SQLite file opened with Node's built-in driver.
@@ -15,7 +16,7 @@ import { paths } from "./config.server.ts";
 
 type Row = Record<string, unknown>;
 
-const MIGRATIONS: string[] = [
+export const MIGRATIONS: string[] = [
   /* 1 */ `
   create table people (
     id text primary key,
@@ -210,11 +211,18 @@ const MIGRATIONS: string[] = [
     updated_by text not null
   );
   `,
+  /* 2: indexes for the lookups the screens make on every refresh */ `
+  create index if not exists evidence_task on evidence(task_id, created_at);
+  create index if not exists approvals_status on approvals(status, requested_at);
+  create index if not exists releases_project on releases(project_id, created_at);
+  `,
 ];
 
 let instance: { path: string; db: DatabaseSync } | null = null;
 
 export function db(): DatabaseSync {
+  const problem = productionDataDirProblem();
+  if (problem) throw new ValaError(503, `Vala AI is not configured: ${problem}`);
   const file = paths.db();
   if (instance && instance.path === file) return instance.db;
   mkdirSync(dirname(file), { recursive: true });

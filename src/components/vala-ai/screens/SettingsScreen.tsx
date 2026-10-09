@@ -49,6 +49,16 @@ const FIELDS: { key: keyof Settings; label: string; hint: string }[] = [
     label: "Free memory floor (MB)",
     hint: "Below it, tasks wait as BLOCKED.",
   },
+  {
+    key: "chat_per_minute",
+    label: "Chat messages per minute, per account",
+    hint: "Each message runs the model. Over the limit the request is refused.",
+  },
+  {
+    key: "tasks_per_minute",
+    label: "New tasks per minute, per account",
+    hint: "Over the limit the request is refused.",
+  },
 ];
 
 export function SettingsScreen() {
@@ -131,7 +141,7 @@ export function SettingsScreen() {
                 </dd>
               </dl>
               {s.resources.problems.map((p) => (
-                <p key={p} className="mt-2 text-xs text-warning">
+                <p key={p} className="mt-2 text-xs va-text-warning">
                   {p}
                 </p>
               ))}
@@ -173,7 +183,7 @@ export function SettingsScreen() {
                 {unchanged ? (
                   <p className="text-xs text-muted-foreground">{t("No changes to save.")}</p>
                 ) : save.isSuccess ? (
-                  <p className="text-xs text-success">{t("Saved.")}</p>
+                  <p className="text-xs va-text-success">{t("Saved.")}</p>
                 ) : null}
               </div>
               {isOwner ? (
@@ -181,7 +191,7 @@ export function SettingsScreen() {
                   <button
                     type="submit"
                     disabled={save.isPending}
-                    className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+                    className="rounded-lg va-btn-primary px-3 py-2 text-sm font-medium"
                   >
                     {t("Save limits")}
                   </button>

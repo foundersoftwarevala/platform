@@ -1,0 +1,84 @@
+/*
+ * Vala AI status colours.
+ *
+ * The platform theme defines --success and --warning only inside
+ * .creator-theme and has no info colour, so text-success, text-warning and
+ * text-info rendered as plain text colour here and the status of a task could
+ * not be told apart. These tokens are scoped to the Vala AI container and are
+ * chosen for at least 4.5:1 against Vala AI's surfaces and their 10% tints, in
+ * both the light theme and the platform's .dark theme.
+ */
+.vala-ai {
+  --va-success: #166534;
+  --va-warning: #854d0e;
+  --va-info: #1d4ed8;
+  --va-danger: #b42318;
+}
+.dark .vala-ai,
+.vala-ai.dark {
+  --va-success: #4ade80;
+  --va-warning: #fbbf24;
+  --va-info: #93c5fd;
+  --va-danger: #fca5a5;
+}
+
+.va-text-success {
+  color: var(--va-success);
+}
+.va-text-warning {
+  color: var(--va-warning);
+}
+.va-text-info {
+  color: var(--va-info);
+}
+.va-text-danger {
+  color: var(--va-danger);
+}
+
+.va-border-success {
+  border-color: color-mix(in oklab, var(--va-success) 55%, transparent);
+}
+.va-border-warning {
+  border-color: color-mix(in oklab, var(--va-warning) 55%, transparent);
+}
+.va-border-info {
+  border-color: color-mix(in oklab, var(--va-info) 55%, transparent);
+}
+.va-border-danger {
+  border-color: color-mix(in oklab, var(--va-danger) 55%, transparent);
+}
+
+.va-tint-success {
+  background-color: color-mix(in oklab, var(--va-success) 10%, transparent);
+}
+.va-tint-warning {
+  background-color: color-mix(in oklab, var(--va-warning) 10%, transparent);
+}
+.va-tint-info {
+  background-color: color-mix(in oklab, var(--va-info) 10%, transparent);
+}
+.va-tint-danger {
+  background-color: color-mix(in oklab, var(--va-danger) 10%, transparent);
+}
+
+.va-bg-success {
+  background-color: var(--va-success);
+}
+.va-bg-danger {
+  background-color: var(--va-danger);
+}
+
+/*
+ * Primary buttons. In the platform's dark theme white text on --primary is
+ * 3.56:1; inside Vala AI the dark-theme button uses a deeper blue (6.7:1).
+ * The light theme keeps the platform's primary colours.
+ */
+.va-btn-primary {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.dark .vala-ai .va-btn-primary,
+.vala-ai.dark .va-btn-primary {
+  background-color: #1d4ed8;
+  color: #ffffff;
+}

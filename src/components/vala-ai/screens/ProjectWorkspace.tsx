@@ -34,9 +34,18 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
   if (detail.isPending) return <Loading />;
   if (detail.error)
     return (
-      <Page>
-        <ErrorBox error={detail.error} />
-      </Page>
+      <div>
+        <PageHeader
+          title={
+            detail.error.status === 404 ? t("Project not found") : t("Project could not be loaded")
+          }
+          description={t("Check the link, or go back to the list.")}
+          icon={FolderGit2}
+        />
+        <Page>
+          <ErrorBox error={detail.error} />
+        </Page>
+      </div>
     );
   const d = detail.data;
   const ws = d.workspace;
@@ -89,7 +98,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
             </div>
           ) : null}
           {d.uncommitted.length > 0 ? (
-            <p className="mt-3 text-xs text-warning">
+            <p className="mt-3 text-xs va-text-warning">
               {d.uncommitted.length} {t("uncommitted change(s) in the workspace")}
             </p>
           ) : null}
@@ -243,7 +252,7 @@ function RequirementsTab({ d }: { d: ProjectDetail }) {
         {approved ? (
           <div className="space-y-2 text-sm">
             <p className="flex items-center gap-2 font-semibold">
-              <Lock className="h-4 w-4 text-success" />v{approved.version} · {approved.title}
+              <Lock className="h-4 w-4 va-text-success" />v{approved.version} · {approved.title}
             </p>
             <p className="whitespace-pre-wrap text-muted-foreground">{approved.body}</p>
             <ul className="space-y-1">
@@ -333,7 +342,7 @@ function RequirementsTab({ d }: { d: ProjectDetail }) {
               <button
                 type="submit"
                 disabled={save.isPending || raise.isPending}
-                className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+                className="rounded-lg va-btn-primary px-3 py-2 text-sm font-medium disabled:opacity-60"
               >
                 {crOpen ? t("Submit change request") : t("Save draft")}
               </button>
@@ -351,7 +360,7 @@ function RequirementsTab({ d }: { d: ProjectDetail }) {
                   type="button"
                   disabled={approve.isPending}
                   onClick={() => approve.mutate(draft.id)}
-                  className="rounded-lg border border-success/60 px-3 py-2 text-sm text-success"
+                  className="rounded-lg border va-border-success px-3 py-2 text-sm va-text-success"
                 >
                   {t("Approve & lock")}
                 </button>
@@ -377,7 +386,8 @@ function RequirementsTab({ d }: { d: ProjectDetail }) {
                   <Badge value={cr.status} />
                   <span className="font-mono text-xs text-muted-foreground">{cr.id}</span>
                   <span className="text-xs text-muted-foreground">
-                    {t("raised by")} {cr.raised_by} · {relativeTime(cr.created_at)}
+                    {t("raised by")} {cr.raised_by_label ?? cr.raised_by} ·{" "}
+                    {relativeTime(cr.created_at)}
                   </span>
                 </div>
                 <p>{cr.reason}</p>
@@ -400,13 +410,13 @@ function RequirementsTab({ d }: { d: ProjectDetail }) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => decide.mutate({ id: cr.id, approve: true })}
-                      className="rounded-lg border border-success/60 px-2.5 py-1 text-xs text-success"
+                      className="rounded-lg border va-border-success px-2.5 py-1 text-xs va-text-success"
                     >
                       {t("Approve (new version)")}
                     </button>
                     <button
                       onClick={() => decide.mutate({ id: cr.id, approve: false })}
-                      className="rounded-lg border border-destructive/60 px-2.5 py-1 text-xs text-destructive"
+                      className="rounded-lg border va-border-danger px-2.5 py-1 text-xs va-text-danger"
                     >
                       {t("Reject")}
                     </button>
@@ -483,7 +493,7 @@ function TasksTab({ d }: { d: ProjectDetail }) {
               <button
                 type="submit"
                 disabled={create.isPending}
-                className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+                className="rounded-lg va-btn-primary px-3 py-2 text-sm font-medium disabled:opacity-60"
               >
                 {t("Queue task")}
               </button>
@@ -545,7 +555,7 @@ function FilesTab({ projectId, base }: { projectId: string; base: string | null 
             </pre>
             <DiffView text={diff.data.diff} />
             {diff.data.truncated ? (
-              <p className="mt-1 text-xs text-warning">{t("Diff truncated.")}</p>
+              <p className="mt-1 text-xs va-text-warning">{t("Diff truncated.")}</p>
             ) : null}
           </>
         )}
@@ -594,7 +604,7 @@ function FilesTab({ projectId, base }: { projectId: string; base: string | null 
                 {file.data!.content}
               </pre>
               {file.data!.truncated ? (
-                <p className="mt-1 text-xs text-warning">
+                <p className="mt-1 text-xs va-text-warning">
                   {t("File truncated for display")} {`(${file.data!.bytes} B)`}
                 </p>
               ) : null}
@@ -613,9 +623,9 @@ export function DiffView({ text }: { text: string }) {
         <div
           key={i}
           className={cn(
-            line.startsWith("+") && !line.startsWith("+++") && "bg-success/10 text-success",
-            line.startsWith("-") && !line.startsWith("---") && "bg-destructive/10 text-destructive",
-            line.startsWith("@@") && "text-info",
+            line.startsWith("+") && !line.startsWith("+++") && "va-tint-success va-text-success",
+            line.startsWith("-") && !line.startsWith("---") && "va-tint-danger va-text-danger",
+            line.startsWith("@@") && "va-text-info",
           )}
         >
           {line || " "}
@@ -645,7 +655,7 @@ function VersionsTab({ d }: { d: ProjectDetail }) {
       <Card title={t("Workspace history")}>
         <ErrorBox error={log.error ?? rollback.error} />
         {rollback.isSuccess ? (
-          <p className="mb-2 text-xs text-success">
+          <p className="mb-2 text-xs va-text-success">
             {t("Rollback requested")} ({rollback.data?.id}).{" "}
             {t("An owner decides it under Approvals.")}{" "}
             <Link to="/vala-ai/approvals" className="underline">
@@ -698,7 +708,7 @@ function VersionsTab({ d }: { d: ProjectDetail }) {
                     />
                     <button
                       type="submit"
-                      className="rounded-lg border border-warning/60 px-3 py-1.5 text-xs text-warning"
+                      className="rounded-lg border va-border-warning px-3 py-1.5 text-xs va-text-warning"
                     >
                       {t("Request rollback approval")}
                     </button>

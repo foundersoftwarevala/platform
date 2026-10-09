@@ -1,7 +1,15 @@
 // @vitest-environment node
 import { spawnSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -178,6 +186,68 @@ describe("command allow-list", () => {
     expect(() => parseCommand("node ../outside.js")).toThrow(/parent/);
     expect(() => parseCommand("node $(whoami).js")).toThrow();
   });
+
+  it("always runs npx with --no-install, once", () => {
+    expect(parseCommand("npx tsc --noEmit")).toEqual(["npx", "--no-install", "tsc", "--noEmit"]);
+    expect(parseCommand("npx --no-install vitest run")).toEqual([
+      "npx",
+      "--no-install",
+      "vitest",
+      "run",
+    ]);
+    // Arguments after the tool belong to the tool, so tsc's own -p still works.
+    expect(parseCommand("npx tsc -p tsconfig.json")).toEqual([
+      "npx",
+      "--no-install",
+      "tsc",
+      "-p",
+      "tsconfig.json",
+    ]);
+  });
+
+  it("rejects every way of making npx fetch something else", () => {
+    for (const bad of [
+      "npx -y tsc",
+      "npx --yes tsc",
+      "npx --package=evil tsc",
+      "npx -p evil tsc",
+      "npx tsc@latest",
+      "npx cowsay",
+      "npx --no-install cowsay",
+      "npx --no-install --yes tsc",
+      "npx",
+    ]) {
+      expect(() => parseCommand(bad), bad).toThrow(/not an allowed command/);
+    }
+  });
+
+  it("runs an installed tool through npx", async () => {
+    const r = await runCommand(parseCommand("npx tsc --version"), {
+      cwd: process.cwd(),
+      timeoutMs: 120_000,
+      maxOutputBytes: 4096,
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.output).toMatch(/Version \d+\.\d+/);
+  }, 150_000);
+
+  it("refuses a tool the project does not have, even if npx has it cached", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "vala-npx-"));
+    writeFileSync(join(dir, "package.json"), '{"name":"npx-probe","version":"1.0.0"}');
+    const r = await runCommand(parseCommand("npx mocha --version"), {
+      cwd: dir,
+      timeoutMs: 120_000,
+      maxOutputBytes: 8192,
+    });
+    expect(r.exitCode).not.toBe(0);
+    expect(existsSync(join(dir, "node_modules"))).toBe(false);
+    // Refused before npx runs, so neither the registry nor a copy in npx's cache is used
+    // (on this machine mocha is present in the npx cache, which --no-install alone would run).
+    expect(r.exitCode).toBe(127);
+    expect(r.output).toMatch(/is not installed in this project/);
+    expect(r.output).not.toMatch(/^\d+\.\d+\.\d+\s*$/m); // mocha --version would print a bare version
+    rmSync(dir, { recursive: true, force: true });
+  }, 150_000);
 
   it("kills a command that exceeds its timeout", async () => {
     writeFileSync(join(root, "spin.mjs"), "setInterval(() => {}, 1000);\n");

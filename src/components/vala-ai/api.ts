@@ -163,6 +163,8 @@ export type ChangeRequest = {
   proposed_checks: string;
   status: "open" | "approved" | "rejected";
   raised_by: string;
+  raised_by_label?: string | null;
+  decided_by_label?: string | null;
   created_at: string;
   decided_by: string | null;
   decided_at: string | null;
@@ -240,6 +242,8 @@ export type Approval = {
   scope_json: string;
   status: "pending" | "approved" | "rejected" | "executed" | "failed";
   requested_by: string;
+  requested_by_label?: string | null;
+  decided_by_label?: string | null;
   requested_at: string;
   decided_by: string | null;
   decided_at: string | null;
@@ -276,6 +280,7 @@ export type AuditEntry = {
   seq: number;
   at: string;
   actor: string;
+  actor_label?: string | null;
   action: string;
   target_type: string | null;
   target_id: string | null;
@@ -293,6 +298,8 @@ export type Settings = {
   max_file_kb: number;
   min_free_disk_gb: number;
   min_free_mem_mb: number;
+  chat_per_minute: number;
+  tasks_per_minute: number;
 };
 export type Status = {
   model: {
