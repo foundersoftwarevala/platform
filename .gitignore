@@ -58,3 +58,6 @@ _archive/
 # Playwright run output
 /test-results/
 /playwright-report/
+
+# Vala AI runtime data (database, workspaces, evidence)
+.vala-ai/

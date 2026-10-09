@@ -229,14 +229,12 @@ import { Route as SCodeRouteImport } from './routes/s.$code'
 import { Route as SitemapProductsPageRouteImport } from './routes/sitemap-products/$page'
 import { Route as SitemapSlotsPageRouteImport } from './routes/sitemap-slots/$page'
 import { Route as ValaAiIndexRouteImport } from './routes/vala-ai.index'
-import { Route as ValaAiCreditsRouteImport } from './routes/vala-ai.credits'
-import { Route as ValaAiErrorsRouteImport } from './routes/vala-ai.errors'
-import { Route as ValaAiLockRouteImport } from './routes/vala-ai.lock'
-import { Route as ValaAiLogsRouteImport } from './routes/vala-ai.logs'
-import { Route as ValaAiModelsRouteImport } from './routes/vala-ai.models'
-import { Route as ValaAiProjectsRouteImport } from './routes/vala-ai.projects'
-import { Route as ValaAiPromptsRouteImport } from './routes/vala-ai.prompts'
-import { Route as ValaAiRollbackRouteImport } from './routes/vala-ai.rollback'
+import { Route as ValaAiActivityRouteImport } from './routes/vala-ai.activity'
+import { Route as ValaAiApprovalsRouteImport } from './routes/vala-ai.approvals'
+import { Route as ValaAiChatRouteImport } from './routes/vala-ai.chat'
+import { Route as ValaAiPipelineRouteImport } from './routes/vala-ai.pipeline'
+import { Route as ValaAiQaRouteImport } from './routes/vala-ai.qa'
+import { Route as ValaAiReleasesRouteImport } from './routes/vala-ai.releases'
 import { Route as ValaAiSettingsRouteImport } from './routes/vala-ai.settings'
 import { Route as VerifyCodeRouteImport } from './routes/verify.$code'
 import { Route as AffiliateManagerAffiliatesIdRouteImport } from './routes/affiliate-manager.affiliates.$id'
@@ -350,10 +348,14 @@ import { Route as ApiSeoGenerateTagsRouteImport } from './routes/api/seo/generat
 import { Route as ApiSeoScoreRouteImport } from './routes/api/seo/score'
 import { Route as ApiSeoSearchPerformanceRouteImport } from './routes/api/seo/search-performance'
 import { Route as ApiTrackRefRouteImport } from './routes/api/track/ref'
+import { Route as ApiValaAiSplatRouteImport } from './routes/api/vala-ai/$'
 import { Route as MarketplaceCategoryCountryRouteImport } from './routes/marketplace.$category.$country'
 import { Route as MarketplaceCategorySlugRouteImport } from './routes/marketplace.category.$slug'
 import { Route as MarketplaceCountryCountryRouteImport } from './routes/marketplace.country.$country'
 import { Route as MarketplaceProductSlugRouteImport } from './routes/marketplace.product.$slug'
+import { Route as ValaAiProjectsIndexRouteImport } from './routes/vala-ai.projects.index'
+import { Route as ValaAiProjectsProjectIdRouteImport } from './routes/vala-ai.projects.$projectId'
+import { Route as ValaAiTasksTaskIdRouteImport } from './routes/vala-ai.tasks.$taskId'
 import { Route as AmsAwardsIdEditRouteImport } from './routes/ams.awards.$id.edit'
 import { Route as AmsAwardsLibrariesAchievementsRouteImport } from './routes/ams.awards.libraries.achievements'
 import { Route as AmsAwardsLibrariesBadgesRouteImport } from './routes/ams.awards.libraries.badges'
@@ -1492,44 +1494,34 @@ const ValaAiIndexRoute = ValaAiIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ValaAiRoute,
 } as any)
-const ValaAiCreditsRoute = ValaAiCreditsRouteImport.update({
-  id: '/credits',
-  path: '/credits',
+const ValaAiActivityRoute = ValaAiActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => ValaAiRoute,
 } as any)
-const ValaAiErrorsRoute = ValaAiErrorsRouteImport.update({
-  id: '/errors',
-  path: '/errors',
+const ValaAiApprovalsRoute = ValaAiApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
   getParentRoute: () => ValaAiRoute,
 } as any)
-const ValaAiLockRoute = ValaAiLockRouteImport.update({
-  id: '/lock',
-  path: '/lock',
+const ValaAiChatRoute = ValaAiChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => ValaAiRoute,
 } as any)
-const ValaAiLogsRoute = ValaAiLogsRouteImport.update({
-  id: '/logs',
-  path: '/logs',
+const ValaAiPipelineRoute = ValaAiPipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
   getParentRoute: () => ValaAiRoute,
 } as any)
-const ValaAiModelsRoute = ValaAiModelsRouteImport.update({
-  id: '/models',
-  path: '/models',
+const ValaAiQaRoute = ValaAiQaRouteImport.update({
+  id: '/qa',
+  path: '/qa',
   getParentRoute: () => ValaAiRoute,
 } as any)
-const ValaAiProjectsRoute = ValaAiProjectsRouteImport.update({
-  id: '/projects',
-  path: '/projects',
-  getParentRoute: () => ValaAiRoute,
-} as any)
-const ValaAiPromptsRoute = ValaAiPromptsRouteImport.update({
-  id: '/prompts',
-  path: '/prompts',
-  getParentRoute: () => ValaAiRoute,
-} as any)
-const ValaAiRollbackRoute = ValaAiRollbackRouteImport.update({
-  id: '/rollback',
-  path: '/rollback',
+const ValaAiReleasesRoute = ValaAiReleasesRouteImport.update({
+  id: '/releases',
+  path: '/releases',
   getParentRoute: () => ValaAiRoute,
 } as any)
 const ValaAiSettingsRoute = ValaAiSettingsRouteImport.update({
@@ -2113,6 +2105,11 @@ const ApiTrackRefRoute = ApiTrackRefRouteImport.update({
   path: '/api/track/ref',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiValaAiSplatRoute = ApiValaAiSplatRouteImport.update({
+  id: '/api/vala-ai/$',
+  path: '/api/vala-ai/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarketplaceCategoryCountryRoute =
   MarketplaceCategoryCountryRouteImport.update({
     id: '/$category/$country',
@@ -2134,6 +2131,21 @@ const MarketplaceProductSlugRoute = MarketplaceProductSlugRouteImport.update({
   id: '/product/$slug',
   path: '/product/$slug',
   getParentRoute: () => MarketplaceRoute,
+} as any)
+const ValaAiProjectsIndexRoute = ValaAiProjectsIndexRouteImport.update({
+  id: '/projects/',
+  path: '/projects/',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiProjectsProjectIdRoute = ValaAiProjectsProjectIdRouteImport.update({
+  id: '/projects/$projectId',
+  path: '/projects/$projectId',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiTasksTaskIdRoute = ValaAiTasksTaskIdRouteImport.update({
+  id: '/tasks/$taskId',
+  path: '/tasks/$taskId',
+  getParentRoute: () => ValaAiRoute,
 } as any)
 const AmsAwardsIdEditRoute = AmsAwardsIdEditRouteImport.update({
   id: '/edit',
@@ -2418,14 +2430,12 @@ export interface FileRoutesByFullPath {
   '/s/$code': typeof SCodeRoute
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
-  '/vala-ai/credits': typeof ValaAiCreditsRoute
-  '/vala-ai/errors': typeof ValaAiErrorsRoute
-  '/vala-ai/lock': typeof ValaAiLockRoute
-  '/vala-ai/logs': typeof ValaAiLogsRoute
-  '/vala-ai/models': typeof ValaAiModelsRoute
-  '/vala-ai/projects': typeof ValaAiProjectsRoute
-  '/vala-ai/prompts': typeof ValaAiPromptsRoute
-  '/vala-ai/rollback': typeof ValaAiRollbackRoute
+  '/vala-ai/activity': typeof ValaAiActivityRoute
+  '/vala-ai/approvals': typeof ValaAiApprovalsRoute
+  '/vala-ai/chat': typeof ValaAiChatRoute
+  '/vala-ai/pipeline': typeof ValaAiPipelineRoute
+  '/vala-ai/qa': typeof ValaAiQaRoute
+  '/vala-ai/releases': typeof ValaAiReleasesRoute
   '/vala-ai/settings': typeof ValaAiSettingsRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/academy/': typeof AcademyIndexRoute
@@ -2544,10 +2554,13 @@ export interface FileRoutesByFullPath {
   '/api/seo/score': typeof ApiSeoScoreRoute
   '/api/seo/search-performance': typeof ApiSeoSearchPerformanceRoute
   '/api/track/ref': typeof ApiTrackRefRoute
+  '/api/vala-ai/$': typeof ApiValaAiSplatRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/vala-ai/projects/$projectId': typeof ValaAiProjectsProjectIdRoute
+  '/vala-ai/tasks/$taskId': typeof ValaAiTasksTaskIdRoute
   '/ai-ceo/agents/': typeof AiCeoAgentsIndexRoute
   '/ai-ceo/tasks/': typeof AiCeoTasksIndexRoute
   '/ams/awards/': typeof AmsAwardsIndexRoute
@@ -2556,6 +2569,7 @@ export interface FileRoutesByFullPath {
   '/ams/role-manager/': typeof AmsRoleManagerIndexRoute
   '/ams/role-showcase/': typeof AmsRoleShowcaseIndexRoute
   '/ams/tickets/': typeof AmsTicketsIndexRoute
+  '/vala-ai/projects/': typeof ValaAiProjectsIndexRoute
   '/ams/awards/$id/edit': typeof AmsAwardsIdEditRoute
   '/ams/awards/libraries/achievements': typeof AmsAwardsLibrariesAchievementsRoute
   '/ams/awards/libraries/badges': typeof AmsAwardsLibrariesBadgesRoute
@@ -2769,14 +2783,12 @@ export interface FileRoutesByTo {
   '/s/$code': typeof SCodeRoute
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
-  '/vala-ai/credits': typeof ValaAiCreditsRoute
-  '/vala-ai/errors': typeof ValaAiErrorsRoute
-  '/vala-ai/lock': typeof ValaAiLockRoute
-  '/vala-ai/logs': typeof ValaAiLogsRoute
-  '/vala-ai/models': typeof ValaAiModelsRoute
-  '/vala-ai/projects': typeof ValaAiProjectsRoute
-  '/vala-ai/prompts': typeof ValaAiPromptsRoute
-  '/vala-ai/rollback': typeof ValaAiRollbackRoute
+  '/vala-ai/activity': typeof ValaAiActivityRoute
+  '/vala-ai/approvals': typeof ValaAiApprovalsRoute
+  '/vala-ai/chat': typeof ValaAiChatRoute
+  '/vala-ai/pipeline': typeof ValaAiPipelineRoute
+  '/vala-ai/qa': typeof ValaAiQaRoute
+  '/vala-ai/releases': typeof ValaAiReleasesRoute
   '/vala-ai/settings': typeof ValaAiSettingsRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/academy': typeof AcademyIndexRoute
@@ -2895,10 +2907,13 @@ export interface FileRoutesByTo {
   '/api/seo/score': typeof ApiSeoScoreRoute
   '/api/seo/search-performance': typeof ApiSeoSearchPerformanceRoute
   '/api/track/ref': typeof ApiTrackRefRoute
+  '/api/vala-ai/$': typeof ApiValaAiSplatRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/vala-ai/projects/$projectId': typeof ValaAiProjectsProjectIdRoute
+  '/vala-ai/tasks/$taskId': typeof ValaAiTasksTaskIdRoute
   '/ai-ceo/agents': typeof AiCeoAgentsIndexRoute
   '/ai-ceo/tasks': typeof AiCeoTasksIndexRoute
   '/ams/awards': typeof AmsAwardsIndexRoute
@@ -2907,6 +2922,7 @@ export interface FileRoutesByTo {
   '/ams/role-manager': typeof AmsRoleManagerIndexRoute
   '/ams/role-showcase': typeof AmsRoleShowcaseIndexRoute
   '/ams/tickets': typeof AmsTicketsIndexRoute
+  '/vala-ai/projects': typeof ValaAiProjectsIndexRoute
   '/ams/awards/$id/edit': typeof AmsAwardsIdEditRoute
   '/ams/awards/libraries/achievements': typeof AmsAwardsLibrariesAchievementsRoute
   '/ams/awards/libraries/badges': typeof AmsAwardsLibrariesBadgesRoute
@@ -3131,14 +3147,12 @@ export interface FileRoutesById {
   '/s/$code': typeof SCodeRoute
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
-  '/vala-ai/credits': typeof ValaAiCreditsRoute
-  '/vala-ai/errors': typeof ValaAiErrorsRoute
-  '/vala-ai/lock': typeof ValaAiLockRoute
-  '/vala-ai/logs': typeof ValaAiLogsRoute
-  '/vala-ai/models': typeof ValaAiModelsRoute
-  '/vala-ai/projects': typeof ValaAiProjectsRoute
-  '/vala-ai/prompts': typeof ValaAiPromptsRoute
-  '/vala-ai/rollback': typeof ValaAiRollbackRoute
+  '/vala-ai/activity': typeof ValaAiActivityRoute
+  '/vala-ai/approvals': typeof ValaAiApprovalsRoute
+  '/vala-ai/chat': typeof ValaAiChatRoute
+  '/vala-ai/pipeline': typeof ValaAiPipelineRoute
+  '/vala-ai/qa': typeof ValaAiQaRoute
+  '/vala-ai/releases': typeof ValaAiReleasesRoute
   '/vala-ai/settings': typeof ValaAiSettingsRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/academy/': typeof AcademyIndexRoute
@@ -3257,10 +3271,13 @@ export interface FileRoutesById {
   '/api/seo/score': typeof ApiSeoScoreRoute
   '/api/seo/search-performance': typeof ApiSeoSearchPerformanceRoute
   '/api/track/ref': typeof ApiTrackRefRoute
+  '/api/vala-ai/$': typeof ApiValaAiSplatRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
   '/marketplace/category/$slug': typeof MarketplaceCategorySlugRoute
   '/marketplace/country/$country': typeof MarketplaceCountryCountryRoute
   '/marketplace/product/$slug': typeof MarketplaceProductSlugRoute
+  '/vala-ai/projects/$projectId': typeof ValaAiProjectsProjectIdRoute
+  '/vala-ai/tasks/$taskId': typeof ValaAiTasksTaskIdRoute
   '/ai-ceo/agents/': typeof AiCeoAgentsIndexRoute
   '/ai-ceo/tasks/': typeof AiCeoTasksIndexRoute
   '/ams/awards/': typeof AmsAwardsIndexRoute
@@ -3269,6 +3286,7 @@ export interface FileRoutesById {
   '/ams/role-manager/': typeof AmsRoleManagerIndexRoute
   '/ams/role-showcase/': typeof AmsRoleShowcaseIndexRoute
   '/ams/tickets/': typeof AmsTicketsIndexRoute
+  '/vala-ai/projects/': typeof ValaAiProjectsIndexRoute
   '/ams/awards/$id/edit': typeof AmsAwardsIdEditRoute
   '/ams/awards/libraries/achievements': typeof AmsAwardsLibrariesAchievementsRoute
   '/ams/awards/libraries/badges': typeof AmsAwardsLibrariesBadgesRoute
@@ -3494,14 +3512,12 @@ export interface FileRouteTypes {
     | '/s/$code'
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
-    | '/vala-ai/credits'
-    | '/vala-ai/errors'
-    | '/vala-ai/lock'
-    | '/vala-ai/logs'
-    | '/vala-ai/models'
-    | '/vala-ai/projects'
-    | '/vala-ai/prompts'
-    | '/vala-ai/rollback'
+    | '/vala-ai/activity'
+    | '/vala-ai/approvals'
+    | '/vala-ai/chat'
+    | '/vala-ai/pipeline'
+    | '/vala-ai/qa'
+    | '/vala-ai/releases'
     | '/vala-ai/settings'
     | '/verify/$code'
     | '/academy/'
@@ -3620,10 +3636,13 @@ export interface FileRouteTypes {
     | '/api/seo/score'
     | '/api/seo/search-performance'
     | '/api/track/ref'
+    | '/api/vala-ai/$'
     | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
+    | '/vala-ai/projects/$projectId'
+    | '/vala-ai/tasks/$taskId'
     | '/ai-ceo/agents/'
     | '/ai-ceo/tasks/'
     | '/ams/awards/'
@@ -3632,6 +3651,7 @@ export interface FileRouteTypes {
     | '/ams/role-manager/'
     | '/ams/role-showcase/'
     | '/ams/tickets/'
+    | '/vala-ai/projects/'
     | '/ams/awards/$id/edit'
     | '/ams/awards/libraries/achievements'
     | '/ams/awards/libraries/badges'
@@ -3845,14 +3865,12 @@ export interface FileRouteTypes {
     | '/s/$code'
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
-    | '/vala-ai/credits'
-    | '/vala-ai/errors'
-    | '/vala-ai/lock'
-    | '/vala-ai/logs'
-    | '/vala-ai/models'
-    | '/vala-ai/projects'
-    | '/vala-ai/prompts'
-    | '/vala-ai/rollback'
+    | '/vala-ai/activity'
+    | '/vala-ai/approvals'
+    | '/vala-ai/chat'
+    | '/vala-ai/pipeline'
+    | '/vala-ai/qa'
+    | '/vala-ai/releases'
     | '/vala-ai/settings'
     | '/verify/$code'
     | '/academy'
@@ -3971,10 +3989,13 @@ export interface FileRouteTypes {
     | '/api/seo/score'
     | '/api/seo/search-performance'
     | '/api/track/ref'
+    | '/api/vala-ai/$'
     | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
+    | '/vala-ai/projects/$projectId'
+    | '/vala-ai/tasks/$taskId'
     | '/ai-ceo/agents'
     | '/ai-ceo/tasks'
     | '/ams/awards'
@@ -3983,6 +4004,7 @@ export interface FileRouteTypes {
     | '/ams/role-manager'
     | '/ams/role-showcase'
     | '/ams/tickets'
+    | '/vala-ai/projects'
     | '/ams/awards/$id/edit'
     | '/ams/awards/libraries/achievements'
     | '/ams/awards/libraries/badges'
@@ -4206,14 +4228,12 @@ export interface FileRouteTypes {
     | '/s/$code'
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
-    | '/vala-ai/credits'
-    | '/vala-ai/errors'
-    | '/vala-ai/lock'
-    | '/vala-ai/logs'
-    | '/vala-ai/models'
-    | '/vala-ai/projects'
-    | '/vala-ai/prompts'
-    | '/vala-ai/rollback'
+    | '/vala-ai/activity'
+    | '/vala-ai/approvals'
+    | '/vala-ai/chat'
+    | '/vala-ai/pipeline'
+    | '/vala-ai/qa'
+    | '/vala-ai/releases'
     | '/vala-ai/settings'
     | '/verify/$code'
     | '/academy/'
@@ -4332,10 +4352,13 @@ export interface FileRouteTypes {
     | '/api/seo/score'
     | '/api/seo/search-performance'
     | '/api/track/ref'
+    | '/api/vala-ai/$'
     | '/marketplace/$category/$country'
     | '/marketplace/category/$slug'
     | '/marketplace/country/$country'
     | '/marketplace/product/$slug'
+    | '/vala-ai/projects/$projectId'
+    | '/vala-ai/tasks/$taskId'
     | '/ai-ceo/agents/'
     | '/ai-ceo/tasks/'
     | '/ams/awards/'
@@ -4344,6 +4367,7 @@ export interface FileRouteTypes {
     | '/ams/role-manager/'
     | '/ams/role-showcase/'
     | '/ams/tickets/'
+    | '/vala-ai/projects/'
     | '/ams/awards/$id/edit'
     | '/ams/awards/libraries/achievements'
     | '/ams/awards/libraries/badges'
@@ -4534,6 +4558,7 @@ export interface RootRouteChildren {
   ApiSeoScoreRoute: typeof ApiSeoScoreRoute
   ApiSeoSearchPerformanceRoute: typeof ApiSeoSearchPerformanceRoute
   ApiTrackRefRoute: typeof ApiTrackRefRoute
+  ApiValaAiSplatRoute: typeof ApiValaAiSplatRoute
   ApiAccountInvoiceIdRoute: typeof ApiAccountInvoiceIdRoute
   ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
   ApiProxyDemoSplatRoute: typeof ApiProxyDemoSplatRoute
@@ -6082,60 +6107,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ValaAiIndexRouteImport
       parentRoute: typeof ValaAiRoute
     }
-    '/vala-ai/credits': {
-      id: '/vala-ai/credits'
-      path: '/credits'
-      fullPath: '/vala-ai/credits'
-      preLoaderRoute: typeof ValaAiCreditsRouteImport
+    '/vala-ai/activity': {
+      id: '/vala-ai/activity'
+      path: '/activity'
+      fullPath: '/vala-ai/activity'
+      preLoaderRoute: typeof ValaAiActivityRouteImport
       parentRoute: typeof ValaAiRoute
     }
-    '/vala-ai/errors': {
-      id: '/vala-ai/errors'
-      path: '/errors'
-      fullPath: '/vala-ai/errors'
-      preLoaderRoute: typeof ValaAiErrorsRouteImport
+    '/vala-ai/approvals': {
+      id: '/vala-ai/approvals'
+      path: '/approvals'
+      fullPath: '/vala-ai/approvals'
+      preLoaderRoute: typeof ValaAiApprovalsRouteImport
       parentRoute: typeof ValaAiRoute
     }
-    '/vala-ai/lock': {
-      id: '/vala-ai/lock'
-      path: '/lock'
-      fullPath: '/vala-ai/lock'
-      preLoaderRoute: typeof ValaAiLockRouteImport
+    '/vala-ai/chat': {
+      id: '/vala-ai/chat'
+      path: '/chat'
+      fullPath: '/vala-ai/chat'
+      preLoaderRoute: typeof ValaAiChatRouteImport
       parentRoute: typeof ValaAiRoute
     }
-    '/vala-ai/logs': {
-      id: '/vala-ai/logs'
-      path: '/logs'
-      fullPath: '/vala-ai/logs'
-      preLoaderRoute: typeof ValaAiLogsRouteImport
+    '/vala-ai/pipeline': {
+      id: '/vala-ai/pipeline'
+      path: '/pipeline'
+      fullPath: '/vala-ai/pipeline'
+      preLoaderRoute: typeof ValaAiPipelineRouteImport
       parentRoute: typeof ValaAiRoute
     }
-    '/vala-ai/models': {
-      id: '/vala-ai/models'
-      path: '/models'
-      fullPath: '/vala-ai/models'
-      preLoaderRoute: typeof ValaAiModelsRouteImport
+    '/vala-ai/qa': {
+      id: '/vala-ai/qa'
+      path: '/qa'
+      fullPath: '/vala-ai/qa'
+      preLoaderRoute: typeof ValaAiQaRouteImport
       parentRoute: typeof ValaAiRoute
     }
-    '/vala-ai/projects': {
-      id: '/vala-ai/projects'
-      path: '/projects'
-      fullPath: '/vala-ai/projects'
-      preLoaderRoute: typeof ValaAiProjectsRouteImport
-      parentRoute: typeof ValaAiRoute
-    }
-    '/vala-ai/prompts': {
-      id: '/vala-ai/prompts'
-      path: '/prompts'
-      fullPath: '/vala-ai/prompts'
-      preLoaderRoute: typeof ValaAiPromptsRouteImport
-      parentRoute: typeof ValaAiRoute
-    }
-    '/vala-ai/rollback': {
-      id: '/vala-ai/rollback'
-      path: '/rollback'
-      fullPath: '/vala-ai/rollback'
-      preLoaderRoute: typeof ValaAiRollbackRouteImport
+    '/vala-ai/releases': {
+      id: '/vala-ai/releases'
+      path: '/releases'
+      fullPath: '/vala-ai/releases'
+      preLoaderRoute: typeof ValaAiReleasesRouteImport
       parentRoute: typeof ValaAiRoute
     }
     '/vala-ai/settings': {
@@ -6929,6 +6940,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTrackRefRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/vala-ai/$': {
+      id: '/api/vala-ai/$'
+      path: '/api/vala-ai/$'
+      fullPath: '/api/vala-ai/$'
+      preLoaderRoute: typeof ApiValaAiSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/marketplace/$category/$country': {
       id: '/marketplace/$category/$country'
       path: '/$category/$country'
@@ -6956,6 +6974,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/marketplace/product/$slug'
       preLoaderRoute: typeof MarketplaceProductSlugRouteImport
       parentRoute: typeof MarketplaceRoute
+    }
+    '/vala-ai/projects/': {
+      id: '/vala-ai/projects/'
+      path: '/projects'
+      fullPath: '/vala-ai/projects/'
+      preLoaderRoute: typeof ValaAiProjectsIndexRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/projects/$projectId': {
+      id: '/vala-ai/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/vala-ai/projects/$projectId'
+      preLoaderRoute: typeof ValaAiProjectsProjectIdRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/tasks/$taskId': {
+      id: '/vala-ai/tasks/$taskId'
+      path: '/tasks/$taskId'
+      fullPath: '/vala-ai/tasks/$taskId'
+      preLoaderRoute: typeof ValaAiTasksTaskIdRouteImport
+      parentRoute: typeof ValaAiRoute
     }
     '/ams/awards/$id/edit': {
       id: '/ams/awards/$id/edit'
@@ -7509,29 +7548,31 @@ const PromiseTrackerRouteWithChildren = PromiseTrackerRoute._addFileChildren(
 )
 
 interface ValaAiRouteChildren {
-  ValaAiCreditsRoute: typeof ValaAiCreditsRoute
-  ValaAiErrorsRoute: typeof ValaAiErrorsRoute
-  ValaAiLockRoute: typeof ValaAiLockRoute
-  ValaAiLogsRoute: typeof ValaAiLogsRoute
-  ValaAiModelsRoute: typeof ValaAiModelsRoute
-  ValaAiProjectsRoute: typeof ValaAiProjectsRoute
-  ValaAiPromptsRoute: typeof ValaAiPromptsRoute
-  ValaAiRollbackRoute: typeof ValaAiRollbackRoute
+  ValaAiActivityRoute: typeof ValaAiActivityRoute
+  ValaAiApprovalsRoute: typeof ValaAiApprovalsRoute
+  ValaAiChatRoute: typeof ValaAiChatRoute
+  ValaAiPipelineRoute: typeof ValaAiPipelineRoute
+  ValaAiQaRoute: typeof ValaAiQaRoute
+  ValaAiReleasesRoute: typeof ValaAiReleasesRoute
   ValaAiSettingsRoute: typeof ValaAiSettingsRoute
   ValaAiIndexRoute: typeof ValaAiIndexRoute
+  ValaAiProjectsProjectIdRoute: typeof ValaAiProjectsProjectIdRoute
+  ValaAiTasksTaskIdRoute: typeof ValaAiTasksTaskIdRoute
+  ValaAiProjectsIndexRoute: typeof ValaAiProjectsIndexRoute
 }
 
 const ValaAiRouteChildren: ValaAiRouteChildren = {
-  ValaAiCreditsRoute: ValaAiCreditsRoute,
-  ValaAiErrorsRoute: ValaAiErrorsRoute,
-  ValaAiLockRoute: ValaAiLockRoute,
-  ValaAiLogsRoute: ValaAiLogsRoute,
-  ValaAiModelsRoute: ValaAiModelsRoute,
-  ValaAiProjectsRoute: ValaAiProjectsRoute,
-  ValaAiPromptsRoute: ValaAiPromptsRoute,
-  ValaAiRollbackRoute: ValaAiRollbackRoute,
+  ValaAiActivityRoute: ValaAiActivityRoute,
+  ValaAiApprovalsRoute: ValaAiApprovalsRoute,
+  ValaAiChatRoute: ValaAiChatRoute,
+  ValaAiPipelineRoute: ValaAiPipelineRoute,
+  ValaAiQaRoute: ValaAiQaRoute,
+  ValaAiReleasesRoute: ValaAiReleasesRoute,
   ValaAiSettingsRoute: ValaAiSettingsRoute,
   ValaAiIndexRoute: ValaAiIndexRoute,
+  ValaAiProjectsProjectIdRoute: ValaAiProjectsProjectIdRoute,
+  ValaAiTasksTaskIdRoute: ValaAiTasksTaskIdRoute,
+  ValaAiProjectsIndexRoute: ValaAiProjectsIndexRoute,
 }
 
 const ValaAiRouteWithChildren =
@@ -7711,6 +7752,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSeoScoreRoute: ApiSeoScoreRoute,
   ApiSeoSearchPerformanceRoute: ApiSeoSearchPerformanceRoute,
   ApiTrackRefRoute: ApiTrackRefRoute,
+  ApiValaAiSplatRoute: ApiValaAiSplatRoute,
   ApiAccountInvoiceIdRoute: ApiAccountInvoiceIdRoute,
   ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,
   ApiProxyDemoSplatRoute: ApiProxyDemoSplatRoute,
