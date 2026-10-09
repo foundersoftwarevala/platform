@@ -165,13 +165,33 @@ function readOnlyBlock(task: Task, ws: Workspace): string {
 function recordModel(
   taskId: string,
   step: string,
-  reply: { model: string; durationMs: number; tokensIn: number | null; tokensOut: number | null },
+  reply: {
+    model: string;
+    source: string;
+    service: string | null;
+    durationMs: number;
+    tokensIn: number | null;
+    tokensOut: number | null;
+  },
 ) {
+  const via =
+    reply.source === "local"
+      ? "local model"
+      : `AI API Manager (${reply.service ?? "service"}), model`;
   addEvent(
     taskId,
     "model",
-    `${step}: local model ${reply.model} answered in ${(reply.durationMs / 1000).toFixed(1)}s.`,
-    { tokensIn: reply.tokensIn, tokensOut: reply.tokensOut },
+    `${step}: ${via} ${reply.model} answered in ${(reply.durationMs / 1000).toFixed(1)}s.`,
+    {
+      source: reply.source,
+      service: reply.service,
+      model: reply.model,
+      tokensIn: reply.tokensIn,
+      tokensOut: reply.tokensOut,
+      ...(reply.source === "ai-api-manager"
+        ? { usage: "recorded by AI API Manager in usage_events (product vala-ai)" }
+        : {}),
+    },
   );
 }
 

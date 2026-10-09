@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { analyze, build, complete, fix, test } from "./agent.server.ts";
 import { all, one, run } from "./db.server.ts";
-import { ModelOfflineError, modelStatus } from "./model.server.ts";
+import { ModelUnavailableError, modelStatus } from "./model.server.ts";
 import { sandboxPolicy, sweepStaleContainers } from "./sandbox.server.ts";
 import { getSettings, resources } from "./settings.server.ts";
 import { ACTIVE, addEvent, getTask, transition, type Task } from "./tasks.server.ts";
@@ -144,7 +144,9 @@ export async function runStep(task: Task, owner: string, signal: AbortSignal): P
       transition(
         task.id,
         "BLOCKED",
-        `Local model offline at ${model.url} (${model.error}). Start it, then resume the task.`,
+        model.source === "local"
+          ? `Local model offline at ${model.url} (${model.error}). Start it, then resume the task.`
+          : `AI API Manager is not ready: ${(model.error ?? "").replace(/\.$/, "")}. Fix it there, then resume the task.`,
       );
       return;
     }
@@ -210,7 +212,7 @@ export async function runStepSafely(
         if ((fresh.cancel_requested || err.status === 499) && fresh.state !== "VERIFIED")
           transition(task.id, "CANCELLED", "Cancelled while running.");
         else if (
-          (e instanceof ModelOfflineError || err.status === 504) &&
+          (e instanceof ModelUnavailableError || err.status === 504) &&
           fresh.state !== "VERIFIED"
         )
           transition(task.id, "BLOCKED", err.message);

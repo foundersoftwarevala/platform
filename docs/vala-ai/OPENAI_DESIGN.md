@@ -71,3 +71,36 @@ With credentials (requires approval and access):
   `AI_API_CREDENTIAL_ENCRYPTION_KEY` live on the production server and database, which this
   session cannot read; or an approved non-production OpenAI service configured in a test
   instance of AI API Manager.
+
+## Implementation status (2026-10-09)
+
+Built (Vala AI only; the gateway file is unchanged):
+
+- Settings `model_source` (`local` | `ai-api-manager`, owner only) and `gateway_service` (an AI API
+  Manager service id or empty for "any active chat service"); `model_url` keeps its
+  private-network rule and arbitrary external URLs are still refused.
+- `chat()` routes to `aiComplete({ module: "vala-ai", json, maxTokens, temperature, serviceId })`
+  with the JSON Schema stated in the system message; replies are validated by `chatJson()`.
+  Model events record source, service and model; token usage is left to `usage_events`.
+- Timeout (`model_timeout_s`) and cancel stop Vala AI waiting (the gateway call itself cannot be
+  aborted — see limits above).
+- Error mapping: not configured / no service / missing key / credentials rejected / rate limit or
+  quota → BLOCKED with the reason; any other provider failure → step FAILED.
+- `modelStatus()` resolves the service through the gateway without a paid request;
+  `GET /api/vala-ai/gateway-services` (owner only) lists services without credentials or URLs.
+- Settings & System has a "Model source" card; the top bar names the source.
+
+Tested:
+
+- `src/lib/vala-ai/model-gateway.server.test.ts` (gateway replaced by a test double): 11 tests —
+  settings rules, call shape, schema validation, error mapping, timeout, cancel, status without a
+  request, credential-free service list (owner only), a task completed and verified through the
+  gateway path, BLOCKED when the gateway is not ready or rejects the key.
+- Browser, real gateway code (not mocked) against the local stand-in database: AI API Manager
+  chosen in Settings → "No active AI service is configured in AI API Manager" shown → a task
+  waits as BLOCKED with that reason → source switched back to local.
+
+**BLOCKED: no real OpenAI request has been made.** `model-gateway-live.server.test.ts` sends
+one when `VALA_AI_LIVE_GATEWAY_TEST=1` is set on a machine with the platform database settings,
+`AI_API_CREDENTIAL_ENCRYPTION_KEY` and an active OpenAI service in AI API Manager. This machine
+has none of them, and server access is refused.
