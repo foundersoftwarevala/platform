@@ -15,6 +15,8 @@ const NUMERIC_BOUNDS: Partial<Record<keyof Settings, [number, number]>> = {
   max_file_kb: [4, 1024],
   min_free_disk_gb: [1, 1000],
   min_free_mem_mb: [256, 65536],
+  chat_per_minute: [1, 600],
+  tasks_per_minute: [1, 600],
 };
 
 export function getSettings(): Settings {

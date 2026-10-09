@@ -35,6 +35,8 @@ export const DEFAULT_SETTINGS = {
   max_file_kb: 48,
   min_free_disk_gb: 3,
   min_free_mem_mb: 1024,
+  chat_per_minute: 6,
+  tasks_per_minute: 10,
 } as const;
 
 export type Settings = {
