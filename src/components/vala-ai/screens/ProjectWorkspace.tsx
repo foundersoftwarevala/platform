@@ -377,7 +377,8 @@ function RequirementsTab({ d }: { d: ProjectDetail }) {
                   <Badge value={cr.status} />
                   <span className="font-mono text-xs text-muted-foreground">{cr.id}</span>
                   <span className="text-xs text-muted-foreground">
-                    {t("raised by")} {cr.raised_by} · {relativeTime(cr.created_at)}
+                    {t("raised by")} {cr.raised_by_label ?? cr.raised_by} ·{" "}
+                    {relativeTime(cr.created_at)}
                   </span>
                 </div>
                 <p>{cr.reason}</p>
