@@ -293,6 +293,8 @@ export type Settings = {
   max_file_kb: number;
   min_free_disk_gb: number;
   min_free_mem_mb: number;
+  chat_per_minute: number;
+  tasks_per_minute: number;
 };
 export type Status = {
   model: {

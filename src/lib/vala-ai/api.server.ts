@@ -38,6 +38,7 @@ import {
   taskEvents,
   verificationOf,
 } from "./tasks.server.ts";
+import { SlidingWindowLimiter } from "@/lib/i18n/limits";
 import { sha256, ValaError } from "./util.server.ts";
 import { abortRunning, ensureWorker, workerStatus } from "./worker.server.ts";
 import {
@@ -340,6 +341,30 @@ const json = (data: unknown, status = 200, headers: Record<string, string> = {})
 
 export type ResolveCaller = (req: Request) => Promise<Operator | null>;
 
+/**
+ * Per-caller limits on the two requests that spend real compute: every chat
+ * message runs the model, and every task queues model and check work. Counted
+ * per account over a sliding minute, invalid requests included, so a flood of
+ * either kind is refused before it reaches the model.
+ */
+const writeLimiter = new SlidingWindowLimiter(60_000);
+const RATE_LIMITED: { method: string; pattern: RegExp; bucket: "chat" | "tasks" }[] = [
+  { method: "POST", pattern: /^\/chat$/, bucket: "chat" },
+  { method: "POST", pattern: /^\/projects\/[^/]+\/tasks$/, bucket: "tasks" },
+];
+
+function enforceRateLimit(method: string, path: string, op: Operator) {
+  const rule = RATE_LIMITED.find((r) => r.method === method && r.pattern.test(path));
+  if (!rule) return;
+  const settings = getSettings();
+  const limit = rule.bucket === "chat" ? settings.chat_per_minute : settings.tasks_per_minute;
+  if (writeLimiter.hit(`${op.id}:${rule.bucket}`, limit))
+    throw new ValaError(
+      429,
+      `Too many ${rule.bucket === "chat" ? "chat messages" : "new tasks"}: the limit is ${limit} per minute for each account. Wait a minute and try again.`,
+    );
+}
+
 export async function handleApi(
   req: Request,
   resolveCaller: ResolveCaller,
@@ -370,6 +395,7 @@ export async function handleApi(
       const m = route.pattern.exec(path);
       if (!m) continue;
       if (route.minRole) requireRole(op, route.minRole);
+      if (op) enforceRateLimit(method, path, op);
       const params = Object.fromEntries(
         route.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]),
       );
@@ -378,7 +404,8 @@ export async function handleApi(
     }
     throw new ValaError(404, `No Vala AI endpoint ${method} ${path}.`);
   } catch (e) {
-    if (e instanceof ValaError) return json({ error: e.message }, e.status);
+    if (e instanceof ValaError)
+      return json({ error: e.message }, e.status, e.status === 429 ? { "retry-after": "60" } : {});
     console.error("[vala-ai]", method, path, e);
     return json({ error: "Internal error. The server log has the details." }, 500);
   }

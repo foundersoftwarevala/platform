@@ -49,6 +49,16 @@ const FIELDS: { key: keyof Settings; label: string; hint: string }[] = [
     label: "Free memory floor (MB)",
     hint: "Below it, tasks wait as BLOCKED.",
   },
+  {
+    key: "chat_per_minute",
+    label: "Chat messages per minute, per account",
+    hint: "Each message runs the model. Over the limit the request is refused.",
+  },
+  {
+    key: "tasks_per_minute",
+    label: "New tasks per minute, per account",
+    hint: "Over the limit the request is refused.",
+  },
 ];
 
 export function SettingsScreen() {
