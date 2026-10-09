@@ -75,16 +75,16 @@ export function Stat({
   const { translate: t } = useLanguage();
   const toneClass = {
     default: "text-foreground",
-    success: "text-success",
-    warning: "text-warning",
-    danger: "text-destructive",
-    info: "text-info",
+    success: "va-text-success",
+    warning: "va-text-warning",
+    danger: "va-text-danger",
+    info: "va-text-info",
   }[tone];
   return (
     <div className="rounded-xl border border-border bg-surface/60 p-4">
       <p className={cn("text-2xl font-semibold tracking-tight", toneClass)}>{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{label}</p>
-      {hint ? <p className="mt-1 text-[11px] text-muted-foreground/80">{hint}</p> : null}
+      {hint ? <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
@@ -112,7 +112,7 @@ export function ErrorBox({ error }: { error: { message: string } | null | undefi
   return (
     <div
       role="alert"
-      className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+      className="flex items-start gap-2 rounded-lg border va-border-danger va-tint-danger p-3 text-sm va-text-danger"
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
       <span className="whitespace-pre-wrap break-words">{error.message}</span>
@@ -122,31 +122,31 @@ export function ErrorBox({ error }: { error: { message: string } | null | undefi
 
 const STATE_TONE: Record<string, string> = {
   PENDING: "border-border text-muted-foreground",
-  ANALYZING: "border-info/50 text-info",
-  BUILDING: "border-info/50 text-info",
-  TESTING: "border-info/50 text-info",
-  FIXING: "border-warning/50 text-warning",
-  RETESTING: "border-warning/50 text-warning",
-  VERIFIED: "border-success/50 text-success",
-  COMPLETE: "border-success/60 bg-success/10 text-success",
-  BLOCKED: "border-warning/60 bg-warning/10 text-warning",
-  FAILED: "border-destructive/60 bg-destructive/10 text-destructive",
+  ANALYZING: "va-border-info va-text-info",
+  BUILDING: "va-border-info va-text-info",
+  TESTING: "va-border-info va-text-info",
+  FIXING: "va-border-warning va-text-warning",
+  RETESTING: "va-border-warning va-text-warning",
+  VERIFIED: "va-border-success va-text-success",
+  COMPLETE: "va-border-success va-tint-success va-text-success",
+  BLOCKED: "va-border-warning va-tint-warning va-text-warning",
+  FAILED: "va-border-danger va-tint-danger va-text-danger",
   CANCELLED: "border-border text-muted-foreground line-through",
-  pass: "border-success/50 text-success",
-  fail: "border-destructive/50 text-destructive",
-  unknown: "border-warning/50 text-warning",
-  UNKNOWN: "border-warning/50 text-warning",
+  pass: "va-border-success va-text-success",
+  fail: "va-border-danger va-text-danger",
+  unknown: "va-border-warning va-text-warning",
+  UNKNOWN: "va-border-warning va-text-warning",
   draft: "border-border text-muted-foreground",
-  approved: "border-success/50 text-success",
+  approved: "va-border-success va-text-success",
   superseded: "border-border text-muted-foreground",
-  open: "border-warning/50 text-warning",
-  rejected: "border-destructive/50 text-destructive",
-  pending: "border-warning/50 text-warning",
-  executed: "border-success/50 text-success",
-  failed: "border-destructive/50 text-destructive",
-  ready: "border-success/50 text-success",
-  creating: "border-info/50 text-info",
-  built: "border-success/50 text-success",
+  open: "va-border-warning va-text-warning",
+  rejected: "va-border-danger va-text-danger",
+  pending: "va-border-warning va-text-warning",
+  executed: "va-border-success va-text-success",
+  failed: "va-border-danger va-text-danger",
+  ready: "va-border-success va-text-success",
+  creating: "va-border-info va-text-info",
+  built: "va-border-success va-text-success",
   "not built": "border-border text-muted-foreground",
 };
 
@@ -179,7 +179,7 @@ export function Field({
     <label className="block space-y-1">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       {children}
-      {hint ? <span className="block text-[11px] text-muted-foreground/80">{hint}</span> : null}
+      {hint ? <span className="block text-[11px] text-muted-foreground">{hint}</span> : null}
     </label>
   );
 }

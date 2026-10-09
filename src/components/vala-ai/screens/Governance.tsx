@@ -144,7 +144,9 @@ export function Releases() {
                   <th className="px-3 py-2">{t("Commit")}</th>
                   <th className="px-3 py-2">{t("Patch SHA-256")}</th>
                   <th className="px-3 py-2">{t("Created")}</th>
-                  <th className="px-3 py-2" />
+                  <th className="px-3 py-2">
+                    <span className="sr-only">{t("Patch download")}</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -291,7 +293,7 @@ export function Approvals() {
                             evidenceReviewed: evidenceOf(a),
                           })
                         }
-                        className="rounded-lg border border-success/60 px-3 py-1.5 text-xs text-success"
+                        className="rounded-lg border va-border-success px-3 py-1.5 text-xs va-text-success"
                       >
                         {t("Approve & execute")}
                       </button>
@@ -305,7 +307,7 @@ export function Approvals() {
                             evidenceReviewed: [],
                           })
                         }
-                        className="rounded-lg border border-destructive/60 px-3 py-1.5 text-xs text-destructive"
+                        className="rounded-lg border va-border-danger px-3 py-1.5 text-xs va-text-danger"
                       >
                         {t("Reject")}
                       </button>
@@ -343,7 +345,7 @@ export function Approvals() {
                     <p
                       className={cn(
                         "text-xs",
-                        a.status === "failed" ? "text-destructive" : "text-success",
+                        a.status === "failed" ? "va-text-danger" : "va-text-success",
                       )}
                     >
                       {t("Outcome")}: {a.outcome}
@@ -384,7 +386,7 @@ export function ActivityLog() {
           <p
             className={cn(
               "text-sm font-medium",
-              audit.data.chain.ok ? "text-success" : "text-destructive",
+              audit.data.chain.ok ? "va-text-success" : "va-text-danger",
             )}
           >
             {audit.data.chain.ok
@@ -397,7 +399,12 @@ export function ActivityLog() {
         ) : entries.length === 0 ? (
           <Empty>{t("No activity yet.")}</Empty>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div
+            className="overflow-x-auto rounded-xl border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            tabIndex={0}
+            role="region"
+            aria-label={t("Audit log entries")}
+          >
             <table className="w-full min-w-[760px] text-sm">
               <thead className="bg-surface/60 text-left text-xs text-muted-foreground">
                 <tr>

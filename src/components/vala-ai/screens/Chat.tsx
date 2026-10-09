@@ -85,7 +85,7 @@ export function Chat() {
                   m.role === "user"
                     ? "ml-10 border-primary/30 bg-primary/10"
                     : m.role === "error"
-                      ? "mr-10 border-destructive/40 bg-destructive/10 text-destructive"
+                      ? "mr-10 va-border-danger va-tint-danger va-text-danger"
                       : "mr-10 border-border bg-surface/60",
                 )}
               >
@@ -143,7 +143,7 @@ export function Chat() {
                 <button
                   type="submit"
                   disabled={createTask.isPending}
-                  className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+                  className="rounded-lg va-btn-primary px-3 py-1.5 text-sm font-medium"
                 >
                   {t("Queue task")}
                 </button>
@@ -173,7 +173,7 @@ export function Chat() {
               <button
                 type="submit"
                 disabled={send.isPending || !text.trim()}
-                className="grid w-12 place-items-center rounded-lg bg-primary text-primary-foreground disabled:opacity-50"
+                className="grid w-12 place-items-center rounded-lg va-btn-primary disabled:opacity-50"
                 aria-label={t("Send")}
               >
                 {send.isPending ? (

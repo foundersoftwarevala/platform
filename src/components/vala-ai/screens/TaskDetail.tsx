@@ -46,9 +46,16 @@ export function TaskDetail({ taskId }: { taskId: string }) {
   if (detail.isPending) return <Loading />;
   if (detail.error)
     return (
-      <Page>
-        <ErrorBox error={detail.error} />
-      </Page>
+      <div>
+        <PageHeader
+          title={detail.error.status === 404 ? t("Task not found") : t("Task could not be loaded")}
+          description={t("Check the link, or go back to the list.")}
+          icon={GitBranch}
+        />
+        <Page>
+          <ErrorBox error={detail.error} />
+        </Page>
+      </div>
     );
   const { task, project, events, evidence, verification } = detail.data;
   const reached = new Set(events.map((e) => e.to_state).filter(Boolean));
@@ -70,7 +77,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
               <button
                 onClick={() => cancel.mutate(undefined)}
                 disabled={cancel.isPending || Boolean(task.cancel_requested)}
-                className="rounded-lg border border-destructive/60 px-3 py-1.5 text-sm text-destructive disabled:opacity-50"
+                className="rounded-lg border va-border-danger px-3 py-1.5 text-sm va-text-danger disabled:opacity-50"
               >
                 {task.cancel_requested ? t("Cancelling…") : t("Cancel")}
               </button>
@@ -99,7 +106,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
                     task.state === s
                       ? "border-primary bg-primary/20 text-foreground"
                       : reached.has(s)
-                        ? "border-success/40 text-success"
+                        ? "va-border-success va-text-success"
                         : "border-border text-muted-foreground",
                   )}
                 >
@@ -115,12 +122,12 @@ export function TaskDetail({ taskId }: { taskId: string }) {
             {task.finished_at ? ` · ${t("finished")} ${relativeTime(task.finished_at)}` : ""}
           </p>
           {task.blocked_reason ? (
-            <p className="mt-2 text-sm text-warning">
+            <p className="mt-2 text-sm va-text-warning">
               {t("Blocked")}: {task.blocked_reason}
             </p>
           ) : null}
           {task.error ? (
-            <p className="mt-2 text-sm text-destructive">
+            <p className="mt-2 text-sm va-text-danger">
               {t("Error")}: {task.error}
             </p>
           ) : null}
@@ -189,7 +196,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
                 <button
                   type="submit"
                   disabled={release.isPending}
-                  className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+                  className="rounded-lg va-btn-primary px-3 py-2 text-sm font-medium"
                 >
                   {t("Request release")}
                 </button>
@@ -197,7 +204,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
             ) : null}
             <ErrorBox error={release.error} />
             {release.isSuccess ? (
-              <p className="mt-2 text-xs text-success">
+              <p className="mt-2 text-xs va-text-success">
                 {t("Release requested")} ({release.data.id}).{" "}
                 <Link to="/vala-ai/approvals" className="underline">
                   {t("An owner approves it under Approvals.")}
@@ -274,7 +281,7 @@ export function EvidenceOutput({ ev }: { ev: Evidence }) {
   if (out.error) return <ErrorBox error={out.error} />;
   return (
     <div className="mt-2 space-y-1">
-      <p className={cn("text-xs", out.data.sha256Matches ? "text-success" : "text-destructive")}>
+      <p className={cn("text-xs", out.data.sha256Matches ? "va-text-success" : "va-text-danger")}>
         {out.data.missing
           ? t("Output file is missing from disk.")
           : out.data.sha256Matches
