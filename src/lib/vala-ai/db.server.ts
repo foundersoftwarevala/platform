@@ -1,7 +1,8 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { paths } from "./config.server.ts";
+import { paths, productionDataDirProblem } from "./config.server.ts";
+import { ValaError } from "./util.server.ts";
 
 /**
  * Vala AI's own database: one SQLite file opened with Node's built-in driver.
@@ -215,6 +216,8 @@ const MIGRATIONS: string[] = [
 let instance: { path: string; db: DatabaseSync } | null = null;
 
 export function db(): DatabaseSync {
+  const problem = productionDataDirProblem();
+  if (problem) throw new ValaError(503, `Vala AI is not configured: ${problem}`);
   const file = paths.db();
   if (instance && instance.path === file) return instance.db;
   mkdirSync(dirname(file), { recursive: true });
