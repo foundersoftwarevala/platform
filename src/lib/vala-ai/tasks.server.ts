@@ -4,7 +4,8 @@ import { audit } from "./audit.server.ts";
 import type { Operator } from "./auth.server.ts";
 import { paths } from "./config.server.ts";
 import { all, one, run } from "./db.server.ts";
-import { parseCommand, runCommand } from "./exec.server.ts";
+import { parseCommand, runCommand, type ExecResult } from "./exec.server.ts";
+import { containerName, dockerProblem, sandboxPolicy } from "./sandbox.server.ts";
 import {
   approvedRequirement,
   checksOf,
@@ -122,6 +123,8 @@ export type Evidence = {
   output_tail: string;
   producer: "agent" | "verifier";
   verdict: "pass" | "fail" | "unknown";
+  /** "none" (ran on this machine), "docker <image>", or "refused" (sandbox required but unavailable). */
+  sandbox: string;
   created_at: string;
 };
 
@@ -295,16 +298,41 @@ export async function runCheck(
   const settings = getSettings();
   const tokens = parseCommand(check.command);
   const commit = headCommit(ws);
-  const result = await runCommand(tokens, {
+  const id = newId("EV", 10);
+  const policy = sandboxPolicy();
+  const common = {
     cwd: ws.path,
     timeoutMs: settings.command_timeout_s * 1000,
     maxOutputBytes: settings.max_output_kb * 1024,
     signal,
-  });
-  const id = newId("EV", 10);
+  };
+  let sandbox = "none";
+  let result: ExecResult;
+  if (policy.mode === "docker") {
+    const problem = dockerProblem(policy);
+    if (problem) {
+      sandbox = "refused";
+      result = {
+        exitCode: 126,
+        timedOut: false,
+        cancelled: false,
+        durationMs: 0,
+        truncated: false,
+        output: `[vala-ai] Refused: checks must run in the sandbox (VALA_AI_SANDBOX=docker), and ${problem}\n`,
+      };
+    } else {
+      sandbox = `docker ${policy.image}`;
+      result = await runCommand(tokens, {
+        ...common,
+        sandbox: { policy, name: containerName(id) },
+      });
+    }
+  } else {
+    result = await runCommand(tokens, common);
+  }
   const dir = resolve(paths.evidence(), task.project_id);
   mkdirSync(dir, { recursive: true });
-  const header = `# ${check.label}\n$ ${tokens.join(" ")}\n# commit ${commit}\n# exit ${result.exitCode} timed_out=${result.timedOut} cancelled=${result.cancelled} duration_ms=${result.durationMs}${result.truncated ? " (output truncated to last bytes)" : ""}\n\n`;
+  const header = `# ${check.label}\n$ ${tokens.join(" ")}\n# sandbox ${sandbox}\n# commit ${commit}\n# exit ${result.exitCode} timed_out=${result.timedOut} cancelled=${result.cancelled} duration_ms=${result.durationMs}${result.truncated ? " (output truncated to last bytes)" : ""}\n\n`;
   const content = header + result.output;
   const outputPath = resolve(dir, `${id}.log`);
   writeFileSync(outputPath, content, "utf8");
@@ -314,8 +342,8 @@ export async function runCheck(
       ? "pass"
       : "fail";
   run(
-    `insert into evidence (id, task_id, project_id, check_id, label, command, commit_sha, exit_code, timed_out, duration_ms, output_path, output_sha256, output_tail, producer, verdict, created_at)
-     values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `insert into evidence (id, task_id, project_id, check_id, label, command, commit_sha, exit_code, timed_out, duration_ms, output_path, output_sha256, output_tail, producer, verdict, sandbox, created_at)
+     values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     id,
     task.id,
     task.project_id,
@@ -331,6 +359,7 @@ export async function runCheck(
     tail(result.output, 4000),
     producer,
     verdict,
+    sandbox,
     now(),
   );
   addEvent(

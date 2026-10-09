@@ -2,7 +2,8 @@ import { randomBytes } from "node:crypto";
 import { analyze, build, complete, fix, test } from "./agent.server.ts";
 import { all, one, run } from "./db.server.ts";
 import { ModelOfflineError, modelStatus } from "./model.server.ts";
-import { resources } from "./settings.server.ts";
+import { sandboxPolicy, sweepStaleContainers } from "./sandbox.server.ts";
+import { getSettings, resources } from "./settings.server.ts";
 import { ACTIVE, addEvent, getTask, transition, type Task } from "./tasks.server.ts";
 import { now, ValaError } from "./util.server.ts";
 
@@ -23,6 +24,7 @@ type WorkerState = {
   lastTick: string | null;
   lastError: string | null;
   stopped: boolean;
+  lastSweep?: number;
 };
 
 const G = globalThis as typeof globalThis & { __valaWorker?: WorkerState };
@@ -230,6 +232,16 @@ export async function runStepSafely(
 async function tick() {
   const s = state();
   s.lastTick = now();
+  // Containers left behind by a crashed server are removed every ten minutes.
+  try {
+    const policy = sandboxPolicy();
+    if (policy.mode === "docker" && Date.now() - (s.lastSweep ?? 0) > 600_000) {
+      s.lastSweep = Date.now();
+      sweepStaleContainers(policy, getSettings().command_timeout_s * 1000 + 60_000);
+    }
+  } catch {
+    /* a misconfigured sandbox is reported where checks run and in /status */
+  }
   if (s.busy) return schedule(1000);
   let task: Task | null = null;
   try {

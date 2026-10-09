@@ -41,6 +41,7 @@ import {
 import { SlidingWindowLimiter } from "@/lib/i18n/limits";
 import { labelerFor, withLabels } from "./identity.server.ts";
 import { redactForRole } from "./redact.server.ts";
+import { dockerProblem, sandboxPolicy } from "./sandbox.server.ts";
 import { sha256, ValaError } from "./util.server.ts";
 import { abortRunning, ensureWorker, workerStatus } from "./worker.server.ts";
 import {
@@ -119,11 +120,6 @@ const CAPABILITIES = [
     status: "not built",
     note: "Existing workers depend on the discontinued database.",
   },
-  {
-    area: "OS-level sandbox for commands",
-    status: "not built",
-    note: "Commands run in the workspace with a scrubbed environment, without a container.",
-  },
   { area: "Licensing & delivery", status: "not built" },
   {
     area: "Production deployment of Vala AI",
@@ -136,6 +132,36 @@ const CAPABILITIES = [
     note: "Last phase.",
   },
 ] as const;
+
+/** Where checks run right now, measured rather than assumed. */
+function sandboxStatus(): {
+  mode: string;
+  image: string | null;
+  ready: boolean;
+  problem: string | null;
+} {
+  try {
+    const policy = sandboxPolicy();
+    if (policy.mode === "off")
+      return {
+        mode: "off",
+        image: null,
+        ready: false,
+        problem: "Checks run on this machine as the server user, without isolation.",
+      };
+    const problem = dockerProblem(policy);
+    return { mode: "docker", image: policy.image, ready: problem === null, problem };
+  } catch (e) {
+    return { mode: "invalid", image: null, ready: false, problem: (e as Error).message };
+  }
+}
+
+function sandboxCapability() {
+  const s = sandboxStatus();
+  return s.ready
+    ? { area: "OS-level sandbox for checks", status: "built", note: `Docker, ${s.image}` }
+    : { area: "OS-level sandbox for checks", status: "not active", note: s.problem ?? undefined };
+}
 
 // ---- session ------------------------------------------------------------
 on("GET", "/session", null, ({ op }) => ({ operator: op }));
@@ -158,7 +184,8 @@ on("GET", "/status", "viewer", async () => {
     projects: listProjects().length,
     pendingApprovals: listApprovals("pending").length,
     openChangeRequests: listChangeRequests().filter((c) => c.status === "open").length,
-    capabilities: CAPABILITIES,
+    sandbox: sandboxStatus(),
+    capabilities: [...CAPABILITIES, sandboxCapability()],
   };
 });
 on("GET", "/settings", "viewer", () => getSettings());

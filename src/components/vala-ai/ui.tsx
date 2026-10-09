@@ -148,6 +148,7 @@ const STATE_TONE: Record<string, string> = {
   creating: "va-border-info va-text-info",
   built: "va-border-success va-text-success",
   "not built": "border-border text-muted-foreground",
+  "not active": "border-border text-muted-foreground",
 };
 
 export function Badge({ value, className }: { value: TaskState | string; className?: string }) {
@@ -161,6 +162,22 @@ export function Badge({ value, className }: { value: TaskState | string; classNa
       )}
     >
       {t(value)}
+    </span>
+  );
+}
+
+/** Where an acceptance check ran: in the sandbox, on this machine, or refused. */
+export function SandboxChip({ sandbox }: { sandbox?: string }) {
+  const { translate: t } = useLanguage();
+  if (!sandbox) return null;
+  const [label, tone] = sandbox.startsWith("docker")
+    ? [t("sandboxed"), "va-border-success va-text-success"]
+    : sandbox === "refused"
+      ? [t("sandbox refused"), "va-border-danger va-text-danger"]
+      : [t("not sandboxed"), "va-border-warning va-text-warning"];
+  return (
+    <span title={sandbox} className={cn("rounded border px-1.5 text-[11px]", tone)}>
+      {label}
     </span>
   );
 }
