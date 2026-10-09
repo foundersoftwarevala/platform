@@ -16,7 +16,7 @@ import { ValaError } from "./util.server.ts";
 
 type Row = Record<string, unknown>;
 
-const MIGRATIONS: string[] = [
+export const MIGRATIONS: string[] = [
   /* 1 */ `
   create table people (
     id text primary key,
@@ -210,6 +210,11 @@ const MIGRATIONS: string[] = [
     updated_at text not null,
     updated_by text not null
   );
+  `,
+  /* 2: indexes for the lookups the screens make on every refresh */ `
+  create index if not exists evidence_task on evidence(task_id, created_at);
+  create index if not exists approvals_status on approvals(status, requested_at);
+  create index if not exists releases_project on releases(project_id, created_at);
   `,
 ];
 
