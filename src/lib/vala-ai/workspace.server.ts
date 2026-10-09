@@ -1,5 +1,18 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import {
+  closeSync,
+  constants,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+  writeSync,
+} from "node:fs";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { audit } from "./audit.server.ts";
 import { dataDir, paths } from "./config.server.ts";
 import { one, run } from "./db.server.ts";
@@ -152,7 +165,52 @@ export function resolveInside(ws: Workspace, rel: string): string {
   const first = r.split(sep)[0];
   if (first === ".git" || first === "node_modules")
     throw new ValaError(400, `Path "${rel}" is not editable.`);
+
+  // The lexical check above cannot see symlinks or junctions committed to the
+  // repository (or created by a check). Resolve where the path really leads,
+  // through every link that exists along it, and hold that to the same rules.
+  const root = realpathSync(ws.path);
+  const real = realTarget(abs);
+  const rr = real === null ? null : relative(root, real);
+  if (rr === null || rr === "" || rr.startsWith("..") || isAbsolute(rr))
+    throw new ValaError(400, `Path "${rel}" leads outside the workspace through a link.`);
+  const realFirst = rr.split(sep)[0];
+  if (realFirst === ".git" || realFirst === "node_modules")
+    throw new ValaError(
+      400,
+      `Path "${rel}" leads into a part of the workspace that is not editable.`,
+    );
   return abs;
+}
+
+/**
+ * Where a path really points: the real path of its deepest existing ancestor
+ * (every symlink and junction on the way resolved) with the not-yet-existing
+ * remainder appended. A dangling link cannot be resolved and returns null, so
+ * a write can never create a file at a link's hidden target.
+ */
+function realTarget(abs: string): string | null {
+  const rest: string[] = [];
+  let current = abs;
+  for (;;) {
+    let exists = true;
+    try {
+      lstatSync(current);
+    } catch {
+      exists = false;
+    }
+    if (exists) {
+      try {
+        return resolve(realpathSync(current), ...rest);
+      } catch {
+        return null;
+      }
+    }
+    const parent = dirname(current);
+    if (parent === current) return resolve(current, ...rest);
+    rest.unshift(basename(current));
+    current = parent;
+  }
 }
 
 export function listFiles(ws: Workspace, limit = 4000): string[] {
@@ -194,7 +252,16 @@ export function writeWorkspaceFile(
     throw new ValaError(413, `File "${rel}" exceeds the ${getSettings().max_file_kb} KB limit.`);
   const beforeSha = existsSync(abs) ? sha256(readFileSync(abs)) : null;
   mkdirSync(dirname(abs), { recursive: true });
-  writeFileSync(abs, content, "utf8");
+  // Where the platform supports it, refuse to follow a link that appears at the
+  // final path between the check above and this write.
+  const flags =
+    constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0);
+  const fd = openSync(abs, flags, 0o644);
+  try {
+    writeSync(fd, content, null, "utf8");
+  } finally {
+    closeSync(fd);
+  }
   return { path: rel, beforeSha, afterSha: sha256(content), bytes };
 }
 

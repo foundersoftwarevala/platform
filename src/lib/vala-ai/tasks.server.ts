@@ -304,7 +304,7 @@ export async function runCheck(
   const id = newId("EV", 10);
   const dir = resolve(paths.evidence(), task.project_id);
   mkdirSync(dir, { recursive: true });
-  const header = `# ${check.label}\n$ ${check.command}\n# commit ${commit}\n# exit ${result.exitCode} timed_out=${result.timedOut} cancelled=${result.cancelled} duration_ms=${result.durationMs}${result.truncated ? " (output truncated to last bytes)" : ""}\n\n`;
+  const header = `# ${check.label}\n$ ${tokens.join(" ")}\n# commit ${commit}\n# exit ${result.exitCode} timed_out=${result.timedOut} cancelled=${result.cancelled} duration_ms=${result.durationMs}${result.truncated ? " (output truncated to last bytes)" : ""}\n\n`;
   const content = header + result.output;
   const outputPath = resolve(dir, `${id}.log`);
   writeFileSync(outputPath, content, "utf8");

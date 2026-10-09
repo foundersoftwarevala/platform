@@ -1,4 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { ValaError } from "./util.server.ts";
 
 /**
@@ -15,16 +17,19 @@ import { ValaError } from "./util.server.ts";
 
 const TOKEN = /^[A-Za-z0-9_@./:=,+-]+$/;
 
+const NPX_TOOLS = ["tsc", "vitest", "eslint", "prettier", "jest", "mocha"];
+
 const ALLOWED: Record<string, (args: string[]) => boolean> = {
   npm: (a) =>
     a[0] === "test" ||
     a[0] === "ci" ||
     (a[0] === "run" && a.length >= 2) ||
     (a[0] === "install" && a.length === 1),
+  // npx options must come before the tool name, so allowing only an exact tool
+  // name (or --no-install then the tool) in first place rejects -y, --yes,
+  // --package, tool@version and every other way to pick what npx fetches.
   npx: (a) =>
-    ["tsc", "vitest", "eslint", "prettier", "jest", "mocha"].includes(a[0] ?? "") ||
-    (a[0] === "--no-install" &&
-      ["tsc", "vitest", "eslint", "prettier", "jest", "mocha"].includes(a[1] ?? "")),
+    NPX_TOOLS.includes(a[0] ?? "") || (a[0] === "--no-install" && NPX_TOOLS.includes(a[1] ?? "")),
   node: (a) => a[0] === "--test" || /^[A-Za-z0-9_./-]+\.(m?js|cjs)$/.test(a[0] ?? ""),
   git: (a) => ["status", "diff", "log", "rev-parse", "show"].includes(a[0] ?? ""),
 };
@@ -45,6 +50,9 @@ export function parseCommand(command: string): string[] {
       400,
       `"${tokens.slice(0, 2).join(" ")}" is not an allowed command. Allowed: npm test|ci|install|run <script>, npx tsc|vitest|eslint|prettier|jest|mocha, node --test, node <file>.js, git status|diff|log|rev-parse|show.`,
     );
+  // npx runs only what the project already has installed: with --no-install it
+  // refuses to download a missing tool instead of fetching and executing it.
+  if (program === "npx" && args[0] !== "--no-install") return ["npx", "--no-install", ...args];
   return tokens;
 }
 
@@ -97,11 +105,33 @@ function killTree(pid: number | undefined) {
   }
 }
 
+/**
+ * npx falls back to its own cache (~/.npm/_npx) and to the registry when the
+ * project lacks a tool; --no-install stops the download but still runs a cached
+ * copy. So an npx tool runs only if the project itself has it installed.
+ */
+function missingNpxTool(tokens: string[], cwd: string): string | null {
+  if (tokens[0] !== "npx") return null;
+  const tool = tokens[1] === "--no-install" ? tokens[2] : tokens[1];
+  const bin = join(cwd, "node_modules", ".bin", tool);
+  return existsSync(bin) || existsSync(`${bin}.cmd`) ? null : tool;
+}
+
 export function runCommand(
   tokens: string[],
   opts: { cwd: string; timeoutMs: number; maxOutputBytes: number; signal?: AbortSignal },
 ): Promise<ExecResult> {
   const started = Date.now();
+  const missing = missingNpxTool(tokens, opts.cwd);
+  if (missing)
+    return Promise.resolve({
+      exitCode: 127,
+      timedOut: false,
+      cancelled: false,
+      durationMs: 0,
+      truncated: false,
+      output: `[vala-ai] Refused: "${missing}" is not installed in this project (node_modules/.bin/${missing}). npx is not allowed to download it or run a cached copy; add it to the project's devDependencies.\n`,
+    });
   return new Promise((resolve) => {
     // shell:true is required on Windows for npm/npx (.cmd shims). Every token
     // was checked against TOKEN above, so no shell syntax can reach it.
