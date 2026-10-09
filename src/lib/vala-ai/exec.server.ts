@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { dataDir } from "./config.server.ts";
 import { ValaError } from "./util.server.ts";
 
 /**
@@ -189,13 +190,25 @@ export function runCommand(
   });
 }
 
+/**
+ * Settings forced on every git call. A workspace's own hooks and a configured
+ * fsmonitor are commands git would run on this host; project code (a check, an
+ * install script) can create either, so they are switched off for every call.
+ * Hooks point at an empty directory Vala AI owns, never at a shared temp path.
+ */
+export function hardenedGitConfig(): string[] {
+  const noHooks = join(dataDir(), ".no-git-hooks");
+  mkdirSync(noHooks, { recursive: true });
+  return ["-c", `core.hooksPath=${noHooks}`, "-c", "core.fsmonitor=false"];
+}
+
 /** Git with fixed arguments, used by the workspace layer (never model-supplied). */
 export function git(
   cwd: string,
   args: string[],
   input?: string,
 ): { ok: boolean; stdout: string; stderr: string; status: number | null } {
-  const r = spawnSync("git", args, {
+  const r = spawnSync("git", [...hardenedGitConfig(), ...args], {
     cwd,
     input,
     encoding: "utf8",
