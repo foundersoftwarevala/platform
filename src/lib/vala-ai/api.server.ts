@@ -39,6 +39,7 @@ import {
   verificationOf,
 } from "./tasks.server.ts";
 import { SlidingWindowLimiter } from "@/lib/i18n/limits";
+import { labelerFor, withLabels } from "./identity.server.ts";
 import { redactForRole } from "./redact.server.ts";
 import { sha256, ValaError } from "./util.server.ts";
 import { abortRunning, ensureWorker, workerStatus } from "./worker.server.ts";
@@ -179,14 +180,18 @@ on("POST", "/projects", "operator", ({ body, op }) =>
     op!,
   ),
 );
-on("GET", "/projects/:id", "viewer", ({ params }) => {
+on("GET", "/projects/:id", "viewer", ({ params, op }) => {
   const project = getProject(params.id);
   const workspace = getWorkspace(project.id) ?? null;
   return {
     project,
     workspace,
     requirements: listRequirements(project.id),
-    changeRequests: listChangeRequests(project.id),
+    changeRequests: withLabels(
+      listChangeRequests(project.id),
+      ["raised_by", "decided_by"],
+      labelerFor(op),
+    ),
     tasks: listTasks({ projectId: project.id }),
     checkpoints: all(
       "select * from checkpoints where project_id = ? order by created_at desc limit 100",
@@ -238,7 +243,9 @@ on("POST", "/projects/:id/change-requests", "operator", ({ params, body, op }) =
     op!.id,
   ),
 );
-on("GET", "/change-requests", "viewer", () => listChangeRequests());
+on("GET", "/change-requests", "viewer", ({ op }) =>
+  withLabels(listChangeRequests(), ["raised_by", "decided_by"], labelerFor(op)),
+);
 on("POST", "/change-requests/:id/decide", "owner", ({ params, body, op }) =>
   decideChangeRequest(params.id, Boolean(body.approve), op!),
 );
@@ -286,8 +293,12 @@ on("GET", "/evidence/:id/output", "viewer", ({ params }) => {
 });
 
 // ---- approvals & releases -----------------------------------------------
-on("GET", "/approvals", "viewer", ({ url }) =>
-  listApprovals(url.searchParams.get("status") ?? undefined),
+on("GET", "/approvals", "viewer", ({ url, op }) =>
+  withLabels(
+    listApprovals(url.searchParams.get("status") ?? undefined),
+    ["requested_by", "decided_by"],
+    labelerFor(op),
+  ),
 );
 on("POST", "/approvals/:id/decide", "owner", ({ params, body, op }) =>
   decideApproval(
@@ -324,8 +335,12 @@ on("GET", "/chat", "viewer", ({ url }) =>
 on("POST", "/chat", "operator", ({ body, op }) =>
   chatApi.send(str(body.projectId) || null, str(body.text), op!),
 );
-on("GET", "/audit", "viewer", ({ url }) => ({
-  entries: listAudit(200, Number(url.searchParams.get("before")) || undefined),
+on("GET", "/audit", "viewer", ({ url, op }) => ({
+  entries: withLabels(
+    listAudit(200, Number(url.searchParams.get("before")) || undefined),
+    ["actor"],
+    labelerFor(op),
+  ),
   chain: verifyAuditChain(),
 }));
 

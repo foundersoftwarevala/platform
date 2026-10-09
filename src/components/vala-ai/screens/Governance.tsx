@@ -256,7 +256,7 @@ export function Approvals() {
                     <Badge value={a.status} />
                     <span className="font-mono text-xs">{a.id}</span>
                     <span className="text-xs text-muted-foreground">
-                      {t(a.kind)} · {t("requested by")} {a.requested_by} ·{" "}
+                      {t(a.kind)} · {t("requested by")} {a.requested_by_label ?? a.requested_by} ·{" "}
                       {relativeTime(a.requested_at)}
                     </span>
                   </div>
@@ -329,7 +329,8 @@ export function Approvals() {
                     <Badge value={a.status} />
                     <span className="font-mono text-xs">{a.id}</span>
                     <span className="text-xs text-muted-foreground">
-                      {t("decided by")} {a.decided_by} · {relativeTime(a.decided_at)}
+                      {t("decided by")} {a.decided_by_label ?? a.decided_by} ·{" "}
+                      {relativeTime(a.decided_at)}
                     </span>
                   </div>
                   <p>{describe(a)}</p>
@@ -413,7 +414,7 @@ export function ActivityLog() {
                   <tr key={e.seq} className="align-top">
                     <td className="px-3 py-2 font-mono text-xs">{e.seq}</td>
                     <td className="px-3 py-2 text-xs">{new Date(e.at).toLocaleString()}</td>
-                    <td className="px-3 py-2 text-xs">{e.actor}</td>
+                    <td className="px-3 py-2 text-xs">{e.actor_label ?? e.actor}</td>
                     <td className="px-3 py-2 font-mono text-xs">{e.action}</td>
                     <td className="px-3 py-2 text-xs">
                       {e.target_type ? `${e.target_type} ${e.target_id ?? ""}` : "—"}
