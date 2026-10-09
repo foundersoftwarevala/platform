@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { pageHead } from "@/lib/seo-head";
-import { ValaAICommandCenter } from "@/components/vala-ai/ValaAICommandCenter";
+import { CommandCenter } from "@/components/vala-ai/screens/CommandCenter";
 
 export const Route = createFileRoute("/vala-ai/")({
-  head: pageHead("Vala AI", "The platform's own AI workspace — projects, models, prompts and execution logs."),
-  component: ValaAICommandCenter,
+  head: pageHead(
+    "Command Center · Vala AI",
+    "Live state of the Vala AI agent, its local model and every task.",
+  ),
+  component: CommandCenter,
 });
