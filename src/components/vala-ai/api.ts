@@ -301,10 +301,19 @@ export type Settings = {
   min_free_mem_mb: number;
   chat_per_minute: number;
   tasks_per_minute: number;
+  model_source: "local" | "ai-api-manager";
+  gateway_service: string;
+};
+export type GatewayServices = {
+  available: boolean;
+  services: { id: string; name: string; provider: string; model: string | null }[];
+  error: string | null;
 };
 export type Status = {
   model: {
     online: boolean;
+    source: "local" | "ai-api-manager";
+    service: string | null;
     url: string;
     model: string | null;
     error: string | null;

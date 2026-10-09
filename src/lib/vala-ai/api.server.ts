@@ -12,7 +12,7 @@ import {
   requestRelease,
   requestRollback,
 } from "./governance.server.ts";
-import { modelStatus } from "./model.server.ts";
+import { gatewayServices, modelStatus } from "./model.server.ts";
 import {
   approveRequirement,
   createProject,
@@ -189,6 +189,8 @@ on("GET", "/status", "viewer", async () => {
   };
 });
 on("GET", "/settings", "viewer", () => getSettings());
+// Services AI API Manager can route to (names and ids only; keys never leave the gateway).
+on("GET", "/gateway-services", "owner", () => gatewayServices());
 on("PATCH", "/settings", "owner", ({ body, op }) => updateSettings(body, op!.id));
 on("GET", "/people", "viewer", () =>
   all("select id, email, role, last_seen_at from people order by last_seen_at desc"),
