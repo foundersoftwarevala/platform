@@ -39,6 +39,7 @@ import {
   verificationOf,
 } from "./tasks.server.ts";
 import { SlidingWindowLimiter } from "@/lib/i18n/limits";
+import { redactForRole } from "./redact.server.ts";
 import { sha256, ValaError } from "./util.server.ts";
 import { abortRunning, ensureWorker, workerStatus } from "./worker.server.ts";
 import {
@@ -373,6 +374,7 @@ export async function handleApi(
   const url = new URL(req.url);
   const path = url.pathname.slice(prefix.length).replace(/\/+$/, "") || "/";
   const method = req.method.toUpperCase();
+  let role: Role | undefined;
   try {
     ensureWorker();
     let body: Record<string, unknown> = {};
@@ -389,6 +391,7 @@ export async function handleApi(
     }
 
     const op = await resolveCaller(req);
+    role = op?.role;
     if (op) recordPerson(op);
     for (const route of routes) {
       if (route.method !== method) continue;
@@ -400,12 +403,16 @@ export async function handleApi(
         route.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]),
       );
       const out = await route.handler({ req, url, op, params, body });
-      return out instanceof Response ? out : json(out ?? { ok: true });
+      return out instanceof Response ? out : json(redactForRole(out ?? { ok: true }, op?.role));
     }
     throw new ValaError(404, `No Vala AI endpoint ${method} ${path}.`);
   } catch (e) {
     if (e instanceof ValaError)
-      return json({ error: e.message }, e.status, e.status === 429 ? { "retry-after": "60" } : {});
+      return json(
+        { error: redactForRole(e.message, role) },
+        e.status,
+        e.status === 429 ? { "retry-after": "60" } : {},
+      );
     console.error("[vala-ai]", method, path, e);
     return json({ error: "Internal error. The server log has the details." }, 500);
   }
