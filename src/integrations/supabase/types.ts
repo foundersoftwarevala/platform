@@ -239,48 +239,166 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_agent_runs: {
+        Row: {
+          action: string
+          agent_id: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          input_source: string
+          permission_used: string
+          result: string | null
+          scope: string
+          started_at: string
+          state: string
+          task_id: string | null
+          verification: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          action: string
+          agent_id: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          input_source: string
+          permission_used: string
+          result?: string | null
+          scope: string
+          started_at?: string
+          state?: string
+          task_id?: string | null
+          verification?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          action?: string
+          agent_id?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          input_source?: string
+          permission_used?: string
+          result?: string | null
+          scope?: string
+          started_at?: string
+          state?: string
+          task_id?: string | null
+          verification?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_runs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_runs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "founder_sales_agent_totals"
+            referencedColumns: ["agent_id"]
+          },
+          {
+            foreignKeyName: "ai_agent_runs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tm_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agents: {
         Row: {
+          agent_key: string | null
+          blocked_reason: string | null
+          capability: string | null
+          channels: string[]
           created_at: string
           id: string
+          languages: string[]
+          last_active_at: string | null
+          lifecycle: string
+          market: string | null
+          max_concurrent: number
           max_tokens: number
           model_id: string | null
           name: string
+          permissions: string[]
           purpose: string
+          region: string | null
           runs_30d: number
+          specialization: string | null
           status: string
           success_rate: number
           system_prompt: string
           temperature: number
+          territory: string | null
           tools: Json
+          working_hours: string | null
         }
         Insert: {
+          agent_key?: string | null
+          blocked_reason?: string | null
+          capability?: string | null
+          channels?: string[]
           created_at?: string
           id?: string
+          languages?: string[]
+          last_active_at?: string | null
+          lifecycle?: string
+          market?: string | null
+          max_concurrent?: number
           max_tokens?: number
           model_id?: string | null
           name: string
+          permissions?: string[]
           purpose: string
+          region?: string | null
           runs_30d?: number
+          specialization?: string | null
           status?: string
           success_rate?: number
           system_prompt?: string
           temperature?: number
+          territory?: string | null
           tools?: Json
+          working_hours?: string | null
         }
         Update: {
+          agent_key?: string | null
+          blocked_reason?: string | null
+          capability?: string | null
+          channels?: string[]
           created_at?: string
           id?: string
+          languages?: string[]
+          last_active_at?: string | null
+          lifecycle?: string
+          market?: string | null
+          max_concurrent?: number
           max_tokens?: number
           model_id?: string | null
           name?: string
+          permissions?: string[]
           purpose?: string
+          region?: string | null
           runs_30d?: number
+          specialization?: string | null
           status?: string
           success_rate?: number
           system_prompt?: string
           temperature?: number
+          territory?: string | null
           tools?: Json
+          working_hours?: string | null
         }
         Relationships: [
           {
@@ -1012,6 +1130,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_decision_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "founder_sales_agent_totals"
+            referencedColumns: ["agent_id"]
           },
           {
             foreignKeyName: "ai_decision_logs_model_id_fkey"
@@ -12319,8 +12444,10 @@ export type Database = {
           ai_score: number
           assigned_agent_id: string | null
           assigned_at: string | null
+          attribution: Json
           budget_range: string | null
           campaign: string | null
+          card_slot_id: string | null
           category: string
           city: string | null
           closed_at: string | null
@@ -12340,6 +12467,7 @@ export type Database = {
           intent_score: number
           ip_address: string | null
           is_duplicate: boolean
+          landing_page: string | null
           language: string
           last_contact_at: string | null
           lost_reason: string | null
@@ -12348,7 +12476,10 @@ export type Database = {
           phone: string
           priority: Database["public"]["Enums"]["lead_priority"]
           product_id: string | null
+          referrer: string | null
+          region: string | null
           requirements: string | null
+          search_engine: string | null
           source: Database["public"]["Enums"]["lead_source_type"]
           source_page: string | null
           spam_reason: string | null
@@ -12357,13 +12488,20 @@ export type Database = {
           sub_source: string
           temperature: Database["public"]["Enums"]["lead_temperature"]
           updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
         }
         Insert: {
           ai_score?: number
           assigned_agent_id?: string | null
           assigned_at?: string | null
+          attribution?: Json
           budget_range?: string | null
           campaign?: string | null
+          card_slot_id?: string | null
           category?: string
           city?: string | null
           closed_at?: string | null
@@ -12383,6 +12521,7 @@ export type Database = {
           intent_score?: number
           ip_address?: string | null
           is_duplicate?: boolean
+          landing_page?: string | null
           language?: string
           last_contact_at?: string | null
           lost_reason?: string | null
@@ -12391,7 +12530,10 @@ export type Database = {
           phone?: string
           priority?: Database["public"]["Enums"]["lead_priority"]
           product_id?: string | null
+          referrer?: string | null
+          region?: string | null
           requirements?: string | null
+          search_engine?: string | null
           source?: Database["public"]["Enums"]["lead_source_type"]
           source_page?: string | null
           spam_reason?: string | null
@@ -12400,13 +12542,20 @@ export type Database = {
           sub_source?: string
           temperature?: Database["public"]["Enums"]["lead_temperature"]
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Update: {
           ai_score?: number
           assigned_agent_id?: string | null
           assigned_at?: string | null
+          attribution?: Json
           budget_range?: string | null
           campaign?: string | null
+          card_slot_id?: string | null
           category?: string
           city?: string | null
           closed_at?: string | null
@@ -12426,6 +12575,7 @@ export type Database = {
           intent_score?: number
           ip_address?: string | null
           is_duplicate?: boolean
+          landing_page?: string | null
           language?: string
           last_contact_at?: string | null
           lost_reason?: string | null
@@ -12434,7 +12584,10 @@ export type Database = {
           phone?: string
           priority?: Database["public"]["Enums"]["lead_priority"]
           product_id?: string | null
+          referrer?: string | null
+          region?: string | null
           requirements?: string | null
+          search_engine?: string | null
           source?: Database["public"]["Enums"]["lead_source_type"]
           source_page?: string | null
           spam_reason?: string | null
@@ -12443,6 +12596,11 @@ export type Database = {
           sub_source?: string
           temperature?: Database["public"]["Enums"]["lead_temperature"]
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Relationships: [
           {
@@ -12450,6 +12608,13 @@ export type Database = {
             columns: ["assigned_agent_id"]
             isOneToOne: false
             referencedRelation: "lead_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_card_slot_id_fkey"
+            columns: ["card_slot_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_card_slots"
             referencedColumns: ["id"]
           },
           {
@@ -27964,6 +28129,24 @@ export type Database = {
           id?: string | null
           metadata?: Json | null
           reason?: string | null
+        }
+        Relationships: []
+      }
+      founder_sales_agent_totals: {
+        Row: {
+          agent_id: string | null
+          agent_key: string | null
+          follow_ups_assigned: number | null
+          follow_ups_completed: number | null
+          follow_ups_overdue: number | null
+          languages: string[] | null
+          last_completed_at: string | null
+          lifecycle: string | null
+          market: string | null
+          name: string | null
+          region: string | null
+          runs: number | null
+          runs_verified: number | null
         }
         Relationships: []
       }
