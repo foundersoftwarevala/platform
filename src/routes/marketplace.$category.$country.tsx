@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect, useLoaderData } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, redirect, useLoaderData } from "@tanstack/react-router";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { ArrowLeft, ExternalLink, Globe2, Layers, MapPin, Package } from "lucide-react";
 
@@ -41,20 +41,25 @@ export const Route = createFileRoute("/marketplace/$category/$country")({
     }
   },
   loader: async ({ params }): Promise<Loaded> => {
+    let slot: CardSlot | null;
     try {
-      const slot = await getCardSlot({
+      slot = await getCardSlot({
         data: { category: params.category, country: params.country },
       });
-      // The lookup worked and there is no such slot: 404, not a soft 200.
-      if (!slot && typeof window === "undefined") {
-        (await import("@/lib/seo/not-found.server")).respondNotFound();
-      }
-      return { slot };
     } catch (error) {
+      // A lookup that failed is not a missing slot: the page keeps its noindex
+      // fallback rather than telling a crawler the address does not exist.
       console.error("[slot page] could not load", params.category, params.country, error);
       return { slot: null };
     }
+    // The lookup worked and there is no such slot. Setting the status by hand
+    // (respondNotFound) left it a 200 - the SSR renderer answers with the
+    // router's own status, which only notFound() changes - so every unknown
+    // address was a soft 404. Thrown outside the try, so it is not caught.
+    if (!slot) throw notFound();
+    return { slot };
   },
+  notFoundComponent: SlotNotFound,
 
   head: ({ loaderData }) => {
     const slot = (loaderData as Loaded | undefined)?.slot ?? null;
@@ -189,20 +194,24 @@ export const Route = createFileRoute("/marketplace/$category/$country")({
   component: SlotPage,
 });
 
+/** No such slot (a real 404), or one that could not be loaded: the same message. */
+function SlotNotFound() {
+  const { t } = useTranslation();
+  return (
+    <div className="min-h-screen bg-slate-950 px-6 py-20 text-center text-white">
+      <p className="text-sm text-white/70">{t("marketplace.slot.not_found")}</p>
+      <Link to="/marketplace" className="mt-4 inline-block text-sm font-semibold text-cyan-300">
+        {t("marketplace.slot.back")}
+      </Link>
+    </div>
+  );
+}
+
 function SlotPage() {
   const { slot } = useLoaderData({ from: "/marketplace/$category/$country" });
   const { t } = useTranslation();
 
-  if (!slot) {
-    return (
-      <div className="min-h-screen bg-slate-950 px-6 py-20 text-center text-white">
-        <p className="text-sm text-white/70">{t("marketplace.slot.not_found")}</p>
-        <Link to="/marketplace" className="mt-4 inline-block text-sm font-semibold text-cyan-300">
-          {t("marketplace.slot.back")}
-        </Link>
-      </div>
-    );
-  }
+  if (!slot) return <SlotNotFound />;
 
   const product = slot.product;
   const occupiedCountries = slot.countries.filter((c) => c.occupied).length;
