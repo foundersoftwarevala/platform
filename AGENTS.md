@@ -234,6 +234,25 @@ The product in it (`current_product_id`) can change; the URL never does.
 - **Slot hreflang is dynamic** (`seo-gate.ts`): count the category's occupied
   siblings with country codes, plus x-default, matching the public route.
   Education's 79 filled siblings therefore expect 80 alternates, not 81.
+  The follow-up CLI accepts `--expected-hreflang <positive integer>` only
+  for slot evaluation. It is an explicit fallback if the sibling query
+  fails, never an override of a successful dynamic count; without it a
+  failed query aborts. Use a verified count including x-default, not a guess.
+  Fallback warnings/page counts are reported, and check details preserve the
+  fallback reason alongside observed-versus-expected HTML counts.
+  Whole-run reports distinguish literal BLOCKED states from all ineligible
+  URLs, with evaluated/total counts, current/projected state distributions,
+  lost/gained URLs and meaningful changes. These extensions require deployed
+  `detailedReport`/`hreflangFallback` capabilities; the CLI refuses unsupported
+  servers before backups/evaluation rather than silently ignoring flags.
+  Production still runs `8b31e92`; deploy the follow-up in the scoped
+  marketplace branch before using the updated CLI there, not full main.
+  Follow-up validation: 119 tests pass across eight suites and scoped lint
+  passes; the full typecheck has the same 347 diagnostics as the baseline,
+  with none in changed safeguards. A fresh production dry-run of the existing
+  release evaluated 9,100,
+  projected 7,199 eligible, lost/gained zero, and changed zero verdicts;
+  gate-table signatures and manager audit counts remained unchanged.
   The guarded release was built and deployed on 2026-10-12 with normal
   homepage/native-language/process checks. A full 9,100-slot live dry-run
   projected exactly 7,199 eligible (zero lost/gained, 79 check updates) and

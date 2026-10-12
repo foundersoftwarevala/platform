@@ -58,6 +58,7 @@ beforeEach(() => {
   mocks.author.mockResolvedValue({ ok: true, seller: { id: "seller1" }, user: { id: "u1" } });
   mocks.operator.mockResolvedValue({ ok: true, via: "internal token" });
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -66,50 +67,107 @@ afterEach(() => {
 });
 
 describe("actual product creation handlers", () => {
-  it("gate dry-run returns evaluated rows and hashes without either store write", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string | URL) => {
-        const url = String(input);
-        if (url.includes("select=status,country_code"))
-          return json([{ status: "occupied", country_code: "US" }]);
-        if (url.includes("marketplace_card_slots"))
-          return json([
-            {
-              id: "slot1",
-              category_id: "cat1",
-              slot_url: "/marketplace/education/usa",
-              country_marker: "USA",
-              status: "occupied",
-              current_product_id: "p1",
-              marketplace_categories: { name: "Education" },
-            },
-          ]);
-        if (url.includes("marketplace_products"))
-          return json([
-            {
-              id: "p1",
-              name: "School ERP",
-              visible: true,
-              content_status: "published",
-            },
-          ]);
-        return new Response(
-          `<html><head><title>School ERP Education Software USA</title></head><body><h1>Education Software USA</h1>${Array.from({ length: 250 }, (_, i) => `module${i}`).join(" ")}</body></html>`,
-          { status: 200 },
+  it.each(["dynamic", "provided-dynamic", "fallback", "fallback-pass", "unconfigured-failure"])(
+    "gate dry-run %s uses dynamic expectations unless an explicit fallback is needed",
+    async (scenario) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: string | URL) => {
+          const url = String(input);
+          if (url.includes("select=status,country_code"))
+            return ["fallback", "fallback-pass", "unconfigured-failure"].includes(scenario)
+              ? json({ error: "fixture unavailable" }, 503)
+              : json([{ status: "occupied", country_code: "US" }]);
+          if (url.includes("marketplace_card_slots"))
+            return json([
+              {
+                id: "slot1",
+                category_id: "cat1",
+                slot_url: "/marketplace/education/usa",
+                country_marker: "USA",
+                status: "occupied",
+                current_product_id: "p1",
+                marketplace_categories: { name: "Education" },
+              },
+            ]);
+          if (url.includes("marketplace_products"))
+            return json([
+              {
+                id: "p1",
+                name: "School ERP",
+                visible: true,
+                content_status: "published",
+              },
+            ]);
+          return new Response(
+            `<html><head><title>School ERP Education Software USA</title><link rel="alternate" hrefLang="en-US" href="/marketplace/education/usa"><link rel="alternate" hrefLang="x-default" href="/marketplace/education/usa"></head><body><h1>Education Software USA</h1>${Array.from({ length: 250 }, (_, i) => `module${i}`).join(" ")}</body></html>`,
+            { status: 200 },
+          );
+        }),
+      );
+      const response = await gatePost({
+        request: request(
+          "/api/internal/seo-gate?kind=slot&dry_run=1" +
+            (scenario === "fallback-pass"
+              ? "&expected_hreflang=2"
+              : ["provided-dynamic", "fallback"].includes(scenario)
+                ? "&expected_hreflang=80"
+                : ""),
+          {},
+        ),
+      });
+      const payload = await response.json();
+      if (scenario === "unconfigured-failure") {
+        expect(response.status).toBe(400);
+        expect(payload.error).toContain("503");
+        expect(console.error).toHaveBeenCalled();
+      } else {
+        expect(payload).toMatchObject({
+          dryRun: true,
+          protocol: 2,
+          evaluated: 1,
+          hreflangFallbackPages: scenario.startsWith("fallback") ? 1 : 0,
+        });
+        expect(payload.rows).toHaveLength(1);
+        expect(payload.fingerprints.length).toBeGreaterThan(0);
+        const hreflang = payload.rows[0].checks.find(
+          (check: { name: string }) => check.name === "hreflang",
         );
-      }),
-    );
-    const response = await gatePost({
-      request: request("/api/internal/seo-gate?kind=slot&dry_run=1", {}),
-    });
-    const payload = await response.json();
-    expect(payload).toMatchObject({ dryRun: true, protocol: 2, evaluated: 1 });
-    expect(payload.rows).toHaveLength(1);
-    expect(payload.fingerprints.length).toBeGreaterThan(0);
-    expect(mocks.decisions).not.toHaveBeenCalled();
-    expect(mocks.prints).not.toHaveBeenCalled();
-  });
+        expect(hreflang.result).toBe(scenario === "fallback" ? "FAIL" : "PASS");
+        if (scenario.startsWith("fallback")) {
+          expect(hreflang.detail).toContain(
+            scenario === "fallback" ? "2 alternates, 80 expected" : "2 valid alternates",
+          );
+          expect(hreflang.detail).toContain("Explicit fallback used");
+          expect(payload.warnings[0]).toContain("503");
+          expect(console.warn).toHaveBeenCalled();
+        } else {
+          expect(hreflang.detail).toContain("2 valid alternates");
+          expect(payload.warnings).toEqual([]);
+        }
+      }
+      expect(mocks.decisions).not.toHaveBeenCalled();
+      expect(mocks.prints).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["0", "-1", "1.5", "abc", ""])(
+    "rejects invalid fallback %s before reads/writes",
+    async (value) => {
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
+      const response = await gatePost({
+        request: request(
+          `/api/internal/seo-gate?kind=slot&dry_run=1&expected_hreflang=${value}`,
+          {},
+        ),
+      });
+      expect(response.status).toBe(400);
+      expect(fetch).not.toHaveBeenCalled();
+      expect(mocks.decisions).not.toHaveBeenCalled();
+      expect(mocks.prints).not.toHaveBeenCalled();
+    },
+  );
 
   it("gate planning delegates only to evaluation-only storage", async () => {
     mocks.saveRun.mockResolvedValue({ saved: false, stopped: false });

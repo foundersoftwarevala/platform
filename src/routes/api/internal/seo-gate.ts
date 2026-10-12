@@ -108,7 +108,7 @@ type Work = { facts: PageFacts; url: string };
  * work count rather than the row count would stop the whole pass at the first
  * slice that held one, and every page after it would be skipped in silence.
  */
-type Slice = { work: Work[]; rows: number };
+type Slice = { work: Work[]; rows: number; warnings?: string[]; hreflangFallbackPages?: number };
 
 const kinds = z.enum(["slot", "product", "category", "country", "blog"]);
 const runInput = z
@@ -177,7 +177,12 @@ const countrySlug = (country: string): string =>
     .replace(/^-|-$/g, "");
 
 /** Which pages of one kind this slice covers. */
-async function inventory(kind: string, offset: number, limit: number): Promise<Slice> {
+async function inventory(
+  kind: string,
+  offset: number,
+  limit: number,
+  expectedHreflangFallback?: number,
+): Promise<Slice> {
   const host = site();
 
   if (kind === "slot") {
@@ -204,12 +209,21 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
       : [];
     const byId = new Map(products.map((product) => [product.id, product]));
     const siblingCounts = new Map<string, number>();
+    const fallbackReasons = new Map<string, string>();
     await Promise.all(
       [...new Set(slots.map((slot) => slot.category_id))].map(async (categoryId) => {
-        const siblings = await rows<{ status: string; country_code: string | null }>(
-          `marketplace_card_slots?select=status,country_code&category_id=eq.${encodeURIComponent(categoryId)}&limit=1000`,
-        );
-        siblingCounts.set(categoryId, expectedSlotHreflang(siblings));
+        try {
+          const siblings = await rows<{ status: string; country_code: string | null }>(
+            `marketplace_card_slots?select=status,country_code&category_id=eq.${encodeURIComponent(categoryId)}&limit=1000`,
+          );
+          siblingCounts.set(categoryId, expectedSlotHreflang(siblings));
+        } catch (error) {
+          if (expectedHreflangFallback === undefined) throw error;
+          const reason = `category ${categoryId}: sibling query failed (${String(error).slice(0, 200)}); configured expectation ${expectedHreflangFallback}.`;
+          console.warn("[seo gate] hreflang fallback", reason);
+          fallbackReasons.set(categoryId, reason);
+          siblingCounts.set(categoryId, expectedHreflangFallback);
+        }
       }),
     );
 
@@ -235,11 +249,17 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
           countryKnown: true,
           categoryKnown: Boolean(slot.marketplace_categories?.name),
           expectedHreflang: siblingCounts.get(slot.category_id),
+          hreflangFallbackReason: fallbackReasons.get(slot.category_id),
           minInternalLinks: 20,
         },
       };
     });
-    return { work, rows: slots.length };
+    return {
+      work,
+      rows: slots.length,
+      warnings: [...fallbackReasons.values()],
+      hreflangFallbackPages: slots.filter((slot) => fallbackReasons.has(slot.category_id)).length,
+    };
   }
 
   if (kind === "product") {
@@ -438,6 +458,8 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
               protocol: 2,
               dryRun: true,
               atomicCommit: true,
+              detailedReport: true,
+              hreflangFallback: true,
               ...(await gateRunSnapshot()),
             });
           } catch (error) {
@@ -492,13 +514,33 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
         }
 
         const kind = String(params.get("kind") ?? "slot");
+        const fallbackFlag = params.get("expected_hreflang");
+        const fallback = z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(Number.MAX_SAFE_INTEGER)
+          .safeParse(fallbackFlag);
+        if (fallbackFlag !== null && (kind !== "slot" || !fallback.success)) {
+          console.warn("[seo gate] invalid expected_hreflang fallback");
+          return Response.json(
+            { error: "expected_hreflang must be a positive integer for slot evaluations" },
+            { status: 400 },
+          );
+        }
         const offset = Math.max(0, Number(params.get("offset") ?? 0) || 0);
         const limit = Math.min(500, Math.max(1, Number(params.get("limit") ?? 100) || 100));
 
         let slice: Slice;
         try {
-          slice = await inventory(kind, offset, limit);
+          slice = await inventory(
+            kind,
+            offset,
+            limit,
+            fallbackFlag !== null && fallback.success ? fallback.data : undefined,
+          );
         } catch (error) {
+          console.error("[seo gate] inventory failed", error);
           return Response.json({ error: String(error).slice(0, 200) }, { status: 400 });
         }
         const work = slice.work;
@@ -512,6 +554,8 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
             evaluated: 0,
             rows: [],
             fingerprints: [],
+            warnings: [],
+            hreflangFallbackPages: 0,
             done: true,
           });
         }
@@ -585,6 +629,8 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
           kind,
           offset,
           evaluated: settled.length,
+          warnings: slice.warnings ?? [],
+          hreflangFallbackPages: slice.hreflangFallbackPages ?? 0,
           eligible: settled.filter((decision) => decision.sitemapEligible).length,
           byState,
           blocked: settled
