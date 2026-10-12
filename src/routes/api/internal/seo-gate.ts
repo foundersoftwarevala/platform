@@ -2,6 +2,7 @@
 
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { RAIL_COUNTRY_BY_MARKER } from "@/lib/marketplace/rail-countries";
+import { isPublicProduct } from "@/lib/marketplace/product-safety";
 import { allDecisionStates, upsertDecisions, upsertFingerprints } from "@/lib/seo/seo-store.server";
 import {
   applyCrossPageFindings,
@@ -170,7 +171,8 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
           site: host,
           // A vacant slot is a real record that is simply not ready to be
           // shown to a crawler. It is not a draft and not an error.
-          publication: slot.status === "occupied" && tenant ? "published" : "unknown",
+          publication:
+            slot.status === "occupied" && isPublicProduct(tenant) ? "published" : "unknown",
           entityExists: true,
           terms: {
             country: slot.country_marker,

@@ -1,4 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import {
+  logProductReview,
+  productCreationReview,
+  productReviewFields,
+} from "@/lib/marketplace/product-safety";
 
 import {
   AUTHOR_TRANSITIONS,
@@ -109,6 +114,7 @@ export const Route = createFileRoute("/api/author/products")({
               { status: 400 },
             );
           }
+          const review = productCreationReview(name);
           const suffix = Math.random().toString(36).slice(2, 8);
           const created = await rest("marketplace_products", {
             method: "POST",
@@ -122,6 +128,7 @@ export const Route = createFileRoute("/api/author/products")({
               content_status: "draft",
               moderation_status: "draft",
               visible: false,
+              ...productReviewFields(review),
             }),
           });
           if (!created.ok) {
@@ -138,7 +145,12 @@ export const Route = createFileRoute("/api/author/products")({
             );
           }
           const rows = (await created.json()) as { id: string }[];
-          return Response.json({ ok: true, created: true, product: rows[0] }, { status: 201 });
+          if (!rows[0]?.id) {
+            console.error("[author products] create returned no product");
+            return Response.json({ error: "Product creation could not be verified" }, { status: 502 });
+          }
+          logProductReview(review, "author products", rows[0].id);
+          return Response.json({ ok: true, created: true, product: rows[0], review }, { status: 201 });
         }
 
         // Everything below acts on an existing product, so ownership first.
