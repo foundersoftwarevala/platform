@@ -274,8 +274,12 @@ The product in it (`current_product_id`) can change; the URL never does.
   data, non-slot gate state and the 7,199 unique public slot URLs, appending
   one audit and five technical checks. Education/USA stays UNVERIFIED.
   Supplying fallback 999 in a live Education/Angola dry probe still used the
-  successful dynamic count of 80. Pre-SAVE backup/checksum/restore:
-  `/root/sv-seo-backup/gate-20261012T141010437Z/`.
+  successful dynamic count of 80. The final requested confirmation repeated
+  the full no-write dry-run, then rechecked its snapshot before another
+  guarded SAVE. Both retained the same counts and zero loss/changes; the
+  successful run finished at 2026-10-12T14:58:23Z. Latest pre-SAVE
+  backup/checksum/restore:
+  `/root/sv-seo-backup/gate-20261012T145512737Z/`.
   Deploy source backup: `/root/sv-seo-backup/deploy-gate-followup-20261012T135743Z/`;
   previous build: `/var/www/softwarevala/.output.prev-20261012-135744`.
 - **Daily gate wrapper:** `scripts/ops/seo-gate-cron.sh` is installed as
@@ -283,8 +287,10 @@ The product in it (`current_product_id`) can change; the URL never does.
   Root cron uses `45 3 * * * /usr/local/bin/sv-seo-gate.sh` (server UTC;
   09:15 IST). Logs are `/var/log/sv-seo-gate/gate-YYYYMMDD.log`; only those
   dated files and rotated archives older than seven days are pruned. Daily
-  logs are mode 0640. `deploy/production/system/logrotate-sv-seo-gate` is
-  installed as `/etc/logrotate.d/sv-seo-gate`: daily, seven rotations/maxage,
+  logs are root-owned mode 0640; their directory is root-owned 0750
+  (directories need execute permission for traversal, not file mode 0640).
+  `deploy/production/system/logrotate-sv-seo-gate` is installed root-owned
+  mode 0640 as `/etc/logrotate.d/sv-seo-gate`: daily, seven rotations/maxage,
   delayed compression and 0640 creation; the system logrotate timer is active
   and enabled. Delay compression avoids immediate compression of a rotated log.
   Last-run/failure records
@@ -313,6 +319,14 @@ The product in it (`current_product_id`) can change; the URL never does.
   syslog and persistent records without gate/audit writes; the real successful
   run records were restored afterward. Root's existing cron entries remain
   byte-for-byte unchanged, with exactly one gate entry.
+  Final confirmation passed live scoped-release/health checks without
+  redeploying an already-correct release, `logrotate --debug`, cron/timer
+  checks, log ownership/modes and another actual exit=1 alert probe.
+  The probe preserved gate/audit state; the successful run record was
+  restored. External mail/webhook delivery remains UNVERIFIED because no
+  authorized destination was supplied. Fresh before/after signatures,
+  dry-run/SAVE results, ops rollback files and verified checksums:
+  `/root/sv-seo-backup/kaam4-final-20261012T145100Z/`.
 - **A missing slot now returns 404 on production.** The deployed loader throws
   `notFound()`; `/marketplace/academy/atlantis` was verified as HTTP 404.
 - **Do not run `scripts/ops/card-slots-generate.mjs --apply` to add slots.**
