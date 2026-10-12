@@ -31,7 +31,7 @@ let pool = null;
  */
 let fileSettings = null;
 
-function deploymentSetting(name) {
+export function deploymentSetting(name) {
   const fromEnv = (process.env[name] || "").trim();
   if (fromEnv) return fromEnv;
 

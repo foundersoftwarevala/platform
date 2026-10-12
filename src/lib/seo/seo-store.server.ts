@@ -24,7 +24,8 @@
  * from a browser; the connection string is read from the environment and is
  * never bundled.
  */
-import type { Sql } from "postgres";
+import type { Sql, TransactionSql } from "postgres";
+import { prepareGateRun, type GateHash, type GateInput, type GateRow } from "./gate-run";
 
 export type DecisionRow = Record<string, unknown>;
 export type FingerprintRow = Record<string, unknown>;
@@ -328,6 +329,7 @@ export async function upsertFingerprints(rows: FingerprintRow[]): Promise<void> 
     );
     return;
   }
+
   const response = await restFetch("seo_fingerprints?on_conflict=url,layer", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
@@ -340,6 +342,112 @@ export async function upsertFingerprints(rows: FingerprintRow[]): Promise<void> 
   }
 }
 
+const GATE_COLUMNS = [
+  "url",
+  "entity_type",
+  "entity_id",
+  "state",
+  "indexable",
+  "sitemap_eligible",
+  "quality_status",
+  "quality_score",
+  "fingerprint_class",
+  "canonical_status",
+  "schema_status",
+  "hreflang_status",
+  "content_status",
+  "http_status",
+  "blocking_reason",
+  "checks",
+  "duplicate_of",
+  "audit_version",
+  "evaluated_at",
+];
+
+async function gateSignature(sql: Sql | TransactionSql): Promise<string> {
+  const rows = await sql<{ signature: string }[]>`
+      select md5(jsonb_build_array(
+        (select coalesce(jsonb_agg(to_jsonb(d) order by url), '[]'::jsonb)
+           from public.seo_indexing_decisions d),
+        (select coalesce(jsonb_agg(to_jsonb(f) order by url, layer), '[]'::jsonb)
+           from public.seo_fingerprints f)
+      )::text) as signature`;
+  if (!rows[0]?.signature) throw new Error("Gate snapshot could not be verified");
+  return rows[0].signature;
+}
+
+async function gateSnapshot(sql: Sql | TransactionSql) {
+  const signature = await gateSignature(sql);
+  const decisions = await sql.unsafe<GateRow[]>(
+    `select ${GATE_COLUMNS.join(", ")} from public.seo_indexing_decisions order by url`,
+  );
+  const fingerprints = await sql<GateHash[]>`
+      select url, layer, hash from public.seo_fingerprints order by url, layer`;
+  const identity = await sql<{ database: string }[]>`select current_database() as database`;
+  return { signature, decisions, fingerprints, database: identity[0].database };
+}
+
+export async function gateRunSnapshot() {
+  if (seoStoreBackend() !== "vps") throw new Error("Guarded gate runs require SEO_STORE=vps");
+  const sql = await vps();
+  return sql.begin("isolation level repeatable read read only", async (transaction) => {
+    const snapshot = await gateSnapshot(transaction);
+    return {
+      ...snapshot,
+      // The planner rereads full rows inside its own consistent transaction.
+      decisions: snapshot.decisions.map((row) => ({
+        url: row.url,
+        entity_type: row.entity_type,
+        state: row.state,
+        indexable: row.indexable,
+        sitemap_eligible: row.sitemap_eligible,
+        fingerprint_class: row.fingerprint_class,
+        blocking_reason: row.blocking_reason,
+      })),
+    };
+  });
+}
+
+/** Plan without writes, or commit the same scoped plan atomically after rechecking it. */
+export async function saveGateRun(input: GateInput, dryRun: boolean) {
+  if (seoStoreBackend() !== "vps") throw new Error("Guarded gate saves require SEO_STORE=vps");
+  const sql = await vps();
+  return sql.begin(async (transaction) => {
+    if (!dryRun) {
+      await transaction`lock table public.seo_indexing_decisions, public.seo_fingerprints
+          in share row exclusive mode`;
+    } else {
+      await transaction`set transaction isolation level repeatable read, read only`;
+    }
+    const snapshot = await gateSnapshot(transaction);
+    if (snapshot.signature !== input.expectedSignature)
+      throw new Error("Gate store changed during evaluation; rerun with a fresh backup");
+    const plan = prepareGateRun(snapshot.decisions, snapshot.fingerprints, input);
+    const report = { ...plan.stats, stopped: plan.stopped, saved: false };
+    if (dryRun || plan.stopped) return report;
+
+    const selected = plan.rows.map((row) =>
+      Object.fromEntries(GATE_COLUMNS.map((column) => [column, row[column]])),
+    );
+    for (let at = 0; at < selected.length; at += 500)
+      await transaction.unsafe(
+        upsertStatement("public.seo_indexing_decisions", GATE_COLUMNS, ["url"]),
+        [JSON.stringify(selected.slice(at, at + 500))],
+      );
+    if (!input.crossOnly) {
+      const urls = plan.rows.map((row) => row.url);
+      await transaction`delete from public.seo_fingerprints where url = any(${urls})`;
+      for (let at = 0; at < input.fingerprints.length; at += 500) {
+        const batch = input.fingerprints.slice(at, at + 500);
+        await transaction.unsafe(
+          upsertStatement("public.seo_fingerprints", Object.keys(batch[0]), ["url", "layer"]),
+          [JSON.stringify(batch)],
+        );
+      }
+    }
+    return { ...report, saved: true };
+  });
+}
 /* ------------------------------------------------------------------ *
  * The manager screens.
  *

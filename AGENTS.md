@@ -206,14 +206,34 @@ The product in it (`current_product_id`) can change; the URL never does.
   copy; the extra eligible URL was `/marketplace/education/usa`.
   `--kind slot` alone does not scope the script's duplicate pass; the run used
   a temporary copy restricting that pass to slot decisions, with non-slot
-  decisions verified unchanged. No permanent runner change or cron was added.
+  decisions verified unchanged. At that checkpoint, no permanent runner change
+  or cron had been added; the guarded runner below replaces the temporary copy.
 - **Run the gate with `--slice 50`.** At the default 200, a slice's product
   lookup (`id=in.(…)`, ~6 KB) makes PostgREST echo a response header larger
   than the `:3010` gateway's buffer, and nginx answers 502 ("upstream sent too
   big header").
-- **Expected hreflang on a slot page is hardcoded to 81** (`seo-gate.ts`).
-  It holds while every category has 80 occupied slots; a category with fewer
-  would fail the check on all its pages.
+- **Guarded gate runner v2:** `seo-gate-run.mjs` requires the deployed
+  preflight/evaluation-only/atomic-commit protocol before sending any POST.
+  Every evaluation slice is read-only; global duplicates are planned within
+  the selected kinds before saving. `--dry-run` skips decisions, fingerprints
+  and manager audit writes. Production guarded saves require `SEO_STORE=vps`.
+  Every accepted preflight gets a custom `pg_dump` of the active store's two
+  gate tables in `/root/sv-seo-backup/gate-<UTC timestamp>/`, with SHA256,
+  archive/decompression validation and a PostgreSQL-owner restore script.
+  Owners/ACLs are preserved. Retain the current verified backup and six older
+  automated backups; manual incident backups are never rotated.
+  A projected loss of **more than 2% of currently eligible URLs in scope**
+  refuses all saves and exits nonzero, even if newly gained URLs offset it.
+  Override deliberately with `--max-drop-percent` or
+  `SEO_GATE_MAX_DROP_PERCENT`. Exactly 2% is allowed. Missing inventory URLs
+  become UNVERIFIED. Saves lock both gate tables, recheck the snapshot and
+  commit decisions/fresh fingerprints in one transaction; stale scoped hashes
+  are removed. Changed store state requires a fresh run/backup.
+  A `.gate-run.lock` holds PID/time; after an uncatchable termination, verify
+  that PID is no longer running before removing that one stale lock file.
+- **Slot hreflang is dynamic** (`seo-gate.ts`): count the category's occupied
+  siblings with country codes, plus x-default, matching the public route.
+  Education's 79 filled siblings therefore expect 80 alternates, not 81.
 - **A missing slot now returns 404 on production.** The deployed loader throws
   `notFound()`; `/marketplace/academy/atlantis` was verified as HTTP 404.
 - **Do not run `scripts/ops/card-slots-generate.mjs --apply` to add slots.**
