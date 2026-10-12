@@ -3443,7 +3443,7 @@ export const allDemos: Demo[] = [
     discountPrice: "\u20b947,999",
   },
   {
-    id: "manufacturing-erp",
+    id: "manufacturing-erp-production",
     name: "Manufacturing ERP",
     category: "ERP",
     masterCategory: "Manufacturing",
