@@ -45,6 +45,15 @@ opens. No second shell, sidebar or section router.
    redesign it, and do not substitute a component for one written from scratch.
 5. **Colour: density may change, hue may not.** The depth layer at the end of
    `marketplace-home.css` raises saturation, contrast and shadow depth only.
+6. **Server functions return serialisable types.** The catalogue server
+   functions in `src/lib/marketplace.functions.ts` type JSON columns as `Json`
+   (`features`, `seo.schema_json`), never `unknown`; an `unknown` there makes
+   the product page and demo routes lose their types.
+
+The standalone `src/lib/marketplace-recovery.functions.ts` was a copy of
+`recoverMarketplaceData` and was removed on 2026-10-11; the recovery route uses
+the one in `src/lib/marketplace.functions.ts`. Repository-wide notes (types,
+migrations, known bugs) are in [AGENTS.md](AGENTS.md).
 
 ## How to compare against the approved design
 
