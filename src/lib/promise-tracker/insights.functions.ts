@@ -104,8 +104,7 @@ export const generatePromiseInsights = createServerFn({ method: "POST" })
     const { data: open, error } = await db
       .from("promises")
       .select(
-        "id, code, title, description, status, priority, deadline, delay_days, " +
-          "escalation_level, fine_amount, owner, receiver, sub_category",
+        "id, code, title, description, status, priority, deadline, delay_days, escalation_level, fine_amount, owner, receiver, sub_category",
       )
       .in("status", ["pending", "active", "due_soon", "delayed", "broken"])
       .order("deadline", { ascending: true })
@@ -185,9 +184,10 @@ export const generatePromiseInsights = createServerFn({ method: "POST" })
     // Generating advice is itself an event worth recording (section 22).
     await db.rpc("pt_audit", {
       p_action: "AI Insights Generated",
-      p_promise_id: null,
+      // Omitted rather than null: both default to NULL in pt_audit.
+      p_promise_id: undefined,
       p_details: `${rows.length} insight(s) from ${service}${model ? ` (${model})` : ""}`,
-      p_old: null,
+      p_old: undefined,
       p_new: String(rows.length),
     });
 

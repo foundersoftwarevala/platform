@@ -7,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { SlidingWindowLimiter } from "@/lib/i18n/limits";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
 import { catalogueEntries, type CatalogueEntry } from "@/data/catalogue";
 import { LIFETIME_PRICE } from "@/lib/site-content/constants";
@@ -40,7 +40,7 @@ export type MarketProduct = {
   public_repo_url?: string | null;
   tags?: string[];
   tech_stack?: string[];
-  features?: unknown;
+  features?: Json;
   content_status?: string;
   demo_count?: number;
   demo_urls?: ProductDemoBinding[];
