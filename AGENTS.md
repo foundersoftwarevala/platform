@@ -326,7 +326,8 @@ Open decisions (owner):
 - Review remaining QA product records and their test-environment isolation;
   Education/USA has been made vacant rather than publishing a QA tenant.
 - Automating the gate (nothing schedules it today).
-- Vala AI's production setup and approval, before the next deploy of `main`.
+- Vala AI real-model acceptance: the deployed application defaults to local, but the local
+  model is offline. Do not make real OpenAI requests without separate approval.
 
 Work log: Phase 1 marketplace fixes `b4ad6e0`, `adc5107`, `90ee1a6`. Phase 2
 batch A: slot links `a43a081`, hreflang `b3d87aa`, 100 countries `9e1cceb`, 17
@@ -365,6 +366,18 @@ changed files were introduced. Router-union truncation counts changed with the
 new routes; they are not new errors. This older production base still has the
 older generated Supabase types, unlike main. Do not deploy unrelated mainline
 schema/type cleanups as part of the Vala release.
+
+## Vala AI scoped production release
+
+The authorized `deploy/vala-ai-20261012` release was built and deployed from
+`5f1dfa1`, with eleven original Vala commits, the redaction fix and approved
+workspace/backup preparation; no full-main deployment. Runtime release build
+`01d70d4` has active external data/sandbox configuration, schema-v3 SQLite at
+`/var/lib/vala-ai/vala.db`, and a verified actual 02:30 UTC backup/disposable
+restore. Owner screens/API, Docker readiness and 7,199 sitemap URLs passed;
+business/SEO table signatures were unchanged. Local model is offline and real
+provider acceptance is unverified. Details and rollback:
+[Vala AI README](docs/vala-ai/README.md) and [backups](docs/vala-ai/BACKUP.md).
 
 ## Do not
 

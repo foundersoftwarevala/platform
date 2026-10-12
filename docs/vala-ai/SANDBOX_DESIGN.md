@@ -1,13 +1,13 @@
 # Vala AI — Sandbox for acceptance checks
 
-Status: sandbox implementation exists; approved production infrastructure preparation was
-verified on 2026-10-12. The Vala AI application remains **undeployed**.
+Status: sandbox implementation and approved infrastructure were verified on 2026-10-12.
+The authorized scoped application deployment is live, and runtime Docker status is ready.
 
 ## Problem (audit finding, High)
 
 Acceptance checks (`npm test`, `npx vitest`, `node check.mjs`) and `npm ci`/`npm install`
-run the project's own code. Today they run as the same OS user as the platform server, with
-a scrubbed environment but full filesystem and network access. On the VPS that user can read
+run the project's own code. Before isolation they ran as the same OS user as the platform server,
+with a scrubbed environment but full filesystem and network access. On the VPS that user can read
 `/var/www/softwarevala/.env` (Supabase service key, encryption key, provider credentials),
 the Vala AI database, other projects' workspaces, and anything else the app user can read.
 
@@ -83,8 +83,8 @@ Built and tested locally:
 - Docker 29.1.3 is available. The approved Linux/amd64 image was pulled and exercised:
   `node:22-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562`
   (Node v22.23.3).
-- Staged environment: `/etc/softwarevala/vala-ai.env`, root:root 0640; not loaded into the
-  running application.
+- Environment: `/etc/softwarevala/vala-ai.env`, root:root 0640; its eight approved keys are
+  active in the application and persisted for PM2 startup.
 - Numeric UID/GID 10001:10001 wrote and read the approved disposable bind-mounted workspace;
   the test file and directory were removed.
 - Host-created projects keep their host owner for Git. In docker mode, Linux content
@@ -103,6 +103,11 @@ Built and tested locally:
   operator/viewer redaction defect found during preparation was fixed, with regression coverage
   for whitespace, nested JSON, unchanged owner visibility and relative file paths.
 - Proof: `/root/sv-seo-backup/vala-ai-validation-20261012T161000Z/`.
+- Exact scoped candidate verification repeated all eight real Docker cases. Additional
+  acceptance removed a real stale labelled container, retained an unrelated sentinel, and
+  refused an unpinned tag and a missing digest. Owner browser/system API reports Docker ready;
+  acceptance left no containers behind. Release evidence:
+  `/root/sv-seo-backup/vala-scoped-validation-20261012/`.
 
-Still pending separate authorization: application deployment/restart, browser end-to-end
-acceptance on deployed Vala pages, real provider acceptance and package-install network policy.
+Application deployment/restart and read-only browser acceptance were separately authorized
+and completed. Real provider acceptance and package-install network policy remain pending.
