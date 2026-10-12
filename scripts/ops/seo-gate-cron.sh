@@ -3,6 +3,7 @@ set -euo pipefail
 umask 077
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export TZ=UTC
+trap 'status=$?; logger -p daemon.err -t sv-seo-gate -- "Software Vala SEO gate wrapper ERROR: exit=$status; line=$LINENO" || printf "ALERT ERROR: wrapper failure could not reach syslog\n" >&2; exit "$status"' ERR
 
 APP_DIR=/var/www/softwarevala
 LOG_DIR=/var/log/sv-seo-gate

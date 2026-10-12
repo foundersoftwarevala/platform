@@ -142,8 +142,8 @@ The product in it (`current_product_id`) can change; the URL never does.
   countries; the catalogue has no product for any of them yet, so they stay
   `noindex`, out of the sitemap and off the home page. (The ops Supabase key
   cannot read the VPS; use `scripts/ops/db.mjs` / psql over ssh.)
-- **Production runs `deploy/marketplace-gate-20261012`** (`f9cee6c`), not `main`:
-  the production commit `7cf353c` plus only the marketplace commits, because
+- **Production runs `deploy/marketplace-guards-20261012`** (`8b31e92`), not `main`:
+  the production commit `7cf353c` plus only marketplace/gate commits, because
   `main` also carries the Vala AI rebuild, whose docs say production
   deployment needs separate authorization (Docker sandbox, data dir, backup
   cron). The next deploy of `main` ships that rebuild; set it up first.
@@ -234,6 +234,42 @@ The product in it (`current_product_id`) can change; the URL never does.
 - **Slot hreflang is dynamic** (`seo-gate.ts`): count the category's occupied
   siblings with country codes, plus x-default, matching the public route.
   Education's 79 filled siblings therefore expect 80 alternates, not 81.
+  The guarded release was built and deployed on 2026-10-12 with normal
+  homepage/native-language/process checks. A full 9,100-slot live dry-run
+  projected exactly 7,199 eligible (zero lost/gained, 79 check updates) and
+  verified unchanged gate-table signatures and manager audit counts.
+  Occupied Education/Angola was READY_FOR_INDEX, HTTP 200 without noindex,
+  with 80 public alternates. Education/USA and the already-vacant India slot
+  correctly emit noindex. Main validation: 90 tests pass; 347 existing
+  TypeScript errors, unchanged, with none in the safeguard implementation.
+  The subsequent guarded manual SAVE also kept exactly 7,199 unique public
+  slot URLs, zero event-mgmt and zero vacant/reserved slots eligible.
+  Education/USA remains UNVERIFIED, HTTP 200/noindex. Product/slot data and
+  non-slot gate state were unchanged; one manager audit and five technical
+  checks were appended. Pre-SAVE dump/checksum/restore:
+  `/root/sv-seo-backup/gate-20261012T130151337Z/`.
+- **Daily gate wrapper:** `scripts/ops/seo-gate-cron.sh` is installed as
+  `/usr/local/bin/sv-seo-gate.sh` and runs from `/var/www/softwarevala`.
+  Root cron uses `45 3 * * * /usr/local/bin/sv-seo-gate.sh` (server UTC;
+  09:15 IST). Logs are `/var/log/sv-seo-gate/gate-YYYYMMDD.log`; only those
+  dated files older than seven days are pruned. Last-run/failure records
+  persist separately. `--dry-run` passes through to the runner;
+  `--test-alert` verifies notifications without a gate or database write.
+  Failures use `logger -p daemon.err -t sv-seo-gate` and a persistent failure
+  record. No external destination was configured and the owner was unavailable
+  to supply one; email/webhook delivery must not be claimed as configured.
+  For external alerts, use `deploy/production/seo-gate.env.example` and put
+  `SEO_GATE_ALERT_WEBHOOK='https://...'` in the root-only
+  `/etc/softwarevala/seo-gate.env`, then run `--test-alert` and
+  verify delivery. That file may also set `SEO_GATE_MAX_DROP_PERCENT`.
+  Keep webhook credentials out of git and command arguments.
+  Installation preserved every existing root cron entry and verified one
+  gate entry, an active cron daemon, root-only configuration, and seven-day
+  pruning without deleting a nonmatching log sentinel. The local alert
+  probe and an actual nonzero runner failure were verified in journald;
+  the rejected-argument dry-run probe left gate/audit state unchanged.
+  Original crontab/checksums/rollback:
+  `/root/sv-seo-backup/cron-20261012T130138Z/`.
 - **A missing slot now returns 404 on production.** The deployed loader throws
   `notFound()`; `/marketplace/academy/atlantis` was verified as HTTP 404.
 - **Do not run `scripts/ops/card-slots-generate.mjs --apply` to add slots.**
@@ -270,7 +306,7 @@ Open decisions (owner):
 - Products for the 1,820 new slots (no generated content).
 - Review remaining QA product records and their test-environment isolation;
   Education/USA has been made vacant rather than publishing a QA tenant.
-- Automating the gate (nothing schedules it today).
+- External email/webhook destination and verified delivery for gate alerts.
 - Vala AI's production setup and approval, before the next deploy of `main`.
 
 Work log: Phase 1 marketplace fixes `b4ad6e0`, `adc5107`, `90ee1a6`. Phase 2
