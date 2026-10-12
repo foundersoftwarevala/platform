@@ -137,13 +137,19 @@ The product in it (`current_product_id`) can change; the URL never does.
   country list (the slot generator, the home rails and the gate all read it).
   The last 20 (Brazil … Tunisia) were appended, not sorted in, because
   `slot_no` is the position in this list.
-- **Slots on the cloud project:** 9,100 = 7,200 occupied + 1,800 vacant + 100
-  reserved. The 1,800 vacant are the 20 new countries; the catalogue has no
-  product for any of them yet, so they stay `noindex`, out of the sitemap and
-  off the home page. **The VPS still has the 80-country grid** (about 7,280,
-  inferred from its sitemap; the ops key cannot read it). Applying the new slots
-  and the event-mgmt changes there waits for the
-  owner's approval.
+- **Slots, on both databases (VPS applied 2026-10-12):** 9,100 = 7,200
+  occupied + 1,800 vacant + 100 reserved. The 1,800 vacant are the 20 new
+  countries; the catalogue has no product for any of them yet, so they stay
+  `noindex`, out of the sitemap and off the home page. (The ops Supabase key
+  cannot read the VPS; use `scripts/ops/db.mjs` / psql over ssh.)
+- **Production runs `deploy/marketplace-20261012`** (`040a1d8`), not `main`:
+  the production commit `7cf353c` plus only the marketplace commits, because
+  `main` also carries the Vala AI rebuild, whose docs say production
+  deployment needs separate authorization (Docker sandbox, data dir, backup
+  cron). The next deploy of `main` ships that rebuild; set it up first.
+- **The slot sitemap still lists event-mgmt's 76 URLs** until the indexing
+  gate is re-run (`scripts/ops/seo-gate-run.mjs`; nothing schedules it). The
+  category sitemap already leaves event-mgmt out.
 - **Do not run `scripts/ops/card-slots-generate.mjs --apply` to add slots.**
   It upserts with `merge-duplicates`, which rewrites every existing slot
   (`occupied_since`, `slot_title`, the tenant, `rotation_policy`). The 1,820
@@ -157,7 +163,7 @@ The product in it (`current_product_id`) can change; the URL never does.
   its slots are `reserved` (the gate treats that as not published), and the
   category sitemap leaves it out. So far: `event-mgmt` → `event-management`;
   its 20 products that were exact copies of event-management's are
-  `visible = false` on the cloud project, the other 60 are kept.
+  `visible = false` on both databases; the other 60 (64 on the VPS) are kept.
 - **hreflang** on a slot page lists only occupied sibling slots.
 - **Search Console is not connected.** The `api_services` row is inactive,
   `GOOGLE_SEARCH_CONSOLE_CREDENTIALS` is not set, and
