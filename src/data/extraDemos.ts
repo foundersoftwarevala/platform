@@ -57,6 +57,8 @@ export interface Demo {
    * that guessed it opened "Product not found".
    */
   slug?: string;
+  /** The permanent card-slot page the catalogue product occupies, when it has one. */
+  slotUrl?: string;
 }
 
 type DemoCopy = Pick<

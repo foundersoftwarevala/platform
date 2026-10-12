@@ -401,6 +401,28 @@ export async function readCategoryRow(
  * ordered here; a row is sixty to a hundred products, and the answer is
  * cached for a minute by the route that asks for it.
  */
+/** product id -> slot_url for one category's occupied slots; empty when unreadable. */
+async function occupiedSlotUrls(categoryId: string): Promise<Map<string, string>> {
+  const slots = new Map<string, string>();
+  try {
+    const response = await fetch(
+      `${url()}/rest/v1/marketplace_card_slots?select=current_product_id,slot_url` +
+        `&category_id=eq.${encodeURIComponent(categoryId)}&status=eq.occupied` +
+        `&current_product_id=not.is.null`,
+      { headers: admin() },
+    );
+    if (!response.ok) return slots;
+    for (const row of (await response.json()) as Row[]) {
+      if (typeof row.current_product_id === "string" && typeof row.slot_url === "string") {
+        slots.set(row.current_product_id, row.slot_url);
+      }
+    }
+  } catch (error) {
+    console.error("[catalog] could not read card slots", categoryId, error);
+  }
+  return slots;
+}
+
 export async function readCountryRow(
   slug: string,
   limit: number,
@@ -450,9 +472,20 @@ export async function readCountryRow(
   // gap; the gap is reported so it can be filled with a real product.
   const missing = RAIL_COUNTRIES.filter((c) => !takenByCountry.has(c.marker)).map((c) => c.marker);
 
+  // The permanent slot each product currently occupies in this category, so a
+  // card opens the slot's address rather than the product's. A product with no
+  // slot, or a failed read, keeps its product page.
+  const slots = await occupiedSlotUrls(String(category.id));
+  const withSlots = (card: CatalogCard): CatalogCard => {
+    const slotUrl = slots.get(card.id);
+    return slotUrl ? { ...card, slotUrl } : card;
+  };
+
   return {
     category: { name: String(category.name ?? ""), slug: String(category.slug ?? "") },
-    cards: demoFirst([...placed, ...unplaced], (card) => card.hasDemo).slice(0, limit),
+    cards: demoFirst([...placed, ...unplaced], (card) => card.hasDemo)
+      .slice(0, limit)
+      .map(withSlots),
     total,
     countries: placed.length,
     missing,

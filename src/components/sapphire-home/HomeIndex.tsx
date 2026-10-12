@@ -153,6 +153,8 @@ interface Demo {
   disclaimer?: string;
   /** The catalogue row's own slug, when the card comes from one. */
   slug?: string;
+  /** The permanent card-slot page the catalogue product occupies, when it has one. */
+  slotUrl?: string;
 }
 
 // Exported so a card's product page can be built from it on the server
@@ -3849,6 +3851,17 @@ const shareNatively = async (demo: Demo) => {
   toast.success("Product link copied");
 };
 
+/**
+ * The category and country of a card-slot address, /marketplace/<category>/<country>,
+ * or null when the card has no slot. The marketplace's own fixed paths that share
+ * that shape are not slots.
+ */
+const slotParams = (slotUrl: string | undefined) => {
+  const match = slotUrl?.match(/^\/marketplace\/([^/?#]+)\/([^/?#]+)$/);
+  if (!match || ["product", "category", "country"].includes(match[1])) return null;
+  return { category: match[1], country: match[2] };
+};
+
 const DemoCard = memo(
   ({
     demo,
@@ -3897,6 +3910,13 @@ const DemoCard = memo(
         params: { slug: productSlug },
         ...(search ? { search } : {}),
       });
+    // A catalogue card opens the permanent slot it occupies; Buy and Live Demo
+    // still go to the product and its demo.
+    const slot = slotParams(demo.slotUrl);
+    const openCard = () =>
+      slot
+        ? void navigate({ to: "/marketplace/$category/$country", params: slot })
+        : openProduct();
     const [activeTab, setActiveTab] = useState<"features" | "tech">("features");
     const [leadAction, setLeadAction] = useState<LeadAction | null>(null);
 
@@ -3914,7 +3934,7 @@ const DemoCard = memo(
           onClick={(event) => {
             // Anything with its own destination keeps it.
             if ((event.target as HTMLElement).closest("a,button")) return;
-            openProduct();
+            openCard();
           }}
         >
           <CardContent className="p-0 flex flex-col h-full">
@@ -3971,16 +3991,29 @@ const DemoCard = memo(
             {/* Content */}
             <div className="sv-card-body p-5 flex-1 flex flex-col">
               <div className="sv-card-title-row flex items-start justify-between mb-1">
-                <Link
-                  to="/marketplace/product/$slug"
-                  params={{ slug: productSlug }}
-                  className="min-w-0"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <h3 className="sv-card-title text-[17px] font-extrabold tracking-normal leading-snug">
-                    {demo.name}
-                  </h3>
-                </Link>
+                {slot ? (
+                  <Link
+                    to="/marketplace/$category/$country"
+                    params={slot}
+                    className="min-w-0"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <h3 className="sv-card-title text-[17px] font-extrabold tracking-normal leading-snug">
+                      {demo.name}
+                    </h3>
+                  </Link>
+                ) : (
+                  <Link
+                    to="/marketplace/product/$slug"
+                    params={{ slug: productSlug }}
+                    className="min-w-0"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <h3 className="sv-card-title text-[17px] font-extrabold tracking-normal leading-snug">
+                      {demo.name}
+                    </h3>
+                  </Link>
+                )}
                 {demo.status === "ACTIVE" && demoNumber !== null && (
                   <Badge className="sv-card-rank text-[10px] shrink-0 ml-2">#{demoNumber}</Badge>
                 )}
