@@ -112,6 +112,28 @@ export const RAIL_COUNTRIES: RailCountry[] = [
   { marker: "Croatia", label: "Croatia", code: "HR", continent: "Europe", region: "Southeast Europe" },
   { marker: "Slovenia", label: "Slovenia", code: "SI", continent: "Europe", region: "Central Europe" },
   { marker: "Taiwan", label: "Taiwan", code: "TW", continent: "Asia", region: "East Asia" },
+  // Third batch, appended so the first eighty keep their places (slot_no is the
+  // position here). Names, codes and continents are registry_countries'.
+  { marker: "Brazil", label: "Brazil", code: "BR", continent: "Americas", region: "South America" },
+  { marker: "Mexico", label: "Mexico", code: "MX", continent: "Americas", region: "North America" },
+  { marker: "Argentina", label: "Argentina", code: "AR", continent: "Americas", region: "South America" },
+  { marker: "Chile", label: "Chile", code: "CL", continent: "Americas", region: "South America" },
+  { marker: "Colombia", label: "Colombia", code: "CO", continent: "Americas", region: "South America" },
+  { marker: "Peru", label: "Peru", code: "PE", continent: "Americas", region: "South America" },
+  { marker: "Ecuador", label: "Ecuador", code: "EC", continent: "Americas", region: "South America" },
+  { marker: "Costa Rica", label: "Costa Rica", code: "CR", continent: "Americas", region: "Central America" },
+  { marker: "Panama", label: "Panama", code: "PA", continent: "Americas", region: "Central America" },
+  { marker: "Dominican Republic", label: "Dominican Republic", code: "DO", continent: "Americas", region: "Caribbean" },
+  { marker: "Jamaica", label: "Jamaica", code: "JM", continent: "Americas", region: "Caribbean" },
+  { marker: "India", label: "India", code: "IN", continent: "Asia", region: "South Asia" },
+  { marker: "Pakistan", label: "Pakistan", code: "PK", continent: "Asia", region: "South Asia" },
+  { marker: "Maldives", label: "Maldives", code: "MV", continent: "Asia", region: "South Asia" },
+  { marker: "Ukraine", label: "Ukraine", code: "UA", continent: "Europe", region: "Eastern Europe" },
+  { marker: "Bulgaria", label: "Bulgaria", code: "BG", continent: "Europe", region: "Southeast Europe" },
+  { marker: "Slovakia", label: "Slovakia", code: "SK", continent: "Europe", region: "Central Europe" },
+  { marker: "Malta", label: "Malta", code: "MT", continent: "Europe", region: "Southern Europe" },
+  { marker: "Uzbekistan", label: "Uzbekistan", code: "UZ", continent: "Asia", region: "Central Asia" },
+  { marker: "Tunisia", label: "Tunisia", code: "TN", continent: "Africa", region: "Africa" },
 ];
 
 /** Where a country sits in the rail, or -1 when it is not part of the batch. */
