@@ -762,13 +762,8 @@ export const upsertProduct = createServerFn({ method: "POST" })
     const { requireOperator } = await import("@/lib/auth/require-operator.server");
     await requireOperator("Editing the catalogue", { alsoAllow: ["marketing", "seo"] });
 
-    const { error, data: row } = await context.supabase
-      .from("marketplace_products")
-      .upsert(data as any, { onConflict: "slug" })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    return row;
+    const { upsertReviewedProduct } = await import("@/lib/marketplace/product-write.server");
+    return upsertReviewedProduct(context.supabase, data);
   });
 
 export const deleteProduct = createServerFn({ method: "POST" })

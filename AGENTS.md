@@ -142,21 +142,71 @@ The product in it (`current_product_id`) can change; the URL never does.
   countries; the catalogue has no product for any of them yet, so they stay
   `noindex`, out of the sitemap and off the home page. (The ops Supabase key
   cannot read the VPS; use `scripts/ops/db.mjs` / psql over ssh.)
-- **Production runs `deploy/marketplace-20261012`** (`040a1d8`), not `main`:
+- **Production runs `deploy/marketplace-gate-20261012`** (`f9cee6c`), not `main`:
   the production commit `7cf353c` plus only the marketplace commits, because
   `main` also carries the Vala AI rebuild, whose docs say production
   deployment needs separate authorization (Docker sandbox, data dir, backup
   cron). The next deploy of `main` ships that rebuild; set it up first.
-- **The slot sitemap still lists event-mgmt's 76 URLs** until the indexing
-  gate is re-run (`scripts/ops/seo-gate-run.mjs`; nothing schedules it). The
-  category sitemap already leaves event-mgmt out.
-- **The indexing gate cannot write on production until the cast fix is
-  deployed.** With `SEO_STORE=vps`, `upsertStatement` in
+- **The slot sitemap has 7,199 URLs, accepted by the owner on 2026-10-12.**
+  The initial run was restored because the estimate was 7,195; a read-only
+  replay identified four formerly duplicate event-management pages passing
+  after the merge, plus education/usa blocked by its rendered noindex.
+  A fresh SAVE run evaluated 9,100 slots and passed verification: 7,199
+  unique public sitemap URLs, zero event-mgmt, zero new-country slots, and
+  education/usa BLOCKED and excluded. Non-slot decisions remained unchanged.
+  Original backup: `/root/sv-seo-backup/kaam1-20261012T094854Z/`.
+  Accepted run backup: `/root/sv-seo-backup/kaam1-20261012T102952Z/`;
+  full pre/post slot verdicts and accepted sitemap URL list are retained there.
+- **Education/USA is now vacant (owner-approved 2026-10-12).** Its hidden
+  "Marketplace End-to-End QA Product" tenant was unassigned in a transaction;
+  `current_product_id` and `occupied_since` are null. The QA product remains
+  unchanged and hidden. HTTP 200/noindex was verified and a single-slot gate
+  evaluation saved UNVERIFIED, excluded from the unchanged 7,199-URL sitemap.
+  Other slots, decisions and fingerprints remained unchanged.
+  Backup and targeted rollback: `/root/sv-seo-backup/kaam2b-20261012T105327Z/`.
+  The QA product was created on 2026-08-25; the slot records occupancy from
+  2026-09-24. Assignment actor and the exact hiding time remain unverified.
+- **Author Live Proof ERP 2026 is hidden pending review (owner-approved
+  2026-10-12).** Product `98c2c632-948e-4676-870c-a4f6be66c9a3` belongs to
+  the test-author seller; the exact creating actor remains unverified. Its
+  direct demo hostname did not resolve from Windows or the VPS, and it has
+  no structured pricing. Only visibility was changed: published/approved
+  status, the demo URL and all other product fields were preserved except
+  the update timestamp. Public catalogue results changed from one to zero;
+  it has no slots. Other products, slots and gate decisions were unchanged.
+  Full-row backup and visibility rollback:
+  `/root/sv-seo-backup/author-live-proof-20261012T111956Z/`.
+- **QA/test creation prevention:** QA/test products: `visible=false` mandatory;
+  never assign them or any hidden product to occupied production slots.
+  New names with
+  whole-word or camel-case QA, test, e2e, dummy, sample or placeholder markers
+  get `visible=false`, `content_status=in_review`, `moderation_status=submitted`,
+  a review flag in the creation response and a `[marketplace QA guard]` log.
+  Author and Manager creation share `product-safety.ts`; catalogue upserts
+  apply this only when the slug is new, not to existing records. Normal author
+  drafts remain editable drafts. Review uses the existing moderation workflow;
+  the guard adds no schema columns or automatic cleanup of existing products.
+  The slot generator filters visible/published tenants both in REST and in
+  memory. Gate publication must verify tenant visibility and published status,
+  matching the public reader; a nonpublic occupied tenant is UNVERIFIED.
+- **Read-only QA scan (2026-10-12 11:03 UTC):** 7,566 products; six
+  QA/E2E/test-named products were already hidden and unassigned. The 29
+  occupied substring matches were not confirmed test data and must not be
+  automatically hidden or unassigned. Missing approval timestamps on 7,563
+  products and widespread demo/pricing gaps predate these guards. Creator
+  attribution is incomplete; seller ownership is not proof of authorship.
+- **The gate cast fix is deployed.** With `SEO_STORE=vps`, `upsertStatement` in
   `src/lib/seo/seo-store.server.ts` bound the rows as `$1::json`, so
   postgres.js double-encoded them and every write failed ("cannot call
   json_populate_recordset on a scalar"); the comment above it always said
-  `$1::text::json`. Fixed on `main`; proven against the VPS in a rolled-back
-  transaction. Last successful slot run: 2026-10-06.
+  `$1::text::json`. Production now uses that cast; the accepted slot run
+  successfully saved decisions, fingerprints and operator audit records.
+  The active SEO store is the VPS `softwarevala` database, not `sv_platform`.
+  Its pre-run eligible count was 7,272 versus 7,271 in the catalogue database's
+  copy; the extra eligible URL was `/marketplace/education/usa`.
+  `--kind slot` alone does not scope the script's duplicate pass; the run used
+  a temporary copy restricting that pass to slot decisions, with non-slot
+  decisions verified unchanged. No permanent runner change or cron was added.
 - **Run the gate with `--slice 50`.** At the default 200, a slice's product
   lookup (`id=in.(…)`, ~6 KB) makes PostgREST echo a response header larger
   than the `:3010` gateway's buffer, and nginx answers 502 ("upstream sent too
@@ -164,8 +214,8 @@ The product in it (`current_product_id`) can change; the URL never does.
 - **Expected hreflang on a slot page is hardcoded to 81** (`seo-gate.ts`).
   It holds while every category has 80 occupied slots; a category with fewer
   would fail the check on all its pages.
-- **A missing slot was a soft 404** (200 + `noindex`); `main` now throws
-  `notFound()` for it. Not on production until the next deploy.
+- **A missing slot now returns 404 on production.** The deployed loader throws
+  `notFound()`; `/marketplace/academy/atlantis` was verified as HTTP 404.
 - **Do not run `scripts/ops/card-slots-generate.mjs --apply` to add slots.**
   It upserts with `merge-duplicates`, which rewrites every existing slot
   (`occupied_since`, `slot_title`, the tenant, `rotation_policy`). The 1,820
@@ -198,8 +248,8 @@ Open decisions (owner):
   `finance-cat` first, then rename `finance-cat`; renaming first would give
   two categories the same name and the same page titles.
 - Products for the 1,820 new slots (no generated content).
-- Deploy the cast fix and the 404 fix (on the deploy branch), then re-run
-  the slot gate so event-mgmt leaves the slot sitemap.
+- Review remaining QA product records and their test-environment isolation;
+  Education/USA has been made vacant rather than publishing a QA tenant.
 - Automating the gate (nothing schedules it today).
 - Vala AI's production setup and approval, before the next deploy of `main`.
 

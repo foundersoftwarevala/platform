@@ -125,10 +125,18 @@ const countries = railCountries();
 const categories = await readAll(
   "marketplace_categories?select=id,slug,name,sort_order&order=sort_order.asc,name.asc",
 );
-const products = await readAll(
-  "marketplace_products?select=id,name,category_id,search_keywords,sort_order" +
+const candidates = await readAll(
+  "marketplace_products?select=id,name,category_id,search_keywords,sort_order,visible,content_status" +
     "&visible=eq.true&content_status=eq.published&order=sort_order.asc,name.asc",
 );
+const products = candidates.filter(
+  (product) => product.visible === true && product.content_status === "published",
+);
+if (products.length !== candidates.length) {
+  console.warn(
+    `[card slots] Skipped ${candidates.length - products.length} hidden or unpublished tenant(s).`,
+  );
+}
 
 console.log(`rail countries : ${countries.length}`);
 console.log(`categories     : ${categories.length}`);

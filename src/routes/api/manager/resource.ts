@@ -2,6 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { STOREFRONT_TABLES, catalogueChanged } from "@/lib/marketplace/catalogue-invalidation";
 import { readResourceRows, storeOwns } from "@/lib/seo/seo-store.server";
+import {
+  logProductReview,
+  productCreationReview,
+  productReviewFields,
+} from "@/lib/marketplace/product-safety";
 
 /**
  * The Marketplace Manager's window onto the real marketplace.
@@ -4424,6 +4429,11 @@ export const Route = createFileRoute("/api/manager/resource")({
             { status: 400 },
           );
         }
+        const review =
+          resource.table === "marketplace_products"
+            ? productCreationReview(String(values.name ?? ""))
+            : null;
+        if (review) Object.assign(values, productReviewFields(review));
 
         try {
           const response = await fetch(
@@ -4447,6 +4457,11 @@ export const Route = createFileRoute("/api/manager/resource")({
             );
           }
           const rows = (await response.json()) as Record<string, unknown>[];
+          if (review && !rows[0]?.id) {
+            console.error("[manager] product create returned no id");
+            return Response.json({ error: "Product creation could not be verified" }, { status: 502 });
+          }
+          if (review) logProductReview(review, "manager products", String(rows[0].id));
           // The storefront caches what this table holds; empty them so the saved
           // change is what the next visitor sees (catalogue-invalidation.ts).
           if (STOREFRONT_TABLES.has(resource.table)) catalogueChanged();
@@ -4456,9 +4471,9 @@ export const Route = createFileRoute("/api/manager/resource")({
             entityId: rows[0]?.id ? String(rows[0].id) : null,
             before: null,
             after: rows[0] ?? null,
-            reason: "Row created from the Marketplace Manager.",
+            reason: review?.reason ?? "Row created from the Marketplace Manager.",
           });
-          return Response.json({ ok: true, row: rows[0] ?? null });
+          return Response.json({ ok: true, row: rows[0] ?? null, ...(review ? { review } : {}) });
         } catch (error) {
           console.error("[manager] create threw", error);
           return Response.json({ error: "That row was not created" }, { status: 502 });
