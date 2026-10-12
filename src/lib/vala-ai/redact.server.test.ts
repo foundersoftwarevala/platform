@@ -10,6 +10,7 @@ import type { Operator } from "./auth.server.ts";
 import { dataDir } from "./config.server.ts";
 import { closeDb, run } from "./db.server.ts";
 import { createProject } from "./projects.server.ts";
+import { redactForRole } from "./redact.server.ts";
 
 /*
  * Owners see the server's layout; operators and viewers do not. Exercised
@@ -100,6 +101,24 @@ const endpoints = () => [
 ];
 
 describe("server layout is visible to owners only", () => {
+  it("hides absolute paths containing whitespace without changing owner or relative values", () => {
+    const value = {
+      source_path: "/srv/source repo/file.ts",
+      windows_path: "C:\\Source Repo\\file.ts",
+      detail_json: JSON.stringify({ path: "/srv/source\trepo/file.ts" }),
+      relative_path: "nested/file name.ts",
+    };
+    for (const role of ["operator", "viewer"] as const) {
+      expect(redactForRole(value, role)).toEqual({
+        source_path: "(hidden)",
+        windows_path: "(hidden)",
+        detail_json: JSON.stringify({ path: "(hidden)" }),
+        relative_path: value.relative_path,
+      });
+    }
+    expect(redactForRole(value, "owner")).toEqual(value);
+  });
+
   it("owners see the paths and the runner", async () => {
     const status = await get("owner", "/status");
     expect(JSON.parse(status.text).dataDir).toBe(dataDir());
