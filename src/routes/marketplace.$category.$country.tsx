@@ -1,9 +1,10 @@
-import { createFileRoute, Link, useLoaderData } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useLoaderData } from "@tanstack/react-router";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { ArrowLeft, ExternalLink, Globe2, Layers, MapPin, Package } from "lucide-react";
 
 import { absoluteUrl, siteUrl } from "@/lib/seo/site-url";
 import { getCardSlot } from "@/lib/marketplace/card-slot.functions";
+import { mergedInto } from "@/lib/marketplace/merged-categories";
 import type { CardSlot } from "@/lib/marketplace/card-slot";
 
 /**
@@ -28,6 +29,17 @@ import type { CardSlot } from "@/lib/marketplace/card-slot";
 type Loaded = { slot: CardSlot | null };
 
 export const Route = createFileRoute("/marketplace/$category/$country")({
+  // A merged category's slot is the same country in the category it joined.
+  beforeLoad: ({ params }) => {
+    const target = mergedInto(params.category);
+    if (target) {
+      throw redirect({
+        to: "/marketplace/$category/$country",
+        params: { category: target, country: params.country },
+        statusCode: 301,
+      });
+    }
+  },
   loader: async ({ params }): Promise<Loaded> => {
     try {
       const slot = await getCardSlot({
