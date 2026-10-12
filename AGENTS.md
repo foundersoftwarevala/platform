@@ -141,7 +141,9 @@ change that moves it.
 | `retirable` on `Resource`, dead `ProductManager` removed | 449 |
 | 22 dead files removed | 401 |
 | `features: Json`, insights select string | 378 |
-| Serialisable product page types | **351** (current) |
+| Serialisable product page types | 351 |
+| Country rail single conversion and status-based numbering | 348 |
+| Product page passes the indexing gate a URL string | **347** (current) |
 | Target | 0 |
 
 ## Do not

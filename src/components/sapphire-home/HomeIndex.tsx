@@ -3565,12 +3565,11 @@ const CountryRailCards = memo(function CountryRailCards({
   return (
     <>
       <span ref={anchor} aria-hidden className="block w-0 shrink-0" />
-      {cards.map((card, index) => {
-        const demo = railCardToDemo(card, shelf, colour);
+      {cards.map((demo, index) => {
         const earlierRailDemoCount = cards
           .slice(0, index)
-          .filter((candidate) => candidate.hasDemo).length;
-        const demoNumber = card.hasDemo ? staticDemoCount + earlierRailDemoCount + 1 : null;
+          .filter((candidate) => candidate.status === "ACTIVE").length;
+        const demoNumber = demo.status === "ACTIVE" ? staticDemoCount + earlierRailDemoCount + 1 : null;
 
         return (
           <DemoCard

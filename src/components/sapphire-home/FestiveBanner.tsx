@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { SUPPORTED_LANGUAGE_COUNT } from "@/lib/i18n/registry";
+import { LIFETIME_DISCOUNT } from "@/lib/site-content/constants";
 
 import { X, PartyPopper, Tag, Handshake, Store, Share2, Building2, Search, Megaphone, Headphones } from "lucide-react";
 
@@ -26,8 +28,8 @@ const announcements = [
   { icon: Building2, title: "🏢 Become a Vendor —", badge: "0% Listing Fee", text: "List your software on our marketplace." },
   { icon: Search, title: "📈 SEO Partner —", badge: "Growth Plans", text: "Rank higher with our SEO experts." },
   { icon: Megaphone, title: "🎤 Influencer Program —", badge: "Paid Collabs", text: "Promote and earn with every campaign." },
-  { icon: Headphones, title: "🌍 Global Support —", badge: "24×7 Live Help", text: "Human + AI assistance in 12 languages." },
-  { icon: PartyPopper, title: "🎉 Mega Software Sale —", badge: "Flat 40% OFF", text: "Lifetime access on every product!" },
+  { icon: Headphones, title: "🌍 Global Support —", badge: "24×7 Live Help", text: `Human + AI assistance in ${SUPPORTED_LANGUAGE_COUNT} languages.` },
+  { icon: PartyPopper, title: "🎉 Mega Software Sale —", badge: `Flat ${LIFETIME_DISCOUNT}`, text: "Lifetime access on every product!" },
 ];
 
 const FestiveBanner = () => {
