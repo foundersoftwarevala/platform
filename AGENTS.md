@@ -297,8 +297,18 @@ The product in it (`current_product_id`) can change; the URL never does.
   persist separately. `--dry-run` passes through to the runner;
   `--test-alert` verifies notifications without a gate or database write.
   Failures use `logger -p daemon.err -t sv-seo-gate` and a persistent failure
-  record. No external destination was configured and the owner was unavailable
-  to supply one; email/webhook delivery must not be claimed as configured.
+  record. Local root-mail alerts are enabled with
+  `SEO_GATE_ALERT_LOCAL_MAIL=1` in the root-only config. Postfix is installed
+  and enabled in local-only mode: `inet_interfaces=loopback-only`, IPv4, and
+  both `default_transport` and `relay_transport` set to
+  `error:External delivery disabled for local operations mail`.
+  This is local delivery to `/var/mail/root` (root-owned 0600), not off-VPS
+  email. The wrapper reports mail submission, not unproven receipt. Missing
+  or failing sendmail returns an explicit alert error; invalid local-mail
+  flags are rejected (only 0/1 are allowed). With the flag absent/0 the
+  existing syslog/webhook behavior is preserved.
+  No external destination was supplied; off-VPS email/webhook delivery must
+  not be claimed as configured.
   For external alerts, use `deploy/production/seo-gate.env.example` and put
   `SEO_GATE_ALERT_WEBHOOK='https://...'` in the root-only
   `/etc/softwarevala/seo-gate.env`, then run `--test-alert` and
@@ -327,6 +337,20 @@ The product in it (`current_product_id`) can change; the URL never does.
   authorized destination was supplied. Fresh before/after signatures,
   dry-run/SAVE results, ops rollback files and verified checksums:
   `/root/sv-seo-backup/kaam4-final-20261012T145100Z/`.
+  Alert completion: a temporary one-shot root cron triggered an actual runner
+  exit=1 at 2026-10-12T15:10:01Z and delivered one tagged gate message to the
+  root mailbox. Gate/fingerprint/audit state stayed unchanged. The temporary
+  cron entry was removed, the original crontab was restored byte-for-byte,
+  and the real successful run record was restored. Disabled-mail compatibility,
+  nonzero mail-submission failure and invalid-config rejection were tested;
+  the final installed wrapper also delivered a real test notification.
+  Local cron email, syslog and persistent failure records are verified;
+  external delivery is intentionally disabled, not a pending prerequisite.
+  MTA setup used Debian's `postfix/main_mailer_type=Local only`; verify the
+  loopback interface/error transports with `postconf` before enabling mail.
+  Operator inspection: `sudo grep -A5 'X-SoftwareVala-Alert: seo-gate' /var/mail/root`.
+  Wrapper/config/crontab/package snapshots, checksum and real delivery proof:
+  `/root/sv-seo-backup/gate-mail-20261012T150600Z/`.
 - **A missing slot now returns 404 on production.** The deployed loader throws
   `notFound()`; `/marketplace/academy/atlantis` was verified as HTTP 404.
 - **Do not run `scripts/ops/card-slots-generate.mjs --apply` to add slots.**

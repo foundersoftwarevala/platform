@@ -14,6 +14,14 @@ mkdir -p "$LOG_DIR"
 LOG="$LOG_DIR/gate-$(date +%Y%m%d).log"
 touch "$LOG"
 chmod 640 "$LOG"
+case "${SEO_GATE_ALERT_LOCAL_MAIL:-0}" in
+  0|1) ;;
+  *)
+    printf 'ALERT CONFIG ERROR: SEO_GATE_ALERT_LOCAL_MAIL must be 0 or 1.\n' >&2
+    logger -p daemon.err -t sv-seo-gate -- 'SEO_GATE_ALERT_LOCAL_MAIL must be 0 or 1'
+    exit 2
+    ;;
+esac
 # Only this job's dated files, never another service's logs.
 find "$LOG_DIR" -maxdepth 1 -type f -regextype posix-extended \
   -regex '.*/gate-[0-9]{8}\.log(\.[0-9]+|-[0-9]{8})?(\.gz)?' -mtime +6 -delete
@@ -25,6 +33,14 @@ alert() {
   if ! logger -p daemon.err -t sv-seo-gate -- "$message"; then
     printf 'ALERT ERROR: syslog delivery failed\n' >> "$LOG"
     return 1
+  fi
+  if [[ "${SEO_GATE_ALERT_LOCAL_MAIL:-0}" == 1 ]]; then
+    if ! printf 'To: root\nSubject: Software Vala SEO gate alert\nX-SoftwareVala-Alert: seo-gate\n\n%s\n' "$message" |
+      /usr/sbin/sendmail -oi -t >> "$LOG" 2>&1; then
+      printf 'ALERT ERROR: local root mail submission failed.\n' >> "$LOG"
+      return 1
+    fi
+    printf 'ALERT: local root mail submitted; mailbox delivery is handled by the MTA.\n' >> "$LOG"
   fi
   if [[ -z "${SEO_GATE_ALERT_WEBHOOK:-}" ]]; then
     printf 'ALERT: syslog and persistent failure record delivered; external webhook UNCONFIGURED.\n' >> "$LOG"
@@ -55,7 +71,8 @@ fi
 cd "$APP_DIR"
 printf '\n=== %s guarded gate start ===\n' "$(date -u +%FT%TZ)" >> "$LOG"
 if [[ -z "${SEO_GATE_ALERT_WEBHOOK:-}" ]]; then
-  printf 'Alert mode: syslog + persistent failure record. Email/webhook UNCONFIGURED.\n' >> "$LOG"
+  printf 'Alert mode: syslog + persistent failure record; local root mail=%s; external webhook UNCONFIGURED.\n' \
+    "${SEO_GATE_ALERT_LOCAL_MAIL:-0}" >> "$LOG"
 fi
 if node scripts/ops/seo-gate-run.mjs --kind slot --slice 50 "$@" >> "$LOG" 2>&1; then
   printf '=== %s gate exit=0 ===\n' "$(date -u +%FT%TZ)" >> "$LOG"
