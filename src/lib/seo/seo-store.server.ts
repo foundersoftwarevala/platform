@@ -180,7 +180,7 @@ function upsertStatement(table: string, columns: string[], conflict: string[]): 
     .join(", ");
   return (
     `insert into ${table} (${list})\n` +
-    `select ${list} from json_populate_recordset(null::${table}, $1::json)\n` +
+    `select ${list} from json_populate_recordset(null::${table}, $1::text::json)\n` +
     `on conflict (${conflict.join(", ")}) do update set ${updates}`
   );
 }
