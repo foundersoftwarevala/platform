@@ -124,7 +124,7 @@ export type PublicProductPageData = {
     meta_title: string | null;
     meta_description: string | null;
     canonical_url: string | null;
-    schema_json: string | Record<string, unknown> | null;
+    schema_json: string | Json | null;
   } | null;
 };
 
@@ -1109,7 +1109,7 @@ export const layoutHistory = createServerFn({ method: "GET" })
     }
     const { data, error } = await context.supabase.rpc("mm_layout_history", { p_limit: 20 });
     if (error) throw new Error(error.message);
-    return (data ?? { entries: [] }) as { entries: unknown[] };
+    return (data ?? { entries: [] }) as { entries: Json[] };
   });
 
 export const layoutRestore = createServerFn({ method: "POST" })
