@@ -150,6 +150,22 @@ The product in it (`current_product_id`) can change; the URL never does.
 - **The slot sitemap still lists event-mgmt's 76 URLs** until the indexing
   gate is re-run (`scripts/ops/seo-gate-run.mjs`; nothing schedules it). The
   category sitemap already leaves event-mgmt out.
+- **The indexing gate cannot write on production until the cast fix is
+  deployed.** With `SEO_STORE=vps`, `upsertStatement` in
+  `src/lib/seo/seo-store.server.ts` bound the rows as `$1::json`, so
+  postgres.js double-encoded them and every write failed ("cannot call
+  json_populate_recordset on a scalar"); the comment above it always said
+  `$1::text::json`. Fixed on `main`; proven against the VPS in a rolled-back
+  transaction. Last successful slot run: 2026-10-06.
+- **Run the gate with `--slice 50`.** At the default 200, a slice's product
+  lookup (`id=in.(…)`, ~6 KB) makes PostgREST echo a response header larger
+  than the `:3010` gateway's buffer, and nginx answers 502 ("upstream sent too
+  big header").
+- **Expected hreflang on a slot page is hardcoded to 81** (`seo-gate.ts`).
+  It holds while every category has 80 occupied slots; a category with fewer
+  would fail the check on all its pages.
+- **A missing slot was a soft 404** (200 + `noindex`); `main` now throws
+  `notFound()` for it. Not on production until the next deploy.
 - **Do not run `scripts/ops/card-slots-generate.mjs --apply` to add slots.**
   It upserts with `merge-duplicates`, which rewrites every existing slot
   (`occupied_since`, `slot_title`, the tenant, `rotation_policy`). The 1,820
@@ -182,6 +198,10 @@ Open decisions (owner):
   `finance-cat` first, then rename `finance-cat`; renaming first would give
   two categories the same name and the same page titles.
 - Products for the 1,820 new slots (no generated content).
+- Deploy the cast fix and the 404 fix (on the deploy branch), then re-run
+  the slot gate so event-mgmt leaves the slot sitemap.
+- Automating the gate (nothing schedules it today).
+- Vala AI's production setup and approval, before the next deploy of `main`.
 
 Work log: Phase 1 marketplace fixes `b4ad6e0`, `adc5107`, `90ee1a6`. Phase 2
 batch A: slot links `a43a081`, hreflang `b3d87aa`, 100 countries `9e1cceb`, 17
