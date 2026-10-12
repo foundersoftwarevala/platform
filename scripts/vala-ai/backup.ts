@@ -13,7 +13,6 @@ import {
   inspectDatabase,
   restoreDatabase,
 } from "../../src/lib/vala-ai/backup.server.ts";
-import { closeDb } from "../../src/lib/vala-ai/db.server.ts";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -37,7 +36,6 @@ try {
     console.log(`Backup ${r.path} (${r.bytes} bytes, ${r.tables} tables, sha256 ${r.sha256})`);
     if (r.removed.length) console.log(`Removed by retention: ${r.removed.join(", ")}`);
   }
-  closeDb();
 } catch (e) {
   console.error(`Vala AI backup: ${(e as Error).message}`);
   process.exit(1);

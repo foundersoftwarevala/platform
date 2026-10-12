@@ -37,8 +37,7 @@ export function redactForRole<T>(value: T, role: Role | undefined): T {
 
   const scrubText = (s: string): string => {
     const t = s.trim();
-    if (!t.includes("\n") && looksAbsolute(t) && (WINDOWS_ABSOLUTE.test(t) || !/\s/.test(t)))
-      return HIDDEN;
+    if (!t.includes("\n") && looksAbsolute(t)) return HIDDEN;
     let out = s.replace(embedded, "<vala-data>");
     // JSON stored as text (audit details, event data) gets the same treatment inside.
     if ((out.startsWith("{") || out.startsWith("[")) && out.length < 200_000) {
