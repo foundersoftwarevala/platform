@@ -127,6 +127,60 @@ history): `components/ams/ui/MotionSoundPanel`,
 `lib/seo-operations.server`, `lib/use-diagnostics`, and earlier
 `components/demo-manager/ProductManager`.
 
+## Marketplace card slots (as of 2026-10-12)
+
+A slot is one permanent page per (category, country):
+`/marketplace/<category-slug>/<country-slug>`, in `marketplace_card_slots`.
+The product in it (`current_product_id`) can change; the URL never does.
+
+- **Countries:** 100 in `src/lib/marketplace/rail-countries.ts`, the only
+  country list (the slot generator, the home rails and the gate all read it).
+  The last 20 (Brazil … Tunisia) were appended, not sorted in, because
+  `slot_no` is the position in this list.
+- **Slots on the cloud project:** 9,100 = 7,200 occupied + 1,800 vacant + 100
+  reserved. The 1,800 vacant are the 20 new countries; the catalogue has no
+  product for any of them yet, so they stay `noindex`, out of the sitemap and
+  off the home page. **The VPS still has the 80-country grid** (about 7,280,
+  inferred from its sitemap; the ops key cannot read it). Applying the new slots
+  and the event-mgmt changes there waits for the
+  owner's approval.
+- **Do not run `scripts/ops/card-slots-generate.mjs --apply` to add slots.**
+  It upserts with `merge-duplicates`, which rewrites every existing slot
+  (`occupied_since`, `slot_title`, the tenant, `rotation_policy`). The 1,820
+  new slots were inserted with an insert-only copy (`ignore-duplicates`, new
+  `slot_no` only).
+- **Home page:** country cards open their slot page (card click and title);
+  Buy and Live Demo still go to the product and its demo. 74 shelves: the 57
+  with static entries plus 17 drawn only from the catalogue's country cards.
+- **Merged categories:** `src/lib/marketplace/merged-categories.ts`. A merged
+  category's slot and category pages answer 301 with the category it joined,
+  its slots are `reserved` (the gate treats that as not published), and the
+  category sitemap leaves it out. So far: `event-mgmt` → `event-management`;
+  its 20 products that were exact copies of event-management's are
+  `visible = false` on the cloud project, the other 60 are kept.
+- **hreflang** on a slot page lists only occupied sibling slots.
+- **Search Console is not connected.** The `api_services` row is inactive,
+  `GOOGLE_SEARCH_CONSOLE_CREDENTIALS` is not set, and
+  `google-apis-integration.functions.ts` sends no token. No traffic figure in
+  this project comes from Google.
+- `scripts/ops/homepage-lock.mjs` is not run by the build and its baseline is
+  stale; it reports many intended changes.
+
+Open decisions (owner):
+
+- Merge the other near-duplicate categories (crm, gym-fitness, pet-care,
+  publishing, hospitality, legal, security, education-coaching,
+  education-coaching-management) once Search Console figures are in.
+  event-services, travel-booking and travel-tourism are kept as distinct.
+- Finance: `finance` is already named "Finance & Banking". Merge it into
+  `finance-cat` first, then rename `finance-cat`; renaming first would give
+  two categories the same name and the same page titles.
+- Products for the 1,820 new slots (no generated content).
+
+Work log: Phase 1 marketplace fixes `b4ad6e0`, `adc5107`, `90ee1a6`. Phase 2
+batch A: slot links `a43a081`, hreflang `b3d87aa`, 100 countries `9e1cceb`, 17
+shelves `f4a2e96`, event-mgmt merge `8eac048`.
+
 ## Typecheck error count
 
 `npx tsc --noEmit -p .` — Vite builds without typechecking, so these errors do
