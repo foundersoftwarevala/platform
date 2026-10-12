@@ -351,6 +351,21 @@ change that moves it.
 | Product page passes the indexing gate a URL string | **347** (current) |
 | Target | 0 |
 
+The table above is mainline history, not the typecheck baseline of an isolated
+production release. For `deploy/vala-ai-20261012`, full checks against the exact
+production base and assembled candidate on 2026-10-12 found:
+
+| Scoped release | Errors |
+|---|---|
+| Production base `5f1dfa1` | 4,713 |
+| Original eleven Vala commits, redaction fix and approved preparation | 4,708 |
+
+Five existing diagnostics were removed; no new diagnostics or diagnostics in
+changed files were introduced. Router-union truncation counts changed with the
+new routes; they are not new errors. This older production base still has the
+older generated Supabase types, unlike main. Do not deploy unrelated mainline
+schema/type cleanups as part of the Vala release.
+
 ## Do not
 
 - Rewrite pushed history (see the Lovable note above).
