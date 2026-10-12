@@ -3481,6 +3481,31 @@ export const allDemos: Demo[] = [
 
 // Master Categories for filtering (55 rows — matches actual data values)
 const masterCategories = ["All", ...allMasterCategories55];
+
+/**
+ * The gradient for a shelf that has no static entries to take one from: the
+ * catalogue's country cards are the whole shelf, so they need a colour of
+ * their own, in the same two-stop style as every other shelf.
+ */
+const CATALOGUE_SHELF_COLOUR: Record<string, string> = {
+  Childcare: "from-pink-400 to-rose-500",
+  Coaching: "from-amber-500 to-orange-600",
+  "College ERP": "from-indigo-500 to-blue-600",
+  "Cultural & Arts": "from-fuchsia-500 to-purple-600",
+  "Digital Wallet": "from-emerald-500 to-teal-600",
+  "Entertainment & Media": "from-red-500 to-rose-600",
+  "Fleet Management": "from-slate-500 to-blue-700",
+  "Hospital HMS": "from-cyan-500 to-blue-600",
+  "Hotel HMS": "from-amber-600 to-yellow-700",
+  "Learning Management": "from-violet-500 to-indigo-600",
+  "Marketplace & Super Apps": "from-orange-500 to-pink-600",
+  "Pet Care & Services": "from-lime-500 to-green-600",
+  "Property Management": "from-stone-500 to-amber-700",
+  "Public Transport": "from-sky-500 to-indigo-600",
+  "Research & Analytics": "from-blue-500 to-violet-600",
+  "Restaurant POS": "from-orange-600 to-red-600",
+  "School Management": "from-teal-500 to-cyan-600",
+};
 const PRODUCTS_PER_ROW = 80;
 
 /**
@@ -3688,7 +3713,18 @@ const Index = () => {
             {activeCategory === "All" ? (
               masterCategories.slice(1).map((masterCat) => {
                 const categoryDemos = filteredDemos.filter((d) => d.masterCategory === masterCat);
-                if (categoryDemos.length === 0) return null;
+                // A shelf with no static entries is shown only when the
+                // catalogue fills it: not while searching (the country cards
+                // are not searched), not without a catalogue row, and not once
+                // its row has come back empty.
+                if (
+                  categoryDemos.length === 0 &&
+                  (searchQuery.trim() ||
+                    !catalogueSlugForShelf(masterCat) ||
+                    addedByShelf[masterCat] === 0)
+                ) {
+                  return null;
+                }
                 // The shelf's own cards are repeated only as far as the real
                 // catalogue cards do not already fill the rail: a country card
                 // takes the place of a duplicate, never of a real one.
@@ -3716,7 +3752,11 @@ const Index = () => {
                     {!searchQuery.trim() && (
                       <CountryRailCards
                         shelf={masterCat}
-                        colour={shelfColour(categoryDemos)}
+                        colour={
+                          categoryDemos.length
+                            ? shelfColour(categoryDemos)
+                            : (CATALOGUE_SHELF_COLOUR[masterCat] ?? shelfColour(undefined))
+                        }
                         already={categoryDemos.map((d) => catalogueSlug(d.name)).join(",")}
                         favorites={favorites}
                         onToggleFavorite={toggleFavorite}
