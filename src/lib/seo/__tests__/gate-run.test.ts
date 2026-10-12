@@ -20,6 +20,25 @@ const input = (decisions: GateRow[], overrides: Partial<GateInput> = {}): GateIn
   ...overrides,
 });
 describe("whole-run gate safeguards", () => {
+  it("reports evaluated, blocked and excluded counts separately after the complete plan", () => {
+    const before = [row("/a"), row("/b"), row("/c")];
+    const blocked = { ...row("/b", false), state: "BLOCKED" };
+    const plan = prepareGateRun(before, [], input([row("/a"), blocked]));
+    expect(plan.stats).toMatchObject({
+      evaluated: 2,
+      currentTotal: 3,
+      projectedTotal: 3,
+      currentEligible: 3,
+      projectedEligible: 1,
+      projectedIneligible: 2,
+      currentBlocked: 0,
+      projectedBlocked: 1,
+      currentByState: { READY_FOR_INDEX: 3 },
+      projectedByState: { READY_FOR_INDEX: 1, BLOCKED: 1, UNVERIFIED: 1 },
+      lost: 2,
+      gained: 0,
+    });
+  });
   it("exact duplicates keep priority inside a larger country-swap group", () => {
     const rows = [row("/a"), row("/b"), row("/c")];
     const prints = [

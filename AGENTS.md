@@ -234,6 +234,61 @@ The product in it (`current_product_id`) can change; the URL never does.
 - **Slot hreflang is dynamic** (`seo-gate.ts`): count the category's occupied
   siblings with country codes, plus x-default, matching the public route.
   Education's 79 filled siblings therefore expect 80 alternates, not 81.
+  The follow-up CLI accepts `--expected-hreflang <positive integer>` only
+  for slot evaluation. It is an explicit fallback if the sibling query
+  fails, never an override of a successful dynamic count; without it a
+  failed query aborts. Use a verified count including x-default, not a guess.
+  Fallback warnings/page counts are reported, and check details preserve the
+  fallback reason alongside observed-versus-expected HTML counts.
+  Whole-run reports distinguish literal BLOCKED states from all ineligible
+  URLs, with evaluated/total counts, current/projected state distributions,
+  lost/gained URLs and meaningful changes. These extensions require deployed
+  `detailedReport`/`hreflangFallback` capabilities; the CLI refuses unsupported
+  servers before backups/evaluation rather than silently ignoring flags.
+  Production still runs `8b31e92`; deploy the follow-up in the scoped
+  marketplace branch before using the updated CLI there, not full main.
+  Follow-up validation: 119 tests pass across eight suites and scoped lint
+  passes; the full typecheck has the same 347 diagnostics as the baseline,
+  with none in changed safeguards. A fresh production dry-run of the existing
+  release evaluated 9,100,
+  projected 7,199 eligible, lost/gained zero, and changed zero verdicts;
+  gate-table signatures and manager audit counts remained unchanged.
+  The guarded release was built and deployed on 2026-10-12 with normal
+  homepage/native-language/process checks. A full 9,100-slot live dry-run
+  projected exactly 7,199 eligible (zero lost/gained, 79 check updates) and
+  verified unchanged gate-table signatures and manager audit counts.
+  Occupied Education/Angola was READY_FOR_INDEX, HTTP 200 without noindex,
+  with 80 public alternates. Education/USA and the already-vacant India slot
+  correctly emit noindex. Main validation: 90 tests pass; 347 existing
+  TypeScript errors, unchanged, with none in the safeguard implementation.
+  The subsequent guarded manual SAVE also kept exactly 7,199 unique public
+  slot URLs, zero event-mgmt and zero vacant/reserved slots eligible.
+  Education/USA remains UNVERIFIED, HTTP 200/noindex. Product/slot data and
+  non-slot gate state were unchanged; one manager audit and five technical
+  checks were appended. Pre-SAVE dump/checksum/restore:
+  `/root/sv-seo-backup/gate-20261012T130151337Z/`.
+- **Daily gate wrapper:** `scripts/ops/seo-gate-cron.sh` is installed as
+  `/usr/local/bin/sv-seo-gate.sh` and runs from `/var/www/softwarevala`.
+  Root cron uses `45 3 * * * /usr/local/bin/sv-seo-gate.sh` (server UTC;
+  09:15 IST). Logs are `/var/log/sv-seo-gate/gate-YYYYMMDD.log`; only those
+  dated files older than seven days are pruned. Last-run/failure records
+  persist separately. `--dry-run` passes through to the runner;
+  `--test-alert` verifies notifications without a gate or database write.
+  Failures use `logger -p daemon.err -t sv-seo-gate` and a persistent failure
+  record. No external destination was configured and the owner was unavailable
+  to supply one; email/webhook delivery must not be claimed as configured.
+  For external alerts, use `deploy/production/seo-gate.env.example` and put
+  `SEO_GATE_ALERT_WEBHOOK='https://...'` in the root-only
+  `/etc/softwarevala/seo-gate.env`, then run `--test-alert` and
+  verify delivery. That file may also set `SEO_GATE_MAX_DROP_PERCENT`.
+  Keep webhook credentials out of git and command arguments.
+  Installation preserved every existing root cron entry and verified one
+  gate entry, an active cron daemon, root-only configuration, and seven-day
+  pruning without deleting a nonmatching log sentinel. The local alert
+  probe and an actual nonzero runner failure were verified in journald;
+  the rejected-argument dry-run probe left gate/audit state unchanged.
+  Original crontab/checksums/rollback:
+  `/root/sv-seo-backup/cron-20261012T130138Z/`.
 - **A missing slot now returns 404 on production.** The deployed loader throws
   `notFound()`; `/marketplace/academy/atlantis` was verified as HTTP 404.
 - **Do not run `scripts/ops/card-slots-generate.mjs --apply` to add slots.**

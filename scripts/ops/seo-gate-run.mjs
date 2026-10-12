@@ -13,7 +13,7 @@ import { deploymentSetting } from "./_seo-store.mjs";
 
 const args = process.argv.slice(2);
 const flags = new Set(["--dry-run", "--cross-only"]);
-const options = new Set(["--kind", "--slice", "--max-drop-percent"]);
+const options = new Set(["--kind", "--slice", "--max-drop-percent", "--expected-hreflang"]);
 const values = new Map();
 for (let at = 0; at < args.length; at++) {
   const flag = args[at];
@@ -37,6 +37,15 @@ if (!Number.isFinite(threshold) || threshold < 0 || threshold > 100)
   throw new Error("Drop threshold must be a percentage between 0 and 100");
 const dryRun = values.has("--dry-run");
 const crossOnly = values.has("--cross-only");
+const expectedHreflang = values.has("--expected-hreflang")
+  ? Number(values.get("--expected-hreflang"))
+  : undefined;
+if (expectedHreflang !== undefined) {
+  if (!Number.isSafeInteger(expectedHreflang) || expectedHreflang < 1)
+    throw new Error("Expected hreflang fallback must be a positive safe integer");
+  if (crossOnly || !kinds.includes("slot"))
+    throw new Error("Expected hreflang fallback requires slot evaluation");
+}
 
 function appEnv() {
   const name = process.env.SV_PM2_NAME || "softwarevala-staging";
@@ -109,6 +118,10 @@ try {
   const before = await api("preflight");
   if (!before.dryRun || !before.atomicCommit)
     throw new Error("Gate safety capabilities unavailable");
+  if (before.detailedReport !== true)
+    throw new Error("Detailed gate report capability is not deployed");
+  if (expectedHreflang !== undefined && before.hreflangFallback !== true)
+    throw new Error("Expected hreflang fallback capability is not deployed");
   if (deploymentSetting("SEO_STORE") !== "vps")
     throw new Error("Guarded runner requires SEO_STORE=vps");
   const backup = backupGate(deploymentSetting("VPS_DATABASE_URL"), root, before.database);
@@ -124,6 +137,8 @@ try {
     decisions: [],
     fingerprints: [],
   };
+  const warnings = new Set();
+  let hreflangFallbackPages = 0;
   if (!crossOnly)
     for (const kind of kinds) {
       let total = 0;
@@ -134,7 +149,10 @@ try {
             payload = await api(
               "evaluate",
               {},
-              `&kind=${kind}&offset=${offset}&limit=${slice}&dry_run=1`,
+              `&kind=${kind}&offset=${offset}&limit=${slice}&dry_run=1` +
+                (kind === "slot" && expectedHreflang !== undefined
+                  ? `&expected_hreflang=${expectedHreflang}`
+                  : ""),
             );
             break;
           } catch (error) {
@@ -147,6 +165,19 @@ try {
           throw new Error("Evaluation-only response is incomplete");
         if (payload.evaluated !== payload.rows.length)
           throw new Error("Evaluation row count mismatch");
+        if (
+          !Array.isArray(payload.warnings) ||
+          payload.warnings.some((warning) => typeof warning !== "string") ||
+          !Number.isInteger(payload.hreflangFallbackPages) ||
+          payload.hreflangFallbackPages < 0 ||
+          payload.hreflangFallbackPages > payload.evaluated
+        )
+          throw new Error("Evaluation warning/fallback report is incomplete");
+        for (const warning of payload.warnings) {
+          if (!warnings.has(warning)) console.warn(`WARNING: ${warning}`);
+          warnings.add(warning);
+        }
+        hreflangFallbackPages += payload.hreflangFallbackPages;
         input.decisions.push(...payload.rows);
         input.fingerprints.push(...payload.fingerprints);
         total += payload.rows.length;
@@ -157,7 +188,8 @@ try {
       }
     }
   const plan = await api("plan", input);
-  console.log(`PROJECTED ${JSON.stringify(plan)}`);
+  const report = { ...plan, hreflangFallbackPages, warnings: [...warnings] };
+  console.log(`PROJECTED ${JSON.stringify(report)}`);
   if (plan.stopped) {
     console.error(
       `STOP: ${plan.lossPercent.toFixed(3)}% of existing eligible pages lost; threshold >${threshold}%. NO SAVES.`,
@@ -183,7 +215,14 @@ try {
       pages_crawled: after.decisions.length,
       issues_found: after.decisions.length - eligible,
       score: after.decisions.length ? Math.round((eligible / after.decisions.length) * 100) : 0,
-      breakdown: { audit_version: "v2", by_state: byState, ...committed, backup: backup.directory },
+      breakdown: {
+        audit_version: "v2",
+        by_state: byState,
+        ...committed,
+        hreflangFallbackPages,
+        warnings: [...warnings],
+        backup: backup.directory,
+      },
     });
     for (const [name, category, status, affected] of [
       ["Indexing gate coverage", "indexing", "pass", after.decisions.length],

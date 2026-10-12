@@ -104,6 +104,7 @@ export type PageFacts = {
   categoryKnown?: boolean;
   /** How many hreflang alternates the architecture expects, when it expects any. */
   expectedHreflang?: number | null;
+  hreflangFallbackReason?: string;
   /** Minimum internal links a page of this kind must carry. */
   minInternalLinks?: number;
 };
@@ -466,6 +467,9 @@ export function evaluatePage(facts: PageFacts, rendered: Rendered): Decision {
   // --- hreflang ------------------------------------------------------------
   let hreflangStatus: CheckResult;
   const expected = facts.expectedHreflang ?? null;
+  const expectationSource = facts.hreflangFallbackReason
+    ? ` Explicit fallback used: ${facts.hreflangFallbackReason}`
+    : "";
   if (expected === null) {
     hreflangStatus = page.hreflangCodes.length ? "PASS" : "NOT_APPLICABLE";
     add(
@@ -484,20 +488,35 @@ export function evaluatePage(facts: PageFacts, rendered: Rendered): Decision {
         "hreflang",
         true,
         "FAIL",
-        `${page.hreflangCodes.length} alternates, ${expected} expected.`,
+        `${page.hreflangCodes.length} alternates, ${expected} expected.${expectationSource}`,
       );
     } else if (invalid.length) {
       hreflangStatus = "FAIL";
-      add("hreflang", true, "FAIL", `Invalid language codes: ${invalid.slice(0, 5).join(", ")}`);
+      add(
+        "hreflang",
+        true,
+        "FAIL",
+        `Invalid language codes: ${invalid.slice(0, 5).join(", ")}${expectationSource}`,
+      );
     } else if (duplicated) {
       hreflangStatus = "FAIL";
-      add("hreflang", true, "FAIL", "The same language code appears more than once.");
+      add(
+        "hreflang",
+        true,
+        "FAIL",
+        `The same language code appears more than once.${expectationSource}`,
+      );
     } else if (!hasDefault) {
       hreflangStatus = "FAIL";
-      add("hreflang", true, "FAIL", "No x-default alternate.");
+      add("hreflang", true, "FAIL", `No x-default alternate.${expectationSource}`);
     } else {
       hreflangStatus = "PASS";
-      add("hreflang", true, "PASS", `${expected} valid alternates including x-default.`);
+      add(
+        "hreflang",
+        true,
+        "PASS",
+        `${expected} valid alternates including x-default.${expectationSource}`,
+      );
     }
   }
 

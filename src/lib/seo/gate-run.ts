@@ -108,11 +108,26 @@ export function prepareGateRun(before: GateRow[], hashes: GateHash[], input: Gat
     const old = previousByUrl.get(row.url);
     return !old || !isDeepStrictEqual(meaningful(old), meaningful(row));
   }).length;
+  const stateCounts = (list: GateRow[]) => {
+    const counts = new Map<string, number>();
+    for (const row of list) counts.set(row.state, (counts.get(row.state) ?? 0) + 1);
+    return Object.fromEntries(counts);
+  };
+  const currentByState = stateCounts(previous);
+  const projectedByState = stateCounts(after);
   return {
     rows: after,
     stats: {
+      evaluated: evaluated.size,
+      currentTotal: previous.length,
+      projectedTotal: after.length,
       currentEligible: priorEligible.size,
       projectedEligible: nextEligible.size,
+      projectedIneligible: after.length - nextEligible.size,
+      currentBlocked: currentByState.BLOCKED ?? 0,
+      projectedBlocked: projectedByState.BLOCKED ?? 0,
+      currentByState,
+      projectedByState,
       lost,
       gained,
       lossPercent,
