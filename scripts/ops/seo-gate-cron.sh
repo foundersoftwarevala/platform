@@ -12,9 +12,11 @@ CONFIG=/etc/softwarevala/seo-gate.env
 export SEO_GATE_MAX_DROP_PERCENT="${SEO_GATE_MAX_DROP_PERCENT:-2}"
 mkdir -p "$LOG_DIR"
 LOG="$LOG_DIR/gate-$(date +%Y%m%d).log"
+touch "$LOG"
+chmod 640 "$LOG"
 # Only this job's dated files, never another service's logs.
 find "$LOG_DIR" -maxdepth 1 -type f -regextype posix-extended \
-  -regex '.*/gate-[0-9]{8}\.log' -mtime +6 -delete
+  -regex '.*/gate-[0-9]{8}\.log(\.[0-9]+|-[0-9]{8})?(\.gz)?' -mtime +6 -delete
 
 alert() {
   local message="$1"

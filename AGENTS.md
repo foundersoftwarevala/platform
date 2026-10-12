@@ -142,7 +142,7 @@ The product in it (`current_product_id`) can change; the URL never does.
   countries; the catalogue has no product for any of them yet, so they stay
   `noindex`, out of the sitemap and off the home page. (The ops Supabase key
   cannot read the VPS; use `scripts/ops/db.mjs` / psql over ssh.)
-- **Production runs `deploy/marketplace-guards-20261012`** (`8b31e92`), not `main`:
+- **Production runs `deploy/marketplace-gate-followup-20261012`** (`5f1dfa1`), not `main`:
   the production commit `7cf353c` plus only marketplace/gate commits, because
   `main` also carries the Vala AI rebuild, whose docs say production
   deployment needs separate authorization (Docker sandbox, data dir, backup
@@ -245,8 +245,8 @@ The product in it (`current_product_id`) can change; the URL never does.
   lost/gained URLs and meaningful changes. These extensions require deployed
   `detailedReport`/`hreflangFallback` capabilities; the CLI refuses unsupported
   servers before backups/evaluation rather than silently ignoring flags.
-  Production still runs `8b31e92`; deploy the follow-up in the scoped
-  marketplace branch before using the updated CLI there, not full main.
+  The follow-up is deployed as scoped release `5f1dfa1`; both capabilities
+  were verified live. Do not deploy full main to deliver marketplace ops.
   Follow-up validation: 119 tests pass across eight suites and scoped lint
   passes; the full typecheck has the same 347 diagnostics as the baseline,
   with none in changed safeguards. A fresh production dry-run of the existing
@@ -259,7 +259,7 @@ The product in it (`current_product_id`) can change; the URL never does.
   verified unchanged gate-table signatures and manager audit counts.
   Occupied Education/Angola was READY_FOR_INDEX, HTTP 200 without noindex,
   with 80 public alternates. Education/USA and the already-vacant India slot
-  correctly emit noindex. Main validation: 90 tests pass; 347 existing
+  correctly emit noindex. Initial guard validation: 90 tests pass; 347 existing
   TypeScript errors, unchanged, with none in the safeguard implementation.
   The subsequent guarded manual SAVE also kept exactly 7,199 unique public
   slot URLs, zero event-mgmt and zero vacant/reserved slots eligible.
@@ -267,11 +267,27 @@ The product in it (`current_product_id`) can change; the URL never does.
   non-slot gate state were unchanged; one manager audit and five technical
   checks were appended. Pre-SAVE dump/checksum/restore:
   `/root/sv-seo-backup/gate-20261012T130151337Z/`.
+  The follow-up's live dry-run and manual guarded SAVE each evaluated 9,100:
+  7,199 eligible, zero literal BLOCKED, 1,901 UNVERIFIED/excluded, zero loss,
+  zero meaningful changes and zero fallback usage. The dry-run preserved
+  gate/fingerprint signatures and audit counts; SAVE preserved product/slot
+  data, non-slot gate state and the 7,199 unique public slot URLs, appending
+  one audit and five technical checks. Education/USA stays UNVERIFIED.
+  Supplying fallback 999 in a live Education/Angola dry probe still used the
+  successful dynamic count of 80. Pre-SAVE backup/checksum/restore:
+  `/root/sv-seo-backup/gate-20261012T141010437Z/`.
+  Deploy source backup: `/root/sv-seo-backup/deploy-gate-followup-20261012T135743Z/`;
+  previous build: `/var/www/softwarevala/.output.prev-20261012-135744`.
 - **Daily gate wrapper:** `scripts/ops/seo-gate-cron.sh` is installed as
   `/usr/local/bin/sv-seo-gate.sh` and runs from `/var/www/softwarevala`.
   Root cron uses `45 3 * * * /usr/local/bin/sv-seo-gate.sh` (server UTC;
   09:15 IST). Logs are `/var/log/sv-seo-gate/gate-YYYYMMDD.log`; only those
-  dated files older than seven days are pruned. Last-run/failure records
+  dated files and rotated archives older than seven days are pruned. Daily
+  logs are mode 0640. `deploy/production/system/logrotate-sv-seo-gate` is
+  installed as `/etc/logrotate.d/sv-seo-gate`: daily, seven rotations/maxage,
+  delayed compression and 0640 creation; the system logrotate timer is active
+  and enabled. Delay compression avoids immediate compression of a rotated log.
+  Last-run/failure records
   persist separately. `--dry-run` passes through to the runner;
   `--test-alert` verifies notifications without a gate or database write.
   Failures use `logger -p daemon.err -t sv-seo-gate` and a persistent failure
@@ -289,6 +305,14 @@ The product in it (`current_product_id`) can change; the URL never does.
   the rejected-argument dry-run probe left gate/audit state unchanged.
   Original crontab/checksums/rollback:
   `/root/sv-seo-backup/cron-20261012T130138Z/`.
+  Follow-up wrapper/config/crontab backups:
+  `/root/sv-seo-backup/cron-followup-20261012T135953Z/`.
+  Force-rotation tests of the installed policy preserved content, created
+  0640 logs, removed an eight-day archive, retained a six-day archive and
+  never deleted an unrelated sentinel. Live nonzero failure probes delivered
+  syslog and persistent records without gate/audit writes; the real successful
+  run records were restored afterward. Root's existing cron entries remain
+  byte-for-byte unchanged, with exactly one gate entry.
 - **A missing slot now returns 404 on production.** The deployed loader throws
   `notFound()`; `/marketplace/academy/atlantis` was verified as HTTP 404.
 - **Do not run `scripts/ops/card-slots-generate.mjs --apply` to add slots.**
