@@ -202,6 +202,7 @@ export const IndustryGrid = () => {
 const AI_TOOLS = [
   {
     name: "AI Product Finder",
+    href: "/ai/finder",
     desc: "Describe your need, get the perfect stack.",
     icon: SearchIcon,
     accent: "text-fuchsia-300",
@@ -209,6 +210,7 @@ const AI_TOOLS = [
   },
   {
     name: "AI Recommendation",
+    href: "/ai/recommend",
     desc: "Personalised picks from 200+ products.",
     icon: Sparkles,
     accent: "text-cyan-300",
@@ -216,6 +218,7 @@ const AI_TOOLS = [
   },
   {
     name: "AI Compare",
+    href: "/ai/compare",
     desc: "Side-by-side feature & price intelligence.",
     icon: Brain,
     accent: "text-violet-300",
@@ -223,6 +226,7 @@ const AI_TOOLS = [
   },
   {
     name: "AI Sales Assistant",
+    href: "/ai/assistant",
     desc: "24/7 chat copilot for buyers & vendors.",
     icon: Bot,
     accent: "text-emerald-300",
@@ -251,7 +255,7 @@ export const AIZone = () => {
         {tools.map((t) => (
           <a
             key={t.name}
-            href="#AI%20%26%20Automation"
+            href={t.href}
             className={`group relative overflow-hidden rounded-2xl border ${t.ring} bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-5 transition-all hover:-translate-y-1 hover:shadow-[0_24px_60px_-20px_rgba(217,70,239,0.45)]`}
           >
             <div
@@ -561,9 +565,27 @@ export const ValaTV = () => {
 // Academy
 export const Academy = () => {
   const tracks = [
-    { title: "Marketplace Foundations", lessons: 24, level: "Beginner", icon: BookOpen },
-    { title: "Vendor Mastery", lessons: 38, level: "Intermediate", icon: GraduationCap },
-    { title: "Enterprise Implementation", lessons: 52, level: "Advanced", icon: Building2 },
+    {
+      title: "Marketplace Foundations",
+      slug: "marketplace-foundations",
+      lessons: 24,
+      level: "Beginner",
+      icon: BookOpen,
+    },
+    {
+      title: "Vendor Mastery",
+      slug: "vendor-mastery",
+      lessons: 38,
+      level: "Intermediate",
+      icon: GraduationCap,
+    },
+    {
+      title: "Enterprise Implementation",
+      slug: "enterprise-implementation",
+      lessons: 52,
+      level: "Advanced",
+      icon: Building2,
+    },
   ];
   return (
     <section className="py-10">
@@ -572,7 +594,7 @@ export const Academy = () => {
         {tracks.map((t) => (
           <a
             key={t.title}
-            href="#Academy"
+            href={`/academy/${t.slug}`}
             className="group rounded-2xl border border-white/[0.07] bg-gradient-to-br from-cyan-500/[0.06] to-fuchsia-500/[0.04] p-5 transition-all hover:border-cyan-400/40"
           >
             <t.icon className="h-7 w-7 text-cyan-300" />

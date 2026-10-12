@@ -337,6 +337,13 @@
   scroll-snap-align: start;
 }
 
+/* The country cards' empty observer anchor. As a grid item it took a whole
+   card-wide column, leaving a blank slot in the rail; out of flow it takes none. */
+.mpc-home .sv-product-rail > span[aria-hidden="true"]:empty {
+  position: absolute;
+  scroll-snap-align: none;
+}
+
 .mpc-home .sv-product-placeholder {
   width: min(300px, 82vw);
   height: 430px;

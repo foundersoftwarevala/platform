@@ -70,7 +70,7 @@ export const Route = createFileRoute("/marketplace/product/$slug")({
     const [seoResult, productResult, gateResult] = await Promise.allSettled([
       getProductSeo({ data: { slug: params.slug } }),
       getPublicProduct({ data: { slug: params.slug } }),
-      canIndexPage({ url: `/marketplace/product/${params.slug}` }),
+      canIndexPage(`/marketplace/product/${params.slug}`),
     ]);
     const indexable = gateResult.status === "fulfilled" && gateResult.value.indexable;
     const product = productResult.status === "fulfilled" ? productResult.value : null;
