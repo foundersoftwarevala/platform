@@ -89,9 +89,10 @@ export const Route = createFileRoute("/marketplace/$category/$country")({
     // exists and has a verified ISO country code, and the page is written in
     // English, so the annotation is en-<country> rather than a language this
     // page is not in. x-default points at the category the group belongs to.
+    // A vacant slot asks not to be indexed, so it is no alternate of anything.
     const links: Array<Record<string, string>> = [{ rel: "canonical", href: canonical }];
     for (const sibling of slot.countries) {
-      if (!sibling.code) continue;
+      if (!sibling.code || !sibling.occupied) continue;
       links.push({
         rel: "alternate",
         hrefLang: `en-${sibling.code}`,
