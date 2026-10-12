@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { mergedInto } from "@/lib/marketplace/merged-categories";
 import { siteUrl } from "@/lib/seo/site-url";
 import { CategoryDetail } from "@/components/marketplace-home/CategoryDetail";
 import { getPublicProductsByCategory } from "@/lib/marketplace.functions";
@@ -30,6 +31,17 @@ function countryPhrase(countries: string[]): string {
 }
 
 export const Route = createFileRoute("/marketplace/category/$slug")({
+  // A merged category's page is the page of the category it joined.
+  beforeLoad: ({ params }) => {
+    const target = mergedInto(params.slug);
+    if (target) {
+      throw redirect({
+        to: "/marketplace/category/$slug",
+        params: { slug: target },
+        statusCode: 301,
+      });
+    }
+  },
   component: () => (
     <>
       <CategoryDetail />

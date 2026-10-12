@@ -208,9 +208,12 @@ export async function readCardSlot(
         `&category_id=eq.${encodeURIComponent(String(slot.category_id))}&order=slot_no.asc`,
     ),
     get(
+      // A reserved slot belongs to a merged category whose pages redirect, so
+      // it is not linked as one of this country's other cards.
       `marketplace_card_slots?select=slot_url,status,marketplace_categories(name,slug)` +
         `&country_marker=eq.${encodeURIComponent(country)}` +
         `&category_id=neq.${encodeURIComponent(String(slot.category_id))}` +
+        `&status=neq.reserved` +
         `&order=slot_url.asc`,
     ),
   ]);
