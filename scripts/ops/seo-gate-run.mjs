@@ -1,426 +1,222 @@
 /**
- * Run the SEO safety gate over every page this site serves, and record what it
- * decided.
+ * Guarded gate runner. Every evaluation is read-only; a complete scoped plan
+ * passes the loss guard before decisions/fingerprints are committed together.
  *
- * This is meant to run ON the server. It reads the application's own
- * environment from the running process - the same trick rebuild-with-env.sh
- * uses - so no credential is typed, stored beside it or printed. It then asks
- * the application, over the loopback interface, to evaluate the pages in
- * slices, which keeps memory flat whether the catalogue holds seven thousand
- * pages or eighteen thousand.
- *
- * The gate itself is src/lib/seo/indexing-gate.ts. Nothing here re-implements
- * a check: this drives the job and does the one pass a database does better
- * than a process, which is finding every page whose only difference from
- * another is a country name.
- *
- *   node scripts/ops/seo-gate-run.mjs                 # every kind, dry pass included
- *   node scripts/ops/seo-gate-run.mjs --kind slot
- *   node scripts/ops/seo-gate-run.mjs --cross-only    # just the duplicate pass
+ * node scripts/ops/seo-gate-run.mjs --kind slot --slice 50 --dry-run
+ * node scripts/ops/seo-gate-run.mjs --kind slot --slice 50 --max-drop-percent 2
  */
-import { readFileSync } from "node:fs";
-import { execSync } from "node:child_process";
-import {
-  allDecisions,
-  close as closeSeoStore,
-  fingerprintsByLayer,
-  passingUrls,
-  patchDecisions,
-} from "./_seo-store.mjs";
+import { readFileSync, mkdirSync, openSync, closeSync, unlinkSync, writeSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
+import { backupGate } from "./_seo-gate-backup.mjs";
+import { deploymentSetting } from "./_seo-store.mjs";
 
 const args = process.argv.slice(2);
-const only = args.includes("--kind") ? args[args.indexOf("--kind") + 1] : null;
-const crossOnly = args.includes("--cross-only");
-const SLICE = Number(args.includes("--slice") ? args[args.indexOf("--slice") + 1] : 200) || 200;
+const flags = new Set(["--dry-run", "--cross-only"]);
+const options = new Set(["--kind", "--slice", "--max-drop-percent"]);
+const values = new Map();
+for (let at = 0; at < args.length; at++) {
+  const flag = args[at];
+  if (flags.has(flag)) {
+    if (values.has(flag)) throw new Error(`Duplicate argument ${flag}`);
+    values.set(flag, true);
+  } else if (options.has(flag) && args[at + 1] && !args[at + 1].startsWith("--")) {
+    if (values.has(flag)) throw new Error(`Duplicate argument ${flag}`);
+    values.set(flag, args[++at]);
+  } else throw new Error(`Unknown or incomplete argument ${flag}`);
+}
+const allKinds = ["slot", "product", "category", "country", "blog"];
+const kinds = values.has("--kind") ? [values.get("--kind")] : allKinds;
+if (kinds.some((kind) => !allKinds.includes(kind))) throw new Error("Unsupported gate kind");
+const slice = Number(values.get("--slice") ?? 50);
+const threshold = Number(
+  values.get("--max-drop-percent") ?? process.env.SEO_GATE_MAX_DROP_PERCENT ?? 2,
+);
+if (!Number.isInteger(slice) || slice < 1 || slice > 500) throw new Error("Slice must be 1..500");
+if (!Number.isFinite(threshold) || threshold < 0 || threshold > 100)
+  throw new Error("Drop threshold must be a percentage between 0 and 100");
+const dryRun = values.has("--dry-run");
+const crossOnly = values.has("--cross-only");
 
-// ------------------------------------------------- the application's own env
-/**
- * Read the running application's environment.
- *
- * The values never leave this process and are never printed. Only the names of
- * the variables it needed are reported, so a missing one is diagnosable
- * without exposing the ones that are present.
- */
 function appEnv() {
   const name = process.env.SV_PM2_NAME || "softwarevala-staging";
-  let pid = "";
-  try {
-    pid = execSync(`pm2 pid ${name}`, { encoding: "utf8" }).replace(/[^0-9]/g, "");
-  } catch {
-    pid = "";
-  }
-  if (!pid) throw new Error(`could not find the running ${name} process`);
-
-  const raw = readFileSync(`/proc/${pid}/environ`);
-  const env = {};
-  for (const item of raw.toString("utf8").split("\0")) {
-    const at = item.indexOf("=");
-    if (at > 0) env[item.slice(0, at)] = item.slice(at + 1);
-  }
-  return env;
+  const pids = execFileSync("pm2", ["pid", name], { encoding: "utf8" })
+    .trim()
+    .split(/\s+/)
+    .filter((pid) => /^[1-9]\d*$/.test(pid));
+  if (pids.length !== 1) throw new Error(`Expected one running ${name} process`);
+  return Object.fromEntries(
+    readFileSync(`/proc/${pids[0]}/environ`, "utf8")
+      .split("\0")
+      .flatMap((item) => {
+        const at = item.indexOf("=");
+        return at > 0 ? [[item.slice(0, at), item.slice(at + 1)]] : [];
+      }),
+  );
 }
-
 const env = process.env.SUPABASE_URL ? process.env : appEnv();
-const TOKEN = (env.INTERNAL_API_TOKEN || "").trim();
-const BASE = (env.SUPABASE_URL || "").trim();
-const KEY = (env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
-const PORT = (env.PORT || "3000").trim();
-const ORIGIN = `http://127.0.0.1:${PORT}`;
-
-const missing = [];
-if (!TOKEN) missing.push("INTERNAL_API_TOKEN");
-if (!BASE) missing.push("SUPABASE_URL");
-if (!KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
-if (missing.length) {
-  console.error(`missing from the application environment: ${missing.join(", ")}`);
-  process.exit(1);
-}
-console.log(`origin  : ${ORIGIN}`);
-console.log(`auth    : internal token (present, not printed)`);
-
-const HEAD = { apikey: KEY, Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" };
-
-async function readAll(path) {
-  const out = [];
-  let from = 0;
-  for (;;) {
-    const res = await fetch(`${BASE}/rest/v1/${path}`, {
-      headers: { ...HEAD, Range: `${from}-${from + 999}` },
-    });
-    if (!res.ok)
-      throw new Error(`${path} -> HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
-    const page = await res.json();
-    out.push(...page);
-    if (page.length < 1000) return out;
-    from += 1000;
+for (const name of ["SEO_STORE", "VPS_DATABASE_URL", "DEPLOY_REPO_DIR"])
+  if (env[name]) process.env[name] = env[name];
+const token = env.INTERNAL_API_TOKEN?.trim();
+const base = env.SUPABASE_URL?.trim();
+const key = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+if (!token || !base || !key) throw new Error("Application gate/catalogue credentials are missing");
+const origin = `http://127.0.0.1:${env.PORT || "3000"}`;
+const root = resolve(process.env.SEO_GATE_BACKUP_ROOT || "/root/sv-seo-backup");
+mkdirSync(root, { recursive: true, mode: 0o700 });
+const lockPath = resolve(root, ".gate-run.lock");
+const lock = openSync(lockPath, "wx", 0o600);
+writeSync(lock, `${process.pid}\n${new Date().toISOString()}\n`);
+let locked = true;
+process.on("exit", () => {
+  if (locked) {
+    closeSync(lock);
+    unlinkSync(lockPath);
   }
-}
-
-// ----------------------------------------------------------- the slice pass
-const KINDS = only ? [only] : ["slot", "product", "category", "country", "blog"];
-
-async function runKind(kind) {
-  let offset = 0;
-  const totals = { evaluated: 0, eligible: 0, byState: {} };
-  const samples = [];
-  for (;;) {
-    /**
-     * One slice, retried.
-     *
-     * The audit puts the server under load while it reads from it, and a
-     * database query that is merely slow becomes a query that times out. A
-     * single such answer used to end the whole walk: 7,347 products stopped at
-     * 5,400, twice, on one 500. A transient failure is worth waiting out; a
-     * persistent one still stops the run, after it has been given three
-     * chances and said so each time.
-     */
-    let payload = null;
-    let lastError = "";
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      const res = await fetch(
-        `${ORIGIN}/api/internal/seo-gate?kind=${kind}&offset=${offset}&limit=${SLICE}`,
-        { method: "POST", headers: { "x-internal-token": TOKEN } },
-      ).catch((error) => ({ ok: false, status: 0, text: async () => String(error) }));
-
-      if (res.ok) {
-        const body = await res.json();
-        if (!body.error) {
-          payload = body;
-          break;
-        }
-        lastError = String(body.error);
-      } else {
-        lastError = `HTTP ${res.status} ${(await res.text()).slice(0, 200)}`;
-      }
-      console.log(`\n  ${kind} at ${offset}: attempt ${attempt} failed - ${lastError}`);
-      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 5000));
-    }
-    if (!payload) {
-      throw new Error(`${kind} at ${offset} failed three times -> ${lastError}`);
-    }
-
-    totals.evaluated += payload.evaluated ?? 0;
-    totals.eligible += payload.eligible ?? 0;
-    for (const [state, count] of Object.entries(payload.byState ?? {})) {
-      totals.byState[state] = (totals.byState[state] ?? 0) + count;
-    }
-    for (const blocked of payload.blocked ?? []) {
-      if (samples.length < 6) samples.push(blocked);
-    }
-    process.stdout.write(`  ${kind}: ${totals.evaluated} evaluated\r`);
-    if (payload.done || !payload.evaluated) break;
-    offset += SLICE;
-  }
-  console.log(
-    `  ${kind.padEnd(9)} evaluated ${String(totals.evaluated).padStart(5)} | ` +
-      `eligible ${String(totals.eligible).padStart(5)} | ${JSON.stringify(totals.byState)}`,
-  );
-  for (const sample of samples) {
-    console.log(
-      `      held back ${sample.url} [${sample.state}] ${String(sample.reason).slice(0, 120)}`,
-    );
-  }
-  return totals;
-}
-
-if (!crossOnly) {
-  console.log("\n== evaluating ==");
-  for (const kind of KINDS) {
-    await runKind(kind);
-  }
-}
-
-// ------------------------------------------------------- the duplicate pass
-/**
- * Find every page whose only difference from another is a name.
- *
- * One hash per page is read, not one page per page: fifteen thousand rows of
- * sixty-four characters is under two megabytes, which is why this grouping can
- * be done here and why it would still be affordable at eighteen thousand.
- */
-console.log("\n== duplicate pass ==");
-const masked = await fingerprintsByLayer("body_masked", BASE, KEY);
-const exact = await fingerprintsByLayer("body", BASE, KEY);
-console.log(`  masked fingerprints : ${masked.length}`);
-console.log(`  body fingerprints   : ${exact.length}`);
-
-const group = (rows) => {
-  const map = new Map();
-  for (const row of rows) {
-    if (!map.has(row.hash)) map.set(row.hash, []);
-    map.get(row.hash).push(row.url);
-  }
-  return [...map.values()].filter((urls) => urls.length > 1);
-};
-
-const exactGroups = group(exact);
-const maskedGroups = group(masked).filter(
-  // A group that is already an exact duplicate is reported as that, not twice.
-  (urls) => !exactGroups.some((other) => other.length === urls.length && other[0] === urls[0]),
-);
-
-console.log(
-  `  exact duplicate groups : ${exactGroups.length} (${exactGroups.flat().length} pages)`,
-);
-console.log(
-  `  country-swap groups    : ${maskedGroups.length} (${maskedGroups.flat().length} pages)`,
-);
-for (const urls of maskedGroups.slice(0, 5)) {
-  console.log(
-    `    ${urls.length} pages share a masked hash, e.g. ${urls.slice(0, 2).join("  ==  ")}`,
-  );
-}
-
-/**
- * Hold a group of duplicate pages back.
- *
- * A page that was already blocked keeps the reason it was already blocked for.
- * Writing the duplicate verdict over it destroys the more useful answer: a
- * product page carrying fifty-two words of text is thin, and thin is what an
- * operator can act on. It also reads as a different problem than it is -
- * fourteen hundred pages appeared to be duplicates of each other when what
- * they actually are is fourteen hundred pages too slight to tell apart.
- *
- * So the classification is recorded on every page in the group, and the state
- * and the reason are written only where the page would otherwise have passed.
- */
-async function patch(urls, body) {
-  try {
-    await patchDecisions(urls, body, BASE, KEY);
-  } catch (error) {
-    console.error(`    PATCH failed: ${error}`);
-    process.exit(1);
-  }
-}
-
-async function block(urls, classification, reason) {
-  if (!urls.length) return 0;
-
-  // Which of these were still passing. Only those change state; the rest keep
-  // the first thing that was wrong with them.
-  let passing;
-  try {
-    passing = await passingUrls(urls, BASE, KEY);
-  } catch (error) {
-    console.error(`    read failed: ${error}`);
-    process.exit(1);
-  }
-
-  // The classification belongs on every page in the group: it is a fact about
-  // the content, whatever else is wrong with the page.
-  await patch(urls, { fingerprint_class: classification });
-
-  const toBlock = urls.filter((url) => passing.has(url));
-  if (toBlock.length) {
-    // sitemap_eligible must go with indexable, or the check constraint that
-    // keeps a non-indexable page out of the sitemap refuses the row.
-    await patch(toBlock, {
-      sitemap_eligible: false,
-      indexable: false,
-      state: "CONTENT_NOT_READY",
-      blocking_reason: reason,
-    });
-  }
-  console.log(
-    `    ${classification}: ${urls.length} pages classified, ${toBlock.length} of them newly held back`,
-  );
-  return toBlock.length;
-}
-
-let blocked = 0;
-if (exactGroups.length) {
-  blocked += await block(
-    exactGroups.flat(),
-    "EXACT_DUPLICATE",
-    "content_differentiation: this page is word for word identical to another page on this site.",
-  );
-}
-if (maskedGroups.length) {
-  blocked += await block(
-    maskedGroups.flat(),
-    "LOW_VALUE_DUPLICATE",
-    "content_differentiation: once this page's own country, category and product names are " +
-      "masked it is identical to another page, so the names are the only difference between them.",
-  );
-}
-console.log(`  pages held back by the duplicate pass: ${blocked}`);
-
-// ------------------------------------------------------------------ summary
-const decisions = await allDecisions(BASE, KEY);
-const byState = {};
-const byKind = {};
-for (const row of decisions) {
-  byState[row.state] = (byState[row.state] ?? 0) + 1;
-  if (!byKind[row.entity_type]) byKind[row.entity_type] = { total: 0, eligible: 0 };
-  byKind[row.entity_type].total += 1;
-  if (row.sitemap_eligible) byKind[row.entity_type].eligible += 1;
-}
-const eligible = decisions.filter((row) => row.sitemap_eligible).length;
-console.log("\n== decisions ==");
-console.log(`  total            : ${decisions.length}`);
-console.log(`  sitemap eligible : ${eligible}`);
-console.log(`  by state         : ${JSON.stringify(byState)}`);
-for (const [kind, counts] of Object.entries(byKind)) {
-  console.log(`  ${kind.padEnd(9)} ${counts.eligible}/${counts.total} eligible`);
-}
-
-// ------------------------------------------------ into the SEO Manager itself
-/**
- * Put the run where the SEO Manager already looks.
- *
- * seo_audits and seo_technical_checks have been the Manager's own screens
- * since it was built. Writing the gate's result into them is what makes the
- * gate visible to an operator without a second console being built beside the
- * first, which is the failure this platform has had enough of.
- *
- * Nothing existing is deleted: a new audit row is added, and each named check
- * is added with the moment it was made.
- */
-async function write(table, body) {
-  const res = await fetch(`${BASE}/rest/v1/${table}`, {
-    method: "POST",
-    headers: { ...HEAD, Prefer: "return=minimal" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    console.error(
-      `  could not record into ${table}: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`,
-    );
-    return false;
-  }
-  return true;
-}
-
-const now = new Date().toISOString();
-const blockedRows = decisions.length - eligible;
-// The score is the share of evaluated pages the gate passed. It is a count of
-// rows, not an estimate, and it is explicitly this platform's own measure -
-// nothing here claims to know what a search engine thinks.
-const score = decisions.length ? Math.round((eligible / decisions.length) * 100) : 0;
-
-const recorded = await write("seo_audits", {
-  name: `SEO safety gate — ${eligible} of ${decisions.length} pages eligible`,
-  status: "completed",
-  started_at: now,
-  completed_at: now,
-  pages_crawled: decisions.length,
-  issues_found: blockedRows,
-  score,
-  breakdown: {
-    audit: "safety gate (quality + fingerprint + indexing)",
-    audit_version: "v1",
-    by_state: byState,
-    by_entity_type: byKind,
-    exact_duplicate_groups: exactGroups.length,
-    exact_duplicate_pages: exactGroups.flat().length,
-    country_swap_groups: maskedGroups.length,
-    country_swap_pages: maskedGroups.flat().length,
-    fingerprint_layers: 7,
-    note:
-      "Software Vala SEO quality status. This is a count of checks this platform performed " +
-      "on its own pages; it is not a ranking, a search-engine score or a prediction of one.",
-  },
 });
-console.log(`\n  recorded into seo_audits: ${recorded ? "yes" : "no"}`);
 
-const checks = [
-  [
-    "Indexing gate coverage",
-    "indexing",
-    decisions.length ? "pass" : "fail",
-    `${decisions.length} URLs carry a decision; a URL without one cannot enter a sitemap.`,
-    decisions.length,
-  ],
-  [
-    "Sitemap eligibility",
-    "indexing",
-    "pass",
-    `${eligible} URLs passed every required check and are the only ones any sitemap will serve.`,
-    eligible,
-  ],
-  [
-    "Exact duplicate content",
-    "content",
-    exactGroups.length ? "fail" : "pass",
-    exactGroups.length
-      ? `${exactGroups.length} groups of pages are word for word identical (${exactGroups.flat().length} pages), and all of them are held back.`
-      : "No two pages carry the same text.",
-    exactGroups.flat().length,
-  ],
-  [
-    "Country-name-only duplication",
-    "content",
-    maskedGroups.length ? "fail" : "pass",
-    maskedGroups.length
-      ? `${maskedGroups.length} groups differ from each other only by their country, category or product names (${maskedGroups.flat().length} pages).`
-      : "Every page differs from every other by more than its names.",
-    maskedGroups.flat().length,
-  ],
-  [
-    "Pages held back",
-    "indexing",
-    blockedRows ? "warning" : "pass",
-    `${blockedRows} URLs are not eligible; each carries the reason in seo_indexing_decisions.blocking_reason.`,
-    blockedRows,
-  ],
-];
-let wroteChecks = 0;
-for (const [name, category, status, detail, affected] of checks) {
-  if (
-    await write("seo_technical_checks", {
-      name,
-      category,
-      status,
-      detail,
-      affected_urls: affected,
-      last_checked_at: now,
-    })
-  ) {
-    wroteChecks += 1;
-  }
+async function api(phase, body, extra = "") {
+  const response = await fetch(`${origin}/api/internal/seo-gate?phase=${phase}${extra}`, {
+    method: body ? "POST" : "GET",
+    headers: { "x-internal-token": token, ...(body ? { "Content-Type": "application/json" } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const data = await response.json();
+  if (!response.ok && !(response.status === 409 && data.stopped))
+    throw new Error(
+      `Gate ${phase} failed (HTTP ${response.status}): ${data.error || "invalid response"}`,
+    );
+  if (data.protocol !== 2)
+    throw new Error("Guarded gate protocol is not deployed; refusing legacy saves");
+  return data;
 }
-console.log(`  recorded into seo_technical_checks: ${wroteChecks}/${checks.length}`);
+async function record(table, row) {
+  const response = await fetch(`${base}/rest/v1/${table}`, {
+    method: "POST",
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify(row),
+  });
+  if (!response.ok)
+    throw new Error(`Gate saved, but ${table} audit failed (HTTP ${response.status})`);
+}
 
-// Close the pool so a run against our own PostgreSQL exits instead of hanging
-// on an idle connection. Harmless when the store is still Supabase.
-await closeSeoStore();
+try {
+  const before = await api("preflight");
+  if (!before.dryRun || !before.atomicCommit)
+    throw new Error("Gate safety capabilities unavailable");
+  if (deploymentSetting("SEO_STORE") !== "vps")
+    throw new Error("Guarded runner requires SEO_STORE=vps");
+  const backup = backupGate(deploymentSetting("VPS_DATABASE_URL"), root, before.database);
+  console.log(`backup verified: ${backup.directory} sha256=${backup.checksum}`);
+  const checked = await api("preflight");
+  if (checked.signature !== before.signature)
+    throw new Error("Store changed while backing up; rerun");
+  const input = {
+    kinds,
+    expectedSignature: before.signature,
+    maxDropPercent: threshold,
+    crossOnly,
+    decisions: [],
+    fingerprints: [],
+  };
+  if (!crossOnly)
+    for (const kind of kinds) {
+      let total = 0;
+      for (let offset = 0; ; offset += slice) {
+        let payload;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            payload = await api(
+              "evaluate",
+              {},
+              `&kind=${kind}&offset=${offset}&limit=${slice}&dry_run=1`,
+            );
+            break;
+          } catch (error) {
+            console.error(`${kind} offset ${offset} attempt ${attempt}: ${error.message}`);
+            if (attempt === 3) throw error;
+            await new Promise((done) => setTimeout(done, attempt * 5000));
+          }
+        }
+        if (!payload.dryRun || !Array.isArray(payload.rows) || !Array.isArray(payload.fingerprints))
+          throw new Error("Evaluation-only response is incomplete");
+        if (payload.evaluated !== payload.rows.length)
+          throw new Error("Evaluation row count mismatch");
+        input.decisions.push(...payload.rows);
+        input.fingerprints.push(...payload.fingerprints);
+        total += payload.rows.length;
+        console.log(`${kind}: ${total} evaluated (no saves)`);
+        if (payload.done) break;
+        if (!payload.evaluated)
+          throw new Error("Incomplete inventory slice; refusing partial plan");
+      }
+    }
+  const plan = await api("plan", input);
+  console.log(`PROJECTED ${JSON.stringify(plan)}`);
+  if (plan.stopped) {
+    console.error(
+      `STOP: ${plan.lossPercent.toFixed(3)}% of existing eligible pages lost; threshold >${threshold}%. NO SAVES.`,
+    );
+    process.exitCode = 2;
+  } else if (dryRun) {
+    console.log("DRY RUN: no decisions, fingerprints or manager audit records saved.");
+  } else {
+    const committed = await api("commit", input);
+    console.log(`COMMIT ${JSON.stringify(committed)}`);
+    if (committed.stopped || !committed.saved)
+      throw new Error("Commit refused; no gate rows saved");
+    const after = await api("preflight");
+    const eligible = after.decisions.filter((row) => row.sitemap_eligible).length;
+    const now = new Date().toISOString();
+    const byState = {};
+    for (const row of after.decisions) byState[row.state] = (byState[row.state] || 0) + 1;
+    await record("seo_audits", {
+      name: `SEO safety gate - ${eligible} of ${after.decisions.length} pages eligible`,
+      status: "completed",
+      started_at: now,
+      completed_at: now,
+      pages_crawled: after.decisions.length,
+      issues_found: after.decisions.length - eligible,
+      score: after.decisions.length ? Math.round((eligible / after.decisions.length) * 100) : 0,
+      breakdown: { audit_version: "v2", by_state: byState, ...committed, backup: backup.directory },
+    });
+    for (const [name, category, status, affected] of [
+      ["Indexing gate coverage", "indexing", "pass", after.decisions.length],
+      ["Sitemap eligibility", "indexing", "pass", eligible],
+      [
+        "Exact duplicate content",
+        "content",
+        plan.exactDuplicateGroups ? "fail" : "pass",
+        plan.exactDuplicateGroups,
+      ],
+      [
+        "Country-name-only duplication",
+        "content",
+        plan.maskedDuplicateGroups ? "fail" : "pass",
+        plan.maskedDuplicateGroups,
+      ],
+      ["Pages held back", "indexing", "warning", after.decisions.length - eligible],
+    ])
+      await record("seo_technical_checks", {
+        name,
+        category,
+        status,
+        detail: `Guarded gate v2: ${JSON.stringify(committed)}`,
+        affected_urls: affected,
+        last_checked_at: now,
+      });
+    console.log(`SAVED: ${eligible} globally eligible; manager audit recorded.`);
+  }
+} catch (error) {
+  console.error(`GATE FAILED: ${error.message}`);
+  process.exitCode = 1;
+} finally {
+  closeSync(lock);
+  unlinkSync(lockPath);
+  locked = false;
+}

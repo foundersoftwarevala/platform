@@ -1,9 +1,17 @@
 ﻿import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { RAIL_COUNTRY_BY_MARKER } from "@/lib/marketplace/rail-countries";
 import { isPublicProduct } from "@/lib/marketplace/product-safety";
-import { allDecisionStates, upsertDecisions, upsertFingerprints } from "@/lib/seo/seo-store.server";
+import {
+  allDecisionStates,
+  gateRunSnapshot,
+  saveGateRun,
+  upsertDecisions,
+  upsertFingerprints,
+} from "@/lib/seo/seo-store.server";
+import { expectedSlotHreflang } from "@/lib/seo/gate-run";
 import {
   applyCrossPageFindings,
   evaluatePage,
@@ -102,6 +110,41 @@ type Work = { facts: PageFacts; url: string };
  */
 type Slice = { work: Work[]; rows: number };
 
+const kinds = z.enum(["slot", "product", "category", "country", "blog"]);
+const runInput = z
+  .object({
+    kinds: z.array(kinds).min(1),
+    expectedSignature: z.string().regex(/^[a-f0-9]{32}$/),
+    maxDropPercent: z.number().min(0).max(100),
+    crossOnly: z.boolean(),
+    decisions: z.array(
+      z
+        .object({
+          url: z.string().min(1),
+          entity_type: kinds,
+          state: z.string(),
+          indexable: z.boolean(),
+          sitemap_eligible: z.boolean(),
+          fingerprint_class: z.string().nullable(),
+          blocking_reason: z.string().nullable(),
+        })
+        .passthrough(),
+    ),
+    fingerprints: z.array(
+      z
+        .object({
+          url: z.string().min(1),
+          layer: z.string().min(1),
+          hash: z.string().regex(/^[a-f0-9]{64}$/),
+        })
+        .passthrough(),
+    ),
+  })
+  .refine(
+    (input) => !input.crossOnly || (!input.decisions.length && !input.fingerprints.length),
+    "Cross-only runs must not include evaluations",
+  );
+
 /**
  * Category names, by id, read once and held for a minute.
  *
@@ -140,13 +183,14 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
   if (kind === "slot") {
     const slots = await rows<{
       id: string;
+      category_id: string;
       slot_url: string;
       country_marker: string;
       status: string;
       current_product_id: string | null;
       marketplace_categories: { name: string } | null;
     }>(
-      `marketplace_card_slots?select=id,slot_url,country_marker,status,current_product_id,` +
+      `marketplace_card_slots?select=id,category_id,slot_url,country_marker,status,current_product_id,` +
         `marketplace_categories(name)&order=slot_url.asc&limit=${limit}&offset=${offset}`,
     );
     if (!slots.length) return { work: [], rows: 0 };
@@ -159,6 +203,15 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
         )
       : [];
     const byId = new Map(products.map((product) => [product.id, product]));
+    const siblingCounts = new Map<string, number>();
+    await Promise.all(
+      [...new Set(slots.map((slot) => slot.category_id))].map(async (categoryId) => {
+        const siblings = await rows<{ status: string; country_code: string | null }>(
+          `marketplace_card_slots?select=status,country_code&category_id=eq.${encodeURIComponent(categoryId)}&limit=1000`,
+        );
+        siblingCounts.set(categoryId, expectedSlotHreflang(siblings));
+      }),
+    );
 
     const work: Work[] = slots.map((slot) => {
       const tenant = slot.current_product_id ? byId.get(slot.current_product_id) : undefined;
@@ -181,7 +234,7 @@ async function inventory(kind: string, offset: number, limit: number): Promise<S
           },
           countryKnown: true,
           categoryKnown: Boolean(slot.marketplace_categories?.name),
-          expectedHreflang: 81,
+          expectedHreflang: siblingCounts.get(slot.category_id),
           minInternalLinks: 20,
         },
       };
@@ -379,6 +432,19 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
       GET: async ({ request }) => {
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
+        if (new URL(request.url).searchParams.get("phase") === "preflight") {
+          try {
+            return Response.json({
+              protocol: 2,
+              dryRun: true,
+              atomicCommit: true,
+              ...(await gateRunSnapshot()),
+            });
+          } catch (error) {
+            console.error("[seo gate] preflight failed", error);
+            return Response.json({ error: "Gate preflight failed" }, { status: 502 });
+          }
+        }
         let all: { state: string; sitemap_eligible: boolean }[];
         try {
           all = await allDecisionStates();
@@ -403,6 +469,27 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
         }
 
         const params = new URL(request.url).searchParams;
+        const dryFlag = params.get("dry_run");
+        if (dryFlag !== null && !["1", "0", "true", "false"].includes(dryFlag))
+          return Response.json({ error: "Invalid dry_run flag" }, { status: 400 });
+        const dryRun = dryFlag === "1" || dryFlag === "true";
+        if (["plan", "commit"].includes(params.get("phase") ?? "")) {
+          try {
+            const parsed = runInput.safeParse(await request.json());
+            if (!parsed.success) {
+              console.error("[seo gate] invalid run input", parsed.error.issues);
+              return Response.json({ error: "Invalid gate run input" }, { status: 400 });
+            }
+            const result = await saveGateRun(parsed.data, params.get("phase") === "plan" || dryRun);
+            return Response.json(
+              { protocol: 2, ...result },
+              { status: result.stopped ? 409 : 200 },
+            );
+          } catch (error) {
+            console.error("[seo gate] guarded run failed", error);
+            return Response.json({ error: String(error).slice(0, 300) }, { status: 502 });
+          }
+        }
 
         const kind = String(params.get("kind") ?? "slot");
         const offset = Math.max(0, Number(params.get("offset") ?? 0) || 0);
@@ -416,7 +503,17 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
         }
         const work = slice.work;
         if (!slice.rows) {
-          return Response.json({ ok: true, kind, offset, evaluated: 0, done: true });
+          return Response.json({
+            ok: true,
+            protocol: 2,
+            dryRun,
+            kind,
+            offset,
+            evaluated: 0,
+            rows: [],
+            fingerprints: [],
+            done: true,
+          });
         }
 
         const decisions: Decision[] = [];
@@ -441,8 +538,9 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
         // scripts/ops/seo-gate-run.mjs.
         const settled = applyCrossPageFindings(decisions.map((decision) => ({ decision })));
 
+        const decisionRows = settled.map(decisionRow);
         try {
-          await upsertDecisions(settled.map(decisionRow));
+          if (!dryRun) await upsertDecisions(decisionRows);
         } catch (error) {
           return Response.json(
             { error: "Could not record the decisions", detail: String(error).slice(0, 300) },
@@ -464,7 +562,7 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
             computed_at: new Date().toISOString(),
           })),
         );
-        if (prints.length) {
+        if (prints.length && !dryRun) {
           try {
             await upsertFingerprints(prints);
           } catch (error) {
@@ -481,6 +579,9 @@ export const Route = createFileRoute("/api/internal/seo-gate")({
 
         return Response.json({
           ok: true,
+          protocol: 2,
+          dryRun,
+          ...(dryRun ? { rows: decisionRows, fingerprints: prints } : {}),
           kind,
           offset,
           evaluated: settled.length,

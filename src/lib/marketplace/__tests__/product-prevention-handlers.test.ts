@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   operator: vi.fn(),
   decisions: vi.fn(),
   prints: vi.fn(),
+  snapshot: vi.fn(),
+  saveRun: vi.fn(),
 }));
 vi.mock("@/lib/marketplace/author-guard", async (original) => ({
   ...(await original<typeof import("../author-guard")>()),
@@ -18,6 +20,8 @@ vi.mock("@/lib/auth/internal-guard", () => ({ requireInternalOperator: mocks.ope
 vi.mock("@/lib/seo/seo-store.server", () => ({
   upsertDecisions: mocks.decisions,
   upsertFingerprints: mocks.prints,
+  gateRunSnapshot: mocks.snapshot,
+  saveGateRun: mocks.saveRun,
   allDecisionStates: async () => [],
   storeOwns: () => false,
   readResourceRows: vi.fn(),
@@ -62,6 +66,69 @@ afterEach(() => {
 });
 
 describe("actual product creation handlers", () => {
+  it("gate dry-run returns evaluated rows and hashes without either store write", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) => {
+        const url = String(input);
+        if (url.includes("select=status,country_code"))
+          return json([{ status: "occupied", country_code: "US" }]);
+        if (url.includes("marketplace_card_slots"))
+          return json([
+            {
+              id: "slot1",
+              category_id: "cat1",
+              slot_url: "/marketplace/education/usa",
+              country_marker: "USA",
+              status: "occupied",
+              current_product_id: "p1",
+              marketplace_categories: { name: "Education" },
+            },
+          ]);
+        if (url.includes("marketplace_products"))
+          return json([
+            {
+              id: "p1",
+              name: "School ERP",
+              visible: true,
+              content_status: "published",
+            },
+          ]);
+        return new Response(
+          `<html><head><title>School ERP Education Software USA</title></head><body><h1>Education Software USA</h1>${Array.from({ length: 250 }, (_, i) => `module${i}`).join(" ")}</body></html>`,
+          { status: 200 },
+        );
+      }),
+    );
+    const response = await gatePost({
+      request: request("/api/internal/seo-gate?kind=slot&dry_run=1", {}),
+    });
+    const payload = await response.json();
+    expect(payload).toMatchObject({ dryRun: true, protocol: 2, evaluated: 1 });
+    expect(payload.rows).toHaveLength(1);
+    expect(payload.fingerprints.length).toBeGreaterThan(0);
+    expect(mocks.decisions).not.toHaveBeenCalled();
+    expect(mocks.prints).not.toHaveBeenCalled();
+  });
+
+  it("gate planning delegates only to evaluation-only storage", async () => {
+    mocks.saveRun.mockResolvedValue({ saved: false, stopped: false });
+    const body = {
+      kinds: ["slot"],
+      expectedSignature: "a".repeat(32),
+      maxDropPercent: 2,
+      crossOnly: false,
+      decisions: [],
+      fingerprints: [],
+    };
+    const response = await gatePost({
+      request: request("/api/internal/seo-gate?phase=plan", body),
+    });
+    expect(response.status).toBe(200);
+    expect(mocks.saveRun).toHaveBeenCalledWith(body, true);
+    expect(mocks.decisions).not.toHaveBeenCalled();
+    expect(mocks.prints).not.toHaveBeenCalled();
+  });
   it("author creation cannot override QA visibility or review state", async () => {
     mocks.rest.mockImplementation(async (_path: string, init: RequestInit) => {
       const row = JSON.parse(String(init.body));
