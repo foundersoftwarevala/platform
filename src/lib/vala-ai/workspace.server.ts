@@ -2,21 +2,29 @@ import {
   closeSync,
   constants,
   existsSync,
+  fchmodSync,
+  fchownSync,
+  fstatSync,
+  ftruncateSync,
   lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
+  readdirSync,
+  readlinkSync,
   realpathSync,
   rmSync,
   statSync,
   writeFileSync,
   writeSync,
+  type Stats,
 } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { audit } from "./audit.server.ts";
 import { dataDir, paths } from "./config.server.ts";
 import { one, run } from "./db.server.ts";
 import { git } from "./exec.server.ts";
+import { sandboxPolicy } from "./sandbox.server.ts";
 import { getSettings, resources } from "./settings.server.ts";
 import { newId, now, sha256, ValaError } from "./util.server.ts";
 
@@ -51,6 +59,124 @@ const GIT_IDENTITY = [
   "-c",
   "commit.gpgsign=false",
 ];
+
+function sandboxWorkspaceGid(): number | null {
+  const policy = sandboxPolicy();
+  if (policy.mode !== "docker") return null;
+  if (process.platform !== "linux")
+    throw new ValaError(500, "Docker workspace permissions require a Linux host.");
+  return Number(policy.user.split(":")[1]);
+}
+
+function checkWorkspaceFd(root: string, fd: number): Stats {
+  const opened = readlinkSync(`/proc/self/fd/${fd}`);
+  const rel = relative(realpathSync(root), opened);
+  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel) || rel.split(sep)[0] === ".git")
+    throw new ValaError(403, "Sandbox permissions may only change workspace content.");
+  const stat = fstatSync(fd);
+  if (
+    (!stat.isDirectory() && !stat.isFile()) ||
+    stat.nlink === 0 ||
+    (stat.isFile() && stat.nlink !== 1)
+  )
+    throw new ValaError(403, "Sandbox sharing refuses special files and hard links.");
+  return stat;
+}
+
+function shareWorkspaceFd(root: string, fd: number, gid: number): void {
+  const stat = checkWorkspaceFd(root, fd);
+  // Keep the host owner for Git; share only content with the sandbox group.
+  fchownSync(fd, -1, gid);
+  fchmodSync(fd, stat.isDirectory() ? 0o2770 : stat.mode & 0o111 ? 0o770 : 0o660);
+}
+
+function withWorkspaceParent<T>(
+  root: string,
+  abs: string,
+  create: boolean,
+  gid: number | null,
+  operation: (target: string) => T,
+): T {
+  const directory = realTarget(dirname(abs));
+  if (directory === null)
+    throw new ValaError(403, "File operation escaped editable workspace content.");
+  const canonical = resolve(directory, basename(abs));
+  const base = realpathSync(root);
+  const rel = relative(base, canonical);
+  if (
+    rel === "" ||
+    rel === ".." ||
+    rel.startsWith(`..${sep}`) ||
+    isAbsolute(rel) ||
+    [".git", "node_modules"].includes(rel.split(sep)[0])
+  )
+    throw new ValaError(403, "File operation escaped editable workspace content.");
+  let parent = openSync(base, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  try {
+    if (gid !== null) shareWorkspaceFd(base, parent, gid);
+    else checkWorkspaceFd(base, parent);
+    for (const part of rel.split(sep).slice(0, -1)) {
+      const child = `/proc/self/fd/${parent}/${part}`;
+      if (create) {
+        try {
+          mkdirSync(child);
+        } catch (error) {
+          if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
+        }
+      }
+      const next = openSync(
+        child,
+        constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+      );
+      closeSync(parent);
+      parent = next;
+      if (gid !== null) shareWorkspaceFd(base, parent, gid);
+      else checkWorkspaceFd(base, parent);
+    }
+    // Hold the parent inode, rather than re-traversing container-writable ancestors.
+    return operation(`/proc/self/fd/${parent}/${basename(canonical)}`);
+  } finally {
+    closeSync(parent);
+  }
+}
+
+function readWorkspaceBytes(root: string, abs: string): Buffer {
+  const canonical = realTarget(abs);
+  if (canonical === null)
+    throw new ValaError(403, "File operation escaped editable workspace content.");
+  return withWorkspaceParent(root, canonical, false, null, (target) => {
+    const fd = openSync(target, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    try {
+      if (!checkWorkspaceFd(root, fd).isFile())
+        throw new ValaError(404, "Workspace file not found.");
+      return readFileSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+  });
+}
+
+function shareWorkspacePath(root: string, path: string, gid: number): void {
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    shareWorkspaceFd(root, fd, gid);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function shareCreatedWorkspace(root: string, gid: number): void {
+  const walk = (path: string) => {
+    shareWorkspacePath(root, path, gid);
+    for (const entry of readdirSync(path, { withFileTypes: true })) {
+      if (entry.name === ".git" || entry.isSymbolicLink()) continue;
+      const child = resolve(path, entry.name);
+      if (entry.isDirectory()) walk(child);
+      else shareWorkspacePath(root, child, gid);
+    }
+  };
+  walk(root);
+}
 
 export function getWorkspace(projectId: string): Workspace | undefined {
   return one<Workspace>("select * from workspaces where project_id = ?", projectId);
@@ -140,6 +266,14 @@ export function createWorkspace(
 
   const head = git(wsPath, ["rev-parse", "HEAD"]);
   if (!head.ok) fail("Workspace has no HEAD commit.");
+  try {
+    const gid = sandboxWorkspaceGid();
+    if (gid !== null) shareCreatedWorkspace(wsPath, gid);
+  } catch (error) {
+    fail(
+      `Sandbox workspace permissions failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   run(
     "update workspaces set status = 'ready', base_commit = ?, error = null, git_config_sha256 = ? where id = ?",
     head.stdout.trim(),
@@ -260,7 +394,7 @@ export function readWorkspaceFile(
   const abs = resolveInside(ws, rel);
   if (!existsSync(abs) || !statSync(abs).isFile())
     throw new ValaError(404, `File "${rel}" not found.`);
-  const buf = readFileSync(abs);
+  const buf = process.platform === "linux" ? readWorkspaceBytes(ws.path, abs) : readFileSync(abs);
   if (buf.includes(0)) throw new ValaError(415, `File "${rel}" is binary.`);
   const truncated = buf.length > maxBytes;
   return {
@@ -280,17 +414,34 @@ export function writeWorkspaceFile(
   const bytes = Buffer.byteLength(content, "utf8");
   if (bytes > getSettings().max_file_kb * 1024)
     throw new ValaError(413, `File "${rel}" exceeds the ${getSettings().max_file_kb} KB limit.`);
-  const beforeSha = existsSync(abs) ? sha256(readFileSync(abs)) : null;
-  mkdirSync(dirname(abs), { recursive: true });
-  // Where the platform supports it, refuse to follow a link that appears at the
-  // final path between the check above and this write.
-  const flags =
-    constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0);
-  const fd = openSync(abs, flags, 0o644);
-  try {
-    writeSync(fd, content, null, "utf8");
-  } finally {
-    closeSync(fd);
+  const gid = sandboxWorkspaceGid();
+  const write = (target: string) => {
+    const flags = constants.O_RDWR | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
+    let created = true;
+    let fd: number;
+    try {
+      fd = openSync(target, flags | constants.O_CREAT | constants.O_EXCL, 0o644);
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
+      created = false;
+      fd = openSync(target, flags);
+    }
+    try {
+      if (process.platform === "linux") checkWorkspaceFd(ws.path, fd);
+      if (gid !== null) shareWorkspaceFd(ws.path, fd, gid);
+      const beforeSha = created ? null : sha256(readFileSync(fd));
+      ftruncateSync(fd, 0);
+      writeSync(fd, content, 0, "utf8");
+      return beforeSha;
+    } finally {
+      closeSync(fd);
+    }
+  };
+  let beforeSha: string | null;
+  if (process.platform === "linux") beforeSha = withWorkspaceParent(ws.path, abs, true, gid, write);
+  else {
+    mkdirSync(dirname(abs), { recursive: true });
+    beforeSha = write(abs);
   }
   return { path: rel, beforeSha, afterSha: sha256(content), bytes };
 }
@@ -301,8 +452,17 @@ export function deleteWorkspaceFile(
 ): { path: string; beforeSha: string } {
   const abs = resolveInside(ws, rel);
   if (!existsSync(abs)) throw new ValaError(404, `File "${rel}" not found.`);
-  const beforeSha = sha256(readFileSync(abs));
-  rmSync(abs);
+  const remove = (target: string) => {
+    const beforeSha = sha256(
+      process.platform === "linux" ? readWorkspaceBytes(ws.path, target) : readFileSync(target),
+    );
+    rmSync(target);
+    return beforeSha;
+  };
+  const beforeSha =
+    process.platform === "linux"
+      ? withWorkspaceParent(ws.path, abs, false, null, remove)
+      : remove(abs);
   return { path: rel, beforeSha };
 }
 

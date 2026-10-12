@@ -1,6 +1,7 @@
-# Vala AI — Sandbox for acceptance checks (design, not implemented)
+# Vala AI — Sandbox for acceptance checks
 
-Status: **proposal awaiting approval**. Nothing in this document is built.
+Status: sandbox implementation exists; approved production infrastructure preparation was
+verified on 2026-10-12. The Vala AI application remains **undeployed**.
 
 ## Problem (audit finding, High)
 
@@ -32,7 +33,7 @@ The agent's own file edits stay on the host, through the existing path guard (no
 Git operations stay on the host with fixed arguments.
 
 Windows development machines without Docker: checks run as today and the UI labels them
-"not sandboxed"; production refuses to run checks without the sandbox (`VALA_AI_SANDBOX=required`).
+"not sandboxed"; production refuses to run checks without the sandbox (`VALA_AI_SANDBOX=docker`).
 
 ## Fallback if Docker is not acceptable
 
@@ -77,13 +78,31 @@ Built and tested locally:
   `.git/config` changed after Vala AI created it.
 - Tests: `npx vitest run src/lib/vala-ai/sandbox.server.test.ts src/lib/vala-ai/git-hardening.server.test.ts`.
 
-Not done, blocked on server access (SSH refuses this machine's key; Docker is not installed on
-the development machine):
+## Approved infrastructure verification (2026-10-12)
 
-- The seven container acceptance tests in `sandbox.server.test.ts` (host files, filesystem view,
-  network, pids, memory, timeout cleanup, read-only `.git` and root) are written and skip
-  without Docker. They have **not run**.
-- Server setup: pull and pin the image (`docker pull node:22-bookworm-slim`, then use the
-  `name@sha256:…` it reports as `VALA_AI_SANDBOX_IMAGE`), make workspaces writable by the
-  sandbox uid (`VALA_AI_SANDBOX_USER`, default 10001), set `VALA_AI_SANDBOX=docker`, then run
-  the acceptance tests and the browser end-to-end run on the server.
+- Docker 29.1.3 is available. The approved Linux/amd64 image was pulled and exercised:
+  `node:22-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562`
+  (Node v22.23.3).
+- Staged environment: `/etc/softwarevala/vala-ai.env`, root:root 0640; not loaded into the
+  running application.
+- Numeric UID/GID 10001:10001 wrote and read the approved disposable bind-mounted workspace;
+  the test file and directory were removed.
+- Host-created projects keep their host owner for Git. In docker mode, Linux content
+  directories use the configured sandbox GID with 2770 permissions; regular files use 0660,
+  executable files 0770. New nested host writes are provisioned too. `.git` is excluded and
+  remains a separate read-only container mount. Sharing checks opened descriptors for
+  containment and refuses special files and hard links; it does not share private database
+  or evidence trees. Linux file reads, writes and deletes hold parent directory descriptors,
+  so container-writable ancestors cannot redirect operations outside the workspace.
+  A non-root host must be authorized to provision the configured group.
+- Private VPS validation passed all seven original container cases plus the positive
+  host-created/nested-file write case. The PID test requires actual `EAGAIN` below 256 children
+  without a timeout; the memory test requires exit 137 without a timeout.
+- Targeted workspace/sandbox/backup/Git/RBAC suite: 51 passed. Full Linux non-provider suite:
+  104 passed, zero failures, one deliberately skipped real-provider test. The Unix-space-path
+  operator/viewer redaction defect found during preparation was fixed, with regression coverage
+  for whitespace, nested JSON, unchanged owner visibility and relative file paths.
+- Proof: `/root/sv-seo-backup/vala-ai-validation-20261012T161000Z/`.
+
+Still pending separate authorization: application deployment/restart, browser end-to-end
+acceptance on deployed Vala pages, real provider acceptance and package-install network policy.

@@ -57,10 +57,52 @@ read (`git clone --no-hardlinks`).
    deployed) — see the header of `scripts/vala-ai/e2e-local.mjs` for the exact commands.
 3. Browser end-to-end: `node scripts/vala-ai/e2e-local.mjs --source <git repo> --check "node check.mjs"`.
 
-Tests: `npx vitest run src/lib/vala-ai` (21 tests; the agent-loop tests use a stub model server as a test double).
+Tests: `npx vitest run src/lib/vala-ai` (the agent-loop tests use a stub model server as a test double).
 
-## Production notes (not done; needs authorization)
+## Production preparation (2026-10-12; application not deployed)
 
-- Set `VALA_AI_DATA_DIR` to a persistent path outside the app directory (e.g. `/var/lib/vala-ai`).
-- Run the model server as its own service on the VPS, loopback only; size the model to the VPS RAM/CPU.
+- Approved directories and environment are staged outside the application, under
+  `/var/lib/vala-ai` and `/etc/softwarevala/vala-ai.env`. Root-owned data directory: 0750.
+  Numeric sandbox UID/GID: 10001:10001. See [sandbox verification](./SANDBOX_DESIGN.md).
+- Daily 02:30 UTC root backup schedule, seven-copy retention and local-root failure mail are
+  installed. No live SQLite database exists; only isolated backup/restore fixtures were tested.
+  See [backup status and rollback evidence](./BACKUP.md).
+- Model source defaults to `local`. The registered OpenAI service is enabled/approved, with an
+  encrypted credential and runtime encryption key present. Credential validity and provider
+  acceptance remain unverified; no real provider request was made.
 - One application process runs one task step at a time.
+
+### Scoped deployment plan only
+
+Use a new isolated branch from production `5f1dfa1`, not full main. Apply the eleven original
+implementation commits in order:
+`526b852`, `e919f19`, `feb33bc`, `a533f05`, `122df40`, `e87cd6e`, `651c8d3`, `b136ae3`,
+`2235329`, `c83e737`, `06bd77d`, plus reviewed workspace/backup preparation changes.
+Read-only inspection found no changed-file overlap with production since common base `7cf353c`;
+actual cherry-pick, generated routing/i18n integration and candidate build are not yet verified.
+Exclude protected dirty UI files and unrelated main changes.
+
+Before release:
+
+1. Keep the Linux whitespace-path redaction regression covered. Preparation fixed the
+   operator/viewer defect: full Linux suite now has 104 passed, zero failures and one
+   intentionally skipped real-provider test; targeted workspace/sandbox/backup/Git/RBAC has
+   51 passed. This is private infrastructure acceptance, not deployed browser acceptance.
+2. Typecheck and lint the candidate, run all non-provider tests and eight Docker acceptance
+   cases, build the application, and test backup/restore plus exactly seven retained snapshots.
+   The current full-main typecheck still has 347 known diagnostics; changed Vala files have none.
+3. Obtain separate deployment/restart approval. Snapshot code, environment and any SQLite plus
+   workspace/evidence/release state before activation.
+4. Check homepage/login/marketplace health and the existing 7,199 slot sitemap URLs, then Vala
+   owner/operator/viewer RBAC, pages/API, workspace writes, timeout cleanup and audit integrity.
+   Vala API checks may initialize/write its SQLite database.
+5. Select an authorized local model or explicitly enable AI API Manager settings; provider
+   requests require separate approval.
+
+Rollback code/build and environment independently. Stop the app before restoring SQLite;
+coordinate file-tree snapshots, since database restore alone does not restore referenced
+workspaces/evidence. The backup-only infrastructure has a checksum-guarded rollback script.
+Expected integration/deployment work: 2-4 hours, excluding blocker remediation and approvals.
+
+Production remains `5f1dfa1`; no application deployment, restart, business database write or
+full-main production deployment was performed during preparation.
