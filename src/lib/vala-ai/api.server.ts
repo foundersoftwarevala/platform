@@ -26,6 +26,7 @@ import {
   saveDraft,
 } from "./projects.server.ts";
 import { getSettings, resources, updateSettings } from "./settings.server.ts";
+import { importLibrary, listLibrary } from "./library.server.ts";
 import {
   createTask,
   getEvidence,
@@ -127,9 +128,9 @@ const CAPABILITIES = [
     note: "Requires separate authorization.",
   },
   {
-    area: "Source-code library indexing (3,000+ codebases)",
-    status: "not built",
-    note: "Last phase.",
+    area: "Software library index (metadata only, read from the SSD in the browser)",
+    status: "built",
+    note: "Names, stack, features, file counts and a manifest hash. No source code is uploaded; matching and pickup are not built yet.",
   },
 ] as const;
 
@@ -197,6 +198,8 @@ on("GET", "/people", "viewer", () =>
 );
 
 // ---- projects -----------------------------------------------------------
+on("GET", "/library", "viewer", ({ url }) => listLibrary(url.searchParams.get("q") ?? ""));
+on("POST", "/library/import", "operator", ({ body, op }) => importLibrary(body, op!.id));
 on("GET", "/projects", "viewer", () => listProjects());
 on("POST", "/projects", "operator", ({ body, op }) =>
   createProject(

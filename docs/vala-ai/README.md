@@ -23,7 +23,8 @@ Audit fixes and their evidence: [REMEDIATION.md](REMEDIATION.md). Designs awaiti
 | Live running preview of client apps                                  | Not built          | preview = verified diff + file view                                                                        |
 | Orchestration of existing worker agents                              | Not built          | existing workers depend on the discontinued database                                                       |
 | OS-level sandbox for commands                                        | Not built          | commands run in the workspace with a scrubbed environment                                                  |
-| Licensing & delivery, production deployment, source-library indexing | Not built          | later phases; deployment needs separate authorization                                                      |
+| Software library index (metadata only)                               | Built, tested      | `library.server.ts`; browser reads the SSD read-only, server stores name/stack/features/counts/SHA-256 only |
+| Licensing & delivery, production deployment, matching & source pickup | Not built          | later phases; deployment needs separate authorization                                                      |
 
 ## Architecture
 

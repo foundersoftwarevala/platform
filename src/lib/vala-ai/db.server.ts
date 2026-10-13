@@ -220,6 +220,24 @@ export const MIGRATIONS: string[] = [
   alter table evidence add column sandbox text not null default 'none';
   alter table workspaces add column git_config_sha256 text;
   `,
+  /* 4: software library index — metadata only, never source code */ `
+  create table library_items (
+    id text primary key,
+    name text not null,
+    version text not null default '',
+    root_label text not null,
+    rel_path text not null,
+    stack_json text not null default '[]',
+    features_json text not null default '[]',
+    file_count integer not null,
+    size_bytes integer not null,
+    manifest_sha256 text not null,
+    scanned_by text not null,
+    scanned_at text not null,
+    unique (root_label, rel_path)
+  );
+  create index library_items_name on library_items(name);
+  `,
 ];
 
 let instance: { path: string; db: DatabaseSync } | null = null;
