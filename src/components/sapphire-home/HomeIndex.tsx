@@ -123,7 +123,7 @@ import {
 } from "@/components/sapphire-home/RefSections";
 import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { catalogueSlugForShelf } from "@/lib/marketplace/home-category-map";
-import { demoNumbersInRow, marketplaceDemoHref } from "@/lib/marketplace/demo-link";
+import { demoNumbersForCards, marketplaceDemoHref } from "@/lib/marketplace/demo-link";
 import { fetchCountryRail, railCardToDemo, shelfColour } from "@/lib/marketplace/country-rail";
 import { RAIL_COUNTRIES } from "@/lib/marketplace/rail-countries";
 import { useTranslation } from "@/lib/i18n/use-translation";
@@ -3537,6 +3537,7 @@ const CountryRailCards = memo(function CountryRailCards({
   shelf,
   colour,
   already,
+  demoNumberOffset,
   favorites,
   onToggleFavorite,
   onLoaded,
@@ -3545,6 +3546,7 @@ const CountryRailCards = memo(function CountryRailCards({
   colour: string;
   /** The slugs the shelf already shows, joined, so the memo around this holds. */
   already: string;
+  demoNumberOffset: number;
   favorites: string[];
   onToggleFavorite: (slug: string) => void;
   onLoaded: (shelf: string, count: number) => void;
@@ -3582,32 +3584,20 @@ const CountryRailCards = memo(function CountryRailCards({
     };
   }, [slug, shelf, colour, onLoaded, skip]);
 
-  const staticDemoCount = allDemos.filter(
-    (candidate) =>
-      candidate.masterCategory === shelf &&
-      candidate.status === "ACTIVE" &&
-      Boolean(candidate.slug),
-  ).length;
+  const demoNumbers = demoNumbersForCards(cards, demoNumberOffset);
 
   return (
     <>
       <span ref={anchor} aria-hidden className="block w-0 shrink-0" />
-      {cards.map((demo, index) => {
-        const earlierRailDemoCount = cards
-          .slice(0, index)
-          .filter((candidate) => candidate.status === "ACTIVE").length;
-        const demoNumber = demo.status === "ACTIVE" ? staticDemoCount + earlierRailDemoCount + 1 : null;
-
-        return (
-          <DemoCard
-            key={`${shelf}-country-${demo.id}`}
-            demo={demo}
-            demoNumberOverride={demoNumber}
-            isFavorite={favorites.includes(catalogueSlug(demo.name))}
-            onToggleFavorite={() => onToggleFavorite(catalogueSlug(demo.name))}
-          />
-        );
-      })}
+      {cards.map((demo, index) => (
+        <DemoCard
+          key={`${shelf}-country-${demo.id}`}
+          demo={demo}
+          demoNumber={demoNumbers[index]}
+          isFavorite={favorites.includes(catalogueSlug(demo.name))}
+          onToggleFavorite={() => onToggleFavorite(catalogueSlug(demo.name))}
+        />
+      ))}
     </>
   );
 });
@@ -3732,6 +3722,7 @@ const Index = () => {
                 const rowDemos = searchQuery.trim()
                   ? categoryDemos
                   : fillProductRail(categoryDemos, Math.max(PRODUCTS_PER_ROW - added, 0));
+                const demoNumbers = demoNumbersForCards(rowDemos);
 
                 return (
                   // The rail repeats its cards to fill the row; the count says
@@ -3745,6 +3736,7 @@ const Index = () => {
                       <DemoCard
                         key={`${masterCat}-${demo.id}-${index}`}
                         demo={demo}
+                        demoNumber={demoNumbers[index]}
                         isFavorite={favorites.includes(catalogueSlug(demo.name))}
                         onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
                       />
@@ -3758,6 +3750,7 @@ const Index = () => {
                             : (CATALOGUE_SHELF_COLOUR[masterCat] ?? shelfColour(undefined))
                         }
                         already={categoryDemos.map((d) => catalogueSlug(d.name)).join(",")}
+                        demoNumberOffset={demoNumbers.filter((number) => number !== null).length}
                         favorites={favorites}
                         onToggleFavorite={toggleFavorite}
                         onLoaded={noteAdded}
@@ -3771,16 +3764,21 @@ const Index = () => {
                 title={activeCategory}
                 count={new Set(filteredDemos.map((d) => d.id)).size}
               >
-                {(searchQuery.trim() ? filteredDemos : fillProductRail(filteredDemos)).map(
-                  (demo, index) => (
+                {(() => {
+                  const rowDemos = searchQuery.trim()
+                    ? filteredDemos
+                    : fillProductRail(filteredDemos);
+                  const demoNumbers = demoNumbersForCards(rowDemos);
+                  return rowDemos.map((demo, index) => (
                     <DemoCard
                       key={`${activeCategory}-${demo.id}-${index}`}
                       demo={demo}
+                      demoNumber={demoNumbers[index]}
                       isFavorite={favorites.includes(catalogueSlug(demo.name))}
                       onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
                     />
-                  ),
-                )}
+                  ));
+                })()}
               </ProductCarouselRow>
             )}
           </div>
@@ -3905,12 +3903,12 @@ const slotParams = (slotUrl: string | undefined) => {
 const DemoCard = memo(
   ({
     demo,
-    demoNumberOverride,
+    demoNumber,
     isFavorite,
     onToggleFavorite,
   }: {
     demo: Demo;
-    demoNumberOverride?: number | null;
+    demoNumber: number | null;
     isFavorite: boolean;
     onToggleFavorite: () => void;
   }) => {
@@ -3922,21 +3920,6 @@ const DemoCard = memo(
       slug: demo.slug,
       url: demo.url,
     });
-    const categoryCards = allDemos.filter(
-      (candidate) => candidate.masterCategory === demo.masterCategory,
-    );
-    const categoryDemoNumbers = demoNumbersInRow(
-      categoryCards.map((candidate) => ({
-        hasDemo: candidate.status === "ACTIVE" && Boolean(candidate.slug),
-      })),
-    );
-    const cardPosition = categoryCards.findIndex((candidate) => candidate.id === demo.id);
-    const demoNumber =
-      demoNumberOverride !== undefined
-        ? demoNumberOverride
-        : cardPosition < 0
-          ? null
-          : categoryDemoNumbers[cardPosition];
     // The page this card opens. An author's upload takes the same address, so
     // the card keeps working when the real product arrives behind it.
     const productSlug = demo.slug ?? catalogueSlug(demo.name);

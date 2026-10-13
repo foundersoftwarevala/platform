@@ -45,6 +45,10 @@ opens. No second shell, sidebar or section router.
    redesign it, and do not substitute a component for one written from scratch.
 5. **Colour: density may change, hue may not.** The depth layer at the end of
    `marketplace-home.css` raises saturation, contrast and shadow depth only.
+6. **Demo numbering belongs to the rendered category.** Number distinct active
+   cards with a demo gateway link from 1, including existing `/demo/...` URLs.
+   Country cards continue after that category's static demos; filtered rows
+   restart at 1. Carousel copies do not receive duplicate number badges.
 
 ## How to compare against the approved design
 
