@@ -6,6 +6,7 @@ import {
   FolderGit2,
   GitBranch,
   LayoutDashboard,
+  Library,
   MessageSquare,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -26,6 +27,13 @@ export const VALA_AI_SECTIONS = [
     path: "/vala-ai/projects",
     label: "Projects & Requirements",
     icon: FolderGit2,
+    group: "main",
+  },
+  {
+    id: "library",
+    path: "/vala-ai/library",
+    label: "Software Library",
+    icon: Library,
     group: "main",
   },
   {
