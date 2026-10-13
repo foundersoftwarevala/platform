@@ -67,6 +67,25 @@ The source's animated factory example is also retained as an explicitly labeled
 design simulation; its sample logs are not execution evidence. Its separate
 code analyzer uses the configured model for actual AI review.
 
+The Builder toolbar stays sticky above its sandboxed iframe while the page
+scrolls, keeping mouse-operated tabs and downloads reachable after theme changes.
+Settings offers an optional maximum HTML character count; explicit prompt limits
+such as "HTML under 900 characters" are also recognized (under 900 means at most
+899). The strictest limit applies, with a 120,000-character safety ceiling.
+Counts use JavaScript string length, include markup and whitespace, and exclude
+the theme CSS injected by the preview/export. Limits are checked after both
+generation and edits. Over-limit results produce a persistent chat warning and
+a notification; the original HTML is preserved, never silently truncated.
+The configured limit is saved with the operator's browser-local website.
+
+The canonical application proxy uses 180-second read, send and connect timeouts
+in `deploy/production/nginx/softwarevala-production.conf`. The actual production
+site is `/etc/nginx/sites-enabled/softwarevala-production`; preserve its additional
+gateway/cache configuration when updating it, test with `nginx -t`, then reload.
+Other gateway and demo-proxy timeouts are not changed by this Vala fix. Inference
+exceeding 180 seconds can still time out; asynchronous/streamed inference would
+be a separate change.
+
 This integration alone does not authorize production deployment/restart.
 Back up the SQLite database and module filesystem state before any separately
 approved deployment; see [BACKUP.md](BACKUP.md).

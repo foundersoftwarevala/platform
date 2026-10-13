@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { generateSiteFn } from "@/lib/vala-ai/studio/ai/site.functions";
 import { withTheme } from "@/lib/vala-ai/studio/site-themes";
+import { MAX_SITE_HTML_CHARACTERS } from "@/lib/vala-ai/studio/site-output";
 import {
   Bell,
   Home,
@@ -53,6 +54,7 @@ export function StudioBuilder() {
   const [title, setTitle] = useState("");
   const [chat, setChat] = useState<{ me: boolean; text: string }[]>([]);
   const [busy, setBusy] = useState(false);
+  const [maxCharacters, setMaxCharacters] = useState("");
   const started = useRef(false);
   const operator = useOperator();
   const KEY = `vala-studio-builder:${operator.id}`;
@@ -64,6 +66,7 @@ export function StudioBuilder() {
         setHtml(v.html);
         setTitle(v.title || "");
         setChat(v.chat || []);
+        if (typeof v.maxCharacters === "string") setMaxCharacters(v.maxCharacters);
         if (v.prompt === prompt) started.current = true;
       }
     } catch (error) {
@@ -75,14 +78,22 @@ export function StudioBuilder() {
   useEffect(() => {
     if (loaded && html)
       try {
-        localStorage.setItem(KEY, JSON.stringify({ html, title, chat, prompt }));
+        localStorage.setItem(KEY, JSON.stringify({ html, title, chat, prompt, maxCharacters }));
       } catch (error) {
         console.error("Vala builder persistence failed", error);
         toast.error("Website could not be saved in this browser.");
       }
-  }, [loaded, html, title, chat, prompt]);
+  }, [KEY, loaded, html, title, chat, prompt, maxCharacters]);
   const run = async (request: string, fresh = false) => {
     if (!request.trim() || busy) return;
+    const maximum = maxCharacters.trim() ? Number(maxCharacters) : undefined;
+    if (
+      maximum !== undefined &&
+      (!Number.isInteger(maximum) || maximum < 1 || maximum > MAX_SITE_HTML_CHARACTERS)
+    ) {
+      toast.error(`HTML character limit must be between 1 and ${MAX_SITE_HTML_CHARACTERS}.`);
+      return;
+    }
     setBusy(true);
     setMsg("");
     setChat((c) => [...c, { me: true, text: request }]);
@@ -90,13 +101,20 @@ export function StudioBuilder() {
       const out = await gen({
         data: {
           request,
+          ...(maximum !== undefined ? { maxCharacters: maximum } : {}),
           ...(layout ? { pageType: layout } : {}),
           ...(html && !fresh ? { previousHtml: html } : {}),
         },
       });
+      if (!out?.html)
+        throw new Error("Website generation returned no HTML. Check the model and retry.");
       setHtml(out.html);
       if (out.title) setTitle(out.title);
-      setChat((c) => [...c, { me: false, text: out.reply }]);
+      setChat((c) => [
+        ...c,
+        { me: false, text: out.warning ? `${out.reply}\n\n${out.warning}` : out.reply },
+      ]);
+      if (out.warning) toast.warning(out.warning);
     } catch (e) {
       setChat((c) => [...c, { me: false, text: e instanceof Error ? e.message : "Build failed." }]);
     } finally {
@@ -236,7 +254,7 @@ export function StudioBuilder() {
 
         {/* Preview column */}
         <main className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
+          <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-2">
             <nav className="flex rounded-lg border border-border p-0.5">
               {TABS.map(({ label, icon: I }) => (
                 <button
@@ -393,6 +411,23 @@ export function StudioBuilder() {
                     onChange={(e) => setTitle(e.target.value)}
                     className="mt-1 h-10 w-full rounded-lg border border-border bg-card px-3 outline-none focus:border-primary"
                   />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-studio-dim">Maximum HTML characters (optional)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={MAX_SITE_HTML_CHARACTERS}
+                    step={1}
+                    value={maxCharacters}
+                    onChange={(e) => setMaxCharacters(e.target.value)}
+                    placeholder="For example, 900"
+                    className="mt-1 h-10 w-full rounded-lg border border-border bg-card px-3 outline-none focus:border-primary"
+                  />
+                  <span className="mt-2 block text-xs text-studio-dim">
+                    Counts markup and whitespace before theme CSS. If exceeded, Vala warns without
+                    truncating your website. Explicit HTML limits in your prompt also apply.
+                  </span>
                 </label>
                 <div className="rounded-lg border border-border bg-card p-4 text-sm">
                   <div className="font-medium">Theme</div>
