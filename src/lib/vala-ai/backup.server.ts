@@ -12,7 +12,6 @@ import {
 import { basename, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { paths } from "./config.server.ts";
-import { db } from "./db.server.ts";
 import { sha256 } from "./util.server.ts";
 
 /**
@@ -78,13 +77,21 @@ export function inspectDatabase(file: string): {
 export function backupDatabase(opts: { dir: string; keep: number; now?: Date }): BackupResult {
   if (!Number.isInteger(opts.keep) || opts.keep < 1)
     throw new Error("keep must be a whole number of at least 1.");
+  if (!existsSync(paths.db()))
+    throw new Error("Vala AI database does not exist; backup will not initialize it.");
   const dir = resolve(opts.dir);
   mkdirSync(dir, { recursive: true });
   const target = join(dir, `vala-${stamp(opts.now)}.db`);
   if (existsSync(target)) throw new Error(`A backup named ${basename(target)} already exists.`);
   const partial = `${target}.partial`;
   rmSync(partial, { force: true });
-  db().exec(`vacuum into '${partial.replace(/'/g, "''")}'`);
+  const source = new DatabaseSync(paths.db(), { readOnly: true });
+  try {
+    source.exec("pragma busy_timeout = 5000");
+    source.exec(`vacuum into '${partial.replace(/'/g, "''")}'`);
+  } finally {
+    source.close();
+  }
   const check = inspectDatabase(partial);
   if (!check.ok) {
     rmSync(partial, { force: true });

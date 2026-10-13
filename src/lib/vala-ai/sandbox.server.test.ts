@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -18,7 +18,12 @@ import {
 } from "./projects.server.ts";
 import { containerName, dockerProblem, dockerRunArgs, sandboxPolicy } from "./sandbox.server.ts";
 import { createTask, runCheck } from "./tasks.server.ts";
-import { requireReadyWorkspace } from "./workspace.server.ts";
+import {
+  deleteWorkspaceFile,
+  readWorkspaceFile,
+  requireReadyWorkspace,
+  writeWorkspaceFile,
+} from "./workspace.server.ts";
 
 const root = mkdtempSync(join(tmpdir(), "vala-sandbox-"));
 process.env.VALA_AI_DATA_DIR = join(root, "data");
@@ -207,8 +212,18 @@ describe.skipIf(!dockerReady)("container acceptance tests (need Docker)", () => 
       VALA_AI_SANDBOX: "docker",
       VALA_AI_SANDBOX_IMAGE: restoreEnv.VALA_AI_SANDBOX_IMAGE,
     });
-  const ws = mkdtempSync(join(tmpdir(), "vala-sbx-ws-"));
-  spawnSync("git", ["init", "--quiet", ws]);
+  let ws: string;
+  beforeAll(() => {
+    const previous = process.env.VALA_AI_SANDBOX;
+    process.env.VALA_AI_SANDBOX = "docker";
+    try {
+      const project = createProject({ name: "Sandbox acceptance", sourceKind: "empty" }, owner);
+      ws = requireReadyWorkspace(project.project.id).path;
+    } finally {
+      if (previous === undefined) delete process.env.VALA_AI_SANDBOX;
+      else process.env.VALA_AI_SANDBOX = previous;
+    }
+  });
   const run = (code: string, timeoutMs = 60_000) =>
     runCommand(["node", "-e", code], {
       cwd: ws,
@@ -220,9 +235,13 @@ describe.skipIf(!dockerReady)("container acceptance tests (need Docker)", () => 
   it("1. cannot read host files outside the workspace", async () => {
     const secret = join(tmpdir(), `vala-host-secret-${Date.now()}.env`);
     writeFileSync(secret, "TOKEN=host-only");
-    const r = await run(`require('fs').readFileSync(${JSON.stringify(secret)}, 'utf8')`);
-    expect(r.exitCode).not.toBe(0);
-    expect(r.output).not.toContain("host-only");
+    try {
+      const r = await run(`require('fs').readFileSync(${JSON.stringify(secret)}, 'utf8')`);
+      expect(r.exitCode).not.toBe(0);
+      expect(r.output).not.toContain("host-only");
+    } finally {
+      rmSync(secret);
+    }
   });
   it("2. sees only the container filesystem at /", async () => {
     const r = await run("console.log(require('fs').readdirSync('/').join(','))");
@@ -237,14 +256,19 @@ describe.skipIf(!dockerReady)("container acceptance tests (need Docker)", () => 
   });
   it("4. is stopped by the process limit", async () => {
     const r = await run(
-      "const cp=require('child_process');let n=0;try{for(;;){cp.spawn('sleep',['30']);n++}}catch(e){console.log('stopped at',n);process.exit(4)}",
-      60_000,
+      "const cp=require('child_process');const children=[];function stop(code){for(const c of children)c.kill();process.exit(code)}function next(){if(children.length>=512)return stop(6);const c=cp.spawn('sleep',['60']);c.once('spawn',()=>{children.push(c);setImmediate(next)});c.once('error',e=>{console.log(e.code,'after',children.length);stop(e.code==='EAGAIN'?4:5)})}next()",
+      30_000,
     );
-    expect(r.exitCode).not.toBe(0);
+    expect(r.timedOut).toBe(false);
+    expect(r.exitCode).toBe(4);
+    const stoppedAt = Number(r.output.match(/EAGAIN after (\d+)/)?.[1]);
+    expect(stoppedAt).toBeGreaterThan(0);
+    expect(stoppedAt).toBeLessThan(256);
   });
   it("5. is killed when it exceeds the memory limit", async () => {
     const r = await run("const a=[];for(;;)a.push(Buffer.alloc(64*1024*1024,1))", 120_000);
-    expect(r.exitCode).not.toBe(0);
+    expect(r.timedOut).toBe(false);
+    expect(r.exitCode).toBe(137);
   });
   it("6. is killed at the timeout and leaves no container behind", async () => {
     const name = `vala-ai-acc-timeout-${Date.now()}`;
@@ -267,5 +291,56 @@ describe.skipIf(!dockerReady)("container acceptance tests (need Docker)", () => 
     expect(git.exitCode).not.toBe(0);
     const etc = await run("require('fs').writeFileSync('/etc/vala','x')");
     expect(etc.exitCode).not.toBe(0);
+  });
+  it("can edit host-created content and new nested files without sharing .git ownership", async () => {
+    const previous = process.env.VALA_AI_SANDBOX;
+    process.env.VALA_AI_SANDBOX = "docker";
+    try {
+      const project = createProject(
+        { name: "Sandbox writable content", sourceKind: "empty" },
+        owner,
+      );
+      const workspace = requireReadyWorkspace(project.project.id);
+      writeWorkspaceFile(workspace, "nested/host.txt", "host\n");
+      expect(statSync(workspace.path).gid).toBe(10001);
+      expect(statSync(join(workspace.path, "nested/host.txt")).gid).toBe(10001);
+      expect(statSync(join(workspace.path, ".git")).gid).not.toBe(10001);
+      const result = await runCommand(
+        [
+          "node",
+          "-e",
+          "const fs=require('fs');fs.appendFileSync('/work/nested/host.txt','sandbox\\n');fs.mkdirSync('/work/nested/created');fs.writeFileSync('/work/nested/created/result.txt','ok');",
+        ],
+        {
+          cwd: workspace.path,
+          timeoutMs: 60_000,
+          maxOutputBytes: 8192,
+          sandbox: { policy: policy(), name: `vala-ai-acc-write-${Date.now()}` },
+        },
+      );
+      expect(result.exitCode).toBe(0);
+      expect(readFileSync(join(workspace.path, "nested/host.txt"), "utf8")).toBe("host\nsandbox\n");
+      expect(readFileSync(join(workspace.path, "nested/created/result.txt"), "utf8")).toBe("ok");
+      writeWorkspaceFile(workspace, "nested/created/result.txt", "host again");
+      expect(readFileSync(join(workspace.path, "nested/created/result.txt"), "utf8")).toBe(
+        "host again",
+      );
+      expect(readWorkspaceFile(workspace, "nested/created/result.txt").content).toBe("host again");
+      symlinkSync("result.txt", join(workspace.path, "nested/created/link.txt"));
+      expect(readWorkspaceFile(workspace, "nested/created/link.txt").content).toBe("host again");
+      expect(() => writeWorkspaceFile(workspace, "nested/created/link.txt", "blocked")).toThrow(
+        /ELOOP/,
+      );
+      deleteWorkspaceFile(workspace, "nested/created/link.txt");
+      expect(readWorkspaceFile(workspace, "nested/created/result.txt").content).toBe("host again");
+      writeWorkspaceFile(workspace, "nested/created/file (deleted)", "ordinary filename");
+      expect(readWorkspaceFile(workspace, "nested/created/file (deleted)").content).toBe(
+        "ordinary filename",
+      );
+      deleteWorkspaceFile(workspace, "nested/created/file (deleted)");
+    } finally {
+      if (previous === undefined) delete process.env.VALA_AI_SANDBOX;
+      else process.env.VALA_AI_SANDBOX = previous;
+    }
   });
 });

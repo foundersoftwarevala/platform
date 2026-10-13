@@ -396,6 +396,20 @@ shelves `f4a2e96`, event-mgmt merge `8eac048`.
 
 ## Typecheck error count
 
+### Owned Vala AI studio
+
+`src/components/vala-ai/studio` and `src/lib/vala-ai/studio` integrate the
+owner-authorized `removalwork59-sketch/VALA-AI` source at `6c585055`.
+Preserve both its screens/panels and the existing engineering routes; the old
+Command Center is `/vala-ai/command-center`. No separate login or source-project
+credentials: all server functions use Control Panel authorization, the existing
+Vala model gateway, and schema 4 of the module SQLite database.
+AI review is not executed testing; Flow records `ai_review_only`, unsupported
+dashboard metrics are UNVERIFIED, and payment/model-alias configuration is
+metadata rather than verified payment processing or live model routing.
+See `docs/vala-ai/README.md` and `BACKUP.md` before deploying or rolling back.
+This integration has no implicit production deployment/restart authorization.
+
 `npx tsc --noEmit -p .` — Vite builds without typechecking, so these errors do
 not break the build, but they hide real bugs. Record the count after each
 change that moves it.

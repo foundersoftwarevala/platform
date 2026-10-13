@@ -68,6 +68,21 @@ describe("backup", () => {
   it("refuses an invalid retention count", () => {
     expect(() => backupDatabase({ dir: backups, keep: 0 })).toThrow(/at least 1/);
   });
+
+  it("refuses a missing source without initializing a database or backup directory", () => {
+    closeDb();
+    const previous = process.env.VALA_AI_DATA_DIR;
+    const missing = join(root, "missing-source");
+    const output = join(root, "missing-backups");
+    process.env.VALA_AI_DATA_DIR = missing;
+    try {
+      expect(() => backupDatabase({ dir: output, keep: 7 })).toThrow(/will not initialize/);
+      expect(existsSync(join(missing, "vala.db"))).toBe(false);
+      expect(existsSync(output)).toBe(false);
+    } finally {
+      process.env.VALA_AI_DATA_DIR = previous;
+    }
+  });
 });
 
 describe("restore", () => {

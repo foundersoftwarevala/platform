@@ -24,11 +24,22 @@ function ValaAIRoute() {
   );
 }
 
+const moduleHead = pageHead(
+  "Vala AI",
+  "Software Vala's own engineering agent: projects, tasks, verification, approvals and releases.",
+);
+
 export const Route = createFileRoute("/vala-ai")({
-  head: pageHead(
-    "Vala AI",
-    "Software Vala's own engineering agent: projects, tasks, verification, approvals and releases.",
-  ),
+  head: () => ({
+    ...moduleHead(),
+    links: [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap",
+      },
+    ],
+  }),
   component: ValaAIRoute,
 });
 
