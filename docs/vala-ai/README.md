@@ -34,6 +34,8 @@ The studio integrates `removalwork59-sketch/VALA-AI` at
 Its home, live overview, developer/library/SSD workflow, AI Agent with resume,
 code check, screenshot comparison, thirty-step Flow, website builder (five
 tabs/eight themes), Admin and Owner layouts are retained under `/vala-ai`.
+Studio Home is also available at `/vala-ai/studio`, with the same Control Panel
+authentication, role checks and Studio layout as `/vala-ai`.
 The original engineering Command Center remains at `/vala-ai/command-center`;
 projects, execution pipeline, QA, approvals, releases, audit, chat and settings
 remain available. No new sign-in or standalone application is introduced.
