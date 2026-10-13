@@ -220,6 +220,59 @@ export const MIGRATIONS: string[] = [
   alter table evidence add column sandbox text not null default 'none';
   alter table workspaces add column git_config_sha256 text;
   `,
+  /* 4: software library index — metadata only, never source code */ `
+  create table library_items (
+    id text primary key,
+    name text not null,
+    version text not null default '',
+    root_label text not null,
+    rel_path text not null,
+    stack_json text not null default '[]',
+    features_json text not null default '[]',
+    file_count integer not null,
+    size_bytes integer not null,
+    manifest_sha256 text not null,
+    scanned_by text not null,
+    scanned_at text not null,
+    unique (root_label, rel_path)
+  );
+  create index library_items_name on library_items(name);
+  `,
+  /* 5: client workflow — SV codes, 30-step flow state, versions and issues */ `
+  alter table projects add column project_code text not null default '';
+  update projects set project_code = 'SV-PROJECT-' || upper(hex(randomblob(4))) where project_code = '';
+
+  create table flow_state (
+    project_id text primary key references projects(id),
+    current_step integer not null default 1,
+    step_data_json text not null default '{}',
+    updated_at text not null
+  );
+
+  create table versions (
+    id text primary key,
+    project_id text not null references projects(id),
+    version_code text not null unique,
+    change_history text not null default '',
+    test_status text not null default 'not_tested' check (test_status in ('not_tested','passed','failed')),
+    delivery_status text not null default 'not_delivered' check (delivery_status in ('not_delivered','delivered')),
+    created_at text not null
+  );
+  create index versions_project on versions(project_id);
+
+  create table issues (
+    id text primary key,
+    issue_code text not null unique,
+    project_id text not null references projects(id),
+    version_id text references versions(id),
+    kind text not null,
+    text text not null,
+    status text not null default 'open' check (status in ('open','fixed','closed')),
+    fixed_version_id text references versions(id),
+    created_at text not null
+  );
+  create index issues_project on issues(project_id);
+  `,
 ];
 
 let instance: { path: string; db: DatabaseSync } | null = null;

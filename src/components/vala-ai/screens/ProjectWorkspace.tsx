@@ -1,3 +1,4 @@
+import { Wand2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { FolderGit2, Lock, Plus, Trash2 } from "lucide-react";
@@ -221,6 +222,7 @@ function RequirementsTab({ d }: { d: ProjectDetail }) {
   const [checks, setChecks] = useState<AcceptanceCheck[]>([]);
   const [crOpen, setCrOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [analysis, setAnalysis] = useState<{features:string[], optional:string[], deployment:string[], questions:string[]} | null>(null);
 
   useEffect(() => {
     const src: Requirement | undefined = draft ?? approved;
@@ -242,6 +244,7 @@ function RequirementsTab({ d }: { d: ProjectDetail }) {
   const raise = useAction((v: object) =>
     api(`/projects/${d.project.id}/change-requests`, { method: "POST", body: v }),
   );
+  const analyze = useAction((text: string) => api<{features:string[], optional:string[], deployment:string[], questions:string[]}>("/requirements/analyze", { method: "POST", body: { text } }));
   const decide = useAction((v: { id: string; approve: boolean }) =>
     api(`/change-requests/${v.id}/decide`, { method: "POST", body: { approve: v.approve } }),
   );
@@ -317,6 +320,43 @@ function RequirementsTab({ d }: { d: ProjectDetail }) {
                 />
               </Field>
             ) : null}
+                        <div className="rounded-lg border bg-primary/5 p-3">
+              <h4 className="mb-2 text-xs font-semibold">{t("Requirement Analyzer")}</h4>
+              <button
+                type="button"
+                onClick={() => analyze.mutate(body, { onSuccess: setAnalysis })}
+                disabled={analyze.isPending || !body}
+                className="flex items-center gap-1.5 rounded bg-primary px-2 py-1 text-[10px] text-white"
+              >
+                <Wand2 className="h-3 w-3" /> {t("Analyze Requirement")}
+              </button>
+              {analysis && (
+                <div className="mt-3 space-y-2 text-[11px]">
+                  {analysis.features.length > 0 && (
+                    <div><span className="font-bold">{t("Features")}:</span> {analysis.features.join(", ")}</div>
+                  )}
+                  {analysis.questions.map((q, i) => (
+                    <div key={i} className="flex items-start gap-2 rounded border border-warning/30 bg-warning/5 p-1.5">
+                      <span className="text-warning">?</span>
+                      <div className="flex-1">
+                        <p>{q}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newBody = body + "\n\nAnswer to \"" + q + "\": [USER ANSWER]";
+                            setBody(newBody);
+                            analyze.mutate(newBody, { onSuccess: setAnalysis });
+                          }}
+                          className="mt-1 text-primary hover:underline"
+                        >
+                          {t("Add to requirement")}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <Field label={t("Title")}>
               <input
                 required
@@ -471,7 +511,44 @@ function TasksTab({ d }: { d: ProjectDetail }) {
                 {t("Built against requirement")} v{approved.version}.{" "}
                 {t("It completes only if every acceptance check passes on the verifier's re-run.")}
               </p>
-              <Field label={t("Title")}>
+                          <div className="rounded-lg border bg-primary/5 p-3">
+              <h4 className="mb-2 text-xs font-semibold">{t("Requirement Analyzer")}</h4>
+              <button
+                type="button"
+                onClick={() => analyze.mutate(body, { onSuccess: setAnalysis })}
+                disabled={analyze.isPending || !body}
+                className="flex items-center gap-1.5 rounded bg-primary px-2 py-1 text-[10px] text-white"
+              >
+                <Wand2 className="h-3 w-3" /> {t("Analyze Requirement")}
+              </button>
+              {analysis && (
+                <div className="mt-3 space-y-2 text-[11px]">
+                  {analysis.features.length > 0 && (
+                    <div><span className="font-bold">{t("Features")}:</span> {analysis.features.join(", ")}</div>
+                  )}
+                  {analysis.questions.map((q, i) => (
+                    <div key={i} className="flex items-start gap-2 rounded border border-warning/30 bg-warning/5 p-1.5">
+                      <span className="text-warning">?</span>
+                      <div className="flex-1">
+                        <p>{q}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newBody = body + "\n\nAnswer to \"" + q + "\": [USER ANSWER]";
+                            setBody(newBody);
+                            analyze.mutate(newBody, { onSuccess: setAnalysis });
+                          }}
+                          className="mt-1 text-primary hover:underline"
+                        >
+                          {t("Add to requirement")}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Field label={t("Title")}>
                 <input
                   required
                   maxLength={200}
@@ -646,6 +723,7 @@ function VersionsTab({ d }: { d: ProjectDetail }) {
   );
   const [target, setTarget] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [analysis, setAnalysis] = useState<{features:string[], optional:string[], deployment:string[], questions:string[]} | null>(null);
   const rollback = useAction((v: object) =>
     api<Approval>(`/projects/${d.project.id}/rollback`, { method: "POST", body: v }),
   );

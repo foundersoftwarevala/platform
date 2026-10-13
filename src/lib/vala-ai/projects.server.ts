@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { audit } from "./audit.server.ts";
 import type { Operator } from "./auth.server.ts";
 import { all, one, run, tx } from "./db.server.ts";
@@ -22,6 +23,7 @@ export type Project = {
   description: string;
   source_kind: "git" | "empty";
   source_path: string | null;
+  project_code: string;
   status: string;
   created_by: string;
   created_at: string;
@@ -103,13 +105,15 @@ export function createProject(
   const sourcePath =
     input.sourceKind === "git" ? inspectSource(String(input.sourcePath ?? "")).root : null;
   const id = newId("VP", 8);
+  const projectCode = "SV-PROJECT-" + randomBytes(4).toString("hex").toUpperCase();
   run(
-    "insert into projects (id, name, description, source_kind, source_path, created_by, created_at, updated_at) values (?,?,?,?,?,?,?,?)",
+    "insert into projects (id, name, description, source_kind, source_path, project_code, created_by, created_at, updated_at) values (?,?,?,?,?,?,?,?,?)",
     id,
     name,
     (input.description ?? "").trim().slice(0, 4000),
     input.sourceKind,
     sourcePath,
+    projectCode,
     actor.id,
     now(),
     now(),
