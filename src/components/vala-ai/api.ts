@@ -124,6 +124,7 @@ export type Project = {
   description: string;
   source_kind: "git" | "empty";
   source_path: string | null;
+  project_code: string;
   status: string;
   created_by: string;
   created_at: string;
@@ -373,3 +374,36 @@ export function parseList<T>(text: string | null | undefined): T[] {
     return [];
   }
 }
+
+export type Version = {
+  id: string;
+  project_id: string;
+  version_code: string;
+  change_history: string;
+  test_status: "not_tested" | "passed" | "failed";
+  delivery_status: "not_delivered" | "delivered";
+  created_at: string;
+};
+
+export type Issue = {
+  id: string;
+  issue_code: string;
+  project_id: string;
+  version_id: string | null;
+  kind: string;
+  text: string;
+  status: "open" | "fixed" | "closed";
+  fixed_version_id: string | null;
+  created_at: string;
+};
+
+export type FlowStepData = {
+  status: string;
+  at: string;
+  actor: string;
+};
+
+export type ProjectFlow = Project & {
+  current_step: number;
+  steps: Record<number, FlowStepData>;
+};

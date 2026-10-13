@@ -23,6 +23,21 @@ export const VALA_AI_SECTIONS = [
   },
   { id: "chat", path: "/vala-ai/chat", label: "AI Task Chat", icon: MessageSquare, group: "main" },
   {
+    id: "flow",
+    path: "/vala-ai/flow",
+    label: "Client Flow",
+    icon: GitBranch,
+    group: "main",
+  },
+  {
+    id: "builder",
+    path: "/vala-ai/builder",
+    label: "Website Builder",
+    icon: LayoutDashboard,
+    group: "main",
+  },
+
+  {
     id: "projects",
     path: "/vala-ai/projects",
     label: "Projects & Requirements",

@@ -27,6 +27,10 @@ import {
 } from "./projects.server.ts";
 import { getSettings, resources, updateSettings } from "./settings.server.ts";
 import { importLibrary, listLibrary } from "./library.server.ts";
+import * as flowApi from "./flow.server.ts";
+import { analyzeRequirement } from "./analyze.server.ts";
+import { generateSite } from "./builder.server.ts";
+
 import {
   createTask,
   getEvidence,
@@ -375,6 +379,34 @@ on("GET", "/audit", "viewer", ({ url, op }) => ({
   ),
   chain: verifyAuditChain(),
 }));
+
+
+// ---- flow, issues & versions --------------------------------------------
+on("GET", "/flow", "viewer", () => flowApi.listFlow());
+on("POST", "/projects/:id/flow/advance", "operator", ({ params, body, op }) =>
+  flowApi.advanceFlow(params.id, Number(body.step), op!),
+);
+on("POST", "/projects/:id/issues", "operator", ({ params, body, op }) =>
+  flowApi.reportIssue(params.id, { versionId: str(body.versionId) || undefined, kind: str(body.kind), text: str(body.text) }, op!),
+);
+on("GET", "/projects/:id/issues", "viewer", ({ params }) => flowApi.listIssues(params.id));
+on("GET", "/projects/:id/versions", "viewer", ({ params }) => flowApi.listVersions(params.id));
+on("POST", "/projects/:id/versions", "operator", ({ params, body, op }) =>
+  flowApi.createVersion(params.id, { changeHistory: str(body.changeHistory) }, op!),
+);
+on("POST", "/versions/:id/deliver", "operator", ({ params, op }) =>
+  flowApi.deliverVersion(params.id, op!),
+);
+
+// ---- requirement analysis -----------------------------------------------
+on("POST", "/requirements/analyze", "operator", ({ body }) =>
+  analyzeRequirement(str(body.text)),
+);
+
+// ---- website builder ----------------------------------------------------
+on("POST", "/builder/generate", "operator", ({ body }) =>
+  generateSite(str(body.pageType), str(body.businessName), str(body.theme), str(body.instruction) || undefined),
+);
 
 // ---- dispatcher ---------------------------------------------------------
 const json = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
