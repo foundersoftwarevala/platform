@@ -8,6 +8,19 @@ directory (for example `/var/lib/vala-ai`); otherwise every Vala AI request answ
 the reason. The deploy script replaces `.output` in the app directory, so data kept there would
 be at risk.
 
+The owned-source studio adds SQLite schema 4's `studio_records` table for its
+developer/library/client/workspace/version/audit/build collections. Studio
+management metadata and encrypted payment configuration live in `settings`.
+The existing whole-database backup includes these records without a separate
+Supabase database or backup job. Studio versions and audit records are append-only.
+
+Before deploying this integration, take a verified pre-migration database backup
+and filesystem snapshot. Code rollback to a schema-3-only build must also restore
+that matching pre-deploy database; restoring under a running application is not
+supported. Operator browser caches are convenience copies, not a substitute for
+database backups. Preserve the encryption key separately in the authorized
+secret store; never include it in logs or source control.
+
 ## Nightly database backup
 
 ```bash

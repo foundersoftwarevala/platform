@@ -14,8 +14,15 @@ import {
 
 export const VALA_AI_SECTIONS = [
   {
-    id: "command-center",
+    id: "studio-home",
     path: "/vala-ai",
+    label: "Home & Build Studio",
+    icon: LayoutDashboard,
+    group: "main",
+  },
+  {
+    id: "command-center",
+    path: "/vala-ai/command-center",
     label: "Command Center",
     icon: LayoutDashboard,
     group: "main",

@@ -230,8 +230,13 @@ import { Route as SitemapProductsPageRouteImport } from './routes/sitemap-produc
 import { Route as SitemapSlotsPageRouteImport } from './routes/sitemap-slots/$page'
 import { Route as ValaAiIndexRouteImport } from './routes/vala-ai.index'
 import { Route as ValaAiActivityRouteImport } from './routes/vala-ai.activity'
+import { Route as ValaAiAdminRouteImport } from './routes/vala-ai.admin'
 import { Route as ValaAiApprovalsRouteImport } from './routes/vala-ai.approvals'
+import { Route as ValaAiBuilderRouteImport } from './routes/vala-ai.builder'
 import { Route as ValaAiChatRouteImport } from './routes/vala-ai.chat'
+import { Route as ValaAiCommandCenterRouteImport } from './routes/vala-ai.command-center'
+import { Route as ValaAiFlowRouteImport } from './routes/vala-ai.flow'
+import { Route as ValaAiOwnerRouteImport } from './routes/vala-ai.owner'
 import { Route as ValaAiPipelineRouteImport } from './routes/vala-ai.pipeline'
 import { Route as ValaAiQaRouteImport } from './routes/vala-ai.qa'
 import { Route as ValaAiReleasesRouteImport } from './routes/vala-ai.releases'
@@ -1499,14 +1504,39 @@ const ValaAiActivityRoute = ValaAiActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => ValaAiRoute,
 } as any)
+const ValaAiAdminRoute = ValaAiAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => ValaAiRoute,
+} as any)
 const ValaAiApprovalsRoute = ValaAiApprovalsRouteImport.update({
   id: '/approvals',
   path: '/approvals',
   getParentRoute: () => ValaAiRoute,
 } as any)
+const ValaAiBuilderRoute = ValaAiBuilderRouteImport.update({
+  id: '/builder',
+  path: '/builder',
+  getParentRoute: () => ValaAiRoute,
+} as any)
 const ValaAiChatRoute = ValaAiChatRouteImport.update({
   id: '/chat',
   path: '/chat',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiCommandCenterRoute = ValaAiCommandCenterRouteImport.update({
+  id: '/command-center',
+  path: '/command-center',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiFlowRoute = ValaAiFlowRouteImport.update({
+  id: '/flow',
+  path: '/flow',
+  getParentRoute: () => ValaAiRoute,
+} as any)
+const ValaAiOwnerRoute = ValaAiOwnerRouteImport.update({
+  id: '/owner',
+  path: '/owner',
   getParentRoute: () => ValaAiRoute,
 } as any)
 const ValaAiPipelineRoute = ValaAiPipelineRouteImport.update({
@@ -2431,8 +2461,13 @@ export interface FileRoutesByFullPath {
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
   '/vala-ai/activity': typeof ValaAiActivityRoute
+  '/vala-ai/admin': typeof ValaAiAdminRoute
   '/vala-ai/approvals': typeof ValaAiApprovalsRoute
+  '/vala-ai/builder': typeof ValaAiBuilderRoute
   '/vala-ai/chat': typeof ValaAiChatRoute
+  '/vala-ai/command-center': typeof ValaAiCommandCenterRoute
+  '/vala-ai/flow': typeof ValaAiFlowRoute
+  '/vala-ai/owner': typeof ValaAiOwnerRoute
   '/vala-ai/pipeline': typeof ValaAiPipelineRoute
   '/vala-ai/qa': typeof ValaAiQaRoute
   '/vala-ai/releases': typeof ValaAiReleasesRoute
@@ -2784,8 +2819,13 @@ export interface FileRoutesByTo {
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
   '/vala-ai/activity': typeof ValaAiActivityRoute
+  '/vala-ai/admin': typeof ValaAiAdminRoute
   '/vala-ai/approvals': typeof ValaAiApprovalsRoute
+  '/vala-ai/builder': typeof ValaAiBuilderRoute
   '/vala-ai/chat': typeof ValaAiChatRoute
+  '/vala-ai/command-center': typeof ValaAiCommandCenterRoute
+  '/vala-ai/flow': typeof ValaAiFlowRoute
+  '/vala-ai/owner': typeof ValaAiOwnerRoute
   '/vala-ai/pipeline': typeof ValaAiPipelineRoute
   '/vala-ai/qa': typeof ValaAiQaRoute
   '/vala-ai/releases': typeof ValaAiReleasesRoute
@@ -3148,8 +3188,13 @@ export interface FileRoutesById {
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
   '/vala-ai/activity': typeof ValaAiActivityRoute
+  '/vala-ai/admin': typeof ValaAiAdminRoute
   '/vala-ai/approvals': typeof ValaAiApprovalsRoute
+  '/vala-ai/builder': typeof ValaAiBuilderRoute
   '/vala-ai/chat': typeof ValaAiChatRoute
+  '/vala-ai/command-center': typeof ValaAiCommandCenterRoute
+  '/vala-ai/flow': typeof ValaAiFlowRoute
+  '/vala-ai/owner': typeof ValaAiOwnerRoute
   '/vala-ai/pipeline': typeof ValaAiPipelineRoute
   '/vala-ai/qa': typeof ValaAiQaRoute
   '/vala-ai/releases': typeof ValaAiReleasesRoute
@@ -3513,8 +3558,13 @@ export interface FileRouteTypes {
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
     | '/vala-ai/activity'
+    | '/vala-ai/admin'
     | '/vala-ai/approvals'
+    | '/vala-ai/builder'
     | '/vala-ai/chat'
+    | '/vala-ai/command-center'
+    | '/vala-ai/flow'
+    | '/vala-ai/owner'
     | '/vala-ai/pipeline'
     | '/vala-ai/qa'
     | '/vala-ai/releases'
@@ -3866,8 +3916,13 @@ export interface FileRouteTypes {
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
     | '/vala-ai/activity'
+    | '/vala-ai/admin'
     | '/vala-ai/approvals'
+    | '/vala-ai/builder'
     | '/vala-ai/chat'
+    | '/vala-ai/command-center'
+    | '/vala-ai/flow'
+    | '/vala-ai/owner'
     | '/vala-ai/pipeline'
     | '/vala-ai/qa'
     | '/vala-ai/releases'
@@ -4229,8 +4284,13 @@ export interface FileRouteTypes {
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
     | '/vala-ai/activity'
+    | '/vala-ai/admin'
     | '/vala-ai/approvals'
+    | '/vala-ai/builder'
     | '/vala-ai/chat'
+    | '/vala-ai/command-center'
+    | '/vala-ai/flow'
+    | '/vala-ai/owner'
     | '/vala-ai/pipeline'
     | '/vala-ai/qa'
     | '/vala-ai/releases'
@@ -6114,6 +6174,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ValaAiActivityRouteImport
       parentRoute: typeof ValaAiRoute
     }
+    '/vala-ai/admin': {
+      id: '/vala-ai/admin'
+      path: '/admin'
+      fullPath: '/vala-ai/admin'
+      preLoaderRoute: typeof ValaAiAdminRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
     '/vala-ai/approvals': {
       id: '/vala-ai/approvals'
       path: '/approvals'
@@ -6121,11 +6188,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ValaAiApprovalsRouteImport
       parentRoute: typeof ValaAiRoute
     }
+    '/vala-ai/builder': {
+      id: '/vala-ai/builder'
+      path: '/builder'
+      fullPath: '/vala-ai/builder'
+      preLoaderRoute: typeof ValaAiBuilderRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
     '/vala-ai/chat': {
       id: '/vala-ai/chat'
       path: '/chat'
       fullPath: '/vala-ai/chat'
       preLoaderRoute: typeof ValaAiChatRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/command-center': {
+      id: '/vala-ai/command-center'
+      path: '/command-center'
+      fullPath: '/vala-ai/command-center'
+      preLoaderRoute: typeof ValaAiCommandCenterRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/flow': {
+      id: '/vala-ai/flow'
+      path: '/flow'
+      fullPath: '/vala-ai/flow'
+      preLoaderRoute: typeof ValaAiFlowRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
+    '/vala-ai/owner': {
+      id: '/vala-ai/owner'
+      path: '/owner'
+      fullPath: '/vala-ai/owner'
+      preLoaderRoute: typeof ValaAiOwnerRouteImport
       parentRoute: typeof ValaAiRoute
     }
     '/vala-ai/pipeline': {
@@ -7549,8 +7644,13 @@ const PromiseTrackerRouteWithChildren = PromiseTrackerRoute._addFileChildren(
 
 interface ValaAiRouteChildren {
   ValaAiActivityRoute: typeof ValaAiActivityRoute
+  ValaAiAdminRoute: typeof ValaAiAdminRoute
   ValaAiApprovalsRoute: typeof ValaAiApprovalsRoute
+  ValaAiBuilderRoute: typeof ValaAiBuilderRoute
   ValaAiChatRoute: typeof ValaAiChatRoute
+  ValaAiCommandCenterRoute: typeof ValaAiCommandCenterRoute
+  ValaAiFlowRoute: typeof ValaAiFlowRoute
+  ValaAiOwnerRoute: typeof ValaAiOwnerRoute
   ValaAiPipelineRoute: typeof ValaAiPipelineRoute
   ValaAiQaRoute: typeof ValaAiQaRoute
   ValaAiReleasesRoute: typeof ValaAiReleasesRoute
@@ -7563,8 +7663,13 @@ interface ValaAiRouteChildren {
 
 const ValaAiRouteChildren: ValaAiRouteChildren = {
   ValaAiActivityRoute: ValaAiActivityRoute,
+  ValaAiAdminRoute: ValaAiAdminRoute,
   ValaAiApprovalsRoute: ValaAiApprovalsRoute,
+  ValaAiBuilderRoute: ValaAiBuilderRoute,
   ValaAiChatRoute: ValaAiChatRoute,
+  ValaAiCommandCenterRoute: ValaAiCommandCenterRoute,
+  ValaAiFlowRoute: ValaAiFlowRoute,
+  ValaAiOwnerRoute: ValaAiOwnerRoute,
   ValaAiPipelineRoute: ValaAiPipelineRoute,
   ValaAiQaRoute: ValaAiQaRoute,
   ValaAiReleasesRoute: ValaAiReleasesRoute,

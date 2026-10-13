@@ -1,0 +1,246 @@
+@theme inline {
+  --color-studio-panel: var(--card);
+  --color-studio-raise: var(--secondary);
+  --color-studio-line: var(--border);
+  --color-studio-dim: var(--dim);
+  --color-studio-faint: var(--muted-foreground);
+  --color-studio-ok: var(--ok);
+  --color-studio-fail: var(--destructive);
+  --font-studio-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-studio-body: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+.vala-studio {
+  --radius: 0.9rem;
+  --font-mono: "JetBrains Mono", monospace;
+  --background: oklch(0.16 0.03 279);
+  --foreground: oklch(0.97 0.01 280);
+  --card: oklch(0.2 0.035 280);
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --secondary: oklch(0.26 0.04 280);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.25 0.035 280);
+  --border: oklch(0.62 0.22 295 / 0.22);
+  --input: var(--border);
+  --dim: oklch(0.72 0.03 280);
+  --muted-foreground: var(--dim);
+  --primary: oklch(0.62 0.22 295);
+  --primary-foreground: oklch(0.99 0.005 280);
+  --accent: var(--primary);
+  --accent-foreground: var(--primary-foreground);
+  --ring: var(--primary);
+  --brand-2: oklch(0.78 0.14 199);
+  --ok: oklch(0.75 0.16 163);
+  --warning: oklch(0.8 0.15 78);
+  --destructive: oklch(0.62 0.21 22);
+  --gradient-brand: linear-gradient(135deg, oklch(0.62 0.22 295), oklch(0.72 0.15 210));
+  --gradient-surface: linear-gradient(160deg, oklch(0.21 0.04 282), oklch(0.17 0.03 279));
+  --shadow-panel: 0 18px 48px -24px oklch(0.1 0.05 280 / 0.9);
+  --gradient-hero:
+    radial-gradient(1200px 500px at 15% -10%, oklch(0.62 0.22 295 / 0.35), transparent 60%),
+    radial-gradient(900px 420px at 90% 0%, oklch(0.72 0.15 205 / 0.22), transparent 60%);
+  --ink: var(--primary);
+  --ink-foreground: var(--primary-foreground);
+  --hero-wash: var(--gradient-hero);
+  --rose: oklch(0.66 0.2 22);
+  --sky: var(--brand-2);
+  --emerald: var(--ok);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-studio-body);
+}
+.vala-ai.vala-studio {
+  min-height: 100vh;
+}
+.vala-studio .studio-layout > aside nav {
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 5rem;
+}
+
+.vala-studio h1,
+.vala-studio h2,
+.vala-studio h3 {
+  font-family: var(--font-studio-display);
+  letter-spacing: -0.02em;
+}
+.vala-studio .comparison-canvas {
+  background: var(--background);
+  touch-action: none;
+}
+.vala-studio .comparison-viewport {
+  width: 100%;
+  height: 100%;
+}
+.vala-studio .comparison-content {
+  width: 100%;
+  align-items: flex-start;
+}
+.vala-studio .create-canvas {
+  background-image:
+    var(--gradient-hero), linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    60px 60px,
+    60px 60px;
+}
+.vala-studio .bg-ink {
+  background: var(--ink);
+  color: var(--ink-foreground);
+}
+.vala-studio .bg-hero-wash {
+  background: var(--hero-wash);
+}
+.vala-studio .text-rose {
+  color: var(--rose);
+}
+.vala-studio .text-sky {
+  color: var(--sky);
+}
+.vala-studio .text-emerald {
+  color: var(--emerald);
+}
+.vala-studio .brand-gradient-text {
+  background: var(--gradient-brand);
+  background-clip: text;
+  color: transparent;
+}
+.vala-studio .bg-brand-gradient {
+  background: var(--gradient-brand);
+}
+.vala-studio .site-preview {
+  --background: oklch(0.985 0.002 260);
+  --foreground: oklch(0.2 0.01 260);
+  --card: oklch(1 0 0);
+  --secondary: oklch(0.96 0.003 260);
+  --border: oklch(0.9 0.004 260);
+  --dim: oklch(0.42 0.01 260);
+  --muted-foreground: oklch(0.55 0.01 260);
+  --primary-foreground: oklch(1 0 0);
+  --ink: oklch(0.2 0.01 260);
+  --ink-foreground: oklch(1 0 0);
+  background: var(--background);
+  color: var(--foreground);
+}
+.vala-studio .site-default {
+  --primary: oklch(0.25 0.01 260);
+  --hero-wash: linear-gradient(180deg, oklch(0.95 0.003 260), oklch(0.985 0.002 260));
+}
+.vala-studio .site-arctic {
+  --primary: oklch(0.6 0.15 240);
+  --hero-wash: linear-gradient(180deg, oklch(0.95 0.025 240), oklch(0.985 0.002 260));
+}
+.vala-studio .site-summer {
+  --primary: oklch(0.64 0.2 42);
+  --hero-wash: linear-gradient(180deg, oklch(0.95 0.025 20), oklch(0.985 0.002 260));
+}
+.vala-studio .site-fragrant {
+  --primary: oklch(0.6 0.22 295);
+  --hero-wash: linear-gradient(180deg, oklch(0.95 0.03 295), oklch(0.985 0.002 260));
+}
+.vala-studio .site-slate {
+  --primary: oklch(0.32 0.03 260);
+  --hero-wash: linear-gradient(180deg, oklch(0.94 0.012 260), oklch(0.985 0.002 260));
+}
+.vala-studio .site-feminine {
+  --primary: oklch(0.6 0.22 0);
+  --hero-wash: linear-gradient(180deg, oklch(0.95 0.03 0), oklch(0.985 0.002 260));
+}
+.vala-studio .site-forest {
+  --primary: oklch(0.52 0.12 155);
+  --hero-wash: linear-gradient(180deg, oklch(0.94 0.03 155), oklch(0.985 0.002 260));
+}
+.vala-studio .site-midnight {
+  --primary: oklch(0.5 0.24 265);
+  --hero-wash: linear-gradient(180deg, oklch(0.9 0.04 265), oklch(0.985 0.002 260));
+}
+.vala-studio .panel {
+  background-image: var(--gradient-surface);
+  border: 1px solid var(--border);
+  border-radius: 1.2rem;
+  box-shadow: var(--shadow-panel);
+}
+.vala-studio .veil {
+  animation: studio-veil 0.65s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.vala-studio .vig {
+  background: radial-gradient(120% 90% at 50% 8%, transparent 0%, oklch(0 0 0 / 0.7) 100%);
+}
+.vala-studio .scan {
+  background-image: repeating-linear-gradient(0deg, oklch(1 0 0 / 0.03) 0 1px, transparent 1px 3px);
+}
+@keyframes studio-veil {
+  from {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0.5;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+.vala-studio .rise {
+  animation: studio-rise 0.5s ease both;
+}
+@keyframes studio-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 767px) {
+  .vala-studio .studio-layout {
+    height: auto;
+    min-height: calc(100vh - 44px);
+    flex-direction: column;
+    overflow: visible;
+  }
+  .vala-studio .studio-layout > aside {
+    width: 100%;
+    height: auto;
+    max-height: none;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .vala-studio .studio-layout > aside nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .vala-studio .studio-layout > aside nav > a,
+  .vala-studio .studio-layout > aside nav > button {
+    width: auto;
+  }
+  .vala-studio .studio-layout > aside nav > div {
+    width: 100%;
+  }
+  .vala-studio .studio-layout > main {
+    overflow: visible;
+  }
+  .vala-studio .grid-cols-4,
+  .vala-studio .grid-cols-5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .vala-studio .studio-builder {
+    flex-direction: column;
+  }
+  .vala-studio .studio-builder > aside {
+    width: 100%;
+    min-height: 420px;
+  }
+  .vala-studio .studio-builder > main > div:first-child {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .vala-studio .studio-builder > main nav {
+    flex-wrap: wrap;
+  }
+}

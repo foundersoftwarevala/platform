@@ -27,6 +27,48 @@ Audit fixes and their evidence: [REMEDIATION.md](REMEDIATION.md). Designs awaiti
 
 ## Architecture
 
+### Owned-source studio integration
+
+The studio integrates `removalwork59-sketch/VALA-AI` at
+`6c585055c0af42c972611af653c7333bd09d6067`, with the owner's permission.
+Its home, live overview, developer/library/SSD workflow, AI Agent with resume,
+code check, screenshot comparison, thirty-step Flow, website builder (five
+tabs/eight themes), Admin and Owner layouts are retained under `/vala-ai`.
+The original engineering Command Center remains at `/vala-ai/command-center`;
+projects, execution pipeline, QA, approvals, releases, audit, chat and settings
+remain available. No new sign-in or standalone application is introduced.
+
+Source server functions now require the existing Control Panel session and role.
+The source client-sync webhook is exposed at
+`POST /api/vala-ai/studio/control-panel/clients` and as `syncControlPanelClientFn`, with
+the same client ID/contact/nested metadata fields, but authenticated through the
+Control Panel rather than a new public shared-secret endpoint.
+Source-project Supabase credentials and the source's independent app bootstrap
+are not activated. Source collections use schema 4 of the existing `vala.db`;
+agent build caches are operator-scoped. Models use the existing Vala model
+configuration, not the source's Lovable gateway or a new provider account.
+
+Source AI "testing" is code review, not executed acceptance tests. Automated
+Flow versions record `ai_review_only`, and delivery rejects a workspace changed
+since its review. Use the original execution/independent verification and owner
+approval routes for executed checks and actual releases. Manual version test
+statuses are operator declarations, not verified execution evidence.
+
+Admin/Owner metrics use available module data; unavailable financial/deployment
+metrics are explicitly UNVERIFIED rather than source mock values. Generic manager
+records and model aliases are module metadata, not platform account administration
+or active model routing. Payment configuration encrypts credentials using the
+existing encryption helper and returns masked markers; configuring a method does
+not process a payment or verify a provider. The source clinic is a labeled design
+template, not generated or delivered customer software.
+The source's animated factory example is also retained as an explicitly labeled
+design simulation; its sample logs are not execution evidence. Its separate
+code analyzer uses the configured model for actual AI review.
+
+This integration alone does not authorize production deployment/restart.
+Back up the SQLite database and module filesystem state before any separately
+approved deployment; see [BACKUP.md](BACKUP.md).
+
 ```
 /vala-ai/* (React, src/components/vala-ai)  ── Authorization: Bearer <Control Panel session>
         │
