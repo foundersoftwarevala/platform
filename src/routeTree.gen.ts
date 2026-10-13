@@ -241,6 +241,7 @@ import { Route as ValaAiPipelineRouteImport } from './routes/vala-ai.pipeline'
 import { Route as ValaAiQaRouteImport } from './routes/vala-ai.qa'
 import { Route as ValaAiReleasesRouteImport } from './routes/vala-ai.releases'
 import { Route as ValaAiSettingsRouteImport } from './routes/vala-ai.settings'
+import { Route as ValaAiStudioRouteImport } from './routes/vala-ai.studio'
 import { Route as VerifyCodeRouteImport } from './routes/verify.$code'
 import { Route as AffiliateManagerAffiliatesIdRouteImport } from './routes/affiliate-manager.affiliates.$id'
 import { Route as AiCeoAgentsIndexRouteImport } from './routes/ai-ceo.agents.index'
@@ -1559,6 +1560,11 @@ const ValaAiSettingsRoute = ValaAiSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => ValaAiRoute,
 } as any)
+const ValaAiStudioRoute = ValaAiStudioRouteImport.update({
+  id: '/studio',
+  path: '/studio',
+  getParentRoute: () => ValaAiRoute,
+} as any)
 const VerifyCodeRoute = VerifyCodeRouteImport.update({
   id: '/verify/$code',
   path: '/verify/$code',
@@ -2472,6 +2478,7 @@ export interface FileRoutesByFullPath {
   '/vala-ai/qa': typeof ValaAiQaRoute
   '/vala-ai/releases': typeof ValaAiReleasesRoute
   '/vala-ai/settings': typeof ValaAiSettingsRoute
+  '/vala-ai/studio': typeof ValaAiStudioRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/academy/': typeof AcademyIndexRoute
   '/affiliate-manager/': typeof AffiliateManagerIndexRoute
@@ -2830,6 +2837,7 @@ export interface FileRoutesByTo {
   '/vala-ai/qa': typeof ValaAiQaRoute
   '/vala-ai/releases': typeof ValaAiReleasesRoute
   '/vala-ai/settings': typeof ValaAiSettingsRoute
+  '/vala-ai/studio': typeof ValaAiStudioRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/academy': typeof AcademyIndexRoute
   '/affiliate-manager': typeof AffiliateManagerIndexRoute
@@ -3199,6 +3207,7 @@ export interface FileRoutesById {
   '/vala-ai/qa': typeof ValaAiQaRoute
   '/vala-ai/releases': typeof ValaAiReleasesRoute
   '/vala-ai/settings': typeof ValaAiSettingsRoute
+  '/vala-ai/studio': typeof ValaAiStudioRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/academy/': typeof AcademyIndexRoute
   '/affiliate-manager/': typeof AffiliateManagerIndexRoute
@@ -3569,6 +3578,7 @@ export interface FileRouteTypes {
     | '/vala-ai/qa'
     | '/vala-ai/releases'
     | '/vala-ai/settings'
+    | '/vala-ai/studio'
     | '/verify/$code'
     | '/academy/'
     | '/affiliate-manager/'
@@ -3927,6 +3937,7 @@ export interface FileRouteTypes {
     | '/vala-ai/qa'
     | '/vala-ai/releases'
     | '/vala-ai/settings'
+    | '/vala-ai/studio'
     | '/verify/$code'
     | '/academy'
     | '/affiliate-manager'
@@ -4295,6 +4306,7 @@ export interface FileRouteTypes {
     | '/vala-ai/qa'
     | '/vala-ai/releases'
     | '/vala-ai/settings'
+    | '/vala-ai/studio'
     | '/verify/$code'
     | '/academy/'
     | '/affiliate-manager/'
@@ -6251,6 +6263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ValaAiSettingsRouteImport
       parentRoute: typeof ValaAiRoute
     }
+    '/vala-ai/studio': {
+      id: '/vala-ai/studio'
+      path: '/studio'
+      fullPath: '/vala-ai/studio'
+      preLoaderRoute: typeof ValaAiStudioRouteImport
+      parentRoute: typeof ValaAiRoute
+    }
     '/verify/$code': {
       id: '/verify/$code'
       path: '/verify/$code'
@@ -7655,6 +7674,7 @@ interface ValaAiRouteChildren {
   ValaAiQaRoute: typeof ValaAiQaRoute
   ValaAiReleasesRoute: typeof ValaAiReleasesRoute
   ValaAiSettingsRoute: typeof ValaAiSettingsRoute
+  ValaAiStudioRoute: typeof ValaAiStudioRoute
   ValaAiIndexRoute: typeof ValaAiIndexRoute
   ValaAiProjectsProjectIdRoute: typeof ValaAiProjectsProjectIdRoute
   ValaAiTasksTaskIdRoute: typeof ValaAiTasksTaskIdRoute
@@ -7674,6 +7694,7 @@ const ValaAiRouteChildren: ValaAiRouteChildren = {
   ValaAiQaRoute: ValaAiQaRoute,
   ValaAiReleasesRoute: ValaAiReleasesRoute,
   ValaAiSettingsRoute: ValaAiSettingsRoute,
+  ValaAiStudioRoute: ValaAiStudioRoute,
   ValaAiIndexRoute: ValaAiIndexRoute,
   ValaAiProjectsProjectIdRoute: ValaAiProjectsProjectIdRoute,
   ValaAiTasksTaskIdRoute: ValaAiTasksTaskIdRoute,

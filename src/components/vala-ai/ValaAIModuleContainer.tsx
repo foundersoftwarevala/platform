@@ -18,6 +18,8 @@ export function ValaAIModuleContainer() {
   const studio = [
     "/vala-ai",
     "/vala-ai/",
+    "/vala-ai/studio",
+    "/vala-ai/studio/",
     "/vala-ai/flow",
     "/vala-ai/builder",
     "/vala-ai/admin",
