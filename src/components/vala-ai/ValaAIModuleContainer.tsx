@@ -1,5 +1,5 @@
 import "./vala-ai.css";
-import { Outlet } from "@tanstack/react-router";
+import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Loader2, LogIn, ShieldOff } from "lucide-react";
 import { useLanguage } from "@/lib/language-catalog";
 import { EXISTING_LOGIN_URL } from "@/lib/auth-bridge";
@@ -14,6 +14,15 @@ import { ValaTopBar } from "./ValaTopBar";
 export function ValaAIModuleContainer() {
   const { translate: t } = useLanguage();
   const session = useApi<{ operator: Operator | null }>(["session"], "/session");
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const studio = [
+    "/vala-ai",
+    "/vala-ai/",
+    "/vala-ai/flow",
+    "/vala-ai/builder",
+    "/vala-ai/admin",
+    "/vala-ai/owner",
+  ].includes(pathname);
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebarState();
 
   if (session.isPending)
@@ -43,6 +52,32 @@ export function ValaAIModuleContainer() {
       />
     );
   const operator = session.data.operator;
+
+  if (studio)
+    return (
+      <OperatorContext.Provider value={operator}>
+        <div className="vala-ai vala-studio">
+          <header className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-2 text-xs">
+            <Link to="/control-panel" className="text-studio-dim hover:text-foreground">
+              ← Control Panel
+            </Link>
+            <nav className="flex flex-wrap gap-4" aria-label="Vala AI module">
+              <Link to="/vala-ai">Vala AI</Link>
+              <Link to="/vala-ai/command-center">Command Center</Link>
+              <Link to="/vala-ai/projects">Engineering projects</Link>
+              <Link to="/vala-ai/chat">Chat</Link>
+              <Link to="/vala-ai/settings">Settings</Link>
+            </nav>
+            <span className="text-studio-dim">
+              {operator.email} · {operator.role}
+            </span>
+          </header>
+          <main id="main-content" tabIndex={-1}>
+            <Outlet key={operator.id} />
+          </main>
+        </div>
+      </OperatorContext.Provider>
+    );
 
   return (
     <OperatorContext.Provider value={operator}>

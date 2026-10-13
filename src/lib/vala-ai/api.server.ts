@@ -95,6 +95,23 @@ function on(method: string, path: string, minRole: Role | null, handler: Handler
 
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
+on("POST", "/studio/control-panel/clients", "operator", async ({ body, op }) => {
+  if (!op) throw new ValaError(401, "Control Panel session is required.");
+  const { studioClientInput } = await import("./studio/clients.functions");
+  const parsed = studioClientInput.safeParse(body);
+  if (!parsed.success)
+    throw new ValaError(
+      400,
+      `Invalid client: ${parsed.error.issues.map((issue) => issue.message).join("; ")}`,
+    );
+  const { upsertClient } = await import("./studio/developer/developer.server");
+  const client = await upsertClient(
+    { ...parsed.data, external_id: `cp:${parsed.data.id}`, source: "control_panel" },
+    op,
+  );
+  return { ok: true, client_id: client.id };
+});
+
 /** What is actually built, so the UI never presents planned work as working. */
 const CAPABILITIES = [
   { area: "Control Panel sign-in with server-side Vala AI roles", status: "built" },

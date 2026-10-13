@@ -220,6 +220,20 @@ export const MIGRATIONS: string[] = [
   alter table evidence add column sandbox text not null default 'none';
   alter table workspaces add column git_config_sha256 text;
   `,
+  /* 4: imported build-system records share Vala's backed-up SQLite database */ `
+  create table studio_records (
+    collection text not null,
+    id text not null,
+    document text not null check(json_valid(document)),
+    primary key(collection, id)
+  );
+  create trigger studio_immutable_update before update on studio_records
+    when old.collection in ('dev_versions', 'dev_audit_logs')
+    begin select raise(abort, 'studio release and audit records are immutable'); end;
+  create trigger studio_immutable_delete before delete on studio_records
+    when old.collection in ('dev_versions', 'dev_audit_logs')
+    begin select raise(abort, 'studio release and audit records are immutable'); end;
+  `,
 ];
 
 let instance: { path: string; db: DatabaseSync } | null = null;
