@@ -41,7 +41,7 @@ export const DMPerformanceKPI: React.FC = () => {
       completion: mine.length ? Math.round((done / mine.length) * 100) : null,
       bugRatio: mine.length ? Math.round((mine.filter((t) => t.category === 'bug').length / mine.length) * 100) : null,
       sla: p && p.completedTasks > 0 ? p.onTimeRate : null,
-      aiScore: p?.qualityScore ?? null,
+      aiScore: p && p.qualityScore > 0 ? p.qualityScore : null,
     };
   });
   const loading = registry.isLoading || tasks.isLoading;
@@ -160,9 +160,9 @@ export const DMPerformanceKPI: React.FC = () => {
                   <div>
                     <div className="flex justify-between text-xs mb-1">
                       <span>{t('devmanager.performance.ai_score')}</span>
-                      <span className={dev.aiScore == null ? 'text-muted-foreground' : dev.aiScore >= 80 ? 'text-purple-500' : 'text-amber-500'}>{pct(dev.aiScore)}</span>
+                      <span className={(dev.aiScore ?? 0) >= 80 ? 'text-purple-500' : 'text-amber-500'}>{pct(dev.aiScore)}</span>
                     </div>
-                    {dev.aiScore != null && <Progress value={dev.aiScore} className="h-2" aria-label={t('devmanager.performance.ai_score')} />}
+                    <Progress value={dev.aiScore ?? 0} className="h-2" aria-label={t('devmanager.performance.ai_score')} />
                   </div>
                 </div>
               </div>

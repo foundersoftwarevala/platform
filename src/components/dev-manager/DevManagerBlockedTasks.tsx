@@ -16,7 +16,7 @@ export default function DevManagerBlockedTasks() {
   const handleEscalate = (task: BlockedTaskDTO) => {
     escalate.mutate({
       taskId: task.taskId,
-      reason: `Manual escalation: ${task.code} blocked${task.blockedHours === null ? "" : ` ${task.blockedHours}h`} — ${task.blockedReason}`,
+      reason: `Manual escalation: ${task.code} blocked ${task.blockedHours}h — ${task.blockedReason}`,
     });
   };
 
@@ -42,7 +42,7 @@ export default function DevManagerBlockedTasks() {
           </p>
         )}
         {blockedTasks.map((task, idx) => {
-          const isAutoEscalated = task.escalated;
+          const isAutoEscalated = task.escalated || task.blockedHours >= task.autoEscalateThreshold;
 
           return (
             <motion.div
@@ -72,7 +72,7 @@ export default function DevManagerBlockedTasks() {
                 <div className="text-right">
                   <div className="flex items-center gap-1 text-sm text-amber-400">
                     <Clock className="w-3.5 h-3.5" />
-                    <span>{task.blockedHours === null ? "Blocked duration not recorded" : `${task.blockedHours}h blocked`}</span>
+                    <span>{task.blockedHours}h blocked</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 tabular-nums">
                     Threshold: {task.autoEscalateThreshold}h
@@ -83,12 +83,8 @@ export default function DevManagerBlockedTasks() {
                     }`}
                   >
                     {isAutoEscalated
-                      ? 'Escalation recorded'
-                      : task.blockedHours === null
-                        ? 'Auto-escalation awaits a recorded blocked time'
-                        : task.blockedHours >= task.autoEscalateThreshold
-                          ? 'Auto-escalation pending'
-                        : `Auto-escalates in ${Math.max(
+                      ? 'Auto-escalation triggered'
+                      : `Auto-escalates in ${Math.max(
                           0,
                           task.autoEscalateThreshold - task.blockedHours,
                         )}h`}

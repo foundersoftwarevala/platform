@@ -47,9 +47,6 @@ export const DEVMANAGER_MESSAGES = {
   ],
   "devmanager.alerts.performance_message":
     "On-time rate {onTime}%, quality {quality}%, trending down",
-  "devmanager.alerts.performance_unscored":
-    "On-time rate {onTime}%, quality not scored, trending down",
-  "devmanager.common.blocked_duration_unknown": "Blocked duration not recorded",
   "devmanager.alerts.escalation_time": [
     "{kind, select, auto {auto-escalated} other {escalated}} {time} · {status, select, pending {pending} acknowledged {acknowledged} resolved {resolved} other {{status}}}",
     "when and how an escalation was raised, and its state",

@@ -79,16 +79,12 @@ export const DMAlertsEscalation: React.FC = () => {
     ...(d?.blocked ?? []).map((b) => ({
       id: b.code, type: 'delay', severity: b.escalated ? 'critical' : 'high',
       message: t('devmanager.alerts.blocked_message', { title: b.title, reason: b.blockedReason }),
-      dev: b.assignee || null, time: b.blockedHours == null
-        ? t('devmanager.common.blocked_duration_unknown')
-        : t('devmanager.alerts.blocked_for', { hours: formatNumber(Math.round(b.blockedHours)) }),
+      dev: b.assignee || null, time: t('devmanager.alerts.blocked_for', { hours: formatNumber(Math.round(b.blockedHours)) }),
     })),
   ];
   const performance = (d?.performance ?? []).filter((p) => p.trend === 'down').map((p) => ({
     id: p.valaId, type: 'performance', severity: 'medium',
-    message: p.qualityScore == null
-      ? t('devmanager.alerts.performance_unscored', { onTime: formatNumber(Math.round(p.onTimeRate)) })
-      : t('devmanager.alerts.performance_message', {
+    message: t('devmanager.alerts.performance_message', {
       onTime: formatNumber(Math.round(p.onTimeRate)),
       quality: formatNumber(Math.round(p.qualityScore)),
     }),

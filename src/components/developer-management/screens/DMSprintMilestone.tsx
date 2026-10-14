@@ -27,9 +27,7 @@ export const DMSprintMilestone: React.FC = () => {
     ...(overview.data?.blocked ?? []).map((b) => ({
       task: b.code,
       reason: t('devmanager.sprint.blocked_reason', { reason: b.blockedReason }),
-      delay: b.blockedHours == null
-        ? t('devmanager.common.blocked_duration_unknown')
-        : t('devmanager.sprint.hours_blocked', { hours: formatNumber(Math.round(b.blockedHours)) }),
+      delay: t('devmanager.sprint.hours_blocked', { hours: formatNumber(Math.round(b.blockedHours)) }),
     })),
     ...(overview.data?.risks ?? []).map((r) => ({
       task: r.code,
