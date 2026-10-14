@@ -381,6 +381,36 @@ new routes; they are not new errors. This older production base still has the
 older generated Supabase types, unlike main. Do not deploy unrelated mainline
 schema/type cleanups as part of the Vala release.
 
+### Scoped typecheck fast wins (2026-10-14)
+
+The fresh cloud types in production release `c911091` reduced the scoped
+baseline to 533 diagnostics. The isolated
+`fix/scoped-typecheck-fast-wins-20261014` branch changes only the `Resource`
+declaration and nine React class-member modifiers, plus regression tests and
+this record:
+
+| Scoped source | Errors |
+|---|---|
+| Fresh cloud types, production `c911091` | 533 |
+| Optional `Resource.retirable` declaration | 494 |
+| Nine explicit React `override` modifiers | **485** |
+
+Both full native TypeScript checks completed against the exact scoped source;
+39 excess-property diagnostics and nine missing-override diagnostics were
+removed, with no new diagnostic signatures. Mainline's 347-error baseline is
+separate and unchanged. The three implementation files emit identical
+JavaScript before and after these type-only changes.
+
+Regression validation: 33 tests pass across three suites, covering archive
+PATCH/no physical DELETE, authorization and upstream failures, existing
+product-creation guards, and homepage/section error logging and retries.
+Resources without an archive configuration still reject retirement with 403;
+the three known missing configurations above remain a separate task.
+The new tests have no lint errors or warnings; existing implementation-file
+lint findings are unchanged. Production remains `c911091`; this fix branch
+has not been deployed. Roll back this branch's change with a normal commit
+revert, never by rewriting pushed history.
+
 ## Vala AI scoped production release
 
 The authorized `deploy/vala-ai-20261012` release was built and deployed from

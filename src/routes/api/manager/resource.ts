@@ -59,6 +59,7 @@ type Resource = {
    * names the change that takes a row out of use instead.
    */
   archive?: Record<string, unknown>;
+  retirable?: boolean;
   /**
    * Real column -> the name the screen uses for it.
    *

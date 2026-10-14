@@ -124,17 +124,17 @@ class ErrorBoundary extends Component<
   { children: ReactNode; resetKey: string },
   { error: Error | null }
 > {
-  state = { error: null as Error | null };
+  override state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
-  componentDidUpdate(prev: { resetKey: string }) {
+  override componentDidUpdate(prev: { resetKey: string }) {
     if (prev.resetKey !== this.props.resetKey && this.state.error) {
       this.setState({ error: null });
     }
   }
   reset = () => this.setState({ error: null });
-  render() {
+  override render() {
     if (this.state.error) {
       return (
         <div className="flex min-h-[60vh] items-center justify-center px-6 py-24">
