@@ -35,20 +35,19 @@ type ConversationRowData = {
   id: string;
   subject: string;
   kind: string;
-  department: string | null;
   last_message_at: string;
   conversation_participants: { user_id: string; role_label: string | null }[] | null;
 };
 const MESSAGE_COLUMNS = "id,conversation_id,sender_id,body,created_at";
 const CONVERSATION_COLUMNS =
-  "id,subject,kind,department,last_message_at,conversation_participants(user_id,role_label)";
+  "id,subject,kind,last_message_at,conversation_participants(user_id,role_label)";
 
 function toConversation(row: ConversationRowData, userId: string): Conversation {
   const members = row.conversation_participants ?? [];
   return {
     id: row.id,
     title: row.subject,
-    module: row.department ?? row.kind,
+    module: row.kind,
     allowed_roles: Array.from(
       new Set(members.map((p) => p.role_label).filter((r): r is string => !!r)),
     ),
@@ -325,8 +324,8 @@ export function ChatScreen() {
     void allowedRoles;
     const { data: conv, error: convErr } = await supabase
       .from("conversations")
-      .insert({ subject: title, kind: "channel", department: "AMS", created_by: me.id })
-      .select("id,subject,kind,department,last_message_at")
+      .insert({ subject: title, kind: "channel", created_by: me.id })
+      .select("id,subject,kind,last_message_at")
       .single();
     if (convErr || !conv) { setError(convErr?.message ?? "Failed to create channel"); return; }
     const { error: partErr } = await supabase

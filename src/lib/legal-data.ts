@@ -125,8 +125,11 @@ export function useMisuseAlerts() {
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return ((data ?? []) as Record<string, any>[]).map((row) => ({ ...row, detected_at: row.created_at }));
+      return (data ?? []).map((row) => ({
+        ...row,
+        detected_at: row.created_at,
+        ai_confidence: null,
+      }));
     },
   });
 }
@@ -151,7 +154,11 @@ export function useLegalLogs() {
       if (error) throw error;
       return (data ?? []).map((row) => ({
         ...row,
-        logged_at: (row as { created_at?: string }).created_at,
+        logged_at: row.created_at,
+        category: row.entity_type ?? "other",
+        details: row.reason ?? "",
+        // legal_logs_no_rewrite rejects updates and deletes.
+        immutable: true,
       }));
     },
   });

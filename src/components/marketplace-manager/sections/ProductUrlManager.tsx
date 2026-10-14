@@ -99,7 +99,7 @@ export function ProductUrlManager() {
   });
 
   const settings = useMutation({
-    mutationFn: (v: Parameters<typeof setUrlSettings>[0]["data"]) => setUrlSettings({ data: v }),
+    mutationFn: (v: NonNullable<Parameters<typeof setUrlSettings>[0]>["data"]) => setUrlSettings({ data: v }),
     onSuccess: (res) => {
       setNote(res.ok
         ? null

@@ -80,7 +80,7 @@ export function BrandProtection() {
   });
 
   const policy = useMutation({
-    mutationFn: (v: Parameters<typeof setBrandPolicy>[0]["data"]) => setBrandPolicy({ data: v }),
+    mutationFn: (v: NonNullable<Parameters<typeof setBrandPolicy>[0]>["data"]) => setBrandPolicy({ data: v }),
     onSuccess: settled,
     onError: (e: Error) => setNote(e.message),
   });

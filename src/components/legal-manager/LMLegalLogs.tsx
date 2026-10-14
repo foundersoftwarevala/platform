@@ -26,7 +26,7 @@ const LMLegalLogs: React.FC = () => {
   const [filterActive, setFilterActive] = useState(false);
 
   const logs: LegalLog[] = logRows.map((row) => ({
-    id: row.ref_code,
+    id: row.ref_code ?? row.id,
     timestamp: row.logged_at,
     action: row.action,
     category: row.category as LegalLog['category'],

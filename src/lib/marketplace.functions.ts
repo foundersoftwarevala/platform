@@ -1373,11 +1373,11 @@ export const sortByDownloads = createServerFn({ method: "POST" })
  * Manager, which is the only caller, is an operator console and is unaffected.
  * The columns it does not get are the two it never displayed.
  */
-export const listProductDemos = createServerFn({ method: "GET" }).handler(async ({ context }) => {
+export const listProductDemos = createServerFn({ method: "GET" }).handler(async () => {
   const { requireOperator } = await import("@/lib/auth/require-operator.server");
   await requireOperator("Reading the demo list");
 
-  const supabase = context?.supabase ?? publicClient();
+  const supabase = publicClient();
   const { data: results, error } = await supabase
     .from("product_demo_urls")
     .select(
@@ -1402,181 +1402,179 @@ export const listProductDemos = createServerFn({ method: "GET" }).handler(async 
  * that triggers it is behind a route gate, but a route gate hides a screen - it
  * does not guard the function, which is callable directly.
  */
-export const recoverMarketplaceData = createServerFn({ method: "POST" }).handler(
-  async ({ context }) => {
-    const { requireOperator } = await import("@/lib/auth/require-operator.server");
-    await requireOperator("Marketplace data recovery");
+export const recoverMarketplaceData = createServerFn({ method: "POST" }).handler(async () => {
+  const { requireOperator } = await import("@/lib/auth/require-operator.server");
+  await requireOperator("Marketplace data recovery");
 
-    const supabase = context?.supabase ?? publicClient();
-    console.log("[marketplace] Starting marketplace data recovery...");
+  const supabase = publicClient();
+  console.log("[marketplace] Starting marketplace data recovery...");
 
-    try {
-      // Sample products data
-      const products = [
-        {
-          slug: "school-management",
-          name: "School Management Software",
-          category_id: null,
-          price_label: "₹59,999",
-          rating: 4.8,
-          downloads: 2150,
-          badge: "HOT",
-          is_featured: true,
-          is_trending: true,
-          sort_order: 1,
-        },
-        {
-          slug: "gym-fitness",
-          name: "Gym & Fitness Center Management",
-          category_id: null,
-          price_label: "₹44,999",
-          rating: 4.6,
-          downloads: 1200,
-          badge: "HOT",
-          is_featured: true,
-          is_trending: true,
-          sort_order: 2,
-        },
-        {
-          slug: "salon-spa",
-          name: "Salon & Spa Management",
-          category_id: null,
-          price_label: "₹39,999",
-          rating: 4.5,
-          downloads: 980,
-          badge: null,
-          is_featured: false,
-          is_trending: false,
-          sort_order: 3,
-        },
-        {
-          slug: "restaurant-pos",
-          name: "Restaurant POS",
-          category_id: null,
-          price_label: "₹54,999",
-          rating: 4.7,
-          downloads: 1950,
-          badge: "TOP",
-          is_featured: true,
-          is_trending: true,
-          sort_order: 4,
-        },
-        {
-          slug: "crm-software",
-          name: "CRM Software",
-          category_id: null,
-          price_label: "₹59,999",
-          rating: 4.7,
-          downloads: 2050,
-          badge: "TOP",
-          is_featured: true,
-          is_trending: true,
-          sort_order: 5,
-        },
-        {
-          slug: "hotel-management",
-          name: "Hotel Management System",
-          category_id: null,
-          price_label: "₹89,999",
-          rating: 4.8,
-          downloads: 1920,
-          badge: "TOP",
-          is_featured: true,
-          is_trending: false,
-          sort_order: 6,
-        },
-        {
-          slug: "fleet-management",
-          name: "Fleet Management System",
-          category_id: null,
-          price_label: "₹69,999",
-          rating: 4.7,
-          downloads: 1750,
-          badge: "HOT",
-          is_featured: true,
-          is_trending: false,
-          sort_order: 7,
-        },
-        {
-          slug: "hospital-hms",
-          name: "Hospital Management System",
-          category_id: null,
-          price_label: "₹99,999",
-          rating: 4.8,
-          downloads: 2300,
-          badge: "TOP",
-          is_featured: true,
-          is_trending: false,
-          sort_order: 8,
-        },
-        {
-          slug: "petcare-veterinary",
-          name: "Pet Care & Veterinary Software",
-          category_id: null,
-          price_label: "₹44,999",
-          rating: 4.6,
-          downloads: 890,
-          badge: "DEAL",
-          is_featured: false,
-          is_trending: true,
-          sort_order: 9,
-        },
-        {
-          slug: "college-erp",
-          name: "College / University ERP",
-          category_id: null,
-          price_label: "₹89,999",
-          rating: 4.5,
-          downloads: 750,
-          badge: "NEW",
-          is_featured: false,
-          is_trending: false,
-          sort_order: 10,
-        },
-      ];
+  try {
+    // Sample products data
+    const products = [
+      {
+        slug: "school-management",
+        name: "School Management Software",
+        category_id: null,
+        price_label: "₹59,999",
+        rating: 4.8,
+        downloads: 2150,
+        badge: "HOT",
+        is_featured: true,
+        is_trending: true,
+        sort_order: 1,
+      },
+      {
+        slug: "gym-fitness",
+        name: "Gym & Fitness Center Management",
+        category_id: null,
+        price_label: "₹44,999",
+        rating: 4.6,
+        downloads: 1200,
+        badge: "HOT",
+        is_featured: true,
+        is_trending: true,
+        sort_order: 2,
+      },
+      {
+        slug: "salon-spa",
+        name: "Salon & Spa Management",
+        category_id: null,
+        price_label: "₹39,999",
+        rating: 4.5,
+        downloads: 980,
+        badge: null,
+        is_featured: false,
+        is_trending: false,
+        sort_order: 3,
+      },
+      {
+        slug: "restaurant-pos",
+        name: "Restaurant POS",
+        category_id: null,
+        price_label: "₹54,999",
+        rating: 4.7,
+        downloads: 1950,
+        badge: "TOP",
+        is_featured: true,
+        is_trending: true,
+        sort_order: 4,
+      },
+      {
+        slug: "crm-software",
+        name: "CRM Software",
+        category_id: null,
+        price_label: "₹59,999",
+        rating: 4.7,
+        downloads: 2050,
+        badge: "TOP",
+        is_featured: true,
+        is_trending: true,
+        sort_order: 5,
+      },
+      {
+        slug: "hotel-management",
+        name: "Hotel Management System",
+        category_id: null,
+        price_label: "₹89,999",
+        rating: 4.8,
+        downloads: 1920,
+        badge: "TOP",
+        is_featured: true,
+        is_trending: false,
+        sort_order: 6,
+      },
+      {
+        slug: "fleet-management",
+        name: "Fleet Management System",
+        category_id: null,
+        price_label: "₹69,999",
+        rating: 4.7,
+        downloads: 1750,
+        badge: "HOT",
+        is_featured: true,
+        is_trending: false,
+        sort_order: 7,
+      },
+      {
+        slug: "hospital-hms",
+        name: "Hospital Management System",
+        category_id: null,
+        price_label: "₹99,999",
+        rating: 4.8,
+        downloads: 2300,
+        badge: "TOP",
+        is_featured: true,
+        is_trending: false,
+        sort_order: 8,
+      },
+      {
+        slug: "petcare-veterinary",
+        name: "Pet Care & Veterinary Software",
+        category_id: null,
+        price_label: "₹44,999",
+        rating: 4.6,
+        downloads: 890,
+        badge: "DEAL",
+        is_featured: false,
+        is_trending: true,
+        sort_order: 9,
+      },
+      {
+        slug: "college-erp",
+        name: "College / University ERP",
+        category_id: null,
+        price_label: "₹89,999",
+        rating: 4.5,
+        downloads: 750,
+        badge: "NEW",
+        is_featured: false,
+        is_trending: false,
+        sort_order: 10,
+      },
+    ];
 
-      let insertCount = 0;
-      for (const prod of products) {
-        const { error } = await supabase.from("marketplace_products").insert({
-          slug: prod.slug,
-          name: prod.name,
-          industry_label: prod.name,
-          category_id: prod.category_id,
-          icon: "Sparkles",
-          price_label: prod.price_label,
-          price_period: "lifetime",
-          rating: prod.rating,
-          downloads: prod.downloads,
-          downloads_label: Math.floor(prod.downloads / 1000) + "k",
-          badge: prod.badge,
-          is_featured: prod.is_featured,
-          is_trending: prod.is_trending,
-          is_best_seller: false,
-          is_new_release: prod.badge === "NEW",
-          is_ai: false,
-          visible: true,
-          sort_order: prod.sort_order,
-        });
+    let insertCount = 0;
+    for (const prod of products) {
+      const { error } = await supabase.from("marketplace_products").insert({
+        slug: prod.slug,
+        name: prod.name,
+        industry_label: prod.name,
+        category_id: prod.category_id,
+        icon: "Sparkles",
+        price_label: prod.price_label,
+        price_period: "lifetime",
+        rating: prod.rating,
+        downloads: prod.downloads,
+        downloads_label: Math.floor(prod.downloads / 1000) + "k",
+        badge: prod.badge,
+        is_featured: prod.is_featured,
+        is_trending: prod.is_trending,
+        is_best_seller: false,
+        is_new_release: prod.badge === "NEW",
+        is_ai: false,
+        visible: true,
+        sort_order: prod.sort_order,
+      });
 
-        if (!error) {
-          insertCount++;
-        }
+      if (!error) {
+        insertCount++;
       }
-
-      console.log(`[marketplace] Recovery complete: ${insertCount} products inserted`);
-
-      return {
-        success: true,
-        productsInserted: insertCount,
-        message: "Marketplace data recovery completed",
-      };
-    } catch (err) {
-      console.error("[marketplace] Recovery error:", err);
-      return {
-        success: false,
-        error: String(err),
-        message: "Recovery failed",
-      };
     }
-  },
-);
+
+    console.log(`[marketplace] Recovery complete: ${insertCount} products inserted`);
+
+    return {
+      success: true,
+      productsInserted: insertCount,
+      message: "Marketplace data recovery completed",
+    };
+  } catch (err) {
+    console.error("[marketplace] Recovery error:", err);
+    return {
+      success: false,
+      error: String(err),
+      message: "Recovery failed",
+    };
+  }
+});

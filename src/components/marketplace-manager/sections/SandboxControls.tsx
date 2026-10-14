@@ -133,7 +133,7 @@ export function SandboxControls() {
   });
 
   const settings = useMutation({
-    mutationFn: (v: Parameters<typeof setSandboxSettings>[0]["data"]) => setSandboxSettings({ data: v }),
+    mutationFn: (v: NonNullable<Parameters<typeof setSandboxSettings>[0]>["data"]) => setSandboxSettings({ data: v }),
     onSuccess: settled,
     onError: (e: Error) => setNote(e.message),
   });

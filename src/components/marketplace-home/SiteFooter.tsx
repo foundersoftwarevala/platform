@@ -174,7 +174,7 @@ function brandOf(label: string): {
 }
 
 /** Published company profiles. Only accounts the business actually runs. */
-const SOCIAL = [
+const SOCIAL: { label: string; href: string; handle?: string | null }[] = [
   { label: "Facebook", href: "https://facebook.com/share/1HpGSvExis" },
   { label: "Instagram", href: "https://instagram.com/new_software_vala" },
   { label: "WhatsApp", href: "https://wa.me/918348838383" },

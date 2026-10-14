@@ -1,5 +1,4 @@
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
-import { useSidebarState } from "@/components/lead-manager/AppSidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { AlertTriangle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -69,8 +68,6 @@ function LeadManagerNotFound() {
 }
 
 function LeadManagerLayout() {
-  const { isOpen } = useSidebarState();
-  
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
       <Outlet />

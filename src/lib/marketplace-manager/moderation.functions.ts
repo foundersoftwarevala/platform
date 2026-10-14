@@ -228,14 +228,17 @@ export const transitionReport = createServerFn({ method: "POST" })
   }));
 
 /** Every record validated on its own; one invalid record never spoils the rest. */
+const bulkProductOperation = z.enum([
+  "approved", "rejected", "suspended", "archived", "soft_deleted",
+  "publish", "unpublish", "category", "author",
+]);
+export type BulkProductOp = z.infer<typeof bulkProductOperation>;
+
 export const bulkProducts = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
     z.object({
       ids: z.array(z.string().uuid()).min(1).max(200),
-      op: z.enum([
-        "approved", "rejected", "suspended", "archived", "soft_deleted",
-        "publish", "unpublish", "category", "author",
-      ]),
+      op: bulkProductOperation,
       reason: z.string().max(1000).optional(),
       target: z.string().uuid().optional(),
     }).parse(i),

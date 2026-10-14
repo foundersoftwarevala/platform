@@ -104,8 +104,7 @@ export const generatePromiseInsights = createServerFn({ method: "POST" })
     const { data: open, error } = await db
       .from("promises")
       .select(
-        "id, code, title, description, status, priority, deadline, delay_days, " +
-          "escalation_level, fine_amount, owner, receiver, sub_category",
+        "id, code, title, description, status, priority, deadline, delay_days, escalation_level, fine_amount, owner, receiver, sub_category",
       )
       .in("status", ["pending", "active", "due_soon", "delayed", "broken"])
       .order("deadline", { ascending: true })

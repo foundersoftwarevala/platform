@@ -25,6 +25,7 @@ type Job = {
   job_id: string; automation: string; source: string; trigger: string;
   target: string | null; status: string; attempt: number;
   started_at: string | null; finished_at: string | null;
+  created_at: string | null;
   duration_ms: number | null; error: string | null; summary: string | null;
 };
 

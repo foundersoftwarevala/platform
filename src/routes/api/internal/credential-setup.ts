@@ -6,8 +6,8 @@ import { resolve } from "path";
 export const Route = createFileRoute("/api/internal/credential-setup")({
   server: {
     handlers: {
-      POST: async (req) => {
-        const gate = await requireInternalOperator(req);
+      POST: async ({ request }) => {
+        const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
         // Replacing the server's database credential is not a Control Panel
         // action: a signed-in developer account must not be able to repoint the
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/api/internal/credential-setup")({
         }
 
         try {
-          const payload = await req.json();
+          const payload = await request.json();
           const { serviceRoleKey } = payload;
 
           if (!serviceRoleKey || typeof serviceRoleKey !== "string") {
