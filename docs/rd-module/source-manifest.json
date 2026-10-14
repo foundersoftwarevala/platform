@@ -1,0 +1,941 @@
+{
+  "repository": "removalwork59-sketch/r-d-manager",
+  "commit": "b85609dce3b298170b3591837c46e360f3e27e08",
+  "files": [
+    {
+      "source": ".env",
+      "target": null,
+      "disposition": "excluded: environment/credentials are never imported"
+    },
+    {
+      "source": ".env.example",
+      "target": null,
+      "disposition": "excluded: environment/credentials are never imported"
+    },
+    {
+      "source": ".gitignore",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": ".lovable/project.json",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": ".prettierignore",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": ".prettierrc",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "AGENTS.md",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "API.md",
+      "target": "docs/rd-module/source/API.md",
+      "disposition": "imported"
+    },
+    {
+      "source": "ARCHITECTURE.md",
+      "target": "docs/rd-module/source/ARCHITECTURE.md",
+      "disposition": "imported"
+    },
+    {
+      "source": "DATABASE.md",
+      "target": "docs/rd-module/source/DATABASE.md",
+      "disposition": "imported"
+    },
+    {
+      "source": "README.md",
+      "target": "docs/rd-module/source/README.md",
+      "disposition": "imported"
+    },
+    {
+      "source": "RECOVERY.md",
+      "target": "docs/rd-module/source/RECOVERY.md",
+      "disposition": "imported"
+    },
+    {
+      "source": "bun.lock",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "bunfig.toml",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "components.json",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "drizzle.config.ts",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "drizzle/migrations/0000_rnd_module.sql",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "merged schema; idempotent; operator RLS replaces anonymous reads; sample records intentionally excluded"
+    },
+    {
+      "source": "drizzle/migrations/0001_pro_manager_module.sql",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "merged schema; idempotent; operator RLS replaces anonymous reads; sample records intentionally excluded"
+    },
+    {
+      "source": "drizzle/migrations/0002_indexes.sql",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "merged schema; idempotent; operator RLS replaces anonymous reads; sample records intentionally excluded"
+    },
+    {
+      "source": "drizzle/migrations/0003_rd_opportunities.sql",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "merged schema; idempotent; operator RLS replaces anonymous reads; sample records intentionally excluded"
+    },
+    {
+      "source": "drizzle/migrations/0004_team_feedback_insights.sql",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "merged schema; idempotent; operator RLS replaces anonymous reads; sample records intentionally excluded"
+    },
+    {
+      "source": "drizzle/migrations/0005_rd_opportunity_attachments.sql",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "merged schema; idempotent; operator RLS replaces anonymous reads; sample records intentionally excluded"
+    },
+    {
+      "source": "drizzle/migrations/0006_rd_team_members.sql",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "merged schema; idempotent; operator RLS replaces anonymous reads; sample records intentionally excluded"
+    },
+    {
+      "source": "drizzle/migrations/meta/0000_snapshot.json",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "source Drizzle schema/snapshot represented by native platform SQL migration; not an additional schema authority"
+    },
+    {
+      "source": "drizzle/migrations/meta/0001_snapshot.json",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "source Drizzle schema/snapshot represented by native platform SQL migration; not an additional schema authority"
+    },
+    {
+      "source": "drizzle/migrations/meta/0002_snapshot.json",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "source Drizzle schema/snapshot represented by native platform SQL migration; not an additional schema authority"
+    },
+    {
+      "source": "drizzle/migrations/meta/0003_snapshot.json",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "source Drizzle schema/snapshot represented by native platform SQL migration; not an additional schema authority"
+    },
+    {
+      "source": "drizzle/migrations/meta/0004_snapshot.json",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "source Drizzle schema/snapshot represented by native platform SQL migration; not an additional schema authority"
+    },
+    {
+      "source": "drizzle/migrations/meta/0005_snapshot.json",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "source Drizzle schema/snapshot represented by native platform SQL migration; not an additional schema authority"
+    },
+    {
+      "source": "drizzle/migrations/meta/0006_snapshot.json",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "source Drizzle schema/snapshot represented by native platform SQL migration; not an additional schema authority"
+    },
+    {
+      "source": "drizzle/migrations/meta/_journal.json",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "source Drizzle schema/snapshot represented by native platform SQL migration; not an additional schema authority"
+    },
+    {
+      "source": "drizzle/schema.ts",
+      "target": "supabase/migrations/20261108T111000_rd_manager_module.sql",
+      "disposition": "source Drizzle schema/snapshot represented by native platform SQL migration; not an additional schema authority"
+    },
+    {
+      "source": "eslint.config.js",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "package.json",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "public/favicon.png",
+      "target": "public/rd-module/favicon.png",
+      "disposition": "imported under module namespace; platform favicon preserved"
+    },
+    {
+      "source": "public/robots.txt",
+      "target": null,
+      "disposition": "platform favicon/robots preserved; original path recorded"
+    },
+    {
+      "source": "roadmap.md",
+      "target": "docs/rd-module/source/roadmap.md",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/assets/software-vala-logo.png",
+      "target": "src/assets/rd-module/software-vala-logo.png",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/PMDecisionsPending.tsx",
+      "target": "src/components/rd-module/pro-manager/PMDecisionsPending.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/PMEscalationsQueue.tsx",
+      "target": "src/components/rd-module/pro-manager/PMEscalationsQueue.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/PMManagerSnapshot.tsx",
+      "target": "src/components/rd-module/pro-manager/PMManagerSnapshot.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/PMPromiseSLABoard.tsx",
+      "target": "src/components/rd-module/pro-manager/PMPromiseSLABoard.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/PMQualityAlerts.tsx",
+      "target": "src/components/rd-module/pro-manager/PMQualityAlerts.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/PMReportsAudit.tsx",
+      "target": "src/components/rd-module/pro-manager/PMReportsAudit.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/PMSystemHealth.tsx",
+      "target": "src/components/rd-module/pro-manager/PMSystemHealth.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/PROSidebar.tsx",
+      "target": "src/components/rd-module/pro-manager/PROSidebar.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/PROTopBar.tsx",
+      "target": "src/components/rd-module/pro-manager/PROTopBar.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/pm-ui.tsx",
+      "target": "src/components/rd-module/pro-manager/pm-ui.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROAIHelpdesk.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROAIHelpdesk.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROAlertsEscalation.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROAlertsEscalation.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROAuditLogs.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROAuditLogs.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROCommunicationLog.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROCommunicationLog.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROCompliancePolicy.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROCompliancePolicy.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PRODashboard.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PRODashboard.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROIssueBugTracker.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROIssueBugTracker.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROLicenseDomain.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROLicenseDomain.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROPremiumAssist.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROPremiumAssist.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROProductOwnership.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROProductOwnership.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROPromiseSLATracker.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROPromiseSLATracker.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PRORenewalExpiry.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PRORenewalExpiry.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROSatisfactionRating.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROSatisfactionRating.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROSettings.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROSettings.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROSupportRequests.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROSupportRequests.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROUpgradeAddons.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROUpgradeAddons.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROUsageLimits.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROUsageLimits.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/pro-manager/screens/PROUserRegistry.tsx",
+      "target": "src/components/rd-module/pro-manager/screens/PROUserRegistry.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rd-manager/AlertBanner.tsx",
+      "target": "src/components/rd-module/rd-manager/AlertBanner.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rd-manager/OpportunityDetail.tsx",
+      "target": "src/components/rd-module/rd-manager/OpportunityDetail.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rd-manager/TeamMembers.tsx",
+      "target": "src/components/rd-module/rd-manager/TeamMembers.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rd-manager/screens.tsx",
+      "target": "src/components/rd-module/rd-manager/screens.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rd-public/RequestForm.tsx",
+      "target": "src/components/rd-module/rd-public/RequestForm.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/AIIdeaScorer.tsx",
+      "target": "src/components/rd-module/rnd/AIIdeaScorer.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/AIRnDAssistant.tsx",
+      "target": "src/components/rd-module/rnd/AIRnDAssistant.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/DecisionBoard.tsx",
+      "target": "src/components/rd-module/rnd/DecisionBoard.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/FeedbackAnalysis.tsx",
+      "target": "src/components/rd-module/rnd/FeedbackAnalysis.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/FeedbackPortal.tsx",
+      "target": "src/components/rd-module/rnd/FeedbackPortal.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/FutureLab.tsx",
+      "target": "src/components/rd-module/rnd/FutureLab.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/ImpactAnalyzer.tsx",
+      "target": "src/components/rd-module/rnd/ImpactAnalyzer.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/InnovationPipeline.tsx",
+      "target": "src/components/rd-module/rnd/InnovationPipeline.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/PrototypeBuilder.tsx",
+      "target": "src/components/rd-module/rnd/PrototypeBuilder.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/RnDNotifications.tsx",
+      "target": "src/components/rd-module/rnd/RnDNotifications.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/RnDSidebar.tsx",
+      "target": "src/components/rd-module/rnd/RnDSidebar.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/RnDTopBar.tsx",
+      "target": "src/components/rd-module/rnd/RnDTopBar.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/RnDWallet.tsx",
+      "target": "src/components/rd-module/rnd/RnDWallet.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/TechnologyRadar.tsx",
+      "target": "src/components/rd-module/rnd/TechnologyRadar.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/TrendScanner.tsx",
+      "target": "src/components/rd-module/rnd/TrendScanner.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/ai-assistant/AIAssistantChat.tsx",
+      "target": "src/components/rd-module/rnd/ai-assistant/AIAssistantChat.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/ai-assistant/AIAssistantForm.tsx",
+      "target": "src/components/rd-module/rnd/ai-assistant/AIAssistantForm.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/ai-assistant/AIAssistantResult.tsx",
+      "target": "src/components/rd-module/rnd/ai-assistant/AIAssistantResult.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/rnd/ai-assistant/capabilities.ts",
+      "target": "src/components/rd-module/rnd/ai-assistant/capabilities.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/accordion.tsx",
+      "target": "src/components/rd-module/ui/accordion.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/alert-dialog.tsx",
+      "target": "src/components/rd-module/ui/alert-dialog.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/alert.tsx",
+      "target": "src/components/rd-module/ui/alert.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/aspect-ratio.tsx",
+      "target": "src/components/rd-module/ui/aspect-ratio.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/avatar.tsx",
+      "target": "src/components/rd-module/ui/avatar.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/badge.tsx",
+      "target": "src/components/rd-module/ui/badge.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/breadcrumb.tsx",
+      "target": "src/components/rd-module/ui/breadcrumb.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/button.tsx",
+      "target": "src/components/rd-module/ui/button.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/calendar.tsx",
+      "target": "src/components/rd-module/ui/calendar.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/card.tsx",
+      "target": "src/components/rd-module/ui/card.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/carousel.tsx",
+      "target": "src/components/rd-module/ui/carousel.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/chart.tsx",
+      "target": "src/components/rd-module/ui/chart.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/checkbox.tsx",
+      "target": "src/components/rd-module/ui/checkbox.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/collapsible.tsx",
+      "target": "src/components/rd-module/ui/collapsible.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/command.tsx",
+      "target": "src/components/rd-module/ui/command.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/context-menu.tsx",
+      "target": "src/components/rd-module/ui/context-menu.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/dialog.tsx",
+      "target": "src/components/rd-module/ui/dialog.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/drawer.tsx",
+      "target": "src/components/rd-module/ui/drawer.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/dropdown-menu.tsx",
+      "target": "src/components/rd-module/ui/dropdown-menu.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/form.tsx",
+      "target": "src/components/rd-module/ui/form.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/hover-card.tsx",
+      "target": "src/components/rd-module/ui/hover-card.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/input-otp.tsx",
+      "target": "src/components/rd-module/ui/input-otp.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/input.tsx",
+      "target": "src/components/rd-module/ui/input.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/label.tsx",
+      "target": "src/components/rd-module/ui/label.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/menubar.tsx",
+      "target": "src/components/rd-module/ui/menubar.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/navigation-menu.tsx",
+      "target": "src/components/rd-module/ui/navigation-menu.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/pagination.tsx",
+      "target": "src/components/rd-module/ui/pagination.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/popover.tsx",
+      "target": "src/components/rd-module/ui/popover.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/progress.tsx",
+      "target": "src/components/rd-module/ui/progress.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/radio-group.tsx",
+      "target": "src/components/rd-module/ui/radio-group.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/resizable.tsx",
+      "target": "src/components/rd-module/ui/resizable.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/scroll-area.tsx",
+      "target": "src/components/rd-module/ui/scroll-area.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/select.tsx",
+      "target": "src/components/rd-module/ui/select.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/separator.tsx",
+      "target": "src/components/rd-module/ui/separator.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/sheet.tsx",
+      "target": "src/components/rd-module/ui/sheet.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/sidebar.tsx",
+      "target": "src/components/rd-module/ui/sidebar.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/skeleton.tsx",
+      "target": "src/components/rd-module/ui/skeleton.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/slider.tsx",
+      "target": "src/components/rd-module/ui/slider.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/sonner.tsx",
+      "target": "src/components/rd-module/ui/sonner.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/switch.tsx",
+      "target": "src/components/rd-module/ui/switch.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/table.tsx",
+      "target": "src/components/rd-module/ui/table.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/tabs.tsx",
+      "target": "src/components/rd-module/ui/tabs.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/textarea.tsx",
+      "target": "src/components/rd-module/ui/textarea.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/toggle-group.tsx",
+      "target": "src/components/rd-module/ui/toggle-group.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/toggle.tsx",
+      "target": "src/components/rd-module/ui/toggle.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/components/ui/tooltip.tsx",
+      "target": "src/components/rd-module/ui/tooltip.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/hooks/use-mobile.tsx",
+      "target": "src/hooks/rd-module/use-mobile.tsx",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/hooks/useProManagerAI.ts",
+      "target": "src/hooks/rd-module/useProManagerAI.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/hooks/useProManagerActions.ts",
+      "target": "src/hooks/rd-module/useProManagerActions.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/hooks/useProManagerData.ts",
+      "target": "src/hooks/rd-module/useProManagerData.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/hooks/useRdManager.ts",
+      "target": "src/hooks/rd-module/useRdManager.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/hooks/useRnDAI.ts",
+      "target": "src/hooks/rd-module/useRnDAI.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/hooks/useRnDData.ts",
+      "target": "src/hooks/rd-module/useRnDData.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/integrations/supabase/auth-attacher.ts",
+      "target": null,
+      "disposition": "existing Control Panel session/client infrastructure; adapters replace source auth"
+    },
+    {
+      "source": "src/integrations/supabase/auth-middleware.ts",
+      "target": null,
+      "disposition": "existing Control Panel session/client infrastructure; adapters replace source auth"
+    },
+    {
+      "source": "src/integrations/supabase/client.server.ts",
+      "target": null,
+      "disposition": "existing Control Panel session/client infrastructure; adapters replace source auth"
+    },
+    {
+      "source": "src/integrations/supabase/client.ts",
+      "target": null,
+      "disposition": "existing Control Panel session/client infrastructure; adapters replace source auth"
+    },
+    {
+      "source": "src/integrations/supabase/cron-auth.ts",
+      "target": null,
+      "disposition": "existing Control Panel session/client infrastructure; adapters replace source auth"
+    },
+    {
+      "source": "src/integrations/supabase/previewAuthStorage.ts",
+      "target": null,
+      "disposition": "existing Control Panel session/client infrastructure; adapters replace source auth"
+    },
+    {
+      "source": "src/integrations/supabase/types.ts",
+      "target": "src/lib/rd-module/supabase/types.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/error-capture.ts",
+      "target": "src/lib/rd-module/error-capture.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/error-page.ts",
+      "target": "src/lib/rd-module/error-page.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/feedback-insights.functions.ts",
+      "target": "src/lib/rd-module/feedback-insights.functions.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/feedback-insights.server.ts",
+      "target": "src/lib/rd-module/feedback-insights.server.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/logger.ts",
+      "target": "src/lib/rd-module/logger.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/lovable-error-reporting.ts",
+      "target": "src/lib/rd-module/lovable-error-reporting.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/pm-ai.functions.ts",
+      "target": "src/lib/rd-module/pm-ai.functions.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/pm-ai.server.ts",
+      "target": "src/lib/rd-module/pm-ai.server.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/pm-data.functions.ts",
+      "target": "src/lib/rd-module/pm-data.functions.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/pm-types.ts",
+      "target": "src/lib/rd-module/pm-types.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/rd-gate.functions.ts",
+      "target": "src/lib/rd-module/rd-gate.functions.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/rd-gate.server.ts",
+      "target": "src/lib/rd-module/rd-gate.server.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/rd-opportunities.functions.ts",
+      "target": "src/lib/rd-module/rd-opportunities.functions.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/rd-opportunity-types.ts",
+      "target": "src/lib/rd-module/rd-opportunity-types.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/rnd-ai.functions.ts",
+      "target": "src/lib/rd-module/rnd-ai.functions.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/rnd-ai.server.ts",
+      "target": "src/lib/rd-module/rnd-ai.server.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/rnd-data.functions.ts",
+      "target": "src/lib/rd-module/rnd-data.functions.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/rnd-types.ts",
+      "target": "src/lib/rd-module/rnd-types.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/lib/utils.ts",
+      "target": "src/lib/rd-module/utils.ts",
+      "disposition": "imported"
+    },
+    {
+      "source": "src/routeTree.gen.ts",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "src/router.tsx",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "src/routes/README.md",
+      "target": null,
+      "disposition": "source routes integrated into existing platform Router; mapping documented"
+    },
+    {
+      "source": "src/routes/__root.tsx",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "src/routes/index.tsx",
+      "target": "src/routes/rd-manager.lab.tsx",
+      "disposition": "adapted: namespaced under existing Control Panel authentication"
+    },
+    {
+      "source": "src/routes/pro-manager.tsx",
+      "target": "src/routes/rd-manager.pro-manager.tsx",
+      "disposition": "adapted: namespaced under existing Control Panel authentication"
+    },
+    {
+      "source": "src/routes/rd-manager.tsx",
+      "target": "src/routes/rd-manager.index.tsx",
+      "disposition": "adapted: namespaced under existing Control Panel authentication"
+    },
+    {
+      "source": "src/routes/start.tsx",
+      "target": "src/routes/rd-manager.start.tsx",
+      "disposition": "adapted: namespaced under existing Control Panel authentication"
+    },
+    {
+      "source": "src/routes/track.tsx",
+      "target": "src/routes/rd-manager.track.tsx",
+      "disposition": "adapted: namespaced under existing Control Panel authentication"
+    },
+    {
+      "source": "src/server.ts",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "src/start.ts",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "src/styles.css",
+      "target": "src/styles/rd-module.css",
+      "disposition": "module-scoped palette and design utilities; global reset/theme preserved"
+    },
+    {
+      "source": "src/test/app-routing.test.tsx",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "src/test/setup.ts",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "supabase/config.toml",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "tsconfig.json",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "vite.config.ts",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    },
+    {
+      "source": "vitest.config.ts",
+      "target": null,
+      "disposition": "platform infrastructure reused"
+    }
+  ]
+}

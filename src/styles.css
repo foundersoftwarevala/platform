@@ -80,6 +80,9 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-red: var(--brand-red);
   --color-surface-2: var(--surface-2);
+  --color-brand-2: var(--brand-2);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
 }
 
 

@@ -268,6 +268,7 @@ function Index() {
                   // The Developer Manager control tower. The entry used to open the
                   // generic role dashboard because no module existed behind it.
                   developer_management: "/dev-manager",
+                  rd_manager: "/rd-manager",
                   // The central task control tower. This entry used to report
                   // that nothing was built behind it, which was true.
                   task_management: "/task-manager",
@@ -436,4 +437,3 @@ function Index() {
     </TooltipProvider>
   );
 }
-

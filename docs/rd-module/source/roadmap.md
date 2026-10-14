@@ -1,0 +1,22 @@
+# Roadmap
+
+- [x] Pro Manager data served from Supabase pm_* tables
+- [x] R&D: Technology Radar + Innovation Pipeline read from database (mock arrays removed)
+- [x] R&D: expanded real ideas, prototypes, trends, pipeline and evaluations
+- [ ] R&D: replace remaining Future Lab, AI assistant, and wallet mock behavior with live API-backed workflows; blocker: identify any required external API providers beyond existing Lovable Cloud and AI Gateway
+- [x] R&D Demand & Partnership system (public /start, /track, Control Panel → R&D Manager)
+- [x] Apply UI look + color palette from github.com/authormanager/author-manager (styling only, no features)
+- [x] Premium UI polish (sidebar, buttons, cards) + sliding alert banner (red/orange/green by priority)
+- [x] R&D Manager per-member team login
+- [x] New Software Vala logo + favicon
+- [x] Backup steps + checklist for R&D data and rd-attachments (RECOVERY.md)
+- [x] Safe test-environment restore process (RECOVERY.md)
+- [x] Feedback Portal: team members submit feedback + AI (Gateway) extracts themes & improvements
+- [x] Feedback Portal: 6 entries added on user's request (user can edit/replace them)
+- [x] Feedback Portal: AI analysis screen — themes, improvements, top areas; auto-runs when new entries arrive
+- [ ] Feedback Portal: verify the analysis run end-to-end
+- [ ] Backup real test: export R&D tables (CSV) + rd-attachments ZIP, restore into a test copy, verify request form, tracking, attachments — partially blocked: Cloud "Export data" and a test copy need user actions
+- [ ] GitHub sync — blocker: user must connect GitHub via + menu → GitHub → Connect project; target repo jhapacom/sapphire-integration is PUBLIC, so real data (submitter contact details) must not be pushed there until the repo is private
+- [ ] Test copy restore: remix this project (user action), then import backup CSVs and verify request form, tracking, attachments
+- [x] R&D Manager UI check: sidebar (12 items, no errors), sliding banner (red/orange/green, 5s rotate, hover pause), Pro Manager "AI quality alerts" buttons — fixed dim "AI reasoning"/"Suggested action" text
+- [ ] Feedback Portal: real team feedback entries (user to paste or team members to submit), then verify AI analysis shows real themes and improvements

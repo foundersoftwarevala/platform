@@ -48,6 +48,7 @@ import { Route as PagesRouteImport } from './routes/pages'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProductDemoManagerRouteImport } from './routes/product-demo-manager'
 import { Route as PromiseTrackerRouteImport } from './routes/promise-tracker'
+import { Route as RdManagerRouteImport } from './routes/rd-manager'
 import { Route as ReadyRouteImport } from './routes/ready'
 import { Route as RefundPolicyRouteImport } from './routes/refund-policy'
 import { Route as ResellerManagerRouteImport } from './routes/reseller-manager'
@@ -225,6 +226,11 @@ import { Route as PromiseTrackerFulfilledRouteImport } from './routes/promise-tr
 import { Route as PromiseTrackerInsightsRouteImport } from './routes/promise-tracker.insights'
 import { Route as PromiseTrackerRulesRouteImport } from './routes/promise-tracker.rules'
 import { Route as PromiseTrackerSettingsRouteImport } from './routes/promise-tracker.settings'
+import { Route as RdManagerIndexRouteImport } from './routes/rd-manager.index'
+import { Route as RdManagerLabRouteImport } from './routes/rd-manager.lab'
+import { Route as RdManagerProManagerRouteImport } from './routes/rd-manager.pro-manager'
+import { Route as RdManagerStartRouteImport } from './routes/rd-manager.start'
+import { Route as RdManagerTrackRouteImport } from './routes/rd-manager.track'
 import { Route as SCodeRouteImport } from './routes/s.$code'
 import { Route as SitemapProductsPageRouteImport } from './routes/sitemap-products/$page'
 import { Route as SitemapSlotsPageRouteImport } from './routes/sitemap-slots/$page'
@@ -570,6 +576,11 @@ const ProductDemoManagerRoute = ProductDemoManagerRouteImport.update({
 const PromiseTrackerRoute = PromiseTrackerRouteImport.update({
   id: '/promise-tracker',
   path: '/promise-tracker',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RdManagerRoute = RdManagerRouteImport.update({
+  id: '/rd-manager',
+  path: '/rd-manager',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReadyRoute = ReadyRouteImport.update({
@@ -1480,6 +1491,31 @@ const PromiseTrackerSettingsRoute = PromiseTrackerSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => PromiseTrackerRoute,
 } as any)
+const RdManagerIndexRoute = RdManagerIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => RdManagerRoute,
+} as any)
+const RdManagerLabRoute = RdManagerLabRouteImport.update({
+  id: '/lab',
+  path: '/lab',
+  getParentRoute: () => RdManagerRoute,
+} as any)
+const RdManagerProManagerRoute = RdManagerProManagerRouteImport.update({
+  id: '/pro-manager',
+  path: '/pro-manager',
+  getParentRoute: () => RdManagerRoute,
+} as any)
+const RdManagerStartRoute = RdManagerStartRouteImport.update({
+  id: '/start',
+  path: '/start',
+  getParentRoute: () => RdManagerRoute,
+} as any)
+const RdManagerTrackRoute = RdManagerTrackRouteImport.update({
+  id: '/track',
+  path: '/track',
+  getParentRoute: () => RdManagerRoute,
+} as any)
 const SCodeRoute = SCodeRouteImport.update({
   id: '/s/$code',
   path: '/s/$code',
@@ -2298,6 +2334,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
   '/promise-tracker': typeof PromiseTrackerRouteWithChildren
+  '/rd-manager': typeof RdManagerRouteWithChildren
   '/ready': typeof ReadyRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/reseller-manager': typeof ResellerManagerRoute
@@ -2463,6 +2500,10 @@ export interface FileRoutesByFullPath {
   '/promise-tracker/insights': typeof PromiseTrackerInsightsRoute
   '/promise-tracker/rules': typeof PromiseTrackerRulesRoute
   '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
+  '/rd-manager/lab': typeof RdManagerLabRoute
+  '/rd-manager/pro-manager': typeof RdManagerProManagerRoute
+  '/rd-manager/start': typeof RdManagerStartRoute
+  '/rd-manager/track': typeof RdManagerTrackRoute
   '/s/$code': typeof SCodeRoute
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
@@ -2492,6 +2533,7 @@ export interface FileRoutesByFullPath {
   '/marketing/': typeof MarketingIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
   '/promise-tracker/': typeof PromiseTrackerIndexRoute
+  '/rd-manager/': typeof RdManagerIndexRoute
   '/vala-ai/': typeof ValaAiIndexRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
   '/ai-ceo/agents/$agentId': typeof AiCeoAgentsAgentIdRoute
@@ -2822,6 +2864,10 @@ export interface FileRoutesByTo {
   '/promise-tracker/insights': typeof PromiseTrackerInsightsRoute
   '/promise-tracker/rules': typeof PromiseTrackerRulesRoute
   '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
+  '/rd-manager/lab': typeof RdManagerLabRoute
+  '/rd-manager/pro-manager': typeof RdManagerProManagerRoute
+  '/rd-manager/start': typeof RdManagerStartRoute
+  '/rd-manager/track': typeof RdManagerTrackRoute
   '/s/$code': typeof SCodeRoute
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
@@ -2851,6 +2897,7 @@ export interface FileRoutesByTo {
   '/marketing': typeof MarketingIndexRoute
   '/marketplace': typeof MarketplaceIndexRoute
   '/promise-tracker': typeof PromiseTrackerIndexRoute
+  '/rd-manager': typeof RdManagerIndexRoute
   '/vala-ai': typeof ValaAiIndexRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
   '/ai-ceo/agents/$agentId': typeof AiCeoAgentsAgentIdRoute
@@ -3027,6 +3074,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/product-demo-manager': typeof ProductDemoManagerRoute
   '/promise-tracker': typeof PromiseTrackerRouteWithChildren
+  '/rd-manager': typeof RdManagerRouteWithChildren
   '/ready': typeof ReadyRoute
   '/refund-policy': typeof RefundPolicyRoute
   '/reseller-manager': typeof ResellerManagerRoute
@@ -3192,6 +3240,10 @@ export interface FileRoutesById {
   '/promise-tracker/insights': typeof PromiseTrackerInsightsRoute
   '/promise-tracker/rules': typeof PromiseTrackerRulesRoute
   '/promise-tracker/settings': typeof PromiseTrackerSettingsRoute
+  '/rd-manager/lab': typeof RdManagerLabRoute
+  '/rd-manager/pro-manager': typeof RdManagerProManagerRoute
+  '/rd-manager/start': typeof RdManagerStartRoute
+  '/rd-manager/track': typeof RdManagerTrackRoute
   '/s/$code': typeof SCodeRoute
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
@@ -3221,6 +3273,7 @@ export interface FileRoutesById {
   '/marketing/': typeof MarketingIndexRoute
   '/marketplace/': typeof MarketplaceIndexRoute
   '/promise-tracker/': typeof PromiseTrackerIndexRoute
+  '/rd-manager/': typeof RdManagerIndexRoute
   '/vala-ai/': typeof ValaAiIndexRoute
   '/affiliate-manager/affiliates/$id': typeof AffiliateManagerAffiliatesIdRoute
   '/ai-ceo/agents/$agentId': typeof AiCeoAgentsAgentIdRoute
@@ -3398,6 +3451,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/product-demo-manager'
     | '/promise-tracker'
+    | '/rd-manager'
     | '/ready'
     | '/refund-policy'
     | '/reseller-manager'
@@ -3563,6 +3617,10 @@ export interface FileRouteTypes {
     | '/promise-tracker/insights'
     | '/promise-tracker/rules'
     | '/promise-tracker/settings'
+    | '/rd-manager/lab'
+    | '/rd-manager/pro-manager'
+    | '/rd-manager/start'
+    | '/rd-manager/track'
     | '/s/$code'
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
@@ -3592,6 +3650,7 @@ export interface FileRouteTypes {
     | '/marketing/'
     | '/marketplace/'
     | '/promise-tracker/'
+    | '/rd-manager/'
     | '/vala-ai/'
     | '/affiliate-manager/affiliates/$id'
     | '/ai-ceo/agents/$agentId'
@@ -3922,6 +3981,10 @@ export interface FileRouteTypes {
     | '/promise-tracker/insights'
     | '/promise-tracker/rules'
     | '/promise-tracker/settings'
+    | '/rd-manager/lab'
+    | '/rd-manager/pro-manager'
+    | '/rd-manager/start'
+    | '/rd-manager/track'
     | '/s/$code'
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
@@ -3951,6 +4014,7 @@ export interface FileRouteTypes {
     | '/marketing'
     | '/marketplace'
     | '/promise-tracker'
+    | '/rd-manager'
     | '/vala-ai'
     | '/affiliate-manager/affiliates/$id'
     | '/ai-ceo/agents/$agentId'
@@ -4126,6 +4190,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/product-demo-manager'
     | '/promise-tracker'
+    | '/rd-manager'
     | '/ready'
     | '/refund-policy'
     | '/reseller-manager'
@@ -4291,6 +4356,10 @@ export interface FileRouteTypes {
     | '/promise-tracker/insights'
     | '/promise-tracker/rules'
     | '/promise-tracker/settings'
+    | '/rd-manager/lab'
+    | '/rd-manager/pro-manager'
+    | '/rd-manager/start'
+    | '/rd-manager/track'
     | '/s/$code'
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
@@ -4320,6 +4389,7 @@ export interface FileRouteTypes {
     | '/marketing/'
     | '/marketplace/'
     | '/promise-tracker/'
+    | '/rd-manager/'
     | '/vala-ai/'
     | '/affiliate-manager/affiliates/$id'
     | '/ai-ceo/agents/$agentId'
@@ -4496,6 +4566,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ProductDemoManagerRoute: typeof ProductDemoManagerRoute
   PromiseTrackerRoute: typeof PromiseTrackerRouteWithChildren
+  RdManagerRoute: typeof RdManagerRouteWithChildren
   ReadyRoute: typeof ReadyRoute
   RefundPolicyRoute: typeof RefundPolicyRoute
   ResellerManagerRoute: typeof ResellerManagerRoute
@@ -4910,6 +4981,13 @@ declare module '@tanstack/react-router' {
       path: '/promise-tracker'
       fullPath: '/promise-tracker'
       preLoaderRoute: typeof PromiseTrackerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rd-manager': {
+      id: '/rd-manager'
+      path: '/rd-manager'
+      fullPath: '/rd-manager'
+      preLoaderRoute: typeof RdManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ready': {
@@ -6150,6 +6228,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/promise-tracker/settings'
       preLoaderRoute: typeof PromiseTrackerSettingsRouteImport
       parentRoute: typeof PromiseTrackerRoute
+    }
+    '/rd-manager/': {
+      id: '/rd-manager/'
+      path: '/'
+      fullPath: '/rd-manager/'
+      preLoaderRoute: typeof RdManagerIndexRouteImport
+      parentRoute: typeof RdManagerRoute
+    }
+    '/rd-manager/lab': {
+      id: '/rd-manager/lab'
+      path: '/lab'
+      fullPath: '/rd-manager/lab'
+      preLoaderRoute: typeof RdManagerLabRouteImport
+      parentRoute: typeof RdManagerRoute
+    }
+    '/rd-manager/pro-manager': {
+      id: '/rd-manager/pro-manager'
+      path: '/pro-manager'
+      fullPath: '/rd-manager/pro-manager'
+      preLoaderRoute: typeof RdManagerProManagerRouteImport
+      parentRoute: typeof RdManagerRoute
+    }
+    '/rd-manager/start': {
+      id: '/rd-manager/start'
+      path: '/start'
+      fullPath: '/rd-manager/start'
+      preLoaderRoute: typeof RdManagerStartRouteImport
+      parentRoute: typeof RdManagerRoute
+    }
+    '/rd-manager/track': {
+      id: '/rd-manager/track'
+      path: '/track'
+      fullPath: '/rd-manager/track'
+      preLoaderRoute: typeof RdManagerTrackRouteImport
+      parentRoute: typeof RdManagerRoute
     }
     '/s/$code': {
       id: '/s/$code'
@@ -7661,6 +7774,26 @@ const PromiseTrackerRouteWithChildren = PromiseTrackerRoute._addFileChildren(
   PromiseTrackerRouteChildren,
 )
 
+interface RdManagerRouteChildren {
+  RdManagerLabRoute: typeof RdManagerLabRoute
+  RdManagerProManagerRoute: typeof RdManagerProManagerRoute
+  RdManagerStartRoute: typeof RdManagerStartRoute
+  RdManagerTrackRoute: typeof RdManagerTrackRoute
+  RdManagerIndexRoute: typeof RdManagerIndexRoute
+}
+
+const RdManagerRouteChildren: RdManagerRouteChildren = {
+  RdManagerLabRoute: RdManagerLabRoute,
+  RdManagerProManagerRoute: RdManagerProManagerRoute,
+  RdManagerStartRoute: RdManagerStartRoute,
+  RdManagerTrackRoute: RdManagerTrackRoute,
+  RdManagerIndexRoute: RdManagerIndexRoute,
+}
+
+const RdManagerRouteWithChildren = RdManagerRoute._addFileChildren(
+  RdManagerRouteChildren,
+)
+
 interface ValaAiRouteChildren {
   ValaAiActivityRoute: typeof ValaAiActivityRoute
   ValaAiAdminRoute: typeof ValaAiAdminRoute
@@ -7744,6 +7877,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ProductDemoManagerRoute: ProductDemoManagerRoute,
   PromiseTrackerRoute: PromiseTrackerRouteWithChildren,
+  RdManagerRoute: RdManagerRouteWithChildren,
   ReadyRoute: ReadyRoute,
   RefundPolicyRoute: RefundPolicyRoute,
   ResellerManagerRoute: ResellerManagerRoute,
