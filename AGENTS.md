@@ -55,6 +55,22 @@ so it matches what Lovable sees.
 6. Commit `types.ts` on its own. Do not keep a backup copy in the repository;
    every previous version is in git.
 
+Fresh cloud refresh (2026-10-14): 589 public tables, two views and 400
+CLI-generated RPC definitions, versus 544 tables/two views/400 RPCs before.
+All 45 additions are R&D/Pro Manager tables; no existing table, view or RPC
+definition was removed or changed. The 496 raw catalog function names include
+trigger and extension routines and are not the generated RPC count.
+PostgREST metadata moved from 14.5 to 14.15. The generated LF file is 914,239
+bytes; its predecessor was 872,199 bytes after newline normalization.
+Full native TypeScript 5.9.3 checks kept main at 347 identical diagnostics.
+The types-only scoped release `c911091`, based on `39c6375`, reduced the
+production-source count from 4,708 to 533; these remaining contract errors
+are a separate cleanup task, not a passing zero-error typecheck.
+The guarded build, homepage/R&D HTTP checks and unchanged 7,199-URL sitemap
+passed. Rollback: `/root/sv-seo-backup/cloud-types-deploy-20261014T121403Z/rollback.sh`.
+CLI output is preserved verbatim: generated-file Prettier failures already
+existed, while both old/new declarations have zero non-formatting lint errors.
+
 ## Migrations
 
 - **Names sort, so names decide order.** Files are
@@ -424,7 +440,8 @@ change that moves it.
 | `features: Json`, insights select string | 378 |
 | Serialisable product page types | 351 |
 | Country rail single conversion and status-based numbering | 348 |
-| Product page passes the indexing gate a URL string | **347** (current) |
+| Product page passes the indexing gate a URL string | 347 |
+| Fresh cloud types: 589 tables; identical main diagnostics (2026-10-14) | **347** (current) |
 | Target | 0 |
 
 ## Do not
