@@ -132,7 +132,7 @@ export function ProductLeadDialog({
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button type="button" onClick={() => void submit()} loading={saving}>
+          <Button type="button" onClick={() => void submit()} disabled={saving} aria-busy={saving}>
             {copy.submit}
           </Button>
         </DialogFooter>

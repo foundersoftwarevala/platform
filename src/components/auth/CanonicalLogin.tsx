@@ -383,7 +383,7 @@ export function CanonicalLogin({ redirectTo }: Props) {
               </button>
               <div className="flex items-center justify-center gap-2 text-xs text-white/45">
                 <span>{t("auth.need_account")}</span>
-                <Link to="/apply/reseller" className="text-cyan-300 hover:text-cyan-200">
+                <Link to="/apply/$role" params={{ role: "reseller" }} className="text-cyan-300 hover:text-cyan-200">
                   {t("auth.apply_now")}
                 </Link>
               </div>

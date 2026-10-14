@@ -62,7 +62,7 @@ const CallCenterModule = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
     switch (status) {
       case "completed": return "bg-emerald-500/20 text-emerald-300";
       case "missed": return "bg-red-500/20 text-red-300";
@@ -153,7 +153,7 @@ const CallCenterModule = () => {
                       </div>
                       <div>
                         <span className="font-mono text-cyan-400 text-sm">{call.id.slice(0, 8)}</span>
-                        <Badge className={`ml-2 ${getStatusColor(call.status)}`}>{call.status.replace('_', ' ')}</Badge>
+                        <Badge className={`ml-2 ${getStatusColor(call.status)}`}>{call.status?.replace('_', ' ') ?? "Unknown"}</Badge>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">

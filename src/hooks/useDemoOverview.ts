@@ -191,13 +191,11 @@ export const useDemoOverview = () => {
 
   const respondToRequest = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: "approved" | "rejected" }) => {
-      const { data: auth } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("demo_requests")
         .update({
           status,
-          responded_at: new Date().toISOString(),
-          responded_by: auth.user?.id ?? null,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", id);
       if (error) throw error;

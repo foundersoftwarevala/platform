@@ -95,7 +95,7 @@ function hoursUntil(iso: string | null, now: number): number {
   return (new Date(iso).getTime() - now) / 3_600_000;
 }
 
-function uiPriority(priority: string): UiPriority {
+function uiPriority(priority: string | null): UiPriority {
   if (priority === "critical" || priority === "urgent") return "critical";
   if (priority === "high") return "high";
   if (priority === "low") return "low";

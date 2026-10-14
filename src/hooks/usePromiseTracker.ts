@@ -194,10 +194,10 @@ export async function writeAuditLog(entry: {
   // the trail unable to answer the one question it exists for.
   const { error } = await supabase.rpc("pt_audit", {
     p_action: entry.action,
-    p_promise_id: entry.promiseId ?? null,
+    p_promise_id: entry.promiseId ?? undefined,
     p_details: entry.details,
-    p_old: entry.oldValue ?? null,
-    p_new: entry.newValue ?? null,
+    p_old: entry.oldValue ?? undefined,
+    p_new: entry.newValue ?? undefined,
   });
   if (error) {
     // Audit-log writes are compliance critical: surface the failure loudly.
@@ -473,7 +473,7 @@ export function useApprovePromise() {
       const { data, error } = await supabase.rpc("pt_decide_approval", {
         p_promise_id: input.promise.id,
         p_decision: input.decision,
-        p_note: input.note ?? null,
+        p_note: input.note ?? undefined,
       });
       if (error) throw error;
       const result = data as { ok?: boolean; reason?: string } | null;
@@ -599,8 +599,8 @@ export function useApplyFine() {
       const { data, error } = await supabase.rpc("pt_apply_fine", {
         p_promise_id: input.promise.id,
         p_rule_id: input.ruleId,
-        p_note: input.note ?? null,
-        p_basis: input.base ?? null,
+        p_note: input.note ?? undefined,
+        p_basis: input.base ?? undefined,
         p_actor: "user",
       });
       if (error) throw error;
@@ -621,8 +621,8 @@ export function useReleaseTip() {
       const { data, error } = await supabase.rpc("pt_release_tip", {
         p_promise_id: input.promise.id,
         p_rule_id: input.ruleId,
-        p_note: input.note ?? null,
-        p_basis: input.base ?? null,
+        p_note: input.note ?? undefined,
+        p_basis: input.base ?? undefined,
         p_actor: "user",
       });
       if (error) throw error;
@@ -820,7 +820,6 @@ export function useApplyInsight() {
       // never touches money or anything irreversible.
       const { data, error } = await supabase.rpc("pt_apply_insight", {
         p_insight_id: input.insight.id,
-        p_action: null,
       });
       if (error) throw error;
       const result = data as { ok?: boolean; reason?: string; action?: string } | null;

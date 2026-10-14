@@ -21,13 +21,20 @@ describe("decompressBody", () => {
 
 describe("safeFetchResponse", () => {
   it("rejects a hostname that resolves to a private address in the request lookup", async () => {
-    const lookup = vi.spyOn(dns, "lookup").mockImplementation((hostname, options, callback) => {
-      const done = typeof options === "function" ? options : callback;
-      if (typeof done === "function") {
-        done(null, [{ address: "127.0.0.1", family: 4 }]);
-      }
-      return undefined;
-    });
+    const lookup = vi
+      .spyOn(dns, "lookup")
+      .mockImplementation(
+        (
+          hostname,
+          options,
+          callback?: (error: NodeJS.ErrnoException | null, addresses: dns.LookupAddress[]) => void,
+        ) => {
+          if (typeof options === "function") options(null, "127.0.0.1", 4);
+          else if (callback) callback(null, [{ address: "127.0.0.1", family: 4 }]);
+          else throw new Error("Missing DNS lookup callback");
+          return undefined;
+        },
+      );
 
     await expect(safeFetchResponse("https://public.example.test")).rejects.toThrow(
       "resolves to a private or reserved address",

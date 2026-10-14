@@ -153,7 +153,7 @@ export function AiContentGenerator() {
   const [chosen, setChosen] = useState<ContentType[]>(["summary", "short_description", "seo_description"]);
   const [note, setNote] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; type: string; text: string } | null>(null);
-  const [rejecting, setRejecting] = useState<{ id: string; code: string; reason: string } | null>(null);
+  const [rejecting, setRejecting] = useState<{ item_id: string; code: string; reason: string } | null>(null);
   const [history, setHistory] = useState<{ id: string; data?: Record<string, unknown> } | null>(null);
   const [bulkScope, setBulkScope] = useState("missing_description");
   const [bulkRun, setBulkRun] = useState<{ job: string; processed: number; running: boolean; log: string[] } | null>(null);
@@ -718,7 +718,7 @@ export function AiContentGenerator() {
                     </div>
                   )}
 
-                  {rejecting?.id === id ? (
+                  {rejecting?.item_id === id ? (
                     <div className="mt-3 rounded-lg border border-border bg-background/40 p-3">
                       <div className="mb-2 text-[11px] font-bold">Why is this being rejected?</div>
                       <select
@@ -756,7 +756,7 @@ export function AiContentGenerator() {
                         </PillButton>
                       )}
                       {r.status !== "REJECTED" && r.status !== "ARCHIVED" && (
-                        <PillButton onClick={() => setRejecting({ id, code: "incorrect_information", reason: "" })}>Reject</PillButton>
+                        <PillButton onClick={() => setRejecting({ item_id: id, code: "incorrect_information", reason: "" })}>Reject</PillButton>
                       )}
                       {r.status !== "ARCHIVED" && (
                         <PillButton onClick={() => act.archive.mutate(id)}>Archive</PillButton>
@@ -812,9 +812,9 @@ export function AiContentGenerator() {
                       <span className="inline-flex items-center gap-1.5">Open <ChevronRight className="h-3.5 w-3.5" /></span>
                     </PillButton>
                     <PillButton variant="primary" onClick={() => act.approve.mutate(id)}>Approve</PillButton>
-                    <PillButton onClick={() => setRejecting({ id, code: "incorrect_information", reason: "" })}>Reject</PillButton>
+                    <PillButton onClick={() => setRejecting({ item_id: id, code: "incorrect_information", reason: "" })}>Reject</PillButton>
                   </div>
-                  {rejecting?.id === id && (
+                  {rejecting?.item_id === id && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       <select
                         value={rejecting.code}
