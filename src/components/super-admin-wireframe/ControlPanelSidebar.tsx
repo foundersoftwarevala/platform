@@ -25,7 +25,7 @@ import {
   Star, Scale, ListTodo, DollarSign, Code2, 
   Megaphone, HeartHandshake, Users, LogOut, Zap, Timer, MonitorPlay, 
   Home, Shield, Settings, Search, User, UserCircle, Boxes, Store, Sparkles,
-  PanelLeftClose, PanelLeftOpen, MessagesSquare, ClipboardList, Link2
+  PanelLeftClose, PanelLeftOpen, MessagesSquare, ClipboardList, Link2, FlaskConical
 } from "lucide-react";
 // ScrollArea removed - NO SCROLLING in Control Panel
 
@@ -54,6 +54,7 @@ const ROLE_CATEGORIES = [
   { id: 'api_ai_manager', label: 'AI API Manager', icon: Zap },
   // GRADE 2
   { id: 'developer_management', label: 'Development Manager', icon: Code2 },
+  { id: 'rd_manager', label: 'R&D Manager', icon: FlaskConical },
   { id: 'product_manager', label: 'Product Manager', icon: Box },
   { id: 'demo_manager', label: 'Demo Manager', icon: Terminal },
   { id: 'task_management', label: 'Task Manager', icon: ListTodo },
@@ -288,4 +289,3 @@ export const ControlPanelSidebar = memo<ControlPanelSidebarProps>(({
 ControlPanelSidebar.displayName = 'ControlPanelSidebar';
 export default ControlPanelSidebar;
 export type { RoleId };
-
