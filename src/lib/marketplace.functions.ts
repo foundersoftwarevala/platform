@@ -7,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { SlidingWindowLimiter } from "@/lib/i18n/limits";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
 import { catalogueEntries, type CatalogueEntry } from "@/data/catalogue";
 import { LIFETIME_PRICE } from "@/lib/site-content/constants";
@@ -40,7 +40,7 @@ export type MarketProduct = {
   public_repo_url?: string | null;
   tags?: string[];
   tech_stack?: string[];
-  features?: unknown;
+  features?: Json;
   content_status?: string;
   demo_count?: number;
   demo_urls?: ProductDemoBinding[];
@@ -124,7 +124,7 @@ export type PublicProductPageData = {
     meta_title: string | null;
     meta_description: string | null;
     canonical_url: string | null;
-    schema_json: string | Record<string, unknown> | null;
+    schema_json: Json;
   } | null;
 };
 
@@ -1104,7 +1104,7 @@ export const layoutHistory = createServerFn({ method: "GET" })
     }
     const { data, error } = await context.supabase.rpc("mm_layout_history", { p_limit: 20 });
     if (error) throw new Error(error.message);
-    return (data ?? { entries: [] }) as { entries: unknown[] };
+    return (data ?? { entries: [] }) as { entries: Json[] };
   });
 
 export const layoutRestore = createServerFn({ method: "POST" })

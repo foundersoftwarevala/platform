@@ -106,9 +106,12 @@ Other open items:
   config,** so the console cannot retire their rows: `vala_tv_videos`,
   `vala_tv_categories`, `franchise_notifications`
   (`src/routes/api/manager/resource.ts`).
-- **`callAsUser` is copied into 23 files.** Most return `Record<string, unknown>`,
-  which TanStack cannot serialise; this is the largest group of type errors
-  (58 left). One shared helper returning `Json` would fix the pattern.
+- **Caller-scoped RPC serialization, scoped follow-up (2026-10-14).**
+  Sixteen affected modules now share `src/lib/supabase-rpc.server.ts`, with
+  JSON-constrained response contracts and runtime JSON argument/response
+  validation. Caller-token/RLS behavior is preserved, including the topbar's
+  explicit anonymous access. Other legacy helper copies are outside this
+  step; mainline and production baselines are separate from this fix branch.
 - **`sv_whoami()` is executable by `anon`** (it reports the database role and
   a product count). Kept as found when recovered; nothing in the app calls it.
 
@@ -393,7 +396,8 @@ this record:
 |---|---|
 | Fresh cloud types, production `c911091` | 533 |
 | Optional `Resource.retirable` declaration | 494 |
-| Nine explicit React `override` modifiers | **485** |
+| Nine explicit React `override` modifiers | 485 |
+| Shared JSON RPC response contracts, STEP 2A | **340** |
 
 Both full native TypeScript checks completed against the exact scoped source;
 39 excess-property diagnostics and nine missing-override diagnostics were
@@ -410,6 +414,36 @@ The new tests have no lint errors or warnings; existing implementation-file
 lint findings are unchanged. Production remains `c911091`; this fix branch
 has not been deployed. Roll back this branch's change with a normal commit
 revert, never by rewriting pushed history.
+
+### Scoped serialization fixes, STEP 2A (2026-10-14)
+
+`fix/scoped-rpc-serialization-20261014` starts from verified fast-wins commit
+`1b69577`. Shared `Json`/`JsonObject` contracts replace unknown RPC response
+fields in 20 affected modules; sixteen duplicated caller-RPC helpers are
+consolidated without using the service key or changing domain operations.
+Non-JSON arguments and responses now fail explicitly instead of being
+silently coerced at the wire boundary. Optional object fields remain valid.
+The SEO reporting RPC is still absent from cloud-generated function types;
+its existing local adapter now declares its actual argument and JSON result
+contract rather than an unknown result.
+
+The complete native TypeScript check is **485 -> 340**: all 65 server-handler
+serialization diagnostics and 80 downstream diagnostics are removed, with
+zero new diagnostic signatures. All 27 GlassCard `actions`/`description`
+diagnostics remain unchanged; STEP 2B has not started. Mainline's 347-error
+history is not this scoped branch's baseline.
+
+Validation: 80 tests pass across five suites, including 47 new JSON/caller-RPC
+contract cases plus the retained archive, product-guard and homepage-boundary
+regressions. The standard application build passes in a private worktree.
+New helpers/tests are lint-clean, with no new non-formatting findings in the
+affected existing modules; their formatting findings decrease from 796 to
+783, so this is not a full lint pass.
+
+Production source/process remain `c911091`; no deployment, restart or live
+business-data mutation was performed for this fix. Live acceptance of the
+undeployed serialization changes is UNVERIFIED. Rollback is a normal revert
+of the serialization commit on its fix branch, preserving the first 48 fixes.
 
 ## Vala AI scoped production release
 
