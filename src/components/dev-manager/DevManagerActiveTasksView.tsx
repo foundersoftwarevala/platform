@@ -98,7 +98,7 @@ export default function DevManagerActiveTasksView() {
         { key: 'status', label: 'Status' },
         { key: 'dueDate', label: 'Due Date' },
         { key: 'slaHoursRemaining', label: 'SLA Hours Remaining' },
-        { key: 'promiseId', label: 'Promise ID' },
+        { key: 'promiseIds', label: 'Promise IDs' },
       ],
     );
   };
@@ -223,16 +223,16 @@ export default function DevManagerActiveTasksView() {
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="font-mono text-xs text-muted-foreground">{task.code}</span>
                     <Badge className={`text-xs ${getPriorityColor(task.priority)}`}>
                       {task.priority.toUpperCase()}
                     </Badge>
-                    {task.promiseId && (
-                      <Badge variant="outline" className="text-xs font-mono">
-                        {task.promiseId}
+                    {task.promiseIds.map(promiseId => (
+                      <Badge key={promiseId} variant="outline" className="max-w-full whitespace-normal break-all text-xs font-mono">
+                        {promiseId}
                       </Badge>
-                    )}
+                    ))}
                   </div>
                   <h4 className="font-medium">{task.title}</h4>
                 </div>

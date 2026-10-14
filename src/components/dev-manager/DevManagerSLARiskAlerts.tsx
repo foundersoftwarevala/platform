@@ -91,16 +91,16 @@ export default function DevManagerSLARiskAlerts() {
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 mb-3">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="font-mono text-xs">{risk.code}</span>
                     <Badge className={`text-xs ${getRiskBadgeColor(risk.riskLevel)}`}>
                       {risk.riskLevel.toUpperCase()}
                     </Badge>
-                    {risk.promiseId && (
-                      <Badge variant="outline" className="text-xs font-mono border-purple-500/30 text-purple-400">
-                        {risk.promiseId}
+                    {risk.promiseIds.map(promiseId => (
+                      <Badge key={promiseId} variant="outline" className="max-w-full whitespace-normal break-all text-xs font-mono border-purple-500/30 text-purple-400">
+                        {promiseId}
                       </Badge>
-                    )}
+                    ))}
                   </div>
                   <h4 className="font-medium">{risk.title}</h4>
                 </div>

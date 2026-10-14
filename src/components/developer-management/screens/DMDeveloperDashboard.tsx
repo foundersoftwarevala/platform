@@ -53,7 +53,7 @@ export const DMDeveloperDashboard: React.FC<DMDeveloperDashboardProps> = ({ onNa
   const tasks = useAllDeveloperTasks();
   const submissions = useCodeSubmissions();
   const activity = useDeveloperActivity(8);
-  const quality = (overview.data?.performance ?? []).map((p) => p.qualityScore).filter((n) => n > 0);
+  const quality = (overview.data?.performance ?? []).map((p) => p.qualityScore).filter((n): n is number => n != null);
   const count = (n: number | undefined) => (n == null ? undefined : formatNumber(n));
   const figures: Record<Figure, number | string | undefined> = {
     activeDevelopers: count(registry.data?.filter((d) => d.status === 'active').length),

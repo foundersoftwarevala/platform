@@ -89,13 +89,14 @@ undefined at runtime):
 
 | Column | Read in | Effect |
 |---|---|---|
-| `developer_tasks.blocked_since` | `src/lib/dev-manager.server.ts` | Blocked tasks never auto-escalate and never appear in the blocked list |
-| `developer_tasks.escalate_threshold_hours` | `src/lib/dev-manager.server.ts` | Always falls back to 24 hours |
 | `demo_deployments.approved_domain` (+ `is_domain_locked`) | `src/lib/demo-ops.ts` | Domain check ignores mapped domains; they live in `demo_domains` |
 | `demo_escalations.escalated_to_role` (+ `escalation_level`) | `src/components/demo-ops/OpsOperationsPanels.tsx` | Badge always reads "L1 · unassigned"; the real columns are `role` and `level` |
 | `investigation` on `OpsReviewRow` | `src/components/demo-ops/OpsReviewQueue.tsx` | Type only: `mm_demo_ops` returns it, the type in `src/hooks/useDemoOps.ts` omits it |
 
-Also missing on `developer_tasks`: `blocked_reason`, `promise_id`, `quality_score`.
+Developer delivery's former references to missing `developer_tasks` blocker,
+promise and quality columns are resolved on the scoped TS2339 fix branch:
+existing Task Manager sources supply those measurements, with the original
+24-hour escalation policy preserved. See the scoped TS2339 record below.
 
 Other open items:
 
@@ -400,7 +401,8 @@ this record:
 | Shared JSON RPC response contracts, STEP 2A | 340 |
 | GlassCard header props, STEP 2B | 313 |
 | Audited legacy orphan cleanup | 219 |
-| Schema-backed TS2339 contracts and mappings | **111** |
+| Schema-backed TS2339 contracts and mappings, first pass | 111 |
+| Developer delivery contracts via existing Task Manager sources | **99** |
 
 Both full native TypeScript checks completed against the exact scoped source;
 39 excess-property diagnostics and nine missing-override diagnostics were
@@ -504,9 +506,9 @@ preserving the prior serialization, GlassCard and fast-wins fixes.
 ### Scoped TS2339 contracts and mappings (2026-10-14)
 
 `fix/scoped-ts2339-contracts-20261014` starts from orphan-cleanup commit
-`87fa1b5`. The complete native TypeScript check is **219 -> 111**, with
-zero new diagnostic signatures. TS2339 falls **110 -> 12**: 98 missing-
-property diagnostics across 30 files are removed, plus ten tightly coupled
+`87fa1b5`. The complete native TypeScript check is **219 -> 99**, with
+zero new diagnostic signatures. TS2339 falls **110 -> 0**: all 110 missing-
+property diagnostics across 31 files are removed, plus ten tightly coupled
 diagnostics (TS2322: 3, TS2352: 1, TS2769: 3, TS2551: 1, TS2345: 2).
 This is not a zero-error typecheck; mainline's separate baseline is unchanged.
 
@@ -518,6 +520,7 @@ This is not a zero-error typecheck; mainline's separate baseline is unchanged.
 | Consumer state, row and error contracts | 21 | 5 |
 | Demo schema mappings | 13 | 4 |
 | Chat, router and HTTP request contracts | 4 | 4 |
+| Developer delivery source and view contracts | 12 | 1 |
 
 The changes use actual schema fields rather than invented optional columns:
 legal audit aliases and the no-rewrite invariant, explicit unscored AI
@@ -529,22 +532,39 @@ upserts explicitly return IDs and link demos by product slug, not response
 position. Unsupported SEO actions still fail explicitly; no false success
 response or external integration was added.
 
-**Blocked:** all twelve remaining TS2339 diagnostics are in
-`src/lib/dev-manager.server.ts`, referencing `blocked_since`, `blocked_reason`,
-`promise_id`, `quality_score` and `escalate_threshold_hours`. These columns
-have no authoritative schema source. No migration, fake type extension,
-invented value or production database write was used to hide the problem.
-Their storage/data policy needs a separate owner decision.
+The first checkpoint (`3e7f1e0`) reached 111 errors, leaving twelve references
+to nonexistent `developer_tasks` columns. The follow-up resolves their actual
+sources through the existing `developer_tasks.tm_task_id` bridge: `tm_tasks`
+supplies blocker reason, blocked-state `paused_at` and review quality;
+`promise_links` and primary `promises` links for module `task_manager` supply
+all associated promises. On-hold pauses are not treated as blocker time.
+Related reads batch fifty task IDs and paginate using exact counts, detecting
+partial or changing reads rather than silently omitting records.
 
-Validation: 122 tests pass across fifteen suites, including thirty new
-regressions; thirteen additional source/query/validator checks pass. The
+The existing 24-hour blocked-escalation policy is preserved; no per-task
+override column is invented. Unknown blocker duration remains visible without
+triggering a timer-based escalation. Deadline escalation and open-escalation
+deduplication remain intact. Unscored quality is null, with genuine zero scores
+included in averages. Every affected localized/dashboard consumer handles
+those nullable measurements. `promiseIds` preserves all links, while legacy
+`promiseId` is populated only for an unambiguous single link. No migration,
+generated-type edit or production database write was required.
+
+Validation: 155 tests pass across eighteen suites, including 63 TS2339
+regressions; thirteen earlier source/query/validator checks pass. The
 standard isolated build passes and the generated route tree is unchanged.
-Eight new test files are lint-clean; scoped lint has no new non-formatting
-findings, but existing formatting debt means this is not a full lint pass.
+All eleven TS2339 test files are lint-clean; scoped lint has no new
+non-formatting findings. The follow-up's touched-file lint findings are
+436 -> 474, including new formatting findings, so this is not a full lint pass.
+Actual Developer Manager widget previews use local test fixtures and project
+CSS, with desktop/mobile screenshots and no horizontal overflow at 390px;
+they are not screenshots of a deployed manager change.
 Production remains `c911091`, with unchanged tracked source, process/start
 time and running-build checksum. No deployment, restart or business-data
 mutation. Live acceptance of these undeployed fixes is UNVERIFIED. Rollback
-is a normal revert of this fix commit, preserving the earlier fix stages.
+is a normal revert of the follow-up and first-pass TS2339 commits, preserving
+the earlier fix stages. The remaining 99 diagnostics are other patterns;
+this record does not claim a zero-error full typecheck.
 
 ## Vala AI scoped production release
 

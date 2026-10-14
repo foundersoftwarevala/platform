@@ -27,6 +27,99 @@ export type Db = SupabaseClient<Database>;
 
 type TaskRow = Database["public"]["Tables"]["developer_tasks"]["Row"];
 type DeveloperRow = Database["public"]["Tables"]["developers"]["Row"];
+type LinkedTaskRow = Pick<
+  Database["public"]["Tables"]["tm_tasks"]["Row"],
+  "id" | "status" | "paused_at" | "blocked_reason" | "quality_score"
+>;
+type DeliveryTask = TaskRow & {
+  delivery: {
+    blockedSince: string | null;
+    blockedReason: string | null;
+    qualityScore: number | null;
+    promiseIds: string[];
+  };
+};
+
+// Preserve the existing policy; developer_tasks has no per-task override column.
+const BLOCKED_ESCALATION_HOURS = 24;
+
+async function readRelatedPages<T>(
+  query: (from: number, to: number) => PromiseLike<{
+    data: T[] | null;
+    error: { message: string } | null;
+    count: number | null;
+  }>,
+  source: string,
+): Promise<T[]> {
+  const rows: T[] = [];
+  let expectedCount: number | null = null;
+  for (;;) {
+    const { data, error, count } = await query(rows.length, rows.length + 499);
+    if (error) throw new Error(`${source} read failed: ${error.message}`);
+    if (count === null) throw new Error(`${source} read failed: total count missing`);
+    if (expectedCount !== null && count !== expectedCount)
+      throw new Error(`${source} changed during read; refresh the delivery overview`);
+    expectedCount = count;
+    const page = data ?? [];
+    rows.push(...page);
+    if (rows.length === count) return rows;
+    if (!page.length || rows.length > count)
+      throw new Error(`${source} read failed: incomplete pagination`);
+  }
+}
+
+async function loadTaskDelivery(supabase: Db, tasks: TaskRow[]): Promise<DeliveryTask[]> {
+  const taskIds = [...new Set(tasks.flatMap(task => task.tm_task_id ? [task.tm_task_id] : []))];
+  const linkedTasks = new Map<string, LinkedTaskRow>();
+  const promises = new Map<string, Set<string>>();
+  const addPromise = (taskId: string | null, promiseId: string) => {
+    if (!taskId) return;
+    const ids = promises.get(taskId) ?? new Set<string>();
+    ids.add(promiseId);
+    promises.set(taskId, ids);
+  };
+
+  for (let offset = 0; offset < taskIds.length; offset += 50) {
+    const ids = taskIds.slice(offset, offset + 50);
+    const [taskRows, links, primaryLinks] = await Promise.all([
+      readRelatedPages((from, to) => supabase.from("tm_tasks")
+        .select("id,status,paused_at,blocked_reason,quality_score", { count: "exact" })
+        .in("id", ids).order("id", { ascending: true }).range(from, to), "Linked tasks"),
+      readRelatedPages((from, to) => supabase.from("promise_links")
+        .select("promise_id,record_id", { count: "exact" })
+        .eq("module", "task_manager").in("record_id", ids)
+        .order("id", { ascending: true }).range(from, to), "Task promise links"),
+      readRelatedPages((from, to) => supabase.from("promises")
+        .select("id,linked_record_id", { count: "exact" })
+        .eq("linked_module", "task_manager").in("linked_record_id", ids)
+        .order("id", { ascending: true }).range(from, to), "Task promises"),
+    ]);
+    for (const row of taskRows) linkedTasks.set(row.id, row);
+    for (const row of links) addPromise(row.record_id, row.promise_id);
+    for (const row of primaryLinks) addPromise(row.linked_record_id, row.id);
+  }
+
+  const now = Date.now();
+  return tasks.map(task => {
+    const linked = task.tm_task_id ? linkedTasks.get(task.tm_task_id) : undefined;
+    // on_hold and waiting_client also set paused_at; only a blocked task is a blocker.
+    const blockedSince = task.status === "blocked" && linked?.status === "blocked"
+      ? linked.paused_at : null;
+    if (blockedSince && (!Number.isFinite(Date.parse(blockedSince)) || Date.parse(blockedSince) > now))
+      throw new Error(`Invalid blocked timestamp for task ${task.id}`);
+    if (linked?.quality_score !== null && linked?.quality_score !== undefined && !Number.isFinite(linked.quality_score))
+      throw new Error(`Invalid quality score for task ${task.id}`);
+    return {
+      ...task,
+      delivery: {
+        blockedSince,
+        blockedReason: linked?.status === "blocked" ? linked.blocked_reason : null,
+        qualityScore: linked?.quality_score ?? null,
+        promiseIds: task.tm_task_id ? [...(promises.get(task.tm_task_id) ?? [])].sort() : [],
+      },
+    };
+  });
+}
 
 const OPEN_STATUSES = [
   "pending",
@@ -128,7 +221,7 @@ function label(dev: DeveloperRow | undefined): string {
 async function autoEscalate(
   supabase: Db,
   userId: string | null,
-  tasks: TaskRow[],
+  tasks: DeliveryTask[],
   openEscalationTaskIds: Set<string>,
   now: number,
 ): Promise<number> {
@@ -143,17 +236,16 @@ async function autoEscalate(
     if (task.status === "completed" || task.status === "cancelled") continue;
     if (openEscalationTaskIds.has(task.id)) continue;
 
-    const threshold = task.escalate_threshold_hours ?? 24;
-    const blockedHours = task.blocked_since
-      ? (now - new Date(task.blocked_since).getTime()) / 3_600_000
-      : 0;
+    const blockedHours = task.delivery.blockedSince
+      ? (now - new Date(task.delivery.blockedSince).getTime()) / 3_600_000
+      : null;
     const remaining = hoursUntil(task.deadline, now);
 
-    if (task.status === "blocked" && blockedHours >= threshold) {
+    if (task.status === "blocked" && blockedHours !== null && blockedHours >= BLOCKED_ESCALATION_HOURS) {
       pending.push({
         task_id: task.id,
-        reason: `Auto: blocked ${Math.floor(blockedHours)}h (threshold ${threshold}h) — ${
-          task.blocked_reason ?? "no reason recorded"
+        reason: `Auto: blocked ${Math.floor(blockedHours)}h (threshold ${BLOCKED_ESCALATION_HOURS}h) — ${
+          task.delivery.blockedReason ?? "no reason recorded"
         }`,
         auto_escalated: true,
         escalated_to: "AREA-MANAGER",
@@ -188,14 +280,14 @@ async function autoEscalate(
   return data?.length ?? 0;
 }
 
-function buildPerformance(tasks: TaskRow[], devById: Map<string, DeveloperRow>, now: number) {
+function buildPerformance(tasks: DeliveryTask[], devById: Map<string, DeveloperRow>, now: number) {
   const out: DeveloperPerformanceDTO[] = [];
   const windowStart = now - 30 * 86_400_000;
   const halfway = now - 15 * 86_400_000;
 
   // Completed tasks in the window, grouped once by developer (the per-developer
   // filter over every task was developers x tasks work on each overview read).
-  const completedByDev = new Map<string, TaskRow[]>();
+  const completedByDev = new Map<string, DeliveryTask[]>();
   for (const t of tasks) {
     if (!t.developer_id || t.status !== "completed" || t.completed_at === null) continue;
     if (new Date(t.completed_at).getTime() < windowStart) continue;
@@ -220,8 +312,8 @@ function buildPerformance(tasks: TaskRow[], devById: Map<string, DeveloperRow>, 
           3_600_000,
       );
     const quality = completed
-      .map((t) => Number(t.quality_score))
-      .filter((n) => Number.isFinite(n) && n > 0);
+      .map((t) => t.delivery.qualityScore)
+      .filter((n): n is number => n !== null && Number.isFinite(n));
 
     const recent = completed.filter((t) => new Date(t.completed_at as string).getTime() >= halfway);
     const older = completed.filter((t) => new Date(t.completed_at as string).getTime() < halfway);
@@ -250,7 +342,7 @@ function buildPerformance(tasks: TaskRow[], devById: Map<string, DeveloperRow>, 
           ? 0
           : Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10,
       qualityScore:
-        quality.length === 0 ? 0 : Math.round(quality.reduce((a, b) => a + b, 0) / quality.length),
+        quality.length === 0 ? null : Math.round(quality.reduce((a, b) => a + b, 0) / quality.length),
       trend,
     });
   }
@@ -262,8 +354,6 @@ export async function loadDeliveryOverview(
   supabase: Db,
   userId: string | null,
 ): Promise<DeliveryOverviewDTO> {
-  const now = Date.now();
-
   const [devRes, taskRes, escRes, noteRes] = await Promise.all([
     supabase.from("developers").select("*").order("vala_id", { ascending: true }),
     supabase.from("developer_tasks").select("*").order("created_at", { ascending: false }),
@@ -282,7 +372,8 @@ export async function loadDeliveryOverview(
   if (firstError) throw new Error(`Delivery data read failed: ${firstError.message}`);
 
   const developers = devRes.data ?? [];
-  const tasks = taskRes.data ?? [];
+  const tasks = await loadTaskDelivery(supabase, taskRes.data ?? []);
+  const now = Date.now();
   let escalations = escRes.data ?? [];
   const notes = noteRes.data ?? [];
 
@@ -331,7 +422,8 @@ export async function loadDeliveryOverview(
       status: uiStatus(t.status),
       dueDate: t.deadline,
       slaHoursRemaining: Number.isFinite(remaining) ? Math.round(remaining) : 999,
-      promiseId: t.promise_id,
+      promiseId: t.delivery.promiseIds.length === 1 ? t.delivery.promiseIds[0] : null,
+      promiseIds: t.delivery.promiseIds,
     };
   });
 
@@ -351,7 +443,8 @@ export async function loadDeliveryOverview(
         code: taskCode(t.id),
         title: t.title,
         assignee: label(t.developer_id ? devById.get(t.developer_id) : undefined),
-        promiseId: t.promise_id,
+        promiseId: t.delivery.promiseIds.length === 1 ? t.delivery.promiseIds[0] : null,
+        promiseIds: t.delivery.promiseIds,
         hoursRemaining: Math.round(remaining),
         riskLevel: level,
         escalatedAt: escalatedAtByTask.get(t.id) ?? null,
@@ -361,19 +454,21 @@ export async function loadDeliveryOverview(
     .sort((a, b) => a.hoursRemaining - b.hoursRemaining);
 
   const blocked: BlockedTaskDTO[] = tasks
-    .filter((t) => t.status === "blocked" && t.blocked_since)
+    .filter((t) => t.status === "blocked")
     .map((t) => ({
       taskId: t.id,
       code: taskCode(t.id),
       title: t.title,
       assignee: label(t.developer_id ? devById.get(t.developer_id) : undefined),
-      blockedReason: t.blocked_reason ?? "No reason recorded",
-      blockedSince: t.blocked_since as string,
-      blockedHours: Math.floor((now - new Date(t.blocked_since as string).getTime()) / 3_600_000),
-      autoEscalateThreshold: t.escalate_threshold_hours ?? 24,
+      blockedReason: t.delivery.blockedReason ?? "No reason recorded",
+      blockedSince: t.delivery.blockedSince,
+      blockedHours: t.delivery.blockedSince
+        ? Math.floor((now - new Date(t.delivery.blockedSince).getTime()) / 3_600_000)
+        : null,
+      autoEscalateThreshold: BLOCKED_ESCALATION_HOURS,
       escalated: openEscalationTaskIds.has(t.id),
     }))
-    .sort((a, b) => b.blockedHours - a.blockedHours);
+    .sort((a, b) => (b.blockedHours ?? -1) - (a.blockedHours ?? -1));
 
   const escalationDtos: EscalationDTO[] = escalations.map((e) => ({
     id: e.id,

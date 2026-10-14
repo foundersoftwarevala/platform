@@ -28,9 +28,10 @@ export default function DevManagerPerformanceSnapshot() {
   const avgOnTimeRate = performance.length
     ? Math.round(performance.reduce((sum, d) => sum + d.onTimeRate, 0) / performance.length)
     : 0;
-  const avgQualityScore = performance.length
-    ? Math.round(performance.reduce((sum, d) => sum + d.qualityScore, 0) / performance.length)
-    : 0;
+  const qualityScores = performance.map(d => d.qualityScore).filter((score): score is number => score !== null);
+  const avgQualityScore = qualityScores.length
+    ? Math.round(qualityScores.reduce((sum, score) => sum + score, 0) / qualityScores.length)
+    : null;
   const totalCompleted = performance.reduce((sum, d) => sum + d.completedTasks, 0);
 
   return (
@@ -60,7 +61,7 @@ export default function DevManagerPerformanceSnapshot() {
         <Card className="bg-card/60 border-border">
           <CardContent className="p-4 text-center">
             <BarChart3 className="w-5 h-5 mx-auto mb-2 text-purple-400" />
-            <p className={`text-2xl font-mono font-bold ${getScoreColor(avgQualityScore)}`}>{avgQualityScore}</p>
+            <p className={`text-2xl font-mono font-bold ${avgQualityScore === null ? "text-muted-foreground" : getScoreColor(avgQualityScore)}`}>{avgQualityScore ?? "Not scored"}</p>
             <p className="text-xs text-muted-foreground">Avg Quality</p>
           </CardContent>
         </Card>
@@ -111,9 +112,9 @@ export default function DevManagerPerformanceSnapshot() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Quality Score</p>
                   <div className="flex items-center gap-2">
-                    <Progress value={dev.qualityScore} className="h-1.5 flex-1" />
-                    <span className={`text-sm font-mono ${getScoreColor(dev.qualityScore)}`}>
-                      {dev.qualityScore}
+                    {dev.qualityScore !== null && <Progress value={dev.qualityScore} className="h-1.5 flex-1" />}
+                    <span className={`text-sm font-mono ${dev.qualityScore === null ? "text-muted-foreground" : getScoreColor(dev.qualityScore)}`}>
+                      {dev.qualityScore ?? "Not scored"}
                     </span>
                   </div>
                 </div>
