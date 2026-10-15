@@ -96,6 +96,7 @@ describe("native PostgreSQL translation jobs", () => {
     ).toBe(1);
     const call = mocks.sql.mock.calls[0]!;
     expect(sqlText(call[0])).toContain("public.i18n_enqueue_translation_jobs");
+    expect(sqlText(call[0])).toContain("?::text::jsonb");
     expect(JSON.parse(String(call[1]))).toEqual([
       expect.objectContaining({
         source_text: "Bonjour",
@@ -104,6 +105,28 @@ describe("native PostgreSQL translation jobs", () => {
         requested_by: null,
       }),
     ]);
+  });
+
+  it("keeps serialized enqueue batches within the existing 2,000-item size", async () => {
+    mocks.sql.mockImplementation(async (_strings, payload) => [
+      { queued: JSON.parse(String(payload)).length },
+    ]);
+    const items = Array.from({ length: 2001 }, (_, index) => ({
+      text: `Product ${index}`,
+      target: "hi",
+      namespace: "catalogue",
+    }));
+    expect(await enqueueJobs(items, null)).toBe(2001);
+    expect(mocks.sql.mock.calls.map((call) => JSON.parse(String(call[1])).length)).toEqual([
+      2000, 1,
+    ]);
+  });
+
+  it("propagates an enqueue failure instead of reporting a successful zero", async () => {
+    mocks.sql.mockRejectedValue(new Error("Translation queue unavailable"));
+    await expect(
+      enqueueJobs([{ text: "Browse products", target: "hi", namespace: "catalogue" }], null),
+    ).rejects.toThrow("Translation queue unavailable");
   });
 
   it("defaults the source to English", async () => {
