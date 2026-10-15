@@ -403,7 +403,8 @@ this record:
 | Schema-backed TS2339 contracts and mappings | 111 |
 | TS2345 and TS2322 argument/assignment contracts | 46 |
 | Stale consumer contracts and unreachable Add Demo wizard | 30 |
-| Canonical Developer Manager review-quality projection | **29** |
+| Canonical Developer Manager review-quality projection | 29 |
+| Finite query boundaries and existing DOM test environment | **15** |
 
 Both full native TypeScript checks completed against the exact scoped source;
 39 excess-property diagnostics and nine missing-override diagnostics were
@@ -685,6 +686,47 @@ and running-build checksum. No deployment, restart, configuration or database
 mutation. Live authenticated acceptance of this undeployed change is UNVERIFIED.
 Rollback is a normal revert of this focused commit, retaining `a2c8f0f` and
 all earlier verified fixes; the native reverse patch is verified.
+
+## Scoped query-boundary follow-up (2026-10-15)
+
+On `fix/scoped-consumer-contracts-20261014`, the fresh full native compiler
+reports **29 -> 15**: fourteen removed diagnostic signatures, zero added.
+All eleven blocked Developer Manager TS2339 signatures are identical; its
+server, functions and DTOs, generated database types and route tree are unchanged.
+
+The selected batch removes seven TS2769, five TS2589, one TS7016 and one
+TS7006. AI CEO metric helpers accept only their actual relations and timestamp
+columns. Generic manager queries reject four nonexistent allowlisted relations
+explicitly after the existing authorization checks; read-only metadata checks
+confirmed their absence on both databases. The allowlist itself is unchanged.
+Dynamic insert/update results use the existing JSON row contract rather than
+expanding every relation's result inference. Existing write validation,
+credentials, financial workflows, append-only protection and audit paths stay
+in place; no new write casts or permissive client types.
+
+Accessibility reads describe the eight real migration-backed columns through
+a read-only local metadata extension on the same authenticated client. The
+table exists on the VPS but remains absent in cloud; errors propagate, and
+this is not a claim that cloud availability has been repaired. No migration,
+generated type change or invented data. The DOM timing regression now uses
+Vitest's existing jsdom environment, retaining route normalization, load,
+the exact 2000ms delay, two animation frames and table-content assertions.
+
+Validation: **252/252 tests pass in 33 files**, including all previous 185;
+the full standard private build passes. Scoped lint is **not a pass**:
+330 findings remain versus 331 at baseline, with zero new non-formatting
+findings and zero findings in the four new test files. Existing formatting
+debt is not hidden or bulk-reformatted. Full typecheck still exits nonzero:
+eleven blocked TS2339, two TS2352, one TS7006 and one TS2367 remain.
+
+The remaining nonblocked diagnostics concern the homepage catalogue mapping,
+demo-gateway response contract, chatbot session callback and manager access
+role policy; they were not modified in this batch. Production remains
+`c911091` with unchanged process/start time, tracked source and running-build
+checksum. No deployment, restart, configuration or database mutation. Live
+authenticated acceptance of these undeployed changes is UNVERIFIED.
+Rollback is a normal focused commit revert; reverse-patch validation retains
+`7e689b6` and all earlier verified fixes without resetting unrelated work.
 
 ## Vala AI scoped production release
 

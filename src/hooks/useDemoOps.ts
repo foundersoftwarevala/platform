@@ -8,7 +8,9 @@
 
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import type { Investigation } from "@/lib/demo/investigate.server";
 import {
@@ -308,12 +310,39 @@ export const useOpsAuditTrail = () =>
     },
   });
 
+// Read-only metadata from 20261107T200000_accessibility_compliance.sql.
+type AccessibilityRow = {
+  id: string;
+  page_url: string;
+  wcag_level: string | null;
+  status: string;
+  score: number | null;
+  issues: Json;
+  checked_at: string | null;
+  created_at: string;
+};
+type AccessibilityDatabase = Database & {
+  public: {
+    Tables: {
+      accessibility_compliance: {
+        Row: AccessibilityRow;
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+    };
+  };
+};
+
 export const useOpsAccessibility = () =>
   useQuery({
     queryKey: [OPS, "accessibility"],
     queryFn: () =>
-      rows<Record<string, any>>(
-        supabase.from("accessibility_compliance").select("*").limit(300) as never,
+      rows<AccessibilityRow>(
+        (supabase as SupabaseClient<AccessibilityDatabase>)
+          .from("accessibility_compliance")
+          .select("*")
+          .limit(300),
       ),
   });
 
