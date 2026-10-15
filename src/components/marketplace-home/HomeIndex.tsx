@@ -4212,7 +4212,7 @@ function CuratedRow({
   const picked = useMemo(() => {
     const rows = (seeded?.rows as CatalogRow[] | undefined) ?? [];
     const merchandised = rows.find((r) => r.id === rowKey || r.slug === rowKey);
-    return merchandised ? ((merchandised.cards ?? []) as Demo[]).slice(0, limit) : ([] as Demo[]);
+    return merchandised ? (merchandised.cards ?? []).slice(0, limit).map(toDemo) : [];
   }, [seeded, rowKey, limit]);
   if (picked.length === 0) return null;
   return (

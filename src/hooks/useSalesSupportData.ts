@@ -5,6 +5,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
 type SalesSupportRow = {
   [column: string]: any;
@@ -23,7 +24,8 @@ export type SupportTicket = SalesSupportRow & { assigned_to: string | null; stat
 export type SupportEscalation = SalesSupportRow & { reference: string | null; reason: string | null };
 export type CallLog = SalesSupportRow & { status: string | null; caller_name: string | null; started_at: string };
 export type EmailQueueItem = SalesSupportRow;
-export type ChatSession = SalesSupportRow & { started_at: string };
+export type ChatSession = SalesSupportRow &
+  Pick<Database["public"]["Tables"]["chat_sessions"]["Row"], "started_at" | "visitor_name">;
 export type ChatMessage = SalesSupportRow & { session_id: string };
 export type Chatbot = SalesSupportRow;
 export type BotTrainingDocument = SalesSupportRow;

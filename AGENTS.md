@@ -404,7 +404,8 @@ this record:
 | TS2345 and TS2322 argument/assignment contracts | 46 |
 | Stale consumer contracts and unreachable Add Demo wizard | 30 |
 | Canonical Developer Manager review-quality projection | 29 |
-| Finite query boundaries and existing DOM test environment | **15** |
+| Finite query boundaries and existing DOM test environment | 15 |
+| Final four unblocked consumer contracts | **11** |
 
 Both full native TypeScript checks completed against the exact scoped source;
 39 excess-property diagnostics and nine missing-override diagnostics were
@@ -727,6 +728,45 @@ checksum. No deployment, restart, configuration or database mutation. Live
 authenticated acceptance of these undeployed changes is UNVERIFIED.
 Rollback is a normal focused commit revert; reverse-patch validation retains
 `7e689b6` and all earlier verified fixes without resetting unrelated work.
+
+## Final four unblocked contracts (2026-10-15)
+
+On the same isolated branch, a fresh full native baseline reconciled exactly
+with the published fifteen-error result. The selected batch reduces **15 -> 11**:
+two TS2352, one TS7006 and one TS2367 removed, zero new signatures. Only the
+eleven blocked Developer Manager TS2339 remain; their complete file/code/message
+signatures and all Developer Manager source files are unchanged.
+
+- Curated homepage rows now call the existing `toDemo` converter, just like
+  category catalogue rows, instead of asserting `CatalogCard[]` is `Demo[]`.
+  Published row selection, ordering, limit, favorites, card index and existing
+  card/rail design are retained. No new catalogue data or numbering scheme.
+- `getDemoConfig` validates its existing nonempty string input at the TanStack
+  boundary instead of casting absent input to a string. Valid strings and
+  existing public-key queries, visibility/active filters, ordering and response
+  shapes are unchanged. Invalid input fails explicitly before database access.
+- `ChatSession.visitor_name` and `started_at` use the actual generated
+  `chat_sessions` column types. This restores string inference for analytics
+  initials without annotating an `any` callback or altering the query or screen.
+- Demo action access uses string membership, matching the existing view-role
+  membership pattern. The legacy `demo_manager` label is not in the current
+  database enum; this does not invent or assign that role, promote another role,
+  or broaden permissions. Every current enum role, legacy/unknown labels,
+  fallback precedence, view-only roles and signed-out denial are regression
+  tested. Any future role/schema policy remains a separate owner decision.
+
+Validation: **273/273 tests pass in 37 files**, retaining all previous 252
+and adding twenty-one targeted regressions. The full standard private build
+passes; generated routes/types, package manifests and the lockfile are unchanged.
+Scoped lint retains the same 161 baseline findings, with zero added findings
+and all four new test files clean; whole scoped lint is not a pass. The native
+typecheck still exits 2 solely for the eleven explicitly blocked diagnostics.
+
+Production remains `c911091`, with unchanged tracked source, process/start
+time and running-build checksum. No deployment, restart, configuration or
+database write. Live acceptance of this undeployed batch is UNVERIFIED.
+Rollback is a normal revert of this focused commit, retaining `8a6587c` and
+earlier verified fixes; the reverse patch is checked against the native source.
 
 ## Vala AI scoped production release
 
