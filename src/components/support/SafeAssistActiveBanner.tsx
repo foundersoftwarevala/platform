@@ -103,18 +103,25 @@ export function SafeAssistActiveBanner() {
 
       if (error) throw error;
 
+      setSession(null);
       // Log to audit
-      await supabase.from('audit_logs').insert({
-        user_id: user?.id,
+      const { error: auditError } = await supabase.from('audit_logs').insert({
+        actor: user?.id ?? 'system',
         action: 'safe_assist_user_stopped',
-        module: 'safe_assist',
-        meta_json: {
+        entity_type: 'safe_assist',
+        entity_id: session.id,
+        metadata: {
+          user_id: user?.id ?? null,
           session_id: session.id,
           elapsed_seconds: elapsed
         }
       });
 
-      setSession(null);
+      if (auditError) {
+        console.error('Safe Assist session ended, but audit logging failed:', auditError);
+        toast.error('Session ended, but its audit log could not be saved.');
+        return;
+      }
       toast.success('Safe Assist session ended');
     } catch (error) {
       console.error('Failed to end session:', error);

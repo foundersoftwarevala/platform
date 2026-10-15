@@ -47,7 +47,8 @@ export function CreatorTopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
         <NotificationBell />
         <ChatAppButton />
         <Link
-          to="/manager/settings"
+          to="/manager/$section"
+          params={{ section: "settings" }}
           className="grid h-9 w-9 place-items-center rounded-full border border-border text-muted-foreground transition-colors hover:text-foreground"
           aria-label="Settings"
         >

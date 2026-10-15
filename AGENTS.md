@@ -401,7 +401,8 @@ this record:
 | GlassCard header props, STEP 2B | 313 |
 | Audited legacy orphan cleanup | 219 |
 | Schema-backed TS2339 contracts and mappings | 111 |
-| TS2345 and TS2322 argument/assignment contracts | **46** |
+| TS2345 and TS2322 argument/assignment contracts | 46 |
+| Stale consumer contracts and unreachable Add Demo wizard | **30** |
 
 Both full native TypeScript checks completed against the exact scoped source;
 39 excess-property diagnostics and nine missing-override diagnostics were
@@ -600,6 +601,45 @@ source and running-build checksum. No deployment, restart or database
 mutation. Live acceptance remains UNVERIFIED. Rollback is a normal revert
 of this commit, preserving the earlier approved fixes; the reverse patch
 is verified against the private native source.
+
+### Scoped stale consumer contracts (2026-10-14)
+
+`fix/scoped-consumer-contracts-20261014` starts from `ab3da11`. The full
+native compiler is **46 -> 30**: TS2353 8 -> 0, TS18048 6 -> 0,
+TS2820 1 -> 0 and TS7030 1 -> 0. Zero new diagnostic signatures.
+The baseline is twelve blocked errors plus 34 others across eighteen files;
+the remaining thirty are twelve blocked plus eighteen others.
+
+The Add Demo page keeps its canonical lazy manager and Suspense fallback;
+only the already-unreachable legacy wizard is removed. Influencer workflow
+walls use the existing `creatable` flag, preserving ordinary editable walls.
+Audit payloads use actual actor/entity/severity/metadata columns and preserve
+authoritative context. A confirmed Safe Assist stop clears the session even
+if its audit fails, with explicit failure logging and notification.
+Typed settings navigation preserves the same URL. Optional detail-route
+matches retain seeded data and query fallbacks. The category loader describes
+its existing missing flag; floating triggers retain timer/listener cleanup.
+No storefront redesign, catalogue numbering or generated route changes.
+
+Validation: **180 tests pass across 27 files**, including seven new test files
+covering delegation, creation flags, actual SDK audit payload/error paths,
+loader/query fallback and trigger cleanup. The private standard build passes.
+All seven new test files are lint-clean; no new non-formatting findings.
+Full scoped lint is not a pass because formatting debt remains.
+Native rollback reverse-patch validation passes.
+
+The twelve blocked Developer Manager signatures are identical. Its server
+and types, and the generated Supabase types, are unchanged in this batch.
+Remaining codes: TS2339 12, TS2769 7, TS2589 5, TS2352 2, TS7006 2,
+TS2367 1 and TS7016 1. Next priority is the twelve Supabase query-boundary
+diagnostics across three files, after checking authoritative schema; then
+casts, analytics/test declarations and the demo-role policy comparison.
+Do not invent missing schema or change access policy to silence errors.
+
+Production remains `c911091`, with unchanged process/start time, tracked
+source and running-build checksum. No deployment, restart or database writes.
+Live acceptance, including browser audit permissions, remains UNVERIFIED.
+Rollback is a normal revert of this isolated commit; earlier fixes remain.
 
 ## Vala AI scoped production release
 
