@@ -402,7 +402,8 @@ this record:
 | Audited legacy orphan cleanup | 219 |
 | Schema-backed TS2339 contracts and mappings | 111 |
 | TS2345 and TS2322 argument/assignment contracts | 46 |
-| Stale consumer contracts and unreachable Add Demo wizard | **30** |
+| Stale consumer contracts and unreachable Add Demo wizard | 30 |
+| Canonical Developer Manager review-quality projection | **29** |
 
 Both full native TypeScript checks completed against the exact scoped source;
 39 excess-property diagnostics and nine missing-override diagnostics were
@@ -640,6 +641,50 @@ Production remains `c911091`, with unchanged process/start time, tracked
 source and running-build checksum. No deployment, restart or database writes.
 Live acceptance, including browser audit permissions, remains UNVERIFIED.
 Rollback is a normal revert of this isolated commit; earlier fixes remain.
+
+### Scoped Developer Manager review quality (2026-10-15)
+
+Continued on `fix/scoped-consumer-contracts-20261014` from verified `a2c8f0f`.
+A fresh full native baseline reconfirmed all thirty diagnostics by file, code
+and message before edits. All twelve TS2339 occurrences were traced through
+the task queries, DTOs, generated rows, schema dump, bridge/review migrations
+and server contracts. Read-only schema transactions on both the VPS and cloud
+confirmed that all five disputed columns are absent from `developer_tasks`.
+
+The smallest verified batch resolves only **quality_score: 1 -> 0**, making
+the full compiler **30 -> 29**. The existing `tm_task_id` foreign key points
+to the canonical `tm_tasks` row, whose nullable integer `quality_score` is
+written by the existing operator-only review handler with a 0-100 validator.
+The overview's existing task query now left-projects that one real field.
+Only performance aggregation consumes the relation; the existing task view,
+DTOs, role gates, RLS, mutation and payment paths remain unchanged.
+No schema change, fake developer-task field, generated-type edit or unsafe cast.
+The completed-task window, ownership and positive-score filters are retained;
+unlinked/unreviewed tasks stay present and keep the existing unscored behavior.
+Relational read failures use the existing explicit delivery-read error path.
+
+The other eighteen diagnostics and all eleven remaining TS2339 signatures
+are identical to the fresh baseline (ignoring shifted line/column positions):
+
+| Property | Remaining | Evidence / next prerequisite |
+|---|---|---|
+| `blocked_since` | 5 | No stored field; define the current blocked episode and legacy/missing-history behavior before deriving it from `tm_activity`. Pause/create/update times are not substitutes. |
+| `blocked_reason` | 2 | Real source exists on linked `tm_tasks`; defer its separate projection/mapping and unlinked-task regressions to the next small batch. |
+| `promise_id` | 2 | `promise_links` and `pt_promises_for` are plural; the DTO is singular. Owner must approve primary-promise selection or an API change. |
+| `escalate_threshold_hours` | 2 | No stored field. Delivery `sla_hours` is not a blocked-duration escalation policy; its source and semantics need approval. |
+
+Validation: **185/185 tests pass across 28 files**, retaining all 180 prior
+regressions plus five real-SDK transport/aggregation/error cases. Both changed
+TypeScript files pass scoped lint with zero findings. The full native compiler
+reports exactly one removed signature and zero added signatures; the standard
+private build passes and the generated route tree is unchanged. This is not
+a zero-error typecheck or a whole-repository lint claim.
+
+Production remains `c911091`, with unchanged tracked source, process/start time
+and running-build checksum. No deployment, restart, configuration or database
+mutation. Live authenticated acceptance of this undeployed change is UNVERIFIED.
+Rollback is a normal revert of this focused commit, retaining `a2c8f0f` and
+all earlier verified fixes; the native reverse patch is verified.
 
 ## Vala AI scoped production release
 
