@@ -50,8 +50,8 @@ export interface BlockedTaskDTO {
   title: string;
   assignee: string;
   blockedReason: string;
-  blockedSince: string;
-  blockedHours: number;
+  blockedSince: string | null;
+  blockedHours: number | null;
   autoEscalateThreshold: number;
   escalated: boolean;
 }

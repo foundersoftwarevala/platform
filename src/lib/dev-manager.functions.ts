@@ -52,10 +52,10 @@ async function requireDevManager(): Promise<string> {
 
 export const getDeliveryOverview = createServerFn({ method: "GET" }).handler(
   async (): Promise<DeliveryOverviewDTO> => {
-    await requireDevManager();
+    const callerId = await requireDevManager();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { loadDeliveryOverview } = await import("./dev-manager.server");
-    return loadDeliveryOverview(supabaseAdmin, null);
+    return loadDeliveryOverview(supabaseAdmin, callerId);
   },
 );
 

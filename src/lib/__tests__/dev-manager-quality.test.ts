@@ -4,7 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { loadDeliveryOverview } from "../dev-manager.server";
 
 type Task = Database["public"]["Tables"]["developer_tasks"]["Row"] & {
-  tm_tasks: { quality_score: number | null } | null;
+  tm_tasks: { quality_score: number | null; blocked_reason: string | null; status: string } | null;
 };
 type Developer = Database["public"]["Tables"]["developers"]["Row"];
 const now = "2026-10-15T00:00:00Z";
@@ -62,7 +62,7 @@ function task(id: string, score: number | null, patch: Partial<Task> = {}): Task
     created_at: "2026-10-13T00:00:00Z",
     updated_at: now,
     tm_task_id: `canonical-${id}`,
-    tm_tasks: { quality_score: score },
+    tm_tasks: { quality_score: score, blocked_reason: null, status: "completed" },
     ...patch,
   };
 }
@@ -125,7 +125,7 @@ describe("Developer Manager canonical review quality", () => {
     expect(result.tasks.map((row) => row.id)).toEqual(["open"]);
     const taskQueries = requests.filter((url) => url.pathname.endsWith("/developer_tasks"));
     expect(taskQueries).toHaveLength(1);
-    expect(taskQueries[0].searchParams.get("select")).toBe("*,tm_tasks(quality_score)");
+    expect(taskQueries[0].searchParams.get("select")).toBe("*,tm_tasks(quality_score,blocked_reason,status)");
     expect(taskQueries[0].searchParams.get("order")).toBe("created_at.desc");
     expect(requests).toHaveLength(4);
   });

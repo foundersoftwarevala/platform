@@ -9,6 +9,7 @@
  * are data and stay as they are.
  */
 export const DEVMANAGER_MESSAGES = {
+  "devmanager.common.blocked_duration_unknown": "Blocked duration unavailable; no verified history",
   // The prompt dialog that replaced window.prompt.
   "devmanager.prompt.choose_label": ["Choose one", "label over a list to pick from"],
   "devmanager.prompt.choose_placeholder": ["Choose…", "empty state of a list to pick from"],

@@ -452,8 +452,34 @@ change that moves it.
 | Phase 3 merged orphan history; all 23 deletions already present on main | 205 |
 | Phase 3 merged safe TS2339 contracts, including the blocked-policy revert | 109 |
 | Phase 3 merged assignment, nullable-value and mutation contracts | 46 |
-| Phase 3 merged all consumer fixes; fresh full compiler (2026-10-16) | **11** (current, blocked) |
+| Phase 3 merged all consumer fixes; fresh full compiler (2026-10-16) | 11 |
+| Phase 4 developer blocked/escalation contract; fresh full compiler | **2** (current, promise selection blocked) |
 | Target | 0 |
+
+### Phase 4 Developer Escalation contract (2026-10-16)
+
+The overview now reads canonical `tm_tasks.blocked_reason` and current status
+through the existing link, and derives the current blocked episode from
+append-only `tm_activity` status transitions. Trigger/service duplicates do
+not restart the timer; a real unblock/reblock does. History is paged against
+its exact count, and read/write/audit errors propagate.
+
+The existing intended 24-hour fallback is now an explicit Developer Manager
+policy constant, not a nonexistent task column or delivery `sla_hours`.
+No new per-task configuration or policy approval is implied. Legacy/unlinked,
+inconsistent or unverifiable history has null age, stays visible and supports
+manual escalation; its existing deadline-breach path remains active.
+All three blocked-task consumers distinguish unknown age from zero. A UI
+threshold crossing alone no longer claims an escalation was persisted.
+Automatic escalation audit records retain the authorized overview caller.
+
+Validation: 28 tests pass across four suites. A fresh full compiler removes
+nine errors (11 -> 2); only the identical two `promise_id` diagnostics remain.
+Promise selection is not guessed or changed by this repair. Escalation runs
+on overview requests, not an independent scheduler. Existing-open checks are
+retained; cross-process concurrency is not claimed atomic without a database
+uniqueness/transaction change. No production endpoint, database or service
+was changed or invoked to trigger an escalation. Rollback is a normal revert.
 
 ### Phase 3 main integration (verified 2026-10-16)
 
