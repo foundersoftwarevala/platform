@@ -66,7 +66,7 @@ active VPS database, but found these cloud blockers:
 - `marketplace_affiliate_partners.application` is absent.
 - `strip_application_bank_and_id()` is absent.
 
-The corresponding definitions are in the existing
+The corresponding definitions originate in the existing
 [application completion](../../../supabase/migrations/20261104T100000_applications_complete.sql),
 [influencer completion](../../../supabase/migrations/20261104T102000_influencer_application_complete.sql),
 and [application privacy](../../../supabase/migrations/20261104T103000_applications_no_bank_or_id_numbers.sql)
@@ -75,6 +75,16 @@ cloud database: they also change existing RPCs, constraints and triggers.
 Snapshot the actual definitions and approve a narrowly scoped catch-up first.
 These are known prerequisites, not a complete cloud compatibility certification.
 Do not migrate or delete unrelated intentional VPS-only relations.
+
+The prepared
+[scoped prerequisite migration](../../../supabase/migrations/20261108T111500_homepage_application_prerequisites.sql)
+adds only the two nullable JSON fields and the missing document table/helper.
+It does not backfill application data, replace an existing helper, reset existing
+document permissions, or narrow the later employee document constraint. Apply it
+before the lifecycle migration, only after the target-specific backup, approval
+and transactional dry-run. Legacy cloud submission/review RPC compatibility
+must be checked separately; adding prerequisites is not a claim that all
+historical migrations or cloud workflows are current.
 
 ### Non-destructive rollback
 
