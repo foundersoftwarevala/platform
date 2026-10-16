@@ -448,7 +448,8 @@ change that moves it.
 | Phase 3 main baseline `0947add`, fully rechecked (2026-10-15) | 347 |
 | Phase 3 merged fast wins; existing retirement contract/deletions preserved | 341 |
 | Phase 3 merged shared JSON/caller-RPC contracts | 232 |
-| Phase 3 merged GlassCard header contract | **205** (current) |
+| Phase 3 merged GlassCard header contract | 205 |
+| Phase 3 merged orphan history; all 23 deletions already present on main | **205** (current) |
 | Target | 0 |
 
 ### Scoped typecheck fast wins (2026-10-14)
@@ -465,7 +466,8 @@ this record:
 | Optional `Resource.retirable` declaration | 494 |
 | Nine explicit React `override` modifiers | 485 |
 | Shared JSON RPC response contracts, STEP 2A | 340 |
-| GlassCard header props, STEP 2B | **313** |
+| GlassCard header props, STEP 2B | 313 |
+| Audited legacy orphan cleanup | **219** |
 
 Both full native TypeScript checks completed against the exact scoped source;
 39 excess-property diagnostics and nine missing-override diagnostics were
@@ -535,6 +537,36 @@ and build checksum; no deployment, restart or business-data mutation.
 Live manager acceptance of these undeployed props is UNVERIFIED. Rollback
 is a normal revert of the GlassCard commit on its fix branch, preserving
 the earlier serialization and fast-wins fixes.
+
+### Scoped orphan cleanup (2026-10-14)
+
+`fix/scoped-orphan-cleanup-20261014` starts from GlassCard commit `1d4fade`.
+The 23 legacy modules listed in the earlier dead-code record above are
+absent from main `9cda960` and now removed from this scoped branch as well.
+Absence from main alone was not the deletion criterion: the reachability
+audit scanned 2,171 tracked code modules and 10,930 resolved imports,
+including re-exports, literal dynamic imports, require and import types,
+and found zero incoming references to the candidates. None is a file route
+or application entrypoint. The five computed imports are isolated tooling
+for i18n transpilation/PGlite; all eight import globs load image assets.
+Historical migration comments and i18n debt-baseline records are metadata,
+not module loaders, and remain unchanged. The new shared JSON/RPC helpers,
+regression tests and active manager/portal/security implementations remain.
+
+The complete native TypeScript check is **313 -> 219**: exactly 94 errors
+in 22 deleted files are removed, with no new diagnostics or other-pattern
+changes. The twenty-third file, the legacy MarketplaceManagerModule,
+already has zero errors after its three override fixes. This explains why
+the old 97-error estimate now yields 94, not a projected 216-error total.
+Mainline's error history is separate and unchanged.
+
+Validation: 88 tests pass across six retained suites. The standard isolated
+application build passes and the generated route tree is semantically
+unchanged. Production remains `c911091`, with unchanged tracked source,
+process/start time and running-build checksum; no deployment, restart or
+business-data mutation. Live acceptance of this undeployed cleanup is
+UNVERIFIED. Rollback is a normal revert of the orphan-cleanup commit,
+preserving the prior serialization, GlassCard and fast-wins fixes.
 
 ## Do not
 
