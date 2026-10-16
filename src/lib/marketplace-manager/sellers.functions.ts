@@ -1,5 +1,7 @@
+import { callAsUser } from "@/lib/supabase-rpc.server";
+import type { JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 /**
@@ -13,24 +15,6 @@ import { z } from "zod";
  * is left exactly as it is: it already resolves the most specific active rule
  * and writes commissions idempotently when an order settles.
  */
-
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
 
 export type SellerKind = "author" | "vendor";
 export type SellerStatus =
@@ -101,7 +85,7 @@ export const getSellers = createServerFn({ method: "GET" })
 
 export const getSellerDetail = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_seller_detail", { p_id: data.id }),
   );
 
@@ -189,7 +173,7 @@ export const createPayout = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<{
     ok: boolean; reason?: string; message?: string;
-    payout?: Record<string, unknown>; lines?: number;
+    payout?: JsonObject; lines?: number;
   }> => callAsUser("mm_seller_payout_create", {
     p_seller: data.id, p_reason: data.reason ?? null,
   }));

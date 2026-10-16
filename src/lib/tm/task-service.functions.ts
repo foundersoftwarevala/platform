@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { requireJsonObject } from "@/lib/json";
 
 /**
  * The platform's task service.
@@ -499,7 +500,7 @@ export const getTaskSLA = createServerFn({ method: "GET" })
     if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
     const { data: row } = await db.rpc("tm_sla_state", { p_task_id: data.taskId });
-    return (row ?? { state: "unknown" }) as Record<string, unknown>;
+    return requireJsonObject(row ?? { state: "unknown" }, "Task SLA response");
   });
 
 /** Tasks raised by one module, so a caller can show its own work. */
@@ -581,7 +582,7 @@ export const routeTask = createServerFn({ method: "POST" })
       p_role: data.role,
     });
     if (error) return { ok: false as const, reason: error.message };
-    return result as Record<string, unknown>;
+    return requireJsonObject(result, "Task routing response");
   });
 
 /**

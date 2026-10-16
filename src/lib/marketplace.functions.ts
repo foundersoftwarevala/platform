@@ -124,7 +124,7 @@ export type PublicProductPageData = {
     meta_title: string | null;
     meta_description: string | null;
     canonical_url: string | null;
-    schema_json: string | Json | null;
+    schema_json: Json;
   } | null;
 };
 

@@ -1,5 +1,7 @@
+import { callAsUser } from "@/lib/supabase-rpc.server";
+import type { Json, JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 /**
@@ -20,24 +22,6 @@ import { z } from "zod";
  * the job lock, and a cleanup that removes what it may while preserving
  * product, audit, legal and deployment history.
  */
-
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
 
 export type SandboxStatus =
   | "provisioning" | "active" | "resetting" | "disabled" | "expiring"
@@ -85,7 +69,7 @@ export type SandboxView = {
     keep_session_logs: boolean; session_log_retention_days: number;
     warning_hours: number[];
   };
-  capabilities?: Record<string, Capability | unknown>;
+  capabilities?: Record<string, Capability | Json>;
   active?: number;
   resetting?: number;
   expiring_24h?: number;
@@ -112,7 +96,7 @@ export const createSandbox = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ demo_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }): Promise<{
     ok: boolean; reason?: string; message?: string; note?: string;
-    sandbox?: Record<string, unknown>; capabilities?: Record<string, unknown>;
+    sandbox?: JsonObject; capabilities?: JsonObject;
   }> => callAsUser("mm_sandbox_create", { p_demo: data.demo_id }));
 
 /**

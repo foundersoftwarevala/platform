@@ -1,5 +1,7 @@
+import { callAsUser } from "@/lib/supabase-rpc.server";
+import type { JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 /**
@@ -10,24 +12,6 @@ import { z } from "zod";
  * entitlements, and anything that cannot be linked honestly is reported as
  * unavailable with its reason rather than shown as a zero.
  */
-
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
 
 export type CustomerRow = {
   id: string;
@@ -47,7 +31,7 @@ export type CustomerRow = {
 };
 
 export const getCustomersOverview = createServerFn({ method: "GET" }).handler(
-  async (): Promise<Record<string, unknown>> => callAsUser("mm_customers_overview", {}),
+  async (): Promise<JsonObject> => callAsUser("mm_customers_overview", {}),
 );
 
 export const listCustomers = createServerFn({ method: "GET" })
@@ -66,10 +50,10 @@ export const listCustomers = createServerFn({ method: "GET" })
 
 export const getCustomerProfile = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_customer_profile", { p_user: data.id }),
   );
 
 export const getReleaseOverview = createServerFn({ method: "GET" }).handler(
-  async (): Promise<Record<string, unknown>> => callAsUser("mm_release_overview", {}),
+  async (): Promise<JsonObject> => callAsUser("mm_release_overview", {}),
 );

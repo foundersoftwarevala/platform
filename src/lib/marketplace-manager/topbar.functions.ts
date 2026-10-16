@@ -1,5 +1,7 @@
+import { callAsUser } from "@/lib/supabase-rpc.server";
+import type { JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 /**
@@ -15,22 +17,6 @@ import { z } from "zod";
  * reads, so the manager and the storefront cannot disagree.
  */
 
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
-
 export type TopBarModule = {
   module_key: string;
   name: string;
@@ -44,7 +30,7 @@ export type TopBarModule = {
   mobile_enabled: boolean;
   sticky_enabled: boolean;
   featured: boolean;
-  config: Record<string, unknown>;
+  config: JsonObject;
   live: boolean;
   /**
    * True when a component in the header actually reads this row. The registry
@@ -62,7 +48,11 @@ export type TopBarModule = {
 /** Every module in the bar, in the order the header renders them. */
 export const listTopBarModules = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ ok: true; modules: TopBarModule[] }> => {
-    const modules = await callAsUser<TopBarModule[]>("mm_topbar_modules", {});
+    const modules = await callAsUser<TopBarModule[]>(
+      "mm_topbar_modules",
+      {},
+      { allowAnonymous: true },
+    );
     return { ok: true as const, modules: modules ?? [] };
   },
 );
@@ -102,10 +92,14 @@ export const configureTopBarModule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) =>
     settle(
-      await callAsUser<Outcome>("mm_topbar_configure", {
-        p_key: data.key,
-        p_patch: data.patch,
-      }),
+      await callAsUser<Outcome>(
+        "mm_topbar_configure",
+        {
+          p_key: data.key,
+          p_patch: data.patch,
+        },
+        { allowAnonymous: true },
+      ),
       "Module updated",
     ),
   );
@@ -142,10 +136,14 @@ export const setTopBarItems = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) =>
     settle(
-      await callAsUser<Outcome>("mm_topbar_items_set", {
-        p_key: data.key,
-        p_items: data.items,
-      }),
+      await callAsUser<Outcome>(
+        "mm_topbar_items_set",
+        {
+          p_key: data.key,
+          p_items: data.items,
+        },
+        { allowAnonymous: true },
+      ),
       `Menu saved — ${data.items.length} item${data.items.length === 1 ? "" : "s"}`,
     ),
   );
@@ -157,7 +155,11 @@ export const reorderTopBarModules = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) =>
     settle(
-      await callAsUser<Outcome>("mm_topbar_reorder", { p_keys: data.keys }),
+      await callAsUser<Outcome>(
+        "mm_topbar_reorder",
+        { p_keys: data.keys },
+        { allowAnonymous: true },
+      ),
       "Top bar reordered",
     ),
   );

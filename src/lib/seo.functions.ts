@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireJsonObject, type Json } from "@/lib/json";
 
 import { deleteRecord, insertRecord, updateRecord } from "./manager-data.functions";
 import { generateSeo } from "./seo-ai.functions";
@@ -189,24 +190,18 @@ export const generateSeoReport = createServerFn({ method: "POST" }).handler(asyn
   const periodStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const periodEnd = date.slice(0, 10);
 
-  // `seo_report_summary` is not in src/integrations/supabase/types.ts: that
-  // file is generated, and it only knows the functions that existed the last
-  // time it was generated. Every other RPC caller in this codebase works
-  // around it by hand-rolling an untyped client — there are twenty-three
-  // copies of that helper. Rather than add a twenty-fourth, this narrows the
-  // one call site.
+  // This RPC is absent from cloud types; narrow its actual JSON wire contract.
   const rpc = supabaseAdmin.rpc.bind(supabaseAdmin) as unknown as (
-    fn: string,
-    args: Record<string, unknown>,
-  ) => Promise<{ data: unknown; error: { message: string } | null }>;
-
+    fn: "seo_report_summary",
+    args: { p_period_start: string; p_period_end: string },
+  ) => Promise<{ data: Json; error: { message: string } | null }>;
   const { data: summary, error: summaryError } = await rpc("seo_report_summary", {
     p_period_start: periodStart,
     p_period_end: periodEnd,
   });
   if (summaryError) throw new Error(summaryError.message);
 
-  const figures = (summary ?? {}) as Record<string, unknown>;
+  const figures = requireJsonObject(summary ?? {}, "SEO report summary");
   const { error } = await supabaseAdmin.from("seo_reports").insert({
     name: `Monthly SEO report · ${new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })}`,
     report_type: "monthly",

@@ -1,5 +1,7 @@
+import { callAsUser } from "@/lib/supabase-rpc.server";
+import type { JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 /**
@@ -17,24 +19,6 @@ import { z } from "zod";
  * /s/{code} on this site. That is a real route with a real redirect and real
  * click recording; a vanity host would only shorten them further.
  */
-
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
 
 export type UrlRow = {
   product_id: string;
@@ -75,7 +59,7 @@ export type UrlView = {
     devices: Record<string, number>;
     countries: Record<string, number>;
   };
-  last_job?: Record<string, unknown> | null;
+  last_job?: JsonObject | null;
   total?: number;
   rows?: UrlRow[];
 };
@@ -132,7 +116,7 @@ export const createProductQr = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ product_id: z.string().uuid() }).parse(i))
   .handler(async ({ data }): Promise<{
     ok: boolean; reason?: string; message?: string; target?: string;
-    qr?: Record<string, unknown>;
+    qr?: JsonObject;
   }> => callAsUser("mm_qr_create", { p_product: data.product_id, p_short_link: null }));
 
 /** Share snippets, built from the product's own values. */

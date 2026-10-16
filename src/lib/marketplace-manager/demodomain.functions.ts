@@ -1,5 +1,7 @@
+import { callAsUser } from "@/lib/supabase-rpc.server";
+import type { Json, JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 /**
@@ -24,24 +26,6 @@ import { z } from "zod";
  * ready, SSL active and a real deployment — a check constraint, not a
  * convention.
  */
-
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
 
 export type DemoStatus =
   | "draft" | "provisioning" | "dns_pending" | "ssl_pending" | "deploying"
@@ -116,7 +100,7 @@ export const getDemoDomains = createServerFn({ method: "GET" })
 /** Whether a product may have a demo, and which module says no. Read-only. */
 export const getDemoEligibility = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ product_id: z.string().uuid() }).parse(i))
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_demo_eligibility", { p_product: data.product_id }),
   );
 
@@ -136,7 +120,7 @@ export const provisionDemo = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{
     ok: boolean; reason?: string; message?: string; hostname?: string; url?: string;
     provisioned?: boolean; note?: string | null; demo_id?: string;
-    gates?: unknown[]; blocked_by?: string[];
+    gates?: Json[]; blocked_by?: string[];
   }> => callAsUser("mm_demo_provision", {
     p_product: data.product_id, p_pattern: data.pattern ?? null,
   }));
@@ -152,7 +136,7 @@ export const demoOperation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<{
     ok: boolean; reason?: string; message?: string; note?: string | null;
-    providers?: Record<string, unknown>;
+    providers?: JsonObject;
   }> => callAsUser("mm_demo_operation", {
     p_demo: data.id, p_op: data.op, p_reason: data.reason ?? null,
   }));
