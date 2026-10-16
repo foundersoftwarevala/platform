@@ -56,6 +56,28 @@ tables, the existing `application_staff()` definition and runtime configuration.
 Dry-run inside a transaction, verify all dependencies, and verify idempotence
 before applying. Application startup never applies migrations.
 
+### Cloud prerequisites
+
+The read-only preflight on 2026-10-16 found the required dependencies on the
+active VPS database, but found these cloud blockers:
+
+- `application_documents` is absent.
+- `influencer_applications.application` is absent.
+- `marketplace_affiliate_partners.application` is absent.
+- `strip_application_bank_and_id()` is absent.
+
+The corresponding definitions are in the existing
+[application completion](../../../supabase/migrations/20261104T100000_applications_complete.sql),
+[influencer completion](../../../supabase/migrations/20261104T102000_influencer_application_complete.sql),
+and [application privacy](../../../supabase/migrations/20261104T103000_applications_no_bank_or_id_numbers.sql)
+migrations. Do not blindly replay those files against a partially migrated
+cloud database: they also change existing RPCs, constraints and triggers.
+Snapshot the actual definitions and approve a narrowly scoped catch-up first.
+These are known prerequisites, not a complete cloud compatibility certification.
+Do not migrate or delete unrelated intentional VPS-only relations.
+
+### Non-destructive rollback
+
 For a code rollback, restore the prior release without restoring an old database
 over newly submitted applications. If lifecycle rollback is needed, remove only
 the new `application_lifecycle_notify` triggers and
