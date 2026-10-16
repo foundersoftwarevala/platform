@@ -58,7 +58,13 @@ const ProductDashboard = () => {
      * been showing blank names the whole time. Mapped here rather than editing
      * the markup, so the screen is untouched.
      */
-    recentDemos: demos.rows.map((row) => ({ ...row, name: row.demo_name ?? row.name })),
+    recentDemos: demos.rows.map((row) => ({
+      ...row,
+      name: String(row.demo_name ?? row.name ?? ""),
+      status: String(row.status ?? ""),
+      last_result: typeof row.last_result === "string" ? row.last_result : "",
+      last_response_ms: typeof row.last_response_ms === "number" ? row.last_response_ms : null,
+    })),
   };
 
   const statCards = [

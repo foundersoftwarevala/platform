@@ -126,7 +126,7 @@ export default function SeoManagerScreen() {
       >
         {registry.error ? (
           <p className="text-sm text-status-error">
-            Registry data could not be loaded: {registry.error.message}
+            Registry data could not be loaded: {registry.error instanceof Error ? registry.error.message : String(registry.error)}
           </p>
         ) : seoServices.length === 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -456,13 +456,13 @@ export default function SeoManagerScreen() {
                   {regions.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-medium">
-                        {row.name || row.region || row.country_code}
+                        {row.name || row.code}
                       </TableCell>
                       <TableCell className="text-right">
                         {displayNumber(row.keywords_count)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {numeric(row.average_position) || "Not recorded"}
+                        Not recorded
                       </TableCell>
                     </TableRow>
                   ))}

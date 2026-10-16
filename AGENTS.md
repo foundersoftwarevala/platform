@@ -449,7 +449,8 @@ change that moves it.
 | Phase 3 merged fast wins; existing retirement contract/deletions preserved | 341 |
 | Phase 3 merged shared JSON/caller-RPC contracts | 232 |
 | Phase 3 merged GlassCard header contract | 205 |
-| Phase 3 merged orphan history; all 23 deletions already present on main | **205** (current) |
+| Phase 3 merged orphan history; all 23 deletions already present on main | 205 |
+| Phase 3 merged safe TS2339 contracts, including the blocked-policy revert | **109** (current) |
 | Target | 0 |
 
 ### Scoped typecheck fast wins (2026-10-14)
@@ -467,7 +468,8 @@ this record:
 | Nine explicit React `override` modifiers | 485 |
 | Shared JSON RPC response contracts, STEP 2A | 340 |
 | GlassCard header props, STEP 2B | 313 |
-| Audited legacy orphan cleanup | **219** |
+| Audited legacy orphan cleanup | 219 |
+| Schema-backed TS2339 contracts and mappings | **111** |
 
 Both full native TypeScript checks completed against the exact scoped source;
 39 excess-property diagnostics and nine missing-override diagnostics were
@@ -567,6 +569,51 @@ process/start time and running-build checksum; no deployment, restart or
 business-data mutation. Live acceptance of this undeployed cleanup is
 UNVERIFIED. Rollback is a normal revert of the orphan-cleanup commit,
 preserving the prior serialization, GlassCard and fast-wins fixes.
+
+### Scoped TS2339 contracts and mappings (2026-10-14)
+
+`fix/scoped-ts2339-contracts-20261014` starts from orphan-cleanup commit
+`87fa1b5`. The complete native TypeScript check is **219 -> 111**, with
+zero new diagnostic signatures. TS2339 falls **110 -> 12**: 98 missing-
+property diagnostics across 30 files are removed, plus ten tightly coupled
+diagnostics (TS2322: 3, TS2352: 1, TS2769: 3, TS2551: 1, TS2345: 2).
+This is not a zero-error typecheck; mainline's separate baseline is unchanged.
+
+| Root-cause group | TS2339 removed | Error-bearing files |
+|---|---|---|
+| Existing wire DTOs and caller input contracts | 25 | 9 |
+| Legal row-to-view mappings | 14 | 5 |
+| Supabase select/returning and absent context contracts | 21 | 3 |
+| Consumer state, row and error contracts | 21 | 5 |
+| Demo schema mappings | 13 | 4 |
+| Chat, router and HTTP request contracts | 4 | 4 |
+
+The changes use actual schema fields rather than invented optional columns:
+legal audit aliases and the no-rewrite invariant, explicit unscored AI
+confidence, unresolved demo alerts, real escalation/request columns and
+product names, matching `demo_domains.hostname`, and the existing deployment
+state. Unsupported domain-lock/attempt metrics remain explicitly unmonitored.
+Bulk moderation retains the same validator-derived operation set. Import
+upserts explicitly return IDs and link demos by product slug, not response
+position. Unsupported SEO actions still fail explicitly; no false success
+response or external integration was added.
+
+**Blocked:** all twelve remaining TS2339 diagnostics are in
+`src/lib/dev-manager.server.ts`, referencing `blocked_since`, `blocked_reason`,
+`promise_id`, `quality_score` and `escalate_threshold_hours`. These columns
+have no authoritative schema source. No migration, fake type extension,
+invented value or production database write was used to hide the problem.
+Their storage/data policy needs a separate owner decision.
+
+Validation: 122 tests pass across fifteen suites, including thirty new
+regressions; thirteen additional source/query/validator checks pass. The
+standard isolated build passes and the generated route tree is unchanged.
+Eight new test files are lint-clean; scoped lint has no new non-formatting
+findings, but existing formatting debt means this is not a full lint pass.
+Production remains `c911091`, with unchanged tracked source, process/start
+time and running-build checksum. No deployment, restart or business-data
+mutation. Live acceptance of these undeployed fixes is UNVERIFIED. Rollback
+is a normal revert of this fix commit, preserving the earlier fix stages.
 
 ## Do not
 

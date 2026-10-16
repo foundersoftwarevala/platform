@@ -96,14 +96,9 @@ export function useRecordActions() {
 }
 
 export function useRunAutomation() {
-  const invalidate = useInvalidate();
   const run = useServerFn(runAutomation);
   return useMutation({
     mutationFn: (id: string) => run({ data: { id } }),
-    onSuccess: (result) => {
-      toast.success(result.message);
-      void invalidate();
-    },
     onError: (e: Error) => toast.error(e.message),
   });
 }
@@ -164,27 +159,17 @@ export function useAiGeneration() {
 }
 
 export function useSearchConsoleSync() {
-  const invalidate = useInvalidate();
   const sync = useServerFn(syncSearchConsole);
   return useMutation({
     mutationFn: (input: { siteUrl: string; days: number }) => sync({ data: input }),
-    onSuccess: (result) => {
-      toast.success(`${result.synced} day(s) synced from Search Console`);
-      void invalidate();
-    },
     onError: (e: Error) => toast.error(e.message),
   });
 }
 
 export function useSemrushSync() {
-  const invalidate = useInvalidate();
   const sync = useServerFn(syncSemrush);
   return useMutation({
     mutationFn: (input: { domain: string; database: string }) => sync({ data: input }),
-    onSuccess: (result) => {
-      toast.success(`${result.imported} keyword(s) imported from Semrush`);
-      void invalidate();
-    },
     onError: (e: Error) => toast.error(e.message),
   });
 }

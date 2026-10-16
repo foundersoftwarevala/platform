@@ -21,7 +21,7 @@ import {
   useOpsDetections,
   useOpsEscalations,
 } from "@/hooks/useDemoOps";
-import { DETECTION_LABELS, relativeTime, rootCauseFor } from "@/lib/demo-ops";
+import { alertNeedsAction, DETECTION_LABELS, relativeTime, rootCauseFor } from "@/lib/demo-ops";
 import { cn } from "@/lib/utils";
 
 export function OpsAlertsPanel() {
@@ -31,7 +31,7 @@ export function OpsAlertsPanel() {
   const [sound, setSound] = useState(false);
   const [desktop, setDesktop] = useState(false);
 
-  const alerts = (alertsQuery.data ?? []).filter((a) => a.is_active !== false);
+  const alerts = (alertsQuery.data ?? []).filter(alertNeedsAction);
 
   const enableDesktop = async (next: boolean) => {
     if (!next) {
@@ -99,7 +99,7 @@ export function OpsAlertsPanel() {
                   {alert.alert_type}
                 </Badge>
                 <p className="min-w-0 flex-1 text-xs text-foreground truncate">{alert.message}</p>
-                {alert.requires_action && (
+                {alertNeedsAction(alert) && (
                   <Badge variant="outline" className="text-[9px] border-red-500/40 text-red-400">
                     action required
                   </Badge>
@@ -278,7 +278,7 @@ export function OpsAssignmentPanel() {
               <div key={row.id} className="rounded-lg border border-border/40 bg-background/40 p-3 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="text-[9px]">
-                    L{row.escalation_level ?? 1} · {row.escalated_to_role ?? "unassigned"}
+                    L{row.level} · {row.role}
                   </Badge>
                   <Badge
                     variant="outline"
