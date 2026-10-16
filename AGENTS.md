@@ -447,7 +447,8 @@ change that moves it.
 | Fresh cloud types: 589 tables; identical main diagnostics (2026-10-14) | 347 |
 | Phase 3 main baseline `0947add`, fully rechecked (2026-10-15) | 347 |
 | Phase 3 merged fast wins; existing retirement contract/deletions preserved | 341 |
-| Phase 3 merged shared JSON/caller-RPC contracts | **232** (current) |
+| Phase 3 merged shared JSON/caller-RPC contracts | 232 |
+| Phase 3 merged GlassCard header contract | **205** (current) |
 | Target | 0 |
 
 ### Scoped typecheck fast wins (2026-10-14)
@@ -463,7 +464,8 @@ this record:
 | Fresh cloud types, production `c911091` | 533 |
 | Optional `Resource.retirable` declaration | 494 |
 | Nine explicit React `override` modifiers | 485 |
-| Shared JSON RPC response contracts, STEP 2A | **340** |
+| Shared JSON RPC response contracts, STEP 2A | 340 |
+| GlassCard header props, STEP 2B | **313** |
 
 Both full native TypeScript checks completed against the exact scoped source;
 39 excess-property diagnostics and nine missing-override diagnostics were
@@ -495,8 +497,8 @@ contract rather than an unknown result.
 
 The complete native TypeScript check is **485 -> 340**: all 65 server-handler
 serialization diagnostics and 80 downstream diagnostics are removed, with
-zero new diagnostic signatures. All 27 GlassCard `actions`/`description`
-diagnostics remain unchanged; STEP 2B has not started. Mainline's 347-error
+zero new diagnostic signatures. At that checkpoint, all 27 GlassCard
+`actions`/`description` diagnostics remained unchanged. Mainline's 347-error
 history is not this scoped branch's baseline.
 
 Validation: 80 tests pass across five suites, including 47 new JSON/caller-RPC
@@ -510,6 +512,29 @@ Production source/process remain `c911091`; no deployment, restart or live
 business-data mutation was performed for this fix. Live acceptance of the
 undeployed serialization changes is UNVERIFIED. Rollback is a normal revert
 of the serialization commit on its fix branch, preserving the first 48 fixes.
+
+### Scoped GlassCard contract, STEP 2B (2026-10-14)
+
+`fix/scoped-glasscard-contract-20261014` starts from serialization commit
+`5aa1dc2`. Only the shared GlassCard implementation changes: optional
+`actions` and `description` accept ReactNode and render in the header, with
+description below the title and actions alongside it. Headers also render
+when either new prop is supplied without a title. Existing title/icon
+rendering, custom classes, content-only cards and body padding are preserved.
+
+The complete native TypeScript check is **340 -> 313**: exactly 27 GlassCard
+contract diagnostics across 18 error-bearing caller files are removed, with
+zero new diagnostics and no other pattern changes. Mainline's baseline
+remains separate. Eight focused rendering/interaction tests pass; the shared
+file has zero lint errors and the same eleven existing warnings, and the
+new tests are lint-clean. Actual component screenshots use project CSS at
+desktop/mobile widths, with no horizontal overflow in the preview.
+
+Production remains `c911091`, with unchanged tracked source, running process
+and build checksum; no deployment, restart or business-data mutation.
+Live manager acceptance of these undeployed props is UNVERIFIED. Rollback
+is a normal revert of the GlassCard commit on its fix branch, preserving
+the earlier serialization and fast-wins fixes.
 
 ## Do not
 
