@@ -481,6 +481,23 @@ retained; cross-process concurrency is not claimed atomic without a database
 uniqueness/transaction change. No production endpoint, database or service
 was changed or invoked to trigger an escalation. Rollback is a normal revert.
 
+### Phase 4 task billing-time contract (2026-10-16)
+
+`getTaskWallet` now reads persisted `tm_time_logs.seconds`, not the nonexistent
+`minutes` field. It pages all matching logs using their exact count and stable
+ID ordering, sums valid nonnegative integer seconds and divides once by 60.
+Sub-minute values remain fractional; no new billing-rounding policy is
+introduced. Recorded financial fields and `actual_minutes` are unchanged;
+running/unpersisted time is not invented.
+
+Task/log read failures and incomplete or invalid logs throw explicitly rather
+than appearing as zero time or a missing task. A successful empty log query
+alone yields zero. Existing staff/roster authorization and true task-not-found
+responses are retained. Validation: 69 cumulative tests across seven files,
+including 3,600 seconds -> 60 minutes, sub-minute sums, 1,201 rows under a
+200-row server cap, failures and access checks. Full compiler remains at the
+same two promise-selection errors. No production or database changes.
+
 ### Phase 3 main integration (verified 2026-10-16)
 
 All seven requested scoped branches were integrated sequentially, including
