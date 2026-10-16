@@ -498,6 +498,25 @@ including 3,600 seconds -> 60 minutes, sub-minute sums, 1,201 rows under a
 200-row server cap, failures and access checks. Full compiler remains at the
 same two promise-selection errors. No production or database changes.
 
+### Phase 4 AI-content rejection acceptance (2026-10-16)
+
+The original `id` versus `item_id` defect is already repaired by the Phase 3
+assignment integration. Both Generate and Review queue send `item_id`;
+the existing server validator requires a UUID and calls `mm_ai_item_reject`
+with `p_item`, `p_code` and the optional `p_reason`. No duplicate runtime
+rewrite or migration is needed.
+
+The two UI entry-point regressions now use a valid isolated UUID and verify
+both thrown failures and unsuccessful RPC responses remain visible.
+New tests execute the actual server validator and rejection handler through
+the shared caller-scoped helper and real Supabase SDK against isolated
+fixture responses. They cover canonical payloads, old/invalid inputs,
+optional reasons, missing authentication and permission/business refusals.
+No service-role key is used. All 133 cumulative tests across eleven files
+pass. The SQL function's version/review/audit transaction was inspected;
+real database persistence and deployed UI acceptance remain UNVERIFIED.
+No live rejection or production write was performed.
+
 ### Phase 3 main integration (verified 2026-10-16)
 
 All seven requested scoped branches were integrated sequentially, including
