@@ -26,6 +26,9 @@ import { taskCode } from "./dev-manager.types";
 export type Db = SupabaseClient<Database>;
 
 type TaskRow = Database["public"]["Tables"]["developer_tasks"]["Row"];
+type DeliveryTaskRow = TaskRow & {
+  tm_tasks: Pick<Database["public"]["Tables"]["tm_tasks"]["Row"], "quality_score"> | null;
+};
 type DeveloperRow = Database["public"]["Tables"]["developers"]["Row"];
 
 const OPEN_STATUSES = [
@@ -188,14 +191,18 @@ async function autoEscalate(
   return data?.length ?? 0;
 }
 
-function buildPerformance(tasks: TaskRow[], devById: Map<string, DeveloperRow>, now: number) {
+function buildPerformance(
+  tasks: DeliveryTaskRow[],
+  devById: Map<string, DeveloperRow>,
+  now: number,
+) {
   const out: DeveloperPerformanceDTO[] = [];
   const windowStart = now - 30 * 86_400_000;
   const halfway = now - 15 * 86_400_000;
 
   // Completed tasks in the window, grouped once by developer (the per-developer
   // filter over every task was developers x tasks work on each overview read).
-  const completedByDev = new Map<string, TaskRow[]>();
+  const completedByDev = new Map<string, DeliveryTaskRow[]>();
   for (const t of tasks) {
     if (!t.developer_id || t.status !== "completed" || t.completed_at === null) continue;
     if (new Date(t.completed_at).getTime() < windowStart) continue;
@@ -220,7 +227,7 @@ function buildPerformance(tasks: TaskRow[], devById: Map<string, DeveloperRow>, 
           3_600_000,
       );
     const quality = completed
-      .map((t) => Number(t.quality_score))
+      .map((t) => Number(t.tm_tasks?.quality_score))
       .filter((n) => Number.isFinite(n) && n > 0);
 
     const recent = completed.filter((t) => new Date(t.completed_at as string).getTime() >= halfway);
@@ -266,7 +273,10 @@ export async function loadDeliveryOverview(
 
   const [devRes, taskRes, escRes, noteRes] = await Promise.all([
     supabase.from("developers").select("*").order("vala_id", { ascending: true }),
-    supabase.from("developer_tasks").select("*").order("created_at", { ascending: false }),
+    supabase
+      .from("developer_tasks")
+      .select("*, tm_tasks(quality_score)")
+      .order("created_at", { ascending: false }),
     supabase
       .from("developer_task_escalations")
       .select("*")
@@ -282,7 +292,8 @@ export async function loadDeliveryOverview(
   if (firstError) throw new Error(`Delivery data read failed: ${firstError.message}`);
 
   const developers = devRes.data ?? [];
-  const tasks = taskRes.data ?? [];
+  const deliveryTasks = taskRes.data ?? [];
+  const tasks: TaskRow[] = deliveryTasks;
   let escalations = escRes.data ?? [];
   const notes = noteRes.data ?? [];
 
@@ -406,7 +417,7 @@ export async function loadDeliveryOverview(
     blocked,
     escalations: escalationDtos,
     notes: noteDtos,
-    performance: buildPerformance(tasks, devById, now),
+    performance: buildPerformance(deliveryTasks, devById, now),
     taskOptions: openTasks.map((t) => ({ id: t.id, code: taskCode(t.id), title: t.title })),
     stats: {
       developers: developers.length,

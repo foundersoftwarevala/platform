@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
+import type { Json } from "@/integrations/supabase/types";
 
-import { isManagerTable, MANAGER_TABLES } from "./manager-tables";
+import { isManagerTable, MANAGER_TABLES, type ManagerTable } from "./manager-tables";
 import {
   credentialFingerprint,
   encryptAiCredential,
@@ -229,6 +230,18 @@ function redactValues(table: string, values: Record<string, unknown>): Record<st
   return safe;
 }
 
+function queryableManagerTable(table: ManagerTable) {
+  switch (table) {
+    case "finance_bank_transfers":
+    case "finance_currency_rates":
+    case "customer_finance_profiles":
+    case "reseller_payment_intents":
+      throw new Error(`${table}: no table exists in the current database schema.`);
+    default:
+      return table;
+  }
+}
+
 async function runList(db: Awaited<ReturnType<typeof admin>>, input: ListInput) {
   // Server-only columns are never selected, filtered or ordered on: a range
   // filter on a secret is a way of reading it one comparison at a time.
@@ -242,7 +255,10 @@ async function runList(db: Awaited<ReturnType<typeof admin>>, input: ListInput) 
     throw new Error(`${input.table}: that column is not available here.`);
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query: any = db.from(input.table).select(input.select).limit(input.limit);
+  let query: any = db
+    .from(queryableManagerTable(input.table))
+    .select(input.select)
+    .limit(input.limit);
 
   for (const f of input.filters) {
     if (f.op === "in" && Array.isArray(f.value)) query = query.in(f.column, f.value);
@@ -374,10 +390,10 @@ export const updateRecord = createServerFn({ method: "POST" })
       await validateApiServiceActivation(db, data.id, data.values);
     }
     const { data: row, error } = await db
-      .from(data.table)
+      .from(queryableManagerTable(data.table))
       .update(data.values as never)
       .match({ id: data.id })
-      .select()
+      .select<"*", Record<string, Json>>()
       .single();
     if (error) throw new Error(error.message);
     await writeAudit(
@@ -590,9 +606,9 @@ export const insertRecord = createServerFn({ method: "POST" })
       assertManagedProviderEndpoint(values["endpoint_url"]);
     }
     const { data: row, error } = await db
-      .from(data.table)
+      .from(queryableManagerTable(data.table))
       .insert(values as never)
-      .select()
+      .select<"*", Record<string, Json>>()
       .single();
     if (error) throw new Error(error.message);
     await writeAudit(
@@ -613,7 +629,10 @@ export const deleteRecord = createServerFn({ method: "POST" })
     requireCentralAiManager(context, [data.table]);
     await refuseWorkflowTable(context, data.table, "delete", data.id);
     await refuseAppendOnly(context, data.table, "delete", data.id);
-    const { error } = await db.from(data.table).delete().match({ id: data.id });
+    const { error } = await db
+      .from(queryableManagerTable(data.table))
+      .delete()
+      .match({ id: data.id });
     if (error) throw new Error(error.message);
     await writeAudit(context, `${data.table}.deleted`, data.table, data.id, {}, "warning");
     return { ok: true };

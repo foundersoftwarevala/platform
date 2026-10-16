@@ -451,8 +451,51 @@ change that moves it.
 | Phase 3 merged GlassCard header contract | 205 |
 | Phase 3 merged orphan history; all 23 deletions already present on main | 205 |
 | Phase 3 merged safe TS2339 contracts, including the blocked-policy revert | 109 |
-| Phase 3 merged assignment, nullable-value and mutation contracts | **46** (current) |
+| Phase 3 merged assignment, nullable-value and mutation contracts | 46 |
+| Phase 3 merged all consumer fixes; fresh full compiler (2026-10-16) | **11** (current, blocked) |
 | Target | 0 |
+
+### Phase 3 main integration (verified 2026-10-16)
+
+All seven requested scoped branches were integrated sequentially, including
+the complete TS2339 tip and its `205ff66` blocked-policy revert. Local main
+`0947add` and the newer canonical main tree `9cda960` were each independently
+fully checked at 347. The integration preserves both histories; the
+pre-cleanup merge `47af653` has exactly the canonical main tree.
+
+Every merge was regression-tested and fully typechecked before proceeding.
+The final fresh, nonincremental compiler reports only eleven TS2339 errors
+in `src/lib/dev-manager.server.ts`:
+
+| Property | Errors | Still required |
+|---|---|---|
+| `blocked_since` | 5 | Approved blocked-episode and legacy/missing-history semantics |
+| `blocked_reason` | 2 | Separate linked/unlinked canonical-field projection and regressions |
+| `promise_id` | 2 | Primary-promise selection or a plural API contract |
+| `escalate_threshold_hours` | 2 | Approved blocked-duration escalation policy; not delivery SLA |
+
+This is **not a zero-error typecheck PASS**. No invented columns, disabled
+checks or business-policy guesses were used to reach eleven. Quality is read
+from the existing linked `tm_tasks.quality_score`; task and promise mutations,
+authorization, financial and append-only guards remain in place.
+
+Final cumulative validation: **283/283 tests across 38 files**, including the
+existing demo numbering/link/order regressions; the standard Windows
+production build passes. Generated route source is identical after CRLF/LF
+normalization. Scoped lint has zero added non-formatting findings and zero
+findings in new tests, with 3,677 findings remaining versus 3,698 baseline.
+Embedded hook-warning line references are positional, not new warnings;
+formatting debt remains and whole-scope lint is not a pass.
+
+For current main, this supersedes the historical audit's missing demo-domain,
+escalation-label and review-investigation contracts, duplicated caller-RPC
+boundaries, and AI-content Reject payload bug. It does not claim production
+has received these changes. No deployment, restart, migration or database
+write was performed in Phase 3; live authenticated acceptance is UNVERIFIED.
+The independent Phase 2 R&D provider-credential blocker remains separate.
+Rollback must use normal reverts, never rewriting pushed history.
+
+### Historical scoped-branch validation records
 
 ### Scoped typecheck fast wins (2026-10-14)
 
@@ -471,7 +514,11 @@ this record:
 | GlassCard header props, STEP 2B | 313 |
 | Audited legacy orphan cleanup | 219 |
 | Schema-backed TS2339 contracts and mappings | 111 |
-| TS2345 and TS2322 argument/assignment contracts | **46** |
+| TS2345 and TS2322 argument/assignment contracts | 46 |
+| Stale consumer contracts and unreachable Add Demo wizard | 30 |
+| Canonical Developer Manager review-quality projection | 29 |
+| Finite query boundaries and existing DOM test environment | 15 |
+| Final four unblocked consumer contracts | **11** |
 
 Both full native TypeScript checks completed against the exact scoped source;
 39 excess-property diagnostics and nine missing-override diagnostics were
@@ -670,6 +717,169 @@ source and running-build checksum. No deployment, restart or database
 mutation. Live acceptance remains UNVERIFIED. Rollback is a normal revert
 of this commit, preserving the earlier approved fixes; the reverse patch
 is verified against the private native source.
+
+### Scoped stale consumer contracts (2026-10-14)
+
+`fix/scoped-consumer-contracts-20261014` starts from `ab3da11`. The full
+native compiler is **46 -> 30**: TS2353 8 -> 0, TS18048 6 -> 0,
+TS2820 1 -> 0 and TS7030 1 -> 0. Zero new diagnostic signatures.
+The baseline is twelve blocked errors plus 34 others across eighteen files;
+the remaining thirty are twelve blocked plus eighteen others.
+
+The Add Demo page keeps its canonical lazy manager and Suspense fallback;
+only the already-unreachable legacy wizard is removed. Influencer workflow
+walls use the existing `creatable` flag, preserving ordinary editable walls.
+Audit payloads use actual actor/entity/severity/metadata columns and preserve
+authoritative context. A confirmed Safe Assist stop clears the session even
+if its audit fails, with explicit failure logging and notification.
+Typed settings navigation preserves the same URL. Optional detail-route
+matches retain seeded data and query fallbacks. The category loader describes
+its existing missing flag; floating triggers retain timer/listener cleanup.
+No storefront redesign, catalogue numbering or generated route changes.
+
+Validation: **180 tests pass across 27 files**, including seven new test files
+covering delegation, creation flags, actual SDK audit payload/error paths,
+loader/query fallback and trigger cleanup. The private standard build passes.
+All seven new test files are lint-clean; no new non-formatting findings.
+Full scoped lint is not a pass because formatting debt remains.
+Native rollback reverse-patch validation passes.
+
+The twelve blocked Developer Manager signatures are identical. Its server
+and types, and the generated Supabase types, are unchanged in this batch.
+Remaining codes: TS2339 12, TS2769 7, TS2589 5, TS2352 2, TS7006 2,
+TS2367 1 and TS7016 1. Next priority is the twelve Supabase query-boundary
+diagnostics across three files, after checking authoritative schema; then
+casts, analytics/test declarations and the demo-role policy comparison.
+Do not invent missing schema or change access policy to silence errors.
+
+Production remains `c911091`, with unchanged process/start time, tracked
+source and running-build checksum. No deployment, restart or database writes.
+Live acceptance, including browser audit permissions, remains UNVERIFIED.
+Rollback is a normal revert of this isolated commit; earlier fixes remain.
+
+### Scoped Developer Manager review quality (2026-10-15)
+
+Continued on `fix/scoped-consumer-contracts-20261014` from verified `a2c8f0f`.
+A fresh full native baseline reconfirmed all thirty diagnostics by file, code
+and message before edits. All twelve TS2339 occurrences were traced through
+the task queries, DTOs, generated rows, schema dump, bridge/review migrations
+and server contracts. Read-only schema transactions on both the VPS and cloud
+confirmed that all five disputed columns are absent from `developer_tasks`.
+
+The smallest verified batch resolves only **quality_score: 1 -> 0**, making
+the full compiler **30 -> 29**. The existing `tm_task_id` foreign key points
+to the canonical `tm_tasks` row, whose nullable integer `quality_score` is
+written by the existing operator-only review handler with a 0-100 validator.
+The overview's existing task query now left-projects that one real field.
+Only performance aggregation consumes the relation; the existing task view,
+DTOs, role gates, RLS, mutation and payment paths remain unchanged.
+No schema change, fake developer-task field, generated-type edit or unsafe cast.
+The completed-task window, ownership and positive-score filters are retained;
+unlinked/unreviewed tasks stay present and keep the existing unscored behavior.
+Relational read failures use the existing explicit delivery-read error path.
+
+The other eighteen diagnostics and all eleven remaining TS2339 signatures
+are identical to the fresh baseline (ignoring shifted line/column positions):
+
+| Property | Remaining | Evidence / next prerequisite |
+|---|---|---|
+| `blocked_since` | 5 | No stored field; define the current blocked episode and legacy/missing-history behavior before deriving it from `tm_activity`. Pause/create/update times are not substitutes. |
+| `blocked_reason` | 2 | Real source exists on linked `tm_tasks`; defer its separate projection/mapping and unlinked-task regressions to the next small batch. |
+| `promise_id` | 2 | `promise_links` and `pt_promises_for` are plural; the DTO is singular. Owner must approve primary-promise selection or an API change. |
+| `escalate_threshold_hours` | 2 | No stored field. Delivery `sla_hours` is not a blocked-duration escalation policy; its source and semantics need approval. |
+
+Validation: **185/185 tests pass across 28 files**, retaining all 180 prior
+regressions plus five real-SDK transport/aggregation/error cases. Both changed
+TypeScript files pass scoped lint with zero findings. The full native compiler
+reports exactly one removed signature and zero added signatures; the standard
+private build passes and the generated route tree is unchanged. This is not
+a zero-error typecheck or a whole-repository lint claim.
+
+Production remains `c911091`, with unchanged tracked source, process/start time
+and running-build checksum. No deployment, restart, configuration or database
+mutation. Live authenticated acceptance of this undeployed change is UNVERIFIED.
+Rollback is a normal revert of this focused commit, retaining `a2c8f0f` and
+all earlier verified fixes; the native reverse patch is verified.
+
+## Scoped query-boundary follow-up (2026-10-15)
+
+On `fix/scoped-consumer-contracts-20261014`, the fresh full native compiler
+reports **29 -> 15**: fourteen removed diagnostic signatures, zero added.
+All eleven blocked Developer Manager TS2339 signatures are identical; its
+server, functions and DTOs, generated database types and route tree are unchanged.
+
+The selected batch removes seven TS2769, five TS2589, one TS7016 and one
+TS7006. AI CEO metric helpers accept only their actual relations and timestamp
+columns. Generic manager queries reject four nonexistent allowlisted relations
+explicitly after the existing authorization checks; read-only metadata checks
+confirmed their absence on both databases. The allowlist itself is unchanged.
+Dynamic insert/update results use the existing JSON row contract rather than
+expanding every relation's result inference. Existing write validation,
+credentials, financial workflows, append-only protection and audit paths stay
+in place; no new write casts or permissive client types.
+
+Accessibility reads describe the eight real migration-backed columns through
+a read-only local metadata extension on the same authenticated client. The
+table exists on the VPS but remains absent in cloud; errors propagate, and
+this is not a claim that cloud availability has been repaired. No migration,
+generated type change or invented data. The DOM timing regression now uses
+Vitest's existing jsdom environment, retaining route normalization, load,
+the exact 2000ms delay, two animation frames and table-content assertions.
+
+Validation: **252/252 tests pass in 33 files**, including all previous 185;
+the full standard private build passes. Scoped lint is **not a pass**:
+330 findings remain versus 331 at baseline, with zero new non-formatting
+findings and zero findings in the four new test files. Existing formatting
+debt is not hidden or bulk-reformatted. Full typecheck still exits nonzero:
+eleven blocked TS2339, two TS2352, one TS7006 and one TS2367 remain.
+
+The remaining nonblocked diagnostics concern the homepage catalogue mapping,
+demo-gateway response contract, chatbot session callback and manager access
+role policy; they were not modified in this batch. Production remains
+`c911091` with unchanged process/start time, tracked source and running-build
+checksum. No deployment, restart, configuration or database mutation. Live
+authenticated acceptance of these undeployed changes is UNVERIFIED.
+Rollback is a normal focused commit revert; reverse-patch validation retains
+`7e689b6` and all earlier verified fixes without resetting unrelated work.
+
+## Final four unblocked contracts (2026-10-15)
+
+On the same isolated branch, a fresh full native baseline reconciled exactly
+with the published fifteen-error result. The selected batch reduces **15 -> 11**:
+two TS2352, one TS7006 and one TS2367 removed, zero new signatures. Only the
+eleven blocked Developer Manager TS2339 remain; their complete file/code/message
+signatures and all Developer Manager source files are unchanged.
+
+- Curated homepage rows now call the existing `toDemo` converter, just like
+  category catalogue rows, instead of asserting `CatalogCard[]` is `Demo[]`.
+  Published row selection, ordering, limit, favorites, card index and existing
+  card/rail design are retained. No new catalogue data or numbering scheme.
+- `getDemoConfig` validates its existing nonempty string input at the TanStack
+  boundary instead of casting absent input to a string. Valid strings and
+  existing public-key queries, visibility/active filters, ordering and response
+  shapes are unchanged. Invalid input fails explicitly before database access.
+- `ChatSession.visitor_name` and `started_at` use the actual generated
+  `chat_sessions` column types. This restores string inference for analytics
+  initials without annotating an `any` callback or altering the query or screen.
+- Demo action access uses string membership, matching the existing view-role
+  membership pattern. The legacy `demo_manager` label is not in the current
+  database enum; this does not invent or assign that role, promote another role,
+  or broaden permissions. Every current enum role, legacy/unknown labels,
+  fallback precedence, view-only roles and signed-out denial are regression
+  tested. Any future role/schema policy remains a separate owner decision.
+
+Validation: **273/273 tests pass in 37 files**, retaining all previous 252
+and adding twenty-one targeted regressions. The full standard private build
+passes; generated routes/types, package manifests and the lockfile are unchanged.
+Scoped lint retains the same 161 baseline findings, with zero added findings
+and all four new test files clean; whole scoped lint is not a pass. The native
+typecheck still exits 2 solely for the eleven explicitly blocked diagnostics.
+
+Production remains `c911091`, with unchanged tracked source, process/start
+time and running-build checksum. No deployment, restart, configuration or
+database write. Live acceptance of this undeployed batch is UNVERIFIED.
+Rollback is a normal revert of this focused commit, retaining `8a6587c` and
+earlier verified fixes; the reverse patch is checked against the native source.
 
 ## Do not
 

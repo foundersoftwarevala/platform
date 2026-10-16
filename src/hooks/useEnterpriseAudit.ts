@@ -67,10 +67,14 @@ export function useEnterpriseAudit() {
 
       // Primary audit log (immutable)
       const { error: auditError } = await supabase.from('audit_logs').insert([{
-        user_id: userId,
+        actor: userId ?? 'system',
         action: entry.action,
-        module: entry.module,
-        meta_json: JSON.parse(JSON.stringify({
+        entity_type: entry.module,
+        entity_id: entry.target_id ?? null,
+        severity: entry.severity,
+        metadata: JSON.parse(JSON.stringify({
+          ...entry.metadata,
+          user_id: userId,
           severity: entry.severity,
           target_id: entry.target_id,
           target_type: entry.target_type,
@@ -79,7 +83,6 @@ export function useEnterpriseAudit() {
           reason: entry.reason,
           device_info: deviceInfo,
           timestamp: new Date().toISOString(),
-          ...entry.metadata,
         }))
       }]);
 

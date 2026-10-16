@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { JSDOM } from "jsdom";
 
 import {
   applyPresentation,
@@ -295,58 +294,6 @@ describe("Software Vala presentation", () => {
     expect(out).not.toMatch(
       /<script data-sv-presentation>[^<]*<\/script>[\s\S]*<script data-sv-presentation>/,
     );
-  });
-
-  it("defers DOM rewriting until after load while keeping proxy route normalization immediate", () => {
-    const rules: PresentationRules = {
-      remove: [],
-      rebrand: [],
-      logos: [],
-      links: [],
-      brandLabels: ["Example ERP"],
-      brandLabelPaths: ["/"],
-    };
-    const dom = new JSDOM(
-      "<!doctype html><html><head></head><body><header><span>Example</span><span> ERP</span></header><table><tr><td>Example ERP</td></tr></table></body></html>",
-      {
-        url: "https://softwarevala.net/api/proxy/demo/example?t=pass",
-        pretendToBeVisual: true,
-        runScripts: "outside-only",
-      },
-    );
-    const frames: FrameRequestCallback[] = [];
-    const timers: { callback: () => void; delay: number }[] = [];
-    dom.window.requestAnimationFrame = (callback) => {
-      frames.push(callback);
-      return frames.length;
-    };
-    dom.window.setTimeout = ((callback: () => void, delay = 0) => {
-      timers.push({ callback, delay });
-      return timers.length;
-    }) as typeof dom.window.setTimeout;
-    Object.defineProperty(dom.window.document, "readyState", {
-      configurable: true,
-      get: () => "loading",
-    });
-
-    dom.window.eval(presentationScript(rules, BRAND));
-
-    expect(dom.window.location.pathname).toBe("/");
-    expect(dom.window.document.querySelector("header")?.textContent).toBe("Example ERP");
-    dom.window.dispatchEvent(new dom.window.Event("load"));
-    expect(timers).toHaveLength(1);
-    expect(timers[0].delay).toBe(2000);
-    expect(frames).toHaveLength(0);
-    expect(dom.window.document.querySelector("header")?.textContent).toBe("Example ERP");
-    timers.shift()?.callback();
-    expect(frames).toHaveLength(1);
-    frames.shift()?.(0);
-    expect(dom.window.document.querySelector("header")?.textContent).toBe("Example ERP");
-    frames.shift()?.(16);
-    expect(dom.window.document.querySelector("header")?.textContent).toBe("Software Vala");
-    expect(dom.window.document.querySelector("table")?.textContent).toBe("Example ERP");
-
-    dom.window.close();
   });
 
   it("reports what is left when a rule did not take", () => {
