@@ -3,9 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { authHeaders } from "@/lib/auth/operator-fetch";
 
 import type { CockpitFigures } from "./cockpit";
+import { useApplicationUpdates } from "@/lib/applications/use-application-updates";
 
-/** The cockpit figures, shared by every panel that shows one. Refreshed every minute. */
+/** Shared figures, invalidated by application events with a 15-second polling fallback. */
 export function useCockpitFigures() {
+  useApplicationUpdates();
   return useQuery({
     queryKey: ["control-panel", "cockpit"],
     queryFn: async (): Promise<CockpitFigures> => {
@@ -15,6 +17,6 @@ export function useCockpitFigures() {
         throw new Error(body.error ?? `The cockpit figures could not be read (${response.status})`);
       return body;
     },
-    refetchInterval: 60_000,
+    refetchInterval: 15_000,
   });
 }

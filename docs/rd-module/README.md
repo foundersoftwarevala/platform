@@ -16,10 +16,12 @@ The Control Panel sidebar's **R&D Manager** button opens `/rd-manager`.
 | `/start`       | `/rd-manager/start`       | Software requests, SaaS partnerships, Build With Us                                  |
 | `/track`       | `/rd-manager/track`       | Request ID + contact email status lookup                                             |
 
-All entries use the existing Control Panel identity. There is no new standalone
-app or password login. In this integration, even source-public request/tracking
-pages are inside the authenticated module. The source password/invite gate is
-replaced by the platform's manager role check on **every server function**.
+Internal entries use the existing Control Panel identity. There is no new
+standalone app or password login. Only `/rd-manager/start` and
+`/rd-manager/track` are public. Their four public server functions submit,
+prepare/upload attachments and track requests with burst limits; submission also
+has database-backed device/email limits. Internal functions and attachment
+downloads retain the platform's manager role check.
 Team member management is retained as a roster; it does not grant platform roles,
 create accounts, store passwords, or authenticate members. Account permissions
 remain controlled by the platform.
@@ -44,6 +46,23 @@ Missing tables must produce a visible error, not fabricated demo results.
 The attachment flow requires a private Supabase Storage `rd-attachments` bucket.
 The migration creates it only if the storage schema exists. The platform's
 storage endpoint must be configured and operational for file upload/download.
+If Storage is hosted separately from the database/PostgREST endpoint, configure
+both `SUPABASE_STORAGE_URL` and `SUPABASE_STORAGE_SERVICE_KEY` server-side.
+Never use the database gateway as a Storage endpoint or expose the private
+storage key to the browser. Same-service installations can retain the existing
+Supabase URL/service-key configuration.
+
+The homepage's **Request Your Software** link opens the existing public form
+with software-on-demand selected. Requests remain in `rd_opportunities`, their
+events in `rd_opportunity_events` and inbox alerts in `rnd_notifications`.
+The canonical `/` route imports `sapphire-home/HomeIndex`; its header is
+`sapphire-home/TopUtilityBar`. The retired `marketplace-home` header is not
+evidence of a change to the active homepage. `/marketplace` redirects to `/`.
+The active R&D notification screen reads those real alerts, not sample rows.
+The additive migration, which requires separate production approval,
+`supabase/migrations/20261108T112000_homepage_application_lifecycle.sql` also
+adds a global admin-bell alert for new requests. Prepare backups, dry-run and
+rollback before applying it; application code does not apply it automatically.
 
 The module uses the platform's existing `SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_URL` and
@@ -59,7 +78,8 @@ The streaming feedback-insight handler retains strict JSON-schema validation.
 ## Verification
 
 `src/lib/rd-module/integration.test.ts` covers existing-session authorization,
-the sidebar/route connection, all imported server-function guards, functional
+the sidebar/route connection, internal server-function guards and the exact
+public-intake exception list, functional
 source-file coverage, absence of source credentials and seed-free private SQL.
 UI inspection must also cover the imported twelve Lab screens, opportunity
 sections, bundled Pro Manager, request intake/tracking and mobile navigation.

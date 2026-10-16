@@ -15,6 +15,13 @@ import { toast } from "sonner";
 
 import { authHeaders } from "@/lib/auth/operator-fetch";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import {
+  APPLICATION_KINDS,
+  isApplicationKind,
+  type ApplicationCounts,
+  type ApplicationKind,
+} from "@/lib/applications/kinds";
+import { useApplicationUpdates } from "@/lib/applications/use-application-updates";
 
 /**
  * Applications submitted through /apply/<role>, managed in one queue.
@@ -27,8 +34,7 @@ import { useTranslation } from "@/lib/i18n/use-translation";
  * application, and every refusal and suspension carries its reason.
  */
 
-type Kind = "reseller" | "vendor" | "author" | "franchise" | "influencer" | "affiliate";
-const KINDS: Kind[] = ["reseller", "vendor", "author", "franchise", "influencer", "affiliate"];
+type Kind = ApplicationKind;
 
 type Summary = {
   kind: Kind;
@@ -189,6 +195,7 @@ function ApplicationDetails({ kind, id }: { kind: Kind; id: string }) {
 export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  useApplicationUpdates();
   const [filter, setFilter] = useState<"open" | "all">("open");
   const [only, setOnly] = useState<Kind | "all">("all");
   const [search, setSearch] = useState("");
@@ -198,16 +205,25 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
 
   const showing = kind === "all" ? only : kind;
 
+  const counts = useQuery({
+    queryKey: ["application-counts"],
+    queryFn: () =>
+      api<ApplicationCounts & { emailProviderConfigured: boolean }>(
+        "/api/applications/queue?counts=true",
+      ),
+    refetchInterval: 15_000,
+  });
   const q = useQuery({
     queryKey: ["role-applications", kind, showing, filter],
     queryFn: async () =>
       (await api<{ rows: Summary[] }>(`/api/applications/queue?kind=${showing}&filter=${filter}`))
         .rows,
+    refetchInterval: 15_000,
   });
 
   const decide = useMutation({
     mutationFn: (v: { kind: Kind; id: string; status: string; reason: string | null }) =>
-      api("/api/applications/queue", {
+      api<{ email?: { reason?: string; sent: number } }>("/api/applications/queue", {
         method: "POST",
         body: JSON.stringify({
           action: "decide",
@@ -217,12 +233,15 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
           reason: v.reason,
         }),
       }),
-    onSuccess: (_d, v) => {
+    onSuccess: (data, v) => {
       toast.success(t("apply.queue.decided", { status: v.status }));
+      if (data.email && !data.email.sent) toast.warning(t("apply.queue.email_pending"));
       setAsking(null);
       setReason("");
       void qc.invalidateQueries({ queryKey: ["role-applications"] });
       void qc.invalidateQueries({ queryKey: ["role-application", v.kind, v.id] });
+      void qc.invalidateQueries({ queryKey: ["application-counts"] });
+      void qc.invalidateQueries({ queryKey: ["control-panel", "cockpit"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -231,6 +250,7 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
     if (status === "in_review") return t("apply.queue.review");
     if (status === "rejected") return t("apply.queue.reject");
     if (status === "suspended") return t("apply.queue.suspend");
+    if (row.kind === "employee" && status === "approved") return t("apply.queue.shortlist");
     return row.status === "suspended" ? t("apply.queue.reinstate") : t("apply.queue.approve");
   };
 
@@ -273,14 +293,17 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
           {kind === "all" && (
             <select
               value={only}
-              onChange={(e) => setOnly(e.target.value as Kind | "all")}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === "all" || isApplicationKind(value)) setOnly(value);
+              }}
               className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
               aria-label={t("apply.queue.kind")}
             >
               <option value="all">{t("apply.queue.kind_all")}</option>
-              {KINDS.map((k) => (
+              {APPLICATION_KINDS.map((k) => (
                 <option key={k} value={k}>
-                  {k}
+                  {t(`apply.role.${k}`)}
                 </option>
               ))}
             </select>
@@ -296,6 +319,41 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
           </select>
         </div>
       </header>
+
+      {kind === "all" && (
+        <div role="group" aria-label={t("apply.queue.kind")} className="flex flex-wrap gap-2">
+          {(["all", ...APPLICATION_KINDS] as const).map((role) => (
+            <button
+              key={role}
+              type="button"
+              aria-pressed={only === role}
+              onClick={() => setOnly(role)}
+              className="rounded-lg border border-border px-3 py-2 text-sm aria-pressed:bg-primary/10"
+            >
+              {role === "all" ? t("apply.queue.kind_all") : t(`apply.role.${role}`)}
+              {" · "}
+              {counts.error || !counts.data
+                ? "—"
+                : role === "all"
+                  ? counts.data.total
+                  : (counts.data.byRole.find((row) => row.kind === role)?.count ?? "—")}
+            </button>
+          ))}
+        </div>
+      )}
+      {counts.error && (
+        <p role="alert" className="text-sm text-destructive">
+          {counts.error.message}
+        </p>
+      )}
+      {counts.data?.emailProviderConfigured === false && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t("apply.queue.email_unconfigured")}
+        </p>
+      )}
+      {showing === "employee" && (
+        <p className="text-sm text-muted-foreground">{t("apply.queue.employee_notice")}</p>
+      )}
 
       {q.isLoading ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -321,7 +379,7 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
                 <div className="min-w-0">
                   <p className="font-mono text-xs text-muted-foreground">
                     <span className="mr-2 rounded bg-primary/10 px-1.5 py-0.5 font-sans font-semibold uppercase text-primary">
-                      {r.kind}
+                      {t(`apply.role.${r.kind}`)}
                     </span>
                     {r.number}
                   </p>

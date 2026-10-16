@@ -2,6 +2,7 @@ import { rdOperator } from "./auth.functions";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { SlidingWindowLimiter } from "@/lib/i18n/limits";
 import {
   EVALUATION_AREAS,
   EVALUATION_DECISIONS,
@@ -30,6 +31,11 @@ import {
 async function admin() {
   const { supabaseAdmin } = await import("@/lib/rd-module/supabase/client.server");
   return supabaseAdmin;
+}
+
+async function attachmentStorage() {
+  const { rdAttachmentStorage } = await import("./supabase/client.server");
+  return rdAttachmentStorage();
 }
 
 function fail(message: string, error: { message: string } | null) {
@@ -161,20 +167,29 @@ function newRequestId() {
   return `SV-RD-${Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("")}`;
 }
 
+const publicRequests = new SlidingWindowLimiter(60_000);
+async function publicFingerprint(action: "submit" | "upload" | "track") {
+  const fp = await fingerprint();
+  const limits = { submit: 5, upload: 10, track: 30 };
+  if (publicRequests.hit(`${action}:${fp}`, limits[action])) {
+    throw new Error("Too many requests. Please wait a minute before trying again.");
+  }
+  return fp;
+}
+
 /** Public: submit a Software On Demand / SaaS Partnership / Build With Us request. */
 export const submitOpportunity = createServerFn({ method: "POST" })
-  .middleware([rdOperator])
   .inputValidator((i: unknown) => submitSchema.parse(i))
   .handler(async ({ data }) => {
     if (data.website_hp) throw new Error("Submission rejected");
     const db = await admin();
-    const fp = await fingerprint();
+    const fp = await publicFingerprint("submit");
     const email = data.email.toLowerCase();
 
     // Throttle: max 5 submissions per device per hour, 10 per email per day.
     const hourAgo = new Date(Date.now() - 3600_000).toISOString();
     const dayAgo = new Date(Date.now() - 86_400_000).toISOString();
-    const [{ count: fpCount }, { count: emailCount }, { data: dupes }] = await Promise.all([
+    const checks = await Promise.all([
       db
         .from("rd_opportunities")
         .select("id", { count: "exact", head: true })
@@ -183,16 +198,19 @@ export const submitOpportunity = createServerFn({ method: "POST" })
       db
         .from("rd_opportunities")
         .select("id", { count: "exact", head: true })
-        .ilike("contact_email", email)
+        .eq("contact_email", email)
         .gte("created_at", dayAgo),
       db
         .from("rd_opportunities")
         .select("public_request_id")
-        .ilike("contact_email", email)
-        .ilike("title", data.title)
+        .eq("contact_email", email)
+        .ilike("title", data.title.replace(/[\\%_]/g, "\\$&"))
         .gte("created_at", dayAgo)
         .limit(1),
     ]);
+    for (const result of checks)
+      fail("Could not validate your submission. Please try again.", result.error);
+    const [{ count: fpCount }, { count: emailCount }, { data: dupes }] = checks;
     if ((fpCount ?? 0) >= 5 || (emailCount ?? 0) >= 10) {
       throw new Error("Too many submissions. Please try again later.");
     }
@@ -255,7 +273,7 @@ export const submitOpportunity = createServerFn({ method: "POST" })
         continue;
       }
       fail("Could not save your submission", error);
-      await Promise.all([
+      const followUps = await Promise.all([
         db.from("rd_opportunity_events").insert({
           opportunity_id: row!.id,
           kind: "created",
@@ -269,6 +287,12 @@ export const submitOpportunity = createServerFn({ method: "POST" })
           message: `${row!.public_request_id}: ${title}`,
         }),
       ]);
+      for (const result of followUps) {
+        fail(
+          `Request ${row!.public_request_id} was saved, but its event or admin notification could not be recorded. Please contact support with this request ID.`,
+          result.error,
+        );
+      }
       return {
         requestId: row!.public_request_id,
         status: publicStatusLabel(row!.status),
@@ -280,7 +304,6 @@ export const submitOpportunity = createServerFn({ method: "POST" })
 
 /** Public: signed upload slots for request attachments (private bucket). */
 export const createAttachmentUploads = createServerFn({ method: "POST" })
-  .middleware([rdOperator])
   .inputValidator((i: unknown) =>
     z
       .object({
@@ -297,19 +320,42 @@ export const createAttachmentUploads = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }) => {
-    const db = await admin();
+    await publicFingerprint("upload");
+    const storage = await attachmentStorage();
     const folder = crypto.randomUUID();
     return Promise.all(
       data.files.map(async (f, idx) => {
         const safe = f.name.replace(/[^A-Za-z0-9._-]+/g, "_").slice(-100) || "file";
         const path = `pending/${folder}/${idx}-${safe}`;
-        const { data: slot, error } = await db.storage
-          .from("rd-attachments")
-          .createSignedUploadUrl(path);
+        const { data: slot, error } = await storage.createSignedUploadUrl(path);
         fail("Could not prepare upload", error);
         return { path, token: slot!.token };
       }),
     );
+  });
+
+export const uploadOpportunityAttachment = createServerFn({ method: "POST" })
+  .inputValidator((form: FormData) => {
+    const metadata = z
+      .object({
+        path: z.string().regex(/^pending\/[0-9a-f-]{36}\/[A-Za-z0-9._-]{1,120}$/),
+        token: z.string().min(1).max(4096),
+      })
+      .parse({ path: form.get("path"), token: form.get("token") });
+    const file = form.get("file");
+    if (!(file instanceof File) || file.size === 0 || file.size > MAX_ATTACHMENT_BYTES) {
+      throw new Error("Attach a nonempty file no larger than 10 MB.");
+    }
+    return { ...metadata, file };
+  })
+  .handler(async ({ data }) => {
+    await publicFingerprint("upload");
+    const storage = await attachmentStorage();
+    const { error } = await storage.uploadToSignedUrl(data.path, data.token, data.file, {
+      contentType: data.file.type || "application/octet-stream",
+    });
+    fail("Could not upload your attachment. Please try again.", error);
+    return { path: data.path };
   });
 
 /** Internal: short-lived download link for an attachment. */
@@ -327,17 +373,14 @@ export const getAttachmentUrl = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     await (await import("./rd-gate.server")).requireRdUnlocked();
-    const db = await admin();
-    const { data: url, error } = await db.storage
-      .from("rd-attachments")
-      .createSignedUrl(data.path, 300);
+    const storage = await attachmentStorage();
+    const { data: url, error } = await storage.createSignedUrl(data.path, 300);
     fail("Could not open file", error);
     return { url: url!.signedUrl };
   });
 
 /** Public: safe status lookup. Requires both request ID and the submitter email. */
 export const trackOpportunity = createServerFn({ method: "POST" })
-  .middleware([rdOperator])
   .inputValidator((i: unknown) =>
     z
       .object({
@@ -351,12 +394,13 @@ export const trackOpportunity = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }) => {
+    await publicFingerprint("track");
     const db = await admin();
     const { data: row, error } = await db
       .from("rd_opportunities")
       .select("public_request_id, type, title, status, created_at, updated_at")
       .eq("public_request_id", data.requestId)
-      .ilike("contact_email", data.email.toLowerCase())
+      .eq("contact_email", data.email.toLowerCase())
       .maybeSingle();
     fail("Lookup failed", error);
     if (!row) return { found: false as const };
