@@ -201,7 +201,7 @@ export const reviewLegalAI = createServerFn({ method: "POST" })
       p_entity_type: "legal_ai_request",
       p_entity_id: data.requestId,
       p_new: { review_status: data.decision },
-      p_reason: data.note ?? null,
+      p_reason: data.note ?? undefined,
     });
 
     return { ok: true as const, decision: data.decision };

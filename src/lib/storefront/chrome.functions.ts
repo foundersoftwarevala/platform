@@ -279,7 +279,7 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
  * exactly the mistake that let mm_is_operator pass for everybody.
  */
 
-type Outcome = { ok?: boolean; reason?: string; message?: string; [k: string]: Json | undefined };
+type Outcome = { ok?: boolean; reason?: string; message?: string; version?: number; [k: string]: Json | undefined };
 
 /** Turn a refusal into a sentence the manager can act on. */
 function settle(result: Outcome | null, whenOk: string) {

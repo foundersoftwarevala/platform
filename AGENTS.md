@@ -450,7 +450,8 @@ change that moves it.
 | Phase 3 merged shared JSON/caller-RPC contracts | 232 |
 | Phase 3 merged GlassCard header contract | 205 |
 | Phase 3 merged orphan history; all 23 deletions already present on main | 205 |
-| Phase 3 merged safe TS2339 contracts, including the blocked-policy revert | **109** (current) |
+| Phase 3 merged safe TS2339 contracts, including the blocked-policy revert | 109 |
+| Phase 3 merged assignment, nullable-value and mutation contracts | **46** (current) |
 | Target | 0 |
 
 ### Scoped typecheck fast wins (2026-10-14)
@@ -469,7 +470,8 @@ this record:
 | Shared JSON RPC response contracts, STEP 2A | 340 |
 | GlassCard header props, STEP 2B | 313 |
 | Audited legacy orphan cleanup | 219 |
-| Schema-backed TS2339 contracts and mappings | **111** |
+| Schema-backed TS2339 contracts and mappings | 111 |
+| TS2345 and TS2322 argument/assignment contracts | **46** |
 
 Both full native TypeScript checks completed against the exact scoped source;
 39 excess-property diagnostics and nine missing-override diagnostics were
@@ -614,6 +616,60 @@ Production remains `c911091`, with unchanged tracked source, process/start
 time and running-build checksum. No deployment, restart or business-data
 mutation. Live acceptance of these undeployed fixes is UNVERIFIED. Rollback
 is a normal revert of this fix commit, preserving the earlier fix stages.
+
+### Scoped TS2345 and TS2322 contracts (2026-10-14)
+
+`fix/scoped-assignment-contracts-20261014` starts from the approved Option A
+commit `205ff66`. The full native compiler is **111 -> 46**, with zero new
+diagnostic signatures. The inventory contains 58 selected diagnostics, not
+the estimated 99: **TS2345 28 -> 0** and **TS2322 30 -> 0** across 31
+error-bearing files. Seven tightly coupled diagnostics also disappear:
+TS2769: 1, TS2589: 1, TS18047: 2 and TS7006: 3.
+
+| Root-cause group | Selected errors removed | Error-bearing files |
+|---|---|---|
+| Nullable schema values and UI operations | 21 | 13 |
+| Component props, icons and typed dynamic route | 4 | 4 |
+| SQL optional RPC argument defaults | 12 | 3 |
+| Canonical query and update payloads | 9 | 5 |
+| Migration-backed layout RPC metadata | 2 | 1 |
+| Resource-row display formatting | 6 | 2 |
+| AI content rejection payload | 2 | 1 |
+| Published storefront version contract | 1 | 1 |
+| DNS mock callback overload | 1 | 1 |
+
+Absent RPC arguments are omitted only where the authoritative SQL already
+defaults them to NULL; explicit empty notes and zero bases remain intact.
+Demo requests update real `status` and `updated_at` columns, not nonexistent
+responder fields. Task writes use generated update shapes; section writes
+validate the same editable fields and preserve operator and archived-section
+guards. Layout RPC contracts describe existing migrations on the original
+authenticated client; no new client, credentials or generated types.
+Product cells reuse the existing row formatter. Both AI rejection surfaces
+now keep `item_id` canonical, fixing the known reject-payload bug on this
+branch only; production has not received it.
+
+**Still blocked:** the same twelve Developer Manager TS2339 signatures for
+`blocked_since`, `blocked_reason`, `promise_id`, `quality_score` and
+`escalate_threshold_hours`. No invented column, fake Developer Manager type,
+migration or rejected delivery-enrichment follow-up was introduced. The only
+change in that server file accepts the real nullable priority in its existing
+UI-priority mapper. The other 34 diagnostics are outside these two codes;
+this is not a zero-error typecheck or a full typecheck PASS.
+
+Validation: 159 tests pass across twenty files, including the retained
+regression suites, actual mutation handlers, SDK request/default checks,
+nullable UI rows and both rejection paths. The isolated standard build
+passes; the generated route tree is unchanged. Four new test files are
+lint-clean, and scoped lint has zero new non-formatting findings. Full
+scoped lint is not a pass because formatting findings remain.
+Desktop/mobile screenshots exercise the actual rejection component with
+explicitly labelled local fixtures, never production business data.
+Production remains `c911091`, with unchanged process/start time, tracked
+source and running-build checksum. No deployment, restart or database
+mutation. Live acceptance remains UNVERIFIED. Rollback is a normal revert
+of this commit, preserving the earlier approved fixes; the reverse patch
+is verified against the private native source.
 
 ## Do not
 

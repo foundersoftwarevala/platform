@@ -551,7 +551,19 @@ export const configureSection = createServerFn({ method: "POST" })
     z
       .object({
         key: z.string().min(1).max(120),
-        patch: z.record(z.string(), z.unknown()),
+        patch: z.object({
+          status: z.string().optional(),
+          enabled: z.boolean().optional(),
+          sort_order: z.number().int().optional(),
+          visible_desktop: z.boolean().optional(),
+          visible_mobile: z.boolean().optional(),
+          starts_at: z.string().nullable().optional(),
+          ends_at: z.string().nullable().optional(),
+          title: z.string().optional(),
+          subtitle: z.string().nullable().optional(),
+          cta_label: z.string().nullable().optional(),
+          cta_href: z.string().nullable().optional(),
+        }),
       })
       .parse(i),
   )
@@ -565,27 +577,10 @@ export const configureSection = createServerFn({ method: "POST" })
       throw new Error("Changing a homepage section needs marketplace operator rights.");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const allowed = [
-      "status",
-      "enabled",
-      "sort_order",
-      "visible_desktop",
-      "visible_mobile",
-      "starts_at",
-      "ends_at",
-      "title",
-      "subtitle",
-      "cta_label",
-      "cta_href",
-    ] as const;
-    const patch: Record<string, unknown> = {};
-    for (const k of allowed) {
-      if (k in data.patch) patch[k] = data.patch[k as string];
-    }
-    if (!Object.keys(patch).length) {
+    const patch = { ...data.patch, updated_at: new Date().toISOString() };
+    if (!Object.keys(data.patch).length) {
       throw new Error("Nothing in that change is editable from here.");
     }
-    patch.updated_at = new Date().toISOString();
 
     // An archived section is retired on purpose (archived_section_guard); it is
     // not brought back by publishing it from here.
@@ -596,8 +591,7 @@ export const configureSection = createServerFn({ method: "POST" })
       .maybeSingle();
     if (readError) throw new Error(readError.message);
     if (!current) throw new Error("There is no homepage section with that key.");
-    // status is a real column (20260906210000); the generated types predate it.
-    const currentStatus = (current as unknown as { status?: string }).status;
+    const currentStatus = current.status;
     if (currentStatus === "archived" && ("status" in patch || "enabled" in patch)) {
       throw new Error(
         "This section is archived. Restore it from Layout Order before publishing it.",

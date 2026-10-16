@@ -41,9 +41,9 @@ const LeadInbox = () => {
     }
   };
 
-  const advanceStage = (id: string, stage: string) => {
+  const advanceStage = (id: string, stage: string | null) => {
     const order = ["new", "contacted", "qualified", "proposal", "won"];
-    const next = order[Math.min(order.indexOf(stage) + 1, order.length - 1)] ?? "contacted";
+    const next = order[Math.min(order.indexOf(stage ?? "") + 1, order.length - 1)] ?? "contacted";
     updateLead.mutate(
       { id, values: { stage: next, qualified: next !== "new" } },
       {

@@ -184,10 +184,7 @@ export const generatePromiseInsights = createServerFn({ method: "POST" })
     // Generating advice is itself an event worth recording (section 22).
     await db.rpc("pt_audit", {
       p_action: "AI Insights Generated",
-      // Omitted rather than null: both default to NULL in pt_audit.
-      p_promise_id: undefined,
       p_details: `${rows.length} insight(s) from ${service}${model ? ` (${model})` : ""}`,
-      p_old: undefined,
       p_new: String(rows.length),
     });
 

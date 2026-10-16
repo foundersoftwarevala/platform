@@ -3,7 +3,7 @@
 // Admin mutations use requireSupabaseAuth — RLS enforces boss/admin role.
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestIP } from "@tanstack/react-start/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { SlidingWindowLimiter } from "@/lib/i18n/limits";
@@ -11,6 +11,16 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
 import { catalogueEntries, type CatalogueEntry } from "@/data/catalogue";
 import { LIFETIME_PRICE } from "@/lib/site-content/constants";
+
+// Migration-backed layout RPCs are absent from the cloud-generated metadata.
+type LayoutDatabase = Omit<Database, "public"> & {
+  public: Omit<Database["public"], "Functions"> & {
+    Functions: Database["public"]["Functions"] & {
+      mm_layout_history: { Args: { p_limit?: number }; Returns: Json };
+      mm_layout_restore: { Args: { p_audit_id: string }; Returns: Json };
+    };
+  };
+};
 
 export type ProductDemoBinding = {
   id: string;
@@ -1102,7 +1112,8 @@ export const layoutHistory = createServerFn({ method: "GET" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
-    const { data, error } = await context.supabase.rpc("mm_layout_history", { p_limit: 20 });
+    const client = context.supabase as SupabaseClient<LayoutDatabase>;
+    const { data, error } = await client.rpc("mm_layout_history", { p_limit: 20 });
     if (error) throw new Error(error.message);
     return (data ?? { entries: [] }) as { entries: Json[] };
   });
@@ -1114,7 +1125,8 @@ export const layoutRestore = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
-    const { data: result, error } = await context.supabase.rpc("mm_layout_restore", {
+    const client = context.supabase as SupabaseClient<LayoutDatabase>;
+    const { data: result, error } = await client.rpc("mm_layout_restore", {
       p_audit_id: data.auditId,
     });
     if (error) throw new Error(error.message);

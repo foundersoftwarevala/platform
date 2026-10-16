@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireJsonObject } from "@/lib/json";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 
 /**
  * The platform's task service.
@@ -171,7 +172,7 @@ async function transition(taskId: string, to: string, note?: string) {
 
   const db = await admin();
   const now = new Date().toISOString();
-  const patch: Record<string, unknown> = { status: to, updated_at: now };
+  const patch: TablesUpdate<"tm_tasks"> = { status: to, updated_at: now };
   if (to === "in_progress") patch.started_at = now;
   if (to === "completed") {
     patch.completed_at = now;
@@ -381,7 +382,7 @@ export const reviewTask = createServerFn({ method: "POST" })
     if (!isOperator) return { ok: false as const, reason: "forbidden" };
 
     const db = await admin();
-    const patch: Record<string, unknown> = { approval_status: data.decision };
+    const patch: TablesUpdate<"tm_tasks"> = { approval_status: data.decision };
     if (data.qualityScore !== undefined) patch.quality_score = data.qualityScore;
     const { error } = await db.from("tm_tasks").update(patch).eq("id", data.taskId);
     if (error) return { ok: false as const, reason: error.message };
@@ -539,7 +540,7 @@ export const approveTask = createServerFn({ method: "POST" })
     const { isOperator } = await requireUser();
     if (!isOperator) return { ok: false as const, reason: "forbidden" };
     const db = await admin();
-    const patch: Record<string, unknown> = { approval_status: "approved" };
+    const patch: TablesUpdate<"tm_tasks"> = { approval_status: "approved" };
     if (data.qualityScore !== undefined) patch.quality_score = data.qualityScore;
     await db.from("tm_tasks").update(patch).eq("id", data.taskId);
     await record(data.taskId, "Approved", "approval", null, "approved", data.comment);

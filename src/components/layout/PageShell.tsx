@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 /**
@@ -119,7 +119,7 @@ export function ModuleHero({
   eyebrow?: string;
   title: string;
   description?: string;
-  icon?: LucideIcon;
+  icon?: ComponentType<{ className?: string }>;
   actions?: ReactNode;
   meta?: Array<{ label: string; value: string }>;
 }) {

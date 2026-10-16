@@ -376,7 +376,7 @@ export const updateRecord = createServerFn({ method: "POST" })
     const { data: row, error } = await db
       .from(data.table)
       .update(data.values as never)
-      .eq("id", data.id)
+      .match({ id: data.id })
       .select()
       .single();
     if (error) throw new Error(error.message);
@@ -613,7 +613,7 @@ export const deleteRecord = createServerFn({ method: "POST" })
     requireCentralAiManager(context, [data.table]);
     await refuseWorkflowTable(context, data.table, "delete", data.id);
     await refuseAppendOnly(context, data.table, "delete", data.id);
-    const { error } = await db.from(data.table).delete().eq("id", data.id);
+    const { error } = await db.from(data.table).delete().match({ id: data.id });
     if (error) throw new Error(error.message);
     await writeAudit(context, `${data.table}.deleted`, data.table, data.id, {}, "warning");
     return { ok: true };
