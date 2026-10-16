@@ -1,7 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { rest as serviceRest } from "@/lib/affiliate/core";
-import { APPLICATION_KINDS, listApplications, type ApplicationKind } from "@/lib/applications/registry.server";
+import {
+  APPLICATION_KINDS,
+  listApplications,
+  type ApplicationKind,
+} from "@/lib/applications/registry.server";
 import { controlPanelCaller } from "@/lib/control-panel/access.server";
 
 /**
@@ -16,7 +20,9 @@ import { controlPanelCaller } from "@/lib/control-panel/access.server";
  */
 
 /** Where each programme's live partners are, and the status that means live. */
-const LIVE: Record<ApplicationKind, string> = {
+const PARTNER_KINDS = APPLICATION_KINDS.filter((kind) => kind !== "employee");
+type PartnerKind = Exclude<ApplicationKind, "employee">;
+const LIVE: Record<PartnerKind, string> = {
   reseller: "resellers?status=eq.active",
   vendor: "marketplace_sellers?seller_kind=eq.vendor&status=eq.approved",
   author: "marketplace_sellers?seller_kind=eq.author&status=eq.approved",
@@ -35,7 +41,7 @@ async function countOf(path: string): Promise<number | null> {
 }
 
 export type PartnerProgramme = {
-  kind: ApplicationKind;
+  kind: PartnerKind;
   live: number | null;
   openApplications: number | null;
 };
@@ -47,12 +53,12 @@ export const Route = createFileRoute("/api/control-panel/partners")({
         const access = await controlPanelCaller(request);
         if (!access.ok) return access.response;
 
-        const open = await listApplications([...APPLICATION_KINDS], true).catch((error: unknown) => {
+        const open = await listApplications(PARTNER_KINDS, true).catch((error: unknown) => {
           console.error("[partners] applications unavailable", error);
           return null;
         });
         const programmes: PartnerProgramme[] = await Promise.all(
-          APPLICATION_KINDS.map(async (kind) => ({
+          PARTNER_KINDS.map(async (kind) => ({
             kind,
             live: await countOf(LIVE[kind]),
             openApplications: open ? open.filter((a) => a.kind === kind).length : null,
