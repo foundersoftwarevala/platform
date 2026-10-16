@@ -452,8 +452,79 @@ change that moves it.
 | Phase 3 merged orphan history; all 23 deletions already present on main | 205 |
 | Phase 3 merged safe TS2339 contracts, including the blocked-policy revert | 109 |
 | Phase 3 merged assignment, nullable-value and mutation contracts | 46 |
-| Phase 3 merged all consumer fixes; fresh full compiler (2026-10-16) | **11** (current, blocked) |
+| Phase 3 merged all consumer fixes; fresh full compiler (2026-10-16) | 11 |
+| Phase 4 developer blocked/escalation contract; fresh full compiler | **2** (current, promise selection blocked) |
 | Target | 0 |
+
+### Phase 4 Developer Escalation contract (2026-10-16)
+
+The overview now reads canonical `tm_tasks.blocked_reason` and current status
+through the existing link, and derives the current blocked episode from
+append-only `tm_activity` status transitions. Trigger/service duplicates do
+not restart the timer; a real unblock/reblock does. History is paged against
+its exact count, and read/write/audit errors propagate.
+
+The existing intended 24-hour fallback is now an explicit Developer Manager
+policy constant, not a nonexistent task column or delivery `sla_hours`.
+No new per-task configuration or policy approval is implied. Legacy/unlinked,
+inconsistent or unverifiable history has null age, stays visible and supports
+manual escalation; its existing deadline-breach path remains active.
+All three blocked-task consumers distinguish unknown age from zero. A UI
+threshold crossing alone no longer claims an escalation was persisted.
+Automatic escalation audit records retain the authorized overview caller.
+
+Validation: 28 tests pass across four suites. A fresh full compiler removes
+nine errors (11 -> 2); only the identical two `promise_id` diagnostics remain.
+Promise selection is not guessed or changed by this repair. Escalation runs
+on overview requests, not an independent scheduler. Existing-open checks are
+retained; cross-process concurrency is not claimed atomic without a database
+uniqueness/transaction change. No production endpoint, database or service
+was changed or invoked to trigger an escalation. Rollback is a normal revert.
+
+### Phase 4 task billing-time contract (2026-10-16)
+
+`getTaskWallet` now reads persisted `tm_time_logs.seconds`, not the nonexistent
+`minutes` field. It pages all matching logs using their exact count and stable
+ID ordering, sums valid nonnegative integer seconds and divides once by 60.
+Sub-minute values remain fractional; no new billing-rounding policy is
+introduced. Recorded financial fields and `actual_minutes` are unchanged;
+running/unpersisted time is not invented.
+
+Task/log read failures and incomplete or invalid logs throw explicitly rather
+than appearing as zero time or a missing task. A successful empty log query
+alone yields zero. Existing staff/roster authorization and true task-not-found
+responses are retained. Validation: 69 cumulative tests across seven files,
+including 3,600 seconds -> 60 minutes, sub-minute sums, 1,201 rows under a
+200-row server cap, failures and access checks. Full compiler remains at the
+same two promise-selection errors. No production or database changes.
+
+### Phase 4 AI-content rejection acceptance (2026-10-16)
+
+The original `id` versus `item_id` defect is already repaired by the Phase 3
+assignment integration. Both Generate and Review queue send `item_id`;
+the existing server validator requires a UUID and calls `mm_ai_item_reject`
+with `p_item`, `p_code` and the optional `p_reason`. No duplicate runtime
+rewrite or migration is needed.
+
+The two UI entry-point regressions now use a valid isolated UUID and verify
+both thrown failures and unsuccessful RPC responses remain visible.
+New tests execute the actual server validator and rejection handler through
+the shared caller-scoped helper and real Supabase SDK against isolated
+fixture responses. They cover canonical payloads, old/invalid inputs,
+optional reasons, missing authentication and permission/business refusals.
+No service-role key is used. All 133 cumulative tests across eleven files
+pass. The SQL function's version/review/audit transaction was inspected;
+real database persistence and deployed UI acceptance remain UNVERIFIED.
+No live rejection or production write was performed.
+
+### Phase 4 main integration scope (2026-10-16)
+
+The owner authorized a normal main merge of the verified Phase 4 branch.
+Preserve the historical owner-pause notes and existing uncommitted application
+edits; do not fold unrelated WIP into this merge. Keep byte-verified WIP
+snapshots and a rehearsed normal-history rollback. This authorization does
+not include a production deployment, service restart or database write.
+The two existing promise-selection diagnostics remain outside this merge.
 
 ### Phase 3 main integration (verified 2026-10-16)
 

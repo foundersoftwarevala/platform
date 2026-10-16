@@ -667,25 +667,43 @@ export const getTaskWallet = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
-    const { data: task } = await db
+    const { data: task, error: taskError } = await db
       .from("tm_tasks")
       .select(
         "id, code, title, billable, cost, currency, billing_status, invoice_reference, payment_reference, settled_at, actual_minutes, estimated_hours, client_name, project_name",
       )
       .eq("id", data.taskId)
       .maybeSingle();
+    if (taskError) throw new Error(`Task wallet read failed: ${taskError.message}`);
     if (!task) return { ok: false as const, reason: "no_such_task" };
 
-    const { data: logs } = await db
-      .from("tm_time_logs")
-      .select("minutes")
-      .eq("task_id", data.taskId);
-    const loggedMinutes = (logs ?? []).reduce(
-      (sum, l) => sum + (Number((l as { minutes?: number }).minutes) || 0),
-      0,
-    );
+    let loggedSeconds = 0;
+    let offset = 0;
+    for (;;) {
+      const { data: logs, error, count } = await db
+        .from("tm_time_logs")
+        .select("id, seconds", { count: "exact" })
+        .eq("task_id", data.taskId)
+        .order("id", { ascending: true })
+        .range(offset, offset + 499);
+      if (error) throw new Error(`Task time logs read failed: ${error.message}`);
+      if (!logs || count === null || (logs.length === 0 && offset < count)) {
+        throw new Error("Task time logs read failed: incomplete time logs");
+      }
+      for (const log of logs) {
+        if (!Number.isSafeInteger(log.seconds) || log.seconds < 0) {
+          throw new Error(`Task time logs contain invalid seconds: ${log.id}`);
+        }
+        loggedSeconds += log.seconds;
+        if (!Number.isSafeInteger(loggedSeconds)) {
+          throw new Error("Task time logs total exceeds safe integer precision");
+        }
+      }
+      offset += logs.length;
+      if (offset >= count) break;
+    }
 
-    return { ok: true as const, wallet: { ...task, logged_minutes: loggedMinutes } };
+    return { ok: true as const, wallet: { ...task, logged_minutes: loggedSeconds / 60 } };
   });
 
 /** Section 22 names this createTask; openTask is the same call. */

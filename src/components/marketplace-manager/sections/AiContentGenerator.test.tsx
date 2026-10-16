@@ -9,7 +9,7 @@ vi.mock("@/lib/marketplace-manager/aicontent.functions", () => ({
     ok: true,
     rows: [
       {
-        id: "content-fixture",
+        id: "10000000-0000-4000-8000-000000000001",
         content_type: "summary",
         status: "GENERATED",
         legal_state: "CLEARED",
@@ -21,7 +21,7 @@ vi.mock("@/lib/marketplace-manager/aicontent.functions", () => ({
     ],
     queue: [
       {
-        id: "content-fixture",
+        id: "10000000-0000-4000-8000-000000000001",
         product: "Fixture product",
         content_type: "summary",
         validation_state: "PASSED",
@@ -70,7 +70,7 @@ describe("AI content rejection payload", () => {
       await waitFor(() =>
         expect(mocks.reject).toHaveBeenCalledWith({
           data: {
-            item_id: "content-fixture",
+            item_id: "10000000-0000-4000-8000-000000000001",
             code: "incorrect_information",
             reason: "Incorrect fixture information",
           },
@@ -82,11 +82,34 @@ describe("AI content rejection payload", () => {
     },
   );
 
-  it("keeps server rejection failures visible", async () => {
-    mocks.reject.mockRejectedValue(new Error("Fixture permission refused"));
-    open();
-    fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
-    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
-    expect(await screen.findByText("Fixture permission refused")).toBeTruthy();
-  });
+  it.each(["Generate", "Review queue"])(
+    "keeps server rejection failures visible in %s",
+    async (tab) => {
+      mocks.reject.mockRejectedValue(new Error("Fixture permission refused"));
+      open();
+      await screen.findByText("Fixture content");
+      if (tab !== "Generate") fireEvent.click(screen.getByRole("button", { name: tab }));
+      fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: tab === "Generate" ? "Reject" : "Confirm" }),
+      );
+      expect(await screen.findByText("Fixture permission refused")).toBeTruthy();
+    },
+  );
+
+  it.each(["Generate", "Review queue"])(
+    "does not report an RPC business refusal as success in %s",
+    async (tab) => {
+      mocks.reject.mockResolvedValue({ ok: false, reason: "not_authorized" });
+      open();
+      await screen.findByText("Fixture content");
+      if (tab !== "Generate") fireEvent.click(screen.getByRole("button", { name: tab }));
+      fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: tab === "Generate" ? "Reject" : "Confirm" }),
+      );
+      expect(await screen.findByText("(not_authorized)")).toBeTruthy();
+      expect(screen.queryByText("Rejected. The content and the reason are kept.")).toBeNull();
+    },
+  );
 });
