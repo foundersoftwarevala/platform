@@ -84,6 +84,8 @@ function fixture(tasks: Task[], developers = [developer()], fail = false) {
         requests.push(url);
         if (request.method !== "GET") throw new Error("Quality fixture must be read-only");
         const table = url.pathname.split("/").at(-1) ?? "";
+        if (table === "promise_links" || table === "promises")
+          return Response.json([], { headers: { "content-range": "*/0" } });
         if (!(table in rows)) throw new Error(`Unexpected fixture relation: ${table}`);
         if (fail && table === "developer_tasks") {
           return Response.json(
@@ -127,7 +129,7 @@ describe("Developer Manager canonical review quality", () => {
     expect(taskQueries).toHaveLength(1);
     expect(taskQueries[0].searchParams.get("select")).toBe("*,tm_tasks(quality_score,blocked_reason,status)");
     expect(taskQueries[0].searchParams.get("order")).toBe("created_at.desc");
-    expect(requests).toHaveLength(4);
+    expect(requests).toHaveLength(6);
   });
 
   it("retains unlinked tasks and the existing unscored result without inventing a score", async () => {

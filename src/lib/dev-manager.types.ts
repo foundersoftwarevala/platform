@@ -30,7 +30,7 @@ export interface TaskDTO {
   status: UiStatus;
   dueDate: string | null;
   slaHoursRemaining: number;
-  promiseId: string | null;
+  promiseIds: string[];
 }
 
 export interface SLARiskDTO {
@@ -38,7 +38,7 @@ export interface SLARiskDTO {
   code: string;
   title: string;
   assignee: string;
-  promiseId: string | null;
+  promiseIds: string[];
   hoursRemaining: number;
   riskLevel: RiskLevel;
   escalatedAt: string | null;

@@ -76,6 +76,8 @@ function fixture(tasks = [task()], history: Event[] = []) {
           );
         }
         if (request.method === "GET") {
+          if (relation === "promise_links" || relation === "promises")
+            return Response.json([], { headers: { "content-range": "*/0" } });
           if (relation === "developers" || relation === "developer_task_internal_notes")
             return Response.json([]);
           if (relation === "developer_tasks") return Response.json(tasks);

@@ -128,6 +128,84 @@ function label(dev: DeveloperRow | undefined): string {
   return dev?.vala_id ?? "UNASSIGNED";
 }
 
+export async function loadTaskPromiseIds(
+  supabase: Db,
+  tasks: Pick<TaskRow, "tm_task_id">[],
+): Promise<Map<string, string[]>> {
+  const taskIds = [...new Set(tasks.flatMap((task) => (task.tm_task_id ? [task.tm_task_id] : [])))];
+  const linked = new Map(taskIds.map((id) => [id, new Set<string>()]));
+  async function readPages<Row>(
+    page: (
+      from: number,
+      to: number,
+    ) => PromiseLike<{
+      data: Row[] | null;
+      error: { message: string } | null;
+      count: number | null;
+    }>,
+    source: string,
+    consume: (row: Row) => void,
+  ) {
+    let offset = 0;
+    let expectedCount: number | undefined;
+    for (;;) {
+      const { data, error, count } = await page(offset, offset + 499);
+      if (error) throw new Error(`${source} read failed: ${error.message}`);
+      if (
+        !data ||
+        count === null ||
+        !Number.isSafeInteger(count) ||
+        count < 0 ||
+        (expectedCount !== undefined && count !== expectedCount) ||
+        offset + data.length > count ||
+        (data.length === 0 && offset < count)
+      ) {
+        throw new Error(`${source} read failed: incomplete or changing result set`);
+      }
+      expectedCount = count;
+      for (const row of data) consume(row);
+      offset += data.length;
+      if (offset >= count) return;
+    }
+  }
+  function add(taskId: string | null, promiseId: string) {
+    const ids = taskId ? linked.get(taskId) : undefined;
+    if (!ids) throw new Error("Promise linkage read returned an unexpected task reference");
+    ids.add(promiseId);
+  }
+  for (let start = 0; start < taskIds.length; start += 50) {
+    const batch = taskIds.slice(start, start + 50);
+    // Match both sources used by pt_promises_for; completion uses task_manager and the canonical UUID.
+    await Promise.all([
+      readPages(
+        (from, to) =>
+          supabase
+            .from("promise_links")
+            .select("id,record_id,promise_id", { count: "exact" })
+            .eq("module", "task_manager")
+            .in("record_id", batch)
+            .order("id", { ascending: true })
+            .range(from, to),
+        "Promise links",
+        (row) => add(row.record_id, row.promise_id),
+      ),
+      readPages(
+        (from, to) =>
+          supabase
+            .from("promises")
+            .select("id,linked_record_id", { count: "exact" })
+            .eq("linked_module", "task_manager")
+            .in("linked_record_id", batch)
+            .order("id", { ascending: true })
+            .range(from, to),
+        "Promise primary links",
+        (row) => add(row.linked_record_id, row.id),
+      ),
+    ]);
+  }
+  return new Map([...linked].map(([id, ids]) => [id, [...ids].sort()]));
+}
+
 async function loadBlockedStarts(supabase: Db, tasks: DeliveryTaskRow[], now: number) {
   const starts = new Map<string, string | null>();
   for (const task of tasks) {
@@ -344,7 +422,11 @@ export async function loadDeliveryOverview(
   const tasks: TaskRow[] = deliveryTasks;
   let escalations = escRes.data ?? [];
   const notes = noteRes.data ?? [];
-  const blockedStarts = await loadBlockedStarts(supabase, deliveryTasks, now);
+  const openTasks = tasks.filter((t) => OPEN_STATUSES.includes(t.status));
+  const [blockedStarts, promiseIdsByTask] = await Promise.all([
+    loadBlockedStarts(supabase, deliveryTasks, now),
+    loadTaskPromiseIds(supabase, openTasks),
+  ]);
 
   const devById = new Map(developers.map((d) => [d.id, d]));
   const openEscalationTaskIds = new Set(
@@ -364,8 +446,6 @@ export async function loadDeliveryOverview(
     if (refreshed.error) throw new Error(`Escalation read failed: ${refreshed.error.message}`);
     escalations = refreshed.data ?? [];
   }
-
-  const openTasks = tasks.filter((t) => OPEN_STATUSES.includes(t.status));
 
   const capacity: DeveloperCapacityDTO[] = developers.map((dev) => {
     const mine = openTasks.filter((t) => t.developer_id === dev.id);
@@ -393,7 +473,7 @@ export async function loadDeliveryOverview(
       status: uiStatus(t.status),
       dueDate: t.deadline,
       slaHoursRemaining: Number.isFinite(remaining) ? Math.round(remaining) : 999,
-      promiseId: t.promise_id,
+      promiseIds: t.tm_task_id ? promiseIdsByTask.get(t.tm_task_id) ?? [] : [],
     };
   });
 
@@ -413,7 +493,7 @@ export async function loadDeliveryOverview(
         code: taskCode(t.id),
         title: t.title,
         assignee: label(t.developer_id ? devById.get(t.developer_id) : undefined),
-        promiseId: t.promise_id,
+        promiseIds: t.tm_task_id ? promiseIdsByTask.get(t.tm_task_id) ?? [] : [],
         hoursRemaining: Math.round(remaining),
         riskLevel: level,
         escalatedAt: escalatedAtByTask.get(t.id) ?? null,
