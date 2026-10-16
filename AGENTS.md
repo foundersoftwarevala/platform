@@ -441,8 +441,40 @@ change that moves it.
 | Serialisable product page types | 351 |
 | Country rail single conversion and status-based numbering | 348 |
 | Product page passes the indexing gate a URL string | 347 |
-| Fresh cloud types: 589 tables; identical main diagnostics (2026-10-14) | **347** (current) |
+| Fresh cloud types: 589 tables; identical main diagnostics (2026-10-14) | 347 |
+| Phase 3 main baseline `0947add`, fully rechecked (2026-10-15) | 347 |
+| Phase 3 merged fast wins; existing retirement contract/deletions preserved | **341** (current) |
 | Target | 0 |
+
+### Scoped typecheck fast wins (2026-10-14)
+
+The fresh cloud types in production release `c911091` reduced the scoped
+baseline to 533 diagnostics. The isolated
+`fix/scoped-typecheck-fast-wins-20261014` branch changes only the `Resource`
+declaration and nine React class-member modifiers, plus regression tests and
+this record:
+
+| Scoped source | Errors |
+|---|---|
+| Fresh cloud types, production `c911091` | 533 |
+| Optional `Resource.retirable` declaration | 494 |
+| Nine explicit React `override` modifiers | **485** |
+
+Both full native TypeScript checks completed against the exact scoped source;
+39 excess-property diagnostics and nine missing-override diagnostics were
+removed, with no new diagnostic signatures. Mainline's 347-error baseline is
+separate and unchanged. The three implementation files emit identical
+JavaScript before and after these type-only changes.
+
+Regression validation: 33 tests pass across three suites, covering archive
+PATCH/no physical DELETE, authorization and upstream failures, existing
+product-creation guards, and homepage/section error logging and retries.
+Resources without an archive configuration still reject retirement with 403;
+the three known missing configurations above remain a separate task.
+The new tests have no lint errors or warnings; existing implementation-file
+lint findings are unchanged. Production remains `c911091`; this fix branch
+has not been deployed. Roll back this branch's change with a normal commit
+revert, never by rewriting pushed history.
 
 ## Do not
 
