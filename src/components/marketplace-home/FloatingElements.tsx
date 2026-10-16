@@ -91,6 +91,7 @@ function useTriggered(element: FloatingElement): boolean {
       document.addEventListener("mouseout", onLeave);
       return () => document.removeEventListener("mouseout", onLeave);
     }
+    return undefined;
   }, [element.trigger, element.trigger_value, immediate]);
 
   return shown;

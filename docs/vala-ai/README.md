@@ -1,7 +1,7 @@
 # Vala AI — Software Vala's own engineering agent
 
 Operated from the Control Panel (`/vala-ai`). No separate login, no external AI
-provider required, no Supabase dependency of its own. This file is the record a new
+provider, no Supabase dependency of its own. This file is the record a new
 session (or person) reads first to continue the work.
 
 ## Status
@@ -22,8 +22,8 @@ Audit fixes and their evidence: [REMEDIATION.md](REMEDIATION.md). Designs awaiti
 | Resource protection                                                  | Built, tested      | disk/memory floors, command timeouts with process-tree kill, output caps, write budgets                    |
 | Live running preview of client apps                                  | Not built          | preview = verified diff + file view                                                                        |
 | Orchestration of existing worker agents                              | Not built          | existing workers depend on the discontinued database                                                       |
-| OS-level sandbox for checks                                          | Built, tested live | pinned Docker image, unprivileged user, isolated network/filesystem and bounded resources                   |
-| Licensing & delivery, automated project deployment, source-library indexing | Not built     | later phases; separate authorization remains necessary                                                     |
+| OS-level sandbox for commands                                        | Not built          | commands run in the workspace with a scrubbed environment                                                  |
+| Licensing & delivery, production deployment, source-library indexing | Not built          | later phases; deployment needs separate authorization                                                      |
 
 ## Architecture
 
@@ -122,62 +122,50 @@ read (`git clone --no-hardlinks`).
 
 Tests: `npx vitest run src/lib/vala-ai` (the agent-loop tests use a stub model server as a test double).
 
-## Scoped production release (2026-10-12)
+## Production preparation (2026-10-12; application not deployed)
 
-The separately authorized application deployment succeeded using `scripts/ops/sv-deploy.sh`.
-Release build: `01d70d4`, branch `deploy/vala-ai-20261012`, based on previous production
-`5f1dfa1`. No full-main deployment was performed.
+- Approved directories and environment are staged outside the application, under
+  `/var/lib/vala-ai` and `/etc/softwarevala/vala-ai.env`. Root-owned data directory: 0750.
+  Numeric sandbox UID/GID: 10001:10001. See [sandbox verification](./SANDBOX_DESIGN.md).
+- Daily 02:30 UTC root backup schedule, seven-copy retention and local-root failure mail are
+  installed. No live SQLite database exists; only isolated backup/restore fixtures were tested.
+  See [backup status and rollback evidence](./BACKUP.md).
+- Model source defaults to `local`. The registered OpenAI service is enabled/approved, with an
+  encrypted credential and runtime encryption key present. Credential validity and provider
+  acceptance remain unverified; no real provider request was made.
+- One application process runs one task step at a time.
 
-The eleven original implementation commits were cherry-picked without conflicts:
+### Scoped deployment plan only
+
+Use a new isolated branch from production `5f1dfa1`, not full main. Apply the eleven original
+implementation commits in order:
 `526b852`, `e919f19`, `feb33bc`, `a533f05`, `122df40`, `e87cd6e`, `651c8d3`, `b136ae3`,
-`2235329`, `c83e737`, `06bd77d`. The release also includes the independently published
-redaction fix `2efd861`, approved workspace/backup preparation from `0947add`, and
-scoped validation documentation. Protected dirty UI files and unrelated main changes were excluded.
+`2235329`, `c83e737`, `06bd77d`, plus reviewed workspace/backup preparation changes.
+Read-only inspection found no changed-file overlap with production since common base `7cf353c`;
+actual cherry-pick, generated routing/i18n integration and candidate build are not yet verified.
+Exclude protected dirty UI files and unrelated main changes.
 
-### Verified
+Before release:
 
-- Eight approved environment keys are active in the sole PM2 application process, persisted
-  in the application environment and `/root/sv-app.config.cjs`, with the approved root-only
-  `/etc/softwarevala/vala-ai.env` as the persistent Vala source.
-- `/var/lib/vala-ai` is root-owned 0750; sandbox user is 10001:10001.
-  The live database is `/var/lib/vala-ai/vala.db`, schema v3. Audit chain is intact.
-- Full Linux Vala suite: **104 passed, zero failed, one intentionally skipped real-provider
-  test**. All eight Docker cases passed. Additional real acceptance proved stale labelled
-  containers are removed without removing an unrelated sentinel, and unpinned/missing images
-  are refused. No acceptance containers remain.
-- Scoped lint and production builds passed. Generated routing/catalogue integration was
-  checked. Exact production-base typecheck: **4,713 errors**; candidate: **4,708**.
-  Five existing errors were removed; zero new errors and zero errors in changed files.
-  These are not clean full typechecks. Main's 347-error count is not this older base's baseline.
-- Public homepage, login, marketplace, Control Panel and all nine Vala screens returned 200.
-  The owner opened every Vala screen in the browser; eight authenticated read API surfaces
-  returned 200, anonymous system status returned 401. Docker status reports ready.
-- English source pack correctly has zero translated entries. Hindi/Arabic native packs and
-  LTR/RTL SSR passed. All eight slot sitemap pages contain **7,199 unique URLs**, unchanged.
-- Full-row counts/checksums of products, slots and both copies of the SEO decision/fingerprint
-  tables remained unchanged. No business PostgreSQL write or real provider request was performed.
-- The actual installed 02:30 UTC backup wrapper successfully backed up the live database;
-  checksum, integrity, disposable restore, identical table row counts and logrotate passed.
-  See [backup proof](./BACKUP.md).
+1. Keep the Linux whitespace-path redaction regression covered. Preparation fixed the
+   operator/viewer defect: full Linux suite now has 104 passed, zero failures and one
+   intentionally skipped real-provider test; targeted workspace/sandbox/backup/Git/RBAC has
+   51 passed. This is private infrastructure acceptance, not deployed browser acceptance.
+2. Typecheck and lint the candidate, run all non-provider tests and eight Docker acceptance
+   cases, build the application, and test backup/restore plus exactly seven retained snapshots.
+   The current full-main typecheck still has 347 known diagnostics; changed Vala files have none.
+3. Obtain separate deployment/restart approval. Snapshot code, environment and any SQLite plus
+   workspace/evidence/release state before activation.
+4. Check homepage/login/marketplace health and the existing 7,199 slot sitemap URLs, then Vala
+   owner/operator/viewer RBAC, pages/API, workspace writes, timeout cleanup and audit integrity.
+   Vala API checks may initialize/write its SQLite database.
+5. Select an authorized local model or explicitly enable AI API Manager settings; provider
+   requests require separate approval.
 
-### Model limitation
+Rollback code/build and environment independently. Stop the app before restoring SQLite;
+coordinate file-tree snapshots, since database restore alone does not restore referenced
+workspaces/evidence. The backup-only infrastructure has a checksum-guarded rollback script.
+Expected integration/deployment work: 2-4 hours, excluding blocker remediation and approvals.
 
-Model source remains **local**. `http://127.0.0.1:5200` is offline; the UI correctly reports
-this, and model-dependent work cannot complete until an authorized model is running.
-The registered OpenAI service was previously verified enabled/approved with encrypted
-credentials and the encryption key present, but credential validity and real generation
-remain **unverified**. No model-source change or real OpenAI acceptance was performed.
-Automated project deployment and package-install network policy remain separate work;
-manual application installation does not implement those capabilities.
-
-### Rollback
-
-Fresh pre-activation build, environment, data-tree snapshot, checksums and guarded rollback:
-`/root/sv-seo-backup/vala-deploy-20261012T182540Z/`.
-The previous `.output` is also retained by the deploy script. `rollback.sh` restores the
-previous branch/build/environment, restarts the app and checks the homepage; new Vala data
-is preserved rather than deleted. SQLite restore must only target a stopped app and must
-be coordinated with workspace/evidence/release files.
-
-Private candidate test/build evidence:
-`/root/sv-seo-backup/vala-scoped-validation-20261012/`.
+Production remains `5f1dfa1`; no application deployment, restart, business database write or
+full-main production deployment was performed during preparation.

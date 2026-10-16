@@ -72,12 +72,12 @@ const OmniChannelInbox = () => {
     const fromCalls: UnifiedMessage[] = (calls ?? []).map((call) => ({
       id: call.id,
       channel: 'call',
-      customer: call.caller_name,
-      preview: call.notes || `${call.direction} call · ${call.status}`,
+      customer: call.caller_name ?? 'Unknown caller',
+      preview: call.notes || `${call.direction} call · ${call.status ?? 'unknown status'}`,
       time: relativeTime(call.started_at),
       unread: call.status === 'missed',
       priority: call.status === 'missed' ? 'high' : 'low',
-      status: call.status,
+      status: call.status ?? 'unknown',
       raw: call,
     }));
     const fromTickets: UnifiedMessage[] = (tickets ?? []).map((t) => ({
@@ -88,7 +88,7 @@ const OmniChannelInbox = () => {
       time: relativeTime(t.created_at),
       unread: t.status === 'open',
       priority: (t.priority as UnifiedMessage['priority']) || 'medium',
-      status: t.status,
+      status: t.status ?? 'unknown',
       raw: t,
     }));
     return [...fromEmails, ...fromChats, ...fromCalls, ...fromTickets].sort(

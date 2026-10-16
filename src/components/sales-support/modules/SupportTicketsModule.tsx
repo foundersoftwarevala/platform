@@ -103,7 +103,7 @@ const SupportTicketsModule = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
     switch (status) {
       case "new": return "bg-purple-500/20 text-purple-300";
       case "assigned": return "bg-blue-500/20 text-blue-300";
@@ -115,7 +115,7 @@ const SupportTicketsModule = () => {
     }
   };
 
-  const openTickets = tickets.filter((t) => !["resolved", "closed"].includes(t.status));
+  const openTickets = tickets.filter((t) => t.status !== "resolved" && t.status !== "closed");
   const criticalCount = tickets.filter((t) => t.priority === "critical" && t.status !== "resolved").length;
   const slaBreach = tickets.filter((t) => t.sla_minutes_remaining < 30 && t.status !== "resolved").length;
 
@@ -186,7 +186,7 @@ const SupportTicketsModule = () => {
                     <div className="flex items-center gap-3">
                       <span className="font-mono text-cyan-400 text-sm">{ticket.reference}</span>
                       <Badge className={getPriorityColor(ticket.priority)}>{ticket.priority}</Badge>
-                      <Badge className={getStatusColor(ticket.status)}>{ticket.status.replace('_', ' ')}</Badge>
+                      <Badge className={getStatusColor(ticket.status)}>{ticket.status?.replace('_', ' ') ?? "Unknown"}</Badge>
                       <Badge variant="outline" className="text-muted-foreground">{ticket.category}</Badge>
                     </div>
                     {ticket.status !== "resolved" && ticket.status !== "closed" && (

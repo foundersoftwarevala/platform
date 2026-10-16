@@ -16,6 +16,10 @@ export type AnalyticsRow = Database["public"]["Tables"]["demo_analytics"]["Row"]
 export type EscalationRow = Database["public"]["Tables"]["demo_escalations"]["Row"];
 export type CredentialRow = Database["public"]["Tables"]["demo_login_credentials"]["Row"];
 export type DeploymentRow = Database["public"]["Tables"]["demo_deployments"]["Row"];
+export type DomainRow = Database["public"]["Tables"]["demo_domains"]["Row"];
+
+export const alertNeedsAction = (alert: Pick<AlertRow, "is_resolved">): boolean =>
+  !alert.is_resolved;
 
 /** Live health state of a demo. */
 export type HealthState = "live" | "slow" | "error" | "offline" | "maintenance";
@@ -189,10 +193,14 @@ export const brandingChecks = (demo: DemoRow): OpsCheck[] => [
 /* Domain / SSL / DNS / HTTPS                                          */
 /* ------------------------------------------------------------------ */
 
-export const domainChecks = (demo: DemoRow, deployment?: DeploymentRow | null): OpsCheck[] => {
+export const domainChecks = (
+  demo: Pick<DemoRow, "url" | "http_status" | "last_health_check">,
+  domain?: Pick<DomainRow, "hostname" | "status"> | null,
+): OpsCheck[] => {
   const url = safeUrl(demo.url);
   const host = url?.hostname ?? "";
   const https = url?.protocol === "https:";
+  const mapped = domain?.hostname.toLowerCase() === host.toLowerCase() ? domain : null;
   return [
     {
       id: "https",
@@ -208,21 +216,21 @@ export const domainChecks = (demo: DemoRow, deployment?: DeploymentRow | null): 
     {
       id: "domain-mapping",
       label: "Auto Domain Mapping",
-      state: deployment?.approved_domain
-        ? "pass"
+      state: mapped
+        ? mapped.status === "live" ? "pass" : "warn"
         : host && !isSharedHost(host)
           ? "pass"
           : host
             ? "warn"
             : "fail",
-      detail: deployment?.approved_domain
-        ? `Approved domain: ${deployment.approved_domain}${deployment.is_domain_locked ? " (locked)" : ""}`
+      detail: mapped
+        ? `Mapped domain: ${mapped.hostname} (${mapped.status})`
         : host
           ? isSharedHost(host)
             ? `Running on shared host ${host} — no custom domain mapped.`
             : `Custom domain in use: ${host}`
           : "No host resolved from the stored URL.",
-      source: "demo_deployments.approved_domain / demos.url",
+      source: "demo_domains.hostname / demos.url",
     },
     {
       id: "reachability",

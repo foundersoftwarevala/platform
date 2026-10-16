@@ -9,7 +9,7 @@ import { Globe, Palette, RefreshCw, ShieldCheck } from "lucide-react";
 import { DataStateNotice } from "@/components/demo-manager/DataStateNotice";
 import { useAuth } from "@/hooks/useAuth";
 import { CheckList, MonitorGap, OpsSection, StateBadge } from "./OpsPrimitives";
-import { useOpsActions, useOpsDemos, useOpsDeployments } from "@/hooks/useDemoOps";
+import { useOpsActions, useOpsDemos, useOpsDeployments, useOpsDomain } from "@/hooks/useDemoOps";
 import { brandingChecks, domainChecks, isSharedHost, safeUrl } from "@/lib/demo-ops";
 import { cn } from "@/lib/utils";
 
@@ -127,6 +127,8 @@ export function OpsDomainPanel() {
   const [selected, setSelected] = useState<string | null>(null);
   const active = demos.find((d) => d.id === selected) ?? demos[0] ?? null;
   const deployment = (deploymentsQuery.data ?? []).find((d) => d.demo_id === active?.id) ?? null;
+  const hostname = safeUrl(active?.url ?? "")?.hostname ?? "";
+  const domainQuery = useOpsDomain(hostname);
 
   const fleet = useMemo(() => {
     let http = 0;
@@ -147,13 +149,13 @@ export function OpsDomainPanel() {
   return (
     <OpsSection
       title="Domain Mapping · SSL · DNS · HTTPS"
-      description="Derived from the stored demo URL and the approved domain on demo_deployments. TLS and DNS probes are reported as not monitored rather than estimated."
+      description="Derived from the stored demo URL and its matching hostname in demo_domains. TLS and DNS probes are reported as not monitored rather than estimated."
       icon={Globe}
       actions={demos.length > 0 ? <DemoPicker demos={demos} value={active?.id ?? null} onChange={setSelected} /> : undefined}
     >
       <DataStateNotice
-        isLoading={demosQuery.isLoading}
-        error={demosQuery.error ?? deploymentsQuery.error}
+        isLoading={demosQuery.isLoading || deploymentsQuery.isLoading || domainQuery.isFetching}
+        error={demosQuery.error ?? deploymentsQuery.error ?? domainQuery.error}
         isEmpty={!demosQuery.isLoading && !demosQuery.error && demos.length === 0}
         hasSession={Boolean(user)}
         resource="domain configuration"
@@ -162,10 +164,11 @@ export function OpsDomainPanel() {
         onRetry={() => {
           void demosQuery.refetch();
           void deploymentsQuery.refetch();
+          if (hostname) void domainQuery.refetch();
         }}
       >
         <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-          <div>{active && <CheckList checks={domainChecks(active, deployment as never)} />}</div>
+          <div>{active && <CheckList checks={domainChecks(active, domainQuery.data)} />}</div>
           <div className="space-y-3">
             <div className="rounded-lg border border-border/40 bg-background/40 p-3 space-y-2">
               <p className="text-xs font-semibold text-foreground flex items-center gap-2">
@@ -189,16 +192,16 @@ export function OpsDomainPanel() {
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-muted-foreground">Status</span>
                   <Badge variant="outline" className="text-[9px]">
-                    {String((deployment as any).deployment_status ?? "—")}
+                    {deployment.state}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-muted-foreground">Domain locked</span>
-                  <StateBadge state={(deployment as any).is_domain_locked ? "pass" : "warn"} />
+                  <StateBadge state="unmonitored" label="not recorded" />
                 </div>
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-muted-foreground">Blocked attempts</span>
-                  <span className="font-mono">{String((deployment as any).blocked_attempts ?? 0)}</span>
+                  <span className="font-mono">—</span>
                 </div>
               </div>
             )}

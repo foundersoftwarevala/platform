@@ -100,7 +100,7 @@ const DemoBrokenAlerts = () => {
 
       const latestHealth = new Map<string, NonNullable<typeof health.data>[number]>();
       (health.data ?? []).forEach((h) => {
-        if (!latestHealth.has(h.demo_id)) latestHealth.set(h.demo_id, h);
+        if (h.demo_id && !latestHealth.has(h.demo_id)) latestHealth.set(h.demo_id, h);
       });
       const latestValidation = new Map<string, NonNullable<typeof validations.data>[number]>();
       (validations.data ?? []).forEach((v) => {
@@ -108,7 +108,7 @@ const DemoBrokenAlerts = () => {
       });
       const clickCounts = new Map<string, number>();
       (clicks.data ?? []).forEach((c) => {
-        clickCounts.set(c.demo_id, (clickCounts.get(c.demo_id) ?? 0) + 1);
+        if (c.demo_id) clickCounts.set(c.demo_id, (clickCounts.get(c.demo_id) ?? 0) + 1);
       });
 
       return rows.map((demo) => {

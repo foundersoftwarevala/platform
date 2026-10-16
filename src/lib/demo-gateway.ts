@@ -85,11 +85,14 @@ export function validateDemoUrl(urlString: string): boolean {
  */
 export const getDemoConfig = createServerFn({ method: "GET" })
   .middleware([])
-  .handler(async (ctx) => {
-    const slug = ctx.data as string;
-    if (!slug) {
+  .inputValidator((slug: unknown) => {
+    if (typeof slug !== "string" || !slug) {
       throw new Error("Product slug required");
     }
+    return slug;
+  })
+  .handler(async (ctx) => {
+    const slug = ctx.data;
 
     try {
       const env = typeof process !== "undefined" ? process.env : undefined;

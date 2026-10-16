@@ -24,7 +24,7 @@ import LeadInbox from "@/components/sales-support/LeadInbox";
 
 const SalesSupportDashboard = () => {
   const navigate = useNavigate();
-  const { section } = useSearch({ from: "/" });
+  const { section } = useSearch({ strict: false });
   const activeSection = section ?? "overview";
   const reduceMotion = useReducedMotion();
 

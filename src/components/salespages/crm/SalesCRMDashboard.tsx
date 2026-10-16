@@ -53,7 +53,7 @@ const SalesCRMDashboard = () => {
   ];
 
   const funnelData = funnelStages.map((f, i) => {
-    const count = allLeads.filter(l => f.stages.includes(l.stage)).length;
+    const count = allLeads.filter(l => f.stages.some(stage => stage === l.stage)).length;
     return { stage: f.stage, count, color: funnelColors[i] };
   });
   const maxFunnel = Math.max(1, funnelData[0]?.count ?? 1);

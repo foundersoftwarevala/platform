@@ -1,5 +1,7 @@
+import { callAsUser } from "@/lib/supabase-rpc.server";
+import type { JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 import { buildUserMessage, generate, type ProviderBinding } from "@/lib/ai/content-provider";
@@ -19,24 +21,6 @@ import { buildUserMessage, generate, type ProviderBinding } from "@/lib/ai/conte
  * The service key is never used to bypass a permission check.
  */
 
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
-
 const CONTENT_TYPES = [
   "summary", "short_description", "long_description", "seo_description",
   "meta_keywords", "faq", "features", "benefits", "use_cases",
@@ -47,21 +31,21 @@ export type ContentType = (typeof CONTENT_TYPES)[number];
 export type ConsoleView = {
   ok: boolean;
   reason?: string;
-  settings?: Record<string, unknown>;
+  settings?: JsonObject;
   binding?: ProviderBinding;
   can_approve?: boolean;
   stats?: Record<string, number>;
   by_status?: Record<string, number>;
   by_type?: Record<string, number>;
   total?: number;
-  rows?: Record<string, unknown>[];
-  queue?: Record<string, unknown>[];
-  jobs?: Record<string, unknown>[];
-  usage?: Record<string, unknown>;
-  generations?: Record<string, unknown>[];
-  templates?: Record<string, unknown>[];
-  legal_rules?: Record<string, unknown>[];
-  audit?: Record<string, unknown>[];
+  rows?: JsonObject[];
+  queue?: JsonObject[];
+  jobs?: JsonObject[];
+  usage?: JsonObject;
+  generations?: JsonObject[];
+  templates?: JsonObject[];
+  legal_rules?: JsonObject[];
+  audit?: JsonObject[];
   /** Added by the server: whether the credential the registry names is present. */
   provider_state?: {
     state: "CONFIGURED" | "NOT_CONFIGURED" | "NOT_ENABLED" | "NOT_REGISTERED";
@@ -138,18 +122,18 @@ export const getAiContentProducts = createServerFn({ method: "GET" })
     }).parse(i ?? {}),
   )
   .handler(async ({ data }): Promise<{
-    ok: boolean; reason?: string; total?: number; rows?: Record<string, unknown>[];
+    ok: boolean; reason?: string; total?: number; rows?: JsonObject[];
   }> => callAsUser("mm_ai_products", { p_query: data }));
 
 export const getProductContext = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ product_id: z.string().uuid() }).parse(i))
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_context", { p_product: data.product_id }),
   );
 
 export const getItemVersions = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ item_id: z.string().uuid() }).parse(i))
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_item_versions", { p_item: data.item_id }),
   );
 
@@ -167,16 +151,16 @@ async function runOne(
   types: ContentType[],
   language: string | undefined,
   jobId: string | null,
-): Promise<Record<string, unknown>> {
+): Promise<JsonObject> {
   const start = await callAsUser<{
     ok: boolean; reason?: string; detail?: string;
     generation_id?: string; product_name?: string;
     types?: string[]; language?: string;
-    context?: Record<string, unknown>;
+    context?: JsonObject;
     binding?: ProviderBinding;
     system_prompt?: string;
-    brand_voice?: Record<string, unknown>;
-    limits?: Record<string, unknown>;
+    brand_voice?: JsonObject;
+    limits?: JsonObject;
   }>("mm_ai_generation_start", {
     p_product: productId,
     p_types: types,
@@ -184,7 +168,7 @@ async function runOne(
     p_job: jobId,
   });
 
-  if (!start?.ok || !start.generation_id) return start as Record<string, unknown>;
+  if (!start?.ok || !start.generation_id) return start as JsonObject;
 
   const outcome = await generate(
     start.binding ?? {},
@@ -199,7 +183,7 @@ async function runOne(
   );
 
   if (!outcome.ok) {
-    const finished = await callAsUser<Record<string, unknown>>("mm_ai_generation_finish", {
+    const finished = await callAsUser<JsonObject>("mm_ai_generation_finish", {
       p_generation: start.generation_id,
       p_status: outcome.status,
       p_parsed: null,
@@ -210,7 +194,7 @@ async function runOne(
     return { ...finished, product_name: start.product_name };
   }
 
-  const finished = await callAsUser<Record<string, unknown>>("mm_ai_generation_finish", {
+  const finished = await callAsUser<JsonObject>("mm_ai_generation_finish", {
     p_generation: start.generation_id,
     p_status: "SUCCEEDED",
     p_parsed: outcome.parsed,
@@ -229,7 +213,7 @@ export const generateContent = createServerFn({ method: "POST" })
       language: z.string().max(8).optional(),
     }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     runOne(data.product_id, data.types, data.language, null),
   );
 
@@ -244,7 +228,7 @@ export const editContent = createServerFn({ method: "POST" })
       note: z.string().max(500).optional(),
     }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_item_edit", {
       p_item: data.item_id,
       p_content: data.content ?? null,
@@ -257,7 +241,7 @@ export const submitContent = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
     z.object({ item_id: z.string().uuid(), note: z.string().max(500).optional() }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_item_submit", { p_item: data.item_id, p_note: data.note ?? null }),
   );
 
@@ -265,7 +249,7 @@ export const approveContent = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
     z.object({ item_id: z.string().uuid(), note: z.string().max(500).optional() }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_item_approve", { p_item: data.item_id, p_note: data.note ?? null }),
   );
 
@@ -280,7 +264,7 @@ export const rejectContent = createServerFn({ method: "POST" })
       reason: z.string().max(1000).optional(),
     }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_item_reject", {
       p_item: data.item_id, p_code: data.code, p_reason: data.reason ?? null,
     }),
@@ -288,7 +272,7 @@ export const rejectContent = createServerFn({ method: "POST" })
 
 export const publishContent = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ item_id: z.string().uuid() }).parse(i))
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_item_publish", { p_item: data.item_id, p_auto: false }),
   );
 
@@ -296,7 +280,7 @@ export const unpublishContent = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
     z.object({ item_id: z.string().uuid(), reason: z.string().max(500).optional() }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_item_unpublish", { p_item: data.item_id, p_reason: data.reason ?? null }),
   );
 
@@ -304,7 +288,7 @@ export const archiveContent = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
     z.object({ item_id: z.string().uuid(), reason: z.string().max(500).optional() }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_item_archive", { p_item: data.item_id, p_reason: data.reason ?? null }),
   );
 
@@ -312,7 +296,7 @@ export const rollbackVersion = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
     z.object({ item_id: z.string().uuid(), version: z.number().int().min(1) }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_version_rollback", { p_item: data.item_id, p_version: data.version }),
   );
 
@@ -324,7 +308,7 @@ export const legalDecide = createServerFn({ method: "POST" })
       reason: z.string().max(1000).optional(),
     }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_legal_decide", {
       p_item: data.item_id, p_to: data.to, p_reason: data.reason ?? null,
     }),
@@ -345,7 +329,7 @@ export const createBulkJob = createServerFn({ method: "POST" })
       language: z.string().max(8).optional(),
     }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_bulk_create", {
       p_scope: data.scope,
       p_types: data.types,
@@ -369,7 +353,7 @@ export const runBulkBatch = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{
     ok: boolean; reason?: string; done?: boolean; processed?: number;
     results?: { product: string; ok: boolean; detail?: string }[];
-    progress?: Record<string, unknown>;
+    progress?: JsonObject;
   }> => {
     const claim = await callAsUser<{
       ok: boolean; reason?: string; done?: boolean;
@@ -382,10 +366,10 @@ export const runBulkBatch = createServerFn({ method: "POST" })
     if (products.length === 0) return { ok: true, done: true, processed: 0, results: [] };
 
     const results: { product: string; ok: boolean; detail?: string }[] = [];
-    let progress: Record<string, unknown> = {};
+    let progress: JsonObject = {};
 
     for (const row of products) {
-      let outcome: Record<string, unknown>;
+      let outcome: JsonObject;
       try {
         outcome = await runOne(
           row.product_id,
@@ -405,7 +389,7 @@ export const runBulkBatch = createServerFn({ method: "POST" })
         Array.isArray(outcome.results) &&
         (outcome.results as { status?: string }[]).some((x) => x.status === "IN_REVIEW");
 
-      progress = await callAsUser<Record<string, unknown>>("mm_ai_bulk_mark", {
+      progress = await callAsUser<JsonObject>("mm_ai_bulk_mark", {
         p_job: data.job_id,
         p_product: row.product_id,
         p_status: succeeded ? (needsReview ? "NEEDS_REVIEW" : "COMPLETED") : "FAILED",
@@ -432,7 +416,7 @@ export const runBulkBatch = createServerFn({ method: "POST" })
 
 export const retryBulkJob = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => z.object({ job_id: z.string().uuid() }).parse(i))
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_bulk_retry", { p_job: data.job_id }),
   );
 
@@ -440,7 +424,7 @@ export const cancelBulkJob = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
     z.object({ job_id: z.string().uuid(), reason: z.string().max(300).optional() }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_bulk_cancel", { p_job: data.job_id, p_reason: data.reason ?? null }),
   );
 
@@ -471,6 +455,6 @@ export const setAiContentSettings = createServerFn({ method: "POST" })
       reason: z.string().max(300).optional(),
     }).parse(i),
   )
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_ai_settings_set", { p_patch: data }),
   );

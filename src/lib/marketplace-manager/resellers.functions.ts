@@ -1,5 +1,7 @@
+import { callAsUser, createUserClient as userClient } from "@/lib/supabase-rpc.server";
+import type { JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 /**
@@ -12,29 +14,6 @@ import { z } from "zod";
  * use, so there is one attribution source, with the reseller's margin kept in
  * its own ledger so no event is ever settled twice.
  */
-
-/** A database client that acts as the signed-in caller, never as the service. */
-async function userClient() {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  return createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-}
-
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const client = await userClient();
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
 
 export type ResellerStatus =
   | "pending" | "active" | "paused" | "suspended" | "rejected" | "terminated";
@@ -137,8 +116,8 @@ export const getResellers = createServerFn({ method: "GET" })
  */
 export const getResellerDetail = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
-  .handler(async ({ data }): Promise<Record<string, unknown>> => {
-    const detail = await callAsUser<Record<string, unknown>>("mm_reseller_detail", { p_id: data.id });
+  .handler(async ({ data }): Promise<JsonObject> => {
+    const detail = await callAsUser<JsonObject>("mm_reseller_detail", { p_id: data.id });
     const payouts = Array.isArray(detail?.payouts) ? (detail.payouts as { id?: unknown }[]) : [];
     const ids = payouts.map((p) => String(p.id ?? "")).filter(Boolean);
     if (detail?.ok === false || !ids.length) return detail;
@@ -159,7 +138,7 @@ export const getResellerDetail = createServerFn({ method: "GET" })
         action: a.action, at: a.created_at, actor: a.actor_id,
         reason: a.reason, before: a.before_state, after: a.after_state,
       }));
-      const audit = [...((detail.audit as Record<string, unknown>[] | undefined) ?? []), ...extra]
+      const audit = [...((detail.audit as JsonObject[] | undefined) ?? []), ...extra]
         .sort((x, y) => String(y.at ?? "").localeCompare(String(x.at ?? "")));
       return { ...detail, audit };
     } catch {
@@ -244,7 +223,7 @@ export const createResellerPayout = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<{
     ok: boolean; reason?: string; message?: string;
-    payout?: Record<string, unknown>; lines?: number;
+    payout?: JsonObject; lines?: number;
   }> => callAsUser("mm_reseller_payout_create", {
     p_id: data.id, p_reason: data.reason ?? null,
   }));

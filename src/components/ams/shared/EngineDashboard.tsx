@@ -271,7 +271,7 @@ export function EngineDashboard({
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${textOf(r[columns[0]?.key ?? "id"]) || r.id}`} sound="dropdown">
+                                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${textOf(r[columns[0]?.key ?? "id"]) || r.id}`}>
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>

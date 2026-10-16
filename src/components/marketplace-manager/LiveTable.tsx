@@ -32,6 +32,7 @@ type Payload = {
   retirable?: boolean;
   /** Columns the server will sort on. */
   sortable?: string[];
+  sorted_by?: string;
   rows: Row[];
   total: number;
   limit: number;

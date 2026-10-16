@@ -65,7 +65,7 @@ const SupportTeamModule = () => {
     toast.info(`Viewing activity for ${agentId}`, { description: "Activity log opened" });
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
     switch (status) {
       case "online": return "bg-emerald-500/20 text-emerald-300";
       case "busy": return "bg-amber-500/20 text-amber-300";

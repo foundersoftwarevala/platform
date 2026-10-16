@@ -1,4 +1,4 @@
-import { useResource } from "@/lib/manager/use-resource";
+import { text, useResource } from "@/lib/manager/use-resource";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -175,11 +175,11 @@ const ProductList = () => {
                   </TableRow>
                 ) : (
                   products?.map((product) => (
-                    <TableRow key={product.id} className="border-slate-700/50">
+                    <TableRow key={text(product, "id")} className="border-slate-700/50">
                       <TableCell className="text-white font-medium">
-                        {product.name}
+                        {text(product, "name")}
                       </TableCell>
-                      <TableCell className="text-slate-300">{product.industry_label || "-"}</TableCell>
+                      <TableCell className="text-slate-300">{text(product, "industry_label", "-")}</TableCell>
                       <TableCell>
                         <Badge
                           variant={statusOf(product).live ? "default" : "secondary"}
@@ -189,7 +189,7 @@ const ProductList = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-slate-300">
-                        {product.price_label || "-"}
+                        {text(product, "price_label", "-")}
                       </TableCell>
                       <TableCell className="text-slate-400 text-sm">
                         {product.created_at ? formatDate(String(product.created_at), { dateStyle: "medium" }) : "-"}

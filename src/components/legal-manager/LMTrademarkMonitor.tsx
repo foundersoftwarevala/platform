@@ -24,8 +24,8 @@ interface MisuseAlert {
   assetName: string;
   detectedIn: string;
   severity: 'low' | 'medium' | 'high';
-  description: string;
-  aiConfidence: number;
+  description: string | null;
+  aiConfidence: number | null;
   detectedAt: string;
 }
 
@@ -180,7 +180,7 @@ const LMTrademarkMonitor: React.FC = () => {
                       <span className="font-mono text-sm text-muted-foreground">{misuse.id}</span>
                       <Badge className={getSeverityColor(misuse.severity)}>{misuse.severity}</Badge>
                       <Badge variant="outline" className="text-xs">
-                        {misuse.aiConfidence}% AI confidence
+                        {misuse.aiConfidence === null ? "AI confidence not recorded" : `${misuse.aiConfidence}% AI confidence`}
                       </Badge>
                     </div>
                     <p className="font-medium mb-1">Asset: {misuse.assetName}</p>

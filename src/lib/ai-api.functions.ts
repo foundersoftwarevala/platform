@@ -186,7 +186,9 @@ export const listAiRegistry = createServerFn({ method: "GET" }).handler(
     const usageRows = usageResult.value.data ?? [];
     const usageTruncated = usageRows.length >= USAGE_ROW_LIMIT;
     const usageDaily = buildUsageDailySeries(usageRows, now);
-    const providersById = new Map(providersData.map((row: any) => [String(row.id), row]));
+    const providersById = new Map<string, Record<string, unknown>>(
+      providersData.map((row: Record<string, unknown>) => [String(row.id), row]),
+    );
     const capabilitiesByService = new Map<string, string[]>();
     for (const capability of capabilitiesResult.value.data ?? []) {
       const serviceId = String(capability.service_id);

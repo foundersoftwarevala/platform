@@ -13,8 +13,8 @@ export const Route = createFileRoute("/admin/import")({
 
 function AdminImportPage() {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [result, setResult] = useState<Awaited<ReturnType<typeof importSupplied16Demos>> | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleImport = async () => {
     try {

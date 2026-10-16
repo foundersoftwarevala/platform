@@ -1,4 +1,4 @@
-import { useResource } from "@/lib/manager/use-resource";
+import { text, useResource } from "@/lib/manager/use-resource";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, MonitorPlay, TrendingUp, DollarSign, Users, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,7 +58,13 @@ const ProductDashboard = () => {
      * been showing blank names the whole time. Mapped here rather than editing
      * the markup, so the screen is untouched.
      */
-    recentDemos: demos.rows.map((row) => ({ ...row, name: row.demo_name ?? row.name })),
+    recentDemos: demos.rows.map((row) => ({
+      ...row,
+      name: String(row.demo_name ?? row.name ?? ""),
+      status: String(row.status ?? ""),
+      last_result: typeof row.last_result === "string" ? row.last_result : "",
+      last_response_ms: typeof row.last_response_ms === "number" ? row.last_response_ms : null,
+    })),
   };
 
   const statCards = [
@@ -226,7 +232,7 @@ const ProductDashboard = () => {
                           <Package className="w-5 h-5 text-violet-400" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-white group-hover:text-violet-400 transition-colors">{product.name}</p>
+                          <p className="text-sm font-medium text-white group-hover:text-violet-400 transition-colors">{text(product, "name")}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                               product.visible
@@ -235,7 +241,7 @@ const ProductDashboard = () => {
                             }`}>
                               {product.visible ? t("manager.products.state_active") : t("manager.products.state_inactive")}
                             </span>
-                            <span className="text-xs text-slate-500">{product.price_label || t("manager.products.price_not_set")}</span>
+                            <span className="text-xs text-slate-500">{text(product, "price_label", t("manager.products.price_not_set"))}</span>
                           </div>
                         </div>
                       </div>

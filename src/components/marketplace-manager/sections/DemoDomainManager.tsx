@@ -112,7 +112,7 @@ export function DemoDomainManager() {
   });
 
   const settings = useMutation({
-    mutationFn: (v: Parameters<typeof setDemoSettings>[0]["data"]) => setDemoSettings({ data: v }),
+    mutationFn: (v: NonNullable<Parameters<typeof setDemoSettings>[0]>["data"]) => setDemoSettings({ data: v }),
     onSuccess: settled,
     onError: (e: Error) => setNote(e.message),
   });

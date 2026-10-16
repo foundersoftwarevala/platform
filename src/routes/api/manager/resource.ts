@@ -60,6 +60,12 @@ type Resource = {
    */
   archive?: Record<string, unknown>;
   /**
+   * Whether the resource is meant to offer retiring a row. Declarative only:
+   * what the read reports to the console is derived from `archive`, so a
+   * resource marked retirable without an archive change still cannot retire.
+   */
+  retirable?: boolean;
+  /**
    * Real column -> the name the screen uses for it.
    *
    * Several screens were built against a real table and call one or two of its

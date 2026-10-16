@@ -142,7 +142,7 @@ function existingMarketingWall(scope: string, title: string, icon: typeof Target
   return {
     scope, entity: title.toLowerCase(), eyebrow: "Influencer Manager", title,
     subtitle: `Live ${title.toLowerCase()} records from the connected marketing workspace.`, icon,
-    primaryLabel: `New ${title.replace(/s$/, "")}`, canCreate: false, seed: [],
+    primaryLabel: `New ${title.replace(/s$/, "")}`, creatable: false, seed: [],
     columns, filters: [], kpis: [{ label: "Records", icon, compute: (rows) => rows.length }],
     bulkActions: [], formFields: [], searchFields, primaryField: searchFields[0] ?? "id",
   };
@@ -194,7 +194,7 @@ const workflowWall = (scope: string, title: string, table: string, key: string, 
   resource: resourceFor(table),
   scope, entity: title.toLowerCase(), eyebrow: "Influencer Operations", title,
   subtitle: `Live ${title.toLowerCase()} records from the influencer workflow.`, icon: Target,
-  primaryLabel: `New ${title.replace(/s$/, "")}`, canCreate: false, seed: [], columns: simpleColumns(key, label, dateKey), filters: [],
+  primaryLabel: `New ${title.replace(/s$/, "")}`, creatable: false, seed: [], columns: simpleColumns(key, label, dateKey), filters: [],
   kpis: [{ label: "Records", icon: Target, compute: (rows) => rows.length }], bulkActions: [], formFields: [], searchFields: [key], primaryField: key,
 });
 
@@ -243,7 +243,7 @@ for (const group of influencerGroups) {
   for (const item of group.items) {
     if (!influencerRegistry[item.label]) influencerRegistry[item.label] = {
       scope: `influencer-${item.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, entity: item.label.toLowerCase(), eyebrow: group.label, title: item.label,
-      subtitle: `${item.label} has no connected resource in the current database schema.`, icon: item.icon, primaryLabel: `New ${item.label}`, canCreate: false, seed: [], columns: [{ key: "name", header: "Name" }], filters: [], kpis: [], bulkActions: [], formFields: [], searchFields: ["name"], primaryField: "name",
+      subtitle: `${item.label} has no connected resource in the current database schema.`, icon: item.icon, primaryLabel: `New ${item.label}`, creatable: false, seed: [], columns: [{ key: "name", header: "Name" }], filters: [], kpis: [], bulkActions: [], formFields: [], searchFields: ["name"], primaryField: "name",
     };
   }
 }

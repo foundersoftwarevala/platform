@@ -47,7 +47,8 @@ export const SSMSupportTickets: React.FC = () => {
     return <Badge className={colors[priority] || colors.low}>{(priority || 'low').toUpperCase()}</Badge>;
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string | null) => {
+    if (status === null) return <Badge variant="outline">Unknown</Badge>;
     const colors: Record<string, string> = {
       new: 'bg-blue-500/10 text-blue-500',
       assigned: 'bg-purple-500/10 text-purple-500',

@@ -26,7 +26,7 @@ export const SSMTeamPerformance: React.FC = () => {
   const activeTicketsFor = (id: string) => (tickets ?? []).filter(t => t.assigned_to === id && t.status !== 'resolved').length;
   const activeLeadsFor = (id: string) => (leads ?? []).filter(l => l.assigned_to === id && l.stage !== 'won' && l.stage !== 'lost').length;
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
     switch (status) {
       case 'online':
         return 'bg-green-500';

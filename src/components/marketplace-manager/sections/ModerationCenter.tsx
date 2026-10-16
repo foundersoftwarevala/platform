@@ -10,7 +10,7 @@ import {
   bulkProducts, cloneProduct, decideDuplicate, executePurge, getModeration,
   getProductModerationDetail, mergeProducts, moderateProduct, requestPurge,
   runCatalogAudit, runDuplicateScan, setModerationPolicy, transitionReport,
-  type DuplicatePair, type ModerationProduct, type ModerationStatus,
+  type BulkProductOp, type DuplicatePair, type ModerationProduct, type ModerationStatus,
   type ModerationView, type ProductReport,
 } from "@/lib/marketplace-manager/moderation.functions";
 
@@ -370,7 +370,7 @@ export function ModerationCenter() {
   });
 
   const bulk = useMutation({
-    mutationFn: (v: { op: Parameters<typeof bulkProducts>[0]["data"]["op"]; reason?: string; target?: string }) =>
+    mutationFn: (v: { op: BulkProductOp; reason?: string; target?: string }) =>
       bulkProducts({ data: { ids: picked, op: v.op, reason: v.reason, target: v.target } }),
     onSuccess: (res) => {
       if (res.ok) {

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { Json } from "@/lib/json";
 
 /**
  * The published product copy, for the storefront.
@@ -18,7 +19,7 @@ import { z } from "zod";
 
 export type PublishedBlock = {
   content: string | null;
-  items: unknown;
+  items: Json;
   provenance: string;
   human_edited: boolean;
   published_at: string | null;

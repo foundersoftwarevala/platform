@@ -8,9 +8,13 @@
 
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { toast } from "sonner";
+import type { Investigation } from "@/lib/demo/investigate.server";
 import {
+  alertNeedsAction,
   detectFailures,
   healthStateOf,
   performanceScore,
@@ -25,6 +29,21 @@ import {
 } from "@/lib/demo-ops";
 
 const OPS = "demo-ops";
+
+export const useOpsDomain = (hostname: string) =>
+  useQuery({
+    queryKey: [OPS, "domain", hostname],
+    enabled: Boolean(hostname),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("demo_domains")
+        .select("hostname,status")
+        .eq("hostname", hostname)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
 
 const rows = async <T>(
   promise: PromiseLike<{ data: T[] | null; error: unknown }>,
@@ -85,6 +104,14 @@ export type OpsReviewRow = {
   candidates: { id: string; name: string; slug: string }[] | null;
   batch_id: string | null;
   created_at: string;
+  investigation?: {
+    state: Investigation["state"];
+    reason: string;
+    evidence?: Investigation["evidence"] | null;
+    ai_suggestion?: Investigation["aiSuggestion"];
+    ai_error?: Investigation["aiError"];
+    investigated_at: string;
+  } | null;
 };
 
 export type OpsMismatch = {
@@ -283,12 +310,39 @@ export const useOpsAuditTrail = () =>
     },
   });
 
+// Read-only metadata from 20261107T200000_accessibility_compliance.sql.
+type AccessibilityRow = {
+  id: string;
+  page_url: string;
+  wcag_level: string | null;
+  status: string;
+  score: number | null;
+  issues: Json;
+  checked_at: string | null;
+  created_at: string;
+};
+type AccessibilityDatabase = Database & {
+  public: {
+    Tables: {
+      accessibility_compliance: {
+        Row: AccessibilityRow;
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+    };
+  };
+};
+
 export const useOpsAccessibility = () =>
   useQuery({
     queryKey: [OPS, "accessibility"],
     queryFn: () =>
-      rows<Record<string, any>>(
-        supabase.from("accessibility_compliance").select("*").limit(300) as never,
+      rows<AccessibilityRow>(
+        (supabase as SupabaseClient<AccessibilityDatabase>)
+          .from("accessibility_compliance")
+          .select("*")
+          .limit(300),
       ),
   });
 
@@ -396,7 +450,7 @@ export const useOpsKpis = () => {
       performanceIssues,
       securityIssues: insecureUrls + weakCredentials.length,
       autoFixedToday,
-      manualFixRequired: activeAlerts.filter((a) => a.requires_action === true).length,
+      manualFixRequired: activeAlerts.filter(alertNeedsAction).length,
       byHealth,
     };
   }, [demos.data, alerts.data, escalations.data, credentials.data, logs.data]);

@@ -1,5 +1,7 @@
+import { callAsUser } from "@/lib/supabase-rpc.server";
+import type { Json } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 /**
@@ -12,24 +14,6 @@ import { z } from "zod";
  * data, so a badge cannot outlive the fact behind it. FAQs moved out of a
  * browser-local store into a table the storefront actually reads.
  */
-
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
 
 /* --------------------------------------------------------------- reviews */
 
@@ -161,7 +145,7 @@ export const getTrustBadges = createServerFn({ method: "GET" }).handler(
     ok: boolean; reason?: string;
     badges?: TrustBadge[];
     audit?: { badge: string; action: string; at: string; reason: string | null }[];
-    sample?: { badges?: unknown[]; all?: unknown[] } | null;
+    sample?: { badges?: Json[]; all?: Json[] } | null;
   }> => callAsUser("mm_trust_badges", {}),
 );
 
@@ -195,7 +179,7 @@ export type FaqRow = {
   language: string;
   status: "draft" | "pending_review" | "scheduled" | "published" | "archived";
   ai_generated: boolean;
-  ai_sources: unknown[];
+  ai_sources: Json[];
   seo_title: string | null;
   seo_description: string | null;
   scheduled_for: string | null;

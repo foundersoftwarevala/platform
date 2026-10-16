@@ -26,7 +26,15 @@ import { taskCode } from "./dev-manager.types";
 export type Db = SupabaseClient<Database>;
 
 type TaskRow = Database["public"]["Tables"]["developer_tasks"]["Row"];
+type DeliveryTaskRow = TaskRow & {
+  tm_tasks: Pick<
+    Database["public"]["Tables"]["tm_tasks"]["Row"],
+    "quality_score" | "blocked_reason" | "status"
+  > | null;
+};
 type DeveloperRow = Database["public"]["Tables"]["developers"]["Row"];
+
+const BLOCKED_ESCALATION_HOURS = 24;
 
 const OPEN_STATUSES = [
   "pending",
@@ -95,7 +103,7 @@ function hoursUntil(iso: string | null, now: number): number {
   return (new Date(iso).getTime() - now) / 3_600_000;
 }
 
-function uiPriority(priority: string): UiPriority {
+function uiPriority(priority: string | null): UiPriority {
   if (priority === "critical" || priority === "urgent") return "critical";
   if (priority === "high") return "high";
   if (priority === "low") return "low";
@@ -120,15 +128,57 @@ function label(dev: DeveloperRow | undefined): string {
   return dev?.vala_id ?? "UNASSIGNED";
 }
 
+async function loadBlockedStarts(supabase: Db, tasks: DeliveryTaskRow[], now: number) {
+  const starts = new Map<string, string | null>();
+  for (const task of tasks) {
+    if (task.status !== "blocked") continue;
+    starts.set(task.id, null);
+    if (!task.tm_task_id || task.tm_tasks?.status !== "blocked") continue;
+
+    let since: string | null = null;
+    let offset = 0;
+    for (;;) {
+      const { data, error, count } = await supabase
+        .from("tm_activity")
+        .select("id,from_value,to_value,created_at", { count: "exact" })
+        .eq("task_id", task.tm_task_id)
+        .eq("action_type", "status")
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(offset, offset + 499);
+      if (error) throw new Error(`Blocked history read failed: ${error.message}`);
+      if (!data || count === null || (data.length === 0 && offset < count)) {
+        throw new Error("Blocked history read failed: incomplete status history");
+      }
+      for (const event of data) {
+        if (event.from_value === event.to_value) continue;
+        const at = Date.parse(event.created_at);
+        if (!event.from_value || !event.to_value || !Number.isFinite(at) || at > now) {
+          since = null;
+        } else if (event.to_value !== "blocked") {
+          since = null;
+        } else {
+          // The service and database trigger can both audit the same transition.
+          since ??= event.created_at;
+        }
+      }
+      offset += data.length;
+      if (offset >= count) break;
+    }
+    starts.set(task.id, since);
+  }
+  return starts;
+}
+
 /**
- * Automatic SLA / blocked-task escalation. Idempotent: one open escalation per
- * task. Runs server-side on every overview read so alerts never depend on a
- * browser being open.
+ * Automatic SLA / blocked-task escalation, skipping tasks with an open
+ * escalation. Runs when the authorized overview is requested, not on a timer.
  */
 async function autoEscalate(
   supabase: Db,
   userId: string | null,
-  tasks: TaskRow[],
+  tasks: DeliveryTaskRow[],
+  blockedStarts: Map<string, string | null>,
   openEscalationTaskIds: Set<string>,
   now: number,
 ): Promise<number> {
@@ -137,26 +187,26 @@ async function autoEscalate(
     reason: string;
     auto_escalated: boolean;
     escalated_to: string;
+    escalated_by: string | null;
   }[] = [];
 
   for (const task of tasks) {
     if (task.status === "completed" || task.status === "cancelled") continue;
     if (openEscalationTaskIds.has(task.id)) continue;
 
-    const threshold = task.escalate_threshold_hours ?? 24;
-    const blockedHours = task.blocked_since
-      ? (now - new Date(task.blocked_since).getTime()) / 3_600_000
-      : 0;
+    const since = blockedStarts.get(task.id);
+    const blockedHours = since ? (now - Date.parse(since)) / 3_600_000 : null;
     const remaining = hoursUntil(task.deadline, now);
 
-    if (task.status === "blocked" && blockedHours >= threshold) {
+    if (task.status === "blocked" && blockedHours !== null && blockedHours >= BLOCKED_ESCALATION_HOURS) {
       pending.push({
         task_id: task.id,
-        reason: `Auto: blocked ${Math.floor(blockedHours)}h (threshold ${threshold}h) — ${
-          task.blocked_reason ?? "no reason recorded"
+        reason: `Auto: blocked ${Math.floor(blockedHours)}h (threshold ${BLOCKED_ESCALATION_HOURS}h) — ${
+          task.tm_tasks?.blocked_reason ?? "no reason recorded"
         }`,
         auto_escalated: true,
         escalated_to: "AREA-MANAGER",
+        escalated_by: userId,
       });
     } else if (remaining <= 0) {
       pending.push({
@@ -164,6 +214,7 @@ async function autoEscalate(
         reason: `Auto: SLA breached — deadline passed ${Math.abs(Math.floor(remaining))}h ago`,
         auto_escalated: true,
         escalated_to: "AREA-MANAGER",
+        escalated_by: userId,
       });
     }
   }
@@ -188,14 +239,18 @@ async function autoEscalate(
   return data?.length ?? 0;
 }
 
-function buildPerformance(tasks: TaskRow[], devById: Map<string, DeveloperRow>, now: number) {
+function buildPerformance(
+  tasks: DeliveryTaskRow[],
+  devById: Map<string, DeveloperRow>,
+  now: number,
+) {
   const out: DeveloperPerformanceDTO[] = [];
   const windowStart = now - 30 * 86_400_000;
   const halfway = now - 15 * 86_400_000;
 
   // Completed tasks in the window, grouped once by developer (the per-developer
   // filter over every task was developers x tasks work on each overview read).
-  const completedByDev = new Map<string, TaskRow[]>();
+  const completedByDev = new Map<string, DeliveryTaskRow[]>();
   for (const t of tasks) {
     if (!t.developer_id || t.status !== "completed" || t.completed_at === null) continue;
     if (new Date(t.completed_at).getTime() < windowStart) continue;
@@ -220,7 +275,7 @@ function buildPerformance(tasks: TaskRow[], devById: Map<string, DeveloperRow>, 
           3_600_000,
       );
     const quality = completed
-      .map((t) => Number(t.quality_score))
+      .map((t) => Number(t.tm_tasks?.quality_score))
       .filter((n) => Number.isFinite(n) && n > 0);
 
     const recent = completed.filter((t) => new Date(t.completed_at as string).getTime() >= halfway);
@@ -266,7 +321,10 @@ export async function loadDeliveryOverview(
 
   const [devRes, taskRes, escRes, noteRes] = await Promise.all([
     supabase.from("developers").select("*").order("vala_id", { ascending: true }),
-    supabase.from("developer_tasks").select("*").order("created_at", { ascending: false }),
+    supabase
+      .from("developer_tasks")
+      .select("*, tm_tasks(quality_score, blocked_reason, status)")
+      .order("created_at", { ascending: false }),
     supabase
       .from("developer_task_escalations")
       .select("*")
@@ -282,9 +340,11 @@ export async function loadDeliveryOverview(
   if (firstError) throw new Error(`Delivery data read failed: ${firstError.message}`);
 
   const developers = devRes.data ?? [];
-  const tasks = taskRes.data ?? [];
+  const deliveryTasks = taskRes.data ?? [];
+  const tasks: TaskRow[] = deliveryTasks;
   let escalations = escRes.data ?? [];
   const notes = noteRes.data ?? [];
+  const blockedStarts = await loadBlockedStarts(supabase, deliveryTasks, now);
 
   const devById = new Map(developers.map((d) => [d.id, d]));
   const openEscalationTaskIds = new Set(
@@ -293,7 +353,9 @@ export async function loadDeliveryOverview(
       .map((e) => e.task_id ?? ""),
   );
 
-  const autoEscalated = await autoEscalate(supabase, userId, tasks, openEscalationTaskIds, now);
+  const autoEscalated = await autoEscalate(
+    supabase, userId, deliveryTasks, blockedStarts, openEscalationTaskIds, now,
+  );
   if (autoEscalated > 0) {
     const refreshed = await supabase
       .from("developer_task_escalations")
@@ -360,20 +422,23 @@ export async function loadDeliveryOverview(
     .filter((r): r is SLARiskDTO => r !== null)
     .sort((a, b) => a.hoursRemaining - b.hoursRemaining);
 
-  const blocked: BlockedTaskDTO[] = tasks
-    .filter((t) => t.status === "blocked" && t.blocked_since)
-    .map((t) => ({
+  const blocked: BlockedTaskDTO[] = deliveryTasks
+    .filter((t) => t.status === "blocked")
+    .map((t) => {
+      const since = blockedStarts.get(t.id) ?? null;
+      return {
       taskId: t.id,
       code: taskCode(t.id),
       title: t.title,
       assignee: label(t.developer_id ? devById.get(t.developer_id) : undefined),
-      blockedReason: t.blocked_reason ?? "No reason recorded",
-      blockedSince: t.blocked_since as string,
-      blockedHours: Math.floor((now - new Date(t.blocked_since as string).getTime()) / 3_600_000),
-      autoEscalateThreshold: t.escalate_threshold_hours ?? 24,
+      blockedReason: t.tm_tasks?.blocked_reason ?? "No canonical blocked reason recorded",
+      blockedSince: since,
+      blockedHours: since ? Math.floor((now - Date.parse(since)) / 3_600_000) : null,
+      autoEscalateThreshold: BLOCKED_ESCALATION_HOURS,
       escalated: openEscalationTaskIds.has(t.id),
-    }))
-    .sort((a, b) => b.blockedHours - a.blockedHours);
+      };
+    })
+    .sort((a, b) => (b.blockedHours ?? -1) - (a.blockedHours ?? -1));
 
   const escalationDtos: EscalationDTO[] = escalations.map((e) => ({
     id: e.id,
@@ -406,7 +471,7 @@ export async function loadDeliveryOverview(
     blocked,
     escalations: escalationDtos,
     notes: noteDtos,
-    performance: buildPerformance(tasks, devById, now),
+    performance: buildPerformance(deliveryTasks, devById, now),
     taskOptions: openTasks.map((t) => ({ id: t.id, code: taskCode(t.id), title: t.title })),
     stats: {
       developers: developers.length,

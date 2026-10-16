@@ -55,7 +55,7 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
    * the other. The products are fetched here so the page renders on the server
    * instead of shipping a spinner to a search engine.
    */
-  loader: async ({ params }): Promise<{ seo: CategorySeo | null; products: unknown }> => {
+  loader: async ({ params }): Promise<{ seo: CategorySeo | null; products: unknown; missing: boolean }> => {
     const [seo, products] = await Promise.allSettled([
       getCategorySeo({ data: { slug: params.slug } }),
       getPublicProductsByCategory({ data: { category_slug: params.slug } }),

@@ -10,7 +10,7 @@ export const franchiseKeys = {
   royalties: () => ["franchise", "royalties"] as const,
 };
 
-async function readTable(table: string): Promise<FranchiseRow[]> {
+async function readTable(table: "franchises" | "franchise_applications" | "franchise_royalties"): Promise<FranchiseRow[]> {
   const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];

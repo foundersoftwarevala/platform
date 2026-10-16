@@ -45,10 +45,19 @@ opens. No second shell, sidebar or section router.
    redesign it, and do not substitute a component for one written from scratch.
 5. **Colour: density may change, hue may not.** The depth layer at the end of
    `marketplace-home.css` raises saturation, contrast and shadow depth only.
-6. **Demo numbering belongs to the rendered category.** Number distinct active
+6. **Server functions return serialisable types.** The catalogue server
+   functions in `src/lib/marketplace.functions.ts` type JSON columns as `Json`
+   (`features`, `seo.schema_json`), never `unknown`; an `unknown` there makes
+   the product page and demo routes lose their types.
+7. **Demo numbering belongs to the rendered category.** Number distinct active
    cards with a demo gateway link from 1, including existing `/demo/...` URLs.
    Country cards continue after that category's static demos; filtered rows
    restart at 1. Carousel copies do not receive duplicate number badges.
+
+The standalone `src/lib/marketplace-recovery.functions.ts` was a copy of
+`recoverMarketplaceData` and was removed on 2026-10-11; the recovery route uses
+the one in `src/lib/marketplace.functions.ts`. Repository-wide notes (types,
+migrations, known bugs) are in [AGENTS.md](AGENTS.md).
 
 ## How to compare against the approved design
 

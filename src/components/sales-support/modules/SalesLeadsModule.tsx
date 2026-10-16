@@ -58,7 +58,7 @@ const SalesLeadsModule = () => {
     }
   };
 
-  const getStageColor = (stage: string) => {
+  const getStageColor = (stage: string | null) => {
     switch (stage) {
       case "new": return "bg-purple-500/20 text-purple-300";
       case "contacted": return "bg-blue-500/20 text-blue-300";
@@ -70,7 +70,7 @@ const SalesLeadsModule = () => {
     }
   };
 
-  const activeLeads = leads.filter((l) => !["won", "lost"].includes(l.stage));
+  const activeLeads = leads.filter((l) => l.stage !== "won" && l.stage !== "lost");
   const totalPipeline = activeLeads.reduce((sum, l) => sum + Number(l.value ?? 0), 0);
   const hotLeads = activeLeads.filter((l) => l.urgency === "hot").length;
   const avgWinProb = activeLeads.length > 0
@@ -147,7 +147,7 @@ const SalesLeadsModule = () => {
                           <UrgencyIcon className="w-3 h-3 mr-1" />
                           {urgency.label}
                         </Badge>
-                        <Badge className={getStageColor(lead.stage)}>{lead.stage}</Badge>
+                        <Badge className={getStageColor(lead.stage)}>{lead.stage ?? "Unknown"}</Badge>
                         <Badge variant="outline" className="text-emerald-400 border-emerald-500/30">
                           AI: {lead.ai_win_probability}% win
                         </Badge>
@@ -176,8 +176,8 @@ const SalesLeadsModule = () => {
                           </Select>
                         )}
 
-                        {!["won", "lost"].includes(lead.stage) && (
-                          <Select value={lead.stage} onValueChange={(stage) => handleChangeStage(lead.id, stage as LeadStage)}>
+                        {lead.stage !== "won" && lead.stage !== "lost" && (
+                          <Select value={lead.stage ?? ""} onValueChange={(stage) => handleChangeStage(lead.id, stage as LeadStage)}>
                             <SelectTrigger className="w-32 bg-muted/40 border-border">
                               <SelectValue />
                             </SelectTrigger>

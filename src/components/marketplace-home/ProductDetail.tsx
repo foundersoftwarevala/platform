@@ -19,7 +19,7 @@ import {
 } from "@/lib/marketplace-content.functions";
 import { addMarketplaceCartItem } from "@/lib/marketplace-commerce.functions";
 import { useServerFn } from "@/lib/serverFn";
-import { useLoaderData } from "@tanstack/react-router";
+import { useMatch } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -93,10 +93,10 @@ export function ProductDetail() {
   // the product in hand, so the page leaves the server complete rather than as
   // a spinner. Without it - any route that draws this without a loader - the
   // query behaves exactly as it always did.
-  const loaded = useLoaderData({
+  const loaded = useMatch({
     from: "/marketplace/product/$slug",
     shouldThrow: false,
-  }) as { product?: unknown } | undefined;
+  })?.loaderData;
   const seededProduct = loaded?.product ?? undefined;
 
   const { data, isLoading, error } = useQuery({

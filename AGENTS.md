@@ -55,6 +55,22 @@ so it matches what Lovable sees.
 6. Commit `types.ts` on its own. Do not keep a backup copy in the repository;
    every previous version is in git.
 
+Fresh cloud refresh (2026-10-14): 589 public tables, two views and 400
+CLI-generated RPC definitions, versus 544 tables/two views/400 RPCs before.
+All 45 additions are R&D/Pro Manager tables; no existing table, view or RPC
+definition was removed or changed. The 496 raw catalog function names include
+trigger and extension routines and are not the generated RPC count.
+PostgREST metadata moved from 14.5 to 14.15. The generated LF file is 914,239
+bytes; its predecessor was 872,199 bytes after newline normalization.
+Full native TypeScript 5.9.3 checks kept main at 347 identical diagnostics.
+The types-only scoped release `c911091`, based on `39c6375`, reduced the
+production-source count from 4,708 to 533; these remaining contract errors
+are a separate cleanup task, not a passing zero-error typecheck.
+The guarded build, homepage/R&D HTTP checks and unchanged 7,199-URL sitemap
+passed. Rollback: `/root/sv-seo-backup/cloud-types-deploy-20261014T121403Z/rollback.sh`.
+CLI output is preserved verbatim: generated-file Prettier failures already
+existed, while both old/new declarations have zero non-formatting lint errors.
+
 ## Migrations
 
 - **Names sort, so names decide order.** Files are
@@ -106,9 +122,12 @@ Other open items:
   config,** so the console cannot retire their rows: `vala_tv_videos`,
   `vala_tv_categories`, `franchise_notifications`
   (`src/routes/api/manager/resource.ts`).
-- **`callAsUser` is copied into 23 files.** Most return `Record<string, unknown>`,
-  which TanStack cannot serialise; this is the largest group of type errors
-  (58 left). One shared helper returning `Json` would fix the pattern.
+- **Caller-scoped RPC serialization, scoped follow-up (2026-10-14).**
+  Sixteen affected modules now share `src/lib/supabase-rpc.server.ts`, with
+  JSON-constrained response contracts and runtime JSON argument/response
+  validation. Caller-token/RLS behavior is preserved, including the topbar's
+  explicit anonymous access. Other legacy helper copies are outside this
+  step; mainline and production baselines are separate from this fix branch.
 - **`sv_whoami()` is executable by `anon`** (it reports the database role and
   a product count). Kept as found when recovered; nothing in the app calls it.
 
@@ -142,8 +161,8 @@ The product in it (`current_product_id`) can change; the URL never does.
   countries; the catalogue has no product for any of them yet, so they stay
   `noindex`, out of the sitemap and off the home page. (The ops Supabase key
   cannot read the VPS; use `scripts/ops/db.mjs` / psql over ssh.)
-- **Production runs `deploy/marketplace-gate-20261012`** (`f9cee6c`), not `main`:
-  the production commit `7cf353c` plus only the marketplace commits, because
+- **Production runs `deploy/marketplace-gate-followup-20261012`** (`5f1dfa1`), not `main`:
+  the production commit `7cf353c` plus only marketplace/gate commits, because
   `main` also carries the Vala AI rebuild, whose docs say production
   deployment needs separate authorization (Docker sandbox, data dir, backup
   cron). The next deploy of `main` ships that rebuild; set it up first.
@@ -245,8 +264,8 @@ The product in it (`current_product_id`) can change; the URL never does.
   lost/gained URLs and meaningful changes. These extensions require deployed
   `detailedReport`/`hreflangFallback` capabilities; the CLI refuses unsupported
   servers before backups/evaluation rather than silently ignoring flags.
-  Production still runs `8b31e92`; deploy the follow-up in the scoped
-  marketplace branch before using the updated CLI there, not full main.
+  The follow-up is deployed as scoped release `5f1dfa1`; both capabilities
+  were verified live. Do not deploy full main to deliver marketplace ops.
   Follow-up validation: 119 tests pass across eight suites and scoped lint
   passes; the full typecheck has the same 347 diagnostics as the baseline,
   with none in changed safeguards. A fresh production dry-run of the existing
@@ -259,7 +278,7 @@ The product in it (`current_product_id`) can change; the URL never does.
   verified unchanged gate-table signatures and manager audit counts.
   Occupied Education/Angola was READY_FOR_INDEX, HTTP 200 without noindex,
   with 80 public alternates. Education/USA and the already-vacant India slot
-  correctly emit noindex. Main validation: 90 tests pass; 347 existing
+  correctly emit noindex. Initial guard validation: 90 tests pass; 347 existing
   TypeScript errors, unchanged, with none in the safeguard implementation.
   The subsequent guarded manual SAVE also kept exactly 7,199 unique public
   slot URLs, zero event-mgmt and zero vacant/reserved slots eligible.
@@ -267,16 +286,48 @@ The product in it (`current_product_id`) can change; the URL never does.
   non-slot gate state were unchanged; one manager audit and five technical
   checks were appended. Pre-SAVE dump/checksum/restore:
   `/root/sv-seo-backup/gate-20261012T130151337Z/`.
+  The follow-up's live dry-run and manual guarded SAVE each evaluated 9,100:
+  7,199 eligible, zero literal BLOCKED, 1,901 UNVERIFIED/excluded, zero loss,
+  zero meaningful changes and zero fallback usage. The dry-run preserved
+  gate/fingerprint signatures and audit counts; SAVE preserved product/slot
+  data, non-slot gate state and the 7,199 unique public slot URLs, appending
+  one audit and five technical checks. Education/USA stays UNVERIFIED.
+  Supplying fallback 999 in a live Education/Angola dry probe still used the
+  successful dynamic count of 80. The final requested confirmation repeated
+  the full no-write dry-run, then rechecked its snapshot before another
+  guarded SAVE. Both retained the same counts and zero loss/changes; the
+  successful run finished at 2026-10-12T14:58:23Z. Latest pre-SAVE
+  backup/checksum/restore:
+  `/root/sv-seo-backup/gate-20261012T145512737Z/`.
+  Deploy source backup: `/root/sv-seo-backup/deploy-gate-followup-20261012T135743Z/`;
+  previous build: `/var/www/softwarevala/.output.prev-20261012-135744`.
 - **Daily gate wrapper:** `scripts/ops/seo-gate-cron.sh` is installed as
   `/usr/local/bin/sv-seo-gate.sh` and runs from `/var/www/softwarevala`.
   Root cron uses `45 3 * * * /usr/local/bin/sv-seo-gate.sh` (server UTC;
   09:15 IST). Logs are `/var/log/sv-seo-gate/gate-YYYYMMDD.log`; only those
-  dated files older than seven days are pruned. Last-run/failure records
+  dated files and rotated archives older than seven days are pruned. Daily
+  logs are root-owned mode 0640; their directory is root-owned 0750
+  (directories need execute permission for traversal, not file mode 0640).
+  `deploy/production/system/logrotate-sv-seo-gate` is installed root-owned
+  mode 0640 as `/etc/logrotate.d/sv-seo-gate`: daily, seven rotations/maxage,
+  delayed compression and 0640 creation; the system logrotate timer is active
+  and enabled. Delay compression avoids immediate compression of a rotated log.
+  Last-run/failure records
   persist separately. `--dry-run` passes through to the runner;
   `--test-alert` verifies notifications without a gate or database write.
   Failures use `logger -p daemon.err -t sv-seo-gate` and a persistent failure
-  record. No external destination was configured and the owner was unavailable
-  to supply one; email/webhook delivery must not be claimed as configured.
+  record. Local root-mail alerts are enabled with
+  `SEO_GATE_ALERT_LOCAL_MAIL=1` in the root-only config. Postfix is installed
+  and enabled in local-only mode: `inet_interfaces=loopback-only`, IPv4, and
+  both `default_transport` and `relay_transport` set to
+  `error:External delivery disabled for local operations mail`.
+  This is local delivery to `/var/mail/root` (root-owned 0600), not off-VPS
+  email. The wrapper reports mail submission, not unproven receipt. Missing
+  or failing sendmail returns an explicit alert error; invalid local-mail
+  flags are rejected (only 0/1 are allowed). With the flag absent/0 the
+  existing syslog/webhook behavior is preserved.
+  No external destination was supplied; off-VPS email/webhook delivery must
+  not be claimed as configured.
   For external alerts, use `deploy/production/seo-gate.env.example` and put
   `SEO_GATE_ALERT_WEBHOOK='https://...'` in the root-only
   `/etc/softwarevala/seo-gate.env`, then run `--test-alert` and
@@ -289,6 +340,36 @@ The product in it (`current_product_id`) can change; the URL never does.
   the rejected-argument dry-run probe left gate/audit state unchanged.
   Original crontab/checksums/rollback:
   `/root/sv-seo-backup/cron-20261012T130138Z/`.
+  Follow-up wrapper/config/crontab backups:
+  `/root/sv-seo-backup/cron-followup-20261012T135953Z/`.
+  Force-rotation tests of the installed policy preserved content, created
+  0640 logs, removed an eight-day archive, retained a six-day archive and
+  never deleted an unrelated sentinel. Live nonzero failure probes delivered
+  syslog and persistent records without gate/audit writes; the real successful
+  run records were restored afterward. Root's existing cron entries remain
+  byte-for-byte unchanged, with exactly one gate entry.
+  Final confirmation passed live scoped-release/health checks without
+  redeploying an already-correct release, `logrotate --debug`, cron/timer
+  checks, log ownership/modes and another actual exit=1 alert probe.
+  The probe preserved gate/audit state; the successful run record was
+  restored. External mail/webhook delivery remains UNVERIFIED because no
+  authorized destination was supplied. Fresh before/after signatures,
+  dry-run/SAVE results, ops rollback files and verified checksums:
+  `/root/sv-seo-backup/kaam4-final-20261012T145100Z/`.
+  Alert completion: a temporary one-shot root cron triggered an actual runner
+  exit=1 at 2026-10-12T15:10:01Z and delivered one tagged gate message to the
+  root mailbox. Gate/fingerprint/audit state stayed unchanged. The temporary
+  cron entry was removed, the original crontab was restored byte-for-byte,
+  and the real successful run record was restored. Disabled-mail compatibility,
+  nonzero mail-submission failure and invalid-config rejection were tested;
+  the final installed wrapper also delivered a real test notification.
+  Local cron email, syslog and persistent failure records are verified;
+  external delivery is intentionally disabled, not a pending prerequisite.
+  MTA setup used Debian's `postfix/main_mailer_type=Local only`; verify the
+  loopback interface/error transports with `postconf` before enabling mail.
+  Operator inspection: `sudo grep -A5 'X-SoftwareVala-Alert: seo-gate' /var/mail/root`.
+  Wrapper/config/crontab/package snapshots, checksum and real delivery proof:
+  `/root/sv-seo-backup/gate-mail-20261012T150600Z/`.
 - **A missing slot now returns 404 on production.** The deployed loader throws
   `notFound()`; `/marketplace/academy/atlantis` was verified as HTTP 404.
 - **Do not run `scripts/ops/card-slots-generate.mjs --apply` to add slots.**
@@ -325,9 +406,8 @@ Open decisions (owner):
 - Products for the 1,820 new slots (no generated content).
 - Review remaining QA product records and their test-environment isolation;
   Education/USA has been made vacant rather than publishing a QA tenant.
-- Automating the gate (nothing schedules it today).
-- Vala AI real-model acceptance: the deployed application defaults to local, but the local
-  model is offline. Do not make real OpenAI requests without separate approval.
+- External email/webhook destination and verified delivery for gate alerts.
+- Vala AI's production setup and approval, before the next deploy of `main`.
 
 Work log: Phase 1 marketplace fixes `b4ad6e0`, `adc5107`, `90ee1a6`. Phase 2
 batch A: slot links `a43a081`, hreflang `b3d87aa`, 100 countries `9e1cceb`, 17
@@ -363,35 +443,514 @@ change that moves it.
 | `features: Json`, insights select string | 378 |
 | Serialisable product page types | 351 |
 | Country rail single conversion and status-based numbering | 348 |
-| Product page passes the indexing gate a URL string | **347** (current) |
+| Product page passes the indexing gate a URL string | 347 |
+| Fresh cloud types: 589 tables; identical main diagnostics (2026-10-14) | 347 |
+| Phase 3 main baseline `0947add`, fully rechecked (2026-10-15) | 347 |
+| Phase 3 merged fast wins; existing retirement contract/deletions preserved | 341 |
+| Phase 3 merged shared JSON/caller-RPC contracts | 232 |
+| Phase 3 merged GlassCard header contract | 205 |
+| Phase 3 merged orphan history; all 23 deletions already present on main | 205 |
+| Phase 3 merged safe TS2339 contracts, including the blocked-policy revert | 109 |
+| Phase 3 merged assignment, nullable-value and mutation contracts | 46 |
+| Phase 3 merged all consumer fixes; fresh full compiler (2026-10-16) | 11 |
+| Phase 4 developer blocked/escalation contract; fresh full compiler | **2** (current, promise selection blocked) |
 | Target | 0 |
 
-The table above is mainline history, not the typecheck baseline of an isolated
-production release. For `deploy/vala-ai-20261012`, full checks against the exact
-production base and assembled candidate on 2026-10-12 found:
+### Phase 4 Developer Escalation contract (2026-10-16)
 
-| Scoped release | Errors |
+The overview now reads canonical `tm_tasks.blocked_reason` and current status
+through the existing link, and derives the current blocked episode from
+append-only `tm_activity` status transitions. Trigger/service duplicates do
+not restart the timer; a real unblock/reblock does. History is paged against
+its exact count, and read/write/audit errors propagate.
+
+The existing intended 24-hour fallback is now an explicit Developer Manager
+policy constant, not a nonexistent task column or delivery `sla_hours`.
+No new per-task configuration or policy approval is implied. Legacy/unlinked,
+inconsistent or unverifiable history has null age, stays visible and supports
+manual escalation; its existing deadline-breach path remains active.
+All three blocked-task consumers distinguish unknown age from zero. A UI
+threshold crossing alone no longer claims an escalation was persisted.
+Automatic escalation audit records retain the authorized overview caller.
+
+Validation: 28 tests pass across four suites. A fresh full compiler removes
+nine errors (11 -> 2); only the identical two `promise_id` diagnostics remain.
+Promise selection is not guessed or changed by this repair. Escalation runs
+on overview requests, not an independent scheduler. Existing-open checks are
+retained; cross-process concurrency is not claimed atomic without a database
+uniqueness/transaction change. No production endpoint, database or service
+was changed or invoked to trigger an escalation. Rollback is a normal revert.
+
+### Phase 4 task billing-time contract (2026-10-16)
+
+`getTaskWallet` now reads persisted `tm_time_logs.seconds`, not the nonexistent
+`minutes` field. It pages all matching logs using their exact count and stable
+ID ordering, sums valid nonnegative integer seconds and divides once by 60.
+Sub-minute values remain fractional; no new billing-rounding policy is
+introduced. Recorded financial fields and `actual_minutes` are unchanged;
+running/unpersisted time is not invented.
+
+Task/log read failures and incomplete or invalid logs throw explicitly rather
+than appearing as zero time or a missing task. A successful empty log query
+alone yields zero. Existing staff/roster authorization and true task-not-found
+responses are retained. Validation: 69 cumulative tests across seven files,
+including 3,600 seconds -> 60 minutes, sub-minute sums, 1,201 rows under a
+200-row server cap, failures and access checks. Full compiler remains at the
+same two promise-selection errors. No production or database changes.
+
+### Phase 4 AI-content rejection acceptance (2026-10-16)
+
+The original `id` versus `item_id` defect is already repaired by the Phase 3
+assignment integration. Both Generate and Review queue send `item_id`;
+the existing server validator requires a UUID and calls `mm_ai_item_reject`
+with `p_item`, `p_code` and the optional `p_reason`. No duplicate runtime
+rewrite or migration is needed.
+
+The two UI entry-point regressions now use a valid isolated UUID and verify
+both thrown failures and unsuccessful RPC responses remain visible.
+New tests execute the actual server validator and rejection handler through
+the shared caller-scoped helper and real Supabase SDK against isolated
+fixture responses. They cover canonical payloads, old/invalid inputs,
+optional reasons, missing authentication and permission/business refusals.
+No service-role key is used. All 133 cumulative tests across eleven files
+pass. The SQL function's version/review/audit transaction was inspected;
+real database persistence and deployed UI acceptance remain UNVERIFIED.
+No live rejection or production write was performed.
+
+### Phase 4 main integration scope (2026-10-16)
+
+The owner authorized a normal main merge of the verified Phase 4 branch.
+Preserve the historical owner-pause notes and existing uncommitted application
+edits; do not fold unrelated WIP into this merge. Keep byte-verified WIP
+snapshots and a rehearsed normal-history rollback. This authorization does
+not include a production deployment, service restart or database write.
+The two existing promise-selection diagnostics remain outside this merge.
+
+### Phase 3 main integration (verified 2026-10-16)
+
+All seven requested scoped branches were integrated sequentially, including
+the complete TS2339 tip and its `205ff66` blocked-policy revert. Local main
+`0947add` and the newer canonical main tree `9cda960` were each independently
+fully checked at 347. The integration preserves both histories; the
+pre-cleanup merge `47af653` has exactly the canonical main tree.
+
+Every merge was regression-tested and fully typechecked before proceeding.
+The final fresh, nonincremental compiler reports only eleven TS2339 errors
+in `src/lib/dev-manager.server.ts`:
+
+| Property | Errors | Still required |
+|---|---|---|
+| `blocked_since` | 5 | Approved blocked-episode and legacy/missing-history semantics |
+| `blocked_reason` | 2 | Separate linked/unlinked canonical-field projection and regressions |
+| `promise_id` | 2 | Primary-promise selection or a plural API contract |
+| `escalate_threshold_hours` | 2 | Approved blocked-duration escalation policy; not delivery SLA |
+
+This is **not a zero-error typecheck PASS**. No invented columns, disabled
+checks or business-policy guesses were used to reach eleven. Quality is read
+from the existing linked `tm_tasks.quality_score`; task and promise mutations,
+authorization, financial and append-only guards remain in place.
+
+Final cumulative validation: **283/283 tests across 38 files**, including the
+existing demo numbering/link/order regressions; the standard Windows
+production build passes. Generated route source is identical after CRLF/LF
+normalization. Scoped lint has zero added non-formatting findings and zero
+findings in new tests, with 3,677 findings remaining versus 3,698 baseline.
+Embedded hook-warning line references are positional, not new warnings;
+formatting debt remains and whole-scope lint is not a pass.
+
+For current main, this supersedes the historical audit's missing demo-domain,
+escalation-label and review-investigation contracts, duplicated caller-RPC
+boundaries, and AI-content Reject payload bug. It does not claim production
+has received these changes. No deployment, restart, migration or database
+write was performed in Phase 3; live authenticated acceptance is UNVERIFIED.
+The independent Phase 2 R&D provider-credential blocker remains separate.
+Rollback must use normal reverts, never rewriting pushed history.
+
+### Historical scoped-branch validation records
+
+### Scoped typecheck fast wins (2026-10-14)
+
+The fresh cloud types in production release `c911091` reduced the scoped
+baseline to 533 diagnostics. The isolated
+`fix/scoped-typecheck-fast-wins-20261014` branch changes only the `Resource`
+declaration and nine React class-member modifiers, plus regression tests and
+this record:
+
+| Scoped source | Errors |
 |---|---|
-| Production base `5f1dfa1` | 4,713 |
-| Original eleven Vala commits, redaction fix and approved preparation | 4,708 |
+| Fresh cloud types, production `c911091` | 533 |
+| Optional `Resource.retirable` declaration | 494 |
+| Nine explicit React `override` modifiers | 485 |
+| Shared JSON RPC response contracts, STEP 2A | 340 |
+| GlassCard header props, STEP 2B | 313 |
+| Audited legacy orphan cleanup | 219 |
+| Schema-backed TS2339 contracts and mappings | 111 |
+| TS2345 and TS2322 argument/assignment contracts | 46 |
+| Stale consumer contracts and unreachable Add Demo wizard | 30 |
+| Canonical Developer Manager review-quality projection | 29 |
+| Finite query boundaries and existing DOM test environment | 15 |
+| Final four unblocked consumer contracts | **11** |
 
-Five existing diagnostics were removed; no new diagnostics or diagnostics in
-changed files were introduced. Router-union truncation counts changed with the
-new routes; they are not new errors. This older production base still has the
-older generated Supabase types, unlike main. Do not deploy unrelated mainline
-schema/type cleanups as part of the Vala release.
+Both full native TypeScript checks completed against the exact scoped source;
+39 excess-property diagnostics and nine missing-override diagnostics were
+removed, with no new diagnostic signatures. Mainline's 347-error baseline is
+separate and unchanged. The three implementation files emit identical
+JavaScript before and after these type-only changes.
 
-## Vala AI scoped production release
+Regression validation: 33 tests pass across three suites, covering archive
+PATCH/no physical DELETE, authorization and upstream failures, existing
+product-creation guards, and homepage/section error logging and retries.
+Resources without an archive configuration still reject retirement with 403;
+the three known missing configurations above remain a separate task.
+The new tests have no lint errors or warnings; existing implementation-file
+lint findings are unchanged. Production remains `c911091`; this fix branch
+has not been deployed. Roll back this branch's change with a normal commit
+revert, never by rewriting pushed history.
 
-The authorized `deploy/vala-ai-20261012` release was built and deployed from
-`5f1dfa1`, with eleven original Vala commits, the redaction fix and approved
-workspace/backup preparation; no full-main deployment. Runtime release build
-`01d70d4` has active external data/sandbox configuration, schema-v3 SQLite at
-`/var/lib/vala-ai/vala.db`, and a verified actual 02:30 UTC backup/disposable
-restore. Owner screens/API, Docker readiness and 7,199 sitemap URLs passed;
-business/SEO table signatures were unchanged. Local model is offline and real
-provider acceptance is unverified. Details and rollback:
-[Vala AI README](docs/vala-ai/README.md) and [backups](docs/vala-ai/BACKUP.md).
+### Scoped serialization fixes, STEP 2A (2026-10-14)
+
+`fix/scoped-rpc-serialization-20261014` starts from verified fast-wins commit
+`1b69577`. Shared `Json`/`JsonObject` contracts replace unknown RPC response
+fields in 20 affected modules; sixteen duplicated caller-RPC helpers are
+consolidated without using the service key or changing domain operations.
+Non-JSON arguments and responses now fail explicitly instead of being
+silently coerced at the wire boundary. Optional object fields remain valid.
+The SEO reporting RPC is still absent from cloud-generated function types;
+its existing local adapter now declares its actual argument and JSON result
+contract rather than an unknown result.
+
+The complete native TypeScript check is **485 -> 340**: all 65 server-handler
+serialization diagnostics and 80 downstream diagnostics are removed, with
+zero new diagnostic signatures. At that checkpoint, all 27 GlassCard
+`actions`/`description` diagnostics remained unchanged. Mainline's 347-error
+history is not this scoped branch's baseline.
+
+Validation: 80 tests pass across five suites, including 47 new JSON/caller-RPC
+contract cases plus the retained archive, product-guard and homepage-boundary
+regressions. The standard application build passes in a private worktree.
+New helpers/tests are lint-clean, with no new non-formatting findings in the
+affected existing modules; their formatting findings decrease from 796 to
+783, so this is not a full lint pass.
+
+Production source/process remain `c911091`; no deployment, restart or live
+business-data mutation was performed for this fix. Live acceptance of the
+undeployed serialization changes is UNVERIFIED. Rollback is a normal revert
+of the serialization commit on its fix branch, preserving the first 48 fixes.
+
+### Scoped GlassCard contract, STEP 2B (2026-10-14)
+
+`fix/scoped-glasscard-contract-20261014` starts from serialization commit
+`5aa1dc2`. Only the shared GlassCard implementation changes: optional
+`actions` and `description` accept ReactNode and render in the header, with
+description below the title and actions alongside it. Headers also render
+when either new prop is supplied without a title. Existing title/icon
+rendering, custom classes, content-only cards and body padding are preserved.
+
+The complete native TypeScript check is **340 -> 313**: exactly 27 GlassCard
+contract diagnostics across 18 error-bearing caller files are removed, with
+zero new diagnostics and no other pattern changes. Mainline's baseline
+remains separate. Eight focused rendering/interaction tests pass; the shared
+file has zero lint errors and the same eleven existing warnings, and the
+new tests are lint-clean. Actual component screenshots use project CSS at
+desktop/mobile widths, with no horizontal overflow in the preview.
+
+Production remains `c911091`, with unchanged tracked source, running process
+and build checksum; no deployment, restart or business-data mutation.
+Live manager acceptance of these undeployed props is UNVERIFIED. Rollback
+is a normal revert of the GlassCard commit on its fix branch, preserving
+the earlier serialization and fast-wins fixes.
+
+### Scoped orphan cleanup (2026-10-14)
+
+`fix/scoped-orphan-cleanup-20261014` starts from GlassCard commit `1d4fade`.
+The 23 legacy modules listed in the earlier dead-code record above are
+absent from main `9cda960` and now removed from this scoped branch as well.
+Absence from main alone was not the deletion criterion: the reachability
+audit scanned 2,171 tracked code modules and 10,930 resolved imports,
+including re-exports, literal dynamic imports, require and import types,
+and found zero incoming references to the candidates. None is a file route
+or application entrypoint. The five computed imports are isolated tooling
+for i18n transpilation/PGlite; all eight import globs load image assets.
+Historical migration comments and i18n debt-baseline records are metadata,
+not module loaders, and remain unchanged. The new shared JSON/RPC helpers,
+regression tests and active manager/portal/security implementations remain.
+
+The complete native TypeScript check is **313 -> 219**: exactly 94 errors
+in 22 deleted files are removed, with no new diagnostics or other-pattern
+changes. The twenty-third file, the legacy MarketplaceManagerModule,
+already has zero errors after its three override fixes. This explains why
+the old 97-error estimate now yields 94, not a projected 216-error total.
+Mainline's error history is separate and unchanged.
+
+Validation: 88 tests pass across six retained suites. The standard isolated
+application build passes and the generated route tree is semantically
+unchanged. Production remains `c911091`, with unchanged tracked source,
+process/start time and running-build checksum; no deployment, restart or
+business-data mutation. Live acceptance of this undeployed cleanup is
+UNVERIFIED. Rollback is a normal revert of the orphan-cleanup commit,
+preserving the prior serialization, GlassCard and fast-wins fixes.
+
+### Scoped TS2339 contracts and mappings (2026-10-14)
+
+`fix/scoped-ts2339-contracts-20261014` starts from orphan-cleanup commit
+`87fa1b5`. The complete native TypeScript check is **219 -> 111**, with
+zero new diagnostic signatures. TS2339 falls **110 -> 12**: 98 missing-
+property diagnostics across 30 files are removed, plus ten tightly coupled
+diagnostics (TS2322: 3, TS2352: 1, TS2769: 3, TS2551: 1, TS2345: 2).
+This is not a zero-error typecheck; mainline's separate baseline is unchanged.
+
+| Root-cause group | TS2339 removed | Error-bearing files |
+|---|---|---|
+| Existing wire DTOs and caller input contracts | 25 | 9 |
+| Legal row-to-view mappings | 14 | 5 |
+| Supabase select/returning and absent context contracts | 21 | 3 |
+| Consumer state, row and error contracts | 21 | 5 |
+| Demo schema mappings | 13 | 4 |
+| Chat, router and HTTP request contracts | 4 | 4 |
+
+The changes use actual schema fields rather than invented optional columns:
+legal audit aliases and the no-rewrite invariant, explicit unscored AI
+confidence, unresolved demo alerts, real escalation/request columns and
+product names, matching `demo_domains.hostname`, and the existing deployment
+state. Unsupported domain-lock/attempt metrics remain explicitly unmonitored.
+Bulk moderation retains the same validator-derived operation set. Import
+upserts explicitly return IDs and link demos by product slug, not response
+position. Unsupported SEO actions still fail explicitly; no false success
+response or external integration was added.
+
+**Blocked:** all twelve remaining TS2339 diagnostics are in
+`src/lib/dev-manager.server.ts`, referencing `blocked_since`, `blocked_reason`,
+`promise_id`, `quality_score` and `escalate_threshold_hours`. These columns
+have no authoritative schema source. No migration, fake type extension,
+invented value or production database write was used to hide the problem.
+Their storage/data policy needs a separate owner decision.
+
+Validation: 122 tests pass across fifteen suites, including thirty new
+regressions; thirteen additional source/query/validator checks pass. The
+standard isolated build passes and the generated route tree is unchanged.
+Eight new test files are lint-clean; scoped lint has no new non-formatting
+findings, but existing formatting debt means this is not a full lint pass.
+Production remains `c911091`, with unchanged tracked source, process/start
+time and running-build checksum. No deployment, restart or business-data
+mutation. Live acceptance of these undeployed fixes is UNVERIFIED. Rollback
+is a normal revert of this fix commit, preserving the earlier fix stages.
+
+### Scoped TS2345 and TS2322 contracts (2026-10-14)
+
+`fix/scoped-assignment-contracts-20261014` starts from the approved Option A
+commit `205ff66`. The full native compiler is **111 -> 46**, with zero new
+diagnostic signatures. The inventory contains 58 selected diagnostics, not
+the estimated 99: **TS2345 28 -> 0** and **TS2322 30 -> 0** across 31
+error-bearing files. Seven tightly coupled diagnostics also disappear:
+TS2769: 1, TS2589: 1, TS18047: 2 and TS7006: 3.
+
+| Root-cause group | Selected errors removed | Error-bearing files |
+|---|---|---|
+| Nullable schema values and UI operations | 21 | 13 |
+| Component props, icons and typed dynamic route | 4 | 4 |
+| SQL optional RPC argument defaults | 12 | 3 |
+| Canonical query and update payloads | 9 | 5 |
+| Migration-backed layout RPC metadata | 2 | 1 |
+| Resource-row display formatting | 6 | 2 |
+| AI content rejection payload | 2 | 1 |
+| Published storefront version contract | 1 | 1 |
+| DNS mock callback overload | 1 | 1 |
+
+Absent RPC arguments are omitted only where the authoritative SQL already
+defaults them to NULL; explicit empty notes and zero bases remain intact.
+Demo requests update real `status` and `updated_at` columns, not nonexistent
+responder fields. Task writes use generated update shapes; section writes
+validate the same editable fields and preserve operator and archived-section
+guards. Layout RPC contracts describe existing migrations on the original
+authenticated client; no new client, credentials or generated types.
+Product cells reuse the existing row formatter. Both AI rejection surfaces
+now keep `item_id` canonical, fixing the known reject-payload bug on this
+branch only; production has not received it.
+
+**Still blocked:** the same twelve Developer Manager TS2339 signatures for
+`blocked_since`, `blocked_reason`, `promise_id`, `quality_score` and
+`escalate_threshold_hours`. No invented column, fake Developer Manager type,
+migration or rejected delivery-enrichment follow-up was introduced. The only
+change in that server file accepts the real nullable priority in its existing
+UI-priority mapper. The other 34 diagnostics are outside these two codes;
+this is not a zero-error typecheck or a full typecheck PASS.
+
+Validation: 159 tests pass across twenty files, including the retained
+regression suites, actual mutation handlers, SDK request/default checks,
+nullable UI rows and both rejection paths. The isolated standard build
+passes; the generated route tree is unchanged. Four new test files are
+lint-clean, and scoped lint has zero new non-formatting findings. Full
+scoped lint is not a pass because formatting findings remain.
+Desktop/mobile screenshots exercise the actual rejection component with
+explicitly labelled local fixtures, never production business data.
+Production remains `c911091`, with unchanged process/start time, tracked
+source and running-build checksum. No deployment, restart or database
+mutation. Live acceptance remains UNVERIFIED. Rollback is a normal revert
+of this commit, preserving the earlier approved fixes; the reverse patch
+is verified against the private native source.
+
+### Scoped stale consumer contracts (2026-10-14)
+
+`fix/scoped-consumer-contracts-20261014` starts from `ab3da11`. The full
+native compiler is **46 -> 30**: TS2353 8 -> 0, TS18048 6 -> 0,
+TS2820 1 -> 0 and TS7030 1 -> 0. Zero new diagnostic signatures.
+The baseline is twelve blocked errors plus 34 others across eighteen files;
+the remaining thirty are twelve blocked plus eighteen others.
+
+The Add Demo page keeps its canonical lazy manager and Suspense fallback;
+only the already-unreachable legacy wizard is removed. Influencer workflow
+walls use the existing `creatable` flag, preserving ordinary editable walls.
+Audit payloads use actual actor/entity/severity/metadata columns and preserve
+authoritative context. A confirmed Safe Assist stop clears the session even
+if its audit fails, with explicit failure logging and notification.
+Typed settings navigation preserves the same URL. Optional detail-route
+matches retain seeded data and query fallbacks. The category loader describes
+its existing missing flag; floating triggers retain timer/listener cleanup.
+No storefront redesign, catalogue numbering or generated route changes.
+
+Validation: **180 tests pass across 27 files**, including seven new test files
+covering delegation, creation flags, actual SDK audit payload/error paths,
+loader/query fallback and trigger cleanup. The private standard build passes.
+All seven new test files are lint-clean; no new non-formatting findings.
+Full scoped lint is not a pass because formatting debt remains.
+Native rollback reverse-patch validation passes.
+
+The twelve blocked Developer Manager signatures are identical. Its server
+and types, and the generated Supabase types, are unchanged in this batch.
+Remaining codes: TS2339 12, TS2769 7, TS2589 5, TS2352 2, TS7006 2,
+TS2367 1 and TS7016 1. Next priority is the twelve Supabase query-boundary
+diagnostics across three files, after checking authoritative schema; then
+casts, analytics/test declarations and the demo-role policy comparison.
+Do not invent missing schema or change access policy to silence errors.
+
+Production remains `c911091`, with unchanged process/start time, tracked
+source and running-build checksum. No deployment, restart or database writes.
+Live acceptance, including browser audit permissions, remains UNVERIFIED.
+Rollback is a normal revert of this isolated commit; earlier fixes remain.
+
+### Scoped Developer Manager review quality (2026-10-15)
+
+Continued on `fix/scoped-consumer-contracts-20261014` from verified `a2c8f0f`.
+A fresh full native baseline reconfirmed all thirty diagnostics by file, code
+and message before edits. All twelve TS2339 occurrences were traced through
+the task queries, DTOs, generated rows, schema dump, bridge/review migrations
+and server contracts. Read-only schema transactions on both the VPS and cloud
+confirmed that all five disputed columns are absent from `developer_tasks`.
+
+The smallest verified batch resolves only **quality_score: 1 -> 0**, making
+the full compiler **30 -> 29**. The existing `tm_task_id` foreign key points
+to the canonical `tm_tasks` row, whose nullable integer `quality_score` is
+written by the existing operator-only review handler with a 0-100 validator.
+The overview's existing task query now left-projects that one real field.
+Only performance aggregation consumes the relation; the existing task view,
+DTOs, role gates, RLS, mutation and payment paths remain unchanged.
+No schema change, fake developer-task field, generated-type edit or unsafe cast.
+The completed-task window, ownership and positive-score filters are retained;
+unlinked/unreviewed tasks stay present and keep the existing unscored behavior.
+Relational read failures use the existing explicit delivery-read error path.
+
+The other eighteen diagnostics and all eleven remaining TS2339 signatures
+are identical to the fresh baseline (ignoring shifted line/column positions):
+
+| Property | Remaining | Evidence / next prerequisite |
+|---|---|---|
+| `blocked_since` | 5 | No stored field; define the current blocked episode and legacy/missing-history behavior before deriving it from `tm_activity`. Pause/create/update times are not substitutes. |
+| `blocked_reason` | 2 | Real source exists on linked `tm_tasks`; defer its separate projection/mapping and unlinked-task regressions to the next small batch. |
+| `promise_id` | 2 | `promise_links` and `pt_promises_for` are plural; the DTO is singular. Owner must approve primary-promise selection or an API change. |
+| `escalate_threshold_hours` | 2 | No stored field. Delivery `sla_hours` is not a blocked-duration escalation policy; its source and semantics need approval. |
+
+Validation: **185/185 tests pass across 28 files**, retaining all 180 prior
+regressions plus five real-SDK transport/aggregation/error cases. Both changed
+TypeScript files pass scoped lint with zero findings. The full native compiler
+reports exactly one removed signature and zero added signatures; the standard
+private build passes and the generated route tree is unchanged. This is not
+a zero-error typecheck or a whole-repository lint claim.
+
+Production remains `c911091`, with unchanged tracked source, process/start time
+and running-build checksum. No deployment, restart, configuration or database
+mutation. Live authenticated acceptance of this undeployed change is UNVERIFIED.
+Rollback is a normal revert of this focused commit, retaining `a2c8f0f` and
+all earlier verified fixes; the native reverse patch is verified.
+
+## Scoped query-boundary follow-up (2026-10-15)
+
+On `fix/scoped-consumer-contracts-20261014`, the fresh full native compiler
+reports **29 -> 15**: fourteen removed diagnostic signatures, zero added.
+All eleven blocked Developer Manager TS2339 signatures are identical; its
+server, functions and DTOs, generated database types and route tree are unchanged.
+
+The selected batch removes seven TS2769, five TS2589, one TS7016 and one
+TS7006. AI CEO metric helpers accept only their actual relations and timestamp
+columns. Generic manager queries reject four nonexistent allowlisted relations
+explicitly after the existing authorization checks; read-only metadata checks
+confirmed their absence on both databases. The allowlist itself is unchanged.
+Dynamic insert/update results use the existing JSON row contract rather than
+expanding every relation's result inference. Existing write validation,
+credentials, financial workflows, append-only protection and audit paths stay
+in place; no new write casts or permissive client types.
+
+Accessibility reads describe the eight real migration-backed columns through
+a read-only local metadata extension on the same authenticated client. The
+table exists on the VPS but remains absent in cloud; errors propagate, and
+this is not a claim that cloud availability has been repaired. No migration,
+generated type change or invented data. The DOM timing regression now uses
+Vitest's existing jsdom environment, retaining route normalization, load,
+the exact 2000ms delay, two animation frames and table-content assertions.
+
+Validation: **252/252 tests pass in 33 files**, including all previous 185;
+the full standard private build passes. Scoped lint is **not a pass**:
+330 findings remain versus 331 at baseline, with zero new non-formatting
+findings and zero findings in the four new test files. Existing formatting
+debt is not hidden or bulk-reformatted. Full typecheck still exits nonzero:
+eleven blocked TS2339, two TS2352, one TS7006 and one TS2367 remain.
+
+The remaining nonblocked diagnostics concern the homepage catalogue mapping,
+demo-gateway response contract, chatbot session callback and manager access
+role policy; they were not modified in this batch. Production remains
+`c911091` with unchanged process/start time, tracked source and running-build
+checksum. No deployment, restart, configuration or database mutation. Live
+authenticated acceptance of these undeployed changes is UNVERIFIED.
+Rollback is a normal focused commit revert; reverse-patch validation retains
+`7e689b6` and all earlier verified fixes without resetting unrelated work.
+
+## Final four unblocked contracts (2026-10-15)
+
+On the same isolated branch, a fresh full native baseline reconciled exactly
+with the published fifteen-error result. The selected batch reduces **15 -> 11**:
+two TS2352, one TS7006 and one TS2367 removed, zero new signatures. Only the
+eleven blocked Developer Manager TS2339 remain; their complete file/code/message
+signatures and all Developer Manager source files are unchanged.
+
+- Curated homepage rows now call the existing `toDemo` converter, just like
+  category catalogue rows, instead of asserting `CatalogCard[]` is `Demo[]`.
+  Published row selection, ordering, limit, favorites, card index and existing
+  card/rail design are retained. No new catalogue data or numbering scheme.
+- `getDemoConfig` validates its existing nonempty string input at the TanStack
+  boundary instead of casting absent input to a string. Valid strings and
+  existing public-key queries, visibility/active filters, ordering and response
+  shapes are unchanged. Invalid input fails explicitly before database access.
+- `ChatSession.visitor_name` and `started_at` use the actual generated
+  `chat_sessions` column types. This restores string inference for analytics
+  initials without annotating an `any` callback or altering the query or screen.
+- Demo action access uses string membership, matching the existing view-role
+  membership pattern. The legacy `demo_manager` label is not in the current
+  database enum; this does not invent or assign that role, promote another role,
+  or broaden permissions. Every current enum role, legacy/unknown labels,
+  fallback precedence, view-only roles and signed-out denial are regression
+  tested. Any future role/schema policy remains a separate owner decision.
+
+Validation: **273/273 tests pass in 37 files**, retaining all previous 252
+and adding twenty-one targeted regressions. The full standard private build
+passes; generated routes/types, package manifests and the lockfile are unchanged.
+Scoped lint retains the same 161 baseline findings, with zero added findings
+and all four new test files clean; whole scoped lint is not a pass. The native
+typecheck still exits 2 solely for the eleven explicitly blocked diagnostics.
+
+Production remains `c911091`, with unchanged tracked source, process/start
+time and running-build checksum. No deployment, restart, configuration or
+database write. Live acceptance of this undeployed batch is UNVERIFIED.
+Rollback is a normal revert of this focused commit, retaining `8a6587c` and
+earlier verified fixes; the reverse patch is checked against the native source.
 
 ## Do not
 

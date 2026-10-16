@@ -43,16 +43,22 @@ async function safe<T>(label: string, degraded: Degraded, run: () => Promise<T>,
   }
 }
 
-async function countSince(table: string, column: string, since: Date): Promise<number> {
+const TIMESTAMP_COLUMNS = {
+  marketplace_events: "created_at",
+  usage_events: "occurred_at",
+  marketplace_orders: "created_at",
+} as const;
+
+async function countSince(table: keyof typeof TIMESTAMP_COLUMNS, since: Date): Promise<number> {
   const { count, error } = await supabaseAdmin
     .from(table)
     .select("*", { count: "exact", head: true })
-    .gte(column, since.toISOString());
+    .gte(TIMESTAMP_COLUMNS[table], since.toISOString());
   if (error) throw new Error(error.message);
   return count ?? 0;
 }
 
-async function countAll(table: string): Promise<number> {
+async function countAll(table: "profiles"): Promise<number> {
   const { count, error } = await supabaseAdmin
     .from(table)
     .select("*", { count: "exact", head: true });
@@ -95,10 +101,10 @@ export async function computeMetrics(degraded: Degraded): Promise<EcosystemMetri
   const [activity, errors, users, transactions, latency] = await Promise.all([
     safe("marketplace_events", degraded, async () => {
       const [events, usage] = await Promise.all([
-        countSince("marketplace_events", "created_at", since24h),
+        countSince("marketplace_events", since24h),
         // usage_events is timestamped by occurred_at. A failure is reported as
         // degraded instead of being counted as no usage.
-        safe("usage_events", degraded, () => countSince("usage_events", "occurred_at", since24h), 0),
+        safe("usage_events", degraded, () => countSince("usage_events", since24h), 0),
       ]);
       return events + usage;
     }, null as number | null),
@@ -116,7 +122,7 @@ export async function computeMetrics(degraded: Degraded): Promise<EcosystemMetri
     safe("profiles", degraded, () => countAll("profiles"), null as number | null),
 
     safe("marketplace_orders", degraded,
-      () => countSince("marketplace_orders", "created_at", midnight), null as number | null),
+      () => countSince("marketplace_orders", midnight), null as number | null),
 
     safe("api_request_logs.latency", degraded, async () => {
       const { data, error } = await supabaseAdmin

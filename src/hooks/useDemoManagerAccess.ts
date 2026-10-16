@@ -84,7 +84,7 @@ export function useDemoManagerAccess(): UseDemoManagerAccessReturn {
           .single();
 
         const currentRole = roleData?.role || userRole;
-        const isManager = currentRole === DEMO_ACTION_ROLE;
+        const isManager = [DEMO_ACTION_ROLE].includes(currentRole || "");
         const canView = isManager || VIEW_ONLY_ROLES.includes(currentRole || '');
 
         setIsDemoManager(isManager);
