@@ -60,7 +60,7 @@ export const DMTaskManagement: React.FC = () => {
     id: t.code,
     uuid: t.id,
     project: t.title,
-    module: t.promiseId ? 'promise' : '',
+    module: t.promiseIds.length > 0 ? 'promise' : '',
     priority: t.priority,
     deadline: t.dueDate ? formatDate(t.dueDate, DAY) : '—',
     dependency: 'None',

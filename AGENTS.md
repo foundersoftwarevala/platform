@@ -453,8 +453,32 @@ change that moves it.
 | Phase 3 merged safe TS2339 contracts, including the blocked-policy revert | 109 |
 | Phase 3 merged assignment, nullable-value and mutation contracts | 46 |
 | Phase 3 merged all consumer fixes; fresh full compiler (2026-10-16) | 11 |
-| Phase 4 developer blocked/escalation contract; fresh full compiler | **2** (current, promise selection blocked) |
+| Phase 4 developer blocked/escalation contract; fresh full compiler | 2 (promise selection was blocked) |
+| Canonical plural task-promise contract; fresh full compiler (2026-10-16) | **0** (current) |
 | Target | 0 |
+
+### Canonical task-promise contract (2026-10-16)
+
+`developer_tasks.promise_id` has no column or writer on either database.
+Developer Manager now follows `developer_tasks.tm_task_id` to the existing
+`task_manager` promise associations: the union of `promise_links` and primary
+`promises.linked_module/linked_record_id` links, matching `pt_promises_for`.
+Task and SLA-risk DTOs expose every deduplicated ID as `promiseIds: string[]`.
+Both badge views, CSV export and the management task board use that plural
+contract; no arbitrary primary promise is selected.
+
+Reads batch 50 canonical task IDs and page in stable ID order against exact
+counts. Failed, incomplete or inconsistent reads throw before automatic
+escalation writes. Successfully empty or unbridged tasks retain empty arrays.
+No optional nonexistent field, type assertion, generated schema change or
+redundant database column is used.
+
+Read-only inspection found 10 developer tasks, all 10 bridged, 30 canonical
+tasks and zero promises or promise links on each database. No migration or
+data cleanup is required; database data and existing permissions are unchanged.
+This plural contract resolves the earlier blocked singular-selection notes
+without introducing a single-promise policy. Code rollback uses a normal
+revert; deployment rollback must not restore databases over new business data.
 
 ### Phase 4 Developer Escalation contract (2026-10-16)
 
