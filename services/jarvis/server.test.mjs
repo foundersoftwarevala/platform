@@ -1,6 +1,10 @@
+import { mkdtemp, rm, symlink } from "node:fs/promises";
+import path from "node:path";
 import { once } from "node:events";
+import { tmpdir } from "node:os";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createJarvisApp } from "./server.mjs";
+import { createJarvisApp, isDirectExecution } from "./server.mjs";
 
 const servers = [];
 afterEach(async () => {
@@ -24,6 +28,20 @@ function completion(text = "I can explain how to open the dashboard.") {
     usage: { prompt_tokens: 20, completion_tokens: 11 },
   });
 }
+
+it("recognizes the executable module when launched through a release symlink", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "jarvis-entrypoint-"));
+  const target = fileURLToPath(new URL("./server.mjs", import.meta.url));
+  const symlinkDirectory = path.join(directory, "current");
+  try {
+    await symlink(path.dirname(target), symlinkDirectory, "junction");
+    expect(
+      isDirectExecution(pathToFileURL(target).href, path.join(symlinkDirectory, "server.mjs")),
+    ).toBe(true);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 function fakeTranscriber(text = "Hello Jarvis") {
   return {

@@ -1,4 +1,5 @@
 import express from "express";
+import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import {
   createLocalTranscriber,
@@ -237,4 +238,8 @@ export function startJarvisServer(options = {}) {
   return server;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) startJarvisServer();
+export function isDirectExecution(moduleUrl, entryPath) {
+  return Boolean(entryPath) && moduleUrl === pathToFileURL(realpathSync(entryPath)).href;
+}
+
+if (isDirectExecution(import.meta.url, process.argv[1])) startJarvisServer();
