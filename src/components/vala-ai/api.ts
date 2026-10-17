@@ -16,16 +16,19 @@ export class ApiError extends Error {
 
 export async function api<T>(
   path: string,
-  init: { method?: string; body?: unknown } = {},
+  init: { method?: string; body?: unknown; signal?: AbortSignal } = {},
 ): Promise<T> {
   const method = init.method ?? "GET";
+  const formBody =
+    typeof FormData !== "undefined" && init.body instanceof FormData ? init.body : null;
   const res = await fetch(`/api/vala-ai${path}`, {
     method,
     headers: {
       ...(await authHeaders()),
-      ...(method === "GET" ? {} : { "content-type": "application/json" }),
+      ...(method === "GET" || formBody ? {} : { "content-type": "application/json" }),
     },
-    body: method === "GET" ? undefined : JSON.stringify(init.body ?? {}),
+    body: method === "GET" ? undefined : (formBody ?? JSON.stringify(init.body ?? {})),
+    signal: init.signal,
   });
   const data = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
   if (!res.ok)

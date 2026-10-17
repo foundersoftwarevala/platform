@@ -13,6 +13,7 @@ import {
   requestRollback,
 } from "./governance.server.ts";
 import { gatewayServices, modelStatus } from "./model.server.ts";
+import { jarvisChat, jarvisHealth, jarvisSpeak, jarvisTranscribe } from "./jarvis.server";
 import {
   approveRequirement,
   createProject,
@@ -378,9 +379,90 @@ on("GET", "/releases/:id/patch", "viewer", ({ params }) => {
 on("GET", "/chat", "viewer", ({ url }) =>
   chatApi.history(url.searchParams.get("projectId") || null),
 );
-on("POST", "/chat", "operator", ({ body, op }) =>
-  chatApi.send(str(body.projectId) || null, str(body.text), op!),
+on("POST", "/chat", "operator", ({ body, op, req }) =>
+  chatApi.send(
+    str(body.projectId) || null,
+    str(body.text),
+    op!,
+    process.env.VITE_JARVIS_URL
+      ? (messages) => jarvisChat(messages, req.signal, "/chat")
+      : undefined,
+  ),
 );
+on("GET", "/voice/health", "operator", ({ req }) => jarvisHealth(req.signal));
+on("POST", "/voice/transcribe-audio", "operator", async ({ req }) => {
+  const contentType = req.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("multipart/form-data;"))
+    throw new ValaError(415, "Upload one MediaRecorder audio file as multipart form data.");
+  const maxBodyBytes = 20 * 1024 * 1024 + 128 * 1024;
+  const declaredSize = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declaredSize) && declaredSize > maxBodyBytes)
+    throw new ValaError(413, "Audio upload exceeds the 20 MiB limit.");
+  const reader = req.body?.getReader();
+  if (!reader) throw new ValaError(400, "A non-empty audio file is required.");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBodyBytes) {
+        await reader.cancel();
+        throw new ValaError(413, "Audio upload exceeds the 20 MiB limit.");
+      }
+      chunks.push(value);
+    }
+  } catch (error) {
+    if (error instanceof ValaError) throw error;
+    if (req.signal.aborted) throw new ValaError(499, "Audio upload was cancelled.");
+    throw new ValaError(400, "Audio upload was interrupted.");
+  } finally {
+    reader.releaseLock();
+  }
+  if (!size) throw new ValaError(400, "A non-empty audio file is required.");
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  let form: FormData;
+  try {
+    form = await new Response(bytes, { headers: { "content-type": contentType } }).formData();
+  } catch {
+    throw new ValaError(400, "Audio upload must contain exactly one file in field 'audio'.");
+  }
+  if ([...form.keys()].length !== 1 || !form.has("audio"))
+    throw new ValaError(400, "Audio upload must contain exactly one file in field 'audio'.");
+  const audio = form.get("audio");
+  if (!(audio instanceof File) || !audio.size)
+    throw new ValaError(400, "A non-empty audio file is required.");
+  if (
+    audio.size > 20 * 1024 * 1024 ||
+    !["audio/webm", "audio/ogg", "audio/mp4", "audio/wav", "audio/x-wav"].includes(
+      audio.type.split(";")[0].toLowerCase(),
+    )
+  )
+    throw new ValaError(415, "Audio must be WebM, Ogg, MP4 or WAV and no larger than 20 MiB.");
+  return jarvisTranscribe(audio, req.signal);
+});
+on("POST", "/voice/transcribe", "operator", async ({ body, op, req }) => {
+  const result = await chatApi.send(
+    str(body?.projectId) || null,
+    str(body?.transcript),
+    op!,
+    (messages) =>
+      jarvisChat(
+        messages,
+        req.signal,
+        process.env.VITE_JARVIS_URL ? "/voice" : "/voice/transcribe",
+      ),
+  );
+  if (result.reply.role === "error") throw new ValaError(502, result.reply.content);
+  return result;
+});
+on("POST", "/voice/speak", "operator", ({ body, req }) => jarvisSpeak(str(body?.text), req.signal));
 on("GET", "/audit", "viewer", ({ url, op }) => ({
   entries: withLabels(
     listAudit(200, Number(url.searchParams.get("before")) || undefined),
@@ -404,14 +486,16 @@ const json = (data: unknown, status = 200, headers: Record<string, string> = {})
 export type ResolveCaller = (req: Request) => Promise<Operator | null>;
 
 /**
- * Per-caller limits on the two requests that spend real compute: every chat
- * message runs the model, and every task queues model and check work. Counted
- * per account over a sliding minute, invalid requests included, so a flood of
- * either kind is refused before it reaches the model.
+ * Per-caller limits cover model, task and local speech-recognition work.
+ * Invalid requests count too, so floods are refused before reaching compute.
  */
 const writeLimiter = new SlidingWindowLimiter(60_000);
 const RATE_LIMITED: { method: string; pattern: RegExp; bucket: "chat" | "tasks" }[] = [
-  { method: "POST", pattern: /^\/chat$/, bucket: "chat" },
+  {
+    method: "POST",
+    pattern: /^\/(?:chat|voice\/transcribe|voice\/transcribe-audio)$/,
+    bucket: "chat",
+  },
   { method: "POST", pattern: /^\/projects\/[^/]+\/tasks$/, bucket: "tasks" },
 ];
 
@@ -423,7 +507,7 @@ function enforceRateLimit(method: string, path: string, op: Operator) {
   if (writeLimiter.hit(`${op.id}:${rule.bucket}`, limit))
     throw new ValaError(
       429,
-      `Too many ${rule.bucket === "chat" ? "chat messages" : "new tasks"}: the limit is ${limit} per minute for each account. Wait a minute and try again.`,
+      `Too many ${path === "/voice/transcribe-audio" ? "voice requests" : rule.bucket === "chat" ? "chat messages" : "new tasks"}: the limit is ${limit} per minute for each account. Wait a minute and try again.`,
     );
 }
 
@@ -439,7 +523,7 @@ export async function handleApi(
   try {
     ensureWorker();
     let body: Record<string, unknown> = {};
-    if (method !== "GET") {
+    if (method !== "GET" && !(method === "POST" && path === "/voice/transcribe-audio")) {
       const text = await req.text();
       if (text.length > 512_000) throw new ValaError(413, "Request body too large.");
       if (text) {

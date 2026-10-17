@@ -1,8 +1,12 @@
 import { useCallback, useRef, useState } from "react";
 
-import { ChatRequestError, streamChat } from "./chat-stream";
+import { ChatRequestError, streamChat, type ChatTurn } from "./chat-stream";
 
 export type ValaMessage = { id: string; role: "user" | "assistant"; content: string };
+export type ChatTransport = (
+  messages: ChatTurn[],
+  options: { signal: AbortSignal; onDelta: (full: string) => void },
+) => Promise<string>;
 
 const WELCOME =
   "Hello Boss. Welcome back. All enterprise systems are online. How may I assist you today?";
@@ -34,7 +38,11 @@ export function useValaChat() {
   }, []);
 
   const send = useCallback(
-    async (text: string, onDone?: (full: string) => void) => {
+    async (
+      text: string,
+      onDone?: (full: string) => void,
+      transport: ChatTransport = streamChat,
+    ) => {
       const clean = text.trim();
       if (!clean || status !== "idle") return;
 
@@ -50,7 +58,7 @@ export function useValaChat() {
       abortRef.current = controller;
 
       try {
-        const full = await streamChat(
+        const full = await transport(
           history
             .filter((m) => m.id !== "welcome")
             .map((m) => ({ role: m.role, content: m.content })),

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Loader2, MessageSquare, Send } from "lucide-react";
+import { Loader2, MessageSquare, Mic, MicOff, Send, Volume2, VolumeX } from "lucide-react";
 import { useLanguage } from "@/lib/language-catalog";
 import { cn } from "@/lib/utils";
 import { api, useAction, useApi, type ChatRow, type Project, type Task } from "../api";
 import { useCan } from "../session";
 import { Empty, ErrorBox, Field, inputClass, Loading, PageHeader } from "../ui";
+import { useChatVoice } from "../useChatVoice";
 
 export function Chat() {
   const { translate: t } = useLanguage();
@@ -24,6 +25,31 @@ export function Chat() {
       api<{ user: ChatRow; reply: ChatRow }>("/chat", { method: "POST", body: v }),
     [["vala", "chat", projectId]],
   );
+  const voiceEnabled =
+    import.meta.env.VITE_JARVIS_VOICE_ENABLED === "true" ||
+    Boolean(import.meta.env.VITE_JARVIS_URL);
+  const voiceHealth = useApi<{
+    status: "ok";
+    transcription: { status: "not_loaded" | "loading" | "ready" | "error" };
+  }>(["voice", "health"], voiceEnabled && canEdit ? "/voice/health" : null, {
+    staleTime: 2_000,
+    refetchInterval: (query) =>
+      query.state.data?.transcription.status === "ready" ? false : 2_000,
+  });
+  const voiceSend = useAction(
+    (v: { projectId: string; transcript: string }) =>
+      api<{ user: ChatRow; reply: ChatRow }>("/voice/transcribe", { method: "POST", body: v }),
+    [["vala", "chat", projectId]],
+  );
+  const voice = useChatVoice(async (transcript) => {
+    send.reset();
+    const result = await voiceSend.mutateAsync({ projectId, transcript });
+    if (result.reply.role !== "assistant") throw new Error(result.reply.content);
+    return result.reply.content;
+  }, projectId);
+  const microphoneActive = voice.starting || voice.listening;
+  const whisperReady = voiceHealth.data?.transcription.status === "ready";
+  const modelPending = send.isPending || voiceSend.isPending;
   const createTask = useAction((v: { title: string; instruction: string }) =>
     api<Task>(`/projects/${projectId}/tasks`, { method: "POST", body: v }),
   );
@@ -31,12 +57,14 @@ export function Chat() {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [history.data?.length, send.isPending]);
+  }, [history.data?.length, modelPending]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const value = text.trim();
-    if (!value || send.isPending) return;
+    if (!value || modelPending || microphoneActive || voice.processing) return;
+    voiceSend.reset();
+    voice.clearError();
     send.mutate({ projectId, text: value }, { onSuccess: () => setText("") });
   };
 
@@ -98,7 +126,7 @@ export function Chat() {
                 </p>
               </li>
             ))}
-            {send.isPending ? (
+            {modelPending ? (
               <li className="mr-10 flex items-center gap-2 rounded-xl border border-border bg-surface/60 p-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t("The local model is answering. On this machine that can take a minute or more.")}
@@ -110,7 +138,61 @@ export function Chat() {
       </div>
       <div className="border-t border-border bg-surface/40 px-4 py-3 sm:px-6">
         <div className="mx-auto max-w-3xl space-y-2">
-          <ErrorBox error={send.error ?? createTask.error} />
+          <ErrorBox
+            error={
+              send.error ?? voiceSend.error ?? createTask.error ?? voiceHealth.error ?? voice.error
+            }
+          />
+          {voiceEnabled && canEdit ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label={t(
+                  voice.starting
+                    ? "Cancel microphone"
+                    : voice.listening
+                      ? "Stop microphone"
+                      : "Start microphone",
+                )}
+                aria-pressed={microphoneActive}
+                onClick={voice.toggleMic}
+                disabled={!whisperReady || modelPending || voice.processing}
+                className="rounded-lg border border-border p-2 disabled:opacity-50"
+              >
+                {microphoneActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                aria-label={t("Toggle voice output")}
+                aria-pressed={voice.outputEnabled}
+                onClick={voice.toggleOutput}
+                className="rounded-lg border border-border p-2"
+              >
+                {voice.outputEnabled ? (
+                  <Volume2 className="h-4 w-4" />
+                ) : (
+                  <VolumeX className="h-4 w-4" />
+                )}
+              </button>
+              <span role="status" className="text-xs text-muted-foreground">
+                {t(
+                  voice.starting
+                    ? "Waiting for microphone"
+                    : voice.listening
+                      ? "Listening"
+                      : voice.speaking
+                        ? "Speaking"
+                        : voiceHealth.data?.transcription.status === "loading"
+                          ? "Loading local Whisper"
+                          : whisperReady
+                            ? "Local voice ready"
+                            : voiceHealth.data
+                              ? "Local Whisper is not ready"
+                              : "Voice relay unavailable",
+                )}
+              </span>
+            </div>
+          ) : null}
           {taskDraft ? (
             <form
               className="space-y-2 rounded-xl border border-border p-3"
@@ -172,11 +254,11 @@ export function Chat() {
               />
               <button
                 type="submit"
-                disabled={send.isPending || !text.trim()}
+                disabled={modelPending || microphoneActive || voice.processing || !text.trim()}
                 className="grid w-12 place-items-center rounded-lg va-btn-primary disabled:opacity-50"
                 aria-label={t("Send")}
               >
-                {send.isPending ? (
+                {modelPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Send className="h-4 w-4" />

@@ -1,66 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  Bot,
-  Loader2,
-  Mic,
-  MicOff,
-  RotateCcw,
-  Send,
-  Volume2,
-  VolumeX,
-  X,
-} from "lucide-react";
+import { Bot, Loader2, Mic, MicOff, RotateCcw, Send, Volume2, VolumeX, X } from "lucide-react";
+import { useNavigate } from "@/hooks/useNavigate";
 import { cn } from "@/lib/utils";
+import { api } from "./api";
+import { useCan } from "./session";
 import { useValaChat } from "./useValaChat";
+import type { ChatTransport } from "./useValaChat";
+import { useLocalAudioInput } from "./useLocalAudioInput";
 import { ValaAvatarLive } from "./ValaAvatarLive";
 
 /* --------------------------- command execution ---------------------------- */
 
-const COMMANDS: { match: RegExp; label: string }[] = [
-  { match: /marketplace/i, label: "Marketplace" },
-  { match: /finance|revenue|wallet/i, label: "Finance" },
-  { match: /crm|customer/i, label: "CRM" },
-  { match: /\bhr\b|human resource|hiring/i, label: "HR" },
-  { match: /analytic|report|insight/i, label: "Analytics" },
-  { match: /invoice/i, label: "Invoice Builder" },
-  { match: /approval/i, label: "Approvals" },
-  { match: /backup|database/i, label: "Database Backup" },
-  { match: /server|infra/i, label: "Server Management" },
-  { match: /franchise/i, label: "Franchise Control" },
+// Only commands that actually do something are listed; first match wins, so
+// the most specific patterns go first.
+const COMMANDS: { match: RegExp; label: string; route: string }[] = [
+  { match: /franchise/i, label: "Franchise Dashboard", route: "/franchise-manager" },
+  { match: /\bapi\s*manager\b|\bai\s*api\b/i, label: "API Manager", route: "/manager/ai-api" },
+  { match: /\bai\s*-?\s*ceo\b/i, label: "AI CEO", route: "/ai-ceo" },
 ];
 
-function runCommand(text: string) {
-  if (!/^(open|show|go to|create|generate|run|start)\b/i.test(text.trim())) return;
+function runCommand(text: string, navigate: (to: string) => void) {
+  if (!/^(open|show|go to|create|generate|run|start|send)\b/i.test(text.trim())) return;
   const hit = COMMANDS.find((c) => c.match.test(text));
-  if (hit) toast.success(`Vala AI → opening ${hit.label}`);
-}
-
-/* ------------------------------ voice helpers ----------------------------- */
-
-type SpeechRecognitionLike = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start: () => void;
-  stop: () => void;
-  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-};
-
-function createRecognition(): SpeechRecognitionLike | null {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as Record<string, unknown>;
-  const Ctor = (w["SpeechRecognition"] ?? w["webkitSpeechRecognition"]) as
-    | (new () => SpeechRecognitionLike)
-    | undefined;
-  if (!Ctor) return null;
-  const rec = new Ctor();
-  rec.lang = "en-IN";
-  rec.continuous = false;
-  rec.interimResults = false;
-  return rec;
+  if (!hit) return;
+  toast.success(`Opening ${hit.label}...`);
+  navigate(hit.route);
 }
 
 /* --------------------------------- panel ---------------------------------- */
@@ -68,22 +33,12 @@ function createRecognition(): SpeechRecognitionLike | null {
 export function ValaAiAgent() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
-  const [listening, setListening] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
   const { messages, status, send, reset } = useValaChat();
+  const navigate = useNavigate();
+  const canUseVoice = useCan("operator");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const recRef = useRef<SpeechRecognitionLike | null>(null);
-
-  const avatarState = listening ? "listening" : status === "idle" ? "idle" : status;
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
-
-  useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open, status]);
 
   const speak = useCallback(
     (text: string) => {
@@ -97,37 +52,58 @@ export function ValaAiAgent() {
     [voiceOn],
   );
 
+  const sendToJarvis: ChatTransport = useCallback(async (turns, options) => {
+    const transcript = turns.at(-1)?.content;
+    if (!transcript?.trim()) throw new Error("A non-empty voice transcript is required.");
+    const result = await api<{ reply: { role: string; content: string } }>("/voice/transcribe", {
+      method: "POST",
+      body: { projectId: null, transcript },
+      signal: options.signal,
+    });
+    if (result.reply.role !== "assistant")
+      throw new Error(result.reply.content || "Jarvis returned no assistant reply.");
+    options.onDelta(result.reply.content);
+    return result.reply.content;
+  }, []);
+
   const submit = useCallback(
-    (text: string) => {
+    async (text: string, transport?: ChatTransport) => {
       const clean = text.trim();
       if (!clean) return;
-      runCommand(clean);
+      runCommand(clean, navigate);
       setInput("");
-      void send(clean, speak);
+      await send(clean, speak, transport);
     },
-    [send, speak],
+    [send, speak, navigate],
   );
 
-  const toggleMic = useCallback(() => {
-    if (listening) {
-      recRef.current?.stop();
-      return;
-    }
-    const rec = createRecognition();
-    if (!rec) {
-      toast.error("Voice input is not supported in this browser.");
-      return;
-    }
-    recRef.current = rec;
-    rec.onresult = (e) => {
-      const transcript = e.results?.[0]?.[0]?.transcript ?? "";
-      if (transcript) submit(transcript);
-    };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    setListening(true);
-    rec.start();
-  }, [listening, submit]);
+  const localVoice = useLocalAudioInput(async (audio, signal) => {
+    const form = new FormData();
+    form.append("audio", audio, audio.type.includes("webm") ? "recording.webm" : "recording.audio");
+    const transcription = await api<{ text: string }>("/voice/transcribe-audio", {
+      method: "POST",
+      body: form,
+      signal,
+    });
+    if (signal.aborted) return;
+    const transcript = transcription.text.trim();
+    if (!transcript) throw new Error("Local Whisper returned an empty transcript.");
+    await submit(transcript, sendToJarvis);
+  }, "floating-agent");
+  const listening = localVoice.recording;
+  const avatarState = listening ? "listening" : status === "idle" ? "idle" : status;
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    if (localVoice.error) toast.error(localVoice.error.message);
+  }, [localVoice.error]);
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open, status]);
 
   const suggestions = useMemo(
     () => ["Daily brief", "Show today's revenue", "Open Finance", "Risk scan", "Generate report"],
@@ -157,8 +133,7 @@ export function ValaAiAgent() {
             : "pointer-events-none translate-y-4 opacity-0",
         )}
         style={{
-          background:
-            "linear-gradient(180deg, #102042 0%, #091327 55%, #060d1d 100%)",
+          background: "linear-gradient(180deg, #102042 0%, #091327 55%, #060d1d 100%)",
           height: "min(620px, calc(100vh - 7rem))",
         }}
       >
@@ -167,7 +142,9 @@ export function ValaAiAgent() {
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(120px_80px_at_10%_0%,rgba(56,160,255,0.35),transparent)]" />
           <ValaAvatarLive state={avatarState} className="h-24" showWaveform={false} />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-extrabold tracking-tight text-foreground">VALA · Founder AI</p>
+            <p className="text-sm font-extrabold tracking-tight text-foreground">
+              VALA · Founder AI
+            </p>
             <span className="mt-0.5 inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/12 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
               {listening
@@ -232,7 +209,7 @@ export function ValaAiAgent() {
           {suggestions.map((s) => (
             <button
               key={s}
-              onClick={() => submit(s)}
+              onClick={() => void submit(s)}
               className="rounded-full border border-primary/35 bg-primary/10 px-2.5 py-1 text-[9.5px] font-semibold text-foreground/80 transition-colors hover:bg-primary/25"
             >
               {s}
@@ -244,7 +221,7 @@ export function ValaAiAgent() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            submit(input);
+            void submit(input);
           }}
           className="flex items-end gap-2 border-t-2 border-primary/35 p-2.5"
         >
@@ -255,7 +232,7 @@ export function ValaAiAgent() {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                submit(input);
+                void submit(input);
               }
             }}
             rows={1}
@@ -265,16 +242,18 @@ export function ValaAiAgent() {
           />
           <button
             type="button"
-            onClick={toggleMic}
-            aria-label="Voice input"
+            onClick={localVoice.toggleRecording}
+            aria-label={localVoice.recording ? "Stop voice recording" : "Start voice recording"}
+            disabled={!canUseVoice || localVoice.processing}
             className={cn(
               "flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl border-2 transition-colors",
-              listening
+              localVoice.recording
                 ? "border-destructive/60 bg-destructive/25 text-foreground"
                 : "border-primary/40 bg-primary/15 text-foreground/80 hover:bg-primary/30",
+              "disabled:cursor-not-allowed disabled:opacity-50",
             )}
           >
-            {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            {localVoice.recording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           </button>
           <button
             type="submit"
@@ -282,7 +261,11 @@ export function ValaAiAgent() {
             aria-label="Send message"
             className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-[0_10px_24px_-12px_rgba(40,140,255,0.9)] transition-transform active:scale-95 disabled:opacity-40"
           >
-            {status === "idle" ? <Send className="h-4 w-4" /> : <Loader2 className="h-4 w-4 animate-spin" />}
+            {status === "idle" ? (
+              <Send className="h-4 w-4" />
+            ) : (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
           </button>
         </form>
       </div>

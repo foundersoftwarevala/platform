@@ -101,4 +101,12 @@ describe("per-caller rate limits", () => {
     expect(() => updateSettings({ chat_per_minute: 0 }, owner.id)).toThrow(/between 1 and 600/);
     expect(() => updateSettings({ tasks_per_minute: 601 }, owner.id)).toThrow(/between 1 and 600/);
   });
+
+  it("shares the existing compute budget between typed and voice Chat", async () => {
+    vi.setSystemTime(new Date("2026-10-09T12:03:02Z"));
+    expect((await post("bob", "/voice/transcribe", { transcript: "" })).status).toBe(400);
+    expect((await post("bob", "/chat", { text: "" })).status).toBe(400);
+    expect((await post("bob", "/voice/transcribe", { transcript: "" })).status).toBe(400);
+    expect((await post("bob", "/chat", { text: "" })).status).toBe(429);
+  });
 });

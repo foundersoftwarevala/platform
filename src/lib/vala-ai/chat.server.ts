@@ -64,6 +64,7 @@ export async function send(
   projectId: string | null,
   text: string,
   operator: Operator,
+  complete: typeof chat = chat,
 ): Promise<{ user: ChatRow; reply: ChatRow }> {
   const content = text.trim();
   if (!content) throw new ValaError(400, "Message is empty.");
@@ -100,7 +101,7 @@ ${contextFor(projectId)}`,
 
   const replyId = newId("M", 10);
   try {
-    const r = await chat(messages, { maxTokens: 700, temperature: 0.3 });
+    const r = await complete(messages, { maxTokens: 700, temperature: 0.3 });
     run(
       "insert into chat_messages (id, project_id, operator_id, role, content, model, duration_ms, tokens_in, tokens_out, created_at) values (?,?,?,?,?,?,?,?,?,?)",
       replyId,

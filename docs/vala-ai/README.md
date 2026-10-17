@@ -27,6 +27,148 @@ Audit fixes and their evidence: [REMEDIATION.md](REMEDIATION.md). Designs awaiti
 
 ## Architecture
 
+### Jarvis local Whisper voice pipeline (staged, not activated)
+
+Local Port 3003 can be started independently with Node 24 from the repository
+root:
+
+```powershell
+node src\server\jarvis.ts
+curl.exe http://localhost:3003/health
+```
+
+This [local entrypoint](../../src/server/jarvis.ts) reuses the existing Express
+service, binds only `127.0.0.1:3003`, and requires no database connection.
+Its `GET /health` is a **liveness** check: HTTP 200 confirms that Jarvis is
+running, while `modelBridge.status: "not_checked"` does not claim Ollama is
+available. The health response also reports whether the local Whisper model is
+loaded. `POST /api/transcribe` accepts one bounded MediaRecorder audio file;
+`POST /voice` and `POST /chat` accept
+`{"message":"Hello"}` or `{"transcript":"Hello"}` and reuse the existing
+5200 inference handler. Missing input returns 400; an unavailable local bridge
+returns 503, not a fabricated model reply. Whisper inference and FFmpeg audio
+decoding run locally. The app forwards audio only from the authenticated
+same-origin server route to loopback; do not enable this flow from a hosted app
+whose server is not the machine running Jarvis. Stop the local process with
+Ctrl+C; no production service or database change is needed.
+
+To connect the existing frontend in local development, set
+`VITE_JARVIS_URL=http://127.0.0.1:3003` before starting Vite. This enables the
+existing microphone controls and routes typed Chat and recorded voice
+through the existing authenticated `/api/vala-ai` gateway. With the variable
+absent, typed Chat keeps its original transport.
+The browser continues to call its own origin: do not weaken Jarvis CORS or
+send platform bearer tokens directly to the model bridge. Both the original
+readiness metadata and the local entrypoint's explicit liveness metadata are
+accepted; liveness still does not certify microphone or model readiness.
+For a local preview, keep the existing platform login and isolate Vala's
+SQLite data with `VALA_AI_DATA_DIR`; do not copy production Chat data or enable
+workers. Local inference still needs the existing 5200 bridge to be reachable.
+
+The microphone controls reuse the existing `/vala-ai/chat` screen, Control
+Panel authorization, project context, Chat history and attribution. The
+floating Founder assistant uses the same local audio upload route and retains
+its chat transport and command behavior.
+
+```
+MediaRecorder -> /api/vala-ai/voice/transcribe-audio (operator/owner)
+  -> authenticated app server -> 127.0.0.1:3003/api/transcribe
+  -> local FFmpeg -> local Whisper/ONNX -> { text }
+  -> existing Chat persistence/context -> /api/vala-ai/voice/transcribe
+  -> authenticated app server -> 127.0.0.1:3003/voice
+  -> existing 127.0.0.1:5200/v1/chat/completions -> Ollama
+Reply -> /api/vala-ai/voice/speak -> 3003 playback instructions
+  -> browser speechSynthesis
+```
+
+This uses local server-side Whisper STT and browser speech synthesis (not
+server-generated audio). The local Qwen text model is unchanged.
+`POST /voice/transcribe-audio` accepts one multipart audio file (up to 20 MiB)
+after caller authorization and per-account rate limiting. The loopback service
+decodes at most 30 seconds of mono audio and returns `{ "text": "..." }`.
+That transcript is then persisted through the existing voice Chat API and
+forwarded with the existing system/project context. `POST /voice/speak` accepts
+`{"text":"..."}` and returns `audioGenerated: false` with browser playback instructions.
+Neither endpoint executes commands, navigates, or creates tasks.
+`GET /health` checks the existing bridge/model availability and reports
+Whisper's load state, not microphone, speaker, or human-hearing acceptance.
+A curl request is not a real mic test.
+
+One-time local setup (PowerShell, from the repository root):
+
+```powershell
+npm ci --omit=dev --prefix services/jarvis
+npm run model:download --prefix services/jarvis
+npm start --prefix services/jarvis
+```
+
+In a second terminal, launch the local app with the Jarvis URL in the same
+server environment:
+
+```powershell
+$env:VITE_JARVIS_URL = "http://127.0.0.1:3003"
+npm run dev
+```
+
+Check `curl.exe http://127.0.0.1:3003/health`, including the `transcription`
+status. The one-time model download requires internet and caches model assets;
+recorded audio is not sent to a hosted transcription endpoint. If native ONNX
+cannot load on Windows, install the Microsoft Visual C++ 2015-2022 x64
+Redistributable using an owner-approved system change before model setup. The
+full physical microphone-to-Qwen-to-speaker test remains separate from unit
+tests and must use an actual spoken phrase.
+
+The standalone Express service is [server.mjs](../../services/jarvis/server.mjs);
+install its locked dependencies with `npm ci --omit=dev --prefix services/jarvis`.
+It binds only IPv4 loopback port 3003, accepts no cross-origin browser calls,
+and never forwards caller tokens to the model. Public requests must use the
+existing authenticated Vala API. Voice inference shares typed Chat's
+per-account rate limit; upstream errors remain visible and are retained as
+Chat error rows, not successful assistant replies. Local STT upload failures
+are returned explicitly and do not create transcript or assistant rows.
+
+The voice controls are off unless built with `VITE_JARVIS_VOICE_ENABLED=true`
+or the local `VITE_JARVIS_URL` connection opt-in.
+Activation needs separate approval: stage a release of the service under
+`/opt/softwarevala-jarvis`, install the [systemd unit](../../deploy/production/system/vala-jarvis.service)
+after checking its `www-data` user and Node path, and validate the loopback
+health endpoint before enabling the frontend. The existing HTTPS
+`/api/vala-ai/*` route supplies the authenticated forwarding; do not expose
+port 3003 publicly or add an unauthenticated Nginx bypass. Preserve the
+existing 180-second application proxy timeout; the relay/bridge's internal
+600-second ceiling is not a guarantee of a 600-second public request.
+
+Rollback: build/redeploy the prior scoped frontend with voice disabled,
+stop and disable **only** `vala-jarvis.service`, and restore the previous
+Jarvis release symlink if replacing an older voice release. Keep the existing
+5200 model service, production data, and Chat rows intact. No schema migration,
+database restore, full-main deploy, role grant, or new model is needed.
+Microphone access requires HTTPS or a secure loopback origin such as
+`http://127.0.0.1:5173`; plain HTTP on a LAN/public hostname is not equivalent.
+The capture helper rejects insecure contexts and restrictive page/iframe
+microphone policy before requesting `getUserMedia({ audio: true })`. An embedded
+page needs a permitting parent policy and `allow="microphone"` on the frame.
+Capture is capped at 30 seconds and 20 MiB; cancellation, errors, project
+changes and unmount release all tracks. Audio upload is made only after the
+operator role check, then bounded again by the authenticated application route
+and loopback Jarvis service.
+
+The UI contains no native browser speech-recognition path. Unit tests simulate
+MediaRecorder lifecycle events and mocked HTTP contracts only; they do not use
+synthetic audio as evidence of transcription. Real spoken microphone input,
+Whisper model load/inference, live Qwen response and audible speaker output
+remain UNVERIFIED until tested on the local machine with an actual spoken phrase.
+Human confirmation that the response was heard is separately required.
+
+Check existing model residency before acoustic acceptance: a healthy bridge does
+not mean the model is loaded. An earlier request reached Ollama but its cold load
+was cancelled by a 120-second test-client deadline (HTTP 499). A bounded warm-up
+through the existing 5200 bridge loaded the already-installed model in 85.879
+seconds; subsequent inference succeeded. The final fixture used the existing
+180-second application deadline, not an extended production timeout. No model
+configuration was changed. Temporary relay/browser helpers were stopped; this
+does not activate production voice controls or a persistent port-3003 service.
+
 ### Owned-source studio integration
 
 The studio integrates `removalwork59-sketch/VALA-AI` at
