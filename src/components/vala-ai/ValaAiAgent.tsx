@@ -3,8 +3,8 @@ import { toast } from "sonner";
 import { Bot, Loader2, Mic, MicOff, RotateCcw, Send, Volume2, VolumeX, X } from "lucide-react";
 import { useNavigate } from "@/hooks/useNavigate";
 import { cn } from "@/lib/utils";
-import { api } from "./api";
-import { useCan } from "./session";
+import { api, useApi, type Operator } from "./api";
+import { OperatorContext, useCan } from "./session";
 import { useValaChat } from "./useValaChat";
 import type { ChatTransport } from "./useValaChat";
 import { useLocalAudioInput } from "./useLocalAudioInput";
@@ -31,6 +31,25 @@ function runCommand(text: string, navigate: (to: string) => void) {
 /* --------------------------------- panel ---------------------------------- */
 
 export function ValaAiAgent() {
+  const session = useApi<{ operator: Operator | null }>(["session"], "/session");
+
+  useEffect(() => {
+    if (session.error && session.error.status !== 403) {
+      console.error("[vala-ai] Floating assistant session failed:", session.error);
+      toast.error("Vala AI could not verify access to the assistant.");
+    }
+  }, [session.error]);
+
+  if (!session.data?.operator) return null;
+
+  return (
+    <OperatorContext.Provider value={session.data.operator}>
+      <ValaAiAgentPanel />
+    </OperatorContext.Provider>
+  );
+}
+
+function ValaAiAgentPanel() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [voiceOn, setVoiceOn] = useState(false);
