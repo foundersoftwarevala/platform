@@ -49,7 +49,6 @@ const identity: Section = {
   note: "Government issued ID — used only for verification.",
   fields: [
     { name: "idType", label: "ID Type", type: "select", options: ["Aadhaar", "PAN", "Passport", "Driving License", "National ID"], required: true, half: true },
-    { name: "idNumber", label: "ID Number", type: "text", required: true, half: true },
     { name: "idDocument", label: "Upload ID Document", type: "file", half: true },
     { name: "selfie", label: "Upload Selfie with ID", type: "file", half: true },
   ],
@@ -64,17 +63,9 @@ const addressVerification: Section = {
   ],
 };
 
-const bank: Section = {
-  title: "Bank Details",
-  note: "Payouts are released to this account after approval.",
-  fields: [
-    { name: "accountHolder", label: "Account Holder Name", type: "text", required: true, half: true },
-    { name: "accountNumber", label: "Account Number", type: "text", required: true, half: true },
-    { name: "ifsc", label: "IFSC / SWIFT Code", type: "text", required: true, half: true },
-    { name: "bankName", label: "Bank Name & Branch", type: "text", half: true },
-    { name: "upi", label: "UPI / PayPal ID", type: "text", half: true },
-  ],
-};
+// No application asks for bank details or an identity-document number: the owner
+// decided they are not collected at application time. Identity is verified from
+// the uploaded document and its type.
 
 const company = (required = false): Section => ({
   title: "Company Information",
@@ -150,7 +141,6 @@ export const ROLES: RoleConfig[] = [
         ],
       },
       identity,
-      bank,
     ],
   },
   {
@@ -204,7 +194,6 @@ export const ROLES: RoleConfig[] = [
       },
       identity,
       addressVerification,
-      bank,
     ],
   },
   {
@@ -243,7 +232,6 @@ export const ROLES: RoleConfig[] = [
         ],
       },
       identity,
-      bank,
     ],
   },
   {
@@ -309,7 +297,6 @@ export const ROLES: RoleConfig[] = [
       },
       identity,
       addressVerification,
-      bank,
     ],
   },
   {
@@ -382,7 +369,6 @@ export const ROLES: RoleConfig[] = [
         ],
       },
       identity,
-      bank,
     ],
   },
 ];

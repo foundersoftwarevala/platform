@@ -28,8 +28,7 @@ async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise
 
   const { createClient } = await import("@supabase/supabase-js");
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+  const key = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
   const client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
@@ -40,6 +39,13 @@ async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise
 }
 
 type Outcome = { ok?: boolean; reason?: string; message?: string; [k: string]: unknown };
+
+/**
+ * Who may change a homepage section through the one write here that uses the
+ * service role. These are the roles both requireOperator and mm_is_operator()
+ * accept, so nobody gains a write they did not already have through the RPCs.
+ */
+const SECTION_WRITERS = new Set(["admin", "boss", "founder", "super_admin", "boss_owner"]);
 
 /** Turns a refusal into a sentence a person can act on. */
 function settle(result: Outcome | null, whenOk: string) {
@@ -63,6 +69,9 @@ function settle(result: Outcome | null, whenOk: string) {
           : String(result?.message ?? result?.reason ?? "The change was refused."),
     );
   }
+  // Every caller of settle() is a write that succeeded: the storefront caches
+  // what rows hold, so they are emptied now (catalogue-invalidation.ts).
+  void import("@/lib/marketplace/catalogue-invalidation").then((m) => m.catalogueChanged());
   return { ...result, ok: true as const, message: whenOk };
 }
 
@@ -133,12 +142,14 @@ export const getRowProducts = createServerFn({ method: "GET" })
 
 export const assignSlot = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      key: z.string().min(1),
-      position: z.number().int().min(1).max(60),
-      productId: z.string().uuid(),
-      override: z.boolean().optional(),
-    }).parse(i),
+    z
+      .object({
+        key: z.string().min(1),
+        position: z.number().int().min(1).max(60),
+        productId: z.string().uuid(),
+        override: z.boolean().optional(),
+      })
+      .parse(i),
   )
   .handler(async ({ data }) =>
     settle(
@@ -165,16 +176,20 @@ export const removeSlot = createServerFn({ method: "POST" })
 
 export const moveSlot = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      key: z.string().min(1),
-      from: z.number().int().min(1).max(60),
-      to: z.number().int().min(1).max(60),
-    }).parse(i),
+    z
+      .object({
+        key: z.string().min(1),
+        from: z.number().int().min(1).max(60),
+        to: z.number().int().min(1).max(60),
+      })
+      .parse(i),
   )
   .handler(async ({ data }) =>
     settle(
       await callAsUser<Outcome>("mm_slot_move", {
-        p_key: data.key, p_from: data.from, p_to: data.to,
+        p_key: data.key,
+        p_from: data.from,
+        p_to: data.to,
       }),
       `Moved to slot ${data.to}`,
     ),
@@ -182,16 +197,20 @@ export const moveSlot = createServerFn({ method: "POST" })
 
 export const pinSlot = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      key: z.string().min(1),
-      position: z.number().int().min(1).max(60),
-      pinned: z.boolean(),
-    }).parse(i),
+    z
+      .object({
+        key: z.string().min(1),
+        position: z.number().int().min(1).max(60),
+        pinned: z.boolean(),
+      })
+      .parse(i),
   )
   .handler(async ({ data }) =>
     settle(
       await callAsUser<Outcome>("mm_slot_pin", {
-        p_key: data.key, p_position: data.position, p_pinned: data.pinned,
+        p_key: data.key,
+        p_position: data.position,
+        p_pinned: data.pinned,
       }),
       data.pinned ? "Pinned" : "Unpinned",
     ),
@@ -199,10 +218,12 @@ export const pinSlot = createServerFn({ method: "POST" })
 
 export const configureRow = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      key: z.string().min(1),
-      patch: z.record(z.string(), z.unknown()),
-    }).parse(i),
+    z
+      .object({
+        key: z.string().min(1),
+        patch: z.record(z.string(), z.unknown()),
+      })
+      .parse(i),
   )
   .handler(async ({ data }) =>
     settle(
@@ -220,9 +241,13 @@ export const reorderRows = createServerFn({ method: "POST" })
   );
 
 export const getRowAnalytics = createServerFn({ method: "GET" })
-  .inputValidator((i: unknown) => z.object({ key: z.string().min(1) }).parse(i))
-  .handler(async ({ data }) =>
-    callAsUser<{
+  .inputValidator((i: unknown) => z.object({ key: z.string().min(1).max(120) }).parse(i))
+  .handler(async ({ data }) => {
+    // The RPC gates direct callers too; this check gives the server path the
+    // same operator policy before invoking it with the user's credentials.
+    const { requireMarketplaceOperator } = await import("./mm-operator.server");
+    await requireMarketplaceOperator("Reading row analytics");
+    return callAsUser<{
       ok: boolean;
       product_views: number;
       demo_opens: number;
@@ -232,8 +257,8 @@ export const getRowAnalytics = createServerFn({ method: "GET" })
       ctr: number | null;
       conversion: number | null;
       measured_from: string | null;
-    }>("mm_row_analytics", { p_key: data.key }),
-  );
+    }>("mm_row_analytics", { p_key: data.key });
+  });
 
 /**
  * The product picker. Searches the real catalogue, defaulting to the row's own
@@ -242,32 +267,44 @@ export const getRowAnalytics = createServerFn({ method: "GET" })
  */
 export const searchRowProducts = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) =>
-    z.object({
-      categoryId: z.string().uuid().optional(),
-      query: z.string().max(120).optional(),
-      onlyPublished: z.boolean().optional(),
-      subcategory: z.string().max(120).optional(),
-      industry: z.string().max(120).optional(),
-      sellerId: z.string().uuid().optional(),
-      license: z.string().max(60).optional(),
-      featured: z.boolean().optional(),
-      trending: z.boolean().optional(),
-      bestSeller: z.boolean().optional(),
-      newRelease: z.boolean().optional(),
-      limit: z.number().int().min(1).max(50).optional(),
-    }).parse(i ?? {}),
+    z
+      .object({
+        categoryId: z.string().uuid().optional(),
+        query: z.string().max(120).optional(),
+        onlyPublished: z.boolean().optional(),
+        subcategory: z.string().max(120).optional(),
+        industry: z.string().max(120).optional(),
+        sellerId: z.string().uuid().optional(),
+        license: z.string().max(60).optional(),
+        featured: z.boolean().optional(),
+        trending: z.boolean().optional(),
+        bestSeller: z.boolean().optional(),
+        newRelease: z.boolean().optional(),
+        limit: z.number().int().min(1).max(50).optional(),
+      })
+      .parse(i ?? {}),
   )
   .handler(async ({ data }) => {
+    // The service role reads past every policy, so only an operator may ask for
+    // drafts and hidden products. Anyone else gets the published catalogue.
+    if (data.onlyPublished === false) {
+      const { requireMarketplaceOperator } = await import("./mm-operator.server");
+      await requireMarketplaceOperator("Searching unpublished products");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let q = supabaseAdmin
       .from("marketplace_products")
-      .select("id,name,slug,thumbnail_url,category_id,subcategory,industry_label,visible,content_status,moderation_status,license,is_featured,is_trending,is_best_seller,is_new_release,seller_id")
+      .select(
+        "id,name,slug,thumbnail_url,category_id,subcategory,industry_label,visible,content_status,moderation_status,license,is_featured,is_trending,is_best_seller,is_new_release,seller_id",
+      )
       .order("sort_order", { ascending: true })
       .limit(data.limit ?? 24);
 
     if (data.categoryId) q = q.eq("category_id", data.categoryId);
     if (data.onlyPublished !== false) q = q.eq("visible", true).eq("content_status", "published");
-    if (data.query?.trim()) q = q.ilike("name", `%${data.query.trim()}%`);
+    // % and _ are wildcards to ilike; a search for "50%" means the characters.
+    if (data.query?.trim())
+      q = q.ilike("name", `%${data.query.trim().replace(/[\\%_]/g, "\\$&")}%`);
     if (data.subcategory) q = q.eq("subcategory", data.subcategory);
     if (data.industry) q = q.eq("industry_label", data.industry);
     if (data.sellerId) q = q.eq("seller_id", data.sellerId);
@@ -302,28 +339,42 @@ export const searchRowProducts = createServerFn({ method: "GET" })
  */
 export const createRow = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      key: z.string().min(1).max(60)
-        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Use a lowercase slug such as featured-software"),
-      title: z.string().min(1).max(120).optional(),
-      row_kind: z.enum(["category", "curated"]).optional(),
-      category_id: z.string().uuid().optional(),
-      subcategory: z.string().max(120).optional(),
-      source_mode: z.enum(["manual", "auto", "hybrid"]).optional(),
-      auto_rule: z.enum([
-        "sort_order", "newest", "best_selling", "trending", "rating",
-        "featured", "new_release",
-      ]).optional(),
-      max_products: z.number().int().min(1).max(60).optional(),
-      visible_desktop: z.boolean().optional(),
-      visible_tablet: z.boolean().optional(),
-      visible_mobile: z.boolean().optional(),
-      starts_at: z.string().optional(),
-      ends_at: z.string().optional(),
-      cta_label: z.string().max(60).optional(),
-      cta_href: z.string().max(300).optional(),
-      status: z.enum(["draft", "review", "scheduled", "published", "unpublished", "archived"]).optional(),
-    }).parse(i),
+    z
+      .object({
+        key: z
+          .string()
+          .min(1)
+          .max(60)
+          .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Use a lowercase slug such as featured-software"),
+        title: z.string().min(1).max(120).optional(),
+        row_kind: z.enum(["category", "curated"]).optional(),
+        category_id: z.string().uuid().optional(),
+        subcategory: z.string().max(120).optional(),
+        source_mode: z.enum(["manual", "auto", "hybrid"]).optional(),
+        auto_rule: z
+          .enum([
+            "sort_order",
+            "newest",
+            "best_selling",
+            "trending",
+            "rating",
+            "featured",
+            "new_release",
+          ])
+          .optional(),
+        max_products: z.number().int().min(1).max(60).optional(),
+        visible_desktop: z.boolean().optional(),
+        visible_tablet: z.boolean().optional(),
+        visible_mobile: z.boolean().optional(),
+        starts_at: z.string().optional(),
+        ends_at: z.string().optional(),
+        cta_label: z.string().max(60).optional(),
+        cta_href: z.string().max(300).optional(),
+        status: z
+          .enum(["draft", "review", "scheduled", "published", "unpublished", "archived"])
+          .optional(),
+      })
+      .parse(i),
   )
   .handler(async ({ data }) =>
     settle(await callAsUser<Outcome>("mm_row_create", { p_spec: data }), "Row created"),
@@ -340,12 +391,14 @@ export const createRow = createServerFn({ method: "POST" })
  */
 export const assignSlotsBulk = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      key: z.string().min(1),
-      productIds: z.array(z.string().uuid()).min(1).max(60),
-      startAt: z.number().int().min(1).max(60).optional(),
-      override: z.boolean().optional(),
-    }).parse(i),
+    z
+      .object({
+        key: z.string().min(1),
+        productIds: z.array(z.string().uuid()).min(1).max(60),
+        startAt: z.number().int().min(1).max(60).optional(),
+        override: z.boolean().optional(),
+      })
+      .parse(i),
   )
   .handler(async ({ data }) => {
     const results: { productId: string; ok: boolean; reason?: string }[] = [];
@@ -378,26 +431,58 @@ export const assignSlotsBulk = createServerFn({ method: "POST" })
 /** Clear a whole row's placements at once. */
 export const clearRowSlots = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({ key: z.string().min(1), positions: z.array(z.number().int().min(1).max(60)).min(1) }).parse(i),
+    z
+      .object({
+        key: z.string().min(1),
+        positions: z.array(z.number().int().min(1).max(60)).min(1),
+      })
+      .parse(i),
   )
   .handler(async ({ data }) => {
+    // Counted by what was actually removed. An empty or rule-filled slot
+    // answers ok with removed 0, and a refusal was counted as nothing yet still
+    // reported as success - "5 slot(s) cleared" when none were.
     let cleared = 0;
+    let unchanged = 0;
     for (const position of data.positions) {
-      const r = await callAsUser<Outcome>("mm_slot_remove", { p_key: data.key, p_position: position });
-      if (r?.ok) cleared += 1;
+      const r = await callAsUser<Outcome & { removed?: number }>("mm_slot_remove", {
+        p_key: data.key,
+        p_position: position,
+      });
+      if (!r?.ok) settle(r, "The slots could not be cleared.");
+      const removed = Number(r?.removed ?? 1);
+      if (removed > 0) cleared += 1;
+      else unchanged += 1;
     }
-    return { ok: true as const, cleared, message: `${cleared} slot(s) cleared` };
+    return {
+      ok: true as const,
+      cleared,
+      message:
+        `${cleared} slot(s) cleared` +
+        (unchanged ? `; ${unchanged} held no hand-placed product and were left as they were` : ""),
+    };
   });
 
 /** The audit trail for a row — section 14. */
 export const getRowAudit = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ key: z.string().min(1) }).parse(i))
   .handler(async ({ data }) => {
+    // The trail carries operator e-mails and full before/after state, read with
+    // the service role, so it is for operators only - the console's own
+    // operators (mm_is_operator), not requireOperator's wider staff list.
+    const { requireMarketplaceOperator } = await import("./mm-operator.server");
+    await requireMarketplaceOperator("Reading the row history");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row } = await supabaseAdmin
-      .from("marketplace_categories").select("id").eq("slug", data.key).maybeSingle();
+      .from("marketplace_categories")
+      .select("id")
+      .eq("slug", data.key)
+      .maybeSingle();
     const { data: cfg } = await supabaseAdmin
-      .from("marketplace_row_config").select("id").eq("key", data.key).maybeSingle();
+      .from("marketplace_row_config")
+      .select("id")
+      .eq("key", data.key)
+      .maybeSingle();
     const ids = [row?.id, cfg?.id].filter(Boolean) as string[];
     if (!ids.length) return { ok: true as const, entries: [] };
 
@@ -463,34 +548,65 @@ export const listHomepageSections = createServerFn({ method: "GET" }).handler(
 /** Placement, order and publication for a homepage section. */
 export const configureSection = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      key: z.string().min(1).max(120),
-      patch: z.record(z.string(), z.unknown()),
-    }).parse(i),
+    z
+      .object({
+        key: z.string().min(1).max(120),
+        patch: z.object({
+          status: z.string().optional(),
+          enabled: z.boolean().optional(),
+          sort_order: z.number().int().optional(),
+          visible_desktop: z.boolean().optional(),
+          visible_mobile: z.boolean().optional(),
+          starts_at: z.string().nullable().optional(),
+          ends_at: z.string().nullable().optional(),
+          title: z.string().optional(),
+          subtitle: z.string().nullable().optional(),
+          cta_label: z.string().nullable().optional(),
+          cta_href: z.string().nullable().optional(),
+        }),
+      })
+      .parse(i),
   )
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const allowed = [
-      "status", "enabled", "sort_order", "visible_desktop", "visible_mobile",
-      "starts_at", "ends_at", "title", "subtitle", "cta_label", "cta_href",
-    ] as const;
-    const patch: Record<string, unknown> = {};
-    for (const k of allowed) {
-      if (k in data.patch) patch[k] = data.patch[k as string];
+    // This writes with the service role, which bypasses every policy, so the
+    // caller is checked here: an operator who may change the front page. It
+    // used to accept any signed-in account, a customer included.
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    const operator = await requireOperator("Changing a homepage section");
+    if (!operator.roles.some((r) => SECTION_WRITERS.has(r))) {
+      throw new Error("Changing a homepage section needs marketplace operator rights.");
     }
-    if (!Object.keys(patch).length) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const patch = { ...data.patch, updated_at: new Date().toISOString() };
+    if (!Object.keys(data.patch).length) {
       throw new Error("Nothing in that change is editable from here.");
     }
-    patch.updated_at = new Date().toISOString();
+
+    // An archived section is retired on purpose (archived_section_guard); it is
+    // not brought back by publishing it from here.
+    const { data: current, error: readError } = await supabaseAdmin
+      .from("marketplace_homepage_sections")
+      .select("status")
+      .eq("key", data.key)
+      .maybeSingle();
+    if (readError) throw new Error(readError.message);
+    if (!current) throw new Error("There is no homepage section with that key.");
+    const currentStatus = current.status;
+    if (currentStatus === "archived" && ("status" in patch || "enabled" in patch)) {
+      throw new Error(
+        "This section is archived. Restore it from Layout Order before publishing it.",
+      );
+    }
 
     const { error } = await supabaseAdmin
       .from("marketplace_homepage_sections")
       .update(patch)
       .eq("key", data.key);
     if (error) throw new Error(error.message);
+    const { catalogueChanged } = await import("@/lib/marketplace/catalogue-invalidation");
+    catalogueChanged();
     return { ok: true as const, message: "Section updated" };
   });
-
 
 /* ------------------------------------------------------------------------ */
 /* Recommendation engines — read-only, for Recommended Placement.            */
@@ -506,6 +622,19 @@ export type RecommendationEngine = {
   can_run: boolean;
   /** Why it cannot, in words, when it cannot. */
   blocked_reason: string | null;
+  /**
+   * Readiness, counted at read time rather than recorded once.
+   *
+   * blocked_reason used to decide can_run on its own, and three of the six
+   * engines were held back by notes that had stopped being true —
+   * marketplace_events gained user_id and session_id, and the notes still said
+   * it carried neither. `data_ready` is measured; `note_is_stale` is the flag
+   * for exactly that contradiction.
+   */
+  data_ready?: boolean;
+  needs?: string;
+  have?: string;
+  note_is_stale?: boolean;
   max_results: number;
   recency_days: number;
 };
@@ -518,10 +647,7 @@ export type RecommendationEngine = {
  */
 export const listRecommendationEngines = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ ok: true; engines: RecommendationEngine[] }> => {
-    const engines = await callAsUser<RecommendationEngine[]>(
-      "mm_recommendation_engines",
-      {},
-    );
+    const engines = await callAsUser<RecommendationEngine[]>("mm_recommendation_engines", {});
     return { ok: true as const, engines: engines ?? [] };
   },
 );

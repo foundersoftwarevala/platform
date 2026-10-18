@@ -104,7 +104,10 @@ export function AuditHistory() {
         <StatCard label="Scheduled" value={n(m?.scheduled)} icon={<Clock className="h-3.5 w-3.5" />} />
         <StatCard
           label="Backups"
-          value={backups?.state === "NOT_IMPLEMENTED" ? "none" : n(0)}
+          // "none" only when there is known to be no backup system; otherwise a
+          // dash. A hard-coded 0 showed while loading, after an error and when a
+          // backup table existed, which is the one number nobody may fake.
+          value={backups?.state === "NOT_IMPLEMENTED" ? "none" : "—"}
           tone="destructive"
         />
         <StatCard label="Rollbacks" value={n(m?.rollbacks)} tone="warning" />
@@ -120,10 +123,14 @@ export function AuditHistory() {
         </div>
       )}
 
+      {/* After a failed load the error above says so; the spinner used to keep
+          turning under it for good. */}
       {!data ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Reading the audit trail…
-        </div>
+        error ? null : (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Reading the audit trail…
+          </div>
+        )
       ) : (
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="p-0 lg:col-span-2">

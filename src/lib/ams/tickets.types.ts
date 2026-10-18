@@ -5,6 +5,32 @@ export const AMS_STATUSES = [
 ] as const;
 export type AmsStatus = (typeof AMS_STATUSES)[number];
 
+/**
+ * What the person who raised a ticket may do with it. The database lets a
+ * ticket's creator update it at all, so without this a customer could mark
+ * their own ticket "in progress" or "resolved". They may send a draft, cancel
+ * a ticket that is still open, close one that has been resolved, and reopen
+ * one that was resolved or closed - nothing that belongs to the support team.
+ */
+const REQUESTER_TRANSITIONS: Partial<Record<AmsStatus, AmsStatus[]>> = {
+  draft: ["submitted", "cancelled"],
+  submitted: ["cancelled"],
+  assigned: ["cancelled"],
+  accepted: ["cancelled"],
+  in_progress: ["cancelled"],
+  waiting_customer: ["cancelled"],
+  waiting_developer: ["cancelled"],
+  waiting_qa: ["cancelled"],
+  testing: ["cancelled"],
+  reopened: ["cancelled"],
+  resolved: ["closed", "reopened"],
+  closed: ["reopened"],
+};
+
+export function requesterMayMove(from: AmsStatus, to: AmsStatus): boolean {
+  return (REQUESTER_TRANSITIONS[from] ?? []).includes(to);
+}
+
 export const AMS_PRIORITIES = ["low","medium","high","critical"] as const;
 export type AmsPriority = (typeof AMS_PRIORITIES)[number];
 

@@ -4,6 +4,7 @@ import { getHomeLayout, type HomeLayout } from "@/lib/marketplace/home-layout.fu
 import { getStorefrontChrome, type StorefrontChrome } from "@/lib/storefront/chrome.functions";
 import { getCardComposition, type CardComposition } from "@/lib/marketplace/card-composition.functions";
 import { listHeroSlidesPublic, type HeroSlide } from "@/lib/marketplace-content/hero.functions";
+import { getHomeStats, type HomeStats } from "@/lib/marketplace/home-stats.functions";
 
 /**
  * The data the marketplace home needs before it is sent.
@@ -20,6 +21,7 @@ export type HomeRouteData = {
   chrome: StorefrontChrome | null;
   composition: CardComposition | null;
   slides: HeroSlide[] | null;
+  stats: HomeStats | null;
 };
 
 /**
@@ -33,7 +35,7 @@ export async function loadHomeRouteData(): Promise<HomeRouteData> {
   // Settled rather than all, so one failing lookup cannot take the others with
   // it. The catalogue, the layout and the chrome are unrelated questions and
   // the page has a safe answer for each of them missing.
-  const [seed, layout, chrome, composition, slides] = await Promise.allSettled([
+  const [seed, layout, chrome, composition, slides, stats] = await Promise.allSettled([
     getHomeCatalog(),
     getHomeLayout(),
     getStorefrontChrome(),
@@ -43,6 +45,9 @@ export async function loadHomeRouteData(): Promise<HomeRouteData> {
     // inside a Suspense, that single suspend replaced the whole document with a
     // spinner.
     listHeroSlidesPublic(),
+    // The catalogue counts the page quotes. Server-side, so the number in the
+    // HTML a crawler reads is the real one rather than a constant.
+    getHomeStats(),
   ]);
   return {
     seed: seed.status === "fulfilled" ? seed.value : null,
@@ -57,6 +62,9 @@ export async function loadHomeRouteData(): Promise<HomeRouteData> {
     composition: composition.status === "fulfilled" ? composition.value : null,
     // Null means the carousel fetches them itself, as it did before.
     slides: slides.status === "fulfilled" ? slides.value : null,
+    // Null means the page quotes SITE_STATS exactly as it did before, so a
+    // failed count can never blank a number on the live homepage.
+    stats: stats.status === "fulfilled" ? stats.value : null,
   };
 }
 

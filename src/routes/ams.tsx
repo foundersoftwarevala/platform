@@ -1,7 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 import { RequireRole } from "@/components/auth/RequireRole";
-import { CelebrationProvider } from "@/components/ams/effects/Celebration";
 import { AppShell } from "@/components/layout/AppShell";
 import { RouteHistoryPanel, RouteHistoryProvider } from "@/components/layout/RouteHistory";
 import { Toaster } from "@/components/ui/sonner";
@@ -55,13 +54,13 @@ function AmsManagerLayout() {
     <RequireRole role={["developer", "support"]}>
       <TooltipProvider delayDuration={250}>
         <RouteHistoryProvider>
-          <CelebrationProvider>
-            <AppShell>
-              <Outlet />
-            </AppShell>
-            <RouteHistoryPanel />
-            <Toaster richColors position="bottom-right" />
-          </CelebrationProvider>
+          {/* Celebrations come from the one provider at the root; a second one
+              here gave AMS Manager its own queue and its own sound switch. */}
+          <AppShell>
+            <Outlet />
+          </AppShell>
+          <RouteHistoryPanel />
+          <Toaster richColors position="bottom-right" />
         </RouteHistoryProvider>
       </TooltipProvider>
     </RequireRole>

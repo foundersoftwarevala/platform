@@ -141,8 +141,7 @@ export const DMSecurityAccess: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled
-                    title={t('devmanager.security.temporary_grant_info')}
+                    onClick={() => toast.info(t('devmanager.security.temporary_grant_info'))}
                   >
                     <Clock className="h-4 w-4 mr-1" />
                     {t('devmanager.security.temporary_grant')}

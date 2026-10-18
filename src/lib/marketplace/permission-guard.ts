@@ -169,6 +169,16 @@ export const OWNER_ONLY: Permission[] = [
   "marketplace.backup.restore",
 ];
 
+/** The owner tier: the only roles that may hold an OWNER_ONLY permission. */
+export const OWNER_ROLES = ["boss", "boss_owner"];
+
+/**
+ * What the owner tier must never lose, or nobody could open or repair the
+ * matrix again: the internal token resolves to boss and is checked against the
+ * same stored matrix, so it cannot recover a matrix that revoked these.
+ */
+export const OWNER_LOCKED: Permission[] = ["marketplace.view", "marketplace.permissions.configure"];
+
 export type Decision = {
   /** False means the role has no business knowing this exists - section 11. */
   visible: boolean;
@@ -211,7 +221,10 @@ export function resolveAction(input: {
     for (const p of matrix[role] ?? []) granted.add(p);
   }
 
-  if (!granted.has(needed)) {
+  // OWNER_ONLY holds whatever the matrix says: a matrix edit that granted
+  // configure or restore to another role must not let that role use it.
+  const ownerTier = input.roles.some((r) => OWNER_ROLES.includes(r));
+  if (!granted.has(needed) || (OWNER_ONLY.includes(needed) && !ownerTier)) {
     // Hidden, not disabled: no permission means no business knowing.
     return {
       visible: false, enabled: false,

@@ -33,12 +33,32 @@ const ACTIONS = [
   { id: "view_lead", label: "View", description: "Open the full lead workspace", icon: Eye },
   { id: "edit_lead", label: "Edit", description: "Edit lead information", icon: Edit },
   { id: "assign_lead", label: "Assign", description: "Assign to an agent", icon: UserCog },
-  { id: "reassign_lead", label: "Reassign", description: "Move to a different agent", icon: GitBranch },
+  {
+    id: "reassign_lead",
+    label: "Reassign",
+    description: "Move to a different agent",
+    icon: GitBranch,
+  },
   { id: "call_lead", label: "Call", description: "Place and log a call", icon: Phone },
-  { id: "whatsapp_lead", label: "WhatsApp", description: "Send a WhatsApp message", icon: MessageCircle },
+  {
+    id: "whatsapp_lead",
+    label: "WhatsApp",
+    description: "Send a WhatsApp message",
+    icon: MessageCircle,
+  },
   { id: "email_lead", label: "Email", description: "Send an email", icon: Mail },
-  { id: "schedule_followup", label: "Schedule Follow-Up", description: "Book the next touchpoint", icon: Calendar },
-  { id: "convert_client", label: "Convert to Client", description: "Mark the deal won", icon: UserCheck },
+  {
+    id: "schedule_followup",
+    label: "Schedule Follow-Up",
+    description: "Book the next touchpoint",
+    icon: Calendar,
+  },
+  {
+    id: "convert_client",
+    label: "Convert to Client",
+    description: "Mark the deal won",
+    icon: UserCheck,
+  },
   { id: "mark_lost", label: "Mark Lost", description: "Close with a lost reason", icon: XCircle },
 ];
 
@@ -60,7 +80,10 @@ export function ActionsScreen({
   const [lostReason, setLostReason] = useState("");
   const [followUpAt, setFollowUpAt] = useState("");
 
-  const open = useMemo(() => leads.filter((l) => !["won", "lost", "spam"].includes(l.status)).slice(0, 60), [leads]);
+  const open = useMemo(
+    () => leads.filter((l) => !["won", "lost", "spam"].includes(l.status)).slice(0, 60),
+    [leads],
+  );
   const selectedLeads = leads.filter((l) => picked.includes(l.id));
   const agentNames = agentNameMap(agents);
   const leadNames = leadNameMap(leads);
@@ -80,10 +103,17 @@ export function ActionsScreen({
         <StatCard label="Actionable leads" value={num(open.length)} icon={UserCog} />
         <StatCard label="Selected" value={num(picked.length)} tone="info" />
         <StatCard label="Touchpoints logged" value={num(comms.length)} tone="success" />
-        <StatCard label="Pipeline value selected" value={inr(selectedLeads.reduce((a, l) => a + (l.deal_value ?? 0), 0))} tone="warning" />
+        <StatCard
+          label="Pipeline value selected"
+          value={inr(selectedLeads.reduce((a, l) => a + (l.deal_value ?? 0), 0))}
+          tone="warning"
+        />
       </div>
 
-      <Panel title="Action catalog" description="Every lead action available in the console — all writes hit the live database.">
+      <Panel
+        title="Action catalog"
+        description="Every lead action available in the console — all writes hit the live database."
+      >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {ACTIONS.map((a) => (
             <div
@@ -162,7 +192,11 @@ export function ActionsScreen({
 
           <div className="space-y-2">
             <Label>Schedule follow-up</Label>
-            <Input type="datetime-local" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} />
+            <Input
+              type="datetime-local"
+              value={followUpAt}
+              onChange={(e) => setFollowUpAt(e.target.value)}
+            />
             <Button
               size="sm"
               disabled={!followUpAt || picked.length === 0}
@@ -186,12 +220,16 @@ export function ActionsScreen({
 
           <div className="space-y-2">
             <Label>Close out</Label>
-            <Input placeholder="Lost reason" value={lostReason} onChange={(e) => setLostReason(e.target.value)} />
+            <Input
+              placeholder="Lost reason"
+              value={lostReason}
+              onChange={(e) => setLostReason(e.target.value)}
+            />
             <div className="flex gap-2">
               <Button
                 size="sm"
                 disabled={picked.length === 0}
-                onClick={() => bulk((l) => leadApi.changeStatus(l.id, "won"), "Converted to clients")}
+                onClick={() => bulk((l) => leadApi.changeStatus(l.id, "won"), "Marked won")}
               >
                 <UserCheck className="size-4" /> Convert
               </Button>
@@ -199,7 +237,9 @@ export function ActionsScreen({
                 size="sm"
                 variant="destructive"
                 disabled={picked.length === 0 || !lostReason.trim()}
-                onClick={() => bulk((l) => leadApi.changeStatus(l.id, "lost", lostReason), "Marked lost")}
+                onClick={() =>
+                  bulk((l) => leadApi.changeStatus(l.id, "lost", lostReason), "Marked lost")
+                }
               >
                 <XCircle className="size-4" /> Lost
               </Button>
@@ -208,21 +248,34 @@ export function ActionsScreen({
         </div>
       </Panel>
 
-      <Panel title={`Open leads — ${open.length}`} description="Tick leads to build a selection, or open one for the full workspace.">
+      <Panel
+        title={`Open leads — ${open.length}`}
+        description="Tick leads to build a selection, or open one for the full workspace."
+      >
         <div className="space-y-2">
           {open.map((l) => (
-            <div key={l.id} className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface-2 p-3">
+            <div
+              key={l.id}
+              className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface-2 p-3"
+            >
               <Checkbox checked={picked.includes(l.id)} onCheckedChange={() => toggle(l.id)} />
               <button className="min-w-40 flex-1 text-left" onClick={() => onSelect(l)}>
                 <p className="text-sm font-medium">{l.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {l.sub_source} • {agentNames.get(l.assigned_agent_id ?? "") ?? "Unassigned"} • {relTime(l.created_at)}
+                  {l.sub_source} • {agentNames.get(l.assigned_agent_id ?? "") ?? "Unassigned"} •{" "}
+                  {relTime(l.created_at)}
                 </p>
               </button>
               <StatusBadge status={l.status as LeadStatus} />
               <span className="font-mono text-xs">{inr(l.deal_value)}</span>
               <div className="flex gap-1">
-                <Button size="icon" variant="ghost" className="size-8" onClick={() => onSelect(l)} aria-label="View lead">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-8"
+                  onClick={() => onSelect(l)}
+                  aria-label="View lead"
+                >
                   <Eye className="size-4" />
                 </Button>
                 <Button
@@ -232,8 +285,13 @@ export function ActionsScreen({
                   aria-label="Call lead"
                   onClick={() =>
                     run(
-                      () => leadApi.logCommunication({ lead_id: l.id, type: "call", content: `Outbound call placed to ${l.phone}` }),
-                      "Call logged",
+                      () =>
+                        leadApi.logCommunication({
+                          lead_id: l.id,
+                          type: "call",
+                          content: `Call opened to ${l.phone} from the console.`,
+                        }),
+                      "Call opened and logged",
                     ).then((result) => result && window.open(`tel:${l.phone}`, "_self"))
                   }
                 >
@@ -246,13 +304,20 @@ export function ActionsScreen({
                   aria-label="WhatsApp lead"
                   onClick={() =>
                     run(
-                      () => leadApi.logCommunication({ lead_id: l.id, type: "whatsapp", content: `WhatsApp conversation opened with ${l.name}` }),
-                      "WhatsApp logged",
-                    ).then((result) =>
-                      result && window.open(
-                        `https://wa.me/${l.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi ${l.name}, following up on your enquiry.`)}`,
-                        "_blank",
-                      ),
+                      () =>
+                        leadApi.logCommunication({
+                          lead_id: l.id,
+                          type: "whatsapp",
+                          content: `WhatsApp conversation opened with ${l.name}`,
+                        }),
+                      "WhatsApp opened and logged",
+                    ).then(
+                      (result) =>
+                        result &&
+                        window.open(
+                          `https://wa.me/${l.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi ${l.name}, following up on your enquiry.`)}`,
+                          "_blank",
+                        ),
                     )
                   }
                 >
@@ -270,9 +335,9 @@ export function ActionsScreen({
                           lead_id: l.id,
                           type: "email",
                           subject: "Following up on your enquiry",
-                          content: `Email sent to ${l.email}`,
+                          content: `Email composer opened for ${l.email}.`,
                         }),
-                      "Email logged",
+                      "Email composer opened and logged",
                     ).then((result) => result && window.open(`mailto:${l.email}`, "_self"))
                   }
                 >
@@ -284,12 +349,19 @@ export function ActionsScreen({
         </div>
       </Panel>
 
-      <Panel title="Recent activity" description="Latest calls, WhatsApp messages and emails logged by the team.">
+      <Panel
+        title="Recent activity"
+        description="Latest calls, WhatsApp messages and emails logged by the team."
+      >
         <div className="space-y-2">
           {comms.slice(0, 12).map((c) => (
-            <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm">
+            <div
+              key={c.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
+            >
               <span>
-                <span className="font-medium">{leadNames.get(c.lead_id) ?? "Lead"}</span> — {c.content}
+                <span className="font-medium">{leadNames.get(c.lead_id) ?? "Lead"}</span> —{" "}
+                {c.content}
               </span>
               <span className="text-xs uppercase tracking-wide text-muted-foreground">
                 {c.type} • {c.direction} • {relTime(c.created_at)}

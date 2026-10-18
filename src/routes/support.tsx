@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { absoluteUrl } from "@/lib/seo/site-url";
 import SupportDashboard from "@/components/salespages/SupportDashboard";
 import { RequireRole } from "@/components/auth/RequireRole";
 
@@ -9,6 +10,7 @@ export const Route = createFileRoute("/support")({
     section: typeof search.section === "string" ? search.section : undefined,
   }),
   head: () => ({
+    links: [{ rel: "canonical", href: absoluteUrl("/support") }],
     meta: [
       { title: "Support Operations Center | Software Vala" },
       {
@@ -24,5 +26,9 @@ export const Route = createFileRoute("/support")({
       },
     ],
   }),
-  component: () => <RequireRole role="support"><SupportDashboard /></RequireRole>,
+  component: () => (
+    <RequireRole role="support">
+      <SupportDashboard />
+    </RequireRole>
+  ),
 });

@@ -2,13 +2,25 @@
 // Public reads use a server publishable client (RLS enforced as anon).
 // Admin mutations use requireSupabaseAuth — RLS enforces boss/admin role.
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
+import { getRequestIP } from "@tanstack/react-start/server";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { Database } from "@/integrations/supabase/types";
+import { SlidingWindowLimiter } from "@/lib/i18n/limits";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
-import { catalogueEntries } from "@/data/catalogue";
+import { catalogueEntries, type CatalogueEntry } from "@/data/catalogue";
 import { LIFETIME_PRICE } from "@/lib/site-content/constants";
+
+// Migration-backed layout RPCs are absent from the cloud-generated metadata.
+type LayoutDatabase = Omit<Database, "public"> & {
+  public: Omit<Database["public"], "Functions"> & {
+    Functions: Database["public"]["Functions"] & {
+      mm_layout_history: { Args: { p_limit?: number }; Returns: Json };
+      mm_layout_restore: { Args: { p_audit_id: string }; Returns: Json };
+    };
+  };
+};
 
 export type ProductDemoBinding = {
   id: string;
@@ -38,7 +50,7 @@ export type MarketProduct = {
   public_repo_url?: string | null;
   tags?: string[];
   tech_stack?: string[];
-  features?: unknown;
+  features?: Json;
   content_status?: string;
   demo_count?: number;
   demo_urls?: ProductDemoBinding[];
@@ -122,14 +134,34 @@ export type PublicProductPageData = {
     meta_title: string | null;
     meta_description: string | null;
     canonical_url: string | null;
-    schema_json: string | Record<string, unknown> | null;
+    schema_json: Json;
   } | null;
 };
 
 function resolveSupabaseEnv() {
   const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
   const env = typeof process !== "undefined" ? process.env : undefined;
-  const url = viteEnv?.VITE_SUPABASE_URL ?? env?.SUPABASE_URL ?? "";
+  /**
+   * On the server, the server's own SUPABASE_URL wins.
+   *
+   * VITE_SUPABASE_URL is the address compiled into the browser bundle, and it
+   * points at the hosted Supabase project. This resolver preferred it even when
+   * running on the server, so publicClient() paired the hosted URL with the
+   * VPS service-role key - and hosted Supabase answers that pairing with
+   *
+   *     401 {"message":"Invalid API key",
+   *          "hint":"Double check your Supabase `anon` or `service_role` API key."}
+   *
+   * getPublicProductsByCategory swallowed the 401 and returned
+   * { category: null, products: [] }, so **every category page showed zero
+   * products** while eighty or more sat in each category. Measured against the
+   * live server before this change: 401 for the categories lookup and 401 for
+   * the products lookup, on the URL the running app actually carries.
+   *
+   * In the browser there is no process.env, so VITE_* is still what is used
+   * there and nothing about the client changes.
+   */
+  const url = env?.SUPABASE_URL ?? viteEnv?.VITE_SUPABASE_URL ?? "";
   const key =
     viteEnv?.VITE_SUPABASE_PUBLISHABLE_KEY ??
     viteEnv?.VITE_SUPABASE_ANON_KEY ??
@@ -139,7 +171,9 @@ function resolveSupabaseEnv() {
     "";
 
   if (!url || !key) {
-    throw new Error("Missing Supabase environment configuration: set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY).")
+    throw new Error(
+      "Missing Supabase environment configuration: set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY).",
+    );
   }
 
   return { url, key };
@@ -148,18 +182,29 @@ function resolveSupabaseEnv() {
 // ---------- server-only publishable client (public reads) ----------
 function publicClient() {
   const { url, key } = resolveSupabaseEnv();
-  const serverKey = typeof process !== "undefined" ? process.env.SUPABASE_SERVICE_ROLE_KEY : undefined;
+  const serverKey =
+    typeof process !== "undefined" ? process.env.SUPABASE_SERVICE_ROLE_KEY : undefined;
   const readKey = serverKey || key;
   return createClient<Database>(url, readKey, {
     auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
     global: {
       fetch: (input, init) => {
         const h = new Headers(init?.headers);
-        if (readKey.startsWith("sb_") && h.get("Authorization") === `Bearer ${readKey}`) h.delete("Authorization");
+        if (readKey.startsWith("sb_") && h.get("Authorization") === `Bearer ${readKey}`)
+          h.delete("Authorization");
         h.set("apikey", readKey);
         return fetch(input, { ...init, headers: h });
       },
     },
+  });
+}
+
+function serviceClient() {
+  const url = process.env.SUPABASE_URL?.trim();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !key) throw new Error("Marketplace server write service is not configured.");
+  return createClient<Database>(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
   });
 }
 
@@ -187,18 +232,25 @@ export const getPublicDemoAvailability = createServerFn({ method: "GET" }).handl
 
 function normalizeBadge(value: unknown): MarketProduct["badge"] {
   const normalized = String(value ?? "").toUpperCase();
-  if (normalized === "NEW" || normalized === "HOT" || normalized === "TOP" || normalized === "DEAL") {
+  if (
+    normalized === "NEW" ||
+    normalized === "HOT" ||
+    normalized === "TOP" ||
+    normalized === "DEAL"
+  ) {
     return normalized as MarketProduct["badge"];
   }
   return null;
 }
 
 function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "") || "product";
+  return (
+    value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "") || "product"
+  );
 }
 
 /**
@@ -209,7 +261,11 @@ function slugify(value: string) {
  * this is never reached - the page is built from the catalogue entry itself.
  */
 function buildHomeCatalogFallback(): PublicProduct[] {
-  return catalogueEntries.map((entry) => ({
+  return catalogueEntries.map(fallbackFromEntry);
+}
+
+function fallbackFromEntry(entry: CatalogueEntry): PublicProduct {
+  return {
     id: entry.slug,
     slug: entry.slug,
     name: entry.name,
@@ -229,7 +285,7 @@ function buildHomeCatalogFallback(): PublicProduct[] {
     content_status: "published",
     demo_count: 0,
     demo_urls: [],
-  }));
+  };
 }
 
 function buildSuppliedCatalogFallback(): PublicProduct[] {
@@ -246,23 +302,31 @@ function buildSuppliedCatalogFallback(): PublicProduct[] {
     downloads_label: "1.2K+",
     badge: "HOT",
     demo_count: 1,
-    demo_urls: [{
-      id: `${demo.slug}-demo`,
-      demo_name: demo.name,
-      role_name: "Public",
-      status: "active",
-      environment: "production",
-      url: demo.demoUrl,
-    }],
+    demo_urls: [
+      {
+        id: `${demo.slug}-demo`,
+        demo_name: demo.name,
+        role_name: "Public",
+        status: "active",
+        environment: "production",
+        url: demo.demoUrl,
+      },
+    ],
   }));
 }
 
 /** The product page for a slug no author has uploaded yet, if there is one. */
-function findFallbackProduct(slug: string): PublicProduct | undefined {
-  return (
+async function findFallbackProduct(slug: string): Promise<PublicProduct | undefined> {
+  const known =
     buildSuppliedCatalogFallback().find((product) => product.slug === slug) ??
-    buildHomeCatalogFallback().find((product) => product.slug === slug)
-  );
+    buildHomeCatalogFallback().find((product) => product.slug === slug);
+  if (known) return known;
+  // The home page's own card list. Its cards link here by the same slug, but
+  // only the extraDemos part was known to this page, so most of them opened
+  // "Product not found". Read on the server only.
+  const { homeCatalogueEntry } = await import("@/lib/marketplace/home-catalogue.server");
+  const entry = homeCatalogueEntry(slug);
+  return entry ? fallbackFromEntry(entry) : undefined;
 }
 
 function toProduct(r: any): MarketProduct {
@@ -291,15 +355,39 @@ function toProduct(r: any): MarketProduct {
 }
 
 function mapProductRecord(row: any): PublicProduct {
-  const metadata = (row.metadata && typeof row.metadata === "object" ? row.metadata : {}) as Record<string, unknown>;
-  const industryLabel = (row.industry_label as string | null | undefined) ?? (typeof metadata.industry_label === "string" ? metadata.industry_label : null);
-  const icon = (row.icon as string | null | undefined) ?? (typeof metadata.icon === "string" ? metadata.icon : "Sparkles");
-  const priceLabel = (row.price_label as string | null | undefined) ?? (typeof metadata.price_label === "string" ? metadata.price_label : "Custom");
-  const pricePeriod = (row.price_period as string | null | undefined) ?? (typeof metadata.price_period === "string" ? metadata.price_period : null);
-  const rating = Number((row.rating as number | undefined) ?? (typeof metadata.rating === "number" ? metadata.rating : 0));
-  const downloads = Number((row.downloads as number | undefined) ?? (typeof metadata.downloads === "number" ? metadata.downloads : 0));
-  const downloadsLabel = (row.downloads_label as string | null | undefined) ?? (typeof metadata.downloads_label === "string" ? metadata.downloads_label : null);
-  const badge = normalizeBadge((row.badge as string | null | undefined) ?? metadata.badge ?? row.live_status ?? row.demo_status);
+  const metadata = (row.metadata && typeof row.metadata === "object" ? row.metadata : {}) as Record<
+    string,
+    unknown
+  >;
+  const industryLabel =
+    (row.industry_label as string | null | undefined) ??
+    (typeof metadata.industry_label === "string" ? metadata.industry_label : null);
+  const icon =
+    (row.icon as string | null | undefined) ??
+    (typeof metadata.icon === "string" ? metadata.icon : "Sparkles");
+  const priceLabel =
+    (row.price_label as string | null | undefined) ??
+    (typeof metadata.price_label === "string" ? metadata.price_label : "Custom");
+  const pricePeriod =
+    (row.price_period as string | null | undefined) ??
+    (typeof metadata.price_period === "string" ? metadata.price_period : null);
+  const rating = Number(
+    (row.rating as number | undefined) ??
+      (typeof metadata.rating === "number" ? metadata.rating : 0),
+  );
+  const downloads = Number(
+    (row.downloads as number | undefined) ??
+      (typeof metadata.downloads === "number" ? metadata.downloads : 0),
+  );
+  const downloadsLabel =
+    (row.downloads_label as string | null | undefined) ??
+    (typeof metadata.downloads_label === "string" ? metadata.downloads_label : null);
+  const badge = normalizeBadge(
+    (row.badge as string | null | undefined) ??
+      metadata.badge ??
+      row.live_status ??
+      row.demo_status,
+  );
 
   return {
     ...toProduct({
@@ -322,11 +410,34 @@ function mapProductRecord(row: any): PublicProduct {
   };
 }
 
+/**
+ * The product behind a public URL - and only if it is actually public.
+ *
+ * This read the row by slug alone, with the service-role key, so row level
+ * security never applied and a product that had been hidden or left in draft
+ * still rendered its full page to anyone with the address. Two retired QA
+ * products were live proof: both answered 200 with their details, and because
+ * the SEO lookup *does* filter on `visible` they also carried no title and no
+ * noindex, so they were indexable as well.
+ *
+ * The filters here are the same ones getProductSeo already applies, plus the
+ * publish window that add-to-cart and checkout apply. A product that is not on
+ * sale now resolves to nothing, which makes the page say "Product not found"
+ * and tells search engines not to index it.
+ */
 async function loadPublicProductBySlugFromSupabase(sb: any, slug: string) {
+  const nowIso = new Date().toISOString();
   const marketplaceResult = await sb
     .from("marketplace_products")
-    .select("id, slug, name, industry_label, icon, price_label, price_period, rating, downloads, downloads_label, badge, visible, category_id, marketplace_categories(name)")
+    .select(
+      "id, slug, name, industry_label, icon, price_label, price_period, rating, downloads, downloads_label, badge, visible, category_id, marketplace_categories(name)",
+    )
     .eq("slug", slug)
+    .eq("visible", true)
+    .eq("moderation_status", "approved")
+    .or("content_status.is.null,content_status.eq.published")
+    .or(`publish_at.is.null,publish_at.lte.${nowIso}`)
+    .or(`unpublish_at.is.null,unpublish_at.gt.${nowIso}`)
     .maybeSingle();
 
   if (!marketplaceResult.error && marketplaceResult.data) {
@@ -348,7 +459,6 @@ async function loadPublicProductBySlugFromSupabase(sb: any, slug: string) {
 function withoutAddress(demos: ProductDemoBinding[]): ProductDemoBinding[] {
   return demos.map((demo) => ({ ...demo, url: "" }));
 }
-
 
 async function loadPublicDemosForProduct(sb: any, productId: string) {
   const demoResult = await sb
@@ -377,17 +487,40 @@ async function loadPublicSeoForProduct(sb: any, productId: string) {
   return result.data;
 }
 
+const DEMO_CLICK_WINDOW_MS = 60_000;
+const DEMO_CLICK_LIMIT = 30;
+const demoClickLimiter = new SlidingWindowLimiter(DEMO_CLICK_WINDOW_MS, 20_000);
+
 export const recordPublicDemoClick = createServerFn({ method: "POST" })
-  .validator((value) => z.object({
-    productId: z.string().uuid(),
-    demoUrlId: z.string().uuid(),
-    sourcePage: z.string().max(500).optional(),
-    referrer: z.string().max(2000).optional(),
-    deviceType: z.string().max(80).optional(),
-    browser: z.string().max(120).optional(),
-  }).parse(value))
+  .validator((value) =>
+    z
+      .object({
+        productId: z.string().uuid(),
+        demoUrlId: z.string().uuid(),
+        sourcePage: z.string().max(500).optional(),
+        referrer: z.string().max(2000).optional(),
+        deviceType: z.string().max(80).optional(),
+        browser: z.string().max(120).optional(),
+      })
+      .parse(value),
+  )
   .handler(async ({ data }) => {
-    const sb = publicClient();
+    const address = getRequestIP() ?? "unknown";
+    if (demoClickLimiter.hit(address, DEMO_CLICK_LIMIT)) {
+      return { ok: true, recorded: false, reason: "rate_limited" };
+    }
+
+    const sb = serviceClient();
+    const { data: demo, error: demoError } = await sb
+      .from("product_demo_urls")
+      .select("id")
+      .eq("id", data.demoUrlId)
+      .eq("product_id", data.productId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (demoError) throw new Error(`Could not verify the product demo: ${demoError.message}`);
+    if (!demo) return { ok: false, recorded: false, reason: "demo_not_found" };
+
     const { error } = await sb.from("demo_clicks").insert({
       product_id: data.productId,
       demo_url_id: data.demoUrlId,
@@ -397,10 +530,8 @@ export const recordPublicDemoClick = createServerFn({ method: "POST" })
       browser: data.browser || null,
     });
     if (error) throw new Error(error.message);
-    return { ok: true };
+    return { ok: true, recorded: true };
   });
-
-
 
 export const getPublicProduct = createServerFn({ method: "GET" })
   .validator((v) => z.object({ slug: z.string().min(1) }).parse(v ?? {}))
@@ -410,7 +541,7 @@ export const getPublicProduct = createServerFn({ method: "GET" })
       const { row: productRow } = await loadPublicProductBySlugFromSupabase(sb, data.slug);
 
       if (!productRow) {
-        const fallbackProduct = findFallbackProduct(data.slug);
+        const fallbackProduct = await findFallbackProduct(data.slug);
         if (fallbackProduct) {
           return {
             product: fallbackProduct,
@@ -442,7 +573,7 @@ export const getPublicProduct = createServerFn({ method: "GET" })
       };
     } catch (err) {
       console.error("getPublicProduct error:", err);
-      const fallbackProduct = findFallbackProduct(data.slug);
+      const fallbackProduct = await findFallbackProduct(data.slug);
       if (fallbackProduct) {
         return {
           product: fallbackProduct,
@@ -450,18 +581,35 @@ export const getPublicProduct = createServerFn({ method: "GET" })
           seo: null,
         };
       }
-      return { product: null, active_demos: [], seo: null };
+      // A failed read is not an absent product. Answering { product: null }
+      // here made the route answer 404 "Product Not Found" for a real product
+      // whenever the database was unreachable; rejecting lets it tell the two
+      // apart.
+      throw err instanceof Error ? err : new Error("The product could not be read");
     }
   });
 
-
+/**
+ * What makes a product public: the same filters the product page applies. A
+ * category listing a product the product page then refuses sends the visitor
+ * to "Product not found" - which is what the ten draft products did.
+ */
+function onSale<Q extends { eq: Function; or: Function }>(query: Q): Q {
+  const nowIso = new Date().toISOString();
+  return query
+    .eq("visible", true)
+    .eq("moderation_status", "approved")
+    .or("content_status.is.null,content_status.eq.published")
+    .or(`publish_at.is.null,publish_at.lte.${nowIso}`)
+    .or(`unpublish_at.is.null,unpublish_at.gt.${nowIso}`) as Q;
+}
 
 export const getPublicProductsByCategory = createServerFn({ method: "GET" })
   .validator((v) => z.object({ category_slug: z.string().min(1) }).parse(v ?? {}))
   .handler(async ({ data }): Promise<{ category: Category | null; products: PublicProduct[] }> => {
     try {
       const sb = publicClient();
-      
+
       // Get category by slug
       const { data: categoryData, error: catError } = await sb
         .from("marketplace_categories")
@@ -469,54 +617,112 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
         .eq("slug", data.category_slug)
         .eq("is_hidden", false)
         .maybeSingle();
-      
+
       if (catError || !categoryData) {
         return { category: null, products: [] };
       }
-      
+
       // Get products in this category
-      const { data: productRows, error: prodError } = await sb
-        .from("marketplace_products")
-        .select(PRODUCT_COLS)
-        .eq("category_id", categoryData.id)
-        .eq("visible", true)
-        .order("sort_order");
-      
+      const { data: productRows, error: prodError } = await onSale(
+        sb.from("marketplace_products").select(PRODUCT_COLS).eq("category_id", categoryData.id),
+      ).order("sort_order");
+
       if (prodError || !productRows) {
         return { category: categoryData as Category, products: [] };
       }
-      
-      // Education & Coaching is the public live-demo catalog. Include visible
-      // products with active demos even when older rows use a child category.
-      let catalogRows = productRows;
+
+      // Education & Coaching is the public live-demo catalog: it shows its own
+      // products plus any visible product that has a live demo, wherever that
+      // product happens to be filed.
+      //
+      // The way that was expressed asked for every visible product in the
+      // catalogue - 7,357 of them against this category's own 80 - and then,
+      // below, opened one demo lookup per row. The page stopped answering at
+      // all: 504 from the edge, and nothing over the loopback after two
+      // minutes.
+      //
+      // It did not fail alone. Seven thousand concurrent queries leave the
+      // application unable to answer what comes next, so a sweep of all
+      // ninety-one category pages found three 504s - this one, healthcare and
+      // legal - and the other two answer in 1.6s and 0.7s when asked on their
+      // own. That is also why a sample of twenty pages only ever found one.
+      //
+      // The set it was reaching for can be asked for directly: the products
+      // that actually have an active demo. That is one product today, so the
+      // page loads 81 rows instead of 7,357 and shows what a working version
+      // of the old code would have shown.
+      type CatalogRow = { id: string };
+      let catalogRows = productRows as unknown as CatalogRow[];
+
       if (categoryData.slug === "education-coaching") {
-        const { data: liveRows, error: liveError } = await sb
-          .from("marketplace_products")
-          .select(PRODUCT_COLS)
-          .eq("visible", true)
-          .order("sort_order");
-        if (!liveError && Array.isArray(liveRows)) catalogRows = liveRows;
+        const { data: demoRows } = await sb
+          .from("product_demo_urls")
+          .select("product_id")
+          .eq("status", "active");
+
+        const already = new Set(catalogRows.map((row) => row.id));
+        const extraIds = [
+          ...new Set(
+            ((demoRows ?? []) as { product_id: string }[])
+              .map((row) => row.product_id)
+              .filter((id) => id && !already.has(id)),
+          ),
+        ];
+
+        if (extraIds.length) {
+          const { data: liveRows, error: liveError } = await onSale(
+            sb.from("marketplace_products").select(PRODUCT_COLS).in("id", extraIds),
+          ).order("sort_order");
+          if (!liveError && Array.isArray(liveRows)) {
+            catalogRows = [...catalogRows, ...(liveRows as unknown as CatalogRow[])];
+          }
+        }
       }
 
-      // Enrich products with demo URLs
-      const productsWithDemos = await Promise.all(
-        catalogRows.map(async (product: any) => {
-          const activeDemos = withoutAddress(
-            (await loadPublicDemosForProduct(sb, product.id)).filter((demo) => {
-              if (!demo.url) return false;
-              return /^https?:\/\//i.test(demo.url);
-            }),
-          );
-          
-          const mapped = mapProductRecord(product);
-          return {
-            ...mapped,
-            demo_count: activeDemos.length,
-            demo_urls: activeDemos,
-          } as PublicProduct;
-        }),
-      );
-      
+      // Every product's demos, in one query per batch instead of one per product.
+      //
+      // The loop below used to await a separate lookup for each row inside a
+      // Promise.all, so a category of eighty products opened eighty of them at
+      // once and Education & Coaching opened seven thousand.
+      //
+      // The ids go over in the query string, so they are sent in batches rather
+      // than all at once: a category is free to grow past the largest one today
+      // without the request growing into a 414.
+      const demosByProduct = new Map<string, ProductDemoBinding[]>();
+      const ID_BATCH = 200;
+      for (let at = 0; at < catalogRows.length; at += ID_BATCH) {
+        const ids = catalogRows.slice(at, at + ID_BATCH).map((row) => row.id);
+        const { data: demoRows, error: demoError } = await sb
+          .from("product_demo_urls")
+          .select("id, demo_name, role_name, status, environment, url, product_id")
+          .in("product_id", ids)
+          .eq("status", "active")
+          .order("sort_order");
+
+        if (demoError || !Array.isArray(demoRows)) continue;
+        for (const demo of demoRows as (ProductDemoBinding & { product_id: string })[]) {
+          const list = demosByProduct.get(demo.product_id);
+          if (list) list.push(demo);
+          else demosByProduct.set(demo.product_id, [demo]);
+        }
+      }
+
+      const productsWithDemos = catalogRows.map((product) => {
+        const activeDemos = withoutAddress(
+          (demosByProduct.get(product.id) ?? []).filter((demo) => {
+            if (!demo.url) return false;
+            return /^https?:\/\//i.test(demo.url);
+          }),
+        );
+
+        const mapped = mapProductRecord(product);
+        return {
+          ...mapped,
+          demo_count: activeDemos.length,
+          demo_urls: activeDemos,
+        } as PublicProduct;
+      });
+
       return {
         category: categoryData as Category,
         products: productsWithDemos,
@@ -559,14 +765,15 @@ export const upsertProduct = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
+    // Row level security also lets a seller member update their own products,
+    // and this schema carries visible, rating, downloads, badge, the featured
+    // flags and the publish window - none of them a seller's to set. Only the
+    // Marketplace Manager's own people may write through here.
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Editing the catalogue", { alsoAllow: ["marketing", "seo"] });
 
-    const { error, data: row } = await context.supabase
-      .from("marketplace_products")
-      .upsert(data as any, { onConflict: "slug" })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    return row;
+    const { upsertReviewedProduct } = await import("@/lib/marketplace/product-write.server");
+    return upsertReviewedProduct(context.supabase, data);
   });
 
 export const deleteProduct = createServerFn({ method: "POST" })
@@ -577,7 +784,10 @@ export const deleteProduct = createServerFn({ method: "POST" })
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
 
-    const { error } = await context.supabase.from("marketplace_products").delete().eq("id", data.id);
+    const { error } = await context.supabase
+      .from("marketplace_products")
+      .delete()
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -604,6 +814,142 @@ export const listProductsAdmin = createServerFn({ method: "GET" })
       return data ?? [];
     } catch (error) {
       console.error("[marketplace] listProductsAdmin error:", error);
+      return [];
+    }
+  });
+
+/**
+ * One page of the catalogue for the admin table, counted in the database.
+ *
+ * listProductsAdmin selects every column of every row with no limit. Measured
+ * against the live console, the Products section arrived as 476,660 characters
+ * and 15,297 controls for 7,390 rows, all in one DOM. That is slow now and it
+ * stops working later: PostgREST on this server caps a result at 10,000 rows,
+ * so past that the table would quietly stop showing newer products with no
+ * error anywhere.
+ *
+ * The total is asked for with count exact, so the figure beside the table is
+ * the database's answer and not the length of whatever happened to arrive.
+ *
+ * listProductsAdmin is left exactly as it is. The demo URL manager builds its
+ * product picker from it, and changing its shape would break that.
+ */
+export const listProductsAdminPage = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => {
+    const raw = (input ?? {}) as { page?: unknown; pageSize?: unknown; search?: unknown };
+    const page = Math.max(0, Math.trunc(Number(raw.page ?? 0)) || 0);
+    // Bounded at both ends: a page of zero returns nothing useful, and an
+    // unbounded one is the defect being fixed.
+    const requested = Math.trunc(Number(raw.pageSize ?? 50)) || 50;
+    const pageSize = Math.min(200, Math.max(10, requested));
+    const search = String(raw.search ?? "")
+      .trim()
+      .slice(0, 120);
+    return { page, pageSize, search };
+  })
+  .handler(async ({ context, data }) => {
+    if (!context?.supabase) {
+      throw new Error("Unauthorized: Supabase context is unavailable.");
+    }
+    const { page, pageSize, search } = data;
+    const from = page * pageSize;
+
+    try {
+      let query = context.supabase
+        .from("marketplace_products")
+        .select("*", { count: "exact" })
+        .order("sort_order")
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (search) {
+        // Escaped: a comma or a parenthesis in the box would otherwise be read
+        // as PostgREST filter syntax rather than as text to look for.
+        const term = search.replace(/[%,()]/g, " ").trim();
+        if (term) query = query.or(`name.ilike.%${term}%,slug.ilike.%${term}%`);
+      }
+
+      const { data: rows, error, count } = await query;
+      if (error) {
+        console.error("[marketplace] listProductsAdminPage error:", error);
+        return { rows: [], total: 0, page, pageSize, ok: false, error: error.message };
+      }
+      return { rows: rows ?? [], total: count ?? 0, page, pageSize, ok: true };
+    } catch (error) {
+      console.error("[marketplace] listProductsAdminPage error:", error);
+      return {
+        rows: [],
+        total: 0,
+        page,
+        pageSize,
+        ok: false,
+        error: error instanceof Error ? error.message : "Could not read the catalogue.",
+      };
+    }
+  });
+/**
+ * Just enough of the catalogue to fill a product picker.
+ *
+ * The demo URL manager filled its <select> from listProductsAdmin — every
+ * column of all 7,365 products, to render a list of names. That is a lot of
+ * wire for a dropdown, and a dropdown of 7,365 options is not usable anyway;
+ * past 10,000 products PostgREST would cap the read and the missing ones would
+ * simply be unselectable, with nothing to say so.
+ *
+ * p_selected is the important part. A bounded list would otherwise drop the
+ * product an existing row already points at, the <select> would fall back to
+ * its first option, and saving would quietly reassign the demo to a different
+ * product. The current selection is always included, whatever the search says.
+ */
+export const listProductOptions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => {
+    const raw = (input ?? {}) as { search?: unknown; selected?: unknown };
+    return {
+      search: String(raw.search ?? "")
+        .trim()
+        .slice(0, 120),
+      selected: String(raw.selected ?? "")
+        .trim()
+        .slice(0, 64),
+    };
+  })
+  .handler(async ({ context, data }) => {
+    if (!context?.supabase) {
+      throw new Error("Unauthorized: Supabase context is unavailable.");
+    }
+    const { search, selected } = data;
+    try {
+      let query = context.supabase
+        .from("marketplace_products")
+        .select("id, name, slug")
+        .order("name")
+        .limit(200);
+
+      if (search) {
+        const term = search.replace(/[%,()]/g, " ").trim();
+        if (term) query = query.or(`name.ilike.%${term}%,slug.ilike.%${term}%`);
+      }
+
+      const { data: rows, error } = await query;
+      if (error) {
+        console.error("[marketplace] listProductOptions error:", error);
+        return [];
+      }
+
+      const options = (rows ?? []) as { id: string; name: string; slug: string }[];
+      if (selected && !options.some((o) => o.id === selected)) {
+        const { data: current } = await context.supabase
+          .from("marketplace_products")
+          .select("id, name, slug")
+          .eq("id", selected)
+          .maybeSingle();
+        if (current) options.unshift(current as { id: string; name: string; slug: string });
+      }
+      return options;
+    } catch (error) {
+      console.error("[marketplace] listProductOptions error:", error);
       return [];
     }
   });
@@ -680,7 +1026,10 @@ export const deleteCategory = createServerFn({ method: "POST" })
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
 
-    const { error } = await context.supabase.from("marketplace_categories").delete().eq("id", data.id);
+    const { error } = await context.supabase
+      .from("marketplace_categories")
+      .delete()
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -714,17 +1063,21 @@ export const setSectionEnabled = createServerFn({ method: "POST" })
     // so the old direct write reported success while changing nothing - and it
     // publishes a draft it is asked to enable, since a section that is enabled
     // but unpublished is still not live.
-    const { data: row, error } = await context.supabase.rpc(
-      "mm_section_set_enabled",
-      { p_key: data.key, p_enabled: data.enabled },
-    );
+    const { data: row, error } = await context.supabase.rpc("mm_section_set_enabled", {
+      p_key: data.key,
+      p_enabled: data.enabled,
+    });
     if (error) throw new Error(error.message);
     return { ok: true, section: row };
   });
 
 export const reorderSections = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((v) => z.object({ order: z.array(z.object({ key: z.string(), sort_order: z.number().int() })) }).parse(v))
+  .validator((v) =>
+    z
+      .object({ order: z.array(z.object({ key: z.string(), sort_order: z.number().int() })) })
+      .parse(v),
+  )
   .handler(async ({ data, context }) => {
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
@@ -733,12 +1086,51 @@ export const reorderSections = createServerFn({ method: "POST" })
     // One statement rather than one update per section, so a failure partway
     // through cannot leave the page in an order nobody chose. Unknown or
     // repeated keys are rejected rather than quietly skipped.
-    const { data: moved, error } = await context.supabase.rpc(
-      "mm_sections_reorder",
-      { p_order: data.order },
-    );
+    const { data: moved, error } = await context.supabase.rpc("mm_sections_reorder", {
+      p_order: data.order,
+    });
     if (error) throw new Error(error.message);
     return { ok: true, moved: typeof moved === "number" ? moved : 0 };
+  });
+
+/**
+ * The homepage layout's recent changes, and putting one back.
+ *
+ * There is no "reset to default": nothing records a canonical homepage order,
+ * and inventing one would mean choosing the owner's layout for them. Every
+ * reorder already writes its complete before and after state into the audit
+ * log, so what an operator can do instead is look at the changes actually made
+ * and restore any of them.
+ *
+ * Both go through RPCs that check the role themselves, so a caller who is
+ * signed in but not an operator is refused by the database rather than by a
+ * hidden button.
+ */
+export const layoutHistory = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    if (!context?.supabase) {
+      throw new Error("Unauthorized: Supabase context is unavailable.");
+    }
+    const client = context.supabase as SupabaseClient<LayoutDatabase>;
+    const { data, error } = await client.rpc("mm_layout_history", { p_limit: 20 });
+    if (error) throw new Error(error.message);
+    return (data ?? { entries: [] }) as { entries: Json[] };
+  });
+
+export const layoutRestore = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((v) => z.object({ auditId: z.string().uuid() }).parse(v))
+  .handler(async ({ data, context }) => {
+    if (!context?.supabase) {
+      throw new Error("Unauthorized: Supabase context is unavailable.");
+    }
+    const client = context.supabase as SupabaseClient<LayoutDatabase>;
+    const { data: result, error } = await client.rpc("mm_layout_restore", {
+      p_audit_id: data.auditId,
+    });
+    if (error) throw new Error(error.message);
+    return (result ?? { ok: false }) as { ok: boolean };
   });
 
 export const listSectionsAdmin = createServerFn({ method: "GET" })
@@ -762,14 +1154,18 @@ export const listSectionsAdmin = createServerFn({ method: "GET" })
 
 export const addProductDemo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((v) => z.object({
-    product_id: z.string().uuid(),
-    demo_name: z.string().min(1),
-    role_name: z.string().min(1),
-    status: z.enum(["active", "inactive"]).default("active"),
-    environment: z.enum(["production", "staging"]).default("production"),
-    url: z.string().url(),
-  }).parse(v))
+  .validator((v) =>
+    z
+      .object({
+        product_id: z.string().uuid(),
+        demo_name: z.string().min(1),
+        role_name: z.string().min(1),
+        status: z.enum(["active", "inactive"]).default("active"),
+        environment: z.enum(["production", "staging"]).default("production"),
+        url: z.string().url(),
+      })
+      .parse(v),
+  )
   .handler(async ({ data, context }) => {
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
@@ -777,16 +1173,18 @@ export const addProductDemo = createServerFn({ method: "POST" })
 
     const { data: result, error } = await context.supabase
       .from("product_demo_urls")
-      .insert([{
-        id: crypto.randomUUID?.() || Date.now().toString(),
-        product_id: data.product_id,
-        demo_name: data.demo_name,
-        role_name: data.role_name,
-        status: data.status,
-        environment: data.environment,
-        url: data.url,
-        sort_order: 0,
-      }])
+      .insert([
+        {
+          id: crypto.randomUUID?.() || Date.now().toString(),
+          product_id: data.product_id,
+          demo_name: data.demo_name,
+          role_name: data.role_name,
+          status: data.status,
+          environment: data.environment,
+          url: data.url,
+          sort_order: 0,
+        },
+      ])
       .select()
       .single();
     if (error) {
@@ -798,14 +1196,18 @@ export const addProductDemo = createServerFn({ method: "POST" })
 
 export const updateProductDemo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((v) => z.object({
-    id: z.string().uuid(),
-    demo_name: z.string().min(1).optional(),
-    role_name: z.string().min(1).optional(),
-    status: z.enum(["active", "inactive"]).optional(),
-    environment: z.enum(["production", "staging"]).optional(),
-    url: z.string().url().optional(),
-  }).parse(v))
+  .validator((v) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        demo_name: z.string().min(1).optional(),
+        role_name: z.string().min(1).optional(),
+        status: z.enum(["active", "inactive"]).optional(),
+        environment: z.enum(["production", "staging"]).optional(),
+        url: z.string().url().optional(),
+      })
+      .parse(v),
+  )
   .handler(async ({ data, context }) => {
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
@@ -833,10 +1235,7 @@ export const deleteProductDemo = createServerFn({ method: "POST" })
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
 
-    const { error } = await context.supabase
-      .from("product_demo_urls")
-      .delete()
-      .eq("id", data.id);
+    const { error } = await context.supabase.from("product_demo_urls").delete().eq("id", data.id);
     if (error) {
       console.error("[marketplace] deleteProductDemo error:", error);
       throw new Error(error.message);
@@ -849,18 +1248,28 @@ export const deleteProductDemo = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const searchProducts = createServerFn({ method: "POST" })
-  .validator((v) => z.object({
-    query: z.string().min(1),
-    limit: z.number().int().min(1).max(100).optional().default(20),
-  }).parse(v))
+  .validator((v) =>
+    z
+      .object({
+        query: z.string().min(1),
+        limit: z.number().int().min(1).max(100).optional().default(20),
+      })
+      .parse(v),
+  )
   .handler(async ({ data }) => {
     try {
       const sb = publicClient();
-      const searchTerm = `%${data.query}%`;
-      const { data: results, error } = await sb
-        .from("marketplace_products")
-        .select(PRODUCT_COLS)
-        .eq("visible", true)
+      // Escaped as the admin searches are: a comma, parenthesis or quote would
+      // otherwise be read as PostgREST filter syntax, letting a caller add
+      // conditions of their own to a service-role query.
+      const term = data.query.replace(/[%,()"*\\]/g, " ").trim();
+      if (!term) return [];
+      const searchTerm = `%${term}%`;
+      // On sale now, as the product page decides it: visible alone also matched
+      // drafts, unapproved and scheduled products, read with the service role.
+      const { data: results, error } = await onSale(
+        sb.from("marketplace_products").select(PRODUCT_COLS),
+      )
         .or(`name.ilike.${searchTerm},industry_label.ilike.${searchTerm}`)
         .limit(data.limit);
       if (error) {
@@ -875,17 +1284,22 @@ export const searchProducts = createServerFn({ method: "POST" })
   });
 
 export const filterByBadge = createServerFn({ method: "POST" })
-  .validator((v) => z.object({
-    badge: z.enum(["NEW", "HOT", "TOP", "DEAL"]),
-    limit: z.number().int().min(1).max(100).optional().default(20),
-  }).parse(v))
+  .validator((v) =>
+    z
+      .object({
+        badge: z.enum(["NEW", "HOT", "TOP", "DEAL"]),
+        limit: z.number().int().min(1).max(100).optional().default(20),
+      })
+      .parse(v),
+  )
   .handler(async ({ data }) => {
     try {
       const sb = publicClient();
-      const { data: results, error } = await sb
-        .from("marketplace_products")
-        .select(PRODUCT_COLS)
-        .eq("visible", true)
+      // On sale now, as the product page decides it: visible alone also matched
+      // drafts, unapproved and scheduled products, read with the service role.
+      const { data: results, error } = await onSale(
+        sb.from("marketplace_products").select(PRODUCT_COLS),
+      )
         .eq("badge", data.badge)
         .limit(data.limit);
       if (error) {
@@ -900,16 +1314,21 @@ export const filterByBadge = createServerFn({ method: "POST" })
   });
 
 export const sortByRating = createServerFn({ method: "POST" })
-  .validator((v) => z.object({
-    limit: z.number().int().min(1).max(100).optional().default(20),
-  }).parse(v))
+  .validator((v) =>
+    z
+      .object({
+        limit: z.number().int().min(1).max(100).optional().default(20),
+      })
+      .parse(v),
+  )
   .handler(async ({ data }) => {
     try {
       const sb = publicClient();
-      const { data: results, error } = await sb
-        .from("marketplace_products")
-        .select(PRODUCT_COLS)
-        .eq("visible", true)
+      // On sale now, as the product page decides it: visible alone also matched
+      // drafts, unapproved and scheduled products, read with the service role.
+      const { data: results, error } = await onSale(
+        sb.from("marketplace_products").select(PRODUCT_COLS),
+      )
         .order("rating", { ascending: false })
         .limit(data.limit);
       if (error) {
@@ -924,16 +1343,21 @@ export const sortByRating = createServerFn({ method: "POST" })
   });
 
 export const sortByDownloads = createServerFn({ method: "POST" })
-  .validator((v) => z.object({
-    limit: z.number().int().min(1).max(100).optional().default(20),
-  }).parse(v))
+  .validator((v) =>
+    z
+      .object({
+        limit: z.number().int().min(1).max(100).optional().default(20),
+      })
+      .parse(v),
+  )
   .handler(async ({ data }) => {
     try {
       const sb = publicClient();
-      const { data: results, error } = await sb
-        .from("marketplace_products")
-        .select(PRODUCT_COLS)
-        .eq("visible", true)
+      // On sale now, as the product page decides it: visible alone also matched
+      // drafts, unapproved and scheduled products, read with the service role.
+      const { data: results, error } = await onSale(
+        sb.from("marketplace_products").select(PRODUCT_COLS),
+      )
         .order("downloads", { ascending: false })
         .limit(data.limit);
       if (error) {
@@ -947,83 +1371,222 @@ export const sortByDownloads = createServerFn({ method: "POST" })
     }
   });
 
-export const listProductDemos = createServerFn({ method: "GET" })
-  .handler(async ({ context }) => {
-    const supabase = context?.supabase ?? publicClient();
-    const { data: results, error } = await supabase
-      .from("product_demo_urls")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
-      console.error("[marketplace] listProductDemos error:", error);
-      return [];
-    }
-    return results ?? [];
-  });
+/**
+ * Every demo the catalogue has, for Demo Manager.
+ *
+ * This was open to anyone. It is a GET server function with no middleware, it
+ * reads with the service-role key, and it selected `*` from product_demo_urls -
+ * a table that carries `username` and `password` for demos behind a login. So an
+ * unauthenticated caller received every demo's real address and its credentials,
+ * while the whole point of the demo proxy and its ticket system is that the real
+ * address is never handed out.
+ *
+ * Now: operator only, and the credential columns are not selected at all. Demo
+ * Manager, which is the only caller, is an operator console and is unaffected.
+ * The columns it does not get are the two it never displayed.
+ */
+export const listProductDemos = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireOperator } = await import("@/lib/auth/require-operator.server");
+  await requireOperator("Reading the demo list");
 
-export const recoverMarketplaceData = createServerFn({ method: "POST" })
-  .handler(async ({ context }) => {
-    const supabase = context?.supabase ?? publicClient();
-    console.log("[marketplace] Starting marketplace data recovery...");
-    
-    try {
-      // Sample products data
-      const products = [
-        { slug: "school-management", name: "School Management Software", category_id: null, price_label: "₹59,999", rating: 4.8, downloads: 2150, badge: "HOT", is_featured: true, is_trending: true, sort_order: 1 },
-        { slug: "gym-fitness", name: "Gym & Fitness Center Management", category_id: null, price_label: "₹44,999", rating: 4.6, downloads: 1200, badge: "HOT", is_featured: true, is_trending: true, sort_order: 2 },
-        { slug: "salon-spa", name: "Salon & Spa Management", category_id: null, price_label: "₹39,999", rating: 4.5, downloads: 980, badge: null, is_featured: false, is_trending: false, sort_order: 3 },
-        { slug: "restaurant-pos", name: "Restaurant POS", category_id: null, price_label: "₹54,999", rating: 4.7, downloads: 1950, badge: "TOP", is_featured: true, is_trending: true, sort_order: 4 },
-        { slug: "crm-software", name: "CRM Software", category_id: null, price_label: "₹59,999", rating: 4.7, downloads: 2050, badge: "TOP", is_featured: true, is_trending: true, sort_order: 5 },
-        { slug: "hotel-management", name: "Hotel Management System", category_id: null, price_label: "₹89,999", rating: 4.8, downloads: 1920, badge: "TOP", is_featured: true, is_trending: false, sort_order: 6 },
-        { slug: "fleet-management", name: "Fleet Management System", category_id: null, price_label: "₹69,999", rating: 4.7, downloads: 1750, badge: "HOT", is_featured: true, is_trending: false, sort_order: 7 },
-        { slug: "hospital-hms", name: "Hospital Management System", category_id: null, price_label: "₹99,999", rating: 4.8, downloads: 2300, badge: "TOP", is_featured: true, is_trending: false, sort_order: 8 },
-        { slug: "petcare-veterinary", name: "Pet Care & Veterinary Software", category_id: null, price_label: "₹44,999", rating: 4.6, downloads: 890, badge: "DEAL", is_featured: false, is_trending: true, sort_order: 9 },
-        { slug: "college-erp", name: "College / University ERP", category_id: null, price_label: "₹89,999", rating: 4.5, downloads: 750, badge: "NEW", is_featured: false, is_trending: false, sort_order: 10 },
-      ];
+  const supabase = publicClient();
+  const { data: results, error } = await supabase
+    .from("product_demo_urls")
+    .select(
+      "id,product_id,demo_name,role_name,url,description,environment,status,sort_order," +
+        "last_checked_at,last_response_ms,last_http_status,last_result,ssl_valid," +
+        "processing_status,processing,processed_at,detected_category_id,created_at,updated_at",
+    )
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("[marketplace] listProductDemos error:", error);
+    return [];
+  }
+  return results ?? [];
+});
 
-      let insertCount = 0;
-      for (const prod of products) {
-        const { error } = await supabase
-          .from("marketplace_products")
-          .insert({
-            slug: prod.slug,
-            name: prod.name,
-            industry_label: prod.name,
-            category_id: prod.category_id,
-            icon: "Sparkles",
-            price_label: prod.price_label,
-            price_period: "lifetime",
-            rating: prod.rating,
-            downloads: prod.downloads,
-            downloads_label: Math.floor(prod.downloads / 1000) + "k",
-            badge: prod.badge,
-            is_featured: prod.is_featured,
-            is_trending: prod.is_trending,
-            is_best_seller: false,
-            is_new_release: prod.badge === "NEW",
-            is_ai: false,
-            visible: true,
-            sort_order: prod.sort_order,
-          });
+/**
+ * Writes sample products into the live catalogue. Operator only.
+ *
+ * This was a POST server function with no middleware that writes with the
+ * service-role key, so anyone who found its id in the browser bundle could
+ * insert products into the live storefront and make them visible. The screen
+ * that triggers it is behind a route gate, but a route gate hides a screen - it
+ * does not guard the function, which is callable directly.
+ */
+export const recoverMarketplaceData = createServerFn({ method: "POST" }).handler(async () => {
+  const { requireOperator } = await import("@/lib/auth/require-operator.server");
+  await requireOperator("Marketplace data recovery");
 
-        if (!error) {
-          insertCount++;
-        }
+  const supabase = publicClient();
+  console.log("[marketplace] Starting marketplace data recovery...");
+
+  try {
+    // Sample products data
+    const products = [
+      {
+        slug: "school-management",
+        name: "School Management Software",
+        category_id: null,
+        price_label: "₹59,999",
+        rating: 4.8,
+        downloads: 2150,
+        badge: "HOT",
+        is_featured: true,
+        is_trending: true,
+        sort_order: 1,
+      },
+      {
+        slug: "gym-fitness",
+        name: "Gym & Fitness Center Management",
+        category_id: null,
+        price_label: "₹44,999",
+        rating: 4.6,
+        downloads: 1200,
+        badge: "HOT",
+        is_featured: true,
+        is_trending: true,
+        sort_order: 2,
+      },
+      {
+        slug: "salon-spa",
+        name: "Salon & Spa Management",
+        category_id: null,
+        price_label: "₹39,999",
+        rating: 4.5,
+        downloads: 980,
+        badge: null,
+        is_featured: false,
+        is_trending: false,
+        sort_order: 3,
+      },
+      {
+        slug: "restaurant-pos",
+        name: "Restaurant POS",
+        category_id: null,
+        price_label: "₹54,999",
+        rating: 4.7,
+        downloads: 1950,
+        badge: "TOP",
+        is_featured: true,
+        is_trending: true,
+        sort_order: 4,
+      },
+      {
+        slug: "crm-software",
+        name: "CRM Software",
+        category_id: null,
+        price_label: "₹59,999",
+        rating: 4.7,
+        downloads: 2050,
+        badge: "TOP",
+        is_featured: true,
+        is_trending: true,
+        sort_order: 5,
+      },
+      {
+        slug: "hotel-management",
+        name: "Hotel Management System",
+        category_id: null,
+        price_label: "₹89,999",
+        rating: 4.8,
+        downloads: 1920,
+        badge: "TOP",
+        is_featured: true,
+        is_trending: false,
+        sort_order: 6,
+      },
+      {
+        slug: "fleet-management",
+        name: "Fleet Management System",
+        category_id: null,
+        price_label: "₹69,999",
+        rating: 4.7,
+        downloads: 1750,
+        badge: "HOT",
+        is_featured: true,
+        is_trending: false,
+        sort_order: 7,
+      },
+      {
+        slug: "hospital-hms",
+        name: "Hospital Management System",
+        category_id: null,
+        price_label: "₹99,999",
+        rating: 4.8,
+        downloads: 2300,
+        badge: "TOP",
+        is_featured: true,
+        is_trending: false,
+        sort_order: 8,
+      },
+      {
+        slug: "petcare-veterinary",
+        name: "Pet Care & Veterinary Software",
+        category_id: null,
+        price_label: "₹44,999",
+        rating: 4.6,
+        downloads: 890,
+        badge: "DEAL",
+        is_featured: false,
+        is_trending: true,
+        sort_order: 9,
+      },
+      {
+        slug: "college-erp",
+        name: "College / University ERP",
+        category_id: null,
+        price_label: "₹89,999",
+        rating: 4.5,
+        downloads: 750,
+        badge: "NEW",
+        is_featured: false,
+        is_trending: false,
+        sort_order: 10,
+      },
+    ];
+
+    let insertCount = 0;
+    for (const prod of products) {
+      const { error } = await supabase.from("marketplace_products").insert({
+        slug: prod.slug,
+        name: prod.name,
+        industry_label: prod.name,
+        category_id: prod.category_id,
+        icon: "Sparkles",
+        price_label: prod.price_label,
+        price_period: "lifetime",
+        rating: prod.rating,
+        downloads: prod.downloads,
+        downloads_label: Math.floor(prod.downloads / 1000) + "k",
+        badge: prod.badge,
+        is_featured: prod.is_featured,
+        is_trending: prod.is_trending,
+        is_best_seller: false,
+        is_new_release: prod.badge === "NEW",
+        is_ai: false,
+        visible: true,
+        sort_order: prod.sort_order,
+      });
+
+      if (!error) {
+        insertCount++;
       }
-
-      console.log(`[marketplace] Recovery complete: ${insertCount} products inserted`);
-      
-      return {
-        success: true,
-        productsInserted: insertCount,
-        message: "Marketplace data recovery completed",
-      };
-    } catch (err) {
-      console.error("[marketplace] Recovery error:", err);
-      return {
-        success: false,
-        error: String(err),
-        message: "Recovery failed",
-      };
     }
-  });
+
+    console.log(`[marketplace] Recovery complete: ${insertCount} products inserted`);
+
+    return {
+      success: true,
+      productsInserted: insertCount,
+      message: "Marketplace data recovery completed",
+    };
+  } catch (err) {
+    console.error("[marketplace] Recovery error:", err);
+    return {
+      success: false,
+      error: String(err),
+      message: "Recovery failed",
+    };
+  }
+});

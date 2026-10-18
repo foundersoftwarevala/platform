@@ -1,0 +1,48 @@
+{
+  "servingPid": 3273064,
+  "providerTokenConfigured": true,
+  "diskProviderMatchesRuntime": true,
+  "runtimeProviderMatchesEngine": true,
+  "database": "/sv_platform",
+  "views": [
+    {
+      "view": "overview",
+      "status": 200,
+      "engine": {
+        "reachable": true,
+        "configured": true,
+        "ready": true,
+        "model": {
+          "name": "madlad400-3b-mt-ct2-int8",
+          "version": "madlad400-3b-mt-ct2-int8@aa32bbdeba78",
+          "ready": true,
+          "busy": true,
+          "load_seconds": 12.99,
+          "error": null
+        }
+      }
+    },
+    {
+      "view": "metrics",
+      "status": 200,
+      "engine": {
+        "reachable": true,
+        "configured": true,
+        "ready": true,
+        "model": {
+          "name": "madlad400-3b-mt-ct2-int8",
+          "version": "madlad400-3b-mt-ct2-int8@aa32bbdeba78",
+          "ready": true,
+          "busy": true,
+          "load_seconds": 12.99,
+          "error": null
+        }
+      }
+    },
+    {
+      "view": "glossary",
+      "status": 200,
+      "engine": null
+    }
+  ]
+}

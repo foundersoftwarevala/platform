@@ -269,7 +269,10 @@ export function IntegrationsHub() {
             <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
               <div>
                 Record says <span className="text-foreground">{c.declared_status}</span>
-                {c.declared_status !== c.state ? " — the checks disagree." : "."}
+                {/* Compared in one vocabulary: "active" and "connected" agree, as do
+                    "disconnected" and "not_connected". Compared raw, every gateway
+                    read as disagreeing. */}
+                {sameState(c.declared_status, c.state) ? "." : " — the checks disagree."}
               </div>
               <div>Last sync: {when(c.last_sync_at)}</div>
               {c.webhook_url ? (
@@ -334,4 +337,15 @@ export function IntegrationsHub() {
       </Card>
     </div>
   );
+}
+
+/** One vocabulary for a record's declared status and the checked state. */
+function sameState(declared: string | null | undefined, checked: string | null | undefined): boolean {
+  const norm = (v: string | null | undefined) => {
+    const x = String(v ?? "").toLowerCase().trim();
+    if (["active", "live", "enabled", "connected", "ok"].includes(x)) return "connected";
+    if (["disconnected", "inactive", "disabled", "not_connected", "off"].includes(x)) return "not_connected";
+    return x;
+  };
+  return norm(declared) === norm(checked);
 }

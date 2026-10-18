@@ -6,6 +6,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 
+/**
+ * Every server function in this file is a public RPC endpoint and works with
+ * the service role, which reads and writes past every policy. None had a check
+ * of its own, so anyone - signed in or not - could call them. The SEO
+ * console's people are the operators plus the seo and marketing staff the
+ * route gate admits, as in seo.functions.ts.
+ */
+async function seoGuard(action: string) {
+  const { requireOperator } = await import("@/lib/auth/require-operator.server");
+  return requireOperator(action, { alsoAllow: ["seo", "marketing"] });
+}
+
 // ============================================================================
 // ADMIN CLIENT
 // ============================================================================
@@ -30,22 +42,26 @@ async function getGoogleApiKey() {
 // ============================================================================
 
 export const syncSearchConsoleData = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    site_url: string;
-    start_date?: string;
-    end_date?: string;
-    dimensions?: string[];
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        site_url: string;
+        start_date?: string;
+        end_date?: string;
+        dimensions?: string[];
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("syncSearchConsoleData");
     const admin = getSupabaseAdmin();
-    
+
     try {
       // Note: In production, use OAuth2 for Search Console
       // This example shows the structure for real GSC API integration
       // GSC API requires OAuth2 bearer token from authenticated user
-      
+
       const gscApiUrl = "https://www.googleapis.com/webmasters/v3/sites";
-      
+
       // Fetch query stats (requires OAuth2)
       const queryStats = await fetch(
         `${gscApiUrl}/${encodeURIComponent(data.site_url)}/searchAnalytics/query`,
@@ -57,12 +73,14 @@ export const syncSearchConsoleData = createServerFn({ method: "POST" })
             // Authorization: `Bearer ${oauthToken}`,
           },
           body: JSON.stringify({
-            startDate: data.start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            endDate: data.end_date || new Date().toISOString().split('T')[0],
+            startDate:
+              data.start_date ||
+              new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+            endDate: data.end_date || new Date().toISOString().split("T")[0],
             dimensions: data.dimensions || ["date", "page", "query", "device"],
             rowLimit: 25000,
           }),
-        }
+        },
       );
 
       if (!queryStats.ok) {
@@ -79,7 +97,7 @@ export const syncSearchConsoleData = createServerFn({ method: "POST" })
             page: row.keys?.[1] || "",
             query: row.keys?.[2] || "",
             device: row.keys?.[3] || "desktop",
-            date: row.keys?.[0] || new Date().toISOString().split('T')[0],
+            date: row.keys?.[0] || new Date().toISOString().split("T")[0],
             impressions: row.impressions || 0,
             clicks: row.clicks || 0,
             ctr: row.ctr || 0,
@@ -91,11 +109,11 @@ export const syncSearchConsoleData = createServerFn({ method: "POST" })
 
       // Fetch sitemap stats
       const sitemapStatsUrl = `${gscApiUrl}/${encodeURIComponent(data.site_url)}/sitemaps`;
-      
+
       return {
         success: true,
         rows_synced: queryData.rows?.length || 0,
-        message: "Search Console data synced successfully"
+        message: "Search Console data synced successfully",
       };
     } catch (error) {
       console.error("Search Console sync error:", error);
@@ -108,20 +126,24 @@ export const syncSearchConsoleData = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const runPageSpeedInsights = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    url: string;
-    strategy?: "desktop" | "mobile";
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        url: string;
+        strategy?: "desktop" | "mobile";
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("runPageSpeedInsights");
     const admin = getSupabaseAdmin();
     const apiKey = await getGoogleApiKey();
 
     try {
       const strategy = data.strategy || "mobile";
-      
+
       const response = await fetch(
         `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(data.url)}&strategy=${strategy}&key=${apiKey}`,
-        { method: "GET" }
+        { method: "GET" },
       );
 
       if (!response.ok) {
@@ -133,7 +155,7 @@ export const runPageSpeedInsights = createServerFn({ method: "POST" })
       // Extract scores
       const lighthouseResult = result.lighthouseResult;
       const metrics = lighthouseResult.audits;
-      
+
       // Store in database
       await admin.from("pagespeed_insights").insert({
         url: data.url,
@@ -189,18 +211,23 @@ export const runPageSpeedInsights = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const getCruxMetrics = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    url: string;
-    form_factor?: "desktop" | "mobile" | "all";
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        url: string;
+        form_factor?: "desktop" | "mobile" | "all";
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("getCruxMetrics");
     const admin = getSupabaseAdmin();
     const apiKey = await getGoogleApiKey();
 
     try {
-      const formFactors = data.form_factor === "all" 
-        ? ["desktop", "mobile", "tablet"]
-        : [data.form_factor || "mobile"];
+      const formFactors =
+        data.form_factor === "all"
+          ? ["desktop", "mobile", "tablet"]
+          : [data.form_factor || "mobile"];
 
       const results = [];
 
@@ -217,7 +244,7 @@ export const getCruxMetrics = createServerFn({ method: "POST" })
               url: data.url,
               formFactor: formFactor.toUpperCase(),
             }),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -229,7 +256,7 @@ export const getCruxMetrics = createServerFn({ method: "POST" })
 
         if (result.record) {
           const metrics = result.record.metrics;
-          
+
           // Store CrUX data
           await admin.from("core_web_vitals").insert({
             url: data.url,
@@ -262,14 +289,18 @@ export const getCruxMetrics = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const inspectUrl = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    url: string;
-    site_url: string;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        url: string;
+        site_url: string;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("inspectUrl");
     // Note: URL Inspection API requires OAuth2
     // This is the structure for real integration
-    
+
     try {
       const response = await fetch(
         "https://searchconsole.googleapis.com/v1/urlInspection/index:query",
@@ -284,7 +315,7 @@ export const inspectUrl = createServerFn({ method: "POST" })
             inspectionUrl: data.url,
             siteUrl: data.site_url,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -314,11 +345,15 @@ export const inspectUrl = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const batchInspectUrls = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    site_url: string;
-    urls: string[];
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        site_url: string;
+        urls: string[];
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("batchInspectUrls");
     const admin = getSupabaseAdmin();
     const results = [];
 
@@ -339,11 +374,15 @@ export const batchInspectUrls = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const submitSitemapToGSC = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => d as {
-    site_url: string;
-    sitemap_url: string;
-  })
+  .inputValidator(
+    (d: unknown) =>
+      d as {
+        site_url: string;
+        sitemap_url: string;
+      },
+  )
   .handler(async ({ data }) => {
+    await seoGuard("submitSitemapToGSC");
     // Requires OAuth2
     const response = await fetch(
       `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(data.site_url)}/sitemaps/${encodeURIComponent(data.sitemap_url)}`,
@@ -354,7 +393,7 @@ export const submitSitemapToGSC = createServerFn({ method: "POST" })
           // OAuth2 token would be here
           // Authorization: `Bearer ${oauthToken}`,
         },
-      }
+      },
     );
 
     if (!response.ok) {

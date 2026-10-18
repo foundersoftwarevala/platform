@@ -1,4 +1,4 @@
-import { formatMessage, type MessageValues } from "./format";
+import { formatMessage, preserveSourceWhitespace, type MessageValues } from "./format";
 import { LANGUAGE_COOKIE, detectBrowserLanguage } from "./language-service";
 import { allMessages, messageContext, messageText, type MessageKey } from "./messages";
 import { PipelineError } from "./pipeline";
@@ -46,14 +46,22 @@ export function englishTranslator(): ServerT {
 }
 
 /**
- * The language a request asks for: the site's language cookie (the language the
+ * The language a request asks for: an explicit lang URL, the site's language cookie (the language the
  * visitor chose or that was detected for them), then Accept-Language, then English.
  */
 export function languageOf(request: Request): string {
+  const query = resolveLanguage(new URL(request.url).searchParams.get("lang") ?? "");
+  if (query) return query.code;
   const cookie = request.headers.get("cookie") ?? "";
   const match = cookie.match(new RegExp(`(?:^|;\\s*)${LANGUAGE_COOKIE}=([^;]+)`));
   if (match) {
-    const chosen = resolveLanguage(decodeURIComponent(match[1]!));
+    let value = "";
+    try {
+      value = decodeURIComponent(match[1]!);
+    } catch {
+      log("[i18n] malformed locale cookie");
+    }
+    const chosen = resolveLanguage(value);
     if (chosen) return chosen.code;
   }
   const accept = request.headers.get("accept-language") ?? "";
@@ -104,7 +112,7 @@ export async function serverTranslator(
             outcome.translation &&
             (outcome.status === "machine" || outcome.status === "verified")
           ) {
-            translated.set(`${context}${SEP}${outcome.text}`, outcome.translation);
+            translated.set(`${context}${SEP}${outcome.text.trim()}`, outcome.translation);
           }
         }
       } catch (error) {
@@ -126,7 +134,8 @@ export async function serverTranslator(
 
   return (key, variables) => {
     const text = messageText(key) ?? key;
-    const found = translated.get(`${messageContext(key) ?? ""}${SEP}${text}`) ?? text;
+    const translatedText = translated.get(`${messageContext(key) ?? ""}${SEP}${text.trim()}`);
+    const found = translatedText ? preserveSourceWhitespace(text, translatedText) : text;
     return variables ? formatMessage(found, variables, language.code) : found;
   };
 }

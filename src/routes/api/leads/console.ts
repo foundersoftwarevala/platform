@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { validZone, zonedBoundaries } from "@/lib/server/zoned-day";
 
 /**
  * Lead operations, as the Marketplace Manager sees them.
@@ -31,13 +32,39 @@ function admin() {
 
 type Row = Record<string, unknown>;
 
-async function read(path: string): Promise<Row[]> {
+/**
+ * Rows, or [] with the table named in `failed`. A failed read used to come back
+ * as an empty list and the screen showed zeros as if they had been counted.
+ */
+async function read(path: string, failed?: string[]): Promise<Row[]> {
   try {
     const response = await fetch(`${url()}/rest/v1/${path}`, { headers: admin() });
-    if (!response.ok) return [];
+    if (!response.ok) {
+      failed?.push(path.split("?")[0]);
+      return [];
+    }
     return (await response.json()) as Row[];
   } catch {
+    failed?.push(path.split("?")[0]);
     return [];
+  }
+}
+
+/** A count made by the database, or null when it could not be made. */
+async function countOf(path: string, failed?: string[]): Promise<number | null> {
+  try {
+    const response = await fetch(`${url()}/rest/v1/${path}&limit=1`, {
+      headers: { ...admin(), Prefer: "count=exact" },
+    });
+    if (!response.ok) {
+      failed?.push(path.split("?")[0]);
+      return null;
+    }
+    const total = Number((response.headers.get("content-range") ?? "").split("/")[1]);
+    return Number.isFinite(total) ? total : null;
+  } catch {
+    failed?.push(path.split("?")[0]);
+    return null;
   }
 }
 
@@ -56,23 +83,9 @@ const PIPELINE: { tab: string; statuses: string[] }[] = [
 
 /** Midnight today and the first of this month, in the given zone. */
 function boundaries(timeZone: string) {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
-  }).formatToParts(now);
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "01";
-  const y = get("year");
-  const m = get("month");
-  const d = get("day");
-  // Rendered as a local wall-clock instant, then read back as UTC by Postgres;
-  // the offset is applied by asking for the same zone on both sides.
-  const offsetMinutes = -new Date(
-    new Date().toLocaleString("en-US", { timeZone }),
-  ).getTimezoneOffset();
-  void offsetMinutes;
-  const startOfDay = new Date(`${y}-${m}-${d}T00:00:00`);
-  const startOfMonth = new Date(`${y}-${m}-01T00:00:00`);
-  return { startOfDay: startOfDay.toISOString(), startOfMonth: startOfMonth.toISOString() };
+  // The operator's midnight as a real instant. This used to parse the date in
+  // the server's own zone and throw the computed offset away.
+  return zonedBoundaries(timeZone);
 }
 
 export const Route = createFileRoute("/api/leads/console")({
@@ -84,18 +97,26 @@ export const Route = createFileRoute("/api/leads/console")({
         if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
 
         const params = new URL(request.url).searchParams;
-        const timeZone = (params.get("tz") || "Asia/Kolkata").slice(0, 60);
+        // An unknown zone threw inside Intl and answered with an HTML 500.
+        const timeZone = validZone(params.get("tz"));
         const { startOfDay, startOfMonth } = boundaries(timeZone);
 
         // One read of the columns that matter, rather than a count per tab.
         // 129 leads today and a few thousand at the catalogue's size; this
         // stays a single indexed scan and everything below is computed from it.
+        const failed: string[] = [];
         const leads = await read(
           "leads?select=id,name,company,email,phone,status,source,sub_source,cta_action," +
             "product_id,category,country,ai_score,intent_score,is_duplicate,assigned_agent_id," +
             "next_follow_up,last_contact_at,created_at,closed_at,lost_reason" +
             "&order=created_at.desc&limit=5000",
+          failed,
         );
+        // Without the leads there is nothing to show, and zeros would be a lie.
+        if (failed.length) {
+          // i18n-ignore: an API error message; this API answers in English.
+          return Response.json({ error: "The leads could not be read." }, { status: 502 });
+        }
 
         const counts: Record<string, number> = {};
         for (const l of leads) {
@@ -159,33 +180,61 @@ export const Route = createFileRoute("/api/leads/console")({
             && !PIPELINE[4].statuses.includes(String(l.status ?? "")),
         ).length;
 
+        // Counted by the database: active sources and rules, every agent, and
+        // escalations still open. These were the lengths of capped lists that
+        // included disabled rows and resolved escalations.
         const [sources, routing, agents, escalations, unassigned] = await Promise.all([
-          read("lead_sources?select=*&limit=50"),
-          read("lead_routing_rules?select=*&limit=50"),
-          read("lead_agents?select=*&limit=50"),
-          read("lead_escalations?select=id,level,created_at&order=created_at.desc&limit=20"),
-          Promise.resolve(leads.filter((l) => !l.assigned_agent_id).length),
+          countOf("lead_sources?select=id&is_active=is.true", failed),
+          countOf("lead_routing_rules?select=id&is_active=is.true", failed),
+          countOf("lead_agents?select=id", failed),
+          countOf("lead_escalations?select=id&is_resolved=is.false", failed),
+          countOf("leads?select=id&assigned_agent_id=is.null", failed),
         ]);
+
+        // The headline figures are counted by the database over every lead.
+        // They were counted here from the newest 5,000, so past that "Total"
+        // stopped at 5,000 and every other figure covered only the newest.
+        const inList = (statuses: string[]) => `status=in.(${statuses.map(encodeURIComponent).join(",")})`;
+        const nowIso = encodeURIComponent(new Date().toISOString());
+        const monthIso = encodeURIComponent(startOfMonth);
+        const closedStatuses = [...PIPELINE[3].statuses, ...PIPELINE[4].statuses];
+        const [total, newTodayCount, qualifiedCount, convertedMtdCount, overdueCount, duplicateCount, ...tabCounts] =
+          await Promise.all([
+            countOf("leads?select=id", failed),
+            countOf(`leads?select=id&created_at=gte.${encodeURIComponent(startOfDay)}`, failed),
+            countOf(`leads?select=id&${inList(PIPELINE[2].statuses)}`, failed),
+            countOf(
+              `leads?select=id&${inList(PIPELINE[3].statuses)}` +
+                `&or=(closed_at.gte.${monthIso},and(closed_at.is.null,created_at.gte.${monthIso}))`,
+              failed,
+            ),
+            countOf(
+              `leads?select=id&next_follow_up=lt.${nowIso}&status=not.in.(${closedStatuses.map(encodeURIComponent).join(",")})`,
+              failed,
+            ),
+            countOf("leads?select=id&is_duplicate=is.true", failed),
+            ...PIPELINE.map((p) => countOf(`leads?select=id&${inList(p.statuses)}`, failed)),
+          ]);
 
         return Response.json({
           ok: true,
           timezone: timeZone,
           metrics: {
-            total: leads.length,
-            new_today: newToday,
-            qualified: inTab("Qualified").length,
-            converted_mtd: convertedMtd,
+            total: total ?? leads.length,
+            new_today: newTodayCount ?? newToday,
+            qualified: qualifiedCount ?? inTab("Qualified").length,
+            converted_mtd: convertedMtdCount ?? convertedMtd,
             // Null rather than 0 when nothing has been scored: an average of no
             // scores is not a score.
             average_score: averageScore,
             scored: scored.length,
-            unassigned,
-            overdue_followups: overdue,
-            duplicates: leads.filter((l) => l.is_duplicate === true).length,
+            unassigned: unassigned ?? leads.filter((l) => !l.assigned_agent_id).length,
+            overdue_followups: overdueCount ?? overdue,
+            duplicates: duplicateCount ?? leads.filter((l) => l.is_duplicate === true).length,
           },
-          pipeline: PIPELINE.map((p) => ({
+          pipeline: PIPELINE.map((p, i) => ({
             tab: p.tab,
-            count: inTab(p.tab).length,
+            count: tabCounts[i] ?? inTab(p.tab).length,
             statuses: p.statuses.filter((s) => counts[s]),
           })),
           // Every status the database actually holds, so the grouping above
@@ -210,11 +259,13 @@ export const Route = createFileRoute("/api/leads/console")({
             converted: e.converted,
           })),
           configured: {
-            sources: sources.length,
-            routing_rules: routing.length,
-            agents: agents.length,
-            open_escalations: escalations.length,
+            sources,
+            routing_rules: routing,
+            agents,
+            open_escalations: escalations,
           },
+          // Tables that could not be read; their figures above are null, not 0.
+          partial: failed,
           note: "Read from the tables Lead Manager writes. Per-lead work - assigning, calling, converting - happens there; this is the product view of the same leads.",
         });
       },

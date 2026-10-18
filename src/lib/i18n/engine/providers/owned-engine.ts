@@ -1,4 +1,5 @@
 import type { EngineRequest, EngineResponse, TranslationProvider } from "../types";
+import { SUPPORTED_LANGUAGES } from "../../registry";
 
 /**
  * The platform's own translation service.
@@ -30,6 +31,7 @@ import type { EngineRequest, EngineResponse, TranslationProvider } from "../type
 export const OWNED_ENGINE_ID = "owned-engine";
 
 export type OwnedEngineConfig = {
+  id?: string;
   endpoint?: string | null;
   token?: string | null;
   /** How long an interactive request may take. */
@@ -37,13 +39,21 @@ export type OwnedEngineConfig = {
   /** How long a background "quality" batch may take; these are much slower. */
   qualityTimeoutMs?: number;
   fetchImpl?: typeof fetch;
+  circuitFailures?: number;
+  circuitCooldownMs?: number;
+  now?: () => number;
 };
 
 function parseEndpoint(endpoint: string | null | undefined): URL | null {
   if (!endpoint?.trim()) return null;
   try {
     const url = new URL(endpoint.trim());
-    return url.protocol === "https:" || url.protocol === "http:" ? url : null;
+    return (url.protocol === "https:" || url.protocol === "http:") &&
+      !url.username &&
+      !url.password &&
+      !url.hash
+      ? url
+      : null;
   } catch {
     return null;
   }
@@ -56,18 +66,29 @@ type OwnedEngineReply = {
 };
 
 export function createOwnedEngineProvider(config: OwnedEngineConfig): TranslationProvider {
+  const id = config.id ?? OWNED_ENGINE_ID;
   const endpoint = parseEndpoint(config.endpoint);
   const timeoutMs = config.timeoutMs ?? 60_000;
   const qualityTimeoutMs = config.qualityTimeoutMs ?? 600_000;
+  if (![timeoutMs, qualityTimeoutMs].every((n) => Number.isFinite(n) && n > 0))
+    throw new Error("Translation engine timeouts must be finite positive numbers.");
+  const codes = new Set(SUPPORTED_LANGUAGES.map((language) => language.code));
+  const now = config.now ?? Date.now;
+  let failures = 0;
+  let blockedUntil = 0;
+  let active = 0;
 
   return {
-    id: OWNED_ENGINE_ID,
+    id,
     kind: "owned",
     isConfigured: () => endpoint !== null,
     // The service reports what it cannot translate by leaving segments out.
-    supports: () => true,
+    supports: (source, target) => codes.has(target.code) && (!source || codes.has(source.code)),
     async translate(request: EngineRequest): Promise<EngineResponse> {
       if (!endpoint) throw new Error("TRANSLATE_PROVIDER_URL is not set.");
+      if (now() < blockedUntil) throw new Error("Translation engine circuit is open.");
+      if (active >= 8) throw new Error("Translation engine request queue is full.");
+      active += 1;
       const doFetch = config.fetchImpl ?? fetch;
       const controller = new AbortController();
       const budget = request.mode === "quality" ? qualityTimeoutMs : timeoutMs;
@@ -75,6 +96,7 @@ export function createOwnedEngineProvider(config: OwnedEngineConfig): Translatio
       try {
         const response = await doFetch(endpoint.toString(), {
           method: "POST",
+          redirect: "error",
           signal: controller.signal,
           headers: {
             "content-type": "application/json",
@@ -94,8 +116,10 @@ export function createOwnedEngineProvider(config: OwnedEngineConfig): Translatio
         const reply = (await response.json()) as OwnedEngineReply;
         if (!Array.isArray(reply.segments))
           throw new Error("Translation service reply has no segments.");
+        failures = 0;
+        blockedUntil = 0;
         return {
-          provider: OWNED_ENGINE_ID,
+          provider: id,
           providerKind: "owned",
           model: typeof reply.model === "string" ? reply.model : null,
           version: typeof reply.version === "string" ? reply.version : null,
@@ -109,7 +133,13 @@ export function createOwnedEngineProvider(config: OwnedEngineConfig): Translatio
             return [{ id: s.id, text: s.text, confidence }];
           }),
         };
+      } catch (error) {
+        failures += 1;
+        if (failures >= (config.circuitFailures ?? 3))
+          blockedUntil = now() + (config.circuitCooldownMs ?? 30_000);
+        throw error;
       } finally {
+        active -= 1;
         clearTimeout(timer);
       }
     },

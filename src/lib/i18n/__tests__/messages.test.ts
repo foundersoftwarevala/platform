@@ -112,6 +112,18 @@ describe("server translation", () => {
     expect(languageOf(request({}))).toBe("en");
   });
 
+  it("prioritizes valid explicit locale URLs and preserves cookie fallback for invalid ones", () => {
+    expect(
+      languageOf(
+        new Request("https://example.test/?lang=ar", { headers: { cookie: "sv_locale=hi" } }),
+      ),
+    ).toBe("ar");
+    expect(
+      languageOf(
+        new Request("https://example.test/?lang=unknown", { headers: { cookie: "sv_locale=hi" } }),
+      ),
+    ).toBe("hi");
+  });
   it("English needs no pipeline call", async () => {
     const t = await serverTranslator("en", ["email"]);
     expect(t("email.hello", { name: "Asha" })).toBe("Hello Asha,");
@@ -119,6 +131,20 @@ describe("server translation", () => {
     expect(englishTranslator()("email.licence.heading")).toBe("Your licence is ready");
   });
 
+  it("resolves normalized real catalogue text and retains source spacing", async () => {
+    const entry = allMessages().find((message) => message.text !== message.text.trim());
+    if (!entry || !isMessageKey(entry.key))
+      throw new Error("Expected a real whitespace-bearing catalogue message.");
+    translateForCaller.mockResolvedValue({
+      outcomes: [{ text: entry.text.trim(), translation: "Software Vala", status: "verified" }],
+    });
+    const t = await serverTranslator("hi", [entry.context]);
+    expect(t(entry.key)).toBe(
+      (entry.text.match(/^\s*/)?.[0] ?? "") +
+        "Software Vala" +
+        (entry.text.match(/\s*$/)?.[0] ?? ""),
+    );
+  });
   it("uses accepted translations and English for the rest; never anything else", async () => {
     translateForCaller.mockResolvedValue({
       outcomes: [
@@ -151,6 +177,20 @@ describe("server translation", () => {
 });
 
 describe("CI check", () => {
+  it("extracts identical source text from Windows and Unix line endings", () => {
+    const samples = ["First\r\nSecond\rThird\n", 'const text = "First\\r\\nSecond";'];
+    const result = execFileSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        `import { normalizeSourceLineEndings } from "./scripts/i18n-audit.mjs";
+         console.log(JSON.stringify(${JSON.stringify(samples)}.map(normalizeSourceLineEndings)));`,
+      ],
+      { cwd: ROOT, encoding: "utf8" },
+    );
+    expect(JSON.parse(result)).toEqual(["First\nSecond\nThird\n", samples[1]]);
+  });
   it("passes on the current code: no new hardcoded text, a valid catalogue", () => {
     const run = () =>
       execFileSync(process.execPath, ["scripts/i18n-audit.mjs", "--check"], {

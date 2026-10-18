@@ -1,21 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getRequestIP } from "@tanstack/react-start/server";
 import { z } from "zod";
 
-import {
-  MAX_BODY_BYTES,
-  SlidingWindowLimiter,
-  TIER_LIMITS,
-  checkRequestShape,
-  clientAddress,
-} from "@/lib/i18n/limits";
+import { MAX_BODY_BYTES, TIER_LIMITS, checkRequestShape, clientAddress } from "@/lib/i18n/limits";
 import { MAX_CONTEXT_LENGTH, NAMESPACE_PATTERN, PipelineError } from "@/lib/i18n/pipeline";
 import {
   REALTIME_BUDGET_MS,
   batchKey,
   joinOrStart,
+  translationSource,
   withinBudget,
 } from "@/lib/i18n/realtime-budget";
 import { SOURCE_LANGUAGE } from "@/lib/i18n/registry";
+import { languageAuthorization } from "@/lib/i18n/session-contract";
 
 /**
  * Translate text.
@@ -28,11 +25,12 @@ import { SOURCE_LANGUAGE } from "@/lib/i18n/registry";
  * that fails validation is never returned.
  *
  * Body:
- *   { texts: string[], target: string, source?: string, namespace?: string,
+ *   { texts: string[], target: string, source?: string | null, namespace?: string,
  *     context?: string, memory_only?: boolean, mode?: "realtime" | "quality" }
  * `locale` is accepted in place of `target` for callers written before the
  * registry. Any spelling the registry recognises is accepted ("hi", "HI",
  * "Hindi", "pt-br"); anything else is refused with reason "invalid_language".
+ * Omit source for English; use null or "auto" for owned-engine detection.
  *
  * Callers: visitors may translate interface text; signed-in accounts get a
  * larger allowance; admin and boss may translate any namespace. Requests are
@@ -41,20 +39,6 @@ import { SOURCE_LANGUAGE } from "@/lib/i18n/registry";
  * Responses carry a `reason` on failure: invalid_request, invalid_language,
  * rate_limited, quota_exceeded, engine_unavailable, service_error.
  */
-
-/** Catalogue content operators translated for the storefront: public, readable from memory by anyone. */
-const PUBLIC_MEMORY_NAMESPACE = "catalogue";
-
-const limiter = new SlidingWindowLimiter(60_000);
-
-/**
- * Requests per address, counted before the caller is resolved: checking a
- * bearer token is a round trip to the auth service, and without this a stream
- * of made-up tokens from one address cost one each. Twice the operator rate,
- * so an office behind one address is not held back by it.
- */
-const addressLimiter = new SlidingWindowLimiter(60_000);
-const ADDRESS_REQUESTS_PER_MINUTE = TIER_LIMITS.operator.requestsPerMinute * 2;
 
 /**
  * Engine work still running after its request answered, by batch
@@ -71,12 +55,13 @@ const bodySchema = z
     texts: z.array(z.string()).max(TIER_LIMITS.operator.maxItems),
     target: z.string().max(64).optional(),
     locale: z.string().max(64).optional(),
-    source: z.string().max(64).optional(),
+    source: z.string().max(64).nullable().optional(),
     namespace: z.string().regex(NAMESPACE_PATTERN).optional(),
     context: z.string().max(MAX_CONTEXT_LENGTH).optional(),
-    // Answer from translation memory only. Every caller may read the public
-    // catalogue namespace this way; other namespaces follow the tier rules.
+    // Answer from translation memory only; allowed in any namespace for every caller.
     memory_only: z.boolean().optional(),
+    // Callers may suppress persistence, never broaden what they may publish.
+    persist: z.boolean().optional(),
     // Operators may ask for the slower, higher-quality engine mode.
     mode: z.enum(["realtime", "quality"]).optional(),
   })
@@ -84,6 +69,15 @@ const bodySchema = z
 
 function fail(status: number, reason: string, error: string, headers?: Record<string, string>) {
   return Response.json({ error, reason }, { status, headers });
+}
+
+/** The address the request's socket came from, not what its headers claim. */
+function socketPeer(): string | null {
+  try {
+    return getRequestIP() ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export const Route = createFileRoute("/api/marketplace/translate")({
@@ -126,26 +120,20 @@ async function handleTranslate(request: Request): Promise<Response> {
   const texts = parsed.texts.map((t) => t.trim()).filter(Boolean);
   if (texts.length === 0) return Response.json({ translations: {}, target, results: [] });
 
-  const { mayKeepText, resolveCaller, translateForCaller } =
-    await import("@/lib/i18n/service.server");
+  const { resolveCaller, translateForCaller } = await import("@/lib/i18n/service.server");
   const { ensureJobWorker } = await import("@/lib/i18n/jobs.server");
   ensureJobWorker();
-  const address = clientAddress(request.headers);
-  if (addressLimiter.hit(address, ADDRESS_REQUESTS_PER_MINUTE)) {
-    return fail(429, "rate_limited", "Too many translation requests. Try again shortly.", {
-      "Retry-After": "60",
-    });
-  }
+  // Forwarding headers count only when the socket peer is the trusted proxy.
+  const address = clientAddress(request.headers, socketPeer());
   const caller = await resolveCaller(
-    request.headers.get("authorization"),
+    languageAuthorization(request),
     address,
     request.headers.get("x-internal-token"),
   );
 
   const memoryOnly = parsed.memory_only === true;
   const shape = checkRequestShape(caller.tier, { texts, namespace });
-  const publicRead = memoryOnly && namespace === PUBLIC_MEMORY_NAMESPACE;
-  if (shape && !(publicRead && shape === "namespace_not_allowed")) {
+  if (shape && !(memoryOnly && shape === "namespace_not_allowed")) {
     return fail(
       shape === "namespace_not_allowed" ? 403 : 413,
       "invalid_request",
@@ -153,7 +141,16 @@ async function handleTranslate(request: Request): Promise<Response> {
     );
   }
 
-  if (limiter.hit(caller.subject, TIER_LIMITS[caller.tier].requestsPerMinute)) {
+  const { db } = await import("@/lib/i18n/database.server");
+  const { reserveEngineQuota } = await import("@/lib/i18n/quota.server");
+  const requestQuota = await reserveEngineQuota(await db(), 1, [
+    {
+      subject: `i18n-request:${caller.subject}`,
+      limit: TIER_LIMITS[caller.tier].requestsPerMinute,
+      seconds: 60,
+    },
+  ]);
+  if (!requestQuota.allowed) {
     return fail(429, "rate_limited", "Too many translation requests. Try again shortly.", {
       "Retry-After": "60",
     });
@@ -162,11 +159,11 @@ async function handleTranslate(request: Request): Promise<Response> {
   try {
     const request = {
       texts,
-      source: parsed.source ?? SOURCE_LANGUAGE,
+      source: translationSource(parsed.source),
       target,
       namespace,
       context: parsed.context ?? null,
-      persist: true,
+      persist: parsed.persist !== false,
       memoryOnly,
       mode: caller.tier === "operator" ? parsed.mode : ("realtime" as const),
     };
@@ -178,7 +175,14 @@ async function handleTranslate(request: Request): Promise<Response> {
     } else {
       const { work } = joinOrStart(
         inFlight,
-        batchKey(target, namespace, parsed.context, texts),
+        batchKey(
+          target,
+          namespace,
+          parsed.context,
+          texts,
+          request.source ?? "auto",
+          caller.subject,
+        ),
         () => translateForCaller(request, caller),
       );
       const first = await withinBudget(work, REALTIME_BUDGET_MS);
@@ -187,16 +191,22 @@ async function handleTranslate(request: Request): Promise<Response> {
         work.catch((error) => console.error("[translate] background translation failed", error));
         result = await translateForCaller({ ...request, memoryOnly: true }, caller);
         inProgress = true;
-        // Only what may be kept in shared memory is queued: the worker stores
-        // everything it translates (see mayKeepText).
-        const unfinished = result.outcomes
-          .filter((o) => o.translation === null && mayKeepText(caller, namespace, o.text))
-          .map((o) => o.text);
+        const unfinished = result.outcomes.filter((o) => o.translation === null).map((o) => o.text);
         if (unfinished.length) {
           const { enqueueJobs } = await import("@/lib/i18n/jobs.server");
+          const { isCatalogueText } = await import("@/lib/i18n/service.server");
+          const { publicCatalogue } = await import("@/lib/i18n/catalogue.server");
+          const catalogue = await publicCatalogue(await db());
+          // Never publish a visitor's arbitrary page text or private chat to
+          // the shared background translation memory after a timeout.
+          const publicTexts =
+            namespace === "ui" && parsed.persist !== false && request.source !== null
+              ? unfinished.filter((text) => isCatalogueText(text, catalogue))
+              : [];
           enqueueJobs(
-            unfinished.map((text) => ({
+            publicTexts.map((text) => ({
               text,
+              source: request.source ?? SOURCE_LANGUAGE,
               target: result.target.code,
               namespace,
               context: parsed.context ?? null,
@@ -236,7 +246,15 @@ async function handleTranslate(request: Request): Promise<Response> {
         issues: o.issues,
       })),
       pending_reason: inProgress ? "in_progress" : result.pendingReason,
-      engine: result.engine ? { provider: result.engine.provider, kind: result.engine.kind } : null,
+      engine: result.engine
+        ? {
+            provider: result.engine.provider,
+            kind: result.engine.kind,
+            ...(caller.tier === "operator"
+              ? { model: result.engine.model, version: result.engine.version }
+              : {}),
+          }
+        : null,
       fromCache: result.stats.fromMemory,
       translated: result.stats.translated,
       needsReview: result.stats.needsReview,

@@ -11,10 +11,16 @@ export function CategoryRow({
   title,
   count,
   children,
+  /**
+   * What the badge counts. Every existing caller counts products, so that is
+   * the default and none of them change; Vala TV counts films.
+   */
+  unit = "Products",
 }: {
   title: string;
   count: number;
   children: ReactNode;
+  unit?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -31,7 +37,9 @@ export function CategoryRow({
       <span id={categoryAnchor(title)} className="block h-0 scroll-mt-32" aria-hidden />
       <div className="mb-2.5 flex items-center gap-3">
         <h3 className="text-xl font-bold text-white md:text-2xl">{title}</h3>
-        <Badge className="border-cyan-500/30 bg-cyan-500/20 text-cyan-400">{count} Products</Badge>
+        <Badge className="border-cyan-500/30 bg-cyan-500/20 text-cyan-400">
+          {count} {unit}
+        </Badge>
         <div className="ml-auto flex gap-2">
           <button
             type="button"

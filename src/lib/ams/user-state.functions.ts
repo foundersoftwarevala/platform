@@ -45,7 +45,7 @@ export type AmsStanding = {
   currentStreak: number;
   longestStreak: number;
   joinedAt: string | null;
-  /** Stable per person, derived from their account rather than their role. */
+  /** The role's passport number as the engine issued it, or null. */
   passportId: string | null;
   /**
    * Nothing in the schema records these yet. Null rather than zero so the UI
@@ -87,16 +87,13 @@ function clientFor(token: string) {
   );
 }
 
-/** A stable passport number for a person, derived from their account id. */
-function passportNumberFor(userId: string): string {
-  const hex = userId.replace(/-/g, "");
-  const a = parseInt(hex.slice(0, 6), 16) % 10000;
-  const b = parseInt(hex.slice(6, 12), 16) % 10000;
-  return `SV-AMS-${String(a).padStart(4, "0")}-${String(b).padStart(4, "0")}`;
-}
-
-export const getAmsStanding = createServerFn({ method: "GET" }).handler(
-  async (): Promise<AmsStanding> => {
+export const getAmsStanding = createServerFn({ method: "GET" })
+  .inputValidator((input: unknown) => {
+    const role = (input as { role?: unknown } | undefined)?.role;
+    return { role: typeof role === "string" && role.length <= 40 ? role : null };
+  })
+  .handler(
+  async ({ data }): Promise<AmsStanding> => {
     const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
     const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
     if (!token) return SIGNED_OUT;
@@ -108,22 +105,45 @@ export const getAmsStanding = createServerFn({ method: "GET" }).handler(
 
     // One round trip. A table that is empty is not an error — it means this
     // person has not earned anything yet, which is a real answer.
-    const [xp, achievements, badges, trophies, missions, claims, streak, profile] =
+    // XP, level and rank are kept per AMS role: the dashboard's own role, or
+    // the person's strongest when no role is named.
+    const xpBase = supabase.from("user_xp").select("total_xp,current_level,current_rank").eq("user_id", userId);
+    const xpQuery = (data.role
+      ? xpBase.eq("role" as never, data.role as never)
+      : xpBase.order("total_xp", { ascending: false })
+    ).limit(1).maybeSingle();
+
+    // This role's recognition only. Every catalogue slug starts with its role
+    // ("author-stage-01", "author-01"), so the role narrows each list.
+    const achBase = supabase.from("user_achievements").select("achievements!inner(slug)")
+      .eq("user_id", userId).not("unlocked_at", "is", null);
+    const achQuery = data.role ? achBase.like("achievements.slug" as never, `${data.role}-%` as never) : achBase;
+    const badgeBase = supabase.from("user_badges").select("badges!inner(slug)").eq("user_id", userId);
+    const badgeQuery = data.role ? badgeBase.like("badges.slug" as never, `${data.role}-%` as never) : badgeBase;
+    const trophyBase = supabase.from("user_trophies").select("trophies!inner(slug)").eq("user_id", userId);
+    const trophyQuery = data.role ? trophyBase.like("trophies.slug" as never, `${data.role}-%` as never) : trophyBase;
+
+    // The role's passport as the engine issued it; none without a role.
+    const passportQuery = data.role
+      ? supabase.from("ams_passports" as never).select("passport_no")
+          .eq("user_id" as never, userId as never).eq("role" as never, data.role as never).maybeSingle()
+      : Promise.resolve({ data: null });
+
+    const [xp, achievements, badges, trophies, missions, claims, streak, profile, passport] =
       await Promise.all([
-        supabase.from("user_xp").select("total_xp,current_level,current_rank")
-          .eq("user_id", userId).maybeSingle(),
+        xpQuery,
         // Joined to the catalogue so the UI receives slugs, which is what its
         // role definitions match on. Ids would silently match nothing.
-        supabase.from("user_achievements").select("achievements(slug)")
-          .eq("user_id", userId).not("unlocked_at", "is", null),
-        supabase.from("user_badges").select("badges(slug)").eq("user_id", userId),
-        supabase.from("user_trophies").select("trophies(slug)").eq("user_id", userId),
+        achQuery,
+        badgeQuery,
+        trophyQuery,
         supabase.from("user_mission_progress").select("mission_id,completed_at")
           .eq("user_id", userId).not("completed_at", "is", null),
         supabase.from("claims").select("reward_id,status").eq("user_id", userId),
         supabase.from("user_streaks").select("current_streak,longest_streak")
           .eq("user_id", userId).maybeSingle(),
         supabase.from("profiles").select("created_at").eq("id", userId).maybeSingle(),
+        passportQuery,
       ]);
 
     const ids = <T extends Record<string, unknown>>(rows: T[] | null, key: keyof T): string[] =>
@@ -155,7 +175,7 @@ export const getAmsStanding = createServerFn({ method: "GET" }).handler(
       currentStreak: Number(streak.data?.current_streak ?? 0),
       longestStreak: Number(streak.data?.longest_streak ?? 0),
       joinedAt: profile.data?.created_at ?? null,
-      passportId: passportNumberFor(userId),
+      passportId: (passport.data as { passport_no?: string } | null)?.passport_no ?? null,
       // No column records any of these yet.
       trustScore: null,
       reputation: null,

@@ -3,6 +3,8 @@ import { Percent, FileText, Coins, Layers, CheckCircle2, Pause, Play, Trash2 } f
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
 const CURRENCIES = ["INR", "USD"] as const;
+// The only plan codes reseller_commission_rules accepts (its plan_code CHECK).
+const PLAN_CODES = ["starter_reseller", "professional_reseller", "master_reseller"] as const;
 const STATE = ["true", "false"] as const;
 
 /**
@@ -64,7 +66,7 @@ export const config: WallConfig = {
     { key: "pause", label: "Pause", icon: Pause, patch: { active: false } },
   ],
   formFields: [
-    { key: "plan_code", label: "Plan code", type: "text", required: true, placeholder: "e.g. pro" },
+    { key: "plan_code", label: "Plan code", type: "select", options: PLAN_CODES, required: true },
     { key: "rate_percent", label: "Rate (%)", type: "number", placeholder: "18" },
     { key: "currency", label: "Currency", type: "select", options: CURRENCIES, defaultValue: "INR" },
     { key: "priority", label: "Priority", type: "number", defaultValue: 100 },

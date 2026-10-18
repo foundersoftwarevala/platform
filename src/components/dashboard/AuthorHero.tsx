@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info, Sparkles } from "lucide-react";
 import type { RoleConfig } from "@/lib/roles";
 
 export type HeroSlide = {
@@ -19,7 +19,8 @@ const AUTHOR_SLIDES: HeroSlide[] = [
     title: "Publish your next bestseller",
     sub: "Ship products, chapters and updates from one focused writing workspace.",
     icon: BookOpen,
-    gradient: "linear-gradient(120deg, oklch(0.24 0.08 275), oklch(0.32 0.16 265), oklch(0.42 0.20 255))",
+    gradient:
+      "linear-gradient(120deg, oklch(0.24 0.08 275), oklch(0.32 0.16 265), oklch(0.42 0.20 255))",
     accent: "oklch(0.78 0.18 285)",
   },
   {
@@ -27,7 +28,8 @@ const AUTHOR_SLIDES: HeroSlide[] = [
     title: "Turn followers into loyal readers",
     sub: "Track engagement, followers and reviews across every launch in real time.",
     icon: Users,
-    gradient: "linear-gradient(120deg, oklch(0.22 0.10 300), oklch(0.32 0.18 290), oklch(0.44 0.22 320))",
+    gradient:
+      "linear-gradient(120deg, oklch(0.22 0.10 300), oklch(0.32 0.18 290), oklch(0.44 0.22 320))",
     accent: "oklch(0.80 0.18 320)",
   },
   {
@@ -35,7 +37,8 @@ const AUTHOR_SLIDES: HeroSlide[] = [
     title: "Grow royalties every month",
     sub: "Sales, refunds and payouts unified — know exactly what to write next.",
     icon: TrendingUp,
-    gradient: "linear-gradient(120deg, oklch(0.24 0.10 200), oklch(0.32 0.16 210), oklch(0.44 0.22 230))",
+    gradient:
+      "linear-gradient(120deg, oklch(0.24 0.10 200), oklch(0.32 0.16 210), oklch(0.44 0.22 230))",
     accent: "oklch(0.80 0.18 210)",
   },
   {
@@ -43,22 +46,38 @@ const AUTHOR_SLIDES: HeroSlide[] = [
     title: "Level up your author journey",
     sub: "Unlock trophies, badges and certificates as your catalogue grows.",
     icon: Award,
-    gradient: "linear-gradient(120deg, oklch(0.26 0.08 55), oklch(0.34 0.16 45), oklch(0.46 0.20 30))",
+    gradient:
+      "linear-gradient(120deg, oklch(0.26 0.08 55), oklch(0.34 0.16 45), oklch(0.46 0.20 30))",
     accent: "oklch(0.82 0.18 60)",
   },
 ];
 
-export function AuthorHero({ role, onCta }: { role: RoleConfig; onCta?: () => void }) {
-  return <SlidingHero role={role} onCta={onCta} slides={AUTHOR_SLIDES} />;
+export function AuthorHero({
+  role,
+  onCta,
+  ctaNotice,
+}: {
+  role: RoleConfig;
+  onCta?: () => void;
+  ctaNotice?: string;
+}) {
+  return <SlidingHero role={role} onCta={onCta} ctaNotice={ctaNotice} slides={AUTHOR_SLIDES} />;
 }
 
 export function SlidingHero({
   role,
   onCta,
+  ctaNotice,
   slides,
 }: {
   role: RoleConfig;
   onCta?: () => void;
+  /**
+   * Set when the banner action has no form behind it yet: the button then
+   * opens the list it names, carries an info mark and shows this reason next
+   * to it, so it does not pretend to create anything.
+   */
+  ctaNotice?: string;
   slides: HeroSlide[];
 }) {
   const SLIDES = slides;
@@ -119,10 +138,18 @@ export function SlidingHero({
         ))}
         <div
           className="absolute inset-0 pointer-events-none"
-          style={{ background: "linear-gradient(90deg, oklch(0 0 0 / 0.42), oklch(0 0 0 / 0.12) 45%, oklch(0 0 0 / 0.30))" }}
+          style={{
+            background:
+              "linear-gradient(90deg, oklch(0 0 0 / 0.42), oklch(0 0 0 / 0.12) 45%, oklch(0 0 0 / 0.30))",
+          }}
         />
-        <div className="absolute inset-0 opacity-[0.05] mix-blend-overlay pointer-events-none"
-          style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
+        <div
+          className="absolute inset-0 opacity-[0.05] mix-blend-overlay pointer-events-none"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+          }}
+        />
 
         <div
           key={i}
@@ -141,7 +168,9 @@ export function SlidingHero({
               <Icon className="h-6 w-6" style={{ color: s.accent }} />
             </div>
             <div className="min-w-0">
-              <h2 className="text-2xl md:text-4xl font-black tracking-tight leading-[1.1] drop-shadow-[0_2px_10px_oklch(0_0_0/0.55)]">{s.title}</h2>
+              <h2 className="text-2xl md:text-4xl font-black tracking-tight leading-[1.1] drop-shadow-[0_2px_10px_oklch(0_0_0/0.55)]">
+                {s.title}
+              </h2>
               <p className="mt-2 text-sm md:text-base text-white/75 max-w-xl">{s.sub}</p>
             </div>
           </div>
@@ -149,10 +178,21 @@ export function SlidingHero({
             <button
               type="button"
               onClick={onCta}
+              title={ctaNotice}
+              aria-describedby={ctaNotice ? "sv-hero-cta-notice" : undefined}
               className="press-3d sheen-3d focus-ring inline-flex items-center gap-2 rounded-xl bg-white text-black px-4 py-2 text-sm font-semibold hover:opacity-95"
             >
+              {ctaNotice && <Info className="h-4 w-4" aria-hidden="true" />}
               {role.banner.cta}
             </button>
+            {ctaNotice && (
+              <span
+                id="sv-hero-cta-notice"
+                className="max-w-xs text-[11px] leading-snug text-white/70"
+              >
+                {ctaNotice}
+              </span>
+            )}
             <span className="text-[11px] text-white/60 uppercase tracking-wider">
               {i + 1} / {SLIDES.length}
             </span>
@@ -178,7 +218,11 @@ export function SlidingHero({
         </button>
 
         {/* Dots */}
-        <div className="absolute z-[2] bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5" role="tablist" aria-label="Choose slide">
+        <div
+          className="absolute z-[2] bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5"
+          role="tablist"
+          aria-label="Choose slide"
+        >
           {SLIDES.map((_, idx) => (
             <button
               key={idx}

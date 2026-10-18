@@ -1,0 +1,22 @@
+[Unit]
+Description=Software Vala browser voice relay
+After=network.target vala-ai-model.service
+Requires=vala-ai-model.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/softwarevala-jarvis/current
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/softwarevala-jarvis/current/server.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

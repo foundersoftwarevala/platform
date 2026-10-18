@@ -2,6 +2,7 @@ import dns from "node:dns";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
+import tls from "node:tls";
 import zlib from "node:zlib";
 
 /**
@@ -50,6 +51,10 @@ function ipv6Blocked(ip: string): boolean {
     v === "::" ||
     v === "::1" ||
     v.startsWith("::ffff:") ||
+    // The rest of 0::/8 is reserved, including the IPv4-compatible ::a.b.c.d
+    // and ::7f00:1 spellings of loopback, and is never a public host.
+    v.startsWith("::") ||
+    /^0{1,4}:/.test(v) ||
     v.startsWith("64:ff9b:") ||
     v.startsWith("fc") ||
     v.startsWith("fd") ||
@@ -85,7 +90,7 @@ export function assertPublicUrl(raw: string): URL {
     throw new UnsafeUrlError("Only the standard web ports (80 and 443) are allowed.");
   }
   const host = url.hostname.replace(/^\[|\]$/g, "");
-  if (!host || BLOCKED_NAMES.test(host) || !host.includes(".") && !net.isIP(host)) {
+  if (!host || BLOCKED_NAMES.test(host) || (!host.includes(".") && !net.isIP(host))) {
     throw new UnsafeUrlError("That address points to a local or internal host.");
   }
   if (net.isIP(host) && addressBlocked(host)) {
@@ -123,55 +128,82 @@ export type FetchedPage = {
   contentType: string;
   body: string;
   redirects: string[];
+  sslValid: boolean | null;
+  sslDays: number | null;
 };
 
+export function decompressBody(body: Buffer, contentEncoding: string, maxBytes: number): Buffer {
+  const encoding = contentEncoding.toLowerCase();
+  if (encoding.includes("gzip")) return zlib.gunzipSync(body, { maxOutputLength: maxBytes });
+  if (encoding.includes("br"))
+    return zlib.brotliDecompressSync(body, { maxOutputLength: maxBytes });
+  if (encoding.includes("deflate")) return zlib.inflateSync(body, { maxOutputLength: maxBytes });
+  return body;
+}
+
 function requestOnce(url: URL, maxBytes: number, timeoutMs: number) {
-  return new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: Buffer }>(
-    (resolve, reject) => {
-      const client = url.protocol === "https:" ? https : http;
-      const req = client.request(
-        url,
-        {
-          method: "GET",
-          lookup: guardedLookup as unknown as typeof dns.lookup,
-          headers: {
-            "User-Agent": "SoftwareVala-DemoManager/1.0 (+https://softwarevala.net)",
-            Accept: "text/html,application/xhtml+xml,application/javascript,*/*;q=0.8",
-            "Accept-Encoding": "gzip, deflate, br",
-          },
-          timeout: timeoutMs,
+  return new Promise<{
+    status: number;
+    headers: http.IncomingHttpHeaders;
+    body: Buffer;
+    sslValid: boolean | null;
+    sslDays: number | null;
+  }>((resolve, reject) => {
+    const client = url.protocol === "https:" ? https : http;
+    const req = client.request(
+      url,
+      {
+        method: "GET",
+        lookup: guardedLookup as unknown as typeof dns.lookup,
+        headers: {
+          "User-Agent": "SoftwareVala-DemoManager/1.0 (+https://softwarevala.net)",
+          Accept: "text/html,application/xhtml+xml,application/javascript,*/*;q=0.8",
+          "Accept-Encoding": "gzip, deflate, br",
         },
-        (res) => {
-          const chunks: Buffer[] = [];
-          let size = 0;
-          res.on("data", (chunk: Buffer) => {
-            size += chunk.length;
-            if (size > maxBytes) {
-              req.destroy(new UnsafeUrlError(`The response is larger than ${maxBytes} bytes.`));
-              return;
-            }
-            chunks.push(chunk);
-          });
-          res.on("end", () => {
-            let body = Buffer.concat(chunks);
-            try {
-              const encoding = String(res.headers["content-encoding"] ?? "").toLowerCase();
-              if (encoding.includes("gzip")) body = zlib.gunzipSync(body);
-              else if (encoding.includes("br")) body = zlib.brotliDecompressSync(body);
-              else if (encoding.includes("deflate")) body = zlib.inflateSync(body);
-            } catch (error) {
-              return reject(error);
-            }
-            resolve({ status: res.statusCode ?? 0, headers: res.headers, body });
-          });
-          res.on("error", reject);
-        },
-      );
-      req.on("timeout", () => req.destroy(new Error(`No answer within ${timeoutMs / 1000} s.`)));
-      req.on("error", reject);
-      req.end();
-    },
-  );
+        timeout: timeoutMs,
+      },
+      (res) => {
+        const socket = res.socket instanceof tls.TLSSocket ? res.socket : null;
+        const certificate = socket?.getPeerCertificate();
+        const days = certificate?.valid_to
+          ? Math.floor((Date.parse(certificate.valid_to) - Date.now()) / 86_400_000)
+          : null;
+        const chunks: Buffer[] = [];
+        let size = 0;
+        res.on("data", (chunk: Buffer) => {
+          size += chunk.length;
+          if (size > maxBytes) {
+            req.destroy(new UnsafeUrlError(`The response is larger than ${maxBytes} bytes.`));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        res.on("end", () => {
+          const body = Buffer.concat(chunks);
+          try {
+            const decoded = decompressBody(
+              body,
+              String(res.headers["content-encoding"] ?? ""),
+              maxBytes,
+            );
+            resolve({
+              status: res.statusCode ?? 0,
+              headers: res.headers,
+              body: decoded,
+              sslValid: socket ? socket.authorized : null,
+              sslDays: days !== null && Number.isFinite(days) ? days : null,
+            });
+          } catch (error) {
+            return reject(error);
+          }
+        });
+        res.on("error", reject);
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error(`No answer within ${timeoutMs / 1000} s.`)));
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 /** GET an operator-supplied address with every check above. */
@@ -199,23 +231,50 @@ export async function safeFetch(
       contentType: String(res.headers["content-type"] ?? ""),
       body: res.body.toString("utf8"),
       redirects,
+      sslValid: res.sslValid,
+      sslDays: res.sslDays,
     };
   }
 }
 
-/** Resolves a host and confirms every address is public (for the proxy). */
-const hostVerdicts = new Map<string, { at: number; ok: boolean }>();
-export async function hostIsPublic(hostname: string): Promise<boolean> {
-  const cached = hostVerdicts.get(hostname);
-  if (cached && Date.now() - cached.at < 300_000) return cached.ok;
-  let ok = false;
-  try {
-    assertPublicUrl(`https://${hostname}/`);
-    const list = await dns.promises.lookup(hostname, { all: true });
-    ok = list.length > 0 && !list.some((a) => addressBlocked(a.address));
-  } catch {
-    ok = false;
+/** Fetch a bounded response for the demo proxy using the guarded connection. */
+export async function safeFetchResponse(
+  raw: string,
+  options: { maxBytes?: number; timeoutMs?: number; maxRedirects?: number } = {},
+): Promise<{ url: string; response: Response }> {
+  const maxBytes = options.maxBytes ?? 12_000_000;
+  const timeoutMs = options.timeoutMs ?? 15_000;
+  const maxRedirects = options.maxRedirects ?? 5;
+  let url = assertPublicUrl(raw);
+
+  for (let hop = 0; ; hop += 1) {
+    const res = await requestOnce(url, maxBytes, timeoutMs);
+    const location = res.headers.location;
+    if (res.status >= 300 && res.status < 400 && location) {
+      if (hop >= maxRedirects) throw new UnsafeUrlError("Too many redirects.");
+      url = assertPublicUrl(new URL(location, url).toString());
+      continue;
+    }
+
+    const headers = new Headers();
+    for (const name of [
+      "content-type",
+      "cache-control",
+      "expires",
+      "etag",
+      "last-modified",
+      "access-control-allow-origin",
+    ]) {
+      const value = res.headers[name];
+      if (typeof value === "string") headers.set(name, value);
+    }
+    const bodylessStatus = res.status === 204 || res.status === 205 || res.status === 304;
+    return {
+      url: url.toString(),
+      response: new Response(bodylessStatus ? null : new Uint8Array(res.body), {
+        status: res.status,
+        headers,
+      }),
+    };
   }
-  hostVerdicts.set(hostname, { at: Date.now(), ok });
-  return ok;
 }

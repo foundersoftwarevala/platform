@@ -452,12 +452,13 @@ const DemoURLCollector = () => {
         validated_by: user.id
       });
 
-      // Log the action
-      await supabase.from('audit_logs').insert({
-        user_id: user.id,
-        module: 'demo_manager',
+      // Log the action in the demo audit log (audit_logs takes no browser writes)
+      await supabase.from('demo_url_audit_log').insert({
+        actor_id: user.id,
+        actor_email: user.email ?? null,
         action: 'demo_registered',
-        meta_json: {
+        metadata: {
+          module: 'demo_manager',
           demo_id: newDemo.id,
           demo_name: demoName,
           url: demoUrl,

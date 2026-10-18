@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+// Called by the category load below without being imported, so it always
+// failed and the form reported the categories as unreadable.
+import { listDemoCategories } from "@/lib/demo-manager/demos.functions";
 import { 
   Plus, 
   Edit, 
@@ -81,11 +84,46 @@ const DemoAddEdit = () => {
     description: "",
   });
 
-  const categories = ["Business", "Retail", "HR", "Logistics", "Finance", "Healthcare", "Education", "Real Estate"];
+  /**
+   * The categories a demo may be filed under, read from demo_categories.
+   *
+   * This list used to be eight names written into this file - Business, Retail,
+   * HR, Logistics, Finance, Healthcare, Education, Real Estate - while the
+   * marketplace carries ninety. Eighty-two of them could not be chosen at all,
+   * so a demo could not be filed under the category of the card it belongs to.
+   * demo_categories is seeded from marketplace_categories, so the two lists are
+   * the same list.
+   */
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const demoTypes = ["web", "mobile", "desktop", "api"];
 
   useEffect(() => {
     fetchDemos();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      // Read through the server: the browser client talks to hosted Supabase,
+      // where demo_categories is empty, while the ninety categories are on the
+      // VPS with the rest of the platform's data.
+      try {
+        const rows = await listDemoCategories();
+        if (cancelled) return;
+        setCategoriesError(null);
+        setCategories(rows.map((row) => String(row.name)).filter(Boolean));
+      } catch (problem) {
+        if (cancelled) return;
+        // Said out loud rather than silently falling back to a short list: an
+        // empty dropdown that looks deliberate is how this went unnoticed.
+        setCategoriesError(problem instanceof Error ? problem.message : "unknown error");
+        setCategories([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const fetchDemos = async () => {
@@ -260,14 +298,27 @@ const DemoAddEdit = () => {
                   <Label htmlFor="category">Category *</Label>
                   <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
                     <SelectTrigger className="bg-background border-border">
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue
+                        placeholder={
+                          categoriesError
+                            ? "Categories could not be loaded"
+                            : categories.length === 0
+                              ? "Loading categories…"
+                              : `Select category (${categories.length})`
+                        }
+                      />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-72">
                       {categories.map(cat => (
                         <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {categoriesError && (
+                    <p role="alert" className="text-xs text-destructive">
+                      Categories could not be loaded: {categoriesError}
+                    </p>
+                  )}
                 </div>
               </div>
 

@@ -14,14 +14,18 @@ import { RouteAccessGate } from "@/components/auth/RouteAccessGate";
 import { LanguageProvider } from "@/lib/language-catalog";
 import { PageTranslator } from "@/components/i18n/PageTranslator";
 import { LanguageDock } from "@/components/i18n/LanguageSelector";
+import { SkipToContent } from "@/components/a11y/SkipToContent";
 import { AuthProvider } from "@/hooks/useAuth";
 import { DEFAULT_LANGUAGE, buildLanguageBootScript } from "@/lib/i18n/language-service";
 import { getLanguage } from "@/lib/i18n/registry";
 import { useRealtimeAuth } from "@/integrations/supabase/realtime-auth";
 import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
+import { AttributionCapture } from "@/components/marketplace/AttributionCapture";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { CelebrationProvider } from "../components/ams/effects/Celebration";
+import { RecognitionDetector } from "../components/ams/effects/RecognitionDetector";
+import { getLanguageBootstrap } from "@/lib/i18n/bootstrap.functions";
 
 function NotFoundComponent() {
   return (
@@ -84,15 +88,25 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  beforeLoad: async () => ({ languageBootstrap: await getLanguageBootstrap() }),
+  loader: ({ context }) => context.languageBootstrap,
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Software Vala™ — The Name of Trust" },
-      { name: "description", content: "Software Vala™ — The Name of Trust. A global marketplace of ready-to-deploy software with live demos, full source code and lifetime access." },
+      {
+        name: "description",
+        content:
+          "Software Vala™ — The Name of Trust. A global marketplace of ready-to-deploy software with live demos, full source code and lifetime access.",
+      },
       { name: "author", content: "Software Vala" },
       { property: "og:title", content: "Software Vala™ — The Name of Trust" },
-      { property: "og:description", content: "Software Vala™ — The Name of Trust. A global marketplace of ready-to-deploy software with live demos, full source code and lifetime access." },
+      {
+        property: "og:description",
+        content:
+          "Software Vala™ — The Name of Trust. A global marketplace of ready-to-deploy software with live demos, full source code and lifetime access.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:site_name", content: "Software Vala™" },
@@ -117,11 +131,11 @@ const LANGUAGE_BOOT_SCRIPT = buildLanguageBootScript();
 const SOURCE_LANGUAGE_ENTRY = getLanguage(DEFAULT_LANGUAGE)!;
 
 function RootShell({ children }: { children: ReactNode }) {
+  const languageBootstrap = Route.useLoaderData();
+  const language =
+    getLanguage(languageBootstrap?.code ?? DEFAULT_LANGUAGE) ?? SOURCE_LANGUAGE_ENTRY;
   return (
-    // The server renders the source language; the boot script and the
-    // language provider replace lang/dir on the client, hence the warning
-    // suppression on this one element.
-    <html lang={SOURCE_LANGUAGE_ENTRY.code} dir={SOURCE_LANGUAGE_ENTRY.direction} suppressHydrationWarning>
+    <html lang={language.code} dir={language.direction} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: LANGUAGE_BOOT_SCRIPT }} />
         <HeadContent />
@@ -140,6 +154,7 @@ function RootComponent() {
   useRealtimeAuth();
 
   const { queryClient } = Route.useRouteContext();
+  const languageBootstrap = Route.useLoaderData();
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -149,34 +164,39 @@ function RootComponent() {
         translate() handed the key straight back - the selector changed the
         document direction and no text at all.
       */}
-      <LanguageProvider>
-      {/*
+      <LanguageProvider initial={languageBootstrap}>
+        {/*
         Translates the text already rendered on the page - the locked
         storefront copy, the chat, every console - through the platform's own
         engine. Renders nothing and rewrites no markup.
       */}
-      <PageTranslator />
-      {/* The language selector on every screen whose header has none. */}
-      <LanguageDock />
-      <TooltipProvider>
-        <CelebrationProvider>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          {/* Operator consoles are gated centrally by path; public pages pass straight through. */}
-          {/* Notices a ?ref= arrival on any page and tells the server once. */}
-          <ReferralCapture />
-          {/*
+        <PageTranslator />
+        {/* The first Tab stop on every page: past the menus to its <main>. */}
+        <SkipToContent />
+        {/* The language selector on every screen whose header has none. */}
+        <LanguageDock />
+        <TooltipProvider>
+          <CelebrationProvider>
+            {/* The one path from a recognition the engine granted to the screen. */}
+            <RecognitionDetector />
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            {/* Operator consoles are gated centrally by path; public pages pass straight through. */}
+            {/* Notices a ?ref= arrival on any page and tells the server once. */}
+            <ReferralCapture />
+            <AttributionCapture />
+            {/*
             The session and roles for the consoles that call useAuth() (support,
             sales CRM, demo manager). The provider existed and was never mounted,
             so those screens failed with "useAuth must be used within an
             AuthProvider" before rendering anything.
           */}
-          <AuthProvider>
-            <RouteAccessGate>
-              <Outlet />
-            </RouteAccessGate>
-          </AuthProvider>
-        </CelebrationProvider>
-      </TooltipProvider>
+            <AuthProvider>
+              <RouteAccessGate>
+                <Outlet />
+              </RouteAccessGate>
+            </AuthProvider>
+          </CelebrationProvider>
+        </TooltipProvider>
       </LanguageProvider>
     </QueryClientProvider>
   );

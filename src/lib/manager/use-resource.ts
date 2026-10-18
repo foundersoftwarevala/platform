@@ -35,9 +35,21 @@ const EMPTY: Row[] = [];
 
 export function useResource(
   resource: string,
-  options: { limit?: number; search?: string; filters?: string[] } = {},
+  options: {
+    limit?: number;
+    search?: string;
+    filters?: string[];
+    offset?: number;
+    /** A column the resource returns; the endpoint ignores any other. */
+    sort?: string;
+    dir?: "asc" | "desc";
+  } = {},
 ): ResourceState {
-  const { limit = 50, search } = options;
+  // The endpoint has accepted an offset all along and nothing ever sent one,
+  // so every screen showed the first page of its table and no way to reach the
+  // rest. A console over 7,280 card slots that can only ever show fifty of
+  // them is a sample, not a console.
+  const { limit = 50, search, offset = 0, sort, dir } = options;
   // Serialised so a caller can pass a fresh array every render without the
   // request being made again on every render.
   const filterKey = (options.filters ?? []).join("|");
@@ -53,7 +65,10 @@ export function useResource(
     void (async () => {
       try {
         const query = new URLSearchParams({ resource, limit: String(limit) });
+        if (offset > 0) query.set("offset", String(offset));
         if (search) query.set("search", search);
+        if (sort) query.set("sort", sort);
+        if (dir) query.set("dir", dir);
         for (const clause of filterKey ? filterKey.split("|") : []) query.append("filter", clause);
         const headers = await authHeaders();
         const response = await fetch(`/api/manager/resource?${query}`, { headers });
@@ -75,13 +90,16 @@ export function useResource(
     return () => {
       alive = false;
     };
-  }, [resource, limit, search, filterKey]);
+  }, [resource, limit, search, filterKey, offset, sort, dir]);
 
   return { rows, total, loading, failed };
 }
 
 /** A number as the screen wants to print it, or a placeholder while unknown. */
-export function figure(value: number | null | undefined, state: { loading: boolean; failed: boolean }): string {
+export function figure(
+  value: number | null | undefined,
+  state: { loading: boolean; failed: boolean },
+): string {
   if (state.loading) return "…";
   if (state.failed || value === null || value === undefined) return "—";
   return new Intl.NumberFormat("en-IN").format(Math.round(value));

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
 
 /**
  * The composition of the home page, resolved before the page is sent.
@@ -25,6 +26,10 @@ import { createServerFn } from "@tanstack/react-start";
 // page without making the manager wait to see their own change.
 const CACHE_MS = 30_000;
 let cached: { at: number; payload: HomeLayout } | null = null;
+// Emptied by a Manager write (catalogue-invalidation.ts), not only by time.
+onCatalogueChange(() => {
+  cached = null;
+});
 
 export type HomeSectionLayout = {
   key: string;

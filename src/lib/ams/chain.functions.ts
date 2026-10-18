@@ -55,7 +55,44 @@ export type RoleChain = {
   total_xp: number;
   current_stage: number;
   passport: { passport_no: string; verification: string; issued_at: string } | null;
+  /** Certificates issued for this role (ams_certificates), one per earned award. */
+  certificates?: ChainCertificate[];
   stages: ChainStage[];
+};
+
+export type ChainCertificate = {
+  certificate_no: string;
+  title: string;
+  stage: number | null;
+  achievement_slug: string | null;
+  issued_at: string;
+  verification: string;
+  revoked_at: string | null;
+};
+
+/** One recognition from the engine's ledger, as ams_recognition_payload builds it. */
+export type RecognitionRecord = {
+  ledger_id: string;
+  role: string;
+  kind: string;
+  type: string;
+  tier: "standard" | "legendary" | "legacy";
+  slug: string | null;
+  name: string;
+  description: string | null;
+  reason: string | null;
+  rarity: string | null;
+  stage: number | null;
+  previous_stage: number | null;
+  rank: string | null;
+  level: string | null;
+  xp: number;
+  total_xp: number;
+  priority: number | null;
+  next: { stage: number; title: string; min_xp: number } | null;
+  created_at: string;
+  presented_at: string | null;
+  presented_by: string | null;
 };
 
 async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T | null> {
@@ -89,6 +126,23 @@ export const getRoleChain = createServerFn({ method: "GET" })
       p_role: data.role,
       p_user_id: null,
     });
+  });
+
+/**
+ * The signed-in person's recognition history for one role, newest first: every
+ * XP payment, stage, achievement, badge, trophy, award, certificate and passport
+ * the engine granted them, with whether it has been shown.
+ */
+export const getRecognitions = createServerFn({ method: "GET" })
+  .inputValidator((input: unknown) =>
+    z.object({ role: z.string().min(1).max(40) }).parse(input),
+  )
+  .handler(async ({ data }): Promise<RecognitionRecord[]> => {
+    const result = await callAsUser<{ ok: boolean; recognitions?: RecognitionRecord[] }>(
+      "ams_recognitions",
+      { p_role: data.role, p_user_id: null, p_limit: 200 },
+    );
+    return result?.ok ? (result.recognitions ?? []) : [];
   });
 
 /**

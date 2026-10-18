@@ -34,12 +34,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  completeBannerItem,
-  resolveBannerItem,
+  primaryLabelOf,
+  useBannerAction,
   useBannerFeed,
   type BannerItem,
 } from "@/components/slider-banner/bannerFeed";
-import { useDemoState } from "@/components/marketplace/demoUrlStore";
+import { useDemoHealth, type DemoHealthRow } from "@/lib/control-panel/demo-health";
 import { logExecAction, saveExecNotes, useExecSignals } from "./execSignals";
 
 /* --------------------------------- atoms --------------------------------- */
@@ -117,8 +117,10 @@ function hhmmss(ms: number) {
 
 interface Ctx {
   feed: BannerItem[];
-  demos: ReturnType<typeof useDemoState>["demos"];
-  products: ReturnType<typeof useDemoState>["products"];
+  demos: DemoHealthRow[];
+  productCount: number | null;
+  /** Runs an item's main action - a real decision or acknowledgement - or opens its module. */
+  act: (item: BannerItem) => void;
   actions: ReturnType<typeof useExecSignals>["actions"];
   notes: string;
   sessionStart: number;
@@ -142,8 +144,8 @@ const WIDGETS: Widget[] = [
     title: "Today's Priority",
     icon: Flame,
     accent: "text-rose-300",
-    render: ({ feed }) => {
-      const open = feed.filter((i) => !i.done);
+    render: ({ feed, act, go }) => {
+      const open = feed;
       const top = [...open].sort((a, b) => KIND_WEIGHT[b.kind] - KIND_WEIGHT[a.kind])[0];
       if (!top) return <Empty text="Nothing open — the board is clear." />;
       return (
@@ -151,16 +153,10 @@ const WIDGETS: Widget[] = [
           <p className="text-[12.5px] font-extrabold leading-tight tracking-tight text-foreground">{top.title}</p>
           <p className="text-[10.5px] leading-snug text-foreground/65">{top.detail}</p>
           <div className="flex gap-1.5">
-            <Btn
-              onClick={() => {
-                resolveBannerItem(top.id);
-                logExecAction("approval", "Cleared priority", top.title);
-                toast.success("Priority cleared");
-              }}
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" /> Resolve
+            <Btn onClick={() => act(top)}>
+              <CheckCircle2 className="h-3.5 w-3.5" /> {primaryLabelOf(top)}
             </Btn>
-            <Btn tone="graphite" onClick={() => toast.info(top.meta ?? "No source metadata")}>
+            <Btn tone="graphite" onClick={() => go(top.href)}>
               Details
             </Btn>
           </div>
@@ -176,28 +172,27 @@ const WIDGETS: Widget[] = [
     title: "My Tasks",
     icon: ListChecks,
     accent: "text-emerald-300",
-    render: ({ feed }) => {
+    render: ({ feed, go, now }) => {
       const todos = feed.filter((i) => i.kind === "todo");
       if (!todos.length) return <Empty text="No tasks assigned to you." />;
+      const overdue = todos.filter((t) => t.at && new Date(t.at).getTime() < now).length;
       return (
         <div className="space-y-1.5">
           {todos.slice(0, 4).map((t) => (
             <Line
               key={t.id}
               label={t.title}
-              value={t.done ? "DONE" : "MARK"}
-              tone={t.done ? "text-emerald-300" : "text-amber-300"}
-              onClick={() => {
-                if (t.done) return;
-                completeBannerItem(t.id);
-                logExecAction("task", "Completed task", t.title);
-                toast.success("Task completed");
-              }}
+              value="OPEN"
+              tone="text-amber-300"
+              // A task is finished through the Task Manager's own workflow
+              // (submit, review, approve); it opens there rather than being
+              // marked done from a list that cannot see its checks.
+              onClick={() => go(t.href)}
             />
           ))}
           <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-            <Stat k="Open" v={String(todos.filter((t) => !t.done).length)} />
-            <Stat k="Done" v={String(todos.filter((t) => t.done).length)} tone="text-emerald-300" />
+            <Stat k="Open" v={String(todos.length)} />
+            <Stat k="Overdue" v={String(overdue)} tone={overdue ? "text-rose-300" : "text-emerald-300"} />
           </div>
         </div>
       );
@@ -208,8 +203,8 @@ const WIDGETS: Widget[] = [
     title: "Pending Reviews",
     icon: ClipboardList,
     accent: "text-amber-300",
-    render: ({ feed }) => {
-      const items = feed.filter((i) => i.kind === "approval" && !i.done);
+    render: ({ feed, act, go }) => {
+      const items = feed.filter((i) => i.kind === "approval");
       if (!items.length) return <Empty text="No approvals waiting on you." />;
       return (
         <div className="space-y-1.5">
@@ -221,29 +216,16 @@ const WIDGETS: Widget[] = [
               <p className="truncate text-[10.5px] font-bold text-foreground/90">{a.title}</p>
               <p className="truncate text-[9.5px] text-foreground/55">{a.meta ?? a.detail}</p>
               <div className="mt-1.5 flex gap-1.5">
-                <Btn
-                  className="px-2 py-1"
-                  onClick={() => {
-                    resolveBannerItem(a.id);
-                    logExecAction("approval", "Approved", a.title);
-                    toast.success("Approved");
-                  }}
-                >
-                  Approve
-                </Btn>
-                <Btn
-                  className="px-2 py-1"
-                  tone="graphite"
-                  onClick={() => {
-                    // Approve cleared the item and wrote an action; Revise only
-                    // showed a message, so the item stayed on the banner for
-                    // ever and nothing recorded the decision.
-                    resolveBannerItem(a.id);
-                    logExecAction("approval", "Sent back for revision", a.title);
-                    toast.info("Sent back for revision");
-                  }}
-                >
-                  Revise
+                {a.action.type === "approve" && (
+                  <Btn className="px-2 py-1" onClick={() => act(a)}>
+                    Approve
+                  </Btn>
+                )}
+                {/* The application's full record, documents and every other
+                    decision (reject with a reason, in review) are in the
+                    Application Manager. */}
+                <Btn className="px-2 py-1" tone="graphite" onClick={() => go(a.href)}>
+                  Review
                 </Btn>
               </div>
             </div>
@@ -297,8 +279,8 @@ const WIDGETS: Widget[] = [
     title: "Support Escalations",
     icon: LifeBuoy,
     accent: "text-rose-300",
-    render: ({ feed }) => {
-      const alerts = feed.filter((i) => i.kind === "alert" && !i.done);
+    render: ({ feed, go }) => {
+      const alerts = feed.filter((i) => i.kind === "alert");
       if (!alerts.length) return <Empty text="No live escalations." />;
       return (
         <div className="space-y-1.5">
@@ -306,9 +288,9 @@ const WIDGETS: Widget[] = [
             <Line
               key={a.id}
               label={a.title}
-              value="ESCALATED"
+              value="OPEN"
               tone="text-rose-300"
-              onClick={() => toast.error(a.detail)}
+              onClick={() => go(a.href)}
             />
           ))}
           <Stat k="Open escalations" v={String(alerts.length)} tone="text-rose-300" />
@@ -349,18 +331,18 @@ const WIDGETS: Widget[] = [
     title: "Marketplace Performance",
     icon: ShoppingBag,
     accent: "text-sky-300",
-    render: ({ demos, products, go }) => {
+    render: ({ demos, productCount, go }) => {
       const ssl = demos.filter((d) => d.ssl).length;
       const active = demos.filter((d) => d.active).length;
       return (
         <div className="space-y-1.5">
           <div className="grid grid-cols-2 gap-1.5">
-            <Stat k="Products" v={String(products.length)} />
+            <Stat k="Products" v={productCount == null ? "—" : String(productCount)} />
             <Stat k="Demo URLs" v={String(demos.length)} />
             <Stat k="Active" v={String(active)} tone="text-emerald-300" />
             <Stat k="SSL secured" v={`${ssl}/${demos.length}`} tone="text-sky-300" />
           </div>
-          <Btn className="w-full" onClick={() => go("/marketplace")}>
+          <Btn className="w-full" onClick={() => go("/marketplace-manager")}>
             <Link2 className="h-3.5 w-3.5" /> Open Marketplace Manager
           </Btn>
         </div>
@@ -380,7 +362,7 @@ const WIDGETS: Widget[] = [
             <Empty text="Every demo endpoint has been validated." />
           ) : (
             unchecked.slice(0, 4).map((d) => (
-              <Line key={d.id} label={d.demoName} value="UNVERIFIED" tone="text-amber-300" onClick={() => go("/marketplace")} />
+              <Line key={d.id} label={d.demoName} value="UNVERIFIED" tone="text-amber-300" onClick={() => go("/demo-manager")} />
             ))
           )}
           <Stat k="Awaiting validation" v={String(unchecked.length)} tone="text-amber-300" />
@@ -393,16 +375,20 @@ const WIDGETS: Widget[] = [
     title: "Goal Progress",
     icon: Target,
     accent: "text-emerald-300",
-    render: ({ demos, feed }) => {
-      const coverage = demos.length ? Math.round((demos.filter((d) => d.lastChecked).length / demos.length) * 100) : 0;
+    render: ({ demos, feed, now }) => {
+      const checked = demos.filter((d) => d.lastChecked);
+      const coverage = demos.length ? Math.round((checked.length / demos.length) * 100) : 0;
+      const reachable = checked.length
+        ? Math.round((checked.filter((d) => d.health === "working" || d.health === "slow").length / checked.length) * 100)
+        : 0;
       const todos = feed.filter((i) => i.kind === "todo");
-      const taskPct = todos.length ? Math.round((todos.filter((t) => t.done).length / todos.length) * 100) : 0;
-      const open = feed.filter((i) => !i.done).length;
-      const inboxPct = feed.length ? Math.round(((feed.length - open) / feed.length) * 100) : 100;
+      const onTime = todos.length
+        ? Math.round((todos.filter((t) => !t.at || new Date(t.at).getTime() >= now).length / todos.length) * 100)
+        : 100;
       const rows = [
         { l: "Demo validation coverage", p: coverage },
-        { l: "Task completion", p: taskPct },
-        { l: "Inbox cleared", p: inboxPct },
+        { l: "Demos answering", p: reachable },
+        { l: "My tasks not overdue", p: onTime },
       ];
       return (
         <div className="space-y-2">
@@ -612,8 +598,10 @@ NotesWidget.displayName = "NotesWidget";
 
 export const ExecutiveRotator: React.FC<{ intervalMs?: number }> = memo(({ intervalMs = 7000 }) => {
   const navigate = useNavigate();
-  const feed = useBannerFeed();
-  const { demos, products } = useDemoState();
+  const feedState = useBannerFeed();
+  const feed = feedState.items;
+  const runAction = useBannerAction();
+  const { demos, productCount } = useDemoHealth();
   const { actions, notes, sessionStart } = useExecSignals();
 
   const [index, setIndex] = useState(0);
@@ -644,14 +632,29 @@ export const ExecutiveRotator: React.FC<{ intervalMs?: number }> = memo(({ inter
     [navigate],
   );
 
+  const act = useCallback(
+    (item: BannerItem) => {
+      runAction(item).then(
+        (outcome) => {
+          if (outcome.navigate) return go(outcome.navigate);
+          if (!outcome.message) return;
+          logExecAction(item.kind === "approval" ? "approval" : "task", outcome.message, item.title);
+          toast.success(outcome.message);
+        },
+        (error: unknown) => toast.error(error instanceof Error ? error.message : String(error)),
+      );
+    },
+    [runAction, go],
+  );
+
   const ctx: Ctx = useMemo(
-    () => ({ feed, demos, products, actions, notes, sessionStart, now, go }),
-    [feed, demos, products, actions, notes, sessionStart, now, go],
+    () => ({ feed, demos, productCount, act, actions, notes, sessionStart, now, go }),
+    [feed, demos, productCount, act, actions, notes, sessionStart, now, go],
   );
 
   const widget = WIDGETS[index]!;
   const Icon = widget.icon;
-  const openCount = feed.filter((i) => !i.done).length;
+  const openCount = feed.length;
 
   return (
     <section

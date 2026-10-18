@@ -45,14 +45,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { Progress } from "@/components/ui/progress";
 
-import {
-  useInsertRecord,
-  useManyRecords,
-  useUpdateRecord,
-  type Row,
-} from "@/lib/manager-queries";
+import { useInsertRecord, useManyRecords, useUpdateRecord, type Row } from "@/lib/manager-queries";
 import {
   day,
   downloadRows,
@@ -103,7 +99,10 @@ export default function RegistryScreen({ view }: { view?: string | undefined }) 
   if (many.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="API Registry & Ops" description="Keys, services, integrations, monitoring and automation" />
+        <PageHeader
+          title="API Registry & Ops"
+          description="Keys, services, integrations, monitoring and automation"
+        />
         <LoadingBlock rows={6} />
       </div>
     );
@@ -111,7 +110,10 @@ export default function RegistryScreen({ view }: { view?: string | undefined }) 
   if (many.error) {
     return (
       <div className="space-y-6">
-        <PageHeader title="API Registry & Ops" description="Keys, services, integrations, monitoring and automation" />
+        <PageHeader
+          title="API Registry & Ops"
+          description="Keys, services, integrations, monitoring and automation"
+        />
         <ErrorState error={many.error} />
       </div>
     );
@@ -211,10 +213,30 @@ function RegistryContent({
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Active Keys" value={activeKeys} icon={<Key className="h-4 w-4" />} tone="cyan" />
-        <StatCard label="Healthy Services" value={`${healthyServices}/${services.length}`} icon={<Plug className="h-4 w-4" />} tone="green" />
-        <StatCard label="Error Requests (recent)" value={errorRequests} icon={<Activity className="h-4 w-4" />} tone="red" />
-        <StatCard label="Automation Rules Active" value={enabledRules} icon={<Zap className="h-4 w-4" />} tone="violet" />
+        <StatCard
+          label="Active Keys"
+          value={activeKeys}
+          icon={<Key className="h-4 w-4" />}
+          tone="cyan"
+        />
+        <StatCard
+          label="Healthy Services"
+          value={`${healthyServices}/${services.length}`}
+          icon={<Plug className="h-4 w-4" />}
+          tone="green"
+        />
+        <StatCard
+          label="Error Requests (recent)"
+          value={errorRequests}
+          icon={<Activity className="h-4 w-4" />}
+          tone="red"
+        />
+        <StatCard
+          label="Automation Rules Active"
+          value={enabledRules}
+          icon={<Zap className="h-4 w-4" />}
+          tone="violet"
+        />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -270,47 +292,81 @@ function RegistryContent({
   );
 }
 
-function KeysPanel({ keys, services, providers }: { keys: Row[]; services: Row[]; providers: Row[] }) {
-  const insert = useInsertRecord("API key created");
-  const update = useUpdateRecord("API key updated");
+/**
+ * A key row stands for a real provider credential. The secret is sent once to
+ * insertRecord, which encrypts it and derives key_prefix, last_four and the
+ * fingerprint from it on the server; nothing about the key is invented here.
+ * Rotation stores the replacement secret as a new key and revokes the old one,
+ * because stored secrets cannot be overwritten in place.
+ */
+function KeysPanel({
+  keys,
+  services,
+  providers,
+}: {
+  keys: Row[];
+  services: Row[];
+  providers: Row[];
+}) {
+  const { t } = useTranslation();
+  const insert = useInsertRecord(t("manager.registry.key_created"));
+  const update = useUpdateRecord(t("manager.registry.key_updated"));
   const [open, setOpen] = useState(false);
+  const [rotating, setRotating] = useState<Row | null>(null);
   const [label, setLabel] = useState("");
+  const [secret, setSecret] = useState("");
   const [environment, setEnvironment] = useState("production");
   const [serviceId, setServiceId] = useState<string>("none");
   const [providerId, setProviderId] = useState<string>("none");
 
-  const createKey = () => {
-    if (!label.trim()) return;
-    const prefix = `sk_${environment.slice(0, 4)}`;
-    const lastFour = Math.random().toString(36).slice(-4);
-    insert.mutate({
-      table: "api_keys",
-      values: {
-        label: label.trim(),
-        environment,
-        status: "active",
-        key_prefix: prefix,
-        last_four: lastFour,
-        fingerprint: `${prefix}_${lastFour}_${Date.now()}`,
-        service_id: serviceId === "none" ? null : serviceId,
-        provider_id: providerId === "none" ? null : providerId,
-        scopes: [],
-      },
-    });
+  const reset = () => {
     setOpen(false);
+    setRotating(null);
     setLabel("");
+    setSecret("");
     setEnvironment("production");
     setServiceId("none");
     setProviderId("none");
   };
 
+  const createKey = () => {
+    if (!label.trim() || !secret.trim()) return;
+    const replaced = rotating;
+    insert.mutate(
+      {
+        table: "api_keys",
+        values: {
+          label: label.trim(),
+          environment,
+          status: "active",
+          secret_encrypted: secret.trim(),
+          service_id: serviceId === "none" ? null : serviceId,
+          provider_id: providerId === "none" ? null : providerId,
+          scopes: replaced && Array.isArray(replaced["scopes"]) ? replaced["scopes"] : [],
+        },
+      },
+      {
+        onSuccess: () => {
+          if (!replaced) return;
+          update.mutate({
+            table: "api_keys",
+            id: String(replaced["id"]),
+            values: { status: "revoked", last_rotated_at: new Date().toISOString() },
+          });
+        },
+      },
+    );
+    reset();
+  };
+
   const rotate = (row: Row) => {
-    const lastFour = Math.random().toString(36).slice(-4);
-    update.mutate({
-      table: "api_keys",
-      id: String(row["id"]),
-      values: { last_four: lastFour, last_rotated_at: new Date().toISOString(), status: "active" },
-    });
+    setRotating(row);
+    setLabel(String(row["label"] ?? ""));
+    setSecret("");
+    setEnvironment(String(row["environment"] ?? "production"));
+    setServiceId(row["service_id"] ? String(row["service_id"]) : "none");
+    setProviderId(row["provider_id"] ? String(row["provider_id"]) : "none");
+    setOpen(true);
   };
 
   const revoke = (row: Row) => {
@@ -322,7 +378,7 @@ function KeysPanel({ keys, services, providers }: { keys: Row[]; services: Row[]
       title="API Keys"
       icon={<KeyRound className="h-4 w-4 text-primary" />}
       actions={
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : reset())}>
           <DialogTrigger asChild>
             <Button size="sm">
               <Plus className="mr-2 h-4 w-4" />
@@ -331,12 +387,31 @@ function KeysPanel({ keys, services, providers }: { keys: Row[]; services: Row[]
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create API Key</DialogTitle>
+              <DialogTitle>
+                {rotating ? t("manager.registry.rotate_title") : t("manager.registry.create_title")}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
                 <Label>Label</Label>
-                <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Backend service key" />
+                <Input
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  placeholder="e.g. Backend service key"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("manager.registry.secret_label")}</Label>
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  value={secret}
+                  onChange={(e) => setSecret(e.target.value)}
+                  placeholder={t("manager.registry.secret_placeholder")}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {rotating ? t("manager.registry.rotate_note") : t("manager.registry.secret_note")}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Environment</Label>
@@ -385,11 +460,14 @@ function KeysPanel({ keys, services, providers }: { keys: Row[]; services: Row[]
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>
+              <Button variant="outline" onClick={reset}>
                 Cancel
               </Button>
-              <Button onClick={createKey} disabled={!label.trim() || insert.isPending}>
-                Create
+              <Button
+                onClick={createKey}
+                disabled={!label.trim() || !secret.trim() || insert.isPending}
+              >
+                {rotating ? t("manager.registry.rotate_submit") : "Create"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -418,15 +496,26 @@ function KeysPanel({ keys, services, providers }: { keys: Row[]; services: Row[]
                 <TableCell className="font-mono text-xs text-muted-foreground">
                   {String(k["key_prefix"])}••••{String(k["last_four"])}
                 </TableCell>
-                <TableCell className="capitalize text-muted-foreground">{String(k["environment"])}</TableCell>
+                <TableCell className="capitalize text-muted-foreground">
+                  {String(k["environment"])}
+                </TableCell>
                 <TableCell>
                   <StatusBadge value={String(k["status"])} />
                 </TableCell>
-                <TableCell className="text-xs text-muted-foreground">{when(k["last_used_at"] as string | null)}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{when(k["last_rotated_at"] as string | null)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {when(k["last_used_at"] as string | null)}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {when(k["last_rotated_at"] as string | null)}
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="outline" onClick={() => rotate(k)} disabled={update.isPending}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => rotate(k)}
+                      disabled={update.isPending || insert.isPending || k["status"] === "revoked"}
+                    >
                       <RotateCcw className="mr-1 h-3 w-3" />
                       Rotate
                     </Button>
@@ -483,18 +572,31 @@ function ServicesPanel({ services, providers }: { services: Row[]; providers: Ro
               return (
                 <TableRow key={String(s["id"])}>
                   <TableCell className="font-medium text-foreground">{String(s["name"])}</TableCell>
-                  <TableCell className="text-muted-foreground">{provider ? String(provider["name"]) : "—"}</TableCell>
-                  <TableCell className="capitalize text-muted-foreground">{String(s["category"])}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {provider ? String(provider["name"]) : "—"}
+                  </TableCell>
+                  <TableCell className="capitalize text-muted-foreground">
+                    {String(s["category"])}
+                  </TableCell>
                   <TableCell>
                     <StatusBadge value={String(s["status"])} />
                   </TableCell>
                   <TableCell>
                     <StatusBadge value={String(s["health_status"])} />
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{Number(s["uptime_pct"] ?? 0).toFixed(2)}%</TableCell>
-                  <TableCell className="text-muted-foreground">{n(s, "avg_latency_ms")}ms</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {Number(s["uptime_pct"] ?? 0).toFixed(2)}%
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {n(s, "avg_latency_ms")}ms
+                  </TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="outline" onClick={() => toggleStatus(s)} disabled={update.isPending}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => toggleStatus(s)}
+                      disabled={update.isPending}
+                    >
                       {s["status"] === "active" ? "Deactivate" : "Activate"}
                     </Button>
                   </TableCell>
@@ -508,23 +610,50 @@ function ServicesPanel({ services, providers }: { services: Row[]; providers: Ro
   );
 }
 
-function IntegrationsPanel({ integrations, providers }: { integrations: Row[]; providers: Map<unknown, Row> }) {
+function IntegrationsPanel({
+  integrations,
+  providers,
+}: {
+  integrations: Row[];
+  providers: Map<unknown, Row>;
+}) {
   const update = useUpdateRecord("Integration updated");
 
-  const connected = integrations.filter((i) => i["status"] === "connected" || i["status"] === "active").length;
+  const connected = integrations.filter(
+    (i) => i["status"] === "connected" || i["status"] === "active",
+  ).length;
   const disconnected = integrations.length - connected;
 
   const toggle = (row: Row) => {
     const active = row["status"] === "connected" || row["status"] === "active";
-    update.mutate({ table: "api_integrations", id: String(row["id"]), values: { status: active ? "disconnected" : "connected" } });
+    update.mutate({
+      table: "api_integrations",
+      id: String(row["id"]),
+      values: { status: active ? "disconnected" : "connected" },
+    });
   };
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatCard label="Connected" value={connected} icon={<Boxes className="h-4 w-4" />} tone="green" />
-        <StatCard label="Disconnected" value={disconnected} icon={<Boxes className="h-4 w-4" />} tone="red" />
-        <StatCard label="Total" value={integrations.length} icon={<Boxes className="h-4 w-4" />} tone="cyan" />
+        <StatCard
+          label="Connected"
+          value={connected}
+          icon={<Boxes className="h-4 w-4" />}
+          tone="green"
+        />
+        <StatCard
+          label="Disconnected"
+          value={disconnected}
+          icon={<Boxes className="h-4 w-4" />}
+          tone="red"
+        />
+        <StatCard
+          label="Total"
+          value={integrations.length}
+          icon={<Boxes className="h-4 w-4" />}
+          tone="cyan"
+        />
       </div>
       <GlassCard title="Integrations" icon={<Boxes className="h-4 w-4 text-primary" />}>
         {integrations.length === 0 ? (
@@ -547,17 +676,32 @@ function IntegrationsPanel({ integrations, providers }: { integrations: Row[]; p
               {integrations.map((i) => (
                 <TableRow key={String(i["id"])}>
                   <TableCell className="font-medium text-foreground">{String(i["name"])}</TableCell>
-                  <TableCell className="capitalize text-muted-foreground">{String(i["category"])}</TableCell>
-                  <TableCell className="capitalize text-muted-foreground">{String(i["direction"])}</TableCell>
-                  <TableCell className="capitalize text-muted-foreground">{String(i["auth_type"])}</TableCell>
+                  <TableCell className="capitalize text-muted-foreground">
+                    {String(i["category"])}
+                  </TableCell>
+                  <TableCell className="capitalize text-muted-foreground">
+                    {String(i["direction"])}
+                  </TableCell>
+                  <TableCell className="capitalize text-muted-foreground">
+                    {String(i["auth_type"])}
+                  </TableCell>
                   <TableCell>
                     <StatusBadge value={String(i["status"])} />
                   </TableCell>
                   <TableCell className="text-muted-foreground">{n(i, "error_count")}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{when(i["last_sync_at"] as string | null)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {when(i["last_sync_at"] as string | null)}
+                  </TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="outline" onClick={() => toggle(i)} disabled={update.isPending}>
-                      {i["status"] === "connected" || i["status"] === "active" ? "Disconnect" : "Connect"}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => toggle(i)}
+                      disabled={update.isPending}
+                    >
+                      {i["status"] === "connected" || i["status"] === "active"
+                        ? "Disconnect"
+                        : "Connect"}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -579,9 +723,24 @@ function MonitoringPanel({ services, requestLogs }: { services: Row[]; requestLo
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatCard label="Avg Latency" value={`${avgLatency}ms`} icon={<Activity className="h-4 w-4" />} tone="cyan" />
-        <StatCard label="Errors (recent)" value={errorCount} icon={<Activity className="h-4 w-4" />} tone="red" />
-        <StatCard label="Services Monitored" value={services.length} icon={<Plug className="h-4 w-4" />} tone="violet" />
+        <StatCard
+          label="Avg Latency"
+          value={`${avgLatency}ms`}
+          icon={<Activity className="h-4 w-4" />}
+          tone="cyan"
+        />
+        <StatCard
+          label="Errors (recent)"
+          value={errorCount}
+          icon={<Activity className="h-4 w-4" />}
+          tone="red"
+        />
+        <StatCard
+          label="Services Monitored"
+          value={services.length}
+          icon={<Plug className="h-4 w-4" />}
+          tone="violet"
+        />
       </div>
       <GlassCard title="Service Health" icon={<Activity className="h-4 w-4 text-primary" />}>
         {services.length === 0 ? (
@@ -589,7 +748,10 @@ function MonitoringPanel({ services, requestLogs }: { services: Row[]; requestLo
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {services.map((s) => (
-              <div key={String(s["id"])} className="rounded-lg border border-border/50 bg-secondary/20 p-3">
+              <div
+                key={String(s["id"])}
+                className="rounded-lg border border-border/50 bg-secondary/20 p-3"
+              >
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-sm font-medium text-foreground">{String(s["name"])}</p>
                   <StatusBadge value={String(s["health_status"])} />
@@ -608,7 +770,13 @@ function MonitoringPanel({ services, requestLogs }: { services: Row[]; requestLo
   );
 }
 
-function RateLimitsPanel({ rateLimits, services }: { rateLimits: Row[]; services: Map<unknown, Row> }) {
+function RateLimitsPanel({
+  rateLimits,
+  services,
+}: {
+  rateLimits: Row[];
+  services: Map<unknown, Row>;
+}) {
   const update = useUpdateRecord("Rate limit updated");
   const [editing, setEditing] = useState<Row | null>(null);
   const [maxRequests, setMaxRequests] = useState("");
@@ -637,7 +805,11 @@ function RateLimitsPanel({ rateLimits, services }: { rateLimits: Row[]; services
   };
 
   const toggleEnabled = (row: Row) => {
-    update.mutate({ table: "rate_limits", id: String(row["id"]), values: { enabled: !row["enabled"] } });
+    update.mutate({
+      table: "rate_limits",
+      id: String(row["id"]),
+      values: { enabled: !row["enabled"] },
+    });
   };
 
   return (
@@ -661,11 +833,16 @@ function RateLimitsPanel({ rateLimits, services }: { rateLimits: Row[]; services
           <TableBody>
             {rateLimits.map((r) => {
               const svc = services.get(r["service_id"]) as Row | undefined;
-              const pct = n(r, "max_requests") > 0 ? (n(r, "current_usage") / n(r, "max_requests")) * 100 : 0;
+              const pct =
+                n(r, "max_requests") > 0 ? (n(r, "current_usage") / n(r, "max_requests")) * 100 : 0;
               return (
                 <TableRow key={String(r["id"])}>
-                  <TableCell className="font-medium text-foreground">{svc ? String(svc["name"]) : "Global"}</TableCell>
-                  <TableCell className="capitalize text-muted-foreground">{String(r["scope"])}</TableCell>
+                  <TableCell className="font-medium text-foreground">
+                    {svc ? String(svc["name"]) : "Global"}
+                  </TableCell>
+                  <TableCell className="capitalize text-muted-foreground">
+                    {String(r["scope"])}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Progress value={Math.min(100, pct)} className="h-1.5 w-24" />
@@ -676,9 +853,14 @@ function RateLimitsPanel({ rateLimits, services }: { rateLimits: Row[]; services
                   </TableCell>
                   <TableCell className="text-muted-foreground">{n(r, "window_seconds")}s</TableCell>
                   <TableCell className="text-muted-foreground">{n(r, "burst")}</TableCell>
-                  <TableCell className="capitalize text-muted-foreground">{String(r["action_on_exceed"])}</TableCell>
+                  <TableCell className="capitalize text-muted-foreground">
+                    {String(r["action_on_exceed"])}
+                  </TableCell>
                   <TableCell>
-                    <Switch checked={Boolean(r["enabled"])} onCheckedChange={() => toggleEnabled(r)} />
+                    <Switch
+                      checked={Boolean(r["enabled"])}
+                      onCheckedChange={() => toggleEnabled(r)}
+                    />
                   </TableCell>
                   <TableCell className="text-right">
                     <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
@@ -700,11 +882,19 @@ function RateLimitsPanel({ rateLimits, services }: { rateLimits: Row[]; services
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Max Requests</Label>
-              <Input value={maxRequests} onChange={(e) => setMaxRequests(e.target.value)} type="number" />
+              <Input
+                value={maxRequests}
+                onChange={(e) => setMaxRequests(e.target.value)}
+                type="number"
+              />
             </div>
             <div className="space-y-2">
               <Label>Window (seconds)</Label>
-              <Input value={windowSeconds} onChange={(e) => setWindowSeconds(e.target.value)} type="number" />
+              <Input
+                value={windowSeconds}
+                onChange={(e) => setWindowSeconds(e.target.value)}
+                type="number"
+              />
             </div>
             <div className="space-y-2">
               <Label>Burst</Label>
@@ -774,20 +964,34 @@ function LogsPanel({ requestLogs, services }: { requestLogs: Row[]; services: Ma
                 const isError = n(r, "status_code") >= 400;
                 return (
                   <TableRow key={String(r["id"])}>
-                    <TableCell className="text-xs text-muted-foreground">{when(r["occurred_at"] as string | null)}</TableCell>
-                    <TableCell className="text-muted-foreground">{svc ? String(svc["name"]) : "—"}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{String(r["method"])}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{String(r["path"])}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {when(r["occurred_at"] as string | null)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {svc ? String(svc["name"]) : "—"}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {String(r["method"])}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {String(r["path"])}
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={isError ? "border-status-error/40 text-status-error" : "border-status-success/40 text-status-success"}
+                        className={
+                          isError
+                            ? "border-status-error/40 text-status-error"
+                            : "border-status-success/40 text-status-success"
+                        }
                       >
                         {n(r, "status_code")}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{n(r, "latency_ms")}ms</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{r["error_message"] ? String(r["error_message"]) : "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {r["error_message"] ? String(r["error_message"]) : "—"}
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -809,9 +1013,24 @@ function DecisionsPanel({ decisionLogs, models }: { decisionLogs: Row[]; models:
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatCard label="Decisions Logged" value={decisionLogs.length} icon={<Brain className="h-4 w-4" />} tone="violet" />
-        <StatCard label="Total Cost" value={usd(totalCost)} icon={<Brain className="h-4 w-4" />} tone="green" />
-        <StatCard label="Avg Confidence" value={`${Math.round(avgConfidence * 100)}%`} icon={<Brain className="h-4 w-4" />} tone="cyan" />
+        <StatCard
+          label="Decisions Logged"
+          value={decisionLogs.length}
+          icon={<Brain className="h-4 w-4" />}
+          tone="violet"
+        />
+        <StatCard
+          label="Total Cost"
+          value={usd(totalCost)}
+          icon={<Brain className="h-4 w-4" />}
+          tone="green"
+        />
+        <StatCard
+          label="Avg Confidence"
+          value={`${Math.round(avgConfidence * 100)}%`}
+          icon={<Brain className="h-4 w-4" />}
+          tone="cyan"
+        />
       </div>
       <GlassCard
         title="AI Decision Logs"
@@ -859,15 +1078,23 @@ function DecisionsPanel({ decisionLogs, models }: { decisionLogs: Row[]; models:
                   const model = modelById.get(d["model_id"]) as Row | undefined;
                   return (
                     <TableRow key={String(d["id"])}>
-                      <TableCell className="text-xs text-muted-foreground">{when(d["occurred_at"] as string | null)}</TableCell>
-                      <TableCell className="text-muted-foreground">{model ? String(model["name"]) : "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {when(d["occurred_at"] as string | null)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {model ? String(model["name"]) : "—"}
+                      </TableCell>
                       <TableCell className="text-foreground">{String(d["decision"])}</TableCell>
                       <TableCell>
                         <StatusBadge value={String(d["outcome"])} />
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{Math.round(n(d, "confidence") * 100)}%</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {Math.round(n(d, "confidence") * 100)}%
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{n(d, "tokens")}</TableCell>
-                      <TableCell className="text-muted-foreground">{usd(n(d, "cost_usd"))}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {usd(n(d, "cost_usd"))}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -892,14 +1119,25 @@ function AutomationPanel({ automationRules }: { automationRules: Row[] }) {
     if (!name.trim()) return;
     insert.mutate({
       table: "automation_rules",
-      values: { name: name.trim(), trigger_type: triggerType, action_type: actionType, enabled: true, condition: {}, action_config: {} },
+      values: {
+        name: name.trim(),
+        trigger_type: triggerType,
+        action_type: actionType,
+        enabled: true,
+        condition: {},
+        action_config: {},
+      },
     });
     setOpen(false);
     setName("");
   };
 
   const toggle = (row: Row) => {
-    update.mutate({ table: "automation_rules", id: String(row["id"]), values: { enabled: !row["enabled"] } });
+    update.mutate({
+      table: "automation_rules",
+      id: String(row["id"]),
+      values: { enabled: !row["enabled"] },
+    });
   };
 
   const activeCount = automationRules.filter((r) => r["enabled"]).length;
@@ -907,8 +1145,18 @@ function AutomationPanel({ automationRules }: { automationRules: Row[] }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatCard label="Active Rules" value={activeCount} icon={<Zap className="h-4 w-4" />} tone="green" />
-        <StatCard label="Paused Rules" value={automationRules.length - activeCount} icon={<Zap className="h-4 w-4" />} tone="amber" />
+        <StatCard
+          label="Active Rules"
+          value={activeCount}
+          icon={<Zap className="h-4 w-4" />}
+          tone="green"
+        />
+        <StatCard
+          label="Paused Rules"
+          value={automationRules.length - activeCount}
+          icon={<Zap className="h-4 w-4" />}
+          tone="amber"
+        />
         <StatCard
           label="Total Runs"
           value={automationRules.reduce((s, r) => s + n(r, "run_count"), 0)}
@@ -934,7 +1182,11 @@ function AutomationPanel({ automationRules }: { automationRules: Row[] }) {
               <div className="space-y-4 py-2">
                 <div className="space-y-2">
                   <Label>Name</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Auto-throttle on cost spike" />
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Auto-throttle on cost spike"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Trigger Type</Label>
@@ -980,7 +1232,10 @@ function AutomationPanel({ automationRules }: { automationRules: Row[] }) {
         ) : (
           <div className="space-y-3">
             {automationRules.map((rule) => (
-              <div key={String(rule["id"])} className="rounded-lg border border-border/30 bg-muted/20 p-4">
+              <div
+                key={String(rule["id"])}
+                className="rounded-lg border border-border/30 bg-muted/20 p-4"
+              >
                 <div className="mb-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="font-medium text-foreground">{String(rule["name"])}</span>
@@ -1011,7 +1266,13 @@ function AutomationPanel({ automationRules }: { automationRules: Row[] }) {
   );
 }
 
-function ReportsPanel({ usageDaily, services }: { usageDaily: Row[]; services: Map<unknown, Row> }) {
+function ReportsPanel({
+  usageDaily,
+  services,
+}: {
+  usageDaily: Row[];
+  services: Map<unknown, Row>;
+}) {
   const totalRequests = usageDaily.reduce((s, u) => s + n(u, "requests"), 0);
   const totalCost = usageDaily.reduce((s, u) => s + n(u, "cost_usd"), 0);
 
@@ -1032,8 +1293,18 @@ function ReportsPanel({ usageDaily, services }: { usageDaily: Row[]; services: M
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <StatCard label="Total Requests" value={totalRequests.toLocaleString("en-US")} icon={<BarChart3 className="h-4 w-4" />} tone="cyan" />
-        <StatCard label="Total Cost" value={usd(totalCost)} icon={<BarChart3 className="h-4 w-4" />} tone="green" />
+        <StatCard
+          label="Total Requests"
+          value={totalRequests.toLocaleString("en-US")}
+          icon={<BarChart3 className="h-4 w-4" />}
+          tone="cyan"
+        />
+        <StatCard
+          label="Total Cost"
+          value={usd(totalCost)}
+          icon={<BarChart3 className="h-4 w-4" />}
+          tone="green"
+        />
       </div>
       <GlassCard
         title="Usage & Cost by Service"
@@ -1045,7 +1316,11 @@ function ReportsPanel({ usageDaily, services }: { usageDaily: Row[]; services: M
             onClick={() =>
               downloadRows(
                 "api-reports.csv",
-                byService.map((r) => ({ service: r.name, requests: r.requests, cost_usd: r.cost.toFixed(2) })),
+                byService.map((r) => ({
+                  service: r.name,
+                  requests: r.requests,
+                  cost_usd: r.cost.toFixed(2),
+                })),
               )
             }
           >
@@ -1064,7 +1339,9 @@ function ReportsPanel({ usageDaily, services }: { usageDaily: Row[]; services: M
                   <p className="text-sm font-medium text-foreground">{r.name}</p>
                   <p className="text-sm font-bold text-foreground">{usd(r.cost)}</p>
                 </div>
-                <p className="text-xs text-muted-foreground">{r.requests.toLocaleString("en-US")} requests</p>
+                <p className="text-xs text-muted-foreground">
+                  {r.requests.toLocaleString("en-US")} requests
+                </p>
               </div>
             ))}
           </div>

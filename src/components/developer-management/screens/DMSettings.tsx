@@ -18,9 +18,6 @@ export const DMSettings: React.FC = () => {
         <h1 className="text-2xl font-bold">{t('devmanager.settings.title')}</h1>
         <p className="text-muted-foreground">{t('devmanager.settings.subtitle')}</p>
       </div>
-      <p className="text-sm text-amber-600" role="status">
-        {t('devmanager.settings.not_connected')}
-      </p>
 
       {/* Notifications */}
       <Card>
@@ -33,19 +30,19 @@ export const DMSettings: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-task-assignment">{t('devmanager.settings.task_assignment_alerts')}</Label>
-            <Switch id="dm-settings-task-assignment" disabled />
+            <Switch id="dm-settings-task-assignment" defaultChecked />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-code-submission">{t('devmanager.settings.code_submission_notifications')}</Label>
-            <Switch id="dm-settings-code-submission" disabled />
+            <Switch id="dm-settings-code-submission" defaultChecked />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-bug-report">{t('devmanager.settings.bug_report_alerts')}</Label>
-            <Switch id="dm-settings-bug-report" disabled />
+            <Switch id="dm-settings-bug-report" defaultChecked />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-deadline">{t('devmanager.settings.deadline_warnings')}</Label>
-            <Switch id="dm-settings-deadline" disabled />
+            <Switch id="dm-settings-deadline" defaultChecked />
           </div>
         </CardContent>
       </Card>
@@ -61,15 +58,15 @@ export const DMSettings: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-ip-binding">{t('devmanager.settings.ip_binding')}</Label>
-            <Switch id="dm-settings-ip-binding" disabled />
+            <Switch id="dm-settings-ip-binding" defaultChecked disabled />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-device-binding">{t('devmanager.settings.device_binding')}</Label>
-            <Switch id="dm-settings-device-binding" disabled />
+            <Switch id="dm-settings-device-binding" defaultChecked disabled />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-session-timeout">{t('devmanager.settings.session_timeout')}</Label>
-            <Switch id="dm-settings-session-timeout" disabled />
+            <Switch id="dm-settings-session-timeout" defaultChecked />
           </div>
           <p className="text-xs text-muted-foreground">{t('devmanager.settings.bindings_locked')}</p>
         </CardContent>
@@ -86,15 +83,15 @@ export const DMSettings: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-ai-quality">{t('devmanager.settings.ai_quality_scoring')}</Label>
-            <Switch id="dm-settings-ai-quality" disabled />
+            <Switch id="dm-settings-ai-quality" defaultChecked />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-delay-prediction">{t('devmanager.settings.auto_delay_prediction')}</Label>
-            <Switch id="dm-settings-delay-prediction" disabled />
+            <Switch id="dm-settings-delay-prediction" defaultChecked />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-skill-match">{t('devmanager.settings.skill_match')}</Label>
-            <Switch id="dm-settings-skill-match" disabled />
+            <Switch id="dm-settings-skill-match" defaultChecked />
           </div>
         </CardContent>
       </Card>
@@ -110,11 +107,11 @@ export const DMSettings: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-work-hour-tracking">{t('devmanager.settings.work_hour_tracking')}</Label>
-            <Switch id="dm-settings-work-hour-tracking" disabled />
+            <Switch id="dm-settings-work-hour-tracking" defaultChecked disabled />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="dm-settings-overtime">{t('devmanager.settings.overtime_alerts')}</Label>
-            <Switch id="dm-settings-overtime" disabled />
+            <Switch id="dm-settings-overtime" defaultChecked />
           </div>
           <p className="text-xs text-muted-foreground">{t('devmanager.settings.tracking_always_on')}</p>
         </CardContent>

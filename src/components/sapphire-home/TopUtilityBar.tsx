@@ -1,7 +1,7 @@
+import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLanguage } from "@/lib/language-catalog";
+import { useLanguage, LANGUAGES } from "@/lib/language-catalog";
 import { Link } from "@tanstack/react-router";
-import { listNotifications, markAllRead, subscribe as subscribeApps } from "@/lib/applications/store";
 import {
   Popover,
   PopoverContent,
@@ -19,7 +19,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@/lib/serverFn";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -45,6 +45,7 @@ import {
   Sparkles,
   Rocket,
   CloudSun,
+  type LucideIcon,
 } from "lucide-react";
 import {
   askStorefrontAi,
@@ -63,7 +64,7 @@ const TRIGGER = "kr-btn tb-pill group";
 const PANEL =
   "kr-panel w-[300px] rounded-2xl border border-white/10 bg-[#0b1a30]/95 p-0 text-white shadow-2xl backdrop-blur-xl";
 
-function PanelHead({ icon: Icon, title, note }: { icon: any; title: string; note?: string }) {
+function PanelHead({ icon: Icon, title, note }: { icon: LucideIcon; title: string; note?: string }) {
   return (
     <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
       <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/25 to-amber-300/20 text-cyan-300">
@@ -91,10 +92,10 @@ const APPLY_ROLES: { key: string; label: string; blurb: string }[] = [
   { key: "employee", label: "Become Employee", blurb: "Full-time openings" },
 ];
 
-function ApplyNow({ t }: { t: (s: string) => string }) {
+function ApplyNow({ t, roles }: { t: (s: string) => string; roles?: BarItem[] }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={TRIGGER}>
+      <DropdownMenuTrigger className={TRIGGER} aria-label={t("Apply Now")}>
         <Rocket className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:-translate-y-0.5" />
         {t("Apply Now")}
         <span className="text-[9px] opacity-70">▼</span>
@@ -104,7 +105,7 @@ function ApplyNow({ t }: { t: (s: string) => string }) {
           {t("Role applications")}
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-white/10" />
-        {APPLY_ROLES.map((r, i) => (
+        {(roles ?? APPLY_ROLES).map((r, i) => (
           <DropdownMenuItem
             key={r.key}
             asChild
@@ -146,6 +147,8 @@ export const LANGS = [
 /** UI strings translated live by the AI gateway (real translation, cached per language). */
 const BAR_STRINGS = [
   "Apply Now",
+  "My Favorites",
+  "Account",
   "Role applications",
   "Language",
   "Currency",
@@ -250,10 +253,38 @@ function LanguagePicker({
   busy: boolean;
   t: (s: string) => string;
 }) {
-  const current = LANGS.find((l) => l.code === lang) ?? LANGS[0];
+  // The canonical registry, not a list kept here.
+  //
+  // LANGS below is seventeen languages. The platform supports 140, and this
+  // button was offering a twelfth of them: a visitor whose language the
+  // platform can actually serve had no way to pick it, and one already set to
+  // such a language saw the flag fall back to English. LANGUAGES is the same
+  // list the rest of the platform resolves against, so there is one registry
+  // and one answer to "which languages exist".
+  //
+  // Matched without case, because the provider hands back a lowercased code
+  // while canonical tags carry script and region subtags — zh-Hans, pt-BR.
+  // Comparing them directly would never match those.
+  const options = useMemo(
+    () => LANGUAGES.map((l) => ({ code: l.code, flag: l.flag, label: l.native, name: l.name })),
+    [],
+  );
+  const [query, setQuery] = useState("");
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter(
+      (l) =>
+        l.name.toLowerCase().includes(q) ||
+        l.label.toLowerCase().includes(q) ||
+        l.code.toLowerCase().includes(q),
+    );
+  }, [options, query]);
+  const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  const current = options.find((l) => same(l.code, lang)) ?? options[0];
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Language")}>
         {busy ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
         ) : (
@@ -264,9 +295,20 @@ function LanguagePicker({
       </PopoverTrigger>
       <PopoverContent align="end" className={PANEL}>
         <PanelHead icon={Globe2} title={t("Language")} note="Auto-detected from your browser" />
+        {/* Added because the list is 140 long now. Nothing is hidden by it:
+            an empty box shows every language, exactly as before. */}
+        <div className="px-2 pb-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("Search")}
+            aria-label={t("Language")}
+            className="h-8 w-full rounded-lg border border-white/10 bg-white/5 px-2 text-[12.5px] outline-none placeholder:text-white/40 focus:border-cyan-400/40"
+          />
+        </div>
         <ScrollArea className="h-64">
           <div className="p-2">
-            {LANGS.map((l, i) => (
+            {shown.map((l, i) => (
               <button
                 key={l.code}
                 onClick={() => apply(l.code)}
@@ -276,7 +318,7 @@ function LanguagePicker({
                 <span className="text-base leading-none">{l.flag}</span>
                 <span className="flex-1 font-medium">{l.label}</span>
                 <span className="text-[10px] uppercase text-white/40">{l.code}</span>
-                {l.code === lang && <Check className="h-3.5 w-3.5 text-emerald-400" />}
+                {same(l.code, lang) && <Check className="h-3.5 w-3.5 text-emerald-400" />}
               </button>
             ))}
           </div>
@@ -320,7 +362,7 @@ function CurrencyPicker({ t }: { t: (s: string) => string }) {
 
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Currency")}>
         <Coins className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:scale-110" />
         <span className="hidden sm:inline">{t("Currency")}</span>
       </PopoverTrigger>
@@ -409,7 +451,7 @@ function WorldClock({ t }: { t: (s: string) => string }) {
 
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("World Clock")}>
         <Clock className="h-3.5 w-3.5 text-cyan-200 transition-transform duration-500 group-hover:rotate-[360deg]" />
         <span className="tabular-nums">{local}</span>
       </PopoverTrigger>
@@ -481,7 +523,7 @@ function Weather({ t }: { t: (s: string) => string }) {
   const d = q.data;
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Weather")}>
         <CloudSun className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:-translate-y-0.5" />
         <span className="tabular-nums">{d && !d.error ? `${Math.round(d.tempC)}°` : "—"}</span>
       </PopoverTrigger>
@@ -576,7 +618,7 @@ function CalendarTool({ t }: { t: (s: string) => string }) {
 
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Calendar")}>
         <CalendarDays className="h-3.5 w-3.5 text-cyan-200 transition-transform duration-300 group-hover:-translate-y-0.5" />
         <span className="hidden sm:inline">{t("Calendar")}</span>
       </PopoverTrigger>
@@ -698,7 +740,7 @@ function CalculatorTool({ t }: { t: (s: string) => string }) {
   const result = expr ? evaluate(expr) : null;
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Calculator")}>
         <CalculatorIcon className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:scale-110" />
         <span className="hidden lg:inline">{t("Calculator")}</span>
       </PopoverTrigger>
@@ -770,7 +812,7 @@ function AiChat({ t }: { t: (s: string) => string }) {
 
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("AI Chat")}>
         <Bot className="h-3.5 w-3.5 text-cyan-200 transition-transform duration-300 group-hover:-translate-y-0.5" />
         <span className="hidden sm:inline">{t("AI Chat")}</span>
         <span className="kr-dot" />
@@ -878,46 +920,83 @@ function Notifications({ t }: { t: (s: string) => string }) {
   const q = useQuery({
     queryKey: ["site_notifications"],
     queryFn: async (): Promise<Notification[]> => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("site_notifications")
         .select("id,title,body,kind,link_url,published_at")
         .eq("is_published", true)
         .order("sort_order", { ascending: true });
       if (error) return [];
-      return (data ?? []) as Notification[];
+      return data ?? [];
     },
     staleTime: 1000 * 60 * 5,
   });
 
-  const [appNotifs, setAppNotifs] = useState(() => listNotifications());
+  // The signed-in visitor's own notifications, beside the site's public
+  // announcements. They used to come from an applications list kept in this
+  // browser, which nothing has written since applications moved to the
+  // server, and whose link (/admin/applications) led to no page. They now come
+  // from the platform's one notification system - user_notifications, read
+  // with mm_notifications - on the very query the dashboard bell uses, so the
+  // two bells share one cache and one unread count.
+  const qc = useQueryClient();
+  const [userId, setUserId] = useState<string | null>(null);
   useEffect(() => {
-    const sync = () => setAppNotifs(listNotifications());
-    sync();
-    return subscribeApps(sync);
+    let alive = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (alive) setUserId(data.user?.id ?? null);
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => setUserId(session?.user?.id ?? null));
+    return () => {
+      alive = false;
+      data.subscription.unsubscribe();
+    };
   }, []);
+  const mineKey = ["notification-bell", userId];
+  const mine = useQuery({
+    queryKey: mineKey,
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("mm_notifications" as never, { p_limit: 25 } as never);
+      if (error) throw new Error(error.message);
+      return data as unknown as {
+        unread?: number;
+        notifications?: { id: string; message: string; event: string | null; action_url: string | null; read: boolean | null; created_at: string }[];
+      };
+    },
+    refetchInterval: 60_000,
+  });
+  const markMineRead = async () => {
+    const unreadMine = (mine.data?.notifications ?? []).filter((n) => !n.read);
+    if (!unreadMine.length) return;
+    for (const n of unreadMine) {
+      await supabase.rpc("mm_notification_read" as never, { p_id: n.id, p_dismiss: false } as never);
+    }
+    await qc.invalidateQueries({ queryKey: mineKey });
+  };
 
   const items = useMemo<Notification[]>(
     () => [
-      ...appNotifs.map((n) => ({
+      ...(mine.data?.notifications ?? []).map((n) => ({
         id: n.id,
-        title: n.title,
-        body: n.body,
-        kind: n.kind === "application" ? "update" : "promo",
-        link_url: "/admin/applications",
-        published_at: n.createdAt,
+        title: String(n.event ?? "Notification").replace(/[._]/g, " "),
+        body: n.message,
+        kind: "update",
+        // Only links inside this site are followed, as in the dashboard bell.
+        link_url: n.action_url && n.action_url.startsWith("/") && !n.action_url.startsWith("//") ? n.action_url : null,
+        published_at: n.created_at,
       })),
       ...(q.data ?? []),
     ],
-    [appNotifs, q.data],
+    [mine.data, q.data],
   );
   const unread =
-    appNotifs.filter((n) => !n.read).length +
+    Number(mine.data?.unread ?? 0) +
     (q.data ?? []).filter((n) => !lastSeen || n.published_at > lastSeen).length;
 
   return (
     <Popover
       onOpenChange={(open) => {
-        if (open) markAllRead();
+        if (open) void markMineRead();
         if (open && items.length) {
           const newest = items.reduce((a, b) => (a > b.published_at ? a : b.published_at), "");
           localStorage.setItem("sv_notif_seen", newest);
@@ -925,7 +1004,7 @@ function Notifications({ t }: { t: (s: string) => string }) {
         }
       }}
     >
-      <PopoverTrigger className={`${TRIGGER} relative`}>
+      <PopoverTrigger className={`${TRIGGER} relative`} aria-label={t("Notifications")}>
         <Bell className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:animate-[kr-ring_0.6s_ease]" />
         <span className="hidden sm:inline">{t("Notifications")}</span>
         {unread > 0 && (
@@ -944,14 +1023,30 @@ function Notifications({ t }: { t: (s: string) => string }) {
               <div className="p-3 text-[12px] text-white/50">No announcements right now.</div>
             )}
             {items.map((n, i) => {
-              const Wrapper: any = n.link_url ? "a" : "div";
               return (
-                <Wrapper
-                  key={n.id}
-                  {...(n.link_url ? { href: n.link_url } : {})}
-                  className="kr-item block rounded-xl px-3 py-2 hover:bg-white/5"
-                  style={{ animationDelay: `${i * 30}ms` }}
-                >
+                n.link_url ? (
+                  <a
+                    key={n.id}
+                    href={n.link_url}
+                    className="kr-item block rounded-xl px-3 py-2 hover:bg-white/5"
+                    style={{ animationDelay: `${i * 30}ms` }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          n.kind === "promo" ? "bg-amber-300" : n.kind === "update" ? "bg-cyan-300" : "bg-white/40"
+                        }`}
+                      />
+                      <span className="text-[12.5px] font-semibold">{n.title}</span>
+                    </div>
+                    <p className="mt-0.5 pl-3.5 text-[11.5px] leading-snug text-white/55">{n.body}</p>
+                  </a>
+                ) : (
+                  <div
+                    key={n.id}
+                    className="kr-item block rounded-xl px-3 py-2 hover:bg-white/5"
+                    style={{ animationDelay: `${i * 30}ms` }}
+                  >
                   <div className="flex items-center gap-2">
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${
@@ -961,7 +1056,8 @@ function Notifications({ t }: { t: (s: string) => string }) {
                     <span className="text-[12.5px] font-semibold">{n.title}</span>
                   </div>
                   <p className="mt-0.5 pl-3.5 text-[11.5px] leading-snug text-white/55">{n.body}</p>
-                </Wrapper>
+                  </div>
+                )
               );
             })}
           </div>
@@ -975,10 +1071,11 @@ function Notifications({ t }: { t: (s: string) => string }) {
 /* My Favorites                                                        */
 /* ------------------------------------------------------------------ */
 
-function Favorites({ count }: { count: number }) {
+function Favorites({ count, t }: { count: number; t: (s: string) => string }) {
   return (
     <button
       type="button"
+      aria-label={t("My Favorites")}
       className={`${TRIGGER} relative`}
       onClick={() => document.getElementById("All")?.scrollIntoView({ behavior: "smooth" })}
     >
@@ -1001,8 +1098,8 @@ function LoginPill({ t }: { t: (s: string) => string }) {
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }: any) => setUserEmail(data.session?.user.email ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e: any, session: any) =>
+    supabase.auth.getSession().then(({ data }) => setUserEmail(data.session?.user.email ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
       setUserEmail(session?.user.email ?? null),
     );
     return () => sub.subscription.unsubscribe();
@@ -1024,7 +1121,7 @@ function LoginPill({ t }: { t: (s: string) => string }) {
 
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER}>
+      <PopoverTrigger className={TRIGGER} aria-label={t("Account")}>
         <LogIn className="h-3.5 w-3.5 text-emerald-300 transition-transform duration-300 group-hover:translate-x-0.5" />
         <span className="hidden sm:inline">{userEmail.split("@")[0]}</span>
       </PopoverTrigger>
@@ -1066,10 +1163,10 @@ const DASHBOARD_ROLES: { key: string; label: string; blurb: string }[] = [
   { key: "promise-tracker", label: "Promise Tracker", blurb: "Commitments & follow-through" },
 ];
 
-function DashboardsMenu({ t }: { t: (s: string) => string }) {
+function DashboardsMenu({ t, roles }: { t: (s: string) => string; roles?: BarItem[] }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={TRIGGER}>
+      <DropdownMenuTrigger className={TRIGGER} aria-label={t("Dashboards")}>
         <LayoutDashboard className="h-3.5 w-3.5 text-cyan-300 transition-transform duration-300 group-hover:-translate-y-0.5" />
         {t("Dashboards")}
         <span className="text-[9px] opacity-70">▼</span>
@@ -1082,7 +1179,7 @@ function DashboardsMenu({ t }: { t: (s: string) => string }) {
           {t("Role dashboards")}
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-white/10" />
-        {DASHBOARD_ROLES.map((r, i) => (
+        {(roles ?? DASHBOARD_ROLES).map((r, i) => (
           <DropdownMenuItem
             key={r.key}
             asChild
@@ -1138,6 +1235,8 @@ const MODULE_KEYS: Record<string, string> = {
   ai: "ai-chat",
 };
 
+type BarItem = { key: string; label: string; blurb?: string };
+
 type TopBarModule = {
   module_key: string;
   status: string;
@@ -1145,7 +1244,35 @@ type TopBarModule = {
   desktop_enabled?: boolean;
   tablet_enabled?: boolean;
   mobile_enabled?: boolean;
+  config?: { items?: unknown } | null;
 };
+
+/**
+ * The items of a dropdown, as Top Bar Manager saved them.
+ *
+ * Apply Now and Dashboards were arrays written into this file, so adding a
+ * role or renaming one meant editing the storefront. They live in the module's
+ * own config now, which arrives in the answer this component is already
+ * waiting for — no second request, no second table.
+ *
+ * Anything that is not a well-formed list of items is ignored in favour of the
+ * constant above it. The header has never been allowed to depend on this call
+ * and still does not: a bad row degrades to the list that shipped, not to an
+ * empty menu.
+ */
+function itemsFor(module: TopBarModule | undefined, fallback: BarItem[]): BarItem[] {
+  const raw = module?.config && typeof module.config === "object" ? module.config.items : null;
+  if (!Array.isArray(raw) || raw.length === 0) return fallback;
+  const clean = raw.filter(
+    (i): i is BarItem =>
+      Boolean(i) &&
+      typeof (i as BarItem).key === "string" &&
+      (i as BarItem).key.trim() !== "" &&
+      typeof (i as BarItem).label === "string" &&
+      (i as BarItem).label.trim() !== "",
+  );
+  return clean.length ? clean : fallback;
+}
 
 /**
  * What Top Bar Manager says the header should show.
@@ -1178,23 +1305,41 @@ function useTopBarConfig(): TopBarModule[] | null {
 
 export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number }) {
   const { lang, t, apply, busy } = useBarTranslation();
+  const config = useTopBarConfig();
+
+  // Looked up once so each wrapper can carry its own device rules, and so the
+  // two dropdowns can read the items the manager saved against their rows.
+  const byKey = useMemo(() => {
+    const map = new Map<string, TopBarModule>();
+    for (const m of config ?? []) map.set(m.module_key, m);
+    return map;
+  }, [config]);
+
+  const applyRoles = useMemo(
+    () => itemsFor(byKey.get("apply-now"), APPLY_ROLES),
+    [byKey],
+  );
+  const dashboardRoles = useMemo(
+    () => itemsFor(byKey.get("dashboards"), DASHBOARD_ROLES),
+    [byKey],
+  );
+
   const items = useMemo(
     () => [
-      <ApplyNow key="apply" t={t} />,
+      <ApplyNow key="apply" t={t} roles={applyRoles} />,
       <LanguagePicker key="lang" lang={lang} apply={apply} busy={busy} t={t} />,
       <CalendarTool key="cal" t={t} />,
       <CalculatorTool key="calc" t={t} />,
       <LoginPill key="login" t={t} />,
-      <DashboardsMenu key="dashboards" t={t} />,
+      <DashboardsMenu key="dashboards" t={t} roles={dashboardRoles} />,
       <CurrencyPicker key="cur" t={t} />,
       <Notifications key="notif" t={t} />,
-      <Favorites key="fav" count={favoritesCount} />,
+      <ChatAppButton key="chat" className={`${TRIGGER} relative`} iconClassName="h-3.5 w-3.5" label={t("Chat")} />,
+      <Favorites key="fav" count={favoritesCount} t={t} />,
       <AiChat key="ai" t={t} />,
     ],
-    [lang, t, apply, busy, favoritesCount],
+    [lang, t, apply, busy, favoritesCount, applyRoles, dashboardRoles],
   );
-
-  const config = useTopBarConfig();
 
   // With no configuration loaded the header renders exactly as it always has.
   // With configuration, a module that is not live is dropped and the rest
@@ -1220,13 +1365,6 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
       });
   }, [items, config]);
 
-  // Looked up once so each wrapper can carry its own device rules.
-  const byKey = useMemo(() => {
-    const map = new Map<string, TopBarModule>();
-    for (const m of config ?? []) map.set(m.module_key, m);
-    return map;
-  }, [config]);
-
   return (
     <div className="flex flex-wrap items-center justify-center gap-2">
       {visible.map((el, i) => {
@@ -1246,4 +1384,3 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
 }
 
 export { Lock };
-

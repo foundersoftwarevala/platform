@@ -12,18 +12,18 @@ class ErrorCatcher extends Component<
   { children: ReactNode; label: string },
   { error: Error | null }
 > {
-  state: { error: Error | null } = { error: null };
+  override state: { error: Error | null } = { error: null };
 
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
 
-  componentDidCatch(error: Error) {
+  override componentDidCatch(error: Error) {
     // Surfaced in the browser console for support; never shown raw to visitors.
     console.error("[marketplace-home] section failed:", this.props.label, error);
   }
 
-  render() {
+  override render() {
     if (!this.state.error) return this.props.children;
     return (
       <div className="mx-auto my-6 max-w-3xl rounded-2xl border border-amber-400/30 bg-amber-400/5 p-6 text-center">
@@ -131,17 +131,17 @@ export function HomeShellFallback({ onRetry }: { onRetry?: () => void }) {
 
 /** Wraps the whole homepage so a crash never produces a blank document. */
 export class HomeBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
-  state: { error: Error | null } = { error: null };
+  override state: { error: Error | null } = { error: null };
 
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
 
-  componentDidCatch(error: Error, info: unknown) {
+  override componentDidCatch(error: Error, info: unknown) {
     console.error("[marketplace-home] homepage crashed:", error, info);
   }
 
-  render() {
+  override render() {
     if (this.state.error) {
       return <HomeShellFallback onRetry={() => this.setState({ error: null })} />;
     }

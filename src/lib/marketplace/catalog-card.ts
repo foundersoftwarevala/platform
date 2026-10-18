@@ -36,6 +36,8 @@ export type CatalogCard = {
   newRelease: boolean;
   country: string | null;
   href: string;
+  /** The permanent card-slot page this product occupies, when one is known. */
+  slotUrl?: string;
   description: string | null;
   features: string[];
   tech: string[];

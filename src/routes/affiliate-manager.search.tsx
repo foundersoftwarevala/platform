@@ -20,9 +20,12 @@ import { AFFILIATE_NAV } from "@/lib/affiliate-nav";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/lib/affiliate-permissions";
 
+// The partner, referral and campaign tables are not in the generated database types.
+const untyped = (table: string) => (supabase as any).from(table);
+
 const PAGE_SIZE = 25;
 
-// Entity types that live in the database and go through the indexed RPC.
+// Entity types that live in the database and are searched by searchLiveRecords.
 const DB_ENTITY_TYPES = ["affiliate", "campaign", "link", "code", "customer"] as const;
 type DbEntityType = (typeof DB_ENTITY_TYPES)[number];
 
@@ -95,16 +98,7 @@ function UniversalSearchWall() {
     enabled: dbEnabled,
     placeholderData: keepPreviousData,
     staleTime: 15_000,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("universal_search", {
-        _q: q,
-        _entity_types: dbEntityFilter ?? undefined,
-        _limit: PAGE_SIZE,
-        _offset: (page - 1) * PAGE_SIZE,
-      });
-      if (error) throw error;
-      return (data ?? []) as DbHit[];
-    },
+    queryFn: () => searchLiveRecords(q, dbEntityFilter, page),
   });
 
   const dbTotal = dbQuery.data?.[0]?.total_count ?? 0;
@@ -347,6 +341,119 @@ function UniversalSearchWall() {
       </WallShell>
     </>
   );
+}
+
+/**
+ * Live-record search over the tables that hold each entity type. There is no
+ * search function in the database, so each type is matched with a
+ * case-insensitive contains filter and the results are merged and paged here:
+ *
+ *   affiliate  marketplace_affiliate_partners.display_name
+ *   code       marketplace_referral_codes.code (an affiliate's referral link)
+ *   campaign   campaigns.name
+ *
+ * Links have no table of their own (an affiliate's link is its referral code)
+ * and customers are not stored against affiliates, so those types return no
+ * live records. Row-level security decides what the caller can see.
+ */
+async function searchLiveRecords(
+  q: string,
+  types: DbEntityType[] | null,
+  page: number,
+): Promise<DbHit[]> {
+  const term = q.trim();
+  if (!term) return [];
+  const wanted = (t: DbEntityType) => !types || types.includes(t);
+  const pattern = `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  // Every hit up to the end of the requested page is needed from each type to
+  // merge and rank them correctly.
+  const depth = page * PAGE_SIZE;
+  const needle = term.toLowerCase();
+  const score = (title: string) => {
+    const t = title.toLowerCase();
+    return t === needle ? 1 : t.startsWith(needle) ? 0.75 : 0.5;
+  };
+
+  type SourceResult = { hits: Omit<DbHit, "total_count">[]; count: number };
+  const sources: Promise<SourceResult>[] = [];
+
+  if (wanted("affiliate")) {
+    sources.push((async () => {
+      const { data, error, count } = await untyped("marketplace_affiliate_partners")
+        .select("id, display_name, status", { count: "exact" })
+        .ilike("display_name", pattern)
+        .order("display_name")
+        .limit(depth);
+      if (error) throw error;
+      return {
+        count: count ?? 0,
+        hits: (data ?? []).map((r: { id: string; display_name: string | null; status: string | null }) => ({
+          entity_type: "affiliate" as const,
+          entity_id: r.id,
+          title: r.display_name ?? "",
+          subtitle: null,
+          status: r.status,
+          route: `/affiliate-manager/affiliates/${r.id}`,
+          score: score(r.display_name ?? ""),
+        })),
+      };
+    })());
+  }
+
+  if (wanted("code")) {
+    sources.push((async () => {
+      const { data, error, count } = await untyped("marketplace_referral_codes")
+        .select("id, code, active", { count: "exact" })
+        .not("affiliate_partner_id", "is", null)
+        .ilike("code", pattern)
+        .order("code")
+        .limit(depth);
+      if (error) throw error;
+      return {
+        count: count ?? 0,
+        hits: (data ?? []).map((r: { id: string; code: string; active: boolean | null }) => ({
+          entity_type: "code" as const,
+          entity_id: r.id,
+          title: r.code,
+          subtitle: "Affiliate referral code",
+          status: r.active ? "active" : "inactive",
+          route: "/affiliate-manager/referral-codes",
+          score: score(r.code),
+        })),
+      };
+    })());
+  }
+
+  if (wanted("campaign")) {
+    sources.push((async () => {
+      const { data, error, count } = await untyped("campaigns")
+        .select("id, name, description, status", { count: "exact" })
+        .ilike("name", pattern)
+        .order("name")
+        .limit(depth);
+      if (error) throw error;
+      return {
+        count: count ?? 0,
+        hits: (data ?? []).map((r: { id: string; name: string | null; description: string | null; status: string | null }) => ({
+          entity_type: "campaign" as const,
+          entity_id: r.id,
+          title: r.name ?? "",
+          subtitle: r.description,
+          status: r.status,
+          route: "/affiliate-manager/campaigns",
+          score: score(r.name ?? ""),
+        })),
+      };
+    })());
+  }
+
+  const results = await Promise.all(sources);
+  const total = results.reduce((sum, r) => sum + r.count, 0);
+  return results
+    .flatMap((r) => r.hits)
+    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
+    .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    .map((hit) => ({ ...hit, total_count: total }));
 }
 
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }

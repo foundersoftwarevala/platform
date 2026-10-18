@@ -5,15 +5,26 @@ import { DashboardSection } from "./sections/DashboardSection";
 // FaqManagerSection is the earlier editor over a browser-local store. It is
 // kept imported and unused rather than removed; FAQ now resolves to the
 // connected screen in sections/index.
-import { FaqManagerSection, ValaTvSection } from "./sections/ContentStudio";
+import { FaqManagerSection } from "./sections/ContentStudio";
+// Vala TV reads and writes vala_tv_videos, the table the storefront shows.
+import { ValaTvSection } from "./sections/ValaTvLive";
 import { StoriesAwardsSection } from "./sections/StoriesAwards";
 import { OrdersSection as OrdersLive } from "./sections/OrdersLive";
 // The module screens that were designed as shells and are now reading their
 // tables. The originals stay exported from ./sections/CatalogSections.
 import {
-  ProductMediaLive, DemoSystemLive, BlogLive, LicenseLive, DownloadsLive,
-  AuthorsLive, VendorsLive, ResellersLive, AffiliateLive, InfluencerLive,
-  QrLive, ReportsLive,
+  ProductMediaLive,
+  DemoSystemLive,
+  BlogLive,
+  LicenseLive,
+  DownloadsLive,
+  AuthorsLive,
+  VendorsLive,
+  ResellersLive,
+  AffiliateLive,
+  InfluencerLive,
+  QrLive,
+  ReportsLive,
 } from "./sections/LiveModules";
 import { RoleMatrix } from "./sections/RoleMatrix";
 import { AutomationConsole } from "./sections/AutomationConsole";
@@ -190,6 +201,15 @@ export const navIdToLabel: Record<string, string> = {
   downloads: "Downloads",
   reviews: "Reviews",
   notifications: "Notifications",
+
+  // The ids mm_dashboard's approval queues link to. They were written from
+  // the shape of the data ("catalog", "commerce") rather than from the shape
+  // of this UI, so every "Review" resolved to nothing and landed the reader
+  // back on the Dashboard. Mapped here rather than renamed in the database,
+  // because the destinations are also read by callers outside this workspace.
+  catalog: "Products",
+  commerce: "Orders",
+  "demo-urls": "Demo System",
 };
 
 /**

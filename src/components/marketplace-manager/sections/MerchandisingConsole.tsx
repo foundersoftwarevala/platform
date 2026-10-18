@@ -1,15 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, ChevronDown, ChevronUp, Info, Layers, Pin, PinOff, Plus,
-  Search, Sparkles, TrendingUp, Trash2, X, AlertTriangle, Wand2, Hand,
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Layers,
+  Pin,
+  PinOff,
+  Plus,
+  Search,
+  Sparkles,
+  TrendingUp,
+  Trash2,
+  X,
+  AlertTriangle,
+  Wand2,
+  Hand,
 } from "lucide-react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { richText, useTranslation } from "@/lib/i18n/use-translation";
 
 import { Card, EmptyHint, PageHeader, PillButton, StatCard } from "../ui";
 import {
-  listHomepageRows, getRowProducts, searchRowProducts,
-  assignSlot, removeSlot, moveSlot, pinSlot, configureRow,
+  listHomepageRows,
+  getRowProducts,
+  searchRowProducts,
+  assignSlot,
+  removeSlot,
+  moveSlot,
+  pinSlot,
+  configureRow,
   listRecommendationEngines,
   type RowSlot,
 } from "@/lib/marketplace-manager/rows.functions";
@@ -98,9 +119,21 @@ const PLACEMENTS: {
 /** The rules the engine actually implements. Nothing else may be offered. */
 const RULES: { value: string; label: string; needs: string }[] = [
   { value: "featured", label: "Featured flag", needs: "products flagged featured" },
-  { value: "trending", label: "Trending flag, ranked by 30-day views", needs: "products flagged trending" },
-  { value: "best_selling", label: "Top selling, ranked by paid orders", needs: "paid orders or the best-seller flag" },
-  { value: "new_release", label: "New release flag, newest first", needs: "products flagged new release" },
+  {
+    value: "trending",
+    label: "Trending flag, ranked by 30-day views",
+    needs: "products flagged trending",
+  },
+  {
+    value: "best_selling",
+    label: "Top selling, ranked by paid orders",
+    needs: "paid orders or the best-seller flag",
+  },
+  {
+    value: "new_release",
+    label: "New release flag, newest first",
+    needs: "products flagged new release",
+  },
   { value: "newest", label: "Recently added", needs: "nothing — every product has a date" },
   { value: "rating", label: "Highest rated", needs: "a rating on the product" },
   { value: "sort_order", label: "Catalogue order", needs: "nothing" },
@@ -135,39 +168,55 @@ function useSlots(key: string | undefined) {
  * success toast over a write that did not happen.
  */
 function useSlotMutations(rowKey: string) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: slotsKey(rowKey) });
     void qc.invalidateQueries({ queryKey: ROWS_KEY });
   };
-  const onError = (e: Error) => toast.error(e.message || "The change was refused.");
+  const onError = (e: Error) => toast.error(e.message || t("storeadmin.merch.change_refused"));
 
   return {
     assign: useMutation({
       mutationFn: (v: { position: number; productId: string; override?: boolean }) =>
         assignSlot({ data: { key: rowKey, ...v } }),
-      onSuccess: (r: { message?: string }) => { refresh(); toast.success(r?.message ?? "Assigned"); },
+      onSuccess: (r: { message?: string }) => {
+        refresh();
+        toast.success(r?.message ?? t("storeadmin.merch.assigned"));
+      },
       onError,
     }),
     remove: useMutation({
       mutationFn: (v: { position: number }) => removeSlot({ data: { key: rowKey, ...v } }),
-      onSuccess: () => { refresh(); toast.success("Slot cleared"); },
+      onSuccess: () => {
+        refresh();
+        toast.success(t("storeadmin.merch.slot_cleared"));
+      },
       onError,
     }),
     move: useMutation({
       mutationFn: (v: { from: number; to: number }) => moveSlot({ data: { key: rowKey, ...v } }),
-      onSuccess: () => { refresh(); toast.success("Reordered"); },
+      onSuccess: () => {
+        refresh();
+        toast.success(t("storeadmin.merch.reordered"));
+      },
       onError,
     }),
     pin: useMutation({
       mutationFn: (v: { position: number; pinned: boolean }) =>
         pinSlot({ data: { key: rowKey, ...v } }),
-      onSuccess: () => { refresh(); },
+      onSuccess: () => {
+        refresh();
+      },
       onError,
     }),
     configure: useMutation({
-      mutationFn: (patch: Record<string, unknown>) => configureRow({ data: { key: rowKey, patch } }),
-      onSuccess: () => { refresh(); toast.success("Placement updated"); },
+      mutationFn: (patch: Record<string, unknown>) =>
+        configureRow({ data: { key: rowKey, patch } }),
+      onSuccess: () => {
+        refresh();
+        toast.success(t("storeadmin.merch.placement_updated"));
+      },
       onError,
     }),
   };
@@ -182,7 +231,9 @@ function Pill({ tone, children }: { tone: "ok" | "warn" | "muted"; children: Rea
       : tone === "warn"
         ? "bg-amber-500/15 text-amber-500"
         : "bg-muted/40 text-muted-foreground";
-  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{children}</span>;
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{children}</span>
+  );
 }
 
 /**
@@ -191,10 +242,11 @@ function Pill({ tone, children }: { tone: "ok" | "warn" | "muted"; children: Rea
  * and automatic fill is visible at a glance rather than described in a caption.
  */
 function SlotCell({ slot, index }: { slot?: RowSlot; index: number }) {
+  const { t } = useTranslation();
   if (!slot) {
     return (
       <div
-        title={`Slot ${index + 1} — empty`}
+        title={t("storeadmin.merch.slot_empty_title", { position: index + 1 })}
         className="aspect-square rounded-lg border border-dashed border-border bg-background/40"
       />
     );
@@ -202,24 +254,27 @@ function SlotCell({ slot, index }: { slot?: RowSlot; index: number }) {
   const auto = slot.source === "auto";
   return (
     <div
-      title={`Slot ${slot.position} — ${slot.name}${auto ? " (rule engine)" : " (placed by hand)"}${slot.live ? "" : " — NOT LIVE"}`}
+      title={`${t("storeadmin.merch.slot_title", { position: slot.position, name: slot.name })}${auto ? t("storeadmin.merch.slot_title_rule") : t("storeadmin.merch.slot_title_hand")}${slot.live ? "" : t("storeadmin.merch.slot_title_not_live")}`}
       className={`relative aspect-square overflow-hidden rounded-lg border ${
         auto ? "border-border/60 bg-background/60 opacity-70" : "border-accent/50 bg-accent/10"
       }`}
     >
       {slot.thumbnail_url ? (
-        <img src={slot.thumbnail_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+        <img
+          src={slot.thumbnail_url}
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
       ) : (
         <div className="flex h-full items-center justify-center px-1 text-center text-[9px] font-semibold leading-tight text-muted-foreground">
           {slot.name.slice(0, 28)}
         </div>
       )}
-      {slot.pinned && (
-        <Pin className="absolute right-1 top-1 h-3 w-3 text-accent" />
-      )}
+      {slot.pinned && <Pin className="absolute right-1 top-1 h-3 w-3 text-accent" />}
       {!slot.live && (
         <span className="absolute inset-x-0 bottom-0 bg-destructive/80 px-1 text-center text-[8px] font-bold text-white">
-          not live
+          {t("storeadmin.merch.not_live")}
         </span>
       )}
     </div>
@@ -249,7 +304,11 @@ function SlotGrid({ resolved, max }: { resolved?: Resolved; max: number }) {
  * whole catalogue.
  */
 function AssignDialog({
-  rowKey, position, onClose, onAssign, busy,
+  rowKey,
+  position,
+  onClose,
+  onAssign,
+  busy,
 }: {
   rowKey: string;
   position: number;
@@ -257,12 +316,13 @@ function AssignDialog({
   onAssign: (productId: string, override: boolean) => void;
   busy: boolean;
 }) {
+  const { t } = useTranslation();
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
 
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(term.trim()), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setDebounced(term.trim()), 300);
+    return () => clearTimeout(timer);
   }, [term]);
 
   const results = useQuery({
@@ -279,12 +339,12 @@ function AssignDialog({
       <div className="w-full max-w-2xl rounded-2xl border border-border bg-card p-5 shadow-2xl">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-base font-bold">Assign to slot {position}</h3>
+            <h3 className="text-base font-bold">{t("storeadmin.merch.assign_to_slot", { position })}</h3>
             <p className="text-xs text-muted-foreground">
-              Searching the real catalogue. Results come from the server, twenty-four at a time.
+              {t("storeadmin.merch.assign_intro")}
             </p>
           </div>
-          <button onClick={onClose} className="rounded-full p-1 hover:bg-muted" aria-label="Close">
+          <button onClick={onClose} className="rounded-full p-1 hover:bg-muted" aria-label={t("storeadmin.merch.close")}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -295,20 +355,18 @@ function AssignDialog({
             autoFocus
             value={term}
             onChange={(e) => setTerm(e.target.value)}
-            placeholder="Search products by name — at least two characters"
+            placeholder={t("storeadmin.merch.search_placeholder")}
             className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-accent"
           />
         </div>
 
         <div className="max-h-[50vh] space-y-1 overflow-y-auto">
           {debounced.length < 2 && (
-            <EmptyHint text="Type at least two characters to search the catalogue." />
+            <EmptyHint text={t("storeadmin.merch.type_two")} />
           )}
-          {debounced.length >= 2 && results.isLoading && (
-            <EmptyHint text="Searching…" />
-          )}
+          {debounced.length >= 2 && results.isLoading && <EmptyHint text={t("storeadmin.merch.searching")} />}
           {debounced.length >= 2 && !results.isLoading && products.length === 0 && (
-            <EmptyHint text={`No published product matches “${debounced}”.`} />
+            <EmptyHint text={t("storeadmin.merch.no_match", { term: debounced })} />
           )}
           {products.map((p: Record<string, unknown>) => {
             const live = Boolean(p.visible) && p.content_status === "published";
@@ -319,7 +377,11 @@ function AssignDialog({
               >
                 <div className="flex min-w-0 items-center gap-3">
                   {p.thumbnail_url ? (
-                    <img src={String(p.thumbnail_url)} alt="" className="h-9 w-9 flex-none rounded object-cover" />
+                    <img
+                      src={String(p.thumbnail_url)}
+                      alt=""
+                      className="h-9 w-9 flex-none rounded object-cover"
+                    />
                   ) : (
                     <div className="h-9 w-9 flex-none rounded bg-muted" />
                   )}
@@ -332,13 +394,13 @@ function AssignDialog({
                   </div>
                 </div>
                 <div className="flex flex-none items-center gap-2">
-                  {!live && <Pill tone="warn">not live</Pill>}
+                  {!live && <Pill tone="warn">{t("storeadmin.merch.not_live")}</Pill>}
                   <PillButton
                     variant="ghost"
                     onClick={() => onAssign(String(p.id), true)}
                     disabled={busy}
                   >
-                    {busy ? "Assigning…" : "Assign"}
+                    {busy ? t("storeadmin.merch.assigning") : t("storeadmin.merch.assign")}
                   </PillButton>
                 </div>
               </div>
@@ -347,8 +409,10 @@ function AssignDialog({
         </div>
 
         <p className="mt-3 text-[11px] text-muted-foreground">
-          Assigning writes <code>marketplace_row_slots</code> and is recorded in the audit trail.
-          A product already placed elsewhere in this placement will be refused with a reason.
+          {richText(t("storeadmin.merch.assign_footnote"), {
+            // i18n-ignore: table name
+            table: <code>marketplace_row_slots</code>,
+          })}
         </p>
       </div>
     </div>
@@ -358,6 +422,7 @@ function AssignDialog({
 /* ----------------------------------------------------------- slot editor */
 
 function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
+  const { t } = useTranslation();
   const slots = useSlots(row.key);
   const m = useSlotMutations(row.key);
   const [assigning, setAssigning] = useState<number | null>(null);
@@ -373,34 +438,36 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
         onClick={onBack}
         className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="h-4 w-4" /> All placements
+        <ArrowLeft className="h-4 w-4" /> {t("storeadmin.merch.all_placements")}
       </button>
 
       <PageHeader
-        eyebrow="Product Placement"
+        eyebrow={t("storeadmin.merch.eyebrow")}
         title={row.title}
-        description={`Slots write to the homepage through the same resolver the page reads. Key: ${row.key}`}
+        description={t("storeadmin.merch.editor_description", { key: row.key })}
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Slots" value={String(max)} />
-        <StatCard label="Placed by hand" value={String(placed.length)} />
-        <StatCard label="Filled by rule" value={String(auto.length)} />
-        <StatCard label="Eligible products" value={String(resolved?.eligible_total ?? row.eligible_products ?? 0)} />
+        <StatCard label={t("storeadmin.merch.stat_slots")} value={String(max)} />
+        <StatCard label={t("storeadmin.merch.stat_placed_by_hand")} value={String(placed.length)} />
+        <StatCard label={t("storeadmin.merch.stat_filled_by_rule")} value={String(auto.length)} />
+        <StatCard
+          label={t("storeadmin.merch.stat_eligible")}
+          value={String(resolved?.eligible_total ?? row.eligible_products ?? 0)}
+        />
       </div>
 
       {!row.live_now && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
           <span>
-            This placement is <b>{row.status}</b> and is not on the public homepage right now.
-            Placements still save; they appear once the row is published in Homepage Rows.
+            {richText(t("storeadmin.merch.not_on_homepage"), { status: <b>{row.status}</b> })}
           </span>
         </div>
       )}
 
       <Card className="mb-6">
-        <h3 className="mb-3 text-base font-bold">Fill mode</h3>
+        <h3 className="mb-3 text-base font-bold">{t("storeadmin.merch.fill_mode")}</h3>
         <div className="flex flex-wrap items-center gap-2">
           {(["manual", "hybrid", "auto"] as const).map((mode) => (
             <button
@@ -413,16 +480,19 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
                   : "border border-border text-muted-foreground hover:text-foreground"
               }`}
             >
-              {mode === "manual" ? "Manual only" : mode === "auto" ? "Rule only" : "Manual, then rule"}
+              {mode === "manual"
+                ? t("storeadmin.merch.mode_manual")
+                : mode === "auto"
+                  ? t("storeadmin.merch.mode_auto")
+                  : t("storeadmin.merch.mode_hybrid")}
             </button>
           ))}
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground">
-          In <b>Manual, then rule</b>, hand-placed products keep their slots and the rule fills what is
-          left — which is what “empty slots auto-fill from the rule engine” has always meant.
+          {richText(t("storeadmin.merch.hybrid_explained"), { mode: <b>{t("storeadmin.merch.mode_hybrid")}</b> })}
         </p>
 
-        <h3 className="mb-2 mt-5 text-base font-bold">Rule</h3>
+        <h3 className="mb-2 mt-5 text-base font-bold">{t("storeadmin.merch.rule")}</h3>
         <select
           value={resolved?.auto_rule ?? row.auto_rule}
           onChange={(e) => m.configure.mutate({ auto_rule: e.target.value })}
@@ -430,27 +500,31 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
           className="w-full max-w-md rounded-lg border border-border bg-background px-3 py-2 text-sm"
         >
           {RULES.map((r) => (
-            <option key={r.value} value={r.value}>{r.label}</option>
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
           ))}
         </select>
         <p className="mt-2 text-[11px] text-muted-foreground">
-          Only rules this database can actually rank are listed. Needs:{" "}
+          {t("storeadmin.merch.rules_needs")}{" "}
           {RULES.find((r) => r.value === (resolved?.auto_rule ?? row.auto_rule))?.needs ?? "—"}.
           {resolved && resolved.eligible_total === 0 && (
-            <b className="text-amber-600"> No product currently qualifies for this rule.</b>
+            <b className="text-amber-600"> {t("storeadmin.merch.none_qualifies")}</b>
           )}
         </p>
       </Card>
 
       <Card>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-base font-bold">Slots</h3>
-          <Pill tone="muted">{resolved?.filled ?? 0} of {max} filled</Pill>
+          <h3 className="text-base font-bold">{t("storeadmin.merch.slots")}</h3>
+          <Pill tone="muted">
+            {t("storeadmin.merch.filled_of", { filled: resolved?.filled ?? 0, max })}
+          </Pill>
         </div>
 
-        {slots.isLoading && <EmptyHint text="Loading the placement…" />}
+        {slots.isLoading && <EmptyHint text={t("storeadmin.merch.loading_placement")} />}
         {slots.isError && (
-          <EmptyHint text="This placement could not be read. Nothing was changed." />
+          <EmptyHint text={t("storeadmin.merch.placement_failed")} />
         )}
 
         {resolved && (
@@ -470,7 +544,11 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
                     {slot ? (
                       <>
                         {slot.thumbnail_url ? (
-                          <img src={slot.thumbnail_url} alt="" className="h-8 w-8 flex-none rounded object-cover" />
+                          <img
+                            src={slot.thumbnail_url}
+                            alt=""
+                            className="h-8 w-8 flex-none rounded object-cover"
+                          />
                         ) : (
                           <div className="h-8 w-8 flex-none rounded bg-muted" />
                         )}
@@ -478,16 +556,20 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
                           <div className="truncate text-sm font-semibold">{slot.name}</div>
                           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                             {slot.source === "manual" ? (
-                              <><Hand className="h-3 w-3" /> placed by hand</>
+                              <>
+                                <Hand className="h-3 w-3" /> {t("storeadmin.merch.placed_by_hand")}
+                              </>
                             ) : (
-                              <><Wand2 className="h-3 w-3" /> filled by rule</>
+                              <>
+                                <Wand2 className="h-3 w-3" /> {t("storeadmin.merch.filled_by_rule")}
+                              </>
                             )}
-                            {!slot.live && <Pill tone="warn">not live</Pill>}
+                            {!slot.live && <Pill tone="warn">{t("storeadmin.merch.not_live")}</Pill>}
                           </div>
                         </div>
                       </>
                     ) : (
-                      <span className="text-sm text-muted-foreground">Empty</span>
+                      <span className="text-sm text-muted-foreground">{t("storeadmin.merch.empty")}</span>
                     )}
                   </div>
 
@@ -495,7 +577,7 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
                     {slot?.source === "manual" && (
                       <>
                         <button
-                          title="Move up"
+                          title={t("storeadmin.merch.move_up")}
                           disabled={position === 1 || m.move.isPending}
                           onClick={() => m.move.mutate({ from: position, to: position - 1 })}
                           className="rounded p-1 hover:bg-muted disabled:opacity-30"
@@ -503,7 +585,7 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
                           <ChevronUp className="h-4 w-4" />
                         </button>
                         <button
-                          title="Move down"
+                          title={t("storeadmin.merch.move_down")}
                           disabled={position === max || m.move.isPending}
                           onClick={() => m.move.mutate({ from: position, to: position + 1 })}
                           className="rounded p-1 hover:bg-muted disabled:opacity-30"
@@ -511,14 +593,18 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
                           <ChevronDown className="h-4 w-4" />
                         </button>
                         <button
-                          title={slot.pinned ? "Unpin" : "Pin"}
+                          title={slot.pinned ? t("storeadmin.merch.unpin") : t("storeadmin.merch.pin")}
                           onClick={() => m.pin.mutate({ position, pinned: !slot.pinned })}
                           className="rounded p-1 hover:bg-muted"
                         >
-                          {slot.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                          {slot.pinned ? (
+                            <PinOff className="h-4 w-4" />
+                          ) : (
+                            <Pin className="h-4 w-4" />
+                          )}
                         </button>
                         <button
-                          title="Remove from this slot"
+                          title={t("storeadmin.merch.remove_from_slot")}
                           onClick={() => m.remove.mutate({ position })}
                           disabled={m.remove.isPending}
                           className="rounded p-1 text-destructive hover:bg-destructive/10"
@@ -528,7 +614,7 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
                       </>
                     )}
                     <PillButton variant="ghost" onClick={() => setAssigning(position)}>
-                      {slot ? "Replace" : "Assign"}
+                      {slot ? t("storeadmin.merch.replace") : t("storeadmin.merch.assign")}
                     </PillButton>
                   </div>
                 </div>
@@ -538,7 +624,7 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
         )}
 
         {resolved && resolved.filled === 0 && (
-          <EmptyHint text="Nothing fills this placement yet. Assign a product, or pick a rule that has candidates." />
+          <EmptyHint text={t("storeadmin.merch.nothing_fills_editor")} />
         )}
       </Card>
 
@@ -563,59 +649,88 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
 /* ------------------------------------------------------- non-row placements */
 
 function RecommendedCard() {
+  const { t } = useTranslation();
   const engines = useQuery({
     queryKey: ["marketplace", "merch", "engines"],
     queryFn: () => listRecommendationEngines(),
     staleTime: 60_000,
   });
   const list = (engines.data?.engines ?? []) as {
-    key: string; title: string; can_run: boolean; blocked_reason: string | null;
+    key: string;
+    title: string;
+    can_run: boolean;
+    blocked_reason: string | null;
+    /** Whether the data supports it, counted now rather than recorded once. */
+    data_ready?: boolean;
+    /** What the engine requires, and what actually exists. */
+    needs?: string;
+    have?: string;
+    /** The recorded reason says blocked; the measurement says otherwise. */
+    note_is_stale?: boolean;
   }[];
   const runnable = list.filter((e) => e.can_run);
+  const stale = list.filter((e) => e.note_is_stale);
 
   return (
     <Card>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold">Recommended Placement</h3>
+        <h3 className="text-base font-bold">{t("storeadmin.merch.recommended_title")}</h3>
         <Pill tone={runnable.length ? "ok" : "warn"}>
-          {runnable.length} of {list.length} can run
+          {t("storeadmin.merch.can_run", { runnable: runnable.length, total: list.length })}
         </Pill>
       </div>
-      {engines.isLoading && <EmptyHint text="Reading the recommendation engines…" />}
+      {engines.isLoading && <EmptyHint text={t("storeadmin.merch.reading_engines")} />}
       {!engines.isLoading && list.length === 0 && (
-        <EmptyHint text="No recommendation engine is configured." />
+        <EmptyHint text={t("storeadmin.merch.no_engine")} />
       )}
       <div className="space-y-1">
         {list.map((e) => (
           <div key={e.key} className="rounded-lg border border-border/60 px-3 py-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-semibold">{e.title}</span>
-              <Pill tone={e.can_run ? "ok" : "muted"}>{e.can_run ? "ready" : "blocked"}</Pill>
+              <Pill tone={e.can_run ? "ok" : "muted"}>{e.can_run ? t("storeadmin.merch.ready") : t("storeadmin.merch.blocked")}</Pill>
             </div>
+            {/* What the engine needs and what exists, counted now. A blocked
+                engine should show how far off it is, not only that it is
+                blocked. */}
+            {e.have && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {e.needs ? <>{t("storeadmin.merch.needs", { needs: e.needs })} </> : null}
+                {t("storeadmin.merch.has", { have: e.have })}
+              </p>
+            )}
             {!e.can_run && e.blocked_reason && (
               <p className="mt-1 text-[11px] text-muted-foreground">{e.blocked_reason}</p>
+            )}
+            {e.note_is_stale && (
+              <p className="mt-1 text-[11px] font-semibold text-warning">
+                {t("storeadmin.merch.reason_stale")}
+              </p>
             )}
           </div>
         ))}
       </div>
+      {stale.length > 0 && (
+        <p className="mt-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+          {t("storeadmin.merch.stale_engines", { count: stale.length })}
+        </p>
+      )}
       <p className="mt-3 text-[11px] text-muted-foreground">
-        Recommendations rank real products from real events. An engine that cannot run says why
-        rather than returning an invented list.
+        {t("storeadmin.merch.recommended_footnote")}
       </p>
     </Card>
   );
 }
 
 function CollectionCard() {
+  const { t } = useTranslation();
   return (
     <Card>
-      <h3 className="mb-3 text-base font-bold">Collection Placement</h3>
+      <h3 className="mb-3 text-base font-bold">{t("storeadmin.merch.collection_title")}</h3>
       <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-3 text-xs text-muted-foreground">
         <Info className="mt-0.5 h-4 w-4 flex-none" />
         <span>
-          This marketplace has no collection system. The only collections table in the database
-          belongs to the AMS badge module and holds no products. Nothing is shown here because
-          there is nothing real to show — building collections is a separate piece of work.
+          {t("storeadmin.merch.collection_none")}
         </span>
       </div>
     </Card>
@@ -623,6 +738,7 @@ function CollectionCard() {
 }
 
 function ModeCard({ mode, rows }: { mode: "manual" | "auto"; rows: Row[] }) {
+  const { t } = useTranslation();
   const results = useQueries({
     queries: rows.map((r) => ({
       queryKey: slotsKey(r.key),
@@ -643,48 +759,52 @@ function ModeCard({ mode, rows }: { mode: "manual" | "auto"; rows: Row[] }) {
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-base font-bold">
-          {mode === "manual" ? "Manual Placement" : "Automatic Placement"}
+          {mode === "manual" ? t("storeadmin.merch.manual_title") : t("storeadmin.merch.auto_title")}
         </h3>
-        <Pill tone="muted">{loading ? "…" : `${total} slots`}</Pill>
+        <Pill tone="muted">{loading ? "…" : t("storeadmin.merch.slots_count", { count: total })}</Pill>
       </div>
       <p className="mb-3 text-[11px] text-muted-foreground">
         {mode === "manual"
-          ? "Slots a person placed by hand, across every placement."
-          : "Slots the rule engine is filling right now, across every placement."}
+          ? t("storeadmin.merch.manual_description")
+          : t("storeadmin.merch.auto_description")}
       </p>
       <div className="space-y-1">
         {per.map((p) => (
-          <div key={p.key} className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-1.5">
+          <div
+            key={p.key}
+            className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-1.5"
+          >
             <span className="truncate text-sm">{p.title}</span>
             <span className="text-sm font-bold">{loading ? "…" : p.n}</span>
           </div>
         ))}
-        {per.length === 0 && <EmptyHint text="No placements exist yet." />}
+        {per.length === 0 && <EmptyHint text={t("storeadmin.merch.no_placements")} />}
       </div>
     </Card>
   );
 }
 
 function CategoryCard({ rows, onOpen }: { rows: Row[]; onOpen: (r: Row) => void }) {
+  const { t } = useTranslation();
   const [term, setTerm] = useState("");
   const shown = useMemo(() => {
-    const t = term.trim().toLowerCase();
-    const list = t ? rows.filter((r) => r.title.toLowerCase().includes(t)) : rows;
+    const q = term.trim().toLowerCase();
+    const list = q ? rows.filter((r) => r.title.toLowerCase().includes(q)) : rows;
     return list.slice(0, 8);
   }, [rows, term]);
 
   return (
     <Card>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold">Category Placement</h3>
-        <Pill tone="muted">{rows.length} category rows</Pill>
+        <h3 className="text-base font-bold">{t("storeadmin.merch.category_title")}</h3>
+        <Pill tone="muted">{t("storeadmin.merch.category_rows", { count: rows.length })}</Pill>
       </div>
       <div className="relative mb-2">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
         <input
           value={term}
           onChange={(e) => setTerm(e.target.value)}
-          placeholder="Find a category row"
+          placeholder={t("storeadmin.merch.find_category_row")}
           className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-accent"
         />
       </div>
@@ -697,15 +817,14 @@ function CategoryCard({ rows, onOpen }: { rows: Row[]; onOpen: (r: Row) => void 
           >
             <span className="truncate text-sm">{r.title}</span>
             <span className="flex-none text-[11px] text-muted-foreground">
-              {r.filled_slots} placed
+              {t("storeadmin.merch.placed_count", { count: r.filled_slots })}
             </span>
           </button>
         ))}
-        {shown.length === 0 && <EmptyHint text="No category row matches that." />}
+        {shown.length === 0 && <EmptyHint text={t("storeadmin.merch.no_category_match")} />}
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground">
-        Category rows use the real category relationship, so a product from another category is
-        refused unless the row allows it.
+        {t("storeadmin.merch.category_footnote")}
       </p>
     </Card>
   );
@@ -714,6 +833,7 @@ function CategoryCard({ rows, onOpen }: { rows: Row[]; onOpen: (r: Row) => void 
 /* ------------------------------------------------------------------- screen */
 
 function PlacementCard({ row, onOpen }: { row: Row; onOpen: () => void }) {
+  const { t } = useTranslation();
   const slots = useSlots(row.key);
   const max = slots.data?.max_products ?? row.max_products ?? 8;
 
@@ -723,26 +843,29 @@ function PlacementCard({ row, onOpen }: { row: Row; onOpen: () => void }) {
         <div className="min-w-0">
           <h3 className="truncate text-base font-bold">{row.title}</h3>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <Pill tone={row.live_now ? "ok" : "warn"}>{row.live_now ? "live" : row.status}</Pill>
+            <Pill tone={row.live_now ? "ok" : "warn"}>{row.live_now ? t("storeadmin.merch.live") : row.status}</Pill>
             <Pill tone="muted">
               {slots.data
-                ? `${slots.data.filled} of ${max} filled`
-                : slots.isLoading ? "reading…" : "unavailable"}
+                ? t("storeadmin.merch.filled_of", { filled: slots.data.filled, max })
+                : slots.isLoading
+                  ? t("storeadmin.merch.reading")
+                  : t("storeadmin.merch.unavailable")}
             </Pill>
           </div>
         </div>
-        <PillButton variant="ghost" onClick={onOpen}>Assign</PillButton>
+        <PillButton variant="ghost" onClick={onOpen}>
+          {t("storeadmin.merch.assign")}
+        </PillButton>
       </div>
 
       <SlotGrid resolved={slots.data} max={max} />
 
       {slots.data && slots.data.filled === 0 && (
-        <EmptyHint text="Nothing fills this placement yet — no product matches its rule and none is placed by hand." />
+        <EmptyHint text={t("storeadmin.merch.nothing_fills_card")} />
       )}
       {slots.data && slots.data.filled > 0 && slots.data.empty > 0 && (
         <p className="mt-3 text-[11px] text-muted-foreground">
-          {slots.data.empty} empty {slots.data.empty === 1 ? "slot" : "slots"} — the rule engine has
-          no further candidate.
+          {t("storeadmin.merch.empty_slots", { count: slots.data.empty })}
         </p>
       )}
     </Card>
@@ -750,6 +873,7 @@ function PlacementCard({ row, onOpen }: { row: Row; onOpen: () => void }) {
 }
 
 export function MerchandisingConsole() {
+  const { t } = useTranslation();
   const rows = useRows();
   const [open, setOpen] = useState<Row | null>(null);
 
@@ -769,17 +893,17 @@ export function MerchandisingConsole() {
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
-        eyebrow="Product Placement"
-        title="Merchandising Console"
-        description="Pin products into homepage slots. Mix manual and rules-based fill."
+        eyebrow={t("storeadmin.merch.eyebrow")}
+        title={t("storeadmin.merch.console_title")}
+        description={t("storeadmin.merch.console_description")}
       />
 
-      {rows.isLoading && <EmptyHint text="Reading the real placements…" />}
+      {rows.isLoading && <EmptyHint text={t("storeadmin.merch.reading_placements")} />}
       {rows.isError && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
           <span>
-            The placements could not be read, so none are shown. Nothing has been changed.
+            {t("storeadmin.merch.placements_failed")}
           </span>
         </div>
       )}
@@ -788,7 +912,7 @@ export function MerchandisingConsole() {
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
           <span>
-            No curated placement exists yet. Create one in Homepage Rows and it appears here.
+            {t("storeadmin.merch.no_curated")}
           </span>
         </div>
       )}

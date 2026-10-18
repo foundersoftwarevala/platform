@@ -9,10 +9,27 @@ import { InfluencerApplicationsQueue } from "@/components/applications/RoleAppli
 import { influencerConfig } from "@/components/creator/moduleConfigs";
 import { moduleAnalyticsQueryOptions } from "@/lib/creator/analytics.functions";
 import { influencerGroups, influencerPrimary } from "@/components/influencer/navigation";
+import { influencerRegistry as influencerSections } from "@/components/influencer/sectionRegistry";
 
-// Applications are the real ones from /apply/influencer (influencer_applications).
+/**
+ * The sections this console renders.
+ *
+ * buildModuleRegistry gives every nav item a generic wall - name, owner, scope,
+ * value, status - with no table behind it and no resource, so every list section
+ * rendered an empty table while the programme held ten profiles, seven
+ * applications, two assignments and six payouts. Nothing failed; the walls had
+ * nothing to read.
+ *
+ * components/influencer/sectionRegistry exists for exactly this: a wall per
+ * influencer table, with that table's own columns and the resource that serves
+ * it. It was written and never wired in. It is the override now, and the generic
+ * registry stays underneath so a nav item it does not cover keeps the section it
+ * had rather than losing it.
+ */
 const influencerRegistry = {
   ...buildModuleRegistry(influencerConfig, influencerGroups),
+  ...influencerSections,
+  // The applications queue is its own screen, not a wall.
   Applications: InfluencerApplicationsQueue,
 };
 

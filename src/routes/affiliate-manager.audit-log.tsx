@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ScrollText, ShieldCheck, UserCog } from "lucide-react";
 import { EntityWall, Row, Cell } from "@/components/affiliate/EntityWall";
 import { TimeAgo } from "@/components/affiliate/Money";
+import { affiliateAuditSource } from "@/lib/affiliate-audit";
 
 type AuditRow = {
   id: string;
@@ -47,7 +48,8 @@ function AuditLogWall() {
       title="Audit Log"
       description="Immutable, append-only record of every operator action — approvals, suspensions, commission and payout changes, bulk runs and imports."
       crumbLabel="Audit Log"
-      table="activity_log"
+      table="marketplace_audit_logs"
+      source={affiliateAuditSource<AuditRow>()}
       searchColumns={["action", "entity"]}
       searchPlaceholder="Search by action or entity…"
       filters={["Entity", "Actor", "Date"]}

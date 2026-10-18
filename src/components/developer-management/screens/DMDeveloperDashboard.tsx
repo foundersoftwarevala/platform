@@ -7,7 +7,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Users, ListTodo, CheckCircle, XCircle, Bug, Clock,
-  ShieldAlert, FileCheck, Wallet, TrendingDown, Shield, ClipboardCheck
+  ShieldAlert, FileCheck, Wallet, TrendingDown, Shield, Brain
 } from 'lucide-react';
 import { DMScreen } from '../DMFullSidebar';
 import {
@@ -38,7 +38,7 @@ const dashboardCards = [
   { id: 'payment_incentive' as DMScreen, label: 'devmanager.dashboard.payment_hold' as MessageKey, value: null as Figure | null, icon: Wallet, color: 'text-amber-600', bgColor: 'bg-amber-600/10' },
   { id: 'performance_kpi' as DMScreen, label: 'devmanager.dashboard.performance_drop' as MessageKey, value: 'performanceDrop' as Figure | null, icon: TrendingDown, color: 'text-pink-500', bgColor: 'bg-pink-500/10' },
   { id: 'compliance_nda' as DMScreen, label: 'devmanager.dashboard.compliance_issues' as MessageKey, value: null as Figure | null, icon: Shield, color: 'text-indigo-500', bgColor: 'bg-indigo-500/10' },
-  { id: 'review_qa' as DMScreen, label: 'devmanager.dashboard.review_quality_score' as MessageKey, value: 'quality' as Figure | null, icon: ClipboardCheck, color: 'text-emerald-500', bgColor: 'bg-emerald-500/10' },
+  { id: 'review_qa' as DMScreen, label: 'devmanager.dashboard.ai_quality_score' as MessageKey, value: 'quality' as Figure | null, icon: Brain, color: 'text-emerald-500', bgColor: 'bg-emerald-500/10' },
 ];
 
 /**
@@ -59,9 +59,7 @@ export const DMDeveloperDashboard: React.FC<DMDeveloperDashboardProps> = ({ onNa
     activeDevelopers: count(registry.data?.filter((d) => d.status === 'active').length),
     activeTasks: count(overview.data?.stats.activeTasks),
     pendingReviews: count(submissions.data?.filter((s) => s.status === 'submitted').length),
-    openBugs: count(tasks.data?.filter((t) =>
-      t.category === 'bug' && !['completed', 'delivered', 'cancelled'].includes(t.status),
-    ).length),
+    openBugs: count(tasks.data?.filter((t) => t.category === 'bug' && t.status !== 'completed').length),
     atRisk: count(overview.data?.stats.atRisk),
     pendingOnboarding: count(registry.data?.filter((d) => !d.onboardingCompleted).length),
     performanceDrop: count(overview.data?.performance.filter((p) => p.trend === 'down').length),

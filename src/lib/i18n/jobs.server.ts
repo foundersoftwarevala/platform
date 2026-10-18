@@ -1,7 +1,12 @@
 import { cpus, loadavg } from "node:os";
 
 import { contextHash, sourceHash } from "./hash";
-import { PipelineError, runTranslationPipeline } from "./pipeline";
+import {
+  NAMESPACE_PATTERN,
+  PRIVATE_NAMESPACES,
+  PipelineError,
+  runTranslationPipeline,
+} from "./pipeline";
 import {
   SOURCE_LANGUAGE,
   SUPPORTED_LANGUAGES,
@@ -9,16 +14,20 @@ import {
   type LanguageDefinition,
 } from "./registry";
 import {
-  createSupabaseGlossaryStore,
-  createSupabaseMemoryStore,
+  QUALITY_ATTEMPTED_MODE,
+  createPostgresGlossaryStore,
+  createPostgresMemoryStore,
   db,
   disabledLanguages,
+  engineReachable,
   getTranslationEngine,
+  translationWorkerConfig,
   log,
 } from "./service.server";
 import { allMessages } from "./messages";
 import { UI_DICTIONARY } from "./ui-dictionary";
 import { count } from "./metrics.server";
+import { STATIC_CATALOGUE, publicCatalogue } from "./catalogue.server";
 
 /**
  * Background translation.
@@ -43,9 +52,21 @@ const BATCH = 24;
 
 /** Contexts of the keyed catalogue (the module names in src/lib/i18n/messages). */
 const KEYED_CONTEXTS = new Set(allMessages().map((message) => message.context));
+function canQueueText(
+  namespace: string,
+  source: string,
+  text: string,
+  catalogue: ReadonlySet<string>,
+): boolean {
+  return (
+    !PRIVATE_NAMESPACES.has(namespace) &&
+    (namespace !== "ui" || (source === SOURCE_LANGUAGE && catalogue.has(text.trim())))
+  );
+}
 
 export type EnqueueItem = {
   text: string;
+  source?: string;
   target: string;
   namespace?: string;
   context?: string | null;
@@ -65,8 +86,13 @@ export async function enqueueJobs(
   items: EnqueueItem[],
   requestedBy: string | null,
 ): Promise<number> {
-  const client = db();
-  if (!client) throw new Error("The database is not configured.");
+  const client = await db();
+  const disabled = await disabledLanguages(client);
+  const catalogue = items.some(
+    (item) => (item.namespace ?? "ui") === "ui" && !STATIC_CATALOGUE.has(item.text.trim()),
+  )
+    ? await publicCatalogue(client)
+    : STATIC_CATALOGUE;
   let inserted = 0;
   const rows = [];
   // The same text goes to many languages: each distinct text and context is
@@ -77,9 +103,22 @@ export async function enqueueJobs(
   const contextHashes = new Map<string, string>();
   for (const item of items) {
     const text = item.text.trim();
+    const source = getLanguage(item.source ?? SOURCE_LANGUAGE);
     const target = getLanguage(item.target);
-    if (!text || !target?.enabled) continue;
+    if (
+      !text ||
+      !source?.enabled ||
+      !target?.enabled ||
+      disabled.has(source.code) ||
+      disabled.has(target.code)
+    )
+      continue;
     const namespace = item.namespace ?? "ui";
+    if (!NAMESPACE_PATTERN.test(namespace)) throw new Error("Invalid namespace.");
+    if (!canQueueText(namespace, source.code, text, catalogue))
+      throw new Error(
+        "Private or non-catalogue page text cannot be persisted in the translation job queue.",
+      );
     const contextKey = JSON.stringify([namespace, item.context ?? null]);
     let textHash = sourceHashes.get(text);
     if (textHash === undefined) sourceHashes.set(text, (textHash = await sourceHash(text)));
@@ -89,7 +128,7 @@ export async function enqueueJobs(
     rows.push({
       source_hash: textHash,
       source_text: text,
-      source_language: SOURCE_LANGUAGE,
+      source_language: source.code,
       target_language: target.code,
       namespace,
       context: item.context ?? null,
@@ -100,11 +139,12 @@ export async function enqueueJobs(
     });
   }
   for (let i = 0; i < rows.length; i += 2000) {
-    const { data, error } = await client.rpc("i18n_enqueue_translation_jobs", {
-      p_jobs: rows.slice(i, i + 2000),
-    });
-    if (error) throw new Error(error.message);
-    inserted += Number(data ?? 0);
+    const [row] = await client<{ queued: number }[]>`
+      select public.i18n_enqueue_translation_jobs(
+        ${JSON.stringify(rows.slice(i, i + 2000))}::jsonb
+      ) as queued`;
+    if (!row) throw new Error("The database did not return an enqueue result.");
+    inserted += Number(row.queued);
   }
   return inserted;
 }
@@ -124,7 +164,8 @@ export async function syncMessageCatalogue(options: { requestedBy?: string | nul
   stale: number;
   upgrades: number;
 }> {
-  const disabled = await disabledLanguages(db());
+  const client = await db();
+  const disabled = await disabledLanguages(client);
   const languages = translatableLanguages().filter((l) => l.enabled && !disabled.has(l.code));
   const messages = allMessages();
   const items: EnqueueItem[] = [];
@@ -144,9 +185,8 @@ export async function syncMessageCatalogue(options: { requestedBy?: string | nul
   count("jobs.catalogue_sync_queued", queued);
 
   // Translations of English a module no longer has are marked stale.
-  const client = db();
   let stale = 0;
-  if (client) {
+  {
     const byContext = new Map<string, string[]>();
     for (const message of messages) {
       const hashes = byContext.get(message.context) ?? [];
@@ -154,47 +194,40 @@ export async function syncMessageCatalogue(options: { requestedBy?: string | nul
       byContext.set(message.context, hashes);
     }
     for (const [context, hashes] of byContext) {
-      const { data, error } = await client.rpc("i18n_mark_stale", {
-        p_namespace: "ui",
-        p_context: context,
-        p_current_hashes: hashes,
-      });
-      if (error) {
-        if (!schemaMissing(error.message))
-          log("[i18n] marking stale translations failed", error.message);
-        break;
-      }
-      stale += Number(data ?? 0);
+      const [row] = await client<{ stale: number }[]>`
+        select public.i18n_mark_stale('ui', ${context}, ${client.array(hashes)}::text[]) as stale`;
+      if (!row) throw new Error("The database did not return a stale-marking result.");
+      stale += Number(row.stale);
     }
   }
   // Keyed translations still in fast realtime quality (made on demand for a
   // visitor, or before the mode was recorded) whose job has already run are
   // queued again, to be replaced by the quality-mode translation.
   let upgrades = 0;
-  if (client) {
+  {
     const contexts = [...KEYED_CONTEXTS];
-    const rows: { source_text: string; target_language: string; context: string }[] = [];
+    type UpgradeRow = {
+      source_text: string;
+      source_language: string;
+      target_language: string;
+      context: string;
+    };
+    const rows: UpgradeRow[] = [];
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await client
-        .from("marketplace_translations")
-        .select("source_text, target_language, context")
-        .eq("namespace", "ui")
-        .in("context", contexts)
-        .eq("status", "machine")
-        .or("metadata->>mode.is.null,metadata->>mode.neq.quality")
-        // An upgrade the quality gate already refused is not tried again.
-        .is("metadata->>upgrade_attempted", null)
-        .range(from, from + 999);
-      if (error) {
-        log("[i18n] finding realtime translations to upgrade failed", error.message);
-        break;
-      }
-      rows.push(...((data ?? []) as typeof rows));
-      if (!data || data.length < 1000) break;
+      const data = await client<UpgradeRow[]>`
+        select source_text, source_language, target_language, context
+        from public.marketplace_translations
+        where namespace = 'ui' and context = any(${client.array(contexts)}::text[])
+          and source_language = ${SOURCE_LANGUAGE} and status = 'machine'
+          and (metadata->>'mode' is null or metadata->>'mode' not in ('quality', ${QUALITY_ATTEMPTED_MODE}))
+        order by id limit 1000 offset ${from}`;
+      rows.push(...data);
+      if (data.length < 1000) break;
     }
     upgrades = await enqueueJobs(
       rows.map((row) => ({
         text: row.source_text,
+        source: row.source_language,
         target: row.target_language,
         namespace: "ui",
         context: row.context,
@@ -212,12 +245,12 @@ export async function enqueueCatalogue(
   targets: string[] | "all",
   options: { refresh?: boolean; requestedBy?: string | null } = {},
 ): Promise<{ languages: number; strings: number; queued: number }> {
-  const disabled = await disabledLanguages(db());
+  const disabled = await disabledLanguages(await db());
   const languages = (targets === "all" ? translatableLanguages().map((l) => l.code) : targets)
     .map((code) => getLanguage(code))
     .filter((l): l is LanguageDefinition => Boolean(l?.enabled) && !disabled.has(l!.code))
     .filter((l) => translatableLanguages().includes(l));
-  const strings = Object.keys(UI_DICTIONARY[SOURCE_LANGUAGE] ?? {});
+  const strings = [...(await publicCatalogue(await db()))];
   const items: EnqueueItem[] = [];
   for (const language of languages) {
     for (const text of strings) {
@@ -238,8 +271,6 @@ export async function enqueueCatalogue(
 
 type JobRow = {
   id: string;
-  source_hash: string;
-  context_hash: string;
   source_text: string;
   source_language: string;
   target_language: string;
@@ -258,63 +289,35 @@ export type RunSummary = {
 
 /** True when the database does not have the job queue yet (migration not applied). */
 function schemaMissing(message: string): boolean {
-  return /schema cache|does not exist|PGRST202|42P01|42883/i.test(message);
+  return /does not exist|42P01|42883/i.test(message);
 }
 
 let running = false;
 
-/** How long an answer from the engine's /ready is trusted. */
-const READY_TTL_MS = 30_000;
-let readiness = { at: 0, ready: true };
-
-/**
- * Whether the engine can take work now. The engine counts as available as soon
- * as it is configured; a configured engine that is restarting or loading its
- * model is not ready, and every job claimed meanwhile used to spend one of its
- * attempts on that. When an external provider may be used it is tried as is.
- */
-async function engineReady(engine: ReturnType<typeof getTranslationEngine>): Promise<boolean> {
-  const providers = engine.describe();
-  if (providers.some((p) => p.kind === "external" && p.usable)) return true;
-  const endpoint = process.env.TRANSLATE_PROVIDER_URL?.trim();
-  if (!endpoint || !providers.some((p) => p.kind === "owned" && p.usable)) return true;
-  if (Date.now() - readiness.at < READY_TTL_MS) return readiness.ready;
-  let ready = false;
-  try {
-    const response = await fetch(new URL("/ready", endpoint), {
-      signal: AbortSignal.timeout(5000),
-    });
-    ready = response.ok;
-  } catch {
-    ready = false;
-  }
-  readiness = { at: Date.now(), ready };
-  if (!ready) count("jobs.paused_engine_not_ready");
-  return ready;
-}
-
 /** Claim and translate one batch. */
 export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
-  const client = db();
-  if (!client) return { claimed: 0, done: 0, retried: 0, skipped: true, reason: "no database" };
   if (running)
     return { claimed: 0, done: 0, retried: 0, skipped: true, reason: "a batch is already running" };
-  const engine = getTranslationEngine();
-  if (!engine.isAvailable())
-    return { claimed: 0, done: 0, retried: 0, skipped: true, reason: "no engine" };
-
   running = true;
   try {
-    if (!(await engineReady(engine)))
-      return { claimed: 0, done: 0, retried: 0, skipped: true, reason: "engine not ready" };
+    const client = await db();
+    const engine = getTranslationEngine();
+    if (!engine.isAvailable())
+      return { claimed: 0, done: 0, retried: 0, skipped: true, reason: "no engine" };
+    // Configured is not the same as reachable. Claiming jobs while the engine is
+    // down spends one of their attempts each, and three spent attempts fail a
+    // job for good; so nothing is claimed until the engine answers /ready.
+    if (!(await engineReachable())) {
+      count("jobs.paused_engine_unreachable");
+      return { claimed: 0, done: 0, retried: 0, skipped: true, reason: "engine not reachable" };
+    }
 
-    const { data, error } = await client.rpc("i18n_claim_translation_jobs", {
-      p_worker: WORKER_ID,
-      p_limit: limit,
-      p_lease_seconds: 900,
-    });
-    if (error) {
-      if (schemaMissing(error.message)) {
+    let jobs: JobRow[];
+    try {
+      jobs = await client<JobRow[]>`
+        select * from public.i18n_claim_translation_jobs(${WORKER_ID}, ${limit}::int, 900::int)`;
+    } catch (error) {
+      if (schemaMissing(error instanceof Error ? error.message : String(error))) {
         return {
           claimed: 0,
           done: 0,
@@ -323,14 +326,18 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
           reason: "the translation job schema is not applied on this database",
         };
       }
-      throw new Error(error.message);
+      throw error;
     }
-    const jobs = (data ?? []) as JobRow[];
     if (jobs.length === 0) return { claimed: 0, done: 0, retried: 0, skipped: false };
 
     const disabled = await disabledLanguages(client);
-    const memory = createSupabaseMemoryStore(client);
-    const glossary = createSupabaseGlossaryStore(client);
+    const memory = createPostgresMemoryStore(client);
+    const glossary = createPostgresGlossaryStore(client);
+    const catalogue = jobs.some(
+      (job) => job.namespace === "ui" && !STATIC_CATALOGUE.has(job.source_text.trim()),
+    )
+      ? await publicCatalogue(client)
+      : STATIC_CATALOGUE;
 
     // Jobs that share a language pair and context go to the engine together.
     const groups = new Map<string, JobRow[]>();
@@ -356,20 +363,32 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
         quality: number | null,
         err: string | null,
       ) => {
-        const { error: finishError } = await client.rpc("i18n_finish_translation_job", {
-          p_id: job.id,
-          p_worker: WORKER_ID,
-          p_ok: ok,
-          p_result_status: status,
-          p_quality: quality,
-          p_error: err,
+        await client.begin(async (transaction) => {
+          const leased = await transaction<{ id: string }[]>`
+            select id from public.i18n_translation_jobs
+            where id = ${job.id}::uuid and locked_by = ${WORKER_ID} and status = 'running'
+            for update`;
+          if (!leased.length) throw new Error(`Translation job lease lost: ${job.id}`);
+          await transaction`
+            select public.i18n_finish_translation_job(
+              ${job.id}::uuid, ${WORKER_ID}, ${ok}::boolean,
+              ${status}::text, ${quality}::numeric, ${err}::text
+            )`;
         });
-        if (finishError) log("[i18n] could not record job outcome", finishError.message);
         if (ok) done++;
         else retried++;
       };
+      let result: Awaited<ReturnType<typeof runTranslationPipeline>>;
       try {
-        const result = await runTranslationPipeline(
+        if (
+          group.some(
+            (job) => !canQueueText(job.namespace, job.source_language, job.source_text, catalogue),
+          )
+        )
+          throw new Error(
+            "Private or non-catalogue page text cannot be processed from the persistent job queue.",
+          );
+        result = await runTranslationPipeline(
           {
             texts: group.map((j) => j.source_text),
             source: first.source_language,
@@ -378,6 +397,7 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
             context: first.context,
             persist: true,
             mode: "quality",
+            mayPersist: first.namespace === "ui" ? (text) => catalogue.has(text.trim()) : undefined,
             // Keyed messages are always translated in quality mode here, even
             // if a visitor's page already got a fast (realtime) translation
             // into memory; the new one replaces it only if it passes the
@@ -392,58 +412,30 @@ export async function runJobBatch(limit = BATCH): Promise<RunSummary> {
             log,
           },
         );
-        const byText = new Map(result.outcomes.map((o) => [o.text, o]));
-        // Pending with no engine answer at all: the engine was down, which the
-        // database does not count as an attempt. Pending although the engine
-        // answered: it cannot translate this text, which is an attempt.
-        const pendingError = result.engine
-          ? "not_translated: the engine answered without this text"
-          : (result.pendingReason ?? "not translated");
-        if (!result.engine && result.pendingReason === "engine_unavailable") readiness.at = 0;
-        // Upgrades the quality gate refused: the realtime translation stays, and
-        // is marked so the catalogue sync does not queue it again on every start.
-        const refresh = first.refresh || KEYED_CONTEXTS.has(first.context ?? "");
-        const kept = refresh
-          ? group.filter((job) => {
-              const outcome = byText.get(job.source_text.trim());
-              return outcome?.origin === "memory" && outcome.status === "machine";
-            })
-          : [];
-        if (kept.length > 0) {
-          const { error: markError } = await client.rpc("i18n_mark_upgrade_attempted", {
-            p_keys: kept.map((job) => ({
-              source_hash: job.source_hash,
-              source_language: job.source_language,
-              target_language: job.target_language,
-              context_hash: job.context_hash,
-            })),
-          });
-          if (markError && !schemaMissing(markError.message))
-            log("[i18n] could not mark refused upgrades", markError.message);
-        }
-        // Outcomes are recorded together: each is its own round trip to the
-        // database, and one after another they cost more than the translation.
-        await Promise.all(
-          group.map((job) => {
-            const outcome = byText.get(job.source_text.trim());
-            if (!outcome || outcome.status === "pending") {
-              return finish(job, false, "pending", null, pendingError);
-            }
-            return finish(
-              job,
-              true,
-              outcome.status,
-              outcome.qualityScore,
-              outcome.issues.join(",") || null,
-            );
-          }),
-        );
       } catch (err) {
         const message =
           err instanceof PipelineError ? `${err.reason}: ${err.message}` : String(err);
-        if (err instanceof PipelineError && err.reason === "engine_unavailable") readiness.at = 0;
         await Promise.all(group.map((job) => finish(job, false, null, null, message)));
+        continue;
       }
+      const byText = new Map(result.outcomes.map((o) => [o.text, o]));
+      // Outcomes are recorded together: each is its own round trip to the
+      // database, and one after another they cost more than the translation.
+      await Promise.all(
+        group.map((job) => {
+          const outcome = byText.get(job.source_text.trim());
+          if (!outcome || outcome.status === "pending") {
+            return finish(job, false, "pending", null, result.pendingReason ?? "not translated");
+          }
+          return finish(
+            job,
+            true,
+            outcome.status,
+            outcome.qualityScore,
+            outcome.issues.join(",") || null,
+          );
+        }),
+      );
     }
     return { claimed: jobs.length, done, retried, skipped: false };
   } finally {
@@ -463,7 +455,7 @@ const BUSY_QUEUE_GAP_MS = 1_000;
 /**
  * Background translation shares the host with the site, and the engine is
  * CPU-bound. The worker yields when the one-minute load average is above this
- * (default: 120 % of the host's CPUs; I18N_JOB_MAX_LOAD overrides), so a
+ * (default: 120 % of the host's CPUs; service-owned configuration can override), so a
  * traffic spike gets the CPU and pre-translation continues afterwards.
  *
  * The engine's own work counts towards the load average: busy, it alone holds
@@ -473,57 +465,41 @@ const BUSY_QUEUE_GAP_MS = 1_000;
  * wants the CPU as well.
  */
 function hostBusyThreshold(): number {
-  const configured = Number(process.env.I18N_JOB_MAX_LOAD);
-  if (Number.isFinite(configured) && configured > 0) return configured;
+  const configured = translationWorkerConfig().maxLoad;
+  if (configured !== null && Number.isFinite(configured) && configured > 0) return configured;
   return Math.max(1, cpus().length * 1.2);
 }
 
 const PRUNE_EVERY_MS = 60 * 60_000;
 let lastPrune = 0;
 
-/**
- * Failed jobs whose last error starts with `prefix` (all failed jobs for null)
- * go back to the queue. Jobs that failed because the engine was down did not
- * fail on their own text.
- */
-export async function requeueFailedJobs(prefix: string | null): Promise<number> {
-  const client = db();
-  if (!client) throw new Error("The database is not configured.");
-  const { data, error } = await client.rpc("i18n_requeue_failed_jobs", {
-    p_error_prefix: prefix,
-  });
-  if (error) throw new Error(error.message);
-  return Number(data ?? 0);
-}
-
-/**
- * Hourly: jobs an engine outage failed go back to the queue (before the prune
- * below would delete them), then finished jobs, old quota windows and old
- * machine revisions are deleted.
- */
+/** Hourly: delete finished jobs and old quota windows (public.i18n_prune). */
 async function pruneIfDue() {
   if (Date.now() - lastPrune < PRUNE_EVERY_MS) return;
+  const client = await db();
+  const [row] = await client<{ jobs_deleted: number; quota_windows_deleted: number }[]>`
+    select * from public.i18n_prune()`;
   lastPrune = Date.now();
-  const client = db();
-  if (!client) return;
-  try {
-    count("jobs.requeued", await requeueFailedJobs("engine_unavailable"));
-  } catch (error) {
-    if (!schemaMissing(String(error))) log("[i18n] requeue of failed jobs failed", error);
-  }
-  const revisions = await client.rpc("i18n_prune_revisions");
-  if (revisions.error && !schemaMissing(revisions.error.message))
-    log("[i18n] revision prune failed", revisions.error.message);
-  else count("revisions.pruned", Number(revisions.data ?? 0));
-  const { data, error } = await client.rpc("i18n_prune");
-  if (error) {
-    log("[i18n] prune failed", error.message);
-    return;
-  }
-  const row = (Array.isArray(data) ? data[0] : data) as
-    { jobs_deleted?: number; quota_windows_deleted?: number } | undefined;
   count("jobs.pruned", Number(row?.jobs_deleted ?? 0));
   count("quota.windows_pruned", Number(row?.quota_windows_deleted ?? 0));
+}
+
+const REQUEUE_EVERY_MS = 60 * 60_000;
+let lastRequeue = 0;
+
+/**
+ * Hourly: jobs that failed only because the engine was unavailable go back in
+ * the queue (public.i18n_requeue_engine_failures). They did nothing wrong, and
+ * nothing else would ever retry them before the prune deletes them.
+ */
+async function requeueEngineFailuresIfDue() {
+  if (Date.now() - lastRequeue < REQUEUE_EVERY_MS) return;
+  const client = await db();
+  const [row] = await client<{ requeued: number }[]>`
+    select public.i18n_requeue_engine_failures() as requeued`;
+  if (!row) throw new Error("The database did not return a requeue result.");
+  lastRequeue = Date.now();
+  count("jobs.requeued_engine_failures", Number(row.requeued));
 }
 
 let synced = false;
@@ -545,6 +521,7 @@ async function workerTick() {
       }
     }
     await pruneIfDue();
+    await requeueEngineFailuresIfDue();
     const [oneMinute = 0] = loadavg();
     if (oneMinute > hostBusyThreshold()) {
       count("jobs.paused_host_busy");
@@ -562,13 +539,12 @@ async function workerTick() {
 }
 
 /**
- * Start the in-process worker once. Off when I18N_JOB_WORKER=off, so an
- * instance can be excluded (e.g. a second replica that should only serve).
+ * Start the in-process worker once, unless service-owned configuration disables it.
  * It works the queue batch after batch while there is work and the host has
  * CPU to spare, and checks for new work every 30 seconds otherwise.
  */
 export function ensureJobWorker() {
-  if (timer || process.env.I18N_JOB_WORKER === "off" || typeof setTimeout !== "function") return;
+  if (timer || !translationWorkerConfig().enabled || typeof setTimeout !== "function") return;
   timer = setTimeout(() => void workerTick(), BUSY_QUEUE_GAP_MS);
   (timer as unknown as { unref?: () => void }).unref?.();
 }

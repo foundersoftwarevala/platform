@@ -9,13 +9,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAgents, useLeads } from "@/lib/lead-manager/queries";
+import { toast } from "sonner";
+import { useAgents, useCurrentAgent, useLeads } from "@/lib/lead-manager/queries";
+import { leadApi } from "@/lib/lead-manager/api";
 import { PIPELINE_STAGES, type Lead } from "@/lib/lead-manager/types";
 import { LeadTable } from "../LeadTable";
 import { Panel, exportLeadsCsv } from "../shared";
 import { printReport } from "./common";
 
-const SOURCES = ["website", "seo", "social", "ads", "marketplace", "referral", "manual", "api", "whatsapp"];
+const SOURCES = [
+  "website",
+  "seo",
+  "social",
+  "ads",
+  "marketplace",
+  "referral",
+  "manual",
+  "api",
+  "whatsapp",
+];
 
 export function AllLeadsScreen({ onSelect }: { onSelect: (lead: Lead) => void }) {
   const [search, setSearch] = useState("");
@@ -27,6 +39,7 @@ export function AllLeadsScreen({ onSelect }: { onSelect: (lead: Lead) => void })
 
   const { data: leads = [], isLoading } = useLeads({ search });
   const { data: agents = [] } = useAgents();
+  const { data: agent } = useCurrentAgent();
 
   const rows = useMemo(
     () =>
@@ -48,7 +61,19 @@ export function AllLeadsScreen({ onSelect }: { onSelect: (lead: Lead) => void })
       description="Every lead in the database with full filtering, masking-aware contact columns and export."
       actions={
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => exportLeadsCsv(rows, "all-leads")}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={async () => {
+              try {
+                await leadApi.assertCanExport("the filtered lead list");
+                const rows = await leadApi.fetchLeadsForExport({ search });
+                exportLeadsCsv(rows, "all-leads", agent?.can_unmask ?? true);
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Export failed");
+              }
+            }}
+          >
             <Download className="size-4" /> CSV
           </Button>
           <Button size="sm" variant="outline" onClick={() => printReport("All Leads")}>
@@ -67,19 +92,39 @@ export function AllLeadsScreen({ onSelect }: { onSelect: (lead: Lead) => void })
             className="w-64 pl-8"
           />
         </div>
-        <Filter value={status} onChange={setStatus} label="Status" options={PIPELINE_STAGES.map((s) => [s.id, s.label])} extra={[["spam", "Spam"]]} />
-        <Filter value={source} onChange={setSource} label="Source" options={SOURCES.map((s) => [s, s])} />
+        <Filter
+          value={status}
+          onChange={setStatus}
+          label="Status"
+          options={PIPELINE_STAGES.map((s) => [s.id, s.label])}
+          extra={[["spam", "Spam"]]}
+        />
+        <Filter
+          value={source}
+          onChange={setSource}
+          label="Source"
+          options={SOURCES.map((s) => [s, s])}
+        />
         <Filter
           value={priority}
           onChange={setPriority}
           label="Priority"
-          options={[["critical", "Critical"], ["high", "High"], ["medium", "Medium"], ["low", "Low"]]}
+          options={[
+            ["critical", "Critical"],
+            ["high", "High"],
+            ["medium", "Medium"],
+            ["low", "Low"],
+          ]}
         />
         <Filter
           value={temperature}
           onChange={setTemperature}
           label="Temperature"
-          options={[["hot", "Hot"], ["warm", "Warm"], ["cold", "Cold"]]}
+          options={[
+            ["hot", "Hot"],
+            ["warm", "Warm"],
+            ["cold", "Cold"],
+          ]}
         />
         <Filter
           value={agentId}

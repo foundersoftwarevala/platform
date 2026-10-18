@@ -9,6 +9,16 @@ export type HeroSlide = {
   cta_primary: string;
   cta_secondary: string;
   cta_link: string;
+  /**
+   * Where the secondary button goes, per slide.
+   *
+   * Optional because every slide in the table has it unset today: the column
+   * did not exist until Hero Banner Manager was given somewhere to save it, and
+   * both carousels fall back to the route they used before — /vala-tv on the
+   * home page, /marketplace on the marketplace. So nothing a visitor sees
+   * changes until an operator sets one.
+   */
+  cta_secondary_link?: string | null;
   gradient: string;
   icon_name: string;
   accent: string;
@@ -31,11 +41,11 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
     id: "hero-1",
     slug: "12-000-software-solutions",
     kicker: "Marketplace",
-    title: "12,000+ Software Solutions",
+    title: "Software for Every Business",
     subtitle: "One Marketplace. Every Business Need.",
     cta_primary: "Browse Products",
     cta_secondary: "Watch Live Demo",
-    cta_link: "/demos/public",
+    cta_link: "/#Education",
     gradient: "from-[#0b1a30] via-[#12325c] to-[#0a1526]",
     icon_name: "Boxes",
     accent: "text-cyan-300",
@@ -52,7 +62,7 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
     subtitle: "ERP • CRM • HRM • Accounting",
     cta_primary: "Explore Suites",
     cta_secondary: "Watch Live Demo",
-    cta_link: "/#Enterprise",
+    cta_link: "/#ERP",
     gradient: "from-[#1a1030] via-[#3b1f6b] to-[#0e0a1e]",
     icon_name: "Crown",
     accent: "text-violet-300",
@@ -120,7 +130,7 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
     subtitle: "Hotel • Restaurant • Cafe • Food Delivery",
     cta_primary: "Explore Hospitality",
     cta_secondary: "Watch Live Demo",
-    cta_link: "/#Hospitality",
+    cta_link: "/#Hospitality%20(Hotel%2C%20Restaurant%2C%20Travel)",
     gradient: "from-[#12102e] via-[#4338ca] to-[#0a0918]",
     icon_name: "Utensils",
     accent: "text-orange-300",
@@ -205,7 +215,7 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
     subtitle: "One Payment. Lifetime Ownership.",
     cta_primary: "Buy Lifetime",
     cta_secondary: "Watch Live Demo",
-    cta_link: "/demos/public",
+    cta_link: "/#Education",
     gradient: "from-[#04211a] via-[#0f9d6e] to-[#03130e]",
     icon_name: "Crown",
     accent: "text-amber-300",
@@ -222,7 +232,7 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
     subtitle: "100% Transparent Pricing.",
     cta_primary: "See Pricing",
     cta_secondary: "Watch Live Demo",
-    cta_link: "/#pricing",
+    cta_link: "/#Education",
     gradient: "from-[#052018] via-[#0f766e] to-[#04120e]",
     icon_name: "BadgeCheck",
     accent: "text-emerald-300",
@@ -239,7 +249,7 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
     subtitle: "Business Built on Trust.",
     cta_primary: "Start Risk-Free",
     cta_secondary: "Watch Live Demo",
-    cta_link: "/demos/public",
+    cta_link: "/#Education",
     gradient: "from-[#04202b] via-[#0e7490] to-[#03131a]",
     icon_name: "ShieldCheck",
     accent: "text-cyan-300",
@@ -256,7 +266,7 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
     subtitle: "Always Ready to Help.",
     cta_primary: "Contact Support",
     cta_secondary: "Watch Live Demo",
-    cta_link: "/#Support",
+    cta_link: "/contact",
     gradient: "from-[#08182e] via-[#1e40af] to-[#050d1a]",
     icon_name: "Globe2",
     accent: "text-sky-300",
@@ -307,7 +317,7 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
     subtitle: "Show. Explain. Sell.",
     cta_primary: "Watch Demos",
     cta_secondary: "Browse Products",
-    cta_link: "/demos/public",
+    cta_link: "/vala-tv",
     gradient: "from-[#2a0713] via-[#be123c] to-[#16040a]",
     icon_name: "Play",
     accent: "text-rose-300",
@@ -324,7 +334,7 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
     subtitle: "Start with Ready-Made Solutions.",
     cta_primary: "Get Started",
     cta_secondary: "Watch Live Demo",
-    cta_link: "/demos/public",
+    cta_link: "/#Education",
     gradient: "from-[#04202b] via-[#0891b2] to-[#03131a]",
     icon_name: "Zap",
     accent: "text-yellow-300",
@@ -337,11 +347,11 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
     id: "hero-19",
     slug: "80-business-categories",
     kicker: "Categories",
-    title: "80+ Business Categories",
+    title: "Every Business Category",
     subtitle: "Everything Your Business Needs.",
     cta_primary: "Browse Categories",
     cta_secondary: "Watch Live Demo",
-    cta_link: "/#all",
+    cta_link: "/#Education",
     gradient: "from-[#04211d] via-[#0d9488] to-[#031311]",
     icon_name: "Boxes",
     accent: "text-teal-300",
@@ -358,7 +368,7 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
     subtitle: "One Marketplace. Endless Business Opportunities.",
     cta_primary: "Browse Products",
     cta_secondary: "Watch Live Demo",
-    cta_link: "/demos/public",
+    cta_link: "/#Education",
     gradient: "from-[#0b1a30] via-[#12325c] to-[#0a1526]",
     icon_name: "Sparkles",
     accent: "text-cyan-300",

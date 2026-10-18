@@ -1,3 +1,4 @@
+import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Bell, Command, HelpCircle, LogOut, Menu, Plus, Search, Settings, User, X } from "lucide-react";
 import { useState } from "react";
@@ -117,6 +118,7 @@ export function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
           >
             <HelpCircle className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
+          <ChatAppButton className={ICON_BTN} iconClassName="h-[18px] w-[18px]" />
           <NotificationCenter
             trigger={
               <button className={ICON_BTN} aria-label="Notifications — 1 or more unread alerts">

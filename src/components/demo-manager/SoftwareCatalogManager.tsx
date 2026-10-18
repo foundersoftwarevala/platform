@@ -50,7 +50,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface SoftwareItem {
   id: string;
   name: string;
-  base_price: number;
+  price_label: string;
   type: string;
   vendor: string;
   category: string;
@@ -73,6 +73,32 @@ const CATEGORIES = [
   "Insurance", "Manufacturing", "Automotive", "Beauty/Salon", "Library",
   "Subscription", "General"
 ];
+
+/**
+ * The catalogue is marketplace_products (software_catalog was never created).
+ * Type is software_type, category is the linked marketplace category, and a
+ * product counts as demo-registered when a product_demo_urls row points at it.
+ */
+const CATALOG = 'marketplace_products';
+// The generated types lag the live table (software_type is missing there), so it is queried untyped.
+const catalogTable = () => (supabase as unknown as { from: (table: string) => any }).from(CATALOG);
+
+const catalogSelect = (categoryFilter: string) =>
+  `id, name, software_type, price_label, demo_url, created_at, category:marketplace_categories${
+    categoryFilter !== "All" ? '!inner' : ''
+  }(name), demos:product_demo_urls(id)`;
+
+const toSoftwareItem = (row: Record<string, any>): SoftwareItem => ({
+  id: row.id,
+  name: row.name,
+  price_label: row.price_label ?? '',
+  type: row.software_type ?? '',
+  vendor: '',
+  category: row.category?.name ?? '',
+  demo_url: row.demo_url ?? '',
+  is_demo_registered: Array.isArray(row.demos) && row.demos.length > 0,
+  created_at: row.created_at,
+});
 
 interface TypeStats {
   saas: number;
@@ -111,12 +137,12 @@ const SoftwareCatalogManager = () => {
   const fetchTypeStats = async () => {
     try {
       // Fetch counts for each type
-      const { count: saas } = await supabase.from('software_catalog').select('id', { count: 'exact', head: true }).eq('type', 'SaaS');
-      const { count: desktop } = await supabase.from('software_catalog').select('id', { count: 'exact', head: true }).eq('type', 'Desktop');
-      const { count: mobile } = await supabase.from('software_catalog').select('id', { count: 'exact', head: true }).eq('type', 'Mobile');
-      const { count: hybrid } = await supabase.from('software_catalog').select('id', { count: 'exact', head: true }).eq('type', 'Hybrid');
-      const { count: offline } = await supabase.from('software_catalog').select('id', { count: 'exact', head: true }).eq('type', 'Offline');
-      const { count: registered } = await supabase.from('software_catalog').select('id', { count: 'exact', head: true }).eq('is_demo_registered', true);
+      const { count: saas } = await catalogTable().select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('software_type', 'SaaS');
+      const { count: desktop } = await catalogTable().select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('software_type', 'Desktop');
+      const { count: mobile } = await catalogTable().select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('software_type', 'Mobile');
+      const { count: hybrid } = await catalogTable().select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('software_type', 'Hybrid');
+      const { count: offline } = await catalogTable().select('id', { count: 'exact', head: true }).is('deleted_at', null).eq('software_type', 'Offline');
+      const { count: registered } = await catalogTable().select('id, product_demo_urls!inner(id)', { count: 'exact', head: true }).is('deleted_at', null);
       
       setTypeStats({
         saas: saas || 0,
@@ -132,15 +158,15 @@ const SoftwareCatalogManager = () => {
   };
 
   const fetchTotalCount = async () => {
-    let query = supabase
-      .from('software_catalog')
-      .select('id', { count: 'exact', head: true });
+    let query = catalogTable()
+      .select(categoryFilter !== "All" ? 'id, category:marketplace_categories!inner(name)' : 'id', { count: 'exact', head: true })
+      .is('deleted_at', null);
 
     if (typeFilter !== "All") {
-      query = query.eq('type', typeFilter);
+      query = query.eq('software_type', typeFilter);
     }
     if (categoryFilter !== "All") {
-      query = query.eq('category', categoryFilter);
+      query = query.eq('category.name', categoryFilter);
     }
 
     const { count } = await query;
@@ -150,17 +176,17 @@ const SoftwareCatalogManager = () => {
   const fetchCatalog = async () => {
     setIsLoading(true);
     try {
-      let query = supabase
-        .from('software_catalog')
-        .select('*')
+      let query = catalogTable()
+        .select(catalogSelect(categoryFilter))
+        .is('deleted_at', null)
         .order('name', { ascending: true })
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (typeFilter !== "All") {
-        query = query.eq('type', typeFilter);
+        query = query.eq('software_type', typeFilter);
       }
       if (categoryFilter !== "All") {
-        query = query.eq('category', categoryFilter);
+        query = query.eq('category.name', categoryFilter);
       }
       if (searchQuery) {
         query = query.ilike('name', `%${searchQuery}%`);
@@ -169,7 +195,7 @@ const SoftwareCatalogManager = () => {
       const { data, error } = await query;
 
       if (error) throw error;
-      setCatalogItems((data ?? []) as unknown as SoftwareItem[]);
+      setCatalogItems(((data ?? []) as unknown as Record<string, any>[]).map(toSoftwareItem));
     } catch (error) {
       console.error('Error fetching catalog:', error);
       toast({ title: "Error", description: "Failed to load catalog", variant: "destructive" });
@@ -619,7 +645,7 @@ const SoftwareCatalogManager = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         <span className="font-mono text-primary">
-                          ${item.base_price.toFixed(2)}
+                          {item.price_label || '—'}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">

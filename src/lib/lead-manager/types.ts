@@ -28,6 +28,35 @@ export type AgentStatus = "online" | "busy" | "offline";
 type Tables = Database["public"]["Tables"];
 
 export type Lead = Tables["leads"]["Row"];
+
+/**
+ * Where a lead came from.
+ *
+ * These columns live on `leads` beside source, campaign and country. They are
+ * named here rather than taken from the generated Supabase types because that
+ * file covers 78 of the 534 tables in this database and `leads` is not one of
+ * them - which is also why so much of this module casts its rows.
+ *
+ * Every field is optional: a lead captured before these existed, or one from
+ * a visitor who arrived with no referrer and no campaign, legitimately has
+ * none of them, and an empty attribution is an answer.
+ */
+export type LeadAttribution = {
+  referrer: string | null;
+  search_engine: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+  landing_page: string | null;
+  card_slot_id: string | null;
+  region: string | null;
+  attribution: Record<string, unknown> | null;
+};
+
+/** A lead together with whatever attribution was captured with it. */
+export type AttributedLead = Lead & Partial<LeadAttribution>;
 export type LeadInsert = Tables["leads"]["Insert"];
 export type LeadUpdate = Tables["leads"]["Update"];
 export type Agent = Tables["lead_agents"]["Row"];

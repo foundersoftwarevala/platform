@@ -7,7 +7,7 @@ import { AMSCenterWorkspace } from "@/components/dashboard/AMSCenterWorkspace";
 export function ModulePage({ role, moduleKey, onBack }: { role: RoleConfig; moduleKey: string; onBack: () => void }) {
   if (moduleKey === "achievements") return <AMSEngine role={role} onBack={onBack} />;
   if (moduleKey === "ams")          return <AMSWorkspace role={role} onBack={onBack} />;
-  if (moduleKey === "ams-center")   return <AMSCenterWorkspace onBack={onBack} />;
+  if (moduleKey === "ams-center")   return <AMSCenterWorkspace onBack={onBack} dashboardRole={role.key} />;
   return <CrudWorkspace role={role} moduleKey={moduleKey} onBack={onBack} />;
 }
 

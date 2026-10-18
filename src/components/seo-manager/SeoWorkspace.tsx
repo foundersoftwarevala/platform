@@ -27,8 +27,15 @@ export function SeoWorkspace({ initialModule }: { initialModule?: string } = {})
         return { label: item.label, icon: item.icon };
       }),
     }));
+    // Built from the modules themselves rather than by inverting the
+    // label->id map. Two modules that happen to share a label collapse to one
+    // entry in that map, and the id that lost is then absent here - so
+    // ?module=<id> for it silently opened the dashboard instead, which looks
+    // exactly like a screen that works.
     const reverse: Record<string, string> = {};
-    for (const [label, id] of Object.entries(map)) reverse[id] = label;
+    for (const group of SEO_MODULE_GROUPS) {
+      for (const item of group.items) reverse[item.id] = item.label;
+    }
     return { groups: g, idByLabel: map, labelById: reverse };
   }, []);
 

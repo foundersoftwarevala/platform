@@ -1,16 +1,16 @@
 /**
  * PERFORMANCE & KPI
- * Task Completion • Bug Ratio • SLA Adherence • Reviewer Quality
+ * Task Completion • Bug Ratio • SLA Adherence • AI Quality Score
  */
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { TrendingUp, CheckCircle, Bug, Clock, ClipboardCheck } from 'lucide-react';
+import { TrendingUp, CheckCircle, Bug, Clock, Brain } from 'lucide-react';
 import { useAllDeveloperTasks, useDeliveryOverview, useDeveloperRegistry } from '@/hooks/useDevManagerData';
 import { useTranslation } from '@/lib/i18n/use-translation';
 
-type Row = { id: string; completion: number | null; bugRatio: number | null; sla: number | null; reviewScore: number | null };
+type Row = { id: string; completion: number | null; bugRatio: number | null; sla: number | null; aiScore: number | null };
 const avg = (list: (number | null)[]) => {
   const v = list.filter((n): n is number => n != null);
   return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null;
@@ -34,14 +34,14 @@ export const DMPerformanceKPI: React.FC = () => {
   const perf = overview.data?.performance ?? [];
   const developers: Row[] = (registry.data ?? []).map((dev) => {
     const mine = (tasks.data ?? []).filter((t) => t.developerId === dev.id);
-    const done = mine.filter((t) => t.status === 'completed' || t.status === 'delivered').length;
+    const done = mine.filter((t) => t.status === 'completed').length;
     const p = perf.find((x) => x.valaId === dev.valaId || x.valaId === dev.fullName);
     return {
       id: dev.valaId || dev.fullName,
       completion: mine.length ? Math.round((done / mine.length) * 100) : null,
       bugRatio: mine.length ? Math.round((mine.filter((t) => t.category === 'bug').length / mine.length) * 100) : null,
       sla: p && p.completedTasks > 0 ? p.onTimeRate : null,
-      reviewScore: p && p.qualityScore > 0 ? p.qualityScore : null,
+      aiScore: p && p.qualityScore > 0 ? p.qualityScore : null,
     };
   });
   const loading = registry.isLoading || tasks.isLoading;
@@ -91,12 +91,12 @@ export const DMPerformanceKPI: React.FC = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-              <ClipboardCheck className="h-4 w-4" />
-              {t('devmanager.performance.review_quality_score')}
+              <Brain className="h-4 w-4" />
+              {t('devmanager.performance.ai_quality_score')}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-purple-500">{pct(avg(developers.map((d) => d.reviewScore)))}</div>
+            <div className="text-3xl font-bold text-purple-500">{pct(avg(developers.map((d) => d.aiScore)))}</div>
           </CardContent>
         </Card>
       </div>
@@ -131,7 +131,7 @@ export const DMPerformanceKPI: React.FC = () => {
                   <span className="font-mono font-medium">{dev.id}</span>
                   <span className="text-sm text-muted-foreground">
                     {t('devmanager.performance.overall', {
-                      value: pct(avg([dev.completion, dev.bugRatio == null ? null : 100 - dev.bugRatio, dev.sla, dev.reviewScore])),
+                      value: pct(avg([dev.completion, dev.bugRatio == null ? null : 100 - dev.bugRatio, dev.sla, dev.aiScore])),
                     })}
                   </span>
                 </div>
@@ -159,10 +159,10 @@ export const DMPerformanceKPI: React.FC = () => {
                   </div>
                   <div>
                     <div className="flex justify-between text-xs mb-1">
-                      <span>{t('devmanager.performance.review_quality')}</span>
-                      <span className={(dev.reviewScore ?? 0) >= 80 ? 'text-purple-500' : 'text-amber-500'}>{pct(dev.reviewScore)}</span>
+                      <span>{t('devmanager.performance.ai_score')}</span>
+                      <span className={(dev.aiScore ?? 0) >= 80 ? 'text-purple-500' : 'text-amber-500'}>{pct(dev.aiScore)}</span>
                     </div>
-                    <Progress value={dev.reviewScore ?? 0} className="h-2" aria-label={t('devmanager.performance.review_quality')} />
+                    <Progress value={dev.aiScore ?? 0} className="h-2" aria-label={t('devmanager.performance.ai_score')} />
                   </div>
                 </div>
               </div>

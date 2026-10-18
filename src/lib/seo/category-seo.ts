@@ -136,10 +136,21 @@ export const getProductSeo = createServerFn({ method: "GET" })
           // this an unreviewed draft, a rejected submission or a suspended
           // product still rendered at its slug.
           `&visible=is.true` +
+          // ...and the rest of the on-sale rule the page body applies
+          // (loadPublicProductBySlugFromSupabase). With visible alone, a
+          // product off sale got a full product head - title, canonical,
+          // structured data, indexable - over a "Product not found" body.
+          `&moderation_status=eq.approved` +
+          `&and=(or(content_status.is.null,content_status.eq.published),` +
+          `or(publish_at.is.null,publish_at.lte.${encodeURIComponent(new Date().toISOString())}),` +
+          `or(unpublish_at.is.null,unpublish_at.gt.${encodeURIComponent(new Date().toISOString())}))` +
           `&slug=eq.${encodeURIComponent(data.slug)}&limit=1`,
         { headers: admin() },
       );
-      const rows = response.ok ? ((await response.json()) as Record<string, unknown>[]) : [];
+      // A refused or failed read is not "no such product": it must not be
+      // cached as one, or answered as one (the route turns empty into a 404).
+      if (!response.ok) throw new Error(`product SEO read failed: HTTP ${response.status}`);
+      const rows = (await response.json()) as Record<string, unknown>[];
       const row = rows[0];
       if (!row?.name) {
         productCache.set(data.slug, { at: Date.now(), value: null });
@@ -168,6 +179,6 @@ export const getProductSeo = createServerFn({ method: "GET" })
       return value;
     } catch (error) {
       console.error("[product seo] failed for", data.slug, error);
-      return null;
+      throw error instanceof Error ? error : new Error("product SEO read failed");
     }
   });

@@ -272,12 +272,18 @@ export const menuItems: MenuItem[] = [
   },
 ];
 
-const LMSidebar = ({ activeSection, setActiveSection, onBack, onNavigate, className }: LMSidebarProps) => {
+const LMSidebar = ({
+  activeSection,
+  setActiveSection,
+  onBack,
+  onNavigate,
+  className,
+}: LMSidebarProps) => {
   const [expandedItems, setExpandedItems] = useState<string[]>(["dashboard"]);
 
   const toggleExpand = (id: string) => {
     setExpandedItems((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
 
@@ -349,7 +355,8 @@ const LMSidebar = ({ activeSection, setActiveSection, onBack, onNavigate, classN
             const Icon = item.icon;
             const isExpanded = expandedItems.includes(item.id);
             const hasChildren = Boolean(item.children && item.children.length > 0);
-            const isActive = activeSection === item.id || item.children?.some((c) => c.id === activeSection);
+            const isActive =
+              activeSection === item.id || item.children?.some((c) => c.id === activeSection);
 
             return (
               <div key={item.id}>
@@ -362,16 +369,26 @@ const LMSidebar = ({ activeSection, setActiveSection, onBack, onNavigate, classN
                     "group relative w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-all duration-200",
                     isActive
                       ? "bg-primary/12 text-foreground"
-                      : "text-muted-foreground hover:bg-surface/70 hover:text-foreground"
+                      : "text-muted-foreground hover:bg-surface/70 hover:text-foreground",
                   )}
                 >
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary" />
                   )}
-                  <Icon className={cn("w-4 h-4 flex-shrink-0", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                  <Icon
+                    className={cn(
+                      "w-4 h-4 flex-shrink-0",
+                      isActive
+                        ? "text-primary"
+                        : "text-muted-foreground group-hover:text-foreground",
+                    )}
+                  />
                   <span className="font-medium text-xs flex-1 truncate">{item.label}</span>
                   {hasChildren && (
-                    <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                    <motion.div
+                      animate={{ rotate: isExpanded ? 180 : 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
                       <ChevronDown className="w-3 h-3 opacity-60" />
                     </motion.div>
                   )}
@@ -396,7 +413,7 @@ const LMSidebar = ({ activeSection, setActiveSection, onBack, onNavigate, classN
                             "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all duration-200",
                             activeSection === child.id
                               ? "bg-primary/10 text-primary"
-                              : "text-muted-foreground/80 hover:text-foreground hover:bg-surface/60"
+                              : "text-muted-foreground hover:text-foreground hover:bg-surface/60",
                           )}
                         >
                           <ChevronRight className="w-3 h-3 opacity-60" />
@@ -427,6 +444,5 @@ const LMSidebar = ({ activeSection, setActiveSection, onBack, onNavigate, classN
     </motion.aside>
   );
 };
-
 
 export default LMSidebar;

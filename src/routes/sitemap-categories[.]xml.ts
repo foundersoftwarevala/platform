@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { absoluteUrl, indexable } from "@/lib/seo/site-url";
+import { mergedInto } from "@/lib/marketplace/merged-categories";
 
 /**
  * Category URLs, and the pages that are not generated from the catalogue.
@@ -65,7 +66,8 @@ export const Route = createFileRoute("/sitemap-categories.xml")({
           }
 
           const entries = categories
-            .filter((c) => c.slug && populated.has(c.id))
+            // A merged category redirects, so only the category it joined is listed.
+            .filter((c) => c.slug && populated.has(c.id) && !mergedInto(c.slug))
             .map((c) => {
               const lastmod = String(c.updated_at ?? "").slice(0, 10);
               return (

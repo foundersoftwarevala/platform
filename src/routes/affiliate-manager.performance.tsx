@@ -12,6 +12,7 @@ export const Route = createFileRoute("/affiliate-manager/performance")({
       description="Clicks, visitors, conversions, revenue, ROI, CTR and leaderboard by affiliate."
       crumbLabel="Performance"
       table="performance_snapshots"
+      unavailable="Per-affiliate performance snapshots are not recorded yet. Clicks and attributed orders are on the Affiliate Links and Orders pages."
       searchColumns={[]}
       searchPlaceholder="Search performance…"
       filters={["Period", "Affiliate", "Country", "Tier"]}

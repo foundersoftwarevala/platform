@@ -56,12 +56,28 @@ export const Route = createFileRoute("/api/affiliate/attribute")({
         if (!orderResponse.ok) {
           return Response.json({ error: "Could not read the order" }, { status: 502 });
         }
-        const order = ((await orderResponse.json()) as
-          { buyer_id: string | null; user_id: string | null; status: string;
-            total: number | string; currency: string }[])[0];
+        const order = (
+          (await orderResponse.json()) as {
+            buyer_id: string | null;
+            user_id: string | null;
+            status: string;
+            total: number | string;
+            currency: string;
+          }[]
+        )[0];
         if (!order) return Response.json({ error: "No such order" }, { status: 404 });
         if (order.buyer_id !== user.id && order.user_id !== user.id) {
           return Response.json({ error: "That order does not belong to you" }, { status: 403 });
+        }
+        // Only an order still awaiting its payment can take an attribution,
+        // exactly as /api/payment/initiate stamps it. Otherwise a buyer could
+        // visit a friend's link after paying and hand them commission on a sale
+        // they never referred, picked up by a later backfill or replay.
+        if (String(order.status ?? "").toLowerCase() !== "pending_payment") {
+          return Response.json(
+            { attributed: false, reason: "order is no longer awaiting payment" },
+            { status: 409 },
+          );
         }
 
         const attribution = await attributionForSession(sessionKey);

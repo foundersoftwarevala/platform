@@ -310,11 +310,12 @@ export default function SecurityScreen({ view }: { view?: string | undefined }) 
                 value={logSearch}
                 onChange={(e) => setLogSearch(e.target.value)}
                 placeholder="Search by IP, path, method, user agent…"
+                aria-label="Search request logs"
                 className="pl-9"
               />
             </div>
             <Select value={logStatusFilter} onValueChange={setLogStatusFilter}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger aria-label="Status" className="w-[160px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -384,12 +385,12 @@ export default function SecurityScreen({ view }: { view?: string | undefined }) 
             <div className="mb-4 flex flex-wrap items-end gap-2">
               <div className="flex-1 min-w-[140px]">
                 <Label className="text-xs">IP / CIDR</Label>
-                <Input value={newIp} onChange={(e) => setNewIp(e.target.value)} placeholder="203.0.113.0/24" />
+                <Input aria-label="IP / CIDR" value={newIp} onChange={(e) => setNewIp(e.target.value)} placeholder="203.0.113.0/24" />
               </div>
               <div className="w-[110px]">
                 <Label className="text-xs">Type</Label>
                 <Select value={newIpType} onValueChange={(v) => setNewIpType(v as "allow" | "deny")}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -400,7 +401,7 @@ export default function SecurityScreen({ view }: { view?: string | undefined }) 
               </div>
               <div className="flex-1 min-w-[140px]">
                 <Label className="text-xs">Reason</Label>
-                <Input value={newIpReason} onChange={(e) => setNewIpReason(e.target.value)} placeholder="Rate limit abuse" />
+                <Input aria-label="Reason for the IP rule" value={newIpReason} onChange={(e) => setNewIpReason(e.target.value)} placeholder="Rate limit abuse" />
               </div>
               <Button size="sm" onClick={addIpEntry} disabled={!newIp.trim()}>
                 <Plus className="mr-1 h-4 w-4" />
@@ -469,7 +470,7 @@ export default function SecurityScreen({ view }: { view?: string | undefined }) 
                         </p>
                       </div>
                     </div>
-                    <Switch checked={Boolean(r["enabled"])} onCheckedChange={() => toggleRegionRule(r)} />
+                    <Switch aria-label={`Enforce the ${String(r["region"])} region rule`} checked={Boolean(r["enabled"])} onCheckedChange={() => toggleRegionRule(r)} />
                   </div>
                 ))}
               </div>
@@ -550,18 +551,18 @@ export default function SecurityScreen({ view }: { view?: string | undefined }) 
             <div className="space-y-3">
               <div>
                 <Label className="text-xs">Block IP (optional)</Label>
-                <Input value={blockIp} onChange={(e) => setBlockIp(e.target.value)} placeholder="203.0.113.99" />
+                <Input aria-label="Block IP (optional)" value={blockIp} onChange={(e) => setBlockIp(e.target.value)} placeholder="203.0.113.99" />
               </div>
               <div>
                 <Label className="text-xs">Reason</Label>
-                <Input value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="Brute force attempt" />
+                <Input aria-label="Reason for the block" value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="Brute force attempt" />
               </div>
             </div>
             <div className="space-y-3">
               <div>
                 <Label className="text-xs">Revoke API key (optional)</Label>
                 <Select value={blockKeyId} onValueChange={setBlockKeyId}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Revoke API key (optional)">
                     <SelectValue placeholder="Select key to revoke" />
                   </SelectTrigger>
                   <SelectContent>

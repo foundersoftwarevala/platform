@@ -59,10 +59,12 @@ export function downloadCsv(
   const keys =
     columns && columns.length
       ? [...columns]
-      : Array.from(rows.reduce<Set<string>>((set, row) => {
-          Object.keys(row).forEach((k) => set.add(k));
-          return set;
-        }, new Set<string>()));
+      : Array.from(
+          rows.reduce<Set<string>>((set, row) => {
+            Object.keys(row).forEach((k) => set.add(k));
+            return set;
+          }, new Set<string>()),
+        );
 
   const lines = [
     keys.map(csvField).join(","),
@@ -92,15 +94,51 @@ export function downloadDataUrl(filename: string, dataUrl: string): void {
 }
 
 /**
- * Copies text and reports whether it worked. The clipboard is unavailable over
- * plain HTTP and in some embedded views, and a "Copied" toast that fires when
- * nothing was copied is the same lie this module exists to remove.
+ * Copies text and reports whether it worked. A "Copied" toast that fires when
+ * nothing was copied is the same lie this module exists to remove, so the
+ * answer is always the truth about what happened.
+ *
+ * Two attempts, because one is not enough. navigator.clipboard is the right
+ * API and the only one with a real permission model, but it does not exist
+ * over plain HTTP, is missing from older Safari, and is withheld inside a good
+ * number of in-app browsers — and in every one of those cases the Share button
+ * on a product page could only ever report failure. The older
+ * document.execCommand("copy") still works in exactly those places, so it is
+ * tried second rather than not at all.
+ *
+ * The textarea is positioned off-screen rather than hidden: a display:none or
+ * visibility:hidden element cannot be selected, so the copy would silently do
+ * nothing. It is removed in a finally block, and the caller's selection is put
+ * back, so a failed copy does not leave the page with text highlighted.
  */
 export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
+    /* fall through to the older path below */
+  }
+
+  if (typeof document === "undefined") return false;
+
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.top = "-1000px";
+  area.style.opacity = "0";
+  const previous = document.activeElement as HTMLElement | null;
+
+  try {
+    document.body.appendChild(area);
+    area.select();
+    area.setSelectionRange(0, text.length);
+    return document.execCommand("copy");
+  } catch {
     return false;
+  } finally {
+    area.remove();
+    window.getSelection?.()?.removeAllRanges();
+    previous?.focus?.();
   }
 }

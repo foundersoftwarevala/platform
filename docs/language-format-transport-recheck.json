@@ -1,0 +1,261 @@
+{
+  "at": "2026-10-07T08:24:43.904Z",
+  "persist": false,
+  "limitations": [
+    "Checks structure and accepted output, not human semantic quality or all fonts."
+  ],
+  "languages": [
+    {
+      "code": "sn",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 174,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "Hello {name},",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.8,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 16,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "Thank you for asking for {action, select, request_demo {a demo} notify_me {an update when it is available} callback {a call back} buy_intent {to buy} other {more information}} about {product}.",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.5,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        },
+        {
+          "name": "html",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 21,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "<p>Our team has your request and will come back to you on this email and on WhatsApp.</p>",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.8,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        }
+      ],
+      "failures": []
+    },
+    {
+      "code": "st",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 19,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "Hello {name},",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.7,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 18,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "Thank you for asking for {action, select, request_demo {a demo} notify_me {an update when it is available} callback {a call back} buy_intent {to buy} other {more information}} about {product}.",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.5,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        },
+        {
+          "name": "html",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 17,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "<p>Our team has your request and will come back to you on this email and on WhatsApp.</p>",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.8,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        }
+      ],
+      "failures": []
+    },
+    {
+      "code": "tn",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 19,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "Hello {name},",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.85,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 16,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "Thank you for asking for {action, select, request_demo {a demo} notify_me {an update when it is available} callback {a call back} buy_intent {to buy} other {more information}} about {product}.",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.5,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        },
+        {
+          "name": "html",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 14,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "<p>Our team has your request and will come back to you on this email and on WhatsApp.</p>",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.8,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        }
+      ],
+      "failures": []
+    },
+    {
+      "code": "om",
+      "cases": [
+        {
+          "name": "placeholder",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 15,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "Hello {name},",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.8,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        },
+        {
+          "name": "icu_select",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 15,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "Thank you for asking for {action, select, request_demo {a demo} notify_me {an update when it is available} callback {a call back} buy_intent {to buy} other {more information}} about {product}.",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.8,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        },
+        {
+          "name": "html",
+          "status": 200,
+          "accepted": true,
+          "shape": true,
+          "attempts": 1,
+          "milliseconds": 12001,
+          "reason": null,
+          "outcomes": [
+            {
+              "text": "<p>Our team has your request and will come back to you on this email and on WhatsApp.</p>",
+              "status": "machine",
+              "origin": "engine",
+              "quality": 0.7,
+              "issues": []
+            }
+          ],
+          "transportErrors": []
+        }
+      ],
+      "failures": []
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PageShell, PageBanner } from "@/components/layout/PageShell";
+import { useTranslation } from "@/lib/i18n/use-translation";
+import type { MessageKey } from "@/lib/i18n/messages";
 import ProductDashboard from "./ProductDashboard";
 import AddProduct from "./AddProduct";
 import ProductList from "./ProductList";
@@ -39,21 +41,58 @@ const menuItems: MenuItemType[] = [
   { id: "settings", label: "Settings", icon: Settings, locked: true },
 ];
 
+const TAB_KEYS: Record<string, MessageKey> = {
+  dashboard: "manager.products.tab_dashboard",
+  "add-product": "manager.products.tab_add_product",
+  products: "manager.products.tab_products",
+  "demo-manager": "manager.products.tab_demo_manager",
+  "add-demo": "manager.products.tab_add_demo",
+  "bulk-add": "manager.products.tab_bulk_add",
+  "health-check": "manager.products.tab_health_check",
+  analytics: "manager.products.tab_analytics",
+  "audit-logs": "manager.products.tab_audit_logs",
+  settings: "manager.products.tab_settings",
+};
+
 const ProductDemoManagerLayout = () => {
+  const { t } = useTranslation();
+  // Tab labels through t(); the id picks the message, so the list itself stays data.
+  const label = (item: MenuItemType) => (TAB_KEYS[item.id] ? t(TAB_KEYS[item.id]) : item.label);
+  // The tab lives in the address (?tab=products), so a tab can be linked to and
+  // a refresh or Back keeps it. It was component state only: every refresh
+  // went back to the dashboard.
   const [activeSection, setActiveSection] = useState("dashboard");
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("tab");
+    const item = menuItems.find((m) => m.id === wanted);
+    if (item && !item.locked) setActiveSection(item.id);
+    const onPop = () => {
+      const back = new URLSearchParams(window.location.search).get("tab");
+      setActiveSection(menuItems.some((m) => m.id === back && !m.locked) ? String(back) : "dashboard");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  const open = (id: string) => {
+    setActiveSection(id);
+    const url = new URL(window.location.href);
+    if (id === "dashboard") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", id);
+    if (url.href !== window.location.href) window.history.pushState(null, "", url);
+  };
 
   const renderContent = () => {
     switch (activeSection) {
       case "dashboard":
         return <ProductDashboard />;
       case "add-product":
-        return <AddProduct onSuccess={() => setActiveSection("products")} />;
+        return <AddProduct onSuccess={() => open("products")} />;
       case "products":
         return <ProductList />;
       case "demo-manager":
         return <DemoManager />;
       case "add-demo":
-        return <AddDemo onSuccess={() => setActiveSection("demo-manager")} />;
+        return <AddDemo onSuccess={() => open("demo-manager")} />;
       case "bulk-add":
         return <BulkAdd />;
       case "health-check":
@@ -73,9 +112,9 @@ const ProductDemoManagerLayout = () => {
     <PageShell>
       <PageBanner
         icon={current.icon as never}
-        eyebrow="live demo operations · full CRUD · full audit"
-        title="Product & Demo Studio"
-        subtitle={`${current.label} — catalog, demo URLs, product relationships, health checks and audit trail.`}
+        eyebrow={t("manager.products.studio_eyebrow")}
+        title={t("manager.products.studio_title")}
+        subtitle={t("manager.products.studio_subtitle", { section: label(current) })}
       />
 
       <div className="pill-nav overflow-x-auto">
@@ -86,7 +125,7 @@ const ProductDemoManagerLayout = () => {
           return (
             <button
               key={item.id}
-              onClick={() => !isDisabled && setActiveSection(item.id)}
+              onClick={() => !isDisabled && open(item.id)}
               disabled={isDisabled}
               className={cn(
                 "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs transition-colors",
@@ -98,13 +137,13 @@ const ProductDemoManagerLayout = () => {
               )}
             >
               <Icon className="h-3.5 w-3.5 shrink-0" />
-              {item.label}
+              {label(item)}
               {item.readOnly && (
                 <Badge
                   variant="outline"
                   className="ml-0.5 px-1 py-0 text-[8px] border-border text-muted-foreground"
                 >
-                  READ
+                  {t("manager.products.read_badge")}
                 </Badge>
               )}
               {item.locked && <Lock className="h-3 w-3" />}

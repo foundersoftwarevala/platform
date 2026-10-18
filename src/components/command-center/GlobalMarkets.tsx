@@ -49,7 +49,10 @@ export const GlobalMarkets = memo(() => {
           </h3>
         </div>
         <button
+          type="button"
           onClick={() => void refetch()}
+          aria-label="Refresh markets"
+          title="Refresh markets"
           className="rounded-md border border-white/10 bg-white/5 px-1 py-0.5 text-foreground/55 hover:text-emerald-300"
         >
           <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />

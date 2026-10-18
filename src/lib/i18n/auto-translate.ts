@@ -44,6 +44,20 @@ const LETTER = /\p{L}/u;
 /** Placeholders and format tokens are not words. */
 const TOKENS = /⟦[^⟧]*⟧|\{\{?[^{}]*\}?\}|%(?:\d+\$)?[sdif@]/g;
 
+export function inTranslationViewport(
+  box: Pick<DOMRect, "width" | "height" | "top" | "bottom" | "left" | "right">,
+  viewport: { width: number; height: number },
+): boolean {
+  return (
+    box.width > 0 &&
+    box.height > 0 &&
+    box.bottom >= -200 &&
+    box.top <= viewport.height + 200 &&
+    box.right >= 0 &&
+    box.left <= viewport.width
+  );
+}
+
 /** Text that is only a placeholder, number, symbol or code-like token is left alone. */
 export function isTranslatableText(value: string): boolean {
   const trimmed = value.trim();
@@ -79,6 +93,29 @@ export type Target =
   | { kind: "text"; node: Text; original: string }
   | { kind: "attribute"; element: Element; attribute: string; original: string };
 
+export function currentOriginal(
+  originals: WeakMap<object, Map<string, string>>,
+  key: object,
+  slot: string,
+  current: string,
+): string {
+  const saved = originals.get(key);
+  const original = saved?.get(slot);
+  const applied = saved?.get(`${slot}:applied`);
+  // A framework/runtime update is new source, not our previous translation.
+  if (
+    original !== undefined &&
+    applied !== undefined &&
+    current !== applied &&
+    current !== original
+  ) {
+    saved!.delete(slot);
+    saved!.delete(`${slot}:applied`);
+    return current;
+  }
+  return original ?? current;
+}
+
 /** Everything on the page that can be translated, with its English text. */
 export function collectTargets(
   root: ParentNode & Node,
@@ -89,71 +126,40 @@ export function collectTargets(
 
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) => {
-      // A node this translator wrote to holds a translation now (often in
-      // another script); it is still collected, to restore or update it.
-      if (!originals.has(node) && !isTranslatableText(node.nodeValue ?? ""))
-        return NodeFilter.FILTER_REJECT;
       if (skipped(node)) return NodeFilter.FILTER_REJECT;
+      const text = currentOriginal(originals, node, "text", node.nodeValue ?? "");
+      if (!isTranslatableText(text)) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },
   });
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const text = node as Text;
-    const original = resolveOriginal(originals.get(text), "text", text.nodeValue ?? "");
-    if (original !== null) targets.push({ kind: "text", node: text, original });
+    const remembered = originals.get(text)?.get("text");
+    targets.push({ kind: "text", node: text, original: remembered ?? text.nodeValue ?? "" });
   }
 
   const elements = root.querySelectorAll?.("[placeholder],[title],[aria-label],[alt]") ?? [];
   for (const element of Array.from(elements)) {
     if (skipped(element)) continue;
-    const entry = originals.get(element);
     for (const attribute of ATTRIBUTES) {
       const value = element.getAttribute(attribute);
       if (!value) continue;
-      const original = resolveOriginal(entry, attribute, value);
-      if (original !== null) targets.push({ kind: "attribute", element, attribute, original });
+      const original = currentOriginal(originals, element, attribute, value);
+      if (!isTranslatableText(original)) continue;
+      targets.push({ kind: "attribute", element, attribute, original });
     }
   }
   return targets;
-}
-
-/** Where the value last written into a slot is kept, beside its English. */
-const APPLIED = "\u0000applied";
-
-/**
- * The English for one slot of a node (its text, or one attribute), or null when
- * there is nothing to translate.
- *
- * The page keeps changing what it shows: React reuses a text node and only
- * sets its value ("Pending" becomes "Paid"). A value that is neither the
- * remembered English nor the translation written here is the page's new
- * English; the old one is forgotten, or its translation would be written over
- * the new value.
- */
-export function resolveOriginal(
-  entry: Map<string, string> | undefined,
-  slot: string,
-  current: string,
-): string | null {
-  const remembered = entry?.get(slot);
-  if (entry && remembered !== undefined) {
-    if (current === remembered || current === entry.get(slot + APPLIED)) return remembered;
-    entry.delete(slot);
-    entry.delete(slot + APPLIED);
-  }
-  return isTranslatableText(current) ? current : null;
 }
 
 function remember(
   originals: WeakMap<object, Map<string, string>>,
   key: object,
   slot: string,
-  original: string,
-  applied: string,
+  value: string,
 ) {
   const entry = originals.get(key) ?? new Map<string, string>();
-  if (!entry.has(slot)) entry.set(slot, original);
-  entry.set(slot + APPLIED, applied);
+  if (!entry.has(slot)) entry.set(slot, value);
   originals.set(key, entry);
 }
 
@@ -172,19 +178,21 @@ export function applyTranslations(
     const original = target.original;
     const trimmed = original.trim();
     const translated = lookup(trimmed);
-    if (translated === undefined || translated === trimmed) continue;
+    if (translated === undefined) continue;
     // Keep the surrounding whitespace the markup had.
     const lead = original.slice(0, original.length - original.trimStart().length);
     const trail = original.slice(original.trimEnd().length);
     if (target.kind === "text") {
+      remember(originals, target.node, "text", original);
       const next = `${lead}${translated}${trail}`;
-      remember(originals, target.node, "text", original, next);
+      originals.get(target.node)!.set("text:applied", next);
       if (target.node.nodeValue !== next) {
         target.node.nodeValue = next;
         written += 1;
       }
     } else {
-      remember(originals, target.element, target.attribute, original, translated);
+      remember(originals, target.element, target.attribute, original);
+      originals.get(target.element)!.set(`${target.attribute}:applied`, translated);
       if (target.element.getAttribute(target.attribute) !== translated) {
         target.element.setAttribute(target.attribute, translated);
         written += 1;
@@ -205,12 +213,14 @@ export function restoreOriginals(
       const original = originals.get(target.node)?.get("text");
       if (original !== undefined && target.node.nodeValue !== original) {
         target.node.nodeValue = original;
+        originals.get(target.node)!.set("text:applied", original);
         restored += 1;
       }
     } else {
       const original = originals.get(target.element)?.get(target.attribute);
       if (original !== undefined && target.element.getAttribute(target.attribute) !== original) {
         target.element.setAttribute(target.attribute, original);
+        originals.get(target.element)!.set(`${target.attribute}:applied`, original);
         restored += 1;
       }
     }

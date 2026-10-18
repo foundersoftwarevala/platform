@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { authHeaders } from "@/lib/auth/operator-fetch";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { LiveTable } from "@/components/marketplace-manager/LiveTable";
 
 /**
@@ -50,6 +51,7 @@ const VIEWS = [
 type Totals = { revenue: number; expenses: number; profit: number; days: number } | null;
 
 export function FinanceLedger() {
+  const { t } = useTranslation();
   const [active, setActive] = useState<string>(VIEWS[0].key);
   const [totals, setTotals] = useState<Totals>(null);
   const [failed, setFailed] = useState(false);
@@ -87,12 +89,11 @@ export function FinanceLedger() {
     <div className="px-4 py-6 md:px-6">
       <div className="mb-4">
         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          Ledger
+          {t("manager.finance.ledger")}
         </div>
-        <h2 className="text-lg font-bold text-foreground">The money that has moved</h2>
+        <h2 className="text-lg font-bold text-foreground">{t("manager.finance.ledger_title")}</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Read from the finance tables themselves. An amount is what happened and cannot be edited
-          here; what an operator decides is whether it is approved, rejected or settled.
+          {t("manager.finance.ledger_note")}
         </p>
       </div>
 

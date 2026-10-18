@@ -25,7 +25,7 @@ import {
   Star, Scale, ListTodo, DollarSign, Code2, 
   Megaphone, HeartHandshake, Users, LogOut, Zap, Timer, MonitorPlay, 
   Home, Shield, Settings, Search, User, UserCircle, Boxes, Store, Sparkles,
-  PanelLeftClose, PanelLeftOpen, MessagesSquare
+  PanelLeftClose, PanelLeftOpen, MessagesSquare, ClipboardList, Link2, FlaskConical
 } from "lucide-react";
 // ScrollArea removed - NO SCROLLING in Control Panel
 
@@ -54,6 +54,7 @@ const ROLE_CATEGORIES = [
   { id: 'api_ai_manager', label: 'AI API Manager', icon: Zap },
   // GRADE 2
   { id: 'developer_management', label: 'Development Manager', icon: Code2 },
+  { id: 'rd_manager', label: 'R&D Manager', icon: FlaskConical },
   { id: 'product_manager', label: 'Product Manager', icon: Box },
   { id: 'demo_manager', label: 'Demo Manager', icon: Terminal },
   { id: 'task_management', label: 'Task Manager', icon: ListTodo },
@@ -74,9 +75,13 @@ const ROLE_CATEGORIES = [
   { id: 'chat_manager', label: 'Chat Manager', icon: MessagesSquare },
   { id: 'customer_support_management', label: 'Customer Support', icon: HeartHandshake },
   // GRADE 4
+  // Every partner application is decided here, whatever the role.
+  { id: 'application_manager', label: 'Application Manager', icon: ClipboardList },
   { id: 'franchise_manager', label: 'Franchise Owner', icon: Building2 },
   { id: 'reseller_manager', label: 'Reseller Manager', icon: Handshake },
   { id: 'influencer_manager', label: 'Influencer Manager', icon: Users },
+  // The affiliate programme's own Manager was reachable only by its address.
+  { id: 'affiliate_manager', label: 'Affiliate Manager', icon: Link2 },
   { id: 'influencer_dashboard', label: 'Influencer Dashboard', icon: User },
   // GRADE 5
   { id: 'continent_super_admin', label: 'Continent Admin', icon: Globe2 },
@@ -284,4 +289,3 @@ export const ControlPanelSidebar = memo<ControlPanelSidebarProps>(({
 ControlPanelSidebar.displayName = 'ControlPanelSidebar';
 export default ControlPanelSidebar;
 export type { RoleId };
-

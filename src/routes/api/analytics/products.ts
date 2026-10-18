@@ -77,6 +77,14 @@ export const Route = createFileRoute("/api/analytics/products")({
 
         const params = new URL(request.url).searchParams;
         const periodKey = params.get("period") ?? "30d";
+        // An unknown period used to fall through to "all time" while the answer
+        // still named the period that was asked for.
+        if (!Object.prototype.hasOwnProperty.call(PERIODS, periodKey)) {
+          return Response.json(
+            { error: `Unknown period "${periodKey.slice(0, 20)}". Use ${Object.keys(PERIODS).join(", ")}.` },
+            { status: 400 },
+          );
+        }
         const days = PERIODS[periodKey] ?? null;
         const since = days
           ? new Date(Date.now() - days * 86400000).toISOString()

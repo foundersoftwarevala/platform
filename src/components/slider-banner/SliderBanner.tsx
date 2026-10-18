@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -20,8 +21,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  completeBannerItem,
-  resolveBannerItem,
+  dismissBannerItem,
+  primaryLabelOf,
+  useBannerAction,
   useBannerFeed,
   type BannerKind,
 } from "./bannerFeed";
@@ -84,7 +86,11 @@ interface SliderBannerProps {
 }
 
 export function SliderBanner({ className, intervalMs = 5000, compact = false }: SliderBannerProps) {
-  const items = useBannerFeed();
+  const feed = useBannerFeed();
+  const items = feed.items;
+  const runAction = useBannerAction();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
 
@@ -118,15 +124,26 @@ export function SliderBanner({ className, intervalMs = 5000, compact = false }: 
         )}
         style={{ background: "linear-gradient(160deg,#10254a,#060d1d)" }}
       >
-        All clear, Boss — koi pending alert, approval ya to-do nahi hai.
+        {feed.loading
+          ? "Loading alerts, approvals and to-dos…"
+          : feed.error
+            ? `The live feed could not be read: ${feed.error}`
+            : "All clear, Boss — koi pending alert, approval ya to-do nahi hai."}
+        {feed.error && (
+          <button
+            type="button"
+            onClick={feed.refresh}
+            className="ml-3 rounded-full border border-white/40 px-3 py-1 text-xs font-bold"
+          >
+            Retry
+          </button>
+        )}
       </div>
     );
   }
 
   const Icon = style.icon;
-  const primaryLabel =
-    item.primaryLabel ??
-    (item.kind === "approval" ? "Approve" : item.kind === "todo" ? "Mark Done" : "Acknowledge");
+  const primaryLabel = primaryLabelOf(item);
 
   return (
     <section
@@ -191,11 +208,6 @@ export function SliderBanner({ className, intervalMs = 5000, compact = false }: 
                   {item.meta}
                 </span>
               )}
-              {item.done && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-white/60 bg-white/60 px-2.5 py-1 text-[10px] font-bold uppercase text-[#0d5a3f]">
-                  <CheckCircle2 className="h-3 w-3" /> Done
-                </span>
-              )}
             </div>
 
             <h2
@@ -213,13 +225,17 @@ export function SliderBanner({ className, intervalMs = 5000, compact = false }: 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  if (item.kind === "todo") {
-                    completeBannerItem(item.id);
-                    toast.success(`Marked done: ${item.title}`);
-                  } else {
-                    resolveBannerItem(item.id);
-                    toast.success(`${primaryLabel}d: ${item.title}`);
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    const outcome = await runAction(item);
+                    if (outcome.navigate) void navigate({ to: outcome.navigate });
+                    else if (outcome.message) toast.success(outcome.message);
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : String(error));
+                  } finally {
+                    setBusy(false);
                   }
                 }}
                 className="inline-flex items-center gap-2 rounded-full bg-[#0f1b38] px-4 py-2 text-xs font-extrabold text-white shadow-[0_12px_30px_-12px_rgba(0,0,0,0.9)] transition-transform hover:scale-105 active:scale-95"
@@ -230,13 +246,15 @@ export function SliderBanner({ className, intervalMs = 5000, compact = false }: 
               <button
                 type="button"
                 onClick={() => {
-                  resolveBannerItem(item.id);
-                  toast.info(`Dismissed: ${item.title}`);
+                  dismissBannerItem(item.id);
+                  toast.info(`Hidden from your banner: ${item.title}`, {
+                    description: "Nothing on the platform was changed.",
+                  });
                 }}
                 className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/45 px-4 py-2 text-xs font-bold text-[#0f1b38] backdrop-blur transition-colors hover:bg-white/70"
               >
                 <X className="h-3.5 w-3.5" />
-                {item.secondaryLabel ?? "Dismiss"}
+                Dismiss
               </button>
               <button
                 type="button"

@@ -70,6 +70,87 @@ def rest(path, method="GET", body=None, extra_headers=None):
         return json.loads(raw) if raw.strip() else []
 
 
+def rest_all(path, page=1000):
+    """Every matching row, not the first page of them.
+
+    PostgREST on this server runs with PGRST_DB_MAX_ROWS=10000, so a select
+    with no limit is not "all rows" - it is the first ten thousand, returned
+    with no error and no sign that anything was left out. These workers decide
+    which demos get checked, scanned and verified, so a silent cap does not
+    show up as a failure: it shows up as demos that are simply never looked at,
+    and the logs would keep saying everything was fine.
+
+    There is one demo today and 7,365 products waiting for one, so the ceiling
+    is ahead rather than behind. Paging now costs one extra request while the
+    table is small and is the difference between a complete sweep and a partial
+    one once it is not.
+
+    Keyset paging on id rather than offset: a row inserted while the sweep runs
+    shifts every later offset, which quietly skips rows. The caller's path must
+    therefore select id and must not carry its own order - this orders by id.
+    """
+    rows = []
+    last = None
+    joiner = "&" if "?" in path else "?"
+    while True:
+        query = path + joiner
+        if last is not None:
+            query += "id=gt.%s&" % last
+        query += "order=id.asc&limit=%d" % page
+        batch = rest(query) or []
+        rows.extend(batch)
+        if len(batch) < page:
+            return rows
+        last = batch[-1]["id"]
+
+
+def agent_run_open(agent_key, scope, permission, input_source, action, job_id=None):
+    """Record that an agent is about to do something. Returns a run id or None.
+
+    ai_agent_runs is where Founder AI's governance says every agent action is
+    written, and it is what self-healing counts when it checks an agent against
+    its concurrency ceiling. A worker that does the work without opening a run
+    leaves that check counting nothing and passing for free.
+
+    Failing to open a run does not stop the work. The bookkeeping is important
+    but it is not the job, and refusing to check a demo because a run could not
+    be recorded would turn a reporting problem into an outage. It is printed
+    rather than swallowed, so a worker running without records says so on every
+    pass instead of looking normal.
+    """
+    try:
+        answer = rest("rpc/fa_agent_run_open", method="POST", body={
+            "p_agent_key": agent_key,
+            "p_scope": scope,
+            "p_permission": permission,
+            "p_input_source": input_source,
+            "p_action": action,
+            "p_job": job_id,
+        })
+    except Exception as problem:                          # noqa: BLE001
+        print("  ! no agent run recorded: %s" % str(problem)[:200])
+        return None
+
+    if not isinstance(answer, dict) or not answer.get("ok"):
+        print("  ! no agent run recorded: %s"
+              % (answer or {}).get("reason", "unreadable"))
+        return None
+    return answer.get("run_id")
+
+
+def agent_run_close(run_id, state, result=None, error=None):
+    """Close a run the worker opened. Never writes VERIFIED — see the migration."""
+    if not run_id:
+        return
+    try:
+        rest("rpc/fa_agent_run_close", method="POST", body={
+            "p_run": run_id, "p_state": state,
+            "p_result": result, "p_error": error,
+        })
+    except Exception as problem:                          # noqa: BLE001
+        print("  ! agent run left open: %s" % str(problem)[:200])
+
+
 def check_certificate(host, port=443):
     """Real certificate validity and days remaining.
 
@@ -142,7 +223,7 @@ def check_once(url):
 
 def open_alerts():
     """Alert types already open, so a failing demo is not re-reported hourly."""
-    rows = rest("demo_alerts?select=demo_url_id,alert_type&is_resolved=eq.false")
+    rows = rest_all("demo_alerts?select=id,demo_url_id,alert_type&is_resolved=eq.false")
     return {(r.get("demo_url_id"), r.get("alert_type")) for r in rows}
 
 
@@ -179,15 +260,247 @@ def resolve_alerts(demo_id, alert_types):
         )
 
 
+def check_demo(demo, existing):
+    """Check one demo and record it - the same work in every mode.
+
+    Returns the outcome so the caller can count it, or None when the row
+    carries no address to check.
+    """
+    url = (demo.get("url") or "").strip()
+    if not url:
+        return None
+
+    outcome = check_once(url)
+    rest(
+        "product_demo_urls?id=eq.%s" % demo["id"],
+        method="PATCH",
+        body={
+            "last_checked_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+            "last_response_ms": outcome["ms"],
+            "last_http_status": outcome["status"],
+            "last_result": outcome["result"],
+            "ssl_valid": outcome["ssl_valid"],
+        },
+        extra_headers={"Prefer": "return=minimal"},
+    )
+
+    # History, so uptime is counted rather than declared.
+    rest(
+        "demo_health",
+        method="POST",
+        body=[{
+            "demo_url_id": demo["id"],
+            "status": "active" if outcome["result"] != "offline" else "down",
+            "response_time": outcome["ms"],
+            "http_status": outcome["status"],
+            "error_message": outcome["error"],
+        }],
+        extra_headers={"Prefer": "return=minimal"},
+    )
+
+    # Audit, in the same log the manager already shows.
+    rest(
+        "demo_url_audit_log",
+        method="POST",
+        body=[{
+            "demo_url_id": demo["id"],
+            "action": "demo_url.monitor",
+            "actor_email": "monitor",
+            "metadata": {
+                "http_status": outcome["status"],
+                "response_ms": outcome["ms"],
+                "result": outcome["result"],
+                "ssl_valid": outcome["ssl_valid"],
+                "ssl_days_left": outcome["ssl_days"],
+                "error": outcome["error"],
+            },
+        }],
+        extra_headers={"Prefer": "return=minimal"},
+    )
+
+    if outcome["result"] == "offline":
+        raise_alert(
+            existing, demo["id"], "offline", "critical",
+            "%s is not reachable (%s)"
+            % (demo.get("demo_name") or url, outcome["error"] or "no response"),
+        )
+    else:
+        resolve_alerts(demo["id"], ["offline"])
+
+    if outcome["ssl_valid"] is False:
+        raise_alert(
+            existing, demo["id"], "ssl_invalid", "critical",
+            "%s has an invalid certificate: %s"
+            % (demo.get("demo_name") or url, outcome["error"] or "unknown"),
+        )
+    elif outcome["ssl_valid"] and outcome["ssl_days"] is not None:
+        if outcome["ssl_days"] <= SSL_WARN_DAYS:
+            raise_alert(
+                existing, demo["id"], "ssl_expiring", "warning",
+                "%s certificate expires in %s days"
+                % (demo.get("demo_name") or url, outcome["ssl_days"]),
+            )
+        else:
+            resolve_alerts(demo["id"], ["ssl_invalid", "ssl_expiring"])
+
+    print("  %-34s %-8s http=%-4s %5sms ssl=%s%s" % (
+        (demo.get("demo_name") or url)[:34],
+        outcome["result"], outcome["status"], outcome["ms"],
+        outcome["ssl_valid"],
+        "" if outcome["ssl_days"] is None else " (%sd)" % outcome["ssl_days"],
+    ))
+
+    return outcome
+
+
+def active_demos():
+    return rest_all(
+        "product_demo_urls?select=id,demo_name,url,status,product_id"
+        "&status=eq.active"
+    )
+
+
+def enqueue_all():
+    """One job per active demo.
+
+    Idempotent by construction: fa_enqueue refuses a second open job for the
+    same key, so a demo still waiting from the last run is not queued again.
+    """
+    demos = active_demos()
+    queued = 0
+    waiting = 0
+    for demo in demos:
+        answer = rest(
+            "rpc/fa_enqueue",
+            method="POST",
+            body={
+                "p_job_type": "demo.health",
+                "p_payload": {
+                    "demo_url_id": demo["id"],
+                    "url": demo.get("url"),
+                    "product_id": demo.get("product_id"),
+                },
+                "p_reference": demo["id"],
+                "p_idempotency_key": "demo.health:%s" % demo["id"],
+            },
+        )
+        if isinstance(answer, dict) and answer.get("duplicate"):
+            waiting += 1
+        else:
+            queued += 1
+    print("monitor: %s demo(s) - %s queued, %s already waiting"
+          % (len(demos), queued, waiting))
+    return 0
+
+
+def work_queue(worker, limit, lease):
+    """Claim a bounded batch and check those demos.
+
+    Failures are reported with a class so the queue can tell them apart: a demo
+    that is briefly unreachable backs off and returns, while a job whose row has
+    no address is dead-lettered on the first attempt instead of being retried
+    five times to learn the same thing.
+    """
+    jobs = rest(
+        "rpc/fa_claim",
+        method="POST",
+        body={"p_worker": worker, "p_job_type": "demo.health",
+              "p_limit": limit, "p_lease_seconds": lease},
+    ) or []
+    if not jobs:
+        print("monitor: nothing queued for %s" % worker)
+        return 0
+
+    existing = open_alerts()
+    summary = {"working": 0, "slow": 0, "offline": 0}
+    for job in jobs:
+        payload = job.get("payload") or {}
+        demo_id = payload.get("demo_url_id")
+        # Opened before the work, so a worker that dies mid-check leaves a run
+        # that says it started. The reaper closes those; nothing else would
+        # ever know the attempt happened.
+        run = agent_run_open(
+            "demo-health", "demo:%s" % (demo_id or "unknown"), "CREATE",
+            "fa_jobs:%s" % job["id"], "check that the demo is reachable",
+            job["id"])
+        rows = rest(
+            "product_demo_urls?select=id,demo_name,url,status,product_id"
+            "&id=eq.%s" % demo_id
+        ) if demo_id else None
+        demo = rows[0] if rows else None
+
+        if not demo:
+            reason = "the demo row this job refers to is gone"
+            agent_run_close(run, "FAILED", error=reason)
+            rest("rpc/fa_fail", method="POST", body={
+                "p_id": job["id"], "p_worker": worker,
+                "p_error": reason,
+                "p_error_class": "validation"})
+            continue
+
+        try:
+            outcome = check_demo(demo, existing)
+        except Exception as problem:
+            agent_run_close(run, "FAILED", error=str(problem)[:500])
+            rest("rpc/fa_fail", method="POST", body={
+                "p_id": job["id"], "p_worker": worker,
+                "p_error": str(problem)[:500], "p_error_class": "transient"})
+            continue
+
+        if outcome is None:
+            reason = "the demo has no address to check"
+            agent_run_close(run, "FAILED", error=reason)
+            rest("rpc/fa_fail", method="POST", body={
+                "p_id": job["id"], "p_worker": worker,
+                "p_error": reason,
+                "p_error_class": "validation"})
+            continue
+
+        summary[outcome["result"]] = summary.get(outcome["result"], 0) + 1
+        # The run completed whatever the demo's state: the agent did check it.
+        # "Down" is the answer, not a failure of the agent to answer.
+        agent_run_close(run, "COMPLETED", result="%s: %s (%s ms)" % (
+            demo.get("demo_name") or demo_id, outcome["result"], outcome["ms"]))
+        # An unreachable demo is a real result, not a failed job: it was checked
+        # and the answer was "down". Retrying would only ask again sooner than
+        # the schedule intends, and the alert has already been raised.
+        rest("rpc/fa_complete", method="POST", body={
+            "p_id": job["id"], "p_worker": worker,
+            "p_result": {
+                "result": outcome["result"],
+                "http_status": outcome["status"],
+                "response_ms": outcome["ms"],
+                "ssl_valid": outcome["ssl_valid"],
+                "ssl_days_left": outcome["ssl_days"],
+            }})
+
+    print("monitor: %s job(s) - working %s, slow %s, offline %s"
+          % (len(jobs), summary.get("working", 0), summary.get("slow", 0),
+             summary.get("offline", 0)))
+    return 0
+
+
 def main():
     if not SUPABASE_URL or not SERVICE_KEY:
         print("monitor: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set")
         return 1
 
-    demos = rest(
-        "product_demo_urls?select=id,demo_name,url,status,product_id"
-        "&status=eq.active&order=created_at"
-    )
+    args = sys.argv[1:]
+    if "--enqueue" in args:
+        return enqueue_all()
+    if "--work" in args:
+        def arg(name, fallback):
+            for a in args:
+                if a.startswith(name + "="):
+                    try:
+                        return int(a.split("=", 1)[1])
+                    except ValueError:
+                        return fallback
+            return fallback
+        worker = "demo-health-%s" % os.environ.get("HOSTNAME", "cron")
+        return work_queue(worker, arg("--limit", 8), arg("--lease", 300))
+
+    demos = active_demos()
     if not demos:
         print("monitor: no active demo URLs")
         return 0
@@ -195,94 +508,13 @@ def main():
     existing = open_alerts()
     checked = 0
     summary = {"working": 0, "slow": 0, "offline": 0}
-
     for demo in demos:
-        url = (demo.get("url") or "").strip()
-        if not url:
+        outcome = check_demo(demo, existing)
+        if outcome is None:
             continue
-
-        outcome = check_once(url)
         checked += 1
         summary[outcome["result"]] = summary.get(outcome["result"], 0) + 1
 
-        rest(
-            "product_demo_urls?id=eq.%s" % demo["id"],
-            method="PATCH",
-            body={
-                "last_checked_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-                "last_response_ms": outcome["ms"],
-                "last_http_status": outcome["status"],
-                "last_result": outcome["result"],
-                "ssl_valid": outcome["ssl_valid"],
-            },
-            extra_headers={"Prefer": "return=minimal"},
-        )
-
-        # History, so uptime is counted rather than declared.
-        rest(
-            "demo_health",
-            method="POST",
-            body=[{
-                "demo_url_id": demo["id"],
-                "status": "active" if outcome["result"] != "offline" else "down",
-                "response_time": outcome["ms"],
-                "http_status": outcome["status"],
-                "error_message": outcome["error"],
-            }],
-            extra_headers={"Prefer": "return=minimal"},
-        )
-
-        # Audit, in the same log the manager already shows.
-        rest(
-            "demo_url_audit_log",
-            method="POST",
-            body=[{
-                "demo_url_id": demo["id"],
-                "action": "demo_url.monitor",
-                "actor_email": "monitor",
-                "metadata": {
-                    "http_status": outcome["status"],
-                    "response_ms": outcome["ms"],
-                    "result": outcome["result"],
-                    "ssl_valid": outcome["ssl_valid"],
-                    "ssl_days_left": outcome["ssl_days"],
-                    "error": outcome["error"],
-                },
-            }],
-            extra_headers={"Prefer": "return=minimal"},
-        )
-
-        if outcome["result"] == "offline":
-            raise_alert(
-                existing, demo["id"], "offline", "critical",
-                "%s is not reachable (%s)"
-                % (demo.get("demo_name") or url, outcome["error"] or "no response"),
-            )
-        else:
-            resolve_alerts(demo["id"], ["offline"])
-
-        if outcome["ssl_valid"] is False:
-            raise_alert(
-                existing, demo["id"], "ssl_invalid", "critical",
-                "%s has an invalid certificate: %s"
-                % (demo.get("demo_name") or url, outcome["error"] or "unknown"),
-            )
-        elif outcome["ssl_valid"] and outcome["ssl_days"] is not None:
-            if outcome["ssl_days"] <= SSL_WARN_DAYS:
-                raise_alert(
-                    existing, demo["id"], "ssl_expiring", "warning",
-                    "%s certificate expires in %s days"
-                    % (demo.get("demo_name") or url, outcome["ssl_days"]),
-                )
-            else:
-                resolve_alerts(demo["id"], ["ssl_invalid", "ssl_expiring"])
-
-        print("  %-34s %-8s http=%-4s %5sms ssl=%s%s" % (
-            (demo.get("demo_name") or url)[:34],
-            outcome["result"], outcome["status"], outcome["ms"],
-            outcome["ssl_valid"],
-            "" if outcome["ssl_days"] is None else " (%sd)" % outcome["ssl_days"],
-        ))
 
     print("monitor: checked %s — working %s, slow %s, offline %s" % (
         checked, summary.get("working", 0), summary.get("slow", 0),

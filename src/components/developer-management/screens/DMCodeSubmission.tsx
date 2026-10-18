@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileCode, Upload, RefreshCw, Lock, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 import { useCodeSubmissions } from '@/hooks/useDevManagerData';
 import { richText, useTranslation, type Translate } from '@/lib/i18n/use-translation';
 
@@ -132,8 +133,7 @@ export const DMCodeSubmission: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
-                    disabled
-                    title={t('devmanager.code.submit_info')}
+                    onClick={() => toast.info(t('devmanager.code.submit_info'))}
                   >
                     <Upload className="h-4 w-4 mr-1" />
                     {t('devmanager.code.submit')}
@@ -141,8 +141,7 @@ export const DMCodeSubmission: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled
-                    title={sub.status === 'rejected' ? t('devmanager.code.resubmit_info_rejected') : t('devmanager.code.resubmit_info')}
+                    onClick={() => toast.info(sub.status === 'rejected' ? t('devmanager.code.resubmit_info_rejected') : t('devmanager.code.resubmit_info'))}
                   >
                     <RefreshCw className="h-4 w-4 mr-1" />
                     {t('devmanager.code.resubmit')}
@@ -150,8 +149,7 @@ export const DMCodeSubmission: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled
-                    title={sub.status === 'pending' ? t('devmanager.code.lock_info_pending') : t('devmanager.code.lock_info_decided')}
+                    onClick={() => toast.info(sub.status === 'pending' ? t('devmanager.code.lock_info_pending') : t('devmanager.code.lock_info_decided'))}
                   >
                     <Lock className="h-4 w-4 mr-1" />
                     {t('devmanager.code.lock')}

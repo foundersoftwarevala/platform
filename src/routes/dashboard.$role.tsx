@@ -9,11 +9,16 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { Hero } from "@/components/dashboard/Hero";
 import { VendorSliderHero } from "@/components/dashboard/VendorSliderHero";
 import { ResellerHero } from "@/components/dashboard/ResellerHero";
+import { AmsSummaryCard } from "@/components/dashboard/ams/AmsSummaryCard";
 import { AuthorHero } from "@/components/dashboard/AuthorHero";
 import { ResellerProfileHero } from "@/components/dashboard/ResellerProfileHero";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
-import { useSellerMetrics } from "@/hooks/useSellerMetrics";
-import { useResellerMetrics } from "@/hooks/useResellerMetrics";
+import { isSellerRole, useSellerMetrics } from "@/hooks/useSellerMetrics";
+import { useQuery } from "@tanstack/react-query";
+import { getHeldRoles, ownsActiveSellerRecord } from "@/lib/auth-bridge";
+import { useInfluencerMetrics } from "@/hooks/useInfluencerMetrics";
+import { useResellerMetrics } from "@/hooks/useResellerOverview";
+import { useDeveloperMetrics } from "@/lib/dashboard-records/use-dashboard-records";
 import { ContentRows } from "@/components/dashboard/ContentRows";
 import { Breadcrumbs } from "@/components/dashboard/Breadcrumbs";
 import { KpiToolbar, type KpiSort, type KpiTone } from "@/components/dashboard/KpiToolbar";
@@ -21,9 +26,11 @@ import { ModuleBoundary } from "@/components/dashboard/ModuleBoundary";
 import { ModuleFocusScope } from "@/components/dashboard/ModuleFocusScope";
 import { ROLES, isRoleKey, type RoleKey } from "@/lib/roles";
 import { RequireRole } from "@/components/auth/RequireRole";
+import { sourceFor } from "@/lib/dashboard-records/sources";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useTranslation } from "@/lib/i18n/use-translation";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { ModuleFallback, AccessDenied } from "@/components/dashboard/AccessStates";
-import { DeveloperWorkspace } from "@/components/developer/DeveloperWorkspace";
 
 const AIChatWorkspace = lazy(() =>
   import("@/components/dashboard/AIChatWorkspace").then((m) => ({ default: m.AIChatWorkspace })),
@@ -49,6 +56,16 @@ const ResellerMembershipPlans = lazy(() =>
 const ResellerCenterPage = lazy(() =>
   import("@/components/dashboard/ResellerCenterPage").then((m) => ({
     default: m.ResellerCenterPage,
+  })),
+);
+const InfluencerReferralLinks = lazy(() =>
+  import("@/components/influencer/InfluencerReferralLinks").then((m) => ({
+    default: m.InfluencerReferralLinks,
+  })),
+);
+const ResellerReferralLinks = lazy(() =>
+  import("@/components/reseller/ResellerReferralLinks").then((m) => ({
+    default: m.ResellerReferralLinks,
   })),
 );
 const ModulePage = lazy(() =>
@@ -97,22 +114,11 @@ const ROLE_BANNER_GRADIENTS: Record<RoleKey, string> = {
 };
 import { RESELLER_CENTER_ORDER, type CenterKey } from "@/lib/reseller-extras";
 
-// The reseller hero's per-banner call-to-action label -> the module (or
-// reseller center) it opens. Labels with no in-dashboard destination fall
-// back to the first module, so every hero button does something. "ai-chat"
-// is the shared "Learn more" action carried by every banner.
-const RESELLER_HERO_CTA: Record<string, string> = {
-  "ai-chat": "ai-chat",
-  "View commissions": "commissions",
-  "Open AI collection": "ai",
-  "Open generator": "center:referral",
-  "Show plan": "revenue",
-  "View ranks": "ams",
-};
-
 const dashboardSearchSchema = z.object({
   kpiTone: fallback(z.string(), "all").default("all"),
   kpiSort: fallback(z.string(), "default").default("default"),
+  // The open module, so a refresh, Back/Forward or a shared link lands on it.
+  module: fallback(z.string().max(80).optional(), undefined),
 });
 
 export const Route = createFileRoute("/dashboard/$role")({
@@ -154,9 +160,67 @@ const DASHBOARD_ROLE_REQUIREMENT: Record<string, string[]> = {
   seo: ["seo"],
   admin: [],
   developer: ["developer"],
-  "dev-manager": ["developer"],
+  // Developer management is an operator console; a developer's own work is
+  // the developer dashboard.
+  "dev-manager": [],
   "promise-tracker": [],
 };
+
+/**
+ * The banner button of the other partner dashboards. Each used to open the
+ * role's first module whatever it said - "Create Link" opened Clicks, "New
+ * Campaign" opened Followers. The affiliate's now opens their real link
+ * generator. Vendors, authors and influencers cannot create products or
+ * campaigns themselves yet (a submission is opened by Software Vala, a
+ * campaign in Marketing Manager), so theirs opens the list it names and says
+ * so rather than promising a form.
+ */
+const PARTNER_HERO: Partial<Record<string, { module: string; notice?: MessageKey }>> = {
+  affiliate: { module: "referrals" },
+  vendor: { module: "products", notice: "dashboard.hero.notice_vendor" },
+  author: { module: "products", notice: "dashboard.hero.notice_author" },
+  influencer: { module: "campaigns", notice: "dashboard.hero.notice_influencer" },
+};
+
+/** Reseller hero buttons that open one of the reseller's own modules. */
+const RESELLER_HERO_MODULES: Record<string, string> = {
+  "View commissions": "commissions",
+  "Open AI collection": "ai",
+  "ai-chat": "ai-chat",
+  // Growing revenue is moving up a membership plan: a higher plan pays a
+  // higher commission rate.
+  "Show plan": "membership",
+  "View ranks": "rank",
+};
+/** Reseller hero buttons that open a feature of the Referral & Coupon Center. */
+const RESELLER_HERO_CENTER: Record<string, string> = {
+  "Open generator": "link",
+  "How coupons work": "gen",
+};
+/**
+ * Reseller KPI cards whose figure is a slice of a module: the card opens that
+ * module. These keys are not modules themselves, so the click did nothing.
+ */
+const RESELLER_KPI_MODULES: Record<string, string> = {
+  "trial-clients": "clients",
+  "expired-licenses": "renewals",
+  "leads-won": "leads",
+  "leads-lost": "leads",
+  "leads-pending": "leads",
+  "payout-pending": "commissions",
+};
+/** Developer KPI cards open the module their figure is counted from. */
+const DEVELOPER_KPI_MODULES: Record<string, string> = {
+  "tasks-open": "tasks",
+  "tasks-done": "tasks",
+  "bugs-open": "bugs",
+};
+/** Reseller hero buttons with no screen behind them yet, and why. */
+const RESELLER_HERO_UNAVAILABLE: Record<string, MessageKey> = {
+  "Explore network": "dashboard.hero.network_unavailable",
+};
+/** Reseller hero buttons whose destination is the marketplace itself. */
+const RESELLER_HERO_MARKETPLACE = new Set(["Browse catalog", "Open marketplace", "See top 50"]);
 
 function GuardedDashboardPage() {
   const { role } = Route.useParams();
@@ -171,20 +235,92 @@ function DashboardPage() {
   const { role } = Route.useParams();
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState<string | null>(null);
+  // The Referral & Coupon Center feature a hero button asked for, if any.
+  const [centerFeature, setCenterFeature] = useState<string | null>(null);
   const cfg = ROLES[role as RoleKey];
+  const { t } = useTranslation();
   const perms = usePermissions(role as RoleKey);
+  // The open module lives in the URL (?module=) and passes the same
+  // permission gate as a click; anything else shows the dashboard home.
+  const activeModule = search.module && perms.canOpen(search.module) ? search.module : null;
+  const setActiveModule = useCallback(
+    (key: string | null) =>
+      navigate({
+        to: "/dashboard/$role",
+        params: { role },
+        search: (prev: Record<string, unknown>) => ({ ...prev, module: key ?? undefined }),
+      }),
+    [navigate, role],
+  );
   // Vendors and authors both sell on the marketplace, so both dashboards
   // read their figures from the database instead of the sample engine.
-  const sellerMetrics = useSellerMetrics(role);
-  // The reseller dashboard reads its own real figures the same way.
+  // Only an account that itself holds the seller role AND owns an active
+  // seller record asks the seller endpoint (its requireAuthor gate). An
+  // operator opening a vendor or author dashboard from the control panel, or
+  // a vendor/author with no seller record yet, would only be answered 403,
+  // which the browser logged as an error on every visit.
+  const sellerAccess = useQuery({
+    queryKey: ["seller-access", role],
+    queryFn: async () => (await getHeldRoles()).has(role) && (await ownsActiveSellerRecord()),
+    enabled: isSellerRole(role),
+    staleTime: 60_000,
+  });
+  const holdsSellerRole = sellerAccess.data ?? false;
+  const sellerMetrics = useSellerMetrics(holdsSellerRole ? role : "");
+  // An influencer's own followers, campaigns and earnings, from the same tables
+  // Influencer Manager operates. Each hook answers only for its own roles and
+  // returns undefined otherwise, so at most one of these is ever a value.
+  const influencerMetrics = useInfluencerMetrics(role);
+  // A reseller's own clients, leads, licences, sales and commissions, scoped
+  // to them on the server (useResellerOverview).
   const resellerMetrics = useResellerMetrics(role);
-  const liveMetrics = sellerMetrics.values ?? resellerMetrics.values;
+  // A developer's own open and completed tasks and open bugs, counted on the
+  // server (getDeveloperMetrics).
+  const developerMetrics = useDeveloperMetrics(role);
+  // Never undefined: a role with no metrics source of its own (affiliate,
+  // franchise, seo, admin, dev-manager, promise-tracker) gets an empty map, so
+  // every card reads "not tracked yet" instead of a generated number.
+  const metricValues: Record<string, number | null> =
+    sellerMetrics.values ??
+    influencerMetrics.values ??
+    resellerMetrics.values ??
+    developerMetrics.values ??
+    {};
+  const metricsLoading =
+    (isSellerRole(role) && sellerAccess.isLoading) ||
+    sellerMetrics.loading ||
+    influencerMetrics.loading;
   const openModule = useCallback(
-    (key: string | null) => setActiveModule(key && perms.canOpen(key) ? key : null),
-    [perms],
+    (key: string | null) => {
+      // A module whose job another module on this dashboard does (an "AI"
+      // entry, say) opens that module.
+      const source = key ? sourceFor(role, key) : null;
+      const target = source?.kind === "module" ? source.key : key;
+      void setActiveModule(target && perms.canOpen(target) ? target : null);
+      setCenterFeature(null);
+    },
+    [perms, role, setActiveModule],
   );
-  const closeModule = useCallback(() => setActiveModule(null), []);
+  const openHero = useCallback(() => {
+    const target = PARTNER_HERO[role];
+    if (!target) return openModule(cfg.modules[0]?.key ?? null);
+    // A role whose banner action has no form yet (PARTNER_HERO notice) opens
+    // the list it names; the hero shows the notice beside the button.
+    openModule(target.module);
+  }, [cfg, openModule, role]);
+  const heroNoticeKey = PARTNER_HERO[role]?.notice;
+  const heroNotice = heroNoticeKey ? t(heroNoticeKey) : undefined;
+  const resellerUnavailable = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(RESELLER_HERO_UNAVAILABLE).map(([cta, key]) => [cta, t(key)]),
+      ),
+    [t],
+  );
+  const closeModule = useCallback(() => {
+    void setActiveModule(null);
+    setCenterFeature(null);
+  }, [setActiveModule]);
   const kpiTone = search.kpiTone as KpiTone;
   const kpiSort = search.kpiSort as KpiSort;
   const setKpiTone = (t: KpiTone) =>
@@ -204,7 +340,7 @@ function DashboardPage() {
 
   const switchRoleUnchecked = useCallback(
     (next: RoleKey) => {
-      setActiveModule(null);
+      setCenterFeature(null);
       navigate({ to: "/dashboard/$role", params: { role: next } });
     },
     [navigate],
@@ -212,13 +348,13 @@ function DashboardPage() {
   const switchRole = useCallback(
     (next: RoleKey) => {
       if (!perms.accessibleRoles.includes(next)) return;
-      closeModule();
+      setCenterFeature(null);
       navigate({ to: "/dashboard/$role", params: { role: next } });
     },
-    [closeModule, navigate, perms.accessibleRoles],
+    [navigate, perms.accessibleRoles],
   );
 
-  const isAIChat = activeModule === "ai-chat" || (activeModule === "ai" && role === "developer");
+  const isAIChat = activeModule === "ai-chat";
   const isPricing = activeModule === "pricing" && role === "reseller";
   const centerMatch = activeModule?.startsWith("center:")
     ? (activeModule.slice("center:".length) as CenterKey)
@@ -253,7 +389,15 @@ function DashboardPage() {
     if (isAIChat) return "AI Chat";
     if (isPricing) return "Pricing Engine";
     if (isCenter) return `${centerMatch} Center`;
-    if (activeModule) return cfg.modules.find((m) => m.key === activeModule)?.label ?? activeModule;
+    if (activeModule)
+      return (
+        cfg.modules.find((m) => m.key === activeModule)?.label ??
+        (activeModule === "rank"
+          ? "Leaderboard"
+          : activeModule === "referrals"
+            ? "Referral Links"
+            : activeModule)
+      );
     return null;
   })();
 
@@ -277,7 +421,11 @@ function DashboardPage() {
           onOpenModule={openModule}
           allowedRoles={perms.accessibleRoles}
         />
-        <main className="flex-1 px-4 md:px-6 py-5 space-y-5 overflow-x-hidden">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 px-4 md:px-6 py-5 space-y-5 overflow-x-hidden focus:outline-none"
+        >
           <Breadcrumbs items={crumbs} />
           {!perms.allowedHere ? (
             <AccessDenied
@@ -290,6 +438,22 @@ function DashboardPage() {
               <ModuleBoundary onReset={closeModule}>
                 <Suspense fallback={<ModuleFallback />}>
                   <AIChatWorkspace onBack={closeModule} />
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
+          ) : activeModule === "referrals" && role === "influencer" ? (
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  <InfluencerReferralLinks onBack={closeModule} />
+                </Suspense>
+              </ModuleBoundary>
+            </ModuleFocusScope>
+          ) : activeModule === "referrals" && role === "affiliate" ? (
+            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
+              <ModuleBoundary onReset={closeModule}>
+                <Suspense fallback={<ModuleFallback />}>
+                  <ResellerReferralLinks endpoint="/api/affiliate/account" />
                 </Suspense>
               </ModuleBoundary>
             </ModuleFocusScope>
@@ -313,7 +477,12 @@ function DashboardPage() {
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
               <ModuleBoundary onReset={closeModule}>
                 <Suspense fallback={<ModuleFallback />}>
-                  <ResellerCenterPage centerKey={centerMatch as CenterKey} onBack={closeModule} />
+                  <ResellerCenterPage
+                    key={`${centerMatch}:${centerFeature ?? ""}`}
+                    centerKey={centerMatch as CenterKey}
+                    initialFeature={centerFeature}
+                    onBack={closeModule}
+                  />
                 </Suspense>
               </ModuleBoundary>
             </ModuleFocusScope>
@@ -341,24 +510,6 @@ function DashboardPage() {
                 </Suspense>
               </ModuleBoundary>
             </ModuleFocusScope>
-          ) : activeModule &&
-            role === "developer" &&
-            [
-              "command-center",
-              "tasks",
-              "bugs",
-              "code-submission",
-              "performance",
-              "timer",
-              "wallet",
-              "chat",
-              "settings",
-            ].includes(activeModule) ? (
-            <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
-              <ModuleBoundary onReset={closeModule}>
-                <DeveloperWorkspace moduleKey={activeModule} onNavigate={openModule} />
-              </ModuleBoundary>
-            </ModuleFocusScope>
           ) : activeModule ? (
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
               <ModuleBoundary onReset={closeModule}>
@@ -371,8 +522,6 @@ function DashboardPage() {
                 </Suspense>
               </ModuleBoundary>
             </ModuleFocusScope>
-          ) : role === "developer" ? (
-            <DeveloperWorkspace moduleKey="command-center" onNavigate={openModule} />
           ) : (
             <>
               <ResellerProfileHero
@@ -383,21 +532,32 @@ function DashboardPage() {
               />
               {role === "reseller" ? (
                 <ResellerHero
-                  onAction={(key) =>
-                    openModule(RESELLER_HERO_CTA[key] ?? cfg.modules[0]?.key ?? null)
-                  }
+                  onAction={(cta) => {
+                    // The hero's buttons were rendered with no handler, so none of
+                    // them did anything. Each goes where a real screen exists; the
+                    // ones with no screen behind them yet still do nothing.
+                    const module = RESELLER_HERO_MODULES[cta];
+                    if (module) return openModule(module);
+                    const feature = RESELLER_HERO_CENTER[cta];
+                    if (feature) {
+                      openModule("center:referral");
+                      return setCenterFeature(feature);
+                    }
+                    if (RESELLER_HERO_MARKETPLACE.has(cta)) return void navigate({ to: "/" });
+                    // Anything left has no screen yet; RESELLER_HERO_UNAVAILABLE
+                    // renders those disabled with the reason, so nothing reaches here.
+                  }}
+                  unavailable={resellerUnavailable}
                 />
               ) : role === "vendor" ? (
-                <VendorSliderHero
-                  role={cfg}
-                  onCta={() => openModule(cfg.modules[0]?.key ?? null)}
-                />
+                <VendorSliderHero role={cfg} onCta={openHero} ctaNotice={heroNotice} />
               ) : role === "author" ? (
-                <AuthorHero role={cfg} onCta={() => openModule(cfg.modules[0]?.key ?? null)} />
+                <AuthorHero role={cfg} onCta={openHero} ctaNotice={heroNotice} />
               ) : (
                 <Hero
                   role={cfg}
-                  onCta={() => openModule(cfg.modules[0]?.key ?? null)}
+                  onCta={openHero}
+                  ctaNotice={heroNotice}
                   onAnalytics={() =>
                     openModule(
                       cfg.modules.find((m) => /analytic|report|insight/i.test(m.label))?.key ??
@@ -407,6 +567,8 @@ function DashboardPage() {
                   }
                 />
               )}
+              {/* This role's AMS standing; "Open AMS" is the role's Achievements module. */}
+              <AmsSummaryCard dashboardRole={role} onOpen={() => openModule("achievements")} />
               <KpiToolbar
                 tones={availableTones}
                 tone={kpiTone}
@@ -417,8 +579,15 @@ function DashboardPage() {
               <KpiGrid
                 items={filteredKpis}
                 roleKey={role}
-                onOpen={openModule}
-                {...(liveMetrics ? { values: liveMetrics } : {})}
+                onOpen={
+                  role === "reseller"
+                    ? (k) => openModule(RESELLER_KPI_MODULES[k] ?? k)
+                    : role === "developer"
+                      ? (k) => openModule(DEVELOPER_KPI_MODULES[k] ?? k)
+                      : openModule
+                }
+                values={metricValues}
+                loading={metricsLoading}
               />
               {role === "franchise" ? (
                 <Suspense fallback={<ModuleFallback />}>

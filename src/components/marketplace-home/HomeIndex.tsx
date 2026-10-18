@@ -94,6 +94,7 @@ import {
   Lightbulb,
   Code2,
   Tag,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,9 +123,11 @@ import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { buildRow } from "@/data/rowFill";
 import { GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
 import { useProductActions } from "@/lib/marketplace/useActionLayer";
+import { demoNumbersInRow, marketplaceDemoHref } from "@/lib/marketplace/demo-link";
 import { useDebouncedValue, useFavorites } from "@/lib/marketplace-home/persistentState";
 import { useMatch } from "@tanstack/react-router";
 import { useHomeRouteData, useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
+import { phrase as statPhrase, type HomeStats } from "@/lib/marketplace/home-stats";
 import CategoryRow from "@/components/marketplace-home/CategoryRow";
 import {
   LIFETIME_DISCOUNT,
@@ -140,7 +143,7 @@ interface Demo {
   masterCategory: string;
   description: string;
   url: string;
-  icon: any;
+  icon: LucideIcon;
   status: "ACTIVE" | "COMING_SOON";
   features: string[];
   frontend: string[];
@@ -3666,6 +3669,13 @@ const Index = () => {
   const { favorites, toggle: toggleFavorite } = useFavorites();
   const layout = useHomeLayout();
   const composition = useHomeComposition();
+  // The catalogue counts, taken from the database in the route loader. The
+  // badge quoted SITE_STATS, a constant reading "12,000+" against 7,347 real
+  // published products; SITE_STATS stays as the fallback so a failed count
+  // renders what the page rendered before rather than a blank or a zero.
+  const stats = (useHomeRouteData() as { stats?: HomeStats | null } | undefined)?.stats;
+  const liveSolutions = stats ? statPhrase(stats.products) : SITE_STATS.solutions;
+  const liveCategories = stats ? String(stats.categories) : SITE_STATS.categories;
 
   const filteredDemos = allDemos.filter((demo) => {
     const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
@@ -3688,7 +3698,7 @@ const Index = () => {
 
   return (
     <CardCompositionProvider value={composition}>
-      <div className="min-h-screen bg-gradient-to-br from-[#0a1628] via-[#0d1e36] to-[#0a1628]">
+      <div className="sv-wide min-h-screen bg-gradient-to-br from-[#0a1628] via-[#0d1e36] to-[#0a1628]">
         {/* Premium Header */}
         <header className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-500 py-4 px-4 shadow-2xl">
           <div className="max-w-7xl mx-auto">
@@ -3760,7 +3770,7 @@ const Index = () => {
                     />
                   </div>
                   <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                    {SITE_STATS.solutions} Software · {SITE_STATS.categories} Categories
+                    {liveSolutions} Software · {liveCategories} Categories
                   </Badge>
                 </div>
               </div>
@@ -3826,6 +3836,7 @@ const Index = () => {
           // page is whatever Layout Order says.
           "featured-software": (
             <CuratedRow
+              rowKey="featured-software"
               title="Featured Software"
               flag="featured"
               limit={8}
@@ -3835,6 +3846,7 @@ const Index = () => {
           ),
           "trending-now": (
             <CuratedRow
+              rowKey="trending-now"
               title="Trending Now"
               flag="trending"
               limit={12}
@@ -3844,6 +3856,7 @@ const Index = () => {
           ),
           "top-selling": (
             <CuratedRow
+              rowKey="top-selling"
               title="Top Selling"
               flag="bestSeller"
               limit={12}
@@ -3853,6 +3866,7 @@ const Index = () => {
           ),
           "new-releases": (
             <CuratedRow
+              rowKey="new-releases"
               title="New Releases"
               flag="newRelease"
               limit={12}
@@ -4021,6 +4035,7 @@ const CARD_COLORS = [
 export function toDemo(card: CatalogCard, index: number): Demo {
   return {
     id: card.id,
+    slug: card.slug,
     name: card.name,
     category: card.subcategory ?? card.industry ?? "",
     masterCategory: card.industry ?? "",
@@ -4112,6 +4127,7 @@ function CatalogRowStrip({
   }, [wanted, cards.length]);
 
   const remaining = row.total - cards.length;
+  const demoNumbers = demoNumbersInRow(cards);
 
   return (
     <CategoryRow title={row.title} count={row.total}>
@@ -4121,6 +4137,7 @@ function CatalogRowStrip({
           <DemoCard
             demo={toDemo(card, index)}
             index={index}
+            demoNumber={demoNumbers[index]}
             isFavorite={favorites.includes(card.id)}
             onToggleFavorite={() => onToggleFavorite(card.id)}
           />
@@ -4155,36 +4172,48 @@ function CatalogRowStrip({
  * appear only when it has something in it.
  */
 function CuratedRow({
+  rowKey,
   title,
-  flag,
   limit,
   favorites,
   onToggleFavorite,
 }: {
+  /** The merchandising row this is, as Merchandising Console knows it. */
+  rowKey: string;
   title: string;
-  flag: "featured" | "trending" | "bestSeller" | "newRelease";
+  /**
+   * Kept so each call site still says which row it is at a glance. It no
+   * longer selects anything: the products come from the merchandising row,
+   * not from a flag on a card.
+   */
+  flag?: "featured" | "trending" | "bestSeller" | "newRelease";
   limit: number;
   favorites: string[];
   onToggleFavorite: (id: string) => void;
 }) {
-  // The same rows the server already seeded for the catalogue, flattened. No
-  // extra request: whatever the page has, these rows pick from.
+  // The row Merchandising Console actually produced.
+  //
+  // readCatalogRows already resolves these: it reads mm_rows_list, keeps the
+  // curated rows that are live_now - published, not hidden, inside their
+  // schedule - and fills each from mm_row_products, which is the manual pins
+  // and the rule engine together, in the order the manager set. All of that
+  // arrives in the page's seed under the row's own key.
+  //
+  // And it was being thrown away. This component ignored those rows and
+  // rebuilt its own list by scanning the CATEGORY rows for cards carrying a
+  // boolean flag, which meant every pin, every ordering, every schedule and
+  // every draft in the console reached the page and was discarded. Featured
+  // Software is draft and was rendering on the live homepage because of it.
+  //
+  // So the curated row is used when it is there. A row that is not there is a
+  // row the database says is not live, and the honest thing to draw is
+  // nothing.
   const seeded = (useHomeRouteData()?.seed as CatalogSeed | undefined) ?? null;
   const picked = useMemo(() => {
     const rows = (seeded?.rows as CatalogRow[] | undefined) ?? [];
-    const out: Demo[] = [];
-    const seen = new Set<string>();
-    for (const row of rows) {
-      for (const card of (row.cards ?? []) as Demo[]) {
-        if (seen.has(card.id)) continue;
-        if (!(card as unknown as Record<string, boolean>)[flag]) continue;
-        seen.add(card.id);
-        out.push(card);
-        if (out.length >= limit) return out;
-      }
-    }
-    return out;
-  }, [seeded, flag, limit]);
+    const merchandised = rows.find((r) => r.id === rowKey || r.slug === rowKey);
+    return merchandised ? (merchandised.cards ?? []).slice(0, limit).map(toDemo) : [];
+  }, [seeded, rowKey, limit]);
   if (picked.length === 0) return null;
   return (
     <div className="max-w-7xl mx-auto px-4">
@@ -4331,11 +4360,13 @@ export const DemoCard = memo(
   ({
     demo,
     index,
+    demoNumber,
     isFavorite,
     onToggleFavorite,
   }: {
     demo: Demo;
     index: number;
+    demoNumber?: number | null;
     isFavorite: boolean;
     onToggleFavorite: () => void;
   }) => {
@@ -4353,7 +4384,7 @@ export const DemoCard = memo(
       const a = layerActions.find((x) => x.key === key);
       // Unknown to the registry means "not governed here" — the card keeps its
       // existing behaviour rather than losing a button to a missing entry.
-      return a ? a.enabled && a.visibility !== "HIDDEN" : true;
+      return a ? a.enabled && a.visibility !== "HIDDEN" && a.visibility !== "DISABLED" : true;
     };
 
     const Icon = demo.icon;
@@ -4404,14 +4435,16 @@ export const DemoCard = memo(
                     className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-white"}`}
                   />
                 </button>
-                <a
-                  href={demo.url}
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label={`Preview ${demo.name}`}
-                  className="sv-icon-btn"
-                >
-                  <Eye className="h-4 w-4 text-white" />
-                </a>
+                {demo.status === "ACTIVE" && demo.url.trim() && demo.url !== "#" && (
+                  <a
+                    href={demo.url}
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Preview ${demo.name}`}
+                    className="sv-icon-btn"
+                  >
+                    <Eye className="h-4 w-4 text-white" />
+                  </a>
+                )}
               </div>
             </div>
 
@@ -4425,7 +4458,7 @@ export const DemoCard = memo(
                 )}
                 {demo.status === "ACTIVE" && (
                   <Badge className="bg-cyan-500/20 text-cyan-300 text-[10px] shrink-0 ml-2">
-                    #{index + 1}
+                    #{demoNumber ?? index + 1}
                   </Badge>
                 )}
               </div>
@@ -4538,7 +4571,7 @@ export const DemoCard = memo(
                   d.href ?? d.url ?? (d.slug ? `/marketplace/product/${d.slug}` : "#");
                 const demoHref =
                   d.demoUrl ??
-                  (d.hasDemo ? productHref : d.url && d.url.startsWith("/demo/") ? d.url : null);
+                  marketplaceDemoHref({ hasDemo: d.hasDemo, slug: d.slug, url: d.url });
                 const buyHref = `${productHref}${productHref.includes("?") ? "&" : "?"}buy=1`;
                 return (
                   <div className="flex gap-2 mt-auto">
@@ -4576,11 +4609,13 @@ export const DemoCard = memo(
                             </Button>
                           </a>
                         )}
-                        <a href={buyHref} className="flex-1">
-                          <Button className="sv-btn sv-btn-emerald w-full">
-                            <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
-                          </Button>
-                        </a>
+                        {allowed("BUY_NOW") && (
+                          <a href={buyHref} className="flex-1">
+                            <Button className="sv-btn sv-btn-emerald w-full">
+                              <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
+                            </Button>
+                          </a>
+                        )}
                       </>
                     )}
                   </div>

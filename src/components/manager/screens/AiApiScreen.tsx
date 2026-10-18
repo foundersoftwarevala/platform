@@ -571,7 +571,7 @@ function CentralRegistrySection({
           aria-label="Search central service registry"
         />
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger>
+          <SelectTrigger aria-label="Category">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
@@ -584,7 +584,7 @@ function CentralRegistrySection({
           </SelectContent>
         </Select>
         <Select value={countryFilter} onValueChange={setCountryFilter}>
-          <SelectTrigger>
+          <SelectTrigger aria-label="Country">
             <SelectValue placeholder="Country" />
           </SelectTrigger>
           <SelectContent>
@@ -597,7 +597,7 @@ function CentralRegistrySection({
           </SelectContent>
         </Select>
         <Select value={engineFilter} onValueChange={setEngineFilter}>
-          <SelectTrigger>
+          <SelectTrigger aria-label="Search engine / network">
             <SelectValue placeholder="Search engine / network" />
           </SelectTrigger>
           <SelectContent>
@@ -610,7 +610,7 @@ function CentralRegistrySection({
           </SelectContent>
         </Select>
         <Select value={pricingFilter} onValueChange={setPricingFilter}>
-          <SelectTrigger>
+          <SelectTrigger aria-label="Pricing">
             <SelectValue placeholder="Pricing" />
           </SelectTrigger>
           <SelectContent>
@@ -623,7 +623,7 @@ function CentralRegistrySection({
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger>
+          <SelectTrigger aria-label="Activation status">
             <SelectValue placeholder="Activation status" />
           </SelectTrigger>
           <SelectContent>
@@ -636,7 +636,7 @@ function CentralRegistrySection({
           </SelectContent>
         </Select>
         <Select value={credentialFilter} onValueChange={setCredentialFilter}>
-          <SelectTrigger>
+          <SelectTrigger aria-label="Credentials">
             <SelectValue placeholder="Credentials" />
           </SelectTrigger>
           <SelectContent>
@@ -646,7 +646,7 @@ function CentralRegistrySection({
           </SelectContent>
         </Select>
         <Select value={approvalFilter} onValueChange={setApprovalFilter}>
-          <SelectTrigger>
+          <SelectTrigger aria-label="Approval">
             <SelectValue placeholder="Approval" />
           </SelectTrigger>
           <SelectContent>
@@ -659,7 +659,7 @@ function CentralRegistrySection({
           </SelectContent>
         </Select>
         <Select value={healthFilter} onValueChange={setHealthFilter}>
-          <SelectTrigger>
+          <SelectTrigger aria-label="Health">
             <SelectValue placeholder="Health" />
           </SelectTrigger>
           <SelectContent>
@@ -1253,7 +1253,7 @@ export default function AiApiScreen({ view }: ScreenProps) {
                 value={modelForm.provider_id}
                 onValueChange={(val) => setModelForm((f) => ({ ...f, provider_id: val }))}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Provider">
                   <SelectValue placeholder="Select Provider" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1272,7 +1272,7 @@ export default function AiApiScreen({ view }: ScreenProps) {
                 value={modelForm.modality}
                 onValueChange={(val) => setModelForm((f) => ({ ...f, modality: val }))}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Modality">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1382,7 +1382,7 @@ export default function AiApiScreen({ view }: ScreenProps) {
                 value={serviceForm.provider_id}
                 onValueChange={(val) => setServiceForm((f) => ({ ...f, provider_id: val }))}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Provider">
                   <SelectValue placeholder="Select Provider" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1401,7 +1401,7 @@ export default function AiApiScreen({ view }: ScreenProps) {
                 value={serviceForm.category}
                 onValueChange={(val) => setServiceForm((f) => ({ ...f, category: val }))}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Category">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1459,7 +1459,7 @@ export default function AiApiScreen({ view }: ScreenProps) {
                 value={keyForm.environment}
                 onValueChange={(val) => setKeyForm((f) => ({ ...f, environment: val }))}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Environment">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1475,7 +1475,7 @@ export default function AiApiScreen({ view }: ScreenProps) {
                 value={keyForm.service_id}
                 onValueChange={(val) => setKeyForm((f) => ({ ...f, service_id: val }))}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Service">
                   <SelectValue placeholder="Select Service" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1494,7 +1494,7 @@ export default function AiApiScreen({ view }: ScreenProps) {
                 value={keyForm.provider_id}
                 onValueChange={(val) => setKeyForm((f) => ({ ...f, provider_id: val }))}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Provider">
                   <SelectValue placeholder="Select Provider" />
                 </SelectTrigger>
                 <SelectContent>

@@ -37,10 +37,15 @@ async function requireOperator(): Promise<{ userId: string }> {
   if (!token) throw new Error("Unauthorized: sign in required");
 
   const db = await admin();
-  const { data, error } = await db.auth.getUser(token);
-  if (error || !data.user) throw new Error("Unauthorized: sign in required");
+  // Resolved through the shared bearer check: auth.getUser() on a
+  // service-role client sends the service key as apikey, which the auth
+  // service refuses with "Invalid API key", so this guard used to turn
+  // every valid operator away. See lib/auth/bearer-user.server.ts.
+  const { userFromBearerToken } = await import("@/lib/auth/bearer-user.server");
+  const caller = await userFromBearerToken(token);
+  if (!caller) throw new Error("Unauthorized: sign in required");
 
-  const { data: roles } = await db.from("user_roles").select("role").eq("user_id", data.user.id);
+  const { data: roles } = await db.from("user_roles").select("role").eq("user_id", caller.id);
   const allowed = new Set([
     "admin", "boss", "founder", "super_admin", "boss_owner",
     "employee", "sales", "support", "finance", "sales_support_manager",
@@ -48,7 +53,7 @@ async function requireOperator(): Promise<{ userId: string }> {
   if (!(roles ?? []).some((r) => allowed.has(String(r.role)))) {
     throw new Error("Generating insights needs manager or operator rights.");
   }
-  return { userId: data.user.id };
+  return { userId: caller.id };
 }
 
 const SYSTEM =
@@ -99,8 +104,7 @@ export const generatePromiseInsights = createServerFn({ method: "POST" })
     const { data: open, error } = await db
       .from("promises")
       .select(
-        "id, code, title, description, status, priority, deadline, delay_days, " +
-          "escalation_level, fine_amount, owner, receiver, sub_category",
+        "id, code, title, description, status, priority, deadline, delay_days, escalation_level, fine_amount, owner, receiver, sub_category",
       )
       .in("status", ["pending", "active", "due_soon", "delayed", "broken"])
       .order("deadline", { ascending: true })
@@ -180,9 +184,7 @@ export const generatePromiseInsights = createServerFn({ method: "POST" })
     // Generating advice is itself an event worth recording (section 22).
     await db.rpc("pt_audit", {
       p_action: "AI Insights Generated",
-      p_promise_id: null,
       p_details: `${rows.length} insight(s) from ${service}${model ? ` (${model})` : ""}`,
-      p_old: null,
       p_new: String(rows.length),
     });
 

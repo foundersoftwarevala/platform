@@ -14,12 +14,8 @@ export const config: WallConfig = {
   eyebrow: "Insights", title: "Reports Wall",
   subtitle: "Scheduled exports and analytical reports delivered to your inbox.",
   icon: FileBarChart, primaryLabel: "New Report",
-  seed: [
-    { id: "R-1", name: "Monthly Reseller Revenue", cadence: "monthly", format: "xlsx", recipient: "boss@softwarevala.com", status: "active", last_run: "2026-07-01", created_at: "2026-01-01" },
-    { id: "R-2", name: "Weekly Order Pipeline", cadence: "weekly", format: "csv", recipient: "ops@softwarevala.com", status: "active", last_run: "2026-07-07", created_at: "2026-02-14" },
-    { id: "R-3", name: "Quarterly Commission Ledger", cadence: "quarterly", format: "pdf", recipient: "finance@softwarevala.com", status: "scheduled", last_run: "—", created_at: "2026-06-01" },
-    { id: "R-4", name: "Daily KYC Digest", cadence: "daily", format: "csv", recipient: "compliance@softwarevala.com", status: "paused", last_run: "2026-06-25", created_at: "2026-03-10" },
-  ],
+  // No table holds scheduled reseller reports yet; the wall says so.
+  seed: [],
   columns: [
     { key: "name", header: "Report", render: (r) => <div className="font-semibold text-[13px]">{r.name}</div> },
     { key: "cadence", header: "Cadence", render: (r) => <StatusPill value={r.cadence} /> },

@@ -102,20 +102,25 @@ export const resellerConfig: ModuleConfig = {
   ],
   primaryCta: { label: "Register a Deal", target: "Deal Registration" },
   secondaryCta: { label: "Ask AI", target: "AI Chat" },
+  // The figures below are the reseller system's own, filled in from
+  // mm_resellers and mm_reseller_attention by the Reseller Manager dashboard
+  // (sectionRegistry). Until they are read - or when the viewer may not read
+  // them - each shows "—". There used to be a made-up timetable here, a streak,
+  // XP and three "AI" statistics nobody had measured.
   profile: {
     title: "Channel Profile",
-    caption: "Connect Software Vala login",
+    caption: "Reseller records",
     stats: [
-      ["Partners", "—"],
-      ["Tier", "—"],
-      ["Streak", "0d"],
+      ["Resellers", "—"],
+      ["Active", "—"],
+      ["Pending", "—"],
     ],
   },
   plan: [
-    ["Approve partner applications", "Onboarding", "9:00 AM"],
-    ["Deal-desk review", "Pipeline", "12:30 PM"],
-    ["Commission run", "Finance", "6:00 PM"],
-    ["Partner support desk", "All channels", "9:00 PM"],
+    ["Applications awaiting a decision", "Onboarding", "—"],
+    ["Payouts awaiting an operator", "Finance", "—"],
+    ["Membership payments to verify", "Finance", "—"],
+    ["Commission released and payable", "Finance", "—"],
   ],
   balance: {
     label: "Commission payable",
@@ -142,11 +147,15 @@ export const resellerConfig: ModuleConfig = {
     },
   ],
   leaderboardEmpty: "Awaiting resellers",
-  suggestions: [
-    "3 partner tiers have no active deal this quarter — trigger an enablement nudge.",
-    "Renewals cluster in the next 30 days — pre-stage renewal quotes now.",
-    "Deals with a registered lead close 1.8× faster — enforce registration.",
-  ],
+  leaderboardPlaceholder: "—",
+  xp: {
+    label: "Team XP",
+    value: "—",
+    caption: "The reseller channel keeps no XP or ranks; nothing is scored here.",
+    progress: 0,
+  },
+  suggestionsTitle: "Needs attention",
+  suggestions: ["Nothing is listed until the reseller queue can be read."],
 };
 
 export const influencerConfig: ModuleConfig = {

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Map, AlertTriangle, Clock, Globe, Hash, Zap, 
@@ -6,7 +6,10 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useGlobalActions } from '@/hooks/useGlobalActions';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { toast } from 'sonner';
+import { memberName, relativeTime, useTeamMembers, useTickets, useUpdateRow } from '@/hooks/useSalesSupportData';
 
 interface TokenHeatmapData {
   region: string;
@@ -23,89 +26,94 @@ interface TokenMetric {
   color: string;
 }
 
+/**
+ * The support desk's ticket ("token") command centre. Every figure and row was
+ * typed in - 234 tokens in North America, "TKN-001 John D." - and every button
+ * reported success without changing anything. It is counted from the support
+ * tickets now, and its buttons change the ticket.
+ */
+const CHANNEL_ICON: Record<string, string> = { email: '📧', chat: '💬', whatsapp: '📱', phone: '📞', portal: '🔔' };
+const STALE_MS = 6 * 3_600_000;
+
 const TokenCommandCenter = () => {
-  const { executeAction } = useGlobalActions();
+  const { data: allTickets } = useTickets();
+  const { data: members } = useTeamMembers('support');
+  const updateTicket = useUpdateRow('support_tickets');
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
-  const [heatmapData] = useState<TokenHeatmapData[]>([
-    { region: 'North America', count: 234, critical: 12, breaching: 3 },
-    { region: 'Europe', count: 189, critical: 8, breaching: 2 },
-    { region: 'Asia Pacific', count: 156, critical: 15, breaching: 5 },
-    { region: 'Middle East', count: 87, critical: 4, breaching: 1 },
-    { region: 'South America', count: 65, critical: 3, breaching: 0 },
-    { region: 'Africa', count: 43, critical: 2, breaching: 1 },
-  ]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const open = ((allTickets ?? []) as any[]).filter((t) => t.status !== 'resolved' && t.status !== 'closed');
+  const countBy = (key: string) => {
+    const out = new globalThis.Map<string, number>();
+    for (const t of open) out.set(String(t[key] ?? 'unknown'), (out.get(String(t[key] ?? 'unknown')) ?? 0) + 1);
+    return out;
+  };
 
-  const [tokensByPriority] = useState([
-    { priority: 'Critical', count: 15, color: 'bg-red-500' },
-    { priority: 'High', count: 45, color: 'bg-orange-500' },
-    { priority: 'Medium', count: 123, color: 'bg-yellow-500' },
-    { priority: 'Low', count: 234, color: 'bg-emerald-500' },
-  ]);
+  // Tickets record no region; the nearest thing they do record is category.
+  const heatmapData: TokenHeatmapData[] = [...countBy('category').entries()].map(([region, count]) => ({
+    region,
+    count,
+    critical: open.filter((t) => String(t.category ?? 'unknown') === region && t.priority === 'critical').length,
+    breaching: open.filter((t) => String(t.category ?? 'unknown') === region && t.sla_breached).length,
+  }));
+  const PRIORITY_COLOR: Record<string, string> = { critical: 'bg-red-500', high: 'bg-orange-500', medium: 'bg-yellow-500', low: 'bg-emerald-500' };
+  const tokensByPriority = ['critical', 'high', 'medium', 'low'].map((p) => ({
+    priority: p.charAt(0).toUpperCase() + p.slice(1),
+    count: open.filter((t) => t.priority === p).length,
+    color: PRIORITY_COLOR[p],
+  }));
+  const tokensByChannel = [...countBy('channel').entries()].map(([channel, count]) => ({
+    channel: channel.charAt(0).toUpperCase() + channel.slice(1),
+    count,
+    icon: CHANNEL_ICON[channel] ?? '•',
+  }));
+  const zombieTokens = open
+    .filter((t) => Date.now() - new Date(t.updated_at ?? t.created_at).getTime() > STALE_MS)
+    .map((t) => ({
+      id: t.id,
+      ticketId: t.reference ?? t.id.slice(0, 8),
+      lastActivity: relativeTime(t.updated_at ?? t.created_at),
+      assignee: memberName(members, t.assigned_to) ?? 'Unassigned',
+      status: Date.now() - new Date(t.updated_at ?? t.created_at).getTime() > 4 * STALE_MS ? 'zombie' : 'stale',
+    }));
+  const breachingTokens = open
+    .filter((t) => t.sla_breached || (t.sla_minutes_remaining != null && t.sla_minutes_remaining <= 30))
+    .map((t) => ({
+      id: t.id,
+      ticketId: t.reference ?? t.id.slice(0, 8),
+      timeLeft: t.sla_breached ? 'breached' : `${t.sla_minutes_remaining} min`,
+      priority: t.priority,
+      customer: t.customer_name ?? '—',
+    }));
 
-  const [tokensByChannel] = useState([
-    { channel: 'Email', count: 189, icon: '📧' },
-    { channel: 'Chat', count: 156, icon: '💬' },
-    { channel: 'WhatsApp', count: 98, icon: '📱' },
-    { channel: 'Phone', count: 67, icon: '📞' },
-    { channel: 'In-App', count: 45, icon: '🔔' },
-  ]);
+  const change = async (id: string, values: Record<string, unknown>, done: string) => {
+    try {
+      await updateTicket.mutateAsync({ id, values: { ...values, updated_at: new Date().toISOString() } });
+      toast.success(done);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'The ticket could not be changed');
+    }
+  };
 
-  const [zombieTokens] = useState([
-    { id: 'TKN-001', ticketId: 'TKT-1234', lastActivity: '6 hours ago', assignee: 'John D.', status: 'stale' },
-    { id: 'TKN-002', ticketId: 'TKT-1189', lastActivity: '8 hours ago', assignee: 'Sarah M.', status: 'zombie' },
-    { id: 'TKN-003', ticketId: 'TKT-1201', lastActivity: '12 hours ago', assignee: 'Unassigned', status: 'zombie' },
-  ]);
+  const handleViewToken = useCallback((_tokenId: string, _ticketId: string) => {
+    void navigate({ to: '/support', search: { section: 'inbox' } });
+  }, [navigate]);
 
-  const [breachingTokens] = useState([
-    { id: 'TKN-101', ticketId: 'TKT-2001', timeLeft: '5 min', priority: 'critical', customer: 'Acme Corp' },
-    { id: 'TKN-102', ticketId: 'TKT-2015', timeLeft: '12 min', priority: 'high', customer: 'TechStart' },
-    { id: 'TKN-103', ticketId: 'TKT-2023', timeLeft: '18 min', priority: 'high', customer: 'GlobalFin' },
-  ]);
+  // A stale ticket is picked back up.
+  const handleReviveZombie = (tokenId: string) =>
+    change(tokenId, { status: 'in_progress' }, 'Ticket back in progress');
 
-  const handleViewToken = useCallback(async (tokenId: string, ticketId: string) => {
-    await executeAction({
-      actionId: `view_token_${tokenId}`,
-      actionType: 'read',
-      entityType: 'ticket',
-      entityId: ticketId,
-      metadata: { tokenId },
-      successMessage: 'Opening ticket panel',
-    });
-  }, [executeAction]);
-
-  const handleReviveZombie = useCallback(async (tokenId: string) => {
-    await executeAction({
-      actionId: `revive_${tokenId}`,
-      actionType: 'activate',
-      entityType: 'ticket',
-      entityId: tokenId,
-      metadata: { action: 'revive_zombie' },
-      successMessage: 'Token reactivated',
-    });
-  }, [executeAction]);
-
-  const handleEscalateBreaching = useCallback(async (tokenId: string, ticketId: string) => {
-    await executeAction({
-      actionId: `escalate_breach_${tokenId}`,
-      actionType: 'escalate',
-      entityType: 'ticket',
-      entityId: ticketId,
-      metadata: { reason: 'SLA breach prevention' },
-      successMessage: 'Token escalated',
-    });
-  }, [executeAction]);
+  const handleEscalateBreaching = (tokenId: string, _ticketId: string) =>
+    change(tokenId, { priority: 'critical' }, 'Ticket raised to critical');
 
   const handleRefreshData = useCallback(async () => {
-    await executeAction({
-      actionId: 'refresh_command_center',
-      actionType: 'refresh',
-      entityType: 'report',
-      successMessage: 'Command center refreshed',
-    });
-  }, [executeAction]);
+    await queryClient.invalidateQueries({ queryKey: ['support_tickets'] });
+    toast.success('Tickets read again');
+  }, [queryClient]);
 
   const totalTokens = heatmapData.reduce((sum, r) => sum + r.count, 0);
-  const maxRegionCount = Math.max(...heatmapData.map(r => r.count));
+  const maxRegionCount = Math.max(1, ...heatmapData.map(r => r.count));
 
   return (
     <div className="space-y-6">
@@ -175,7 +183,7 @@ const TokenCommandCenter = () => {
       >
         <div className="flex items-center gap-3 mb-4">
           <Globe className="w-5 h-5 text-teal-400" />
-          <h3 className="text-lg font-semibold text-foreground">Token Heatmap by Region</h3>
+          <h3 className="text-lg font-semibold text-foreground">Token Heatmap by Category</h3>
         </div>
         <div className="grid grid-cols-3 gap-4">
           {heatmapData.map((region) => {

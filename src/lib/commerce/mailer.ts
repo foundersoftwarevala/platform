@@ -439,3 +439,82 @@ export function licenceEmail(
     context: { licence_key: licenceKey, order_no: orderNo ?? null, language: lang },
   };
 }
+
+/**
+ * What a customer gets when they write to us from /contact.
+ *
+ * Their reference is the one written on the support_tickets row, so the reply
+ * they get and the record an agent opens are the same thing. Nothing here
+ * promises a response time the business has not committed to.
+ */
+export function supportAcknowledgementEmail(input: {
+  name: string;
+  reference: string;
+  subject: string;
+}): Message {
+  const { name, reference, subject } = input;
+  const phone = "+91 83488 38383";
+  return {
+    to: "",
+    subject: `We have your message — ${reference}`,
+    text:
+      `Hello ${name},\n\n` +
+      `Thank you for writing to Software Vala. Your request has been logged as ${reference}.\n\n` +
+      `Subject: ${subject}\n\n` +
+      `A member of the support team will read it and reply to this address. ` +
+      `If it is urgent, WhatsApp us on ${phone}.\n\n` +
+      `Software Vala`,
+    html: `${mailRoot("en")}
+  <h1 style="margin:0 0 4px;font-size:20px">We have your message</h1>
+  <p style="margin:0 0 20px;color:#555;font-size:14px">Hello ${escapeHtml(name)}, thank you for writing to Software Vala.</p>
+  <table style="border-collapse:collapse;font-size:14px;margin-bottom:16px">
+    <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Reference</td><td style="padding:4px 0"><strong>${escapeHtml(reference)}</strong></td></tr>
+    <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Subject</td><td style="padding:4px 0">${escapeHtml(subject)}</td></tr>
+  </table>
+  <p style="font-size:14px;line-height:1.6;color:#333">
+    A member of the support team will read it and reply to this address.
+  </p>
+  <p style="font-size:14px;color:#333">If it is urgent, WhatsApp <a href="https://wa.me/918348838383">${phone}</a></p>
+  <p style="margin-top:24px;font-size:12px;color:#9ca3af">Software Vala — The Name of Trust</p>
+</div>`,
+    context: { kind: "support_acknowledgement", reference },
+  };
+}
+
+/** What an operator gets, so a customer's message is not left sitting unseen. */
+export function supportNotificationEmail(input: {
+  name: string;
+  email: string;
+  phone: string;
+  category: string;
+  subject: string;
+  description: string;
+  reference: string;
+  sourcePage: string | null;
+}): Message {
+  const { name, email, phone, category, subject, description, reference, sourcePage } = input;
+  const rows: [string, string][] = [
+    ["Reference", reference],
+    ["Name", name],
+    ["Email", email],
+    ["Phone", phone || "not given"],
+    ["Category", category],
+    ["Page", sourcePage ?? "unknown"],
+  ];
+  return {
+    to: "",
+    subject: `Support request ${reference}: ${subject}`,
+    text:
+      rows.map(([k, v]) => `${k}: ${v}`).join("\n") + `\n\nSubject: ${subject}\n\n${description}`,
+    html: `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111">
+  <h1 style="margin:0 0 16px;font-size:18px">Support request</h1>
+  <table style="border-collapse:collapse;font-size:14px">
+    ${rows.map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#6b7280">${k}</td><td style="padding:4px 0"><strong>${escapeHtml(v)}</strong></td></tr>`).join("")}
+  </table>
+  <p style="margin-top:16px;font-size:14px"><strong>${escapeHtml(subject)}</strong></p>
+  <p style="margin-top:4px;font-size:14px;white-space:pre-wrap;color:#333">${escapeHtml(description)}</p>
+  <p style="margin-top:20px;font-size:12px;color:#9ca3af">Support Operations — Software Vala</p>
+</div>`,
+    context: { kind: "support_notification", reference },
+  };
+}

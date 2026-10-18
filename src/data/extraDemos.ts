@@ -51,6 +51,14 @@ export interface Demo {
   relatedDetails?: string;
   /** The notice that this describes a category, not a commercial product. */
   disclaimer?: string;
+  /**
+   * The product's own address when the card comes from a catalogue row. A
+   * slug worked out from the name is not always the row's slug, and a card
+   * that guessed it opened "Product not found".
+   */
+  slug?: string;
+  /** The permanent card-slot page the catalogue product occupies, when it has one. */
+  slotUrl?: string;
 }
 
 type DemoCopy = Pick<
@@ -435,7 +443,27 @@ export const allMasterCategories55 = [
   "Podcast & Streaming Media",
   "Solar & Green Energy",
   "Waste & Recycling",
+  // 17 shelves filled only by the catalogue's country cards (no static entries);
+  // the names are the marketplace_categories rows they read.
+  "Childcare",
+  "Coaching",
+  "College ERP",
+  "Cultural & Arts",
+  "Digital Wallet",
+  "Entertainment & Media",
+  "Fleet Management",
+  "Hospital HMS",
+  "Hotel HMS",
+  "Learning Management",
+  "Marketplace & Super Apps",
+  "Pet Care & Services",
+  "Property Management",
+  "Public Transport",
+  "Research & Analytics",
+  "Restaurant POS",
+  "School Management",
 ];
-// Note: array length is 57 (41 existing + 16 new); homepage filter drops any with 0 products.
+// Note: array length is 74 (57 + 17 catalogue-only); the homepage drops a shelf
+// with no static entries unless the catalogue fills it.
 // Wrench import kept above to avoid TS unused-import churn when tree-shaking.
 void Wrench;

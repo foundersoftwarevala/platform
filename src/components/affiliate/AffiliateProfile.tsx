@@ -11,6 +11,9 @@ import { Timeline, type TimelineEvent } from "./Timeline";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate } from "@/lib/affiliate-format";
 
+// The partner and referral tables are not in the generated database types.
+const untyped = (table: string) => (supabase as any).from(table);
+
 export type AffiliateRecord = {
   id: string;
   display_name: string;
@@ -24,7 +27,7 @@ export type AffiliateRecord = {
 };
 
 export function statusTone(status: string) {
-  return /verified|active/i.test(status) ? "success"
+  return /verified|approved|active/i.test(status) ? "success"
     : /pending/i.test(status) ? "warning"
     : /suspend|reject/i.test(status) ? "destructive" : "neutral";
 }
@@ -64,15 +67,29 @@ export function useAffiliateProfileData(id: string | undefined) {
     enabled: !!id,
     staleTime: 15_000,
     queryFn: async () => {
+      // Earnings are the affiliate's partner_commissions (major units, with a
+      // currency) that were not reversed or rejected; links are their referral
+      // codes; orders are the orders attributed to them.
       const [commissions, links, orders] = await Promise.all([
-        supabase.from("commissions").select("amount_cents").eq("affiliate_id", id!),
-        supabase.from("affiliate_links").select("id", { count: "exact", head: true }).eq("affiliate_id", id!),
-        supabase.from("orders").select("id", { count: "exact", head: true }).eq("affiliate_id", id!),
+        untyped("partner_commissions")
+          .select("commission_amount, currency")
+          .eq("partner_kind", "affiliate")
+          .eq("partner_id", id!)
+          .in("status", ["pending", "approved", "paid"]),
+        untyped("marketplace_referral_codes").select("id", { count: "exact", head: true }).eq("affiliate_partner_id", id!),
+        untyped("marketplace_order_attributions").select("id", { count: "exact", head: true }).eq("affiliate_partner_id", id!),
       ]);
-      const earned = (commissions.data ?? []).reduce(
-        (sum, c: { amount_cents: number | null }) => sum + (c.amount_cents ?? 0), 0,
+      if (commissions.error) throw commissions.error;
+      if (links.error) throw links.error;
+      if (orders.error) throw orders.error;
+      const rows = (commissions.data ?? []) as { commission_amount: number | string | null; currency: string | null }[];
+      const currencies = new Set(rows.map((c) => (c.currency ?? "").trim()).filter(Boolean));
+      // Amounts in different currencies cannot be added into one figure.
+      const earned = currencies.size > 1 ? null : Math.round(
+        rows.reduce((sum, c) => sum + Number(c.commission_amount ?? 0), 0) * 100,
       );
-      return { earned, links: links.count ?? 0, orders: orders.count ?? 0 };
+      const currency = currencies.size === 1 ? [...currencies][0] : "USD";
+      return { earned, currency, links: links.count ?? 0, orders: orders.count ?? 0 };
     },
   });
 
@@ -145,7 +162,7 @@ export function AffiliateProfileBody({ affiliate }: { affiliate: AffiliateRecord
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <MiniStat label="Earned" value={<Money cents={stats.data?.earned} />} loading={stats.isLoading} />
+        <MiniStat label="Earned" value={<Money cents={stats.data?.earned} currency={stats.data?.currency} />} loading={stats.isLoading} />
         <MiniStat label="Links" value={(stats.data?.links ?? 0).toLocaleString()} loading={stats.isLoading} />
         <MiniStat label="Orders" value={(stats.data?.orders ?? 0).toLocaleString()} loading={stats.isLoading} />
       </div>

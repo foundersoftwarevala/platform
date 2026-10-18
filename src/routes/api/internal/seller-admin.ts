@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { requireInternalOperator, type GuardResult } from "@/lib/auth/internal-guard";
+import { bearerToken, userFromBearerToken } from "@/lib/auth/bearer-user.server";
 import { rest } from "@/lib/marketplace/author-guard";
-import { AGREED_PLATFORM_RATE, rateForAgreement } from "@/lib/commerce/commission-rates";
+import { AGREED_PLATFORM_RATE } from "@/lib/commerce/commission-rates";
+import { applySellerCommissionRule } from "@/lib/commerce/seller-commission.server";
 
 /**
  * Operator administration for the people who sell on the marketplace.
@@ -21,6 +23,27 @@ import { AGREED_PLATFORM_RATE, rateForAgreement } from "@/lib/commerce/commissio
  *   POST /api/internal/seller-admin
  *        {sellerId, decision: approved|suspended|pending, agreement?}
  */
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Who approved, from the verified session - never from the body. A signed-in
+ * operator could otherwise record the approval under someone else's name. Only
+ * a script holding the internal token, which has no session, may name one.
+ */
+async function reviewerOf(
+  request: Request,
+  gate: Extract<GuardResult, { ok: true }>,
+  claimed: unknown,
+): Promise<string | null> {
+  if (gate.via === "internal token") {
+    const id = String(claimed ?? "").trim();
+    return UUID.test(id) ? id : null;
+  }
+  const token = bearerToken(request.headers.get("authorization"));
+  const user = token ? await userFromBearerToken(token) : null;
+  return user?.id ?? null;
+}
 
 const SELLER_FIELDS =
   "id,display_name,slug,status,owner_user_id,payout_currency,payout_metadata," +
@@ -50,11 +73,19 @@ export const Route = createFileRoute("/api/internal/seller-admin")({
         const enriched = await Promise.all(
           sellers.map(async (seller) => {
             const [products, commissions, rules] = await Promise.all([
-              rest(`marketplace_products?select=id,visible&seller_id=eq.${encodeURIComponent(seller.id)}&limit=1000`),
-              rest(`marketplace_commissions?select=seller_amount,status&seller_id=eq.${encodeURIComponent(seller.id)}&limit=1000`),
-              rest(`marketplace_commission_rules?select=rate_percent,fixed_amount,active&seller_id=eq.${encodeURIComponent(seller.id)}&limit=10`),
+              rest(
+                `marketplace_products?select=id,visible&seller_id=eq.${encodeURIComponent(seller.id)}&limit=1000`,
+              ),
+              rest(
+                `marketplace_commissions?select=seller_amount,status&seller_id=eq.${encodeURIComponent(seller.id)}&limit=1000`,
+              ),
+              rest(
+                `marketplace_commission_rules?select=rate_percent,fixed_amount,active&seller_id=eq.${encodeURIComponent(seller.id)}&limit=10`,
+              ),
             ]);
-            const productRows = products.ok ? ((await products.json()) as { visible: boolean }[]) : [];
+            const productRows = products.ok
+              ? ((await products.json()) as { visible: boolean }[])
+              : [];
             const commissionRows = commissions.ok
               ? ((await commissions.json()) as { seller_amount: number | string; status: string }[])
               : [];
@@ -68,7 +99,9 @@ export const Route = createFileRoute("/api/internal/seller-admin")({
                 products: productRows.length,
                 published: productRows.filter((p) => p.visible).length,
                 sales: live.length,
-                earned: Math.round(live.reduce((s, c) => s + Number(c.seller_amount ?? 0), 0) * 100) / 100,
+                earned:
+                  Math.round(live.reduce((s, c) => s + Number(c.seller_amount ?? 0), 0) * 100) /
+                  100,
               },
               commissionRate: ruleRows.find((r) => r.active)?.rate_percent ?? null,
             };
@@ -106,7 +139,9 @@ export const Route = createFileRoute("/api/internal/seller-admin")({
         const currentResponse = await rest(
           `marketplace_sellers?select=id,status,display_name&id=eq.${encodeURIComponent(sellerId)}&limit=1`,
         );
-        const current = ((await currentResponse.json()) as { status: string; display_name: string }[])[0];
+        const current = (
+          (await currentResponse.json()) as { status: string; display_name: string }[]
+        )[0];
         if (!current) return Response.json({ error: "No such seller" }, { status: 404 });
 
         const patch: Record<string, unknown> = {
@@ -115,7 +150,8 @@ export const Route = createFileRoute("/api/internal/seller-admin")({
         };
         if (decision === "approved") {
           patch.approved_at = new Date().toISOString();
-          if (body.reviewerId) patch.approved_by = body.reviewerId;
+          const reviewer = await reviewerOf(request, gate, body.reviewerId);
+          if (reviewer) patch.approved_by = reviewer;
         }
 
         const patched = await rest(`marketplace_sellers?id=eq.${encodeURIComponent(sellerId)}`, {
@@ -132,29 +168,7 @@ export const Route = createFileRoute("/api/internal/seller-admin")({
         // of the two contracts is broken on every sale.
         let ruleApplied: number | null = null;
         if (decision === "approved") {
-          const rate = rateForAgreement(body.agreement);
-          const existing = await rest(
-            `marketplace_commission_rules?select=id&seller_id=eq.${encodeURIComponent(sellerId)}` +
-              `&product_id=is.null&category_id=is.null&limit=1`,
-          );
-          const rows = existing.ok ? ((await existing.json()) as { id: string }[]) : [];
-          if (rows.length) {
-            await rest(`marketplace_commission_rules?id=eq.${encodeURIComponent(rows[0].id)}`, {
-              method: "PATCH",
-              headers: { Prefer: "return=minimal" },
-              body: JSON.stringify({ rate_percent: rate, active: true }),
-            });
-          } else {
-            await rest("marketplace_commission_rules", {
-              method: "POST",
-              headers: { Prefer: "return=minimal" },
-              body: JSON.stringify({
-                seller_id: sellerId, rate_percent: rate, priority: 50,
-                active: true, currency: "USD",
-              }),
-            });
-          }
-          ruleApplied = rate;
+          ruleApplied = await applySellerCommissionRule(sellerId, body.agreement);
         }
 
         const rows = (await patched.json()) as unknown[];

@@ -133,6 +133,17 @@ export async function createInvoiceForOrder(
     });
     if (!response.ok) {
       const detail = await response.text();
+      // The database allows one invoice per order (finance_invoices_one_per_order).
+      // A concurrent call that lost the race returns the one that won.
+      if (response.status === 409) {
+        const raced = await fetch(
+          `${url()}/rest/v1/finance_invoices?select=*` +
+            `&line_items->meta->>order_id=eq.${encodeURIComponent(input.orderId)}&limit=1`,
+          { headers: admin() },
+        );
+        const rows = raced.ok ? ((await raced.json()) as Record<string, unknown>[]) : [];
+        if (rows[0]) return { invoice: rows[0], created: false };
+      }
       console.error("[invoice] insert failed", response.status, detail);
       return { invoice: null, created: false, error: "Could not create the invoice" };
     }

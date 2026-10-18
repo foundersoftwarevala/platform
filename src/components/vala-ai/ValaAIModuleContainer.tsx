@@ -1,43 +1,153 @@
-import { Outlet, useRouterState } from "@tanstack/react-router";
-import { AnimatePresence, motion } from "framer-motion";
-import { cn } from "@/lib/utils";
+import "./vala-ai.css";
+import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { Loader2, LogIn, ShieldOff } from "lucide-react";
 import { useLanguage } from "@/lib/language-catalog";
-import { ValaAISidebar, useActiveValaSection, useSidebarState } from "./ValaAISidebar";
+import { EXISTING_LOGIN_URL } from "@/lib/auth-bridge";
+import { cn } from "@/lib/utils";
+import { useApi, type Operator } from "./api";
+import { OperatorContext } from "./session";
+import { ErrorBox } from "./ui";
+import { ValaAISidebar } from "./ValaAISidebar";
+import { useSidebarState } from "./nav";
 import { ValaTopBar } from "./ValaTopBar";
 
 export function ValaAIModuleContainer() {
   const { translate: t } = useLanguage();
+  const session = useApi<{ operator: Operator | null }>(["session"], "/session");
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const studio = [
+    "/vala-ai",
+    "/vala-ai/",
+    "/vala-ai/studio",
+    "/vala-ai/studio/",
+    "/vala-ai/flow",
+    "/vala-ai/builder",
+    "/vala-ai/admin",
+    "/vala-ai/owner",
+  ].includes(pathname);
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebarState();
-  const current = useActiveValaSection();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isCommandCenter = current.id === "command-center";
+
+  if (session.isPending)
+    return (
+      <div className="vala-ai flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        {t("Loading Vala AI…")}
+      </div>
+    );
+  if (session.error?.status === 403)
+    return <Notice icon={ShieldOff} title={t("No Vala AI access")} body={session.error.message} />;
+  if (session.error)
+    return (
+      <div className="vala-ai min-h-screen bg-background p-6">
+        <ErrorBox error={session.error} />
+      </div>
+    );
+  if (!session.data.operator)
+    return (
+      <Notice
+        icon={LogIn}
+        title={t("Sign in to the Control Panel")}
+        body={t(
+          "Vala AI is operated from the Control Panel. Sign in there and open Vala AI again.",
+        )}
+        login
+      />
+    );
+  const operator = session.data.operator;
+
+  if (studio)
+    return (
+      <OperatorContext.Provider value={operator}>
+        <div className="vala-ai vala-studio">
+          <header className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-2 text-xs">
+            <Link to="/control-panel" className="text-studio-dim hover:text-foreground">
+              ← Control Panel
+            </Link>
+            <nav className="flex flex-wrap gap-4" aria-label="Vala AI module">
+              <Link to="/vala-ai">Vala AI</Link>
+              <Link to="/vala-ai/command-center">Command Center</Link>
+              <Link to="/vala-ai/projects">Engineering projects</Link>
+              <Link to="/vala-ai/chat">Chat</Link>
+              <Link to="/vala-ai/settings">Settings</Link>
+            </nav>
+            <span className="text-studio-dim">
+              {operator.email} · {operator.role}
+            </span>
+          </header>
+          <main id="main-content" tabIndex={-1}>
+            <Outlet key={operator.id} />
+          </main>
+        </div>
+      </OperatorContext.Provider>
+    );
 
   return (
-    <div className="flex min-h-screen w-full bg-background text-foreground">
-      <aside className={cn("sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border bg-background/80 backdrop-blur-xl transition-[width] duration-200 lg:flex", collapsed ? "w-[72px]" : "w-[264px]")}> 
-        <ValaAISidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
-      </aside>
-
-      {mobileOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button className="absolute inset-0 bg-background/70 backdrop-blur-sm" onClick={() => setMobileOpen(false)} aria-label={t("Close menu overlay")} />
-          <div className="absolute inset-y-0 left-0 w-[280px] max-w-[85vw] border-r border-border bg-background shadow-2xl">
-            <ValaAISidebar onNavigate={() => setMobileOpen(false)} />
+    <OperatorContext.Provider value={operator}>
+      <div className="vala-ai flex min-h-screen w-full bg-background text-foreground">
+        <aside
+          className={cn(
+            "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border bg-background/80 backdrop-blur-xl transition-[width] duration-200 lg:flex",
+            collapsed ? "w-[72px]" : "w-[248px]",
+          )}
+        >
+          <ValaAISidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+        </aside>
+        {mobileOpen ? (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <button
+              className="absolute inset-0 bg-background/70 backdrop-blur-sm"
+              onClick={() => setMobileOpen(false)}
+              aria-label={t("Close menu overlay")}
+            />
+            <div className="absolute inset-y-0 left-0 w-[280px] max-w-[85vw] border-r border-border bg-background shadow-2xl">
+              <ValaAISidebar onNavigate={() => setMobileOpen(false)} />
+            </div>
           </div>
+        ) : null}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <ValaTopBar onOpenMenu={() => setMobileOpen(true)} operator={operator} />
+          <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 focus:outline-none">
+            <Outlet />
+          </main>
         </div>
-      ) : null}
+      </div>
+    </OperatorContext.Provider>
+  );
+}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <ValaTopBar onOpenMenu={() => setMobileOpen(true)} />
-        <main className="min-h-0 flex-1">
-          <AnimatePresence mode="wait">
-            <motion.div key={pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }} className={isCommandCenter ? "h-[calc(100vh-3.5rem)]" : ""}>
-              <div className="min-h-[calc(100vh-3.5rem)]">
-                <Outlet />
-              </div>
-            </motion.div>
-          </AnimatePresence>
-        </main>
+function Notice({
+  icon: Icon,
+  title,
+  body,
+  login = false,
+}: {
+  icon: React.ElementType;
+  title: string;
+  body: string;
+  login?: boolean;
+}) {
+  const { translate: t } = useLanguage();
+  return (
+    <div className="vala-ai flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-surface/70 p-6 text-center shadow-xl">
+        <span className="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-primary/15 text-primary">
+          <Icon className="h-5 w-5" />
+        </span>
+        <h1 className="mt-3 text-lg font-semibold">{title}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+        <div className="mt-4 flex justify-center gap-2">
+          {login ? (
+            <a
+              href={`${EXISTING_LOGIN_URL}?redirect=${encodeURIComponent("/vala-ai")}`}
+              className="rounded-lg va-btn-primary px-3 py-2 text-sm font-medium"
+            >
+              {t("Sign in")}
+            </a>
+          ) : null}
+          <a href="/control-panel" className="rounded-lg border border-border px-3 py-2 text-sm">
+            {t("Control Panel")}
+          </a>
+        </div>
       </div>
     </div>
   );

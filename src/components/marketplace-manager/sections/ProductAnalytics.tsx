@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, DownloadCloud, Eye, Loader2, Play, TrendingUp } from "lucide-react";
 
 import { authHeaders } from "@/lib/auth/operator-fetch";
+import { csvCell } from "@/lib/postgrest-safe";
 import { Card, LoadFailure, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 
 /**
@@ -63,14 +64,21 @@ export function ProductAnalytics() {
   const [error, setError] = useState<unknown>(null);
   const [period, setPeriod] = useState("30 Days");
 
+  // The newest request wins. A slow "All time" answer arriving after a quick
+  // "Today" used to put all-time numbers under the Today tab.
+  const latest = useRef(0);
+
   const load = useCallback(async (label: string) => {
+    const ticket = ++latest.current;
     setError(null);
+    setData(null);
     const key = PERIODS.find((p) => p.label === label)?.key ?? "30d";
     try {
       const response = await fetch(`/api/analytics/products?period=${key}`, {
         headers: await authHeaders(),
       });
       const payload = await response.json().catch(() => ({}));
+      if (ticket !== latest.current) return;
       if (!response.ok) {
         setError(new Error(payload?.error ?? (response.status === 401 || response.status === 403
           ? "Sign in as an operator to open product analytics."
@@ -79,6 +87,7 @@ export function ProductAnalytics() {
       }
       setData(payload as Data);
     } catch {
+      if (ticket !== latest.current) return;
       setError(new Error("Could not reach the server."));
     }
   }, []);
@@ -92,11 +101,14 @@ export function ProductAnalytics() {
     const body = data.products.map((p) =>
       [p.name, p.views, p.demo_clicks, p.cta_clicks, p.leads, p.qualified_leads, p.orders,
        p.revenue, p.conversion_rate ?? "", p.ctr ?? "", p.trending.score]
-        .map((v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v)))
+        // Product names come from sellers; a name starting with = runs as a
+        // formula in a spreadsheet unless it is made text.
+        .map(csvCell)
         .join(","),
     );
-    const meta = `# period=${data.period} since=${data.since ?? "all time"} generated=${new Date().toISOString()}`;
-    const blob = new Blob([[meta, head.join(","), ...body].join("\n")], { type: "text/csv;charset=utf-8" });
+    // The period goes in the file name; a comment line above the header was
+    // read by spreadsheet tools as the header row.
+    const blob = new Blob([[head.join(","), ...body].join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `product-analytics-${data.period}-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -140,10 +152,14 @@ export function ProductAnalytics() {
         />
       </div>
 
+      {/* After a failed load the error above says so; the spinner used to keep
+          turning under it for good. */}
       {!data ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Counting the events…
-        </div>
+        error ? null : (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Counting the events…
+          </div>
+        )
       ) : (
         <>
           {!data.reconciliation.matches && (

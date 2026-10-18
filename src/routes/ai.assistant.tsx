@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { absoluteUrl } from "@/lib/seo/site-url";
 import { useMemo } from "react";
 import { SalesAssistant } from "@/components/marketplace-tools/ProductTools";
 import { listPublishedFaqs } from "@/lib/site-content/faq";
@@ -19,6 +20,7 @@ function AssistantPage() {
 
 export const Route = createFileRoute("/ai/assistant")({
   head: () => ({
+    links: [{ rel: "canonical", href: absoluteUrl("/ai/assistant") }],
     meta: [
       { title: "Sales Assistant | Software Vala" },
       {

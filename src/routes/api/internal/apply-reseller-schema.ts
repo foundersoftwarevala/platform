@@ -1,46 +1,32 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
-import { readFileSync } from "fs";
-import { resolve } from "path";
 
-const MIGRATIONS = [
-  "supabase/migrations/20260815_reseller_tables.sql",
-  "supabase/migrations/20260815_reseller_user_mapping_and_rls.sql",
-];
+/**
+ * The reseller schema is not applied over HTTP.
+ *
+ * This endpoint used to post the reseller migrations to
+ * `${SUPABASE_URL}/rest/v1/sql`. PostgREST has no such endpoint, so it could
+ * never succeed. The application has no way to run arbitrary SQL, and should
+ * not have one.
+ *
+ * Migrations are applied by an operator from the repository with
+ * scripts/ops/db.mjs, which reaches the VPS database (sv_platform) and says
+ * which database it reached. The endpoint stays, behind the operator gate, and
+ * answers that honestly instead of pretending.
+ */
 
-async function applySqlToSupabase(
-  supabaseUrl: string,
-  serviceRoleKey: string,
-  sql: string,
-) {
-  const url = new URL("/rest/v1/sql", supabaseUrl).toString();
-
-  const headers = new Headers({
-    apikey: serviceRoleKey,
-    Authorization: `Bearer ${serviceRoleKey}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  });
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ query: sql }),
-  });
-
-  const responseText = await response.text();
-
-  if (!response.ok) {
-    throw new Error(
-      `Supabase migration execution failed (${response.status}): ${responseText}`,
-    );
-  }
-
-  return {
-    ok: true,
-    status: response.status,
-    responseText,
-  };
+function notImplemented() {
+  return Response.json(
+    {
+      success: false,
+      // i18n-ignore: an internal operator API error; this API answers in English.
+      error: "The reseller schema cannot be applied through this endpoint.",
+      reason:
+        "There is no SQL execution endpoint on the database API (/rest/v1/sql does not exist), and the application does not run arbitrary SQL.",
+      howToApply: "node scripts/ops/db.mjs --file supabase/migrations/<file>.sql (run from the repository; it reaches the VPS database sv_platform)",
+    },
+    { status: 501 },
+  );
 }
 
 export const Route = createFileRoute("/api/internal/apply-reseller-schema")({
@@ -49,70 +35,13 @@ export const Route = createFileRoute("/api/internal/apply-reseller-schema")({
       POST: async (request) => {
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
-
-        const supabaseUrl = process.env.SUPABASE_URL;
-        const serviceRoleKey =
-          process.env.SUPABASE_SERVICE_ROLE_KEY ||
-          process.env.SUPABASE_SECRET_KEY;
-
-        if (!supabaseUrl || !serviceRoleKey) {
-          return Response.json(
-            {
-              success: false,
-              reason: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
-            },
-            { status: 400 },
-          );
-        }
-
-        try {
-          const sqlParts = MIGRATIONS.map((relativePath) =>
-            readFileSync(resolve(process.cwd(), relativePath), "utf-8"),
-          );
-          const probeResult = await applySqlToSupabase(
-            supabaseUrl,
-            serviceRoleKey,
-            "SELECT 1 as ok;",
-          );
-
-          const combinedSql = sqlParts.join("\n\n");
-
-          const result = await applySqlToSupabase(
-            supabaseUrl,
-            serviceRoleKey,
-            combinedSql,
-          );
-
-          return Response.json({
-            success: true,
-            probe: probeResult,
-            applied: true,
-            migrations: MIGRATIONS,
-            status: result.status,
-            response: result.responseText,
-          });
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          return Response.json(
-            {
-              success: false,
-              error: message,
-            },
-            { status: 500 },
-          );
-        }
+        return notImplemented();
       },
 
       GET: async (request) => {
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
-
-        return Response.json({
-          message: "Apply the reseller migration to the active Supabase testing project.",
-          migrations: MIGRATIONS,
-          method: "POST",
-        });
+        return notImplemented();
       },
     },
   },

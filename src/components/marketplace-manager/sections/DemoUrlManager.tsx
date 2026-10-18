@@ -13,7 +13,7 @@ import {
   toggleDemoUrl, testDemoUrl, testAllDemoUrls, listDemoAuditLog,
   type DemoUrl, type DemoAuditEntry,
 } from "@/lib/marketplace-manager/demo";
-import { listProductsAdmin } from "@/lib/marketplace.functions";
+import { listProductOptions } from "@/lib/marketplace.functions";
 
 import { Card, LoadFailure, PageHeader, PillButton } from "../ui";
 
@@ -37,7 +37,7 @@ export function DemoUrlManagerSection() {
   const toggleFn = useServerFn(toggleDemoUrl);
   const testFn = useServerFn(testDemoUrl);
   const testAllFn = useServerFn(testAllDemoUrls);
-  const productsFn = useServerFn(listProductsAdmin);
+  const productsFn = useServerFn(listProductOptions);
   const auditFn = useServerFn(listDemoAuditLog);
 
 
@@ -45,9 +45,29 @@ export function DemoUrlManagerSection() {
     queryKey: ["demo_urls"],
     queryFn: async () => (await listFn()) as unknown as DemoUrl[],
   });
+  // The picker used to be filled from listProductsAdmin: every column of all
+  // 7,365 products, to render a list of names. Past 10,000 the read would be
+  // capped and the missing products would simply be unselectable, with
+  // nothing to say why. This asks for id and name only, bounded, and
+  // narrowed by what the operator types.
+  const [productSearch, setProductSearch] = useState("");
+  /**
+   * Declared before it is read, which it was not.
+   *
+   * selectedProductId read `editing` fifteen lines above the `const editing`
+   * that defines it. A const in its temporal dead zone throws on access, so this
+   * component threw on every render and the screen behind Add Demo showed "This
+   * page didn't load" - along with the broken-demo alerts and the health panel,
+   * which sit in the same chunk. It had not worked since the line was written.
+   */
+  const [editing, setEditing] = useState<Partial<DemoUrl> | null>(null);
+  const selectedProductId = editing?.product_id ?? "";
   const { data: products = [] } = useQuery<{ id: string; name: string }[]>({
-    queryKey: ["mp_products_admin_slim"],
-    queryFn: async () => (await productsFn()) as unknown as { id: string; name: string }[],
+    queryKey: ["mp_product_options", productSearch, selectedProductId],
+    queryFn: async () =>
+      (await productsFn({
+        data: { search: productSearch, selected: selectedProductId },
+      })) as unknown as { id: string; name: string }[],
   });
   const { data: audit = [], isLoading: auditLoading } = useQuery<DemoAuditEntry[]>({
     queryKey: ["demo_audit_log"],
@@ -56,7 +76,6 @@ export function DemoUrlManagerSection() {
 
 
 
-  const [editing, setEditing] = useState<Partial<DemoUrl> | null>(null);
   const [filter, setFilter] = useState<"all" | "working" | "slow" | "offline" | "inactive">("all");
 
   const invalidate = () => {
@@ -295,6 +314,8 @@ export function DemoUrlManagerSection() {
         <DemoEditor
           value={editing}
           products={products}
+          productSearch={productSearch}
+          onProductSearch={setProductSearch}
           onCancel={() => setEditing(null)}
           onSave={(v) => upsertMut.mutate(v)}
           saving={upsertMut.isPending}
@@ -305,10 +326,13 @@ export function DemoUrlManagerSection() {
 }
 
 function DemoEditor({
-  value, products, onCancel, onSave, saving,
+  value, products, productSearch, onProductSearch, onCancel, onSave, saving,
 }: {
   value: Partial<DemoUrl>;
   products: { id: string; name: string }[];
+  /** The search is the manager's, which runs it; the editor only shows it. */
+  productSearch: string;
+  onProductSearch: (value: string) => void;
   onCancel: () => void;
   onSave: (v: Partial<DemoUrl>) => void;
   saving: boolean;
@@ -331,6 +355,16 @@ function DemoEditor({
             </datalist>
           </Field>
           <Field label="Product">
+            {/* Added above the picker, not in place of it: the list is bounded
+                now, so this is how an operator reaches a product that is not
+                in the first two hundred. */}
+            <input
+              className={inp}
+              value={productSearch}
+              onChange={(e) => onProductSearch(e.target.value)}
+              placeholder="Search products by name or slug"
+              aria-label="Search products"
+            />
             <select className={inp} value={v.product_id ?? ""} onChange={(e) => set("product_id", (e.target.value || null) as any)}>
               <option value="">— Unassigned —</option>
               {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

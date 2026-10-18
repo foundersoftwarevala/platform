@@ -1,0 +1,17 @@
+/var/log/sv-seo-gate/gate-*.log {
+    daily
+    rotate 7
+    maxage 7
+    dateext
+    dateformat -%Y%m%d
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root root
+    su root root
+    # Dated logs become inactive; prune their archives as well.
+    lastaction
+        find /var/log/sv-seo-gate -maxdepth 1 -type f -regextype posix-extended -regex '.*/gate-[0-9]{8}\.log(\.[0-9]+|-[0-9]{8})?(\.gz)?' -mtime +6 -delete
+    endscript
+}

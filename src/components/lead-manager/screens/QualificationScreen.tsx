@@ -2,11 +2,11 @@ import { useMemo } from "react";
 import { Brain, Copy, Lightbulb, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useAgents, useLeads, useScores } from "@/lib/lead-manager/queries";
+import { useAgents, useCurrentAgent, useLeads, useScores } from "@/lib/lead-manager/queries";
 import { leadApi } from "@/lib/lead-manager/api";
 import type { Lead } from "@/lib/lead-manager/types";
 import { LeadTable } from "../LeadTable";
-import { Panel, ScoreBar, StatCard, inr, num, relTime } from "../shared";
+import { Panel, ScoreBar, StatCard, inr, maskEmail, maskPhone, num, relTime } from "../shared";
 import { useAction } from "./common";
 
 export function QualificationScreen({
@@ -19,6 +19,11 @@ export function QualificationScreen({
   const { data: leads = [], isLoading } = useLeads();
   const { data: agents = [] } = useAgents();
   const { data: scores = [] } = useScores();
+  // Contact details follow the same Unmask switch as the lead table: a
+  // duplicate or spam review does not need a dialable number, only enough
+  // to tell two records apart.
+  const { data: viewer } = useCurrentAgent();
+  const reveal = viewer ? viewer.can_unmask : true;
   const run = useAction();
 
   const highBudget = leads.filter((l) => (l.deal_value ?? 0) >= 500000);
@@ -64,7 +69,8 @@ export function QualificationScreen({
                   <button className="text-left" onClick={() => onSelect(l)}>
                     <p className="text-sm font-medium">{l.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {l.email} • {l.phone} • match {l.duplicate_score}%
+                      {maskEmail(l.email, reveal)} • {maskPhone(l.phone, reveal)} • match{" "}
+                      {l.duplicate_score}%
                     </p>
                   </button>
                   <div className="flex gap-2">

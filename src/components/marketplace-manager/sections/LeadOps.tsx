@@ -115,10 +115,14 @@ export function LeadOps() {
         />
       </div>
 
+      {/* After a failed load the error above says so; the spinner used to keep
+          turning under it for good. */}
       {!data ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Reading the leads…
-        </div>
+        error ? null : (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Reading the leads…
+          </div>
+        )
       ) : (
         <>
           <div className="mb-4 grid gap-3 md:grid-cols-4">

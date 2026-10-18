@@ -519,32 +519,39 @@ export type AmsUserState = {
 const LS_KEY = (role: RoleKey, scope?: string | null) =>
   `sv.ams.${scope ?? "anon"}.${role}.v1`;
 
-function fresh(role: RoleKey): AmsUserState {
-  const seed = role.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const id = `SV-AMS-${String(2000 + seed).padStart(4, "0")}-${String((seed * 137) % 10000).padStart(4, "0")}`;
+function fresh(_role: RoleKey): AmsUserState {
   return {
     xp: 0,
     earnedAwards: [], earnedBadges: [], earnedTrophies: [],
     earnedCertificates: [], earnedMissions: [], claimedRewards: [],
-    passportId: id, joinedAt: new Date().toISOString(),
+    // The passport number is the engine's (ams_passports.passport_no), read
+    // per role; it is never generated here. Empty means none is issued.
+    passportId: "", joinedAt: new Date().toISOString(),
     trustScore: 0, reputation: 0, verified: false,
   };
 }
 
+/**
+ * The starting state for a role's AMS screen: nothing earned until the engine
+ * says otherwise.
+ *
+ * This used to be restored from the browser, and what the browser held was not
+ * only a copy of the database: a "completed" mission, a "verified" identity or
+ * a "claimed" reward added XP, trust and reputation there that the engine had
+ * never granted, and the screen kept showing them whenever the real reader was
+ * slow or failed. Recognition is now read from the database every time, and
+ * whatever an older build left in this browser is removed.
+ */
 export function loadAmsState(role: RoleKey, scope?: string | null): AmsUserState {
-  if (typeof window === "undefined") return fresh(role);
-  try {
-    const raw = window.localStorage.getItem(LS_KEY(role, scope));
-    if (!raw) return fresh(role);
-    return { ...fresh(role), ...(JSON.parse(raw) as Partial<AmsUserState>) };
-  } catch {
-    return fresh(role);
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.removeItem(LS_KEY(role, scope));
+      window.localStorage.removeItem(LS_KEY(role, null));
+    } catch {
+      /* storage unavailable: nothing was kept there either */
+    }
   }
-}
-
-export function saveAmsState(role: RoleKey, s: AmsUserState, scope?: string | null) {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(LS_KEY(role, scope), JSON.stringify(s)); } catch { /* ignore */ }
+  return fresh(role);
 }
 
 export function sectionsForLevel(level: number) {

@@ -80,11 +80,11 @@ const priorityOf = (row: DemoRequestRow): DemoRequestItem["priority"] => {
   return "low";
 };
 
-const mapRequest = (row: DemoRequestRow): DemoRequestItem => ({
+const mapRequest = (row: DemoRequestRow, productName?: string): DemoRequestItem => ({
   id: row.id,
-  company: row.company_name ?? row.client_name,
-  product: row.interested_category ?? "Unspecified",
-  requestedBy: row.client_name,
+  company: row.company ?? row.requester_name,
+  product: productName ?? "Unspecified",
+  requestedBy: row.requester_name,
   priority: priorityOf(row),
   requestDate: row.created_at ? new Date(row.created_at).toISOString().slice(0, 10) : "—",
   status: row.status ?? "pending",
@@ -119,7 +119,18 @@ export const useDemoOverview = () => {
         .order("created_at", { ascending: false })
         .limit(100);
       if (error) throw error;
-      return (data ?? []).map(mapRequest);
+      const requests = data ?? [];
+      const productIds = [...new Set(requests.flatMap(row => row.product_id ? [row.product_id] : []))];
+      const products = new Map<string, string>();
+      if (productIds.length) {
+        const { data: productRows, error: productError } = await supabase
+          .from("marketplace_products")
+          .select("id,name")
+          .in("id", productIds);
+        if (productError) throw productError;
+        for (const product of productRows ?? []) products.set(product.id, product.name);
+      }
+      return requests.map(row => mapRequest(row, row.product_id ? products.get(row.product_id) : undefined));
     },
   });
 
@@ -180,13 +191,11 @@ export const useDemoOverview = () => {
 
   const respondToRequest = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: "approved" | "rejected" }) => {
-      const { data: auth } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("demo_requests")
         .update({
           status,
-          responded_at: new Date().toISOString(),
-          responded_by: auth.user?.id ?? null,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", id);
       if (error) throw error;

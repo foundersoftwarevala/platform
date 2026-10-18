@@ -1,0 +1,67 @@
+[
+  {
+    "target": "my",
+    "status": 200,
+    "body": {
+      "translations": {},
+      "target": "my",
+      "locale": "my",
+      "source": "en",
+      "direction": "ltr",
+      "results": [
+        {
+          "text": "Hello {name},",
+          "status": "needs_review",
+          "origin": "engine",
+          "quality": 0,
+          "issues": [
+            "wrong_script",
+            "unchanged"
+          ]
+        }
+      ],
+      "pending_reason": null,
+      "engine": {
+        "provider": "owned-engine",
+        "kind": "owned",
+        "model": "madlad400-3b-mt-ct2-int8",
+        "version": "madlad400-3b-mt-ct2-int8@aa32bbdeba78+routing@2026.09.5"
+      },
+      "fromCache": 0,
+      "translated": 0,
+      "needsReview": 1
+    }
+  },
+  {
+    "target": "lo",
+    "status": 200,
+    "body": {
+      "translations": {
+        "Thank you for asking for {action, select, request_demo {a demo} notify_me {an update when it is available} callback {a call back} buy_intent {to buy} other {more information}} about {product}.": "ຂໍຂອບໃຈທີ່ຖາມ {action, select, request_demo {ການ​ທົດລອງ} notify_me {ການ​ອັບເດດ ເມື່ອ​ມີ} callback {ການ​ໂທ​ຄືນ} buy_intent {ຊື້} other {ຂໍ້ມູນ​ເພີ່ມເຕີມ}} ກ່ຽວກັບ {product}."
+      },
+      "target": "lo",
+      "locale": "lo",
+      "source": "en",
+      "direction": "ltr",
+      "results": [
+        {
+          "text": "Thank you for asking for {action, select, request_demo {a demo} notify_me {an update when it is available} callback {a call back} buy_intent {to buy} other {more information}} about {product}.",
+          "status": "machine",
+          "origin": "engine",
+          "quality": 0.85,
+          "issues": []
+        }
+      ],
+      "pending_reason": null,
+      "engine": {
+        "provider": "owned-engine",
+        "kind": "owned",
+        "model": "madlad400-3b-mt-ct2-int8",
+        "version": "madlad400-3b-mt-ct2-int8@aa32bbdeba78+routing@2026.09.5"
+      },
+      "fromCache": 0,
+      "translated": 1,
+      "needsReview": 0
+    }
+  }
+]

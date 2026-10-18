@@ -74,6 +74,24 @@ export const HOME_CATEGORY_SLUG: Record<string, string> = {
   "Podcast & Streaming Media": "podcast-streaming-media",
   "Solar & Green Energy": "solar-green-energy",
   "Waste & Recycling": "waste-recycling",
+  // Shelves with no static entries: the catalogue's country cards are the shelf.
+  "Childcare": "childcare",
+  "Coaching": "coaching",
+  "College ERP": "college-erp",
+  "Cultural & Arts": "cultural-arts",
+  "Digital Wallet": "digital-wallet",
+  "Entertainment & Media": "entertainment-media",
+  "Fleet Management": "fleet",
+  "Hospital HMS": "hospital-hms",
+  "Hotel HMS": "hotel-hms",
+  "Learning Management": "lms",
+  "Marketplace & Super Apps": "marketplace-super-apps",
+  "Pet Care & Services": "pet-care-services",
+  "Property Management": "property-mgmt",
+  "Public Transport": "public-transport",
+  "Research & Analytics": "research-analytics",
+  "Restaurant POS": "restaurant-pos",
+  "School Management": "school-management",
 };
 
 /** The catalogue row for a shelf, or null when the shelf has none. */

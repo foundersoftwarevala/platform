@@ -12,6 +12,7 @@ export const Route = createFileRoute("/affiliate-manager/communication")({
       description="Announcements, broadcasts, meetings and internal chat across all affiliates."
       crumbLabel="Communication"
       table="announcements"
+      unavailable="Affiliate announcements are not stored anywhere on the platform yet."
       searchColumns={["title", "body"]}
       searchPlaceholder="Search announcements…"
       filters={["Audience", "Pinned", "Date"]}

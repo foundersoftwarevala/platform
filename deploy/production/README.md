@@ -1,20 +1,100 @@
+### Demo access details
+
+The public demo gateway does not display shared login, password, license, or backup values. It preserves each upstream product's access gate and does not supply credentials. Do not configure global credentials for the shared gateway; only source-specific instructions verified for that exact product may be shown.
+
+## Locked demo presentation workflow
+
+Every submitted URL follows the same pipeline: resolve its real product and
+category, use the configured OpenAI service, extract contacts from the complete
+SPA bundle, apply Software Vala favicon/contact presentation, verify, and publish
+only through `/demo/<product-slug>`. The original vendor URL is retained privately
+and is not modified. Demo cards lead their related marketplace rows.
+
+JavaScript evidence uses a real lexer so empty strings, long literals, comments
+and regular expressions cannot desynchronize contact extraction.
+
+Exact `brandLabels` and `brandMonograms` are scoped to header/footer/navigation.
+Verified `brandLabelPaths` extend this scope to authentication pages, retaining
+forms, records and generic feature copy; monograms become Software Vala initials.
+Browser-verified `publicContactPaths` opt specific public pages into email/phone
+card replacement even with nested page headings. Other routes, forms and
+record cards remain excluded.
+SSR hydration manifests use the same proxied asset URLs as their HTML preload
+tags; application route IDs, employee accounts and credentials remain intact.
+Inline module entry imports also use the isolated proxy, including SSR pages
+that bootstrap with `import("/assets/main.js")` rather than a script `src`.
+Serialized bootstrap children replayed by SSR hydration are rewritten too.
+Native root-relative link clicks remain inside the same demo; handled SPA router
+clicks and external links retain their original behavior.
+Exact public brand labels also match compiled bundle literals, preventing SSR
+hydration mismatches while retaining longer organization names and protected
+account fields.
+Proxied service-worker registrations requesting root or sibling-demo scope are
+limited to their script directory. The gateway never grants root-origin worker
+control; original registration failures still surface. Offline behavior requires
+separate verification and is not certified by a rendered preview.
+Direct proxied application routes retain their original pathname, query and
+fragment when removing the proxy prefix, including employee login deep links.
+Official demo contact replacements use the owner's support email
+`hellosoftwarevala@gmail.com` and WhatsApp/phone `+91 8348838383`.
+Original application account emails and credentials remain unchanged.
+Short site-brand labels can use `brandLabels`: exact header/footer text is
+replaced without rewriting the same words inside ordinary feature descriptions.
+Split inline header/footer labels and Vite lazy module preload assets are also preserved and presented through the isolated demo proxy.
+
+AI findings are accepted only for verified contact and navigation evidence.
+Login/account records, form placeholders, SVG geometry/namespaces and API
+endpoints remain intact. JavaScript rewrites preserve those properties and
+proxy root-relative images/styles. Rewritten text assets are private/no-store,
+preventing stale branding without adding entry-only cache queries. Entry modules
+and lazy imports share one URL so navigation cannot create duplicate React
+instances. Vite relative preload paths retain their leading-slash semantics.
+
+Rendered tables, forms and record contact-information cards retain their data;
+explicit public `section#contact`, `section#contact-us` and
+`section#contact_us` areas are also eligible for contact replacement even when
+their heading is nested separately from the contact cards. Browser-verified
+contact rules remain audited; generic record `value` fields stay protected.
+only public contact areas are rewritten. The canonical database types include
+the existing VPS `user_xp` and `user_streaks` columns, nullability and defaults,
+avoiding deep type-instantiation failures on these real wildcard-read relations.
+
+The Add Demo submit action uses `POST /api/demo/process` with `action: "publish"`.
+It runs investigation and activation together; category mismatches and failed
+verification remain explicit errors, not automatic overrides. Bulk intake keeps
+its 500-row, duplicate-safe batches and review gates for unresolved mappings.
+
+## Demo intake and row order
+
+Publication rejects the known unbuilt Lovable starter landing copy rather than
+treating HTTP 200 and successful rebranding as proof of a working application.
+Confirmed blank upstream previews can be disabled through the audited URL
+Manager without deleting their URL or product. A completed source URL is needed.
+
+Live-demo cards precede other cards in each category and curated row. Existing
+relative order is preserved inside each group, including country order after
+demo cards. Ranking happens before pagination. Apply
+`20261004181500_catalog_demo_first.sql` before deploying the catalogue reader.
+Bulk intake accepts at most 500 addresses per batch: 12,000 addresses require
+24 batches. Preview with `register: false` does not persist a batch or a demo.
+
 # Production server — configuration of record
 
 Everything the production VPS runs that is not application code, kept here so
 the server can be rebuilt from GitHub. No secret is in this directory: the
 values live only on the server (see "Secrets" below).
 
-| File here | Lives on the server at | What it is |
-|---|---|---|
-| `deploy-prod.sh` | `/root/deploy-prod.sh` | Build and restart the app (`/var/www/softwarevala`, PM2 `softwarevala-staging`), keep the previous build, roll back if the site does not answer |
-| `nginx/softwarevala-production.conf` | `/etc/nginx/sites-enabled/softwarevala-production` | TLS termination, proxy to the app on 127.0.0.1:3000, security headers |
-| `nginx/cloudflare-realip.conf` | `/etc/nginx/conf.d/cloudflare-realip.conf` | Trust `CF-Connecting-IP` only from Cloudflare's ranges |
-| `system/cf-realip-update.sh` | `/root/cf-realip-update.sh` | Weekly refresh of those ranges (root crontab) |
-| `system/sv-db-backup.py` | `/usr/local/bin/sv-db-backup.py` | Nightly logical database backup (`cron/sv-db-backup`) |
-| `system/logrotate-softwarevala` | `/etc/logrotate.d/softwarevala` | Rotation for `/var/log/sv-*.log` and PM2 logs |
-| `system/fail2ban-sshd.local` | `/etc/fail2ban/jail.d/sshd.local` | Ban an address after 5 failed SSH logins in 10 min, for 1 h |
-| `cron/*` | `/etc/cron.d/*` | Scheduled jobs |
-| `cron/root-crontab` | `crontab -l` for root | Scheduled jobs (translation engine health, backups, sweeps) |
+| File here                            | Lives on the server at                             | What it is                                                                                                                                      |
+| ------------------------------------ | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deploy-prod.sh`                     | `/root/deploy-prod.sh`                             | Build and restart the app (`/var/www/softwarevala`, PM2 `softwarevala-staging`), keep the previous build, roll back if the site does not answer |
+| `nginx/softwarevala-production.conf` | `/etc/nginx/sites-enabled/softwarevala-production` | TLS termination, proxy to the app on 127.0.0.1:3000, security headers                                                                           |
+| `nginx/cloudflare-realip.conf`       | `/etc/nginx/conf.d/cloudflare-realip.conf`         | Trust `CF-Connecting-IP` only from Cloudflare's ranges                                                                                          |
+| `system/cf-realip-update.sh`         | `/root/cf-realip-update.sh`                        | Weekly refresh of those ranges (root crontab)                                                                                                   |
+| `system/sv-db-backup.py`             | `/usr/local/bin/sv-db-backup.py`                   | Nightly logical database backup (`cron/sv-db-backup`)                                                                                           |
+| `system/logrotate-softwarevala`      | `/etc/logrotate.d/softwarevala`                    | Rotation for `/var/log/sv-*.log` and PM2 logs                                                                                                   |
+| `system/fail2ban-sshd.local`         | `/etc/fail2ban/jail.d/sshd.local`                  | Ban an address after 5 failed SSH logins in 10 min, for 1 h                                                                                     |
+| `cron/*`                             | `/etc/cron.d/*`                                    | Scheduled jobs                                                                                                                                  |
+| `cron/root-crontab`                  | `crontab -l` for root                              | Scheduled jobs (translation engine health, backups, sweeps)                                                                                     |
 
 The translation engine has its own deployment in `services/translation-engine/`
 (container `sv-translate`, `/opt/sv-translate`).

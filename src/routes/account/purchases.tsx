@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Copy, KeyRound, Loader2, Package, ShieldCheck } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import "@/styles/marketplace-home.css";
@@ -43,6 +43,28 @@ function PurchasesPage() {
   const [purchases, setPurchases] = useState<Purchase[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  // The invoice is only served to its owner, so it is fetched with the
+  // session rather than opened as a bare link the browser sends unsigned.
+  const token = useRef<string | null>(null);
+
+  async function openInvoice(event: MouseEvent<HTMLAnchorElement>, invoiceId: string) {
+    event.preventDefault();
+    const tab = window.open("", "_blank");
+    try {
+      const response = await fetch(`/api/account/invoice/${invoiceId}`, {
+        headers: token.current ? { Authorization: `Bearer ${token.current}` } : undefined,
+      });
+      const body = await response.text();
+      const page = URL.createObjectURL(
+        new Blob([body], { type: response.ok ? "text/html" : "text/plain" }),
+      );
+      if (tab) tab.location.href = page;
+      else window.location.href = page;
+    } catch {
+      // The list stays as it is; the new tab says what happened.
+      if (tab) tab.document.body.textContent = t("account.load_failed");
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -56,8 +78,9 @@ function PurchasesPage() {
 
         const supabase = createClient(supabaseUrl, publishable);
         const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        if (!token) {
+        const accessToken = data.session?.access_token;
+        token.current = accessToken ?? null;
+        if (!accessToken) {
           if (!cancelled) {
             setError("signed-out");
             setPurchases([]);
@@ -66,7 +89,7 @@ function PurchasesPage() {
         }
 
         const response = await fetch("/api/account/purchases", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
         const payload = await response.json();
         if (cancelled) return;
@@ -184,8 +207,7 @@ function PurchasesPage() {
                         link: (
                       <a
                         href={`/api/account/invoice/${p.invoice_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        onClick={(event) => void openInvoice(event, p.invoice_id as string)}
                         className="font-semibold text-cyan-300 underline"
                       >
                         {t("account.invoice_open")}
@@ -203,7 +225,7 @@ function PurchasesPage() {
         <p className="mt-8 text-[11px] text-white/40">
           {richText(t("account.setup_note"), {
             link: (
-              <a href="/support" className="text-cyan-300 underline">
+              <a href="/contact" className="text-cyan-300 underline">
                 {t("account.talk_to_support")}
               </a>
             ),

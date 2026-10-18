@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+import { getRequest, getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { languageAuthorization, sameOriginMutation } from "@/lib/i18n/session-contract";
 
 const schema = z.object({
   text: z.string().min(1).max(4000),
@@ -22,17 +23,25 @@ const schema = z.object({
 export const translateMessage = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => schema.parse(input))
   .handler(async ({ data }) => {
+    const request = getRequest();
+    if (!sameOriginMutation(request)) {
+      return { ok: false as const, error: "Translation requires a same-origin request." };
+    }
     const { resolveCaller, translateForCaller } = await import("@/lib/i18n/service.server");
     const { PipelineError } = await import("@/lib/i18n/pipeline");
 
     const caller = await resolveCaller(
-      getRequestHeader("authorization") ?? getRequestHeader("Authorization") ?? null,
+      languageAuthorization(request),
       getRequestHeader("cf-connecting-ip") ??
         getRequestHeader("x-forwarded-for")?.split(",")[0]?.trim() ??
         "unknown",
     );
     if (caller.tier === "anonymous") {
-      return { ok: false as const, error: "Sign in to translate messages." };
+      return {
+        ok: false as const,
+        error: "Sign in to translate messages.",
+        reason: "native_session_required" as const,
+      };
     }
 
     try {

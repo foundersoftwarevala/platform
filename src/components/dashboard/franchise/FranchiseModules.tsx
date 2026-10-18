@@ -68,7 +68,7 @@ function BranchesModule({ onBack }: { onBack: () => void }) {
   const [editing, setEditing] = useState<Branch | null>(null);
   const [creating, setCreating] = useState(false);
   const [detail, setDetail] = useState<Branch | null>(null);
-  const [form, setForm] = useState({ name: "", city: "", region: "West", manager: "", target: 250000 });
+  const [form, setForm] = useState({ name: "", city: "", region: "West", manager: "" });
 
   const columns: Column<Branch>[] = [
     { key: "name", label: "Branch", sortValue: (b) => b.name, render: (b) => (
@@ -99,7 +99,7 @@ function BranchesModule({ onBack }: { onBack: () => void }) {
       title="Branches" subtitle={`${branches.length} locations in the network`} onBack={onBack}
       actions={
         <button
-          onClick={() => { setForm({ name: "", city: "", region: "West", manager: "", target: 250000 }); setCreating(true); }}
+          onClick={() => { setForm({ name: "", city: "", region: "West", manager: "" }); setCreating(true); }}
           className="press-3d inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-brand-foreground"
         ><Plus className="h-3.5 w-3.5" /> New branch</button>
       }
@@ -110,7 +110,7 @@ function BranchesModule({ onBack }: { onBack: () => void }) {
         searchKeys={(b) => `${b.name} ${b.city} ${b.region} ${b.manager} ${b.id}`}
         filters={[{ label: "Active", value: "active" }, { label: "Onboarding", value: "onboarding" }, { label: "Paused", value: "paused" }]}
         actions={[
-          { label: "Edit", icon: <Pencil className="h-3.5 w-3.5" />, onClick: (b) => { setEditing(b); setForm({ name: b.name, city: b.city, region: b.region, manager: b.manager, target: b.target }); } },
+          { label: "Edit", icon: <Pencil className="h-3.5 w-3.5" />, onClick: (b) => { setEditing(b); setForm({ name: b.name, city: b.city, region: b.region, manager: b.manager }); } },
           { label: "Delete", icon: <Trash2 className="h-3.5 w-3.5" />, tone: "danger", onClick: (b) => removeBranches([b.id]) },
         ]}
         bulkActions={[{ label: "Delete", icon: <Trash2 className="h-3.5 w-3.5" />, tone: "danger", onClick: removeBranches }]}
@@ -128,7 +128,6 @@ function BranchesModule({ onBack }: { onBack: () => void }) {
               </select>
             </Field>
             <Field label="Manager"><input className={inputCls} value={form.manager} onChange={(e) => setForm({ ...form, manager: e.target.value })} /></Field>
-            <Field label="Monthly target"><input type="number" className={inputCls} value={form.target} onChange={(e) => setForm({ ...form, target: Number(e.target.value) })} /></Field>
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <button onClick={() => { setCreating(false); setEditing(null); }} className="press-3d rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
@@ -147,14 +146,16 @@ function BranchesModule({ onBack }: { onBack: () => void }) {
             <div><span className="text-muted-foreground">Opened</span><div className="font-medium">{new Date(detail.openedAt).toLocaleDateString()}</div></div>
             <div><span className="text-muted-foreground">Employees</span><div className="font-medium">{detail.employees}</div></div>
             <div><span className="text-muted-foreground">Revenue</span><div className="font-medium">{fmtMoney(detail.monthlyRevenue)}</div></div>
-            <div><span className="text-muted-foreground">Target</span><div className="font-medium">{fmtMoney(detail.target)}</div></div>
+            <div><span className="text-muted-foreground">Target</span><div className="font-medium">{detail.target == null ? "Not set" : fmtMoney(detail.target)}</div></div>
           </div>
-          <div className="mt-3">
-            <LineChart height={150} format={(v) => fmtMoney(v * 900)} data={detail.trend.map((v, i) => ({ label: MONTHS[i], value: v }))} />
-          </div>
+          {detail.trend.length > 0 && (
+            <div className="mt-3">
+              <LineChart height={150} format={(v) => fmtMoney(v)} data={detail.trend.map((v, i) => ({ label: MONTHS[i], value: v }))} />
+            </div>
+          )}
           <div className="mt-3 flex justify-end gap-2">
             <button
-              onClick={() => { setEditing(detail); setForm({ name: detail.name, city: detail.city, region: detail.region, manager: detail.manager, target: detail.target }); setDetail(null); }}
+              onClick={() => { setEditing(detail); setForm({ name: detail.name, city: detail.city, region: detail.region, manager: detail.manager }); setDetail(null); }}
               className="press-3d inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs"
             ><Pencil className="h-3.5 w-3.5" /> Edit branch</button>
           </div>
@@ -237,7 +238,7 @@ function LeadsModule({ onBack }: { onBack: () => void }) {
                   >
                     <button onClick={() => setDetail(l)} className="w-full text-left">
                       <div className="truncate text-xs font-semibold">{l.company}</div>
-                      <div className="truncate text-[11px] text-muted-foreground">{l.name} • {l.city}</div>
+                      <div className="truncate text-[11px] text-muted-foreground">{l.name}</div>
                       <div className="mt-1 text-xs font-bold text-brand">{fmtMoney(l.value)}</div>
                     </button>
                   </div>
@@ -283,8 +284,8 @@ function LeadsModule({ onBack }: { onBack: () => void }) {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Contact name"><input className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
             <Field label="Company"><input className={inputCls} value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} /></Field>
-            <Field label="City"><input className={inputCls} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></Field>
-            <Field label="Owner"><input className={inputCls} value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })} /></Field>
+            {/* A lead records no city, and its owner is whoever adds it. */}
+            <Field label="Source"><input className={inputCls} value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} /></Field>
             <Field label="Deal value"><input type="number" className={inputCls} value={form.value} onChange={(e) => setForm({ ...form, value: Number(e.target.value) })} /></Field>
             <Field label="Stage">
               <select className={inputCls} value={form.stage} onChange={(e) => setForm({ ...form, stage: e.target.value as LeadStage })}>
@@ -339,12 +340,13 @@ function LeadsModule({ onBack }: { onBack: () => void }) {
 /* ---------------------------- Revenue ---------------------------- */
 
 function RevenueModule({ onBack }: { onBack: () => void }) {
-  const { branches, payments } = useFranchise();
+  const { branches, payments, revenueByPeriod } = useFranchise();
   const [rate, setRate] = useState(12);
   const [base, setBase] = useState(500_000);
   const [growth, setGrowth] = useState(6);
 
-  const monthly = MONTHS.map((m, i) => ({ label: m, value: branches.reduce((s, b) => s + (b.trend[i] ?? 0), 0) * 900 }));
+  // Recorded revenue per period, not a generated line.
+  const monthly = revenueByPeriod;
   const total = branches.reduce((s, b) => s + b.monthlyRevenue, 0);
   const collected = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
   const outstanding = payments.filter((p) => p.status !== "paid").reduce((s, p) => s + p.amount, 0);

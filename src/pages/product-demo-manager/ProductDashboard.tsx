@@ -1,44 +1,76 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { text, useResource } from "@/lib/manager/use-resource";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, MonitorPlay, TrendingUp, DollarSign, Users, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
+/**
+ * The studio's own figures, counted by the database.
+ *
+ * This screen read the browser Supabase client, which is built against the
+ * hosted project, while every demo the storefront serves lives on the VPS:
+ * hosted holds one product_demo_urls row, the VPS holds seventeen. So an
+ * operator opening the dashboard was told the catalogue had one demo.
+ *
+ * It also fetched all 7,365 products and every demo into the browser only to
+ * call .length on them - the shape that under-reports the day a fetch is capped,
+ * and it is capped already.
+ *
+ * Both are fixed by asking /api/manager/resource, which reads the VPS and
+ * returns the count separately from the page: four small requests that each
+ * bring back four rows and a real total, instead of two that bring back the
+ * whole catalogue. Every figure on the screen is unchanged in meaning.
+ */
 const ProductDashboard = () => {
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ["product-demo-stats"],
-    queryFn: async () => {
-      const [productsRes, demosRes] = await Promise.all([
-        supabase.from("marketplace_products").select("id, name, visible, price_label, created_at").order("created_at", { ascending: false }),
-        supabase.from("product_demo_urls").select("id, demo_name, status, last_result, last_response_ms, created_at").order("created_at", { ascending: false }),
-      ]);
-
-      if (productsRes.error) throw productsRes.error;
-      if (demosRes.error) throw demosRes.error;
-
-      const products = productsRes.data || [];
-      const demos = demosRes.data || [];
-
-      return {
-        totalProducts: products.length,
-        activeProducts: products.filter(p => p.visible).length,
-        totalDemos: demos.length,
-        activeDemos: demos.filter(d => d.status === "active").length,
-        conversionRate: null,
-        totalRevenue: null,
-        recentProducts: products.slice(0, 4),
-        recentDemos: demos.slice(0, 4),
-      };
-    }
+  const { t } = useTranslation();
+  // "Recent" is the newest by when it was added. Both panels used the
+  // catalogue's display order, so they showed the same first four products and
+  // demos whatever had just been added.
+  const products = useResource("products", { limit: 4, sort: "created_at", dir: "desc" });
+  // Active means a visitor can see it: visible and published, the storefront's
+  // own rule. Visible alone counted drafts.
+  const activeProducts = useResource("products", {
+    limit: 1,
+    filters: ["visible.eq.true", "content_status.eq.published"],
   });
+  const demos = useResource("demos", { limit: 4, sort: "created_at", dir: "desc" });
+  const activeDemos = useResource("demos", { limit: 1, filters: ["status.eq.active"] });
+
+  const isLoading = products.loading || demos.loading;
+  // A count that could not be read is a dash, not 0.
+  const count = (state: { total: number; failed: boolean }) => (state.failed ? "—" : state.total);
+  const stats = {
+    totalProducts: products.total,
+    activeProducts: activeProducts.total,
+    totalDemos: demos.total,
+    activeDemos: activeDemos.total,
+    // No source for either yet. A dash is the honest answer, and was already
+    // what this screen showed.
+    conversionRate: null as number | null,
+    totalRevenue: null as number | null,
+    recentProducts: products.rows,
+    /**
+     * The list below renders `demo.name`, and the column is `demo_name` - it
+     * always was, in the query this replaced too, so the recent-demos list has
+     * been showing blank names the whole time. Mapped here rather than editing
+     * the markup, so the screen is untouched.
+     */
+    recentDemos: demos.rows.map((row) => ({
+      ...row,
+      name: String(row.demo_name ?? row.name ?? ""),
+      status: String(row.status ?? ""),
+      last_result: typeof row.last_result === "string" ? row.last_result : "",
+      last_response_ms: typeof row.last_response_ms === "number" ? row.last_response_ms : null,
+    })),
+  };
 
   const statCards = [
     { 
-      label: "Total Products", 
-      value: stats?.totalProducts || 0, 
+      label: t("manager.products.total_products"), 
+      value: count(products), 
       icon: Package, 
       gradient: "from-violet-600 via-violet-500 to-purple-600",
       glow: "shadow-violet-500/25",
@@ -46,8 +78,8 @@ const ProductDashboard = () => {
       trendUp: true
     },
     { 
-      label: "Active Products", 
-      value: stats?.activeProducts || 0, 
+      label: t("manager.products.active_products"), 
+      value: count(activeProducts), 
       icon: Zap, 
       gradient: "from-emerald-600 via-emerald-500 to-teal-600",
       glow: "shadow-emerald-500/25",
@@ -55,8 +87,8 @@ const ProductDashboard = () => {
       trendUp: true
     },
     { 
-      label: "Total Demos", 
-      value: stats?.totalDemos || 0, 
+      label: t("manager.products.total_demos"), 
+      value: count(demos), 
       icon: MonitorPlay, 
       gradient: "from-blue-600 via-blue-500 to-cyan-600",
       glow: "shadow-blue-500/25",
@@ -64,7 +96,7 @@ const ProductDashboard = () => {
       trendUp: true
     },
     { 
-      label: "Conversion Rate", 
+      label: t("manager.products.conversion_rate"), 
       value: stats?.conversionRate == null ? "-" : `${stats.conversionRate}%`, 
       icon: TrendingUp, 
       gradient: "from-amber-600 via-amber-500 to-orange-600",
@@ -73,7 +105,7 @@ const ProductDashboard = () => {
       trendUp: false
     },
     { 
-      label: "Total Revenue", 
+      label: t("manager.products.total_revenue"), 
       value: stats?.totalRevenue == null ? "-" : `₹${(stats.totalRevenue / 1000).toFixed(0)}K`, 
       icon: DollarSign, 
       gradient: "from-pink-600 via-pink-500 to-rose-600",
@@ -96,16 +128,16 @@ const ProductDashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             className="text-2xl font-bold bg-linear-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent"
           >
-            Product Dashboard
+            {t("manager.products.dashboard_title")}
           </motion.h1>
           <p className="text-slate-400 text-sm flex items-center gap-2 mt-1">
             <Activity className="w-3 h-3 text-emerald-400 animate-pulse" />
-            Real-time overview of products and demos
+            {t("manager.products.dashboard_subtitle")}
           </p>
         </div>
         <Badge className="bg-linear-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 border-cyan-500/30 px-3 py-1">
           <Sparkles className="w-3 h-3 mr-1" />
-          Live Data
+          {t("manager.products.live_data")}
         </Badge>
       </div>
 
@@ -177,10 +209,10 @@ const ProductDashboard = () => {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-white text-sm flex items-center gap-2">
                   <Package className="w-4 h-4 text-violet-400" />
-                  Recent Products
+                  {t("manager.products.recent_products")}
                 </CardTitle>
                 <Badge variant="outline" className="text-slate-400 border-slate-600">
-                  {recentProducts.length} items
+                  {t("manager.products.items", { count: recentProducts.length })}
                 </Badge>
               </div>
             </CardHeader>
@@ -200,22 +232,22 @@ const ProductDashboard = () => {
                           <Package className="w-5 h-5 text-violet-400" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-white group-hover:text-violet-400 transition-colors">{product.name}</p>
+                          <p className="text-sm font-medium text-white group-hover:text-violet-400 transition-colors">{text(product, "name")}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                               product.visible
                                 ? 'bg-emerald-500/20 text-emerald-400' 
                                 : 'bg-amber-500/20 text-amber-400'
                             }`}>
-                              {product.visible ? "active" : "inactive"}
+                              {product.visible ? t("manager.products.state_active") : t("manager.products.state_inactive")}
                             </span>
-                            <span className="text-xs text-slate-500">{product.price_label || "Price not set"}</span>
+                            <span className="text-xs text-slate-500">{text(product, "price_label", t("manager.products.price_not_set"))}</span>
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-slate-400">-</p>
-                        <p className="text-xs text-slate-500">revenue data unavailable</p>
+                        <p className="text-xs text-slate-500">{t("manager.products.revenue_unavailable")}</p>
                       </div>
                     </div>
                   </motion.div>
@@ -236,10 +268,10 @@ const ProductDashboard = () => {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-white text-sm flex items-center gap-2">
                   <MonitorPlay className="w-4 h-4 text-cyan-400" />
-                  Recent Demos
+                  {t("manager.products.recent_demos")}
                 </CardTitle>
                 <Badge variant="outline" className="text-slate-400 border-slate-600">
-                  {recentDemos.length} items
+                  {t("manager.products.items", { count: recentDemos.length })}
                 </Badge>
               </div>
             </CardHeader>
@@ -269,14 +301,14 @@ const ProductDashboard = () => {
                               {demo.status === "active" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
                               {demo.status}
                             </span>
-                            <span className="text-xs text-slate-500">{demo.last_result || "not checked"}</span>
+                            <span className="text-xs text-slate-500">{demo.last_result || t("manager.products.not_checked")}</span>
                           </div>
                         </div>
                       </div>
                     </div>
                     <div className="ml-13 pl-13">
                       <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="text-slate-400">Engagement</span>
+                        <span className="text-slate-400">{t("manager.products.engagement")}</span>
                         <span className="text-cyan-400">{demo.last_response_ms == null ? "-" : `${demo.last_response_ms} ms`}</span>
                       </div>
                       <Progress value={demo.last_result === "working" ? 100 : demo.last_result === "slow" ? 60 : 0} className="h-1.5 bg-slate-800" />

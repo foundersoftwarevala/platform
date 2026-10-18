@@ -3,6 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 import { EngineDashboard, StatusChip } from "@/components/ams/shared/EngineDashboard";
 import { ROLES } from "@/lib/ams/roles";
 import { useAmsCatalogue } from "@/hooks/useAmsCatalogue";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export const Route = createFileRoute("/ams/role-manager/")({
   head: () => ({
@@ -24,6 +25,7 @@ function Page() {
   // takes. Nothing read them, so "Journey Stages" was the number 8 written
   // into the file. It is counted now, and each role says how many steps its
   // own ladder has and where that ladder ends.
+  const { t } = useTranslation();
   const catalogue = useAmsCatalogue();
   const stages = catalogue.data?.roleStages ?? [];
   const stagesFor = (slug: string) => stages.filter((s) => s.role === slug);
@@ -49,12 +51,14 @@ function Page() {
     stages: (() => {
       const mine = stagesFor(r.slug);
       if (catalogue.isLoading) return <span className="text-muted-foreground">…</span>;
-      if (mine.length === 0) return <span className="text-muted-foreground">no ladder recorded</span>;
+      if (mine.length === 0) {
+        return <span className="text-muted-foreground">{t("manager.ams.no_ladder")}</span>;
+      }
       const last = mine.reduce((highest, s) => (s.stage > highest.stage ? s : highest), mine[0]);
       return (
         <span className="text-xs">
           <span className="font-mono">{mine.length}</span>
-          <span className="text-muted-foreground"> · ends at {last.title}</span>
+          <span className="text-muted-foreground"> {t("manager.ams.ends_at", { title: last.title })}</span>
         </span>
       );
     })(),

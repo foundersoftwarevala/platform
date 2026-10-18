@@ -17,7 +17,7 @@ export function ResellerModulePage({ role, moduleKey, onBack }: { role: RoleConf
   if (moduleKey === "renewals")     return <ResellerLedgerWorkspace view="renewals" onBack={onBack} />;
   if (moduleKey === "achievements") return <AMSEngine role={role} onBack={onBack} />;
   if (moduleKey === "ams")          return <AMSWorkspace role={role} onBack={onBack} />;
-  if (moduleKey === "ams-center")   return <AMSCenterWorkspace onBack={onBack} />;
+  if (moduleKey === "ams-center")   return <AMSCenterWorkspace onBack={onBack} dashboardRole={role.key} />;
   return <CrudWorkspace role={role} moduleKey={moduleKey} onBack={onBack} />;
 }
 

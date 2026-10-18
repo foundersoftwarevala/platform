@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Sparkles, Volume2, Lock } from "lucide-react";
 import { StageTrophy } from "./StageTrophy";
-import { playUnlock } from "@/lib/ams/trophy-sounds";
 import type { DeveloperStage } from "@/lib/ams/developer-stages";
 import { useCelebration, type CelebrateKind } from "@/components/ams/effects/Celebration";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -28,7 +27,7 @@ export function StageCard({ stage, unlocked = true }: { stage: DeveloperStage; u
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const cardRef = useRef<HTMLDivElement | null>(null);
   const reducedMotion = useReducedMotion();
-  const { celebrate, soundOn } = useCelebration();
+  const { celebrate } = useCelebration();
 
   const sparkleCount = reducedMotion ? 0 : 14;
   const sparkles = useMemo(
@@ -55,10 +54,9 @@ export function StageCard({ stage, unlocked = true }: { stage: DeveloperStage; u
   }
   function onLeave() { setTilt({ x: 0, y: 0 }); }
 
+  // A showcase preview of the stage's unlock. It grants nothing, so it shows
+  // no XP; the presentation plays the stage's own voice, once.
   function unlock() {
-    if (soundOn) {
-      try { playUnlock(stage.unlock); } catch { /* noop */ }
-    }
     setCelebrateOn(false);
     requestAnimationFrame(() => setCelebrateOn(true));
     setTimeout(() => setCelebrateOn(false), 2600);
@@ -66,7 +64,7 @@ export function StageCard({ stage, unlocked = true }: { stage: DeveloperStage; u
       kind: UNLOCK_TO_KIND[stage.unlock] ?? "achievement",
       title: `${stage.title} Unlocked`,
       subtitle: `${stage.material} · ${stage.theme}`,
-      xp: 100 * stage.n,
+      unlock: stage.unlock,
     });
   }
 

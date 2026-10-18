@@ -1,70 +1,382 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle } from "lucide-react";
+import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { listDemoCategories } from "@/lib/demo-manager/demos.functions";
+import { authHeaders } from "@/lib/auth/operator-fetch";
+import { richText, useTranslation } from "@/lib/i18n/use-translation";
+
+/**
+ * Bulk Add — for the twelve thousand demo URLs that are waiting to go in.
+ *
+ * This screen used to do nothing at all. Its upload handler read no file,
+ * parsed no CSV and made no database call: it set a two-second timer and then
+ * announced "Bulk upload completed! Demos added successfully". An operator
+ * would have uploaded twelve thousand URLs, been told they were saved, and had
+ * nothing saved. Its warning banner also promised that duplicates were blocked,
+ * while `demos` carried no unique index on anything but its primary key.
+ *
+ * Both are now true rather than claimed. The file is read and parsed here, the
+ * rows are checked before anything is sent, the insert is a real insert, and
+ * the counts reported afterwards are counted from what the database returned.
+ * Duplicates are refused by a unique index on demos.normalized_url, which a
+ * trigger maintains.
+ *
+ * Nothing is inserted until the operator has seen what will be: the file is
+ * parsed on selection and the screen says how many rows will be added, how many
+ * will be skipped and why, with the first of each named.
+ */
+
+type DemoRow = {
+  line: number;
+  title: string;
+  url: string;
+  /** A product slug or id from the file, when it carries one. Never inferred. */
+  product: string;
+  normalized: string;
+  category: string;
+  demo_type: string;
+  description: string;
+};
+
+type Rejected = { line: number; reason: string; sample: string };
+
+type Parsed = {
+  rows: DemoRow[];
+  rejected: Rejected[];
+  duplicatesInFile: number;
+};
+
+/**
+ * The same normalisation the database applies, so the count this screen shows
+ * before the insert matches what the insert actually does.
+ */
+function normalizeUrl(raw: string): string {
+  const value = raw.trim().replace(/#.*$/, "");
+  const lower = value.toLowerCase();
+  const scheme = lower.startsWith("https://") ? "https" : lower.startsWith("http://") ? "http" : null;
+  if (!scheme) return value.replace(/\/+$/, "");
+  const rest = value.slice(scheme.length + 3);
+  const cut = (() => {
+    const slash = rest.indexOf("/");
+    const question = rest.indexOf("?");
+    const candidates = [slash, question].filter((i) => i >= 0);
+    return candidates.length ? Math.min(...candidates) : -1;
+  })();
+  const host = (cut === -1 ? rest : rest.slice(0, cut)).toLowerCase().replace(/:(80|443)$/, "");
+  const tail = (cut === -1 ? "" : rest.slice(cut)).replace(/\/+$/, "");
+  return `${scheme}://${host}${tail}`;
+}
+
+/** A CSV line reader that understands quoted fields and embedded commas. */
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      quoted = true;
+    } else if (ch === "," || ch === "\t" || ch === ";") {
+      out.push(field.trim());
+      field = "";
+    } else {
+      field += ch;
+    }
+  }
+  out.push(field.trim());
+  return out;
+}
+
+const DEMO_TYPES = ["web", "mobile", "desktop", "api"];
+
+function parseDemosCsv(text: string, categories: string[]): Parsed {
+  const known = new Map(categories.map((c) => [c.toLowerCase().trim(), c]));
+  const lines = text
+    .replace(/^﻿/, "")
+    .split(/\r?\n/)
+    .map((l) => l.trimEnd());
+
+  const rows: DemoRow[] = [];
+  const rejected: Rejected[] = [];
+  const seen = new Set<string>();
+  let duplicatesInFile = 0;
+
+  // The header is optional: a file that is just a list of URLs is accepted.
+  let start = 0;
+  let index: Record<string, number> = { title: 0, category: 1, demo_type: 2, url: 3, description: 4 };
+  const first = lines.find((l) => l.trim().length > 0) ?? "";
+  if (/(^|[,;\t])\s*url\s*([,;\t]|$)/i.test(first) || /^\s*title\s*[,;\t]/i.test(first)) {
+    const headers = splitCsvLine(first).map((h) => h.toLowerCase().replace(/\s+/g, "_"));
+    index = {} as Record<string, number>;
+    headers.forEach((h, i) => {
+      index[h] = i;
+    });
+    start = lines.indexOf(first) + 1;
+  }
+
+  for (let i = start; i < lines.length; i += 1) {
+    const raw = lines[i];
+    if (!raw.trim()) continue;
+    const line = i + 1;
+    const cells = splitCsvLine(raw);
+    const at = (name: string) => (index[name] === undefined ? "" : (cells[index[name]] ?? "").trim());
+
+    // A bare list of URLs is a legitimate file, so a single-column row is read
+    // as the URL rather than refused for having no header.
+    const url = (at("url") || (cells.length === 1 ? cells[0] : "")).trim();
+    if (!/^https?:\/\//i.test(url)) {
+      rejected.push({ line, reason: "no http(s) URL in the row", sample: raw.slice(0, 70) });
+      continue;
+    }
+
+    const normalized = normalizeUrl(url);
+    if (seen.has(normalized)) {
+      duplicatesInFile += 1;
+      continue;
+    }
+    seen.add(normalized);
+
+    const askedFor = at("category");
+    const category = askedFor ? known.get(askedFor.toLowerCase().trim()) : undefined;
+    if (askedFor && !category) {
+      rejected.push({ line, reason: `category "${askedFor.slice(0, 32)}" is not one of the ${categories.length}`, sample: url.slice(0, 60) });
+      continue;
+    }
+    if (!category) {
+      rejected.push({ line, reason: "no category — a demo with no category cannot be found in the marketplace", sample: url.slice(0, 60) });
+      continue;
+    }
+
+    let title = at("title");
+    if (!title) {
+      try {
+        title = new URL(url).hostname.replace(/^www\./i, "");
+      } catch {
+        title = url;
+      }
+    }
+
+    const askedType = at("demo_type").toLowerCase();
+    rows.push({
+      line,
+      title,
+      url,
+      normalized,
+      category,
+      demo_type: DEMO_TYPES.includes(askedType) ? askedType : "web",
+      description: at("description"),
+      // A product column is honoured when the file carries one, and never
+      // invented when it does not: an unnamed row is matched by title, or left
+      // unassigned for review.
+      product: at("product") || at("product_slug") || at("product_id"),
+    });
+  }
+
+  return { rows, rejected, duplicatesInFile };
+}
 
 const BulkAdd = () => {
+  const { t } = useTranslation();
   const [uploadType, setUploadType] = useState<"products" | "demos" | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [parsed, setParsed] = useState<Parsed | null>(null);
+  // Rows taken in but deliberately not assigned, which an operator reviews.
+  const [review, setReview] = useState<{ ambiguous: number; unmatched: number } | null>(null);
+  const [isWorking, setIsWorking] = useState(false);
+  const [outcome, setOutcome] = useState<{ inserted: number; alreadyThere: number; failed: number; detail: string } | null>(null);
+
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+
+  // Read through the server, not the browser client. The browser client talks
+  // to the hosted Supabase project, where demo_categories is empty; the ninety
+  // categories are on the VPS, which is where the rest of the platform reads
+  // and writes. Fetching from the browser returned "200 []" and every row of an
+  // upload was then refused for having a category "not one of the 0".
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await listDemoCategories();
+        if (cancelled) return;
+        setCategories(rows.map((r) => String(r.name)).filter(Boolean));
+        setCategoriesError(null);
+      } catch (problem) {
+        if (cancelled) return;
+        setCategoriesError(problem instanceof Error ? problem.message : "unknown error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const readFile = useCallback(
+    async (file: File) => {
+      setUploadedFile(file);
+      setOutcome(null);
+      if (uploadType !== "demos") {
+        setParsed(null);
+        return;
+      }
+      try {
+        const text = await file.text();
+        const result = parseDemosCsv(text, categories);
+        setParsed(result);
+        toast.success(t("demo.bulk_add.file_read", { name: file.name }), {
+          description: t("demo.bulk_add.file_read_detail", { ready: result.rows.length, skipped: result.rejected.length }),
+        });
+      } catch (problem) {
+        setParsed(null);
+        toast.error(t("demo.bulk_add.file_unreadable"), {
+          description: problem instanceof Error ? problem.message : t("demo.bulk_add.unknown_error"),
+        });
+      }
+    },
+    [uploadType, categories, t],
+  );
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
     const file = e.dataTransfer.files[0];
-    if (file && file.name.endsWith(".csv")) {
-      setUploadedFile(file);
-      toast.success("CSV file uploaded", { description: file.name });
-    } else {
-      toast.error("Invalid file", { description: "Please upload a CSV file" });
-    }
+    if (file && /\.(csv|txt)$/i.test(file.name)) void readFile(file);
+    else toast.error(t("demo.bulk_add.invalid_file"), { description: t("demo.bulk_add.invalid_file_detail") });
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setUploadedFile(file);
-      toast.success("CSV file selected", { description: file.name });
+    if (file) void readFile(file);
+  };
+
+  const handleUpload = async () => {
+    if (!uploadedFile || uploadType !== "demos" || !parsed || parsed.rows.length === 0) return;
+
+    setIsWorking(true);
+    setOutcome(null);
+    let inserted = 0;
+    let failed = 0;
+    let detail = "";
+
+    try {
+      // The server does the filing: it re-checks every category against
+      // demo_categories, makes the batch distinct, and inserts with
+      // ignore-duplicates so a URL already in the catalogue is skipped rather
+      // than failing the batch. The counts come back from what the database
+      // returned, not from what was sent.
+      const BATCH = 500;
+      let already = 0;
+      const refusals: string[] = [];
+      let ambiguous = 0;
+      let unmatched = 0;
+      for (let i = 0; i < parsed.rows.length; i += BATCH) {
+        const batch = parsed.rows.slice(i, i + BATCH);
+        /**
+         * Sent to the canonical path.
+         *
+         * This used to call createDemosBulk, which writes into `demos` - a
+         * table with no product relationship that the storefront has never
+         * read. So every row this screen "added" was invisible everywhere, and
+         * the screen said it had worked.
+         *
+         * /api/demo/assign writes product_demo_urls, decides the product
+         * without guessing, and reports each row on its own: ASSIGNED,
+         * ALREADY_ASSIGNED, AMBIGUOUS, UNMATCHED, INVALID or ERROR. A row it
+         * cannot place is still taken in, unassigned, so an operator can review
+         * it - it is simply never guessed at.
+         */
+        const response = await fetch("/api/demo/assign", {
+          method: "POST",
+          headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "commit",
+            rows: batch.map((row) => ({
+              url: row.url,
+              name: row.title || null,
+              product: row.product || null,
+            })),
+          }),
+        });
+        const report = (await response.json()) as {
+          error?: string;
+          totals?: Record<string, number>;
+          rows?: { state: string; reason: string }[];
+        };
+        if (!response.ok) throw new Error(report.error ?? t("demo.bulk_add.batch_refused"));
+
+        inserted += report.totals?.ASSIGNED ?? 0;
+        already += report.totals?.ALREADY_ASSIGNED ?? 0;
+        ambiguous += report.totals?.AMBIGUOUS ?? 0;
+        unmatched += report.totals?.UNMATCHED ?? 0;
+        failed += (report.totals?.INVALID ?? 0) + (report.totals?.ERROR ?? 0);
+        for (const r of report.rows ?? []) {
+          if (["INVALID", "ERROR", "AMBIGUOUS", "UNMATCHED"].includes(r.state)) {
+            refusals.push(`${r.state}: ${r.reason}`);
+          }
+        }
+      }
+      setReview({ ambiguous, unmatched });
+      detail = [...new Set(refusals)].slice(0, 6).join("; ");
+      setOutcome({ inserted, alreadyThere: already, failed: 0, detail });
+    } catch (problem) {
+      detail = problem instanceof Error ? problem.message : t("demo.bulk_add.unknown_error");
+      failed = parsed.rows.length - inserted;
+    } finally {
+      setIsWorking(false);
+    }
+
+    const alreadyThere = Math.max(0, parsed.rows.length - inserted - failed);
+    if (failed > 0) setOutcome({ inserted, alreadyThere, failed, detail });
+
+    if (failed > 0) {
+      toast.error(t("demo.bulk_add.partial", { inserted, failed }), { description: detail.slice(0, 160) });
+    } else {
+      toast.success(t("demo.bulk_add.added", { count: inserted }), {
+        description: alreadyThere ? t("demo.bulk_add.already_there", { count: alreadyThere }) : t("demo.bulk_add.none_already"),
+      });
+      setUploadedFile(null);
+      setParsed(null);
     }
   };
 
-  const handleUpload = () => {
-    if (!uploadedFile || !uploadType) return;
-    
-    // Simulate validation and upload
-    toast.info("Validating CSV...");
-    setTimeout(() => {
-      toast.success("Bulk upload completed!", {
-        description: `${uploadType === "products" ? "Products" : "Demos"} added successfully`
-      });
-      setUploadedFile(null);
-      setUploadType(null);
-    }, 2000);
-  };
+  const ready = parsed?.rows.length ?? 0;
+  const preview = useMemo(() => (parsed ? parsed.rows.slice(0, 5) : []), [parsed]);
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Upload className="w-6 h-6 text-emerald-400" />
-          Bulk Add
+          {t("demo.bulk_add.title")}
         </h1>
-        <p className="text-slate-400 text-sm">Upload CSV files to add multiple products or demos</p>
+        <p className="text-slate-400 text-sm">{t("demo.bulk_add.subtitle")}</p>
       </div>
 
       {/* Warning Banner */}
       <div className="p-4 bg-amber-900/20 border border-amber-500/30 rounded-lg flex items-start gap-3">
         <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm text-amber-400 font-medium">Bulk Upload Rules</p>
+          <p className="text-sm text-amber-400 font-medium">{t("demo.bulk_add.rules_title")}</p>
           <ul className="text-xs text-amber-400/70 mt-1 space-y-1">
-            <li>• CSV validated before insert</li>
-            <li>• No overwrite allowed</li>
-            <li>• Duplicates blocked</li>
-            <li>• All records become immutable after upload</li>
+            <li>{t("demo.bulk_add.rule_checked")}</li>
+            <li>{t("demo.bulk_add.rule_duplicate")}</li>
+            <li>{t("demo.bulk_add.rule_category", { count: categories.length || "—" })}</li>
+            <li>{t("demo.bulk_add.rule_no_overwrite")}</li>
           </ul>
         </div>
       </div>
@@ -78,8 +390,8 @@ const BulkAdd = () => {
           >
             <CardContent className="p-6 text-center">
               <FileSpreadsheet className="w-12 h-12 text-violet-400 mx-auto mb-3" />
-              <p className="text-white font-medium">Bulk Add Products</p>
-              <p className="text-xs text-slate-400 mt-1">Upload products CSV</p>
+              <p className="text-white font-medium">{t("demo.bulk_add.products_title")}</p>
+              <p className="text-xs text-slate-400 mt-1">{t("demo.bulk_add.products_subtitle")}</p>
             </CardContent>
           </Card>
 
@@ -89,8 +401,8 @@ const BulkAdd = () => {
           >
             <CardContent className="p-6 text-center">
               <FileSpreadsheet className="w-12 h-12 text-blue-400 mx-auto mb-3" />
-              <p className="text-white font-medium">Bulk Add Demos</p>
-              <p className="text-xs text-slate-400 mt-1">Upload demos CSV</p>
+              <p className="text-white font-medium">{t("demo.bulk_add.demos_title")}</p>
+              <p className="text-xs text-slate-400 mt-1">{t("demo.bulk_add.demos_subtitle")}</p>
             </CardContent>
           </Card>
         </div>
@@ -102,66 +414,146 @@ const BulkAdd = () => {
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-              Upload {uploadType === "products" ? "Products" : "Demos"} CSV
+              {uploadType === "products" ? t("demo.bulk_add.upload_products") : t("demo.bulk_add.upload_demos")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div
-              className={cn(
-                "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
-                isDragging ? "border-emerald-500 bg-emerald-500/10" : "border-slate-700 hover:border-slate-600",
-                uploadedFile && "border-emerald-500 bg-emerald-500/10"
-              )}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-            >
-              {uploadedFile ? (
-                <div className="space-y-2">
-                  <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
-                  <p className="text-white font-medium">{uploadedFile.name}</p>
-                  <p className="text-xs text-slate-400">{(uploadedFile.size / 1024).toFixed(2)} KB</p>
-                </div>
-              ) : (
-                <>
-                  <Upload className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-                  <p className="text-white">Drag & drop your CSV file here</p>
-                  <p className="text-xs text-slate-400 mt-1">or click to browse</p>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleFileSelect}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                  />
-                </>
-              )}
-            </div>
+            {uploadType === "products" ? (
+              <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-lg space-y-2">
+                <p className="text-sm text-amber-300 font-medium">{t("demo.bulk_add.products_not_here")}</p>
+                <p className="text-xs text-slate-400">
+                  {richText(t("demo.bulk_add.products_explained"), {
+                    link: <span className="text-white">{t("demo.bulk_add.demos_title")}</span>,
+                  })}
+                </p>
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  "relative border-2 border-dashed rounded-lg p-8 text-center transition-colors",
+                  isDragging ? "border-emerald-500 bg-emerald-500/10" : "border-slate-700 hover:border-slate-600",
+                  uploadedFile && "border-emerald-500 bg-emerald-500/10",
+                )}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+              >
+                {uploadedFile ? (
+                  <div className="space-y-2">
+                    <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
+                    <p className="text-white font-medium">{uploadedFile.name}</p>
+                    <p className="text-xs text-slate-400">{t("demo.bulk_add.size_kb", { size: (uploadedFile.size / 1024).toFixed(2) })}</p>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="w-12 h-12 text-slate-500 mx-auto mb-3" />
+                    <p className="text-white">{t("demo.bulk_add.drop_here")}</p>
+                    <p className="text-xs text-slate-400 mt-1">{t("demo.bulk_add.click_browse")}</p>
+                    <input
+                      type="file"
+                      accept=".csv,.txt"
+                      onChange={handleFileSelect}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                  </>
+                )}
+              </div>
+            )}
 
-            {/* CSV Template Info */}
-            <div className="p-4 bg-slate-800/50 rounded-lg">
-              <p className="text-sm text-slate-300 font-medium mb-2">Required CSV Columns:</p>
-              {uploadType === "products" ? (
-                <p className="text-xs text-slate-400">product_name, category, pricing_model, lifetime_price, description</p>
-              ) : (
-                <p className="text-xs text-slate-400">title, category, demo_type, url, description</p>
-              )}
-            </div>
+            {/* What the file has to contain */}
+            {uploadType === "demos" && (
+              <div className="p-4 bg-slate-800/50 rounded-lg space-y-1">
+                <p className="text-sm text-slate-300 font-medium">{t("demo.bulk_add.columns")}</p>
+                <p className="text-xs text-slate-400">
+                  {richText(t("demo.bulk_add.columns_help"), {
+                    // i18n-ignore: CSV column names
+                    url: <span className="text-white">url</span>, category: <span className="text-white">category</span>, title: <span className="text-white">title</span>, demo_type: <span className="text-white">demo_type</span>, description: <span className="text-white">description</span>,
+                  })}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {t("demo.bulk_add.columns_defaults", { types: DEMO_TYPES.join(", ") })}
+                </p>
+                {categoriesError && (
+                  <p className="text-xs text-red-400">{t("demo.bulk_add.categories_failed")} {categoriesError}</p>
+                )}
+              </div>
+            )}
+
+            {/* What will happen, before it happens */}
+            {parsed && (
+              <div className="p-4 bg-slate-800/50 rounded-lg space-y-2">
+                <p className="text-sm text-white font-medium">
+                  {t("demo.bulk_add.rows_will_add", { count: ready })}
+                  {parsed.duplicatesInFile > 0 && ` · ${t("demo.bulk_add.repeated_in_file", { count: parsed.duplicatesInFile })}`}
+                  {parsed.rejected.length > 0 && ` · ${t("demo.bulk_add.skipped", { count: parsed.rejected.length })}`}
+                </p>
+                {preview.length > 0 && (
+                  <ul className="text-xs text-slate-400 space-y-0.5">
+                    {preview.map((row) => (
+                      <li key={row.normalized}>
+                        <span className="text-slate-200">{row.title}</span> — {row.category} — {row.url.slice(0, 54)}
+                      </li>
+                    ))}
+                    {ready > preview.length && <li>{t("demo.bulk_add.and_more", { count: ready - preview.length })}</li>}
+                  </ul>
+                )}
+                {parsed.rejected.length > 0 && (
+                  <ul className="text-xs text-amber-400/80 space-y-0.5">
+                    {parsed.rejected.slice(0, 4).map((r) => (
+                      <li key={`${r.line}-${r.reason}`}>
+                        {t("demo.bulk_add.line", { line: r.line })}: {r.reason} — {r.sample}
+                      </li>
+                    ))}
+                    {parsed.rejected.length > 4 && <li>{t("demo.bulk_add.and_more_skipped", { count: parsed.rejected.length - 4 })}</li>}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {/* What actually happened */}
+            {outcome && (
+              <div className="p-4 bg-slate-800/50 rounded-lg">
+                <p className="text-sm text-white font-medium">
+                  {t("demo.bulk_add.outcome", { inserted: outcome.inserted, already: outcome.alreadyThere })}
+                  {outcome.failed > 0 && ` · ${t("demo.bulk_add.outcome_failed", { count: outcome.failed })}`}
+                </p>
+                {outcome.detail && <p className="text-xs text-red-400 mt-1">{outcome.detail}</p>}
+              </div>
+            )}
 
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                onClick={() => { setUploadType(null); setUploadedFile(null); }}
+                onClick={() => {
+                  setUploadType(null);
+                  setUploadedFile(null);
+                  setParsed(null);
+                  setOutcome(null);
+                }}
                 className="flex-1"
+                disabled={isWorking}
               >
-                Cancel
+                {t("demo.bulk_add.cancel")}
               </Button>
               <Button
                 onClick={handleUpload}
-                disabled={!uploadedFile}
+                disabled={isWorking || uploadType !== "demos" || ready === 0}
                 className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
               >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload & Process
+                {isWorking ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {t("demo.bulk_add.adding", { count: ready })}
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    {ready > 0 ? t("demo.bulk_add.add_demos", { count: ready }) : t("demo.bulk_add.upload_process")}
+                  </>
+                )}
               </Button>
             </div>
           </CardContent>

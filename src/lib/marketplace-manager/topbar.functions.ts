@@ -1,5 +1,7 @@
+import { callAsUser } from "@/lib/supabase-rpc.server";
+import type { JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 /**
@@ -15,23 +17,6 @@ import { z } from "zod";
  * reads, so the manager and the storefront cannot disagree.
  */
 
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
-
 export type TopBarModule = {
   module_key: string;
   name: string;
@@ -45,15 +30,29 @@ export type TopBarModule = {
   mobile_enabled: boolean;
   sticky_enabled: boolean;
   featured: boolean;
-  config: Record<string, unknown>;
+  config: JsonObject;
   live: boolean;
+  /**
+   * True when a component in the header actually reads this row. The registry
+   * returns these three and always has; they were missing from this type, so
+   * every caller that wanted them reached for a cast. `blocked_reason` is what
+   * the module says is missing before it could go live, and it is the same
+   * sentence mm_topbar_configure quotes back when it refuses.
+   */
+  rendered: boolean;
+  planned: boolean;
+  blocked_reason: string | null;
   updated_at: string;
 };
 
 /** Every module in the bar, in the order the header renders them. */
 export const listTopBarModules = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ ok: true; modules: TopBarModule[] }> => {
-    const modules = await callAsUser<TopBarModule[]>("mm_topbar_modules", {});
+    const modules = await callAsUser<TopBarModule[]>(
+      "mm_topbar_modules",
+      {},
+      { allowAnonymous: true },
+    );
     return { ok: true as const, modules: modules ?? [] };
   },
 );
@@ -75,26 +74,77 @@ function settle(r: Outcome | null, whenOk: string) {
 
 export const configureTopBarModule = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
-    z.object({
-      key: z.string().min(1).max(60),
-      patch: z.object({
-        name: z.string().min(1).max(80).optional(),
-        status: z.enum(["live", "draft", "hidden", "archived"]).optional(),
-        sort_order: z.number().int().min(1).max(99).optional(),
-        desktop_enabled: z.boolean().optional(),
-        tablet_enabled: z.boolean().optional(),
-        mobile_enabled: z.boolean().optional(),
-        sticky_enabled: z.boolean().optional(),
-        featured: z.boolean().optional(),
-      }),
-    }).parse(i),
+    z
+      .object({
+        key: z.string().min(1).max(60),
+        patch: z.object({
+          name: z.string().min(1).max(80).optional(),
+          status: z.enum(["live", "draft", "hidden", "archived"]).optional(),
+          sort_order: z.number().int().min(1).max(99).optional(),
+          desktop_enabled: z.boolean().optional(),
+          tablet_enabled: z.boolean().optional(),
+          mobile_enabled: z.boolean().optional(),
+          sticky_enabled: z.boolean().optional(),
+          featured: z.boolean().optional(),
+        }),
+      })
+      .parse(i),
   )
   .handler(async ({ data }) =>
     settle(
-      await callAsUser<Outcome>("mm_topbar_configure", {
-        p_key: data.key, p_patch: data.patch,
-      }),
+      await callAsUser<Outcome>(
+        "mm_topbar_configure",
+        {
+          p_key: data.key,
+          p_patch: data.patch,
+        },
+        { allowAnonymous: true },
+      ),
       "Module updated",
+    ),
+  );
+
+export type TopBarItem = { key: string; label: string; blurb?: string };
+
+/**
+ * Replace the items of a header dropdown.
+ *
+ * Apply Now and Dashboards are the only two menus the header has, and their
+ * entries used to be arrays inside TopUtilityBar.tsx. They live in the
+ * module's own config now, so the manager edits the rows the header reads.
+ *
+ * The database does the validating — a key and a label on every item, no
+ * repeated keys, at most forty entries — because a client cannot be trusted
+ * with any of it, and because the same rules then apply to every caller.
+ */
+export const setTopBarItems = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        key: z.string().min(1).max(60),
+        items: z
+          .array(
+            z.object({
+              key: z.string().min(1).max(60),
+              label: z.string().min(1).max(80),
+              blurb: z.string().max(160).optional(),
+            }),
+          )
+          .max(40),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) =>
+    settle(
+      await callAsUser<Outcome>(
+        "mm_topbar_items_set",
+        {
+          p_key: data.key,
+          p_items: data.items,
+        },
+        { allowAnonymous: true },
+      ),
+      `Menu saved — ${data.items.length} item${data.items.length === 1 ? "" : "s"}`,
     ),
   );
 
@@ -105,7 +155,11 @@ export const reorderTopBarModules = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) =>
     settle(
-      await callAsUser<Outcome>("mm_topbar_reorder", { p_keys: data.keys }),
+      await callAsUser<Outcome>(
+        "mm_topbar_reorder",
+        { p_keys: data.keys },
+        { allowAnonymous: true },
+      ),
       "Top bar reordered",
     ),
   );

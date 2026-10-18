@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Clock, AlertTriangle, Plus, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { useState, useEffect, useCallback } from "react";
+import { Clock, AlertTriangle, Plus, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -13,11 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { smQuery, smMutate } from '@/lib/sm-data';
-import { PageHeader } from '../layout/PageShell';
+} from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { smQuery, smMutate } from "@/lib/sm-data";
+import { useTranslation } from "@/lib/i18n/use-translation";
+import { PageHeader } from "../layout/PageShell";
 
 interface MaintenanceWindow {
   id: string;
@@ -50,6 +51,7 @@ const formatRange = (start: string, end: string) => {
 };
 
 const SMMaintenance = () => {
+  const { t } = useTranslation();
   const [windows, setWindows] = useState<MaintenanceWindow[]>([]);
   const [updates, setUpdates] = useState<RollingUpdate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,12 +60,12 @@ const SMMaintenance = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    title: '',
-    scope: '',
-    impact: '',
-    start: '',
-    end: '',
-    notes: '',
+    title: "",
+    scope: "",
+    impact: "",
+    start: "",
+    end: "",
+    notes: "",
   });
 
   const loadData = useCallback(async () => {
@@ -71,21 +73,25 @@ const SMMaintenance = () => {
     setLoadError(null);
     try {
       const [mw, ru] = await Promise.all([
-        smQuery('maintenance windows', () =>
+        smQuery("maintenance windows", () =>
           supabase
-            .from('server_maintenance_windows')
-            .select('id, window_code, title, scheduled_start, scheduled_end, server_scope, impact, status')
-            .order('scheduled_start', { ascending: true }),
+            .from("server_maintenance_windows")
+            .select(
+              "id, window_code, title, scheduled_start, scheduled_end, server_scope, impact, status",
+            )
+            .order("scheduled_start", { ascending: true }),
         ),
-        smQuery('rolling updates', () =>
+        smQuery("rolling updates", () =>
           supabase
-            .from('server_rolling_updates')
-            .select('id, component, current_version, target_version, servers_count, progress, status')
-            .order('created_at', { ascending: true }),
+            .from("server_rolling_updates")
+            .select(
+              "id, component, current_version, target_version, servers_count, progress, status",
+            )
+            .order("created_at", { ascending: true }),
         ),
       ]);
       if (mw === null || ru === null) {
-        setLoadError('Could not load maintenance data. Please retry.');
+        setLoadError("Could not load maintenance data. Please retry.");
       }
       setWindows(mw ?? []);
       setUpdates(ru ?? []);
@@ -100,47 +106,61 @@ const SMMaintenance = () => {
 
   const submitWindow = async () => {
     if (!form.title || !form.scope || !form.start || !form.end) {
-      toast.error('Please fill in title, scope, start and end');
+      toast.error(t("manager.server.mw_fill_required"));
+      return;
+    }
+    const start = new Date(form.start);
+    const end = new Date(form.end);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      toast.error(t("manager.server.mw_end_after_start"));
       return;
     }
     setSaving(true);
-    const windowCode = `MW-${Math.floor(1000 + Math.random() * 9000)}`;
-    const ok = await smMutate(
-      'schedule maintenance window',
-      () =>
-        supabase.from('server_maintenance_windows').insert({
-          window_code: windowCode,
+    // window_code is NOT NULL and has no database default, so the reference is
+    // derived from the creation time (same convention as DEP-/JOB- codes), not a
+    // random number. Everything shown afterwards comes from the row the database
+    // returns: its own uuid and the stored window_code.
+    let created: { id: string; window_code: string } | null = null;
+    const ok = await smMutate("schedule maintenance window", async () => {
+      const { data, error } = await supabase
+        .from("server_maintenance_windows")
+        .insert({
+          window_code: `MW-${Date.now().toString(36).toUpperCase()}`,
           title: form.title,
           server_scope: form.scope,
-          impact: form.impact || 'To be determined',
-          scheduled_start: new Date(form.start).toISOString(),
-          scheduled_end: new Date(form.end).toISOString(),
-          status: 'pending_approval',
+          impact: form.impact || "To be determined",
+          scheduled_start: start.toISOString(),
+          scheduled_end: end.toISOString(),
+          status: "pending_approval",
           notes: form.notes || null,
-        }),
-    );
+        })
+        .select("id, window_code")
+        .single();
+      created = data;
+      return { data, error };
+    });
 
-    if (ok) {
-      await smMutate(
-        'log maintenance audit entry',
-        () =>
-          supabase.from('server_audit_logs').insert({
-            action: 'Maintenance Scheduled',
-            actor: 'Server Manager',
-            details: `${windowCode} scheduled: ${form.title}`,
-            result: 'Pending',
-            risk_level: 'medium',
-          }),
+    if (ok && created) {
+      const row: { id: string; window_code: string } = created;
+      const { data: auth } = await supabase.auth.getUser();
+      await smMutate("log maintenance audit entry", () =>
+        supabase.from("server_audit_logs").insert({
+          action: "Maintenance Scheduled",
+          actor: auth.user?.email ?? "Server Manager",
+          details: `${row.window_code} (${row.id}) scheduled: ${form.title}`,
+          result: "Pending",
+          risk_level: "medium",
+        }),
       );
-      toast.success(`${windowCode} scheduled — pending approval`);
+      toast.success(t("manager.server.mw_scheduled", { code: row.window_code }));
       setDialogOpen(false);
-      setForm({ title: '', scope: '', impact: '', start: '', end: '', notes: '' });
+      setForm({ title: "", scope: "", impact: "", start: "", end: "", notes: "" });
       await loadData();
     }
     setSaving(false);
   };
 
-  const nextWindow = windows.find((w) => w.status !== 'completed' && w.status !== 'cancelled');
+  const nextWindow = windows.find((w) => w.status !== "completed" && w.status !== "cancelled");
 
   return (
     <div className="space-y-6">
@@ -161,33 +181,57 @@ const SMMaintenance = () => {
               <div className="space-y-3">
                 <div>
                   <Label className="text-muted-foreground">Title</Label>
-                  <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                  <Input
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  />
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Affected Servers/Scope</Label>
-                  <Input value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} placeholder="e.g. DB-MAIN-01, All Production Servers" />
+                  <Input
+                    value={form.scope}
+                    onChange={(e) => setForm({ ...form, scope: e.target.value })}
+                    placeholder="e.g. DB-MAIN-01, All Production Servers"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-muted-foreground">Start</Label>
-                    <Input type="datetime-local" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} />
+                    <Input
+                      type="datetime-local"
+                      value={form.start}
+                      onChange={(e) => setForm({ ...form, start: e.target.value })}
+                    />
                   </div>
                   <div>
                     <Label className="text-muted-foreground">End</Label>
-                    <Input type="datetime-local" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} />
+                    <Input
+                      type="datetime-local"
+                      value={form.end}
+                      onChange={(e) => setForm({ ...form, end: e.target.value })}
+                    />
                   </div>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Impact</Label>
-                  <Input value={form.impact} onChange={(e) => setForm({ ...form, impact: e.target.value })} placeholder="e.g. Database unavailable" />
+                  <Input
+                    value={form.impact}
+                    onChange={(e) => setForm({ ...form, impact: e.target.value })}
+                    placeholder="e.g. Database unavailable"
+                  />
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Notes</Label>
-                  <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                  <Textarea
+                    value={form.notes}
+                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  />
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancel
+                </Button>
                 <Button onClick={() => void submitWindow()} disabled={saving}>
                   {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                   Submit for Approval
@@ -212,7 +256,9 @@ const SMMaintenance = () => {
         <h3 className="text-sm font-semibold tracking-tight mb-4">Planned Maintenance Windows</h3>
         <div className="space-y-4">
           {loading && (
-            <p className="text-muted-foreground text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</p>
+            <p className="text-muted-foreground text-sm flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading...
+            </p>
           )}
           {!loading && windows.length === 0 && (
             <p className="text-muted-foreground text-sm">No maintenance windows scheduled.</p>
@@ -223,14 +269,20 @@ const SMMaintenance = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <span className="font-mono text-sm text-muted-foreground">{window.window_code}</span>
+                      <span className="font-mono text-sm text-muted-foreground">
+                        {window.window_code}
+                      </span>
                       <h4 className="font-semibold">{window.title}</h4>
-                      <Badge className={
-                        window.status === 'scheduled' ? 'bg-primary/10 text-primary border-primary/30' :
-                        window.status === 'completed' ? 'bg-accent-emerald/10 text-accent-emerald border-accent-emerald/30' :
-                        'bg-accent-amber/10 text-accent-amber border-accent-amber/30'
-                      }>
-                        {window.status.replace('_', ' ')}
+                      <Badge
+                        className={
+                          window.status === "scheduled"
+                            ? "bg-primary/10 text-primary border-primary/30"
+                            : window.status === "completed"
+                              ? "bg-accent-emerald/10 text-accent-emerald border-accent-emerald/30"
+                              : "bg-accent-amber/10 text-accent-amber border-accent-amber/30"
+                        }
+                      >
+                        {window.status.replace("_", " ")}
                       </Badge>
                     </div>
                     <div className="grid grid-cols-3 gap-4 text-sm">
@@ -265,7 +317,9 @@ const SMMaintenance = () => {
         <h3 className="text-sm font-semibold tracking-tight mb-4">Rolling Updates Plan</h3>
         <div className="space-y-4">
           {loading && (
-            <p className="text-muted-foreground text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</p>
+            <p className="text-muted-foreground text-sm flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading...
+            </p>
           )}
           {!loading && updates.length === 0 && (
             <p className="text-muted-foreground text-sm">No rolling updates in progress.</p>
@@ -277,21 +331,30 @@ const SMMaintenance = () => {
                   <div>
                     <h4 className="font-semibold">{update.component}</h4>
                     <p className="text-sm text-muted-foreground">
-                      {update.current_version} → {update.target_version} · {update.servers_count} servers
+                      {update.current_version} → {update.target_version} · {update.servers_count}{" "}
+                      servers
                     </p>
                   </div>
-                  <Badge className={
-                    update.progress === 100 ? 'bg-accent-emerald/10 text-accent-emerald border-accent-emerald/30' :
-                    update.progress === 0 ? 'bg-surface text-muted-foreground border-border' :
-                    'bg-primary/10 text-primary border-primary/30'
-                  }>
-                    {update.progress === 100 ? 'Complete' : update.progress === 0 ? 'Pending' : 'In Progress'}
+                  <Badge
+                    className={
+                      update.progress === 100
+                        ? "bg-accent-emerald/10 text-accent-emerald border-accent-emerald/30"
+                        : update.progress === 0
+                          ? "bg-surface text-muted-foreground border-border"
+                          : "bg-primary/10 text-primary border-primary/30"
+                    }
+                  >
+                    {update.progress === 100
+                      ? "Complete"
+                      : update.progress === 0
+                        ? "Pending"
+                        : "In Progress"}
                   </Badge>
                 </div>
                 <div className="h-2 bg-surface rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
-                      update.progress === 100 ? 'bg-accent-emerald' : 'bg-primary'
+                      update.progress === 100 ? "bg-accent-emerald" : "bg-primary"
                     }`}
                     style={{ width: `${update.progress}%` }}
                   />
@@ -304,14 +367,19 @@ const SMMaintenance = () => {
 
       {/* Impact Preview */}
       <Card className="bento-card border-accent-amber/30 bg-accent-amber/10">
-        <h3 className="text-sm font-semibold tracking-tight text-accent-amber mb-2">Impact Preview</h3>
+        <h3 className="text-sm font-semibold tracking-tight text-accent-amber mb-2">
+          Impact Preview
+        </h3>
         <ul className="text-sm text-accent-amber space-y-1">
           {nextWindow ? (
-            <li>• Next maintenance: {new Date(nextWindow.scheduled_start).toISOString().slice(0, 10)} — {nextWindow.impact}</li>
+            <li>
+              • Next maintenance: {new Date(nextWindow.scheduled_start).toISOString().slice(0, 10)}{" "}
+              — {nextWindow.impact}
+            </li>
           ) : (
             <li>• No upcoming maintenance windows</li>
           )}
-          <li>• Affected scope: {nextWindow?.server_scope ?? '—'}</li>
+          <li>• Affected scope: {nextWindow?.server_scope ?? "—"}</li>
           <li>• Recommended: Schedule non-critical deployments after maintenance</li>
         </ul>
       </Card>

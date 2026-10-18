@@ -14,6 +14,8 @@
 export class SingleFlightCache<T> {
   private readonly entries = new Map<string, { at: number; value: T }>();
   private readonly pending = new Map<string, Promise<T>>();
+  /** Bumped by clear(), so an answer computed before it is not stored after. */
+  private generation = 0;
 
   constructor(
     private readonly ttlMs: number,
@@ -26,15 +28,28 @@ export class SingleFlightCache<T> {
     if (hit && Date.now() - hit.at < this.ttlMs) return hit.value;
     const running = this.pending.get(key);
     if (running) return running;
+    const started = this.generation;
     const work = compute()
       .then((value) => {
-        if (this.entries.size >= this.maxEntries) this.entries.clear();
-        this.entries.set(key, { at: Date.now(), value });
+        if (started === this.generation) {
+          if (this.entries.size >= this.maxEntries) this.entries.clear();
+          this.entries.set(key, { at: Date.now(), value });
+        }
         return value;
       })
-      .finally(() => this.pending.delete(key));
+      .finally(() => {
+        // Only its own entry: after a clear() a newer read may hold the key.
+        if (this.pending.get(key) === work) this.pending.delete(key);
+      });
     this.pending.set(key, work);
     return work;
+  }
+
+  /** Forget every stored answer, so the next read goes to the database. */
+  clear(): void {
+    this.generation += 1;
+    this.entries.clear();
+    this.pending.clear();
   }
 
   /** Number of computations in progress (for tests and metrics). */

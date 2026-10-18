@@ -15,12 +15,28 @@ export const leadKeys = {
   integrationEvents: ["lm", "integration-events"] as const,
   settings: ["lm", "settings"] as const,
   audit: ["lm", "audit"] as const,
+  currentAgent: ["lm", "current-agent"] as const,
   notes: (id: string) => ["lm", "notes", id] as const,
   comms: (id: string) => ["lm", "comms", id] as const,
 };
 
 export const useLeads = (filters: { status?: string; source?: string; search?: string } = {}) =>
   useQuery({ queryKey: leadKeys.leads(filters), queryFn: () => leadApi.listLeads(filters) });
+
+/**
+ * Whoever is using the console, as an agent record.
+ *
+ * The Security screen offers a per-agent Export and Unmask switch, and both
+ * wrote to the database and changed nothing, because nothing in the Lead
+ * Manager ever asked who was at the keyboard. Held for five minutes so a table
+ * of leads does not ask the auth service once per render.
+ */
+export const useCurrentAgent = () =>
+  useQuery({
+    queryKey: leadKeys.currentAgent,
+    queryFn: () => leadApi.currentAgent(),
+    staleTime: 5 * 60 * 1000,
+  });
 
 export const useAgents = () =>
   useQuery({ queryKey: leadKeys.agents, queryFn: () => leadApi.listAgents() });

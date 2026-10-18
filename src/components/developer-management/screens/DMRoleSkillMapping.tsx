@@ -7,9 +7,8 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
-import { Layers, Code2, FolderKanban, Brain, Sparkles } from 'lucide-react';
-import { useAllDeveloperTasks, useDeveloperRegistry, useGenerateDeveloperInsight } from '@/hooks/useDevManagerData';
+import { Layers, Code2, FolderKanban, Brain } from 'lucide-react';
+import { useAllDeveloperTasks, useDeveloperRegistry } from '@/hooks/useDevManagerData';
 import { useTranslation } from '@/lib/i18n/use-translation';
 
 /**
@@ -21,10 +20,9 @@ import { useTranslation } from '@/lib/i18n/use-translation';
  * match model, so that score is not shown as a number.
  */
 export const DMRoleSkillMapping: React.FC = () => {
-  const { t, language } = useTranslation();
+  const { t } = useTranslation();
   const registry = useDeveloperRegistry();
   const tasks = useAllDeveloperTasks();
-  const aiInsight = useGenerateDeveloperInsight();
   const devs = (registry.data ?? []).filter((d) => d.status !== 'exited');
   const norm = (s: string) => s.trim().toLowerCase();
   const counts = new Map<string, { label: string; n: number }>();
@@ -43,9 +41,7 @@ export const DMRoleSkillMapping: React.FC = () => {
     coverage: devs.length ? Math.round((c.n / devs.length) * 100) : 0,
   }));
   const stackOf = (t: { techStack: string[] }) => t.techStack;
-  const openTasks = (tasks.data ?? []).filter(
-    (task) => !['completed', 'delivered', 'cancelled'].includes(task.status),
-  );
+  const openTasks = (tasks.data ?? []).filter((t) => t.status !== 'completed');
   const techStack = [
     { name: t('devmanager.skills.developer_skills'), techs: skillMatrix.map((s) => s.skill) },
   ].filter((g) => g.techs.length);
@@ -180,36 +176,8 @@ export const DMRoleSkillMapping: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="text-center">
-            <Button
-              variant="outline"
-              disabled={aiInsight.isPending || registry.isLoading || tasks.isLoading}
-              onClick={() => aiInsight.mutate({ kind: 'skill_match', language })}
-            >
-              <Sparkles className="h-4 w-4" />
-              {aiInsight.isPending ? t('devmanager.ai.skill_pending') : t('devmanager.ai.skill_generate')}
-            </Button>
-            {aiInsight.isError && (
-              <p className="mt-3 text-sm text-destructive" role="alert">{aiInsight.error.message}</p>
-            )}
-            {aiInsight.data && (
-              <div className="mt-4 space-y-3 text-left">
-                <p className="text-sm text-muted-foreground">{aiInsight.data.summary}</p>
-                {aiInsight.data.items.map((item) => (
-                  <div key={`${item.taskId}-${item.developerId}`} className="rounded-lg border p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">{item.taskCode}</Badge>
-                      <Badge>{item.developerLabel}</Badge>
-                      <Badge variant="secondary">{item.fit ?? '—'}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm">{item.rationale}</p>
-                  </div>
-                ))}
-                <p className="text-xs text-muted-foreground">
-                  {t('devmanager.ai.recommendation_count', { count: aiInsight.data.items.length })} · {aiInsight.data.provider}
-                  {aiInsight.data.model ? ` / ${aiInsight.data.model}` : ''}
-                </p>
-              </div>
-            )}
+            <div className="text-5xl font-bold text-purple-500 mb-2">—</div>
+            <p className="text-sm text-muted-foreground">{t('devmanager.skills.ai_match_none')}</p>
           </div>
         </CardContent>
       </Card>

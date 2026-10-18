@@ -1,3 +1,4 @@
+import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { Link } from "@tanstack/react-router";
 import { LayoutDashboard, Menu, Search, Settings, User } from "lucide-react";
 
@@ -44,8 +45,10 @@ export function CreatorTopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
         {/* The bell reads the signed-in person's own notifications
             (user_notifications via mm_notifications), live. */}
         <NotificationBell />
+        <ChatAppButton />
         <Link
-          to="/manager/settings"
+          to="/manager/$section"
+          params={{ section: "settings" }}
           className="grid h-9 w-9 place-items-center rounded-full border border-border text-muted-foreground transition-colors hover:text-foreground"
           aria-label="Settings"
         >

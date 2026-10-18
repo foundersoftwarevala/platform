@@ -1,5 +1,7 @@
+import { callAsUser } from "@/lib/supabase-rpc.server";
+import type { Json, JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 /**
@@ -16,24 +18,6 @@ import { z } from "zod";
  * another reviewer, and a purge never removes a row that an order, licence,
  * review or merge record still depends on.
  */
-
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
 
 export type ModerationStatus =
   | "draft" | "submitted" | "under_review" | "changes_requested"
@@ -71,8 +55,8 @@ export type DuplicatePair = {
   reasons: { factor: string; weight: number; evidence: string }[];
   status: string;
   scanned_at: string;
-  a: Record<string, unknown>;
-  b: Record<string, unknown>;
+  a: JsonObject;
+  b: JsonObject;
 };
 
 export type ProductReport = {
@@ -132,7 +116,7 @@ export const getModeration = createServerFn({ method: "GET" })
 
 export const getProductModerationDetail = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ id: z.string().uuid() }).parse(i))
-  .handler(async ({ data }): Promise<Record<string, unknown>> =>
+  .handler(async ({ data }): Promise<JsonObject> =>
     callAsUser("mm_product_moderation_detail", { p_id: data.id }),
   );
 
@@ -147,7 +131,7 @@ export const moderateProduct = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<{
     ok: boolean; reason?: string; message?: string; public?: boolean;
-    recoverable_until?: string; checks?: unknown[];
+    recoverable_until?: string; checks?: Json[];
   }> => callAsUser("mm_product_moderate", {
     p_id: data.id, p_to: data.status,
     p_reason: data.reason ?? null, p_lock: data.lock ?? null,
@@ -244,14 +228,17 @@ export const transitionReport = createServerFn({ method: "POST" })
   }));
 
 /** Every record validated on its own; one invalid record never spoils the rest. */
+const bulkProductOperation = z.enum([
+  "approved", "rejected", "suspended", "archived", "soft_deleted",
+  "publish", "unpublish", "category", "author",
+]);
+export type BulkProductOp = z.infer<typeof bulkProductOperation>;
+
 export const bulkProducts = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
     z.object({
       ids: z.array(z.string().uuid()).min(1).max(200),
-      op: z.enum([
-        "approved", "rejected", "suspended", "archived", "soft_deleted",
-        "publish", "unpublish", "category", "author",
-      ]),
+      op: bulkProductOperation,
       reason: z.string().max(1000).optional(),
       target: z.string().uuid().optional(),
     }).parse(i),

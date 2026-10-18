@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DEFAULT_ACTIONS, REGISTRY_KEY, type ActionConfig } from "@/lib/marketplace/action-layer";
+import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
 
 /**
  * The action layer, as the storefront reads it.
@@ -23,6 +24,11 @@ function url() {
 
 const CACHE_MS = 60_000;
 let cached: { at: number; payload: unknown } | null = null;
+// Emptied when the Action Layer is saved, so a switched-off button goes away
+// now rather than after the minute is up.
+onCatalogueChange(() => {
+  cached = null;
+});
 
 export const Route = createFileRoute("/api/actions/config")({
   server: {

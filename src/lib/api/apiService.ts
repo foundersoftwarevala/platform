@@ -1,6 +1,7 @@
 // Centralized API Service with Authentication, Error Handling, and Role-Based Access
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { recordAuditEvent } from "@/hooks/useActionLogger";
 
 interface APIResponse<T = any> {
   success: boolean;
@@ -46,15 +47,19 @@ class APIService {
   private logAction(action: string, module: string, success: boolean, error?: string): void {
     console.log(`[API] ${module}/${action}: ${success ? 'SUCCESS' : 'FAILED'}${error ? ` - ${error}` : ''}`);
     
-    // Log to audit_logs if authenticated (fire and forget)
+    // Log to audit_logs if authenticated (fire and forget). audit_logs is not
+    // writable from the browser; the server function records the signed-in
+    // user as the actor, and a failed write is reported rather than dropped.
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user?.id) {
-        supabase.from('audit_logs').insert({
-          user_id: session.user.id,
-          action,
-          module,
-          meta_json: { success, error, timestamp: new Date().toISOString() }
-        } as any).then(() => {});
+        recordAuditEvent({
+          data: {
+            action,
+            entityType: module,
+            severity: success ? 'info' : 'warning',
+            metadata: { success, error: error ?? null, timestamp: new Date().toISOString() },
+          },
+        }).catch((err) => console.error(`[API] audit log for ${module}/${action} failed:`, err));
       }
     });
   }

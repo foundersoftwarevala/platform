@@ -11,15 +11,17 @@ type PayloadRecord = Record<string, unknown> & {
 };
 
 /** Query keys to invalidate per source table. Dashboard + Top Affiliates are
- * refreshed alongside their owning walls so KPIs stay live across tabs. */
+ * refreshed alongside their owning walls so KPIs stay live across tabs.
+ * Affiliates are marketplace_affiliate_partners; commissions and payouts are
+ * the affiliate rows of the shared partner ledgers (partner_kind = affiliate). */
 const INVALIDATE_KEYS: Record<string, (string | number)[][]> = {
-  affiliates: [
+  marketplace_affiliate_partners: [
     ["affiliate", "list"],
     ["affiliate", "dashboard-stats"],
     ["affiliate", "top-5"],
     ["affiliate", "activity", 12],
   ],
-  commissions: [
+  partner_commissions: [
     ["affiliate", "commissions"],
     ["affiliate", "dashboard-stats"],
     ["affiliate", "top-5"],
@@ -28,11 +30,11 @@ const INVALIDATE_KEYS: Record<string, (string | number)[][]> = {
     ["affiliate", "wallets"],
     ["affiliate", "dashboard-stats"],
   ],
-  payouts: [
+  partner_payouts: [
     ["affiliate", "payouts"],
     ["affiliate", "dashboard-stats"],
   ],
-  activity_log: [
+  activity_logs: [
     ["affiliate", "activity", 12],
     ["affiliate", "dashboard-stats"],
   ],
@@ -106,11 +108,11 @@ export function useAffiliateRealtimeSync(enabled: boolean) {
       if (disposed) return;
       channel = supabase
         .channel(`affiliate-live-sync-${Math.random().toString(36).slice(2, 8)}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "affiliates" }, handle("affiliates"))
-        .on("postgres_changes", { event: "*", schema: "public", table: "commissions" }, handle("commissions"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "marketplace_affiliate_partners" }, handle("marketplace_affiliate_partners"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "partner_commissions", filter: "partner_kind=eq.affiliate" }, handle("partner_commissions"))
         .on("postgres_changes", { event: "*", schema: "public", table: "wallets" }, handle("wallets"))
-        .on("postgres_changes", { event: "*", schema: "public", table: "payouts" }, handle("payouts"))
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log" }, handle("activity_log"))
+        .on("postgres_changes", { event: "*", schema: "public", table: "partner_payouts", filter: "partner_kind=eq.affiliate" }, handle("partner_payouts"))
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_logs" }, handle("activity_logs"))
         .subscribe((status) => {
           if (status === "SUBSCRIBED") {
             attempts = 0;
@@ -177,19 +179,19 @@ function describe(
   if (!rec) return null;
   const short = typeof rec.id === "string" ? rec.id.slice(0, 8) : "";
   switch (table) {
-    case "affiliates":
+    case "marketplace_affiliate_partners":
       return event === "UPDATE"
         ? { title: "Affiliate status updated", body: `${short} → ${rec.status ?? "changed"}` }
         : event === "INSERT"
         ? { title: "New affiliate joined", body: short }
         : null;
-    case "commissions":
+    case "partner_commissions":
       return { title: `Commission ${event.toLowerCase()}d`, body: short };
     case "wallets":
       return { title: "Wallet transaction", body: short };
-    case "payouts":
+    case "partner_payouts":
       return { title: `Payout ${event.toLowerCase()}d`, body: short };
-    case "activity_log":
+    case "activity_logs":
       return null; // activity rows are their own log; don't double-toast
     default:
       return null;

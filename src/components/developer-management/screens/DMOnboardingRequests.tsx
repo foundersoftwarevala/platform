@@ -177,8 +177,7 @@ export const DMOnboardingRequests: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled
-                    title={t('devmanager.onboarding.hold_info')}
+                    onClick={() => toast.info(t('devmanager.onboarding.hold_info'))}
                   >
                     <Clock className="h-4 w-4 mr-1" />
                     {t('devmanager.onboarding.hold')}

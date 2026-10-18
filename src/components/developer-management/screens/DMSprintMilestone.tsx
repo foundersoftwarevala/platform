@@ -7,9 +7,8 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
-import { Target, Calendar, Brain, AlertTriangle, Sparkles } from 'lucide-react';
-import { useDeliveryOverview, useGenerateDeveloperInsight } from '@/hooks/useDevManagerData';
+import { Target, Calendar, Brain, AlertTriangle } from 'lucide-react';
+import { useDeliveryOverview } from '@/hooks/useDevManagerData';
 import { richText, useTranslation } from '@/lib/i18n/use-translation';
 
 /**
@@ -20,16 +19,17 @@ import { richText, useTranslation } from '@/lib/i18n/use-translation';
  * tasks at SLA risk and the blocked tasks from the delivery overview.
  */
 export const DMSprintMilestone: React.FC = () => {
-  const { t, formatNumber, language } = useTranslation();
+  const { t, formatNumber } = useTranslation();
   const overview = useDeliveryOverview();
-  const aiInsight = useGenerateDeveloperInsight();
   const sprints: { id: string; name: string; start: string; end: string; progress: number; tasks: number; completed: number; status: string }[] = [];
   const milestones: { id: string; name: string; deadline: string; progress: number; status: string }[] = [];
   const riskAlerts = [
     ...(overview.data?.blocked ?? []).map((b) => ({
       task: b.code,
       reason: t('devmanager.sprint.blocked_reason', { reason: b.blockedReason }),
-      delay: t('devmanager.sprint.hours_blocked', { hours: formatNumber(Math.round(b.blockedHours)) }),
+      delay: b.blockedHours === null
+        ? t('devmanager.common.blocked_duration_unknown')
+        : t('devmanager.sprint.hours_blocked', { hours: formatNumber(Math.round(b.blockedHours)) }),
     })),
     ...(overview.data?.risks ?? []).map((r) => ({
       task: r.code,
@@ -126,41 +126,9 @@ export const DMSprintMilestone: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <Button
-                variant="outline"
-                disabled={aiInsight.isPending || overview.isLoading}
-                onClick={() => aiInsight.mutate({ kind: 'delay_prediction', language })}
-              >
-                <Sparkles className="h-4 w-4" />
-                {aiInsight.isPending ? t('devmanager.ai.delay_pending') : t('devmanager.ai.delay_generate')}
-              </Button>
-              {aiInsight.isError && (
-                <p className="text-sm text-destructive" role="alert">{aiInsight.error.message}</p>
-              )}
-              {aiInsight.data && (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">{aiInsight.data.summary}</p>
-                  {aiInsight.data.items.map((item) => (
-                    <div key={item.taskId} className="rounded-lg border bg-background p-3">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={item.risk === 'high' ? 'destructive' : 'secondary'}>
-                          {t('devmanager.ai.risk_label', { risk: item.risk ?? 'unknown' })}
-                        </Badge>
-                        <span className="font-mono text-sm">{item.taskCode}</span>
-                      </div>
-                      <p className="mt-2 text-sm">{item.rationale}</p>
-                      {item.recommendedAction && (
-                        <p className="mt-1 text-sm text-muted-foreground">{item.recommendedAction}</p>
-                      )}
-                    </div>
-                  ))}
-                  <p className="text-xs text-muted-foreground">
-                    {t('devmanager.ai.disclaimer')} {aiInsight.data.provider}
-                    {aiInsight.data.model ? ` / ${aiInsight.data.model}` : ''}
-                  </p>
-                </div>
-              )}
+            <div className="text-center">
+              <div className="text-4xl font-bold text-purple-500 mb-2">—</div>
+              <p className="text-sm text-muted-foreground">{t('devmanager.sprint.ai_prediction_none')}</p>
             </div>
           </CardContent>
         </Card>

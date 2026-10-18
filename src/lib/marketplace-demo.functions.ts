@@ -3,6 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { DEMO_ROUTE_ROLES } from "@/lib/auth/demo-roles";
 
 async function audit(
   context: any,
@@ -23,6 +24,25 @@ async function audit(
   }
 }
 
+/**
+ * The service-role client, for a caller the Demo Manager admits.
+ *
+ * mm_demo_health, mm_demo_uptime_series and mm_demo_click_analytics are
+ * SECURITY DEFINER with no caller check, and mm_demo_health returns every
+ * demo's real address - the one thing the demo gateway exists to keep out of
+ * a browser. Called with the caller's token they answered any signed-in
+ * account, customers included. The check is made here, against the roles the
+ * demo consoles' route gate admits, and the functions are read with the
+ * service key, so the database can close them to everyone else
+ * (20261107T239040_demo_and_influencer_summaries_service_only.sql).
+ */
+async function demoConsoleReader(action: string): Promise<any> {
+  const { requireOperator } = await import("@/lib/auth/require-operator.server");
+  await requireOperator(action, { alsoAllow: [...DEMO_ROUTE_ROLES] });
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
+
 export type DemoAuditEntry = {
   id: string;
   demo_url_id: string | null;
@@ -32,7 +52,6 @@ export type DemoAuditEntry = {
   metadata: any;
   created_at: string;
 };
-
 
 export type DemoUrl = {
   id: string;
@@ -95,7 +114,10 @@ function mapDemoUrlRecord(row: any): DemoUrl {
     password: row.password ?? null,
     description: row.description ?? null,
     environment: (row.environment ?? "production") as DemoUrl["environment"],
-    status: ((row.status ?? (String(row.health_status ?? "").toLowerCase() === "offline" ? "inactive" : "active")) as DemoUrl["status"]),
+    status: (row.status ??
+      (String(row.health_status ?? "").toLowerCase() === "offline"
+        ? "inactive"
+        : "active")) as DemoUrl["status"],
     sort_order: Number(row.sort_order ?? 0),
     last_checked_at: row.last_checked_at ?? null,
     last_response_ms: row.last_response_ms ?? null,
@@ -113,8 +135,8 @@ export const listDemoUrls = createServerFn({ method: "GET" })
     const { data, error } = await (context.supabase as any)
       .from("product_demo_urls")
       .select("*")
-      .order("sort_order")
-      .order("created_at", { ascending: false });
+      .order("sort_order", { ascending: true })
+      .order("id", { ascending: true });
 
     if (!error && Array.isArray(data)) {
       return (data as any[]).map(mapDemoUrlRecord);
@@ -134,21 +156,28 @@ export const listDemoUrls = createServerFn({ method: "GET" })
 
 export const listCentralDemosServer = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((value) => z.object({
-    page: z.number().int().min(1).default(1),
-    pageSize: z.number().int().min(10).max(100).default(25),
-    search: z.string().max(120).default(""),
-    categoryId: z.string().uuid().optional(),
-    status: z.enum(["all", "active", "inactive"]).default("all"),
-  }).parse(value ?? {}))
+  .validator((value) =>
+    z
+      .object({
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(10).max(100).default(25),
+        search: z.string().max(120).default(""),
+        categoryId: z.string().uuid().optional(),
+        status: z.enum(["all", "active", "inactive"]).default("all"),
+      })
+      .parse(value ?? {}),
+  )
   .handler(async ({ data, context }): Promise<CentralDemoPage> => {
     const from = (data.page - 1) * data.pageSize;
     const to = from + data.pageSize - 1;
     const searchTerm = data.search.trim().toLowerCase();
     let query = (context.supabase as any)
       .from("product_demo_urls")
-      .select("*, marketplace_products!inner(id, name, slug, category_id, visible)", { count: "exact" })
-      .order("created_at", { ascending: false });
+      .select("*, marketplace_products!inner(id, name, slug, category_id, visible)", {
+        count: "exact",
+      })
+      .order("sort_order", { ascending: true })
+      .order("id", { ascending: true });
 
     if (data.status !== "all") query = query.eq("status", data.status);
     if (data.categoryId) query = query.eq("marketplace_products.category_id", data.categoryId);
@@ -160,22 +189,32 @@ export const listCentralDemosServer = createServerFn({ method: "GET" })
     const matchingRows = searchTerm
       ? (joinedRows ?? []).filter((row: any) => {
           const product = Array.isArray(row.marketplace_products)
-            ? row.marketplace_products[0] ?? {}
-            : row.marketplace_products ?? {};
-          return [row.demo_name, row.url, row.role_name, product.name, product.slug]
-            .some((value) => String(value ?? "").toLowerCase().includes(searchTerm));
+            ? (row.marketplace_products[0] ?? {})
+            : (row.marketplace_products ?? {});
+          return [row.demo_name, row.url, row.role_name, product.name, product.slug].some((value) =>
+            String(value ?? "")
+              .toLowerCase()
+              .includes(searchTerm),
+          );
         })
       : (joinedRows ?? []);
     const pagedRows = searchTerm ? matchingRows.slice(from, to + 1) : matchingRows;
 
-    const categoryIds = Array.from(new Set((joinedRows ?? [])
-      .map((row: any) => row.marketplace_products?.category_id)
-      .filter(Boolean)));
+    const categoryIds = Array.from(
+      new Set(
+        (joinedRows ?? []).map((row: any) => row.marketplace_products?.category_id).filter(Boolean),
+      ),
+    );
     const { data: categories, error: categoryError } = categoryIds.length
-      ? await (context.supabase as any).from("marketplace_categories").select("id, name").in("id", categoryIds)
+      ? await (context.supabase as any)
+          .from("marketplace_categories")
+          .select("id, name")
+          .in("id", categoryIds)
       : { data: [], error: null };
     if (categoryError) throw new Error(categoryError.message);
-    const categoryNames = new Map((categories ?? []).map((category: any) => [category.id, category.name]));
+    const categoryNames = new Map(
+      (categories ?? []).map((category: any) => [category.id, category.name]),
+    );
 
     return {
       rows: pagedRows.map((row: any) => {
@@ -192,7 +231,7 @@ export const listCentralDemosServer = createServerFn({ method: "GET" })
           product_visible: product?.visible ?? null,
         };
       }),
-      total: searchTerm ? matchingRows.length : count ?? 0,
+      total: searchTerm ? matchingRows.length : (count ?? 0),
       page: data.page,
       pageSize: data.pageSize,
     };
@@ -239,7 +278,12 @@ const intakeSchema = z.object({
   category: z.string().min(1).max(120),
   demo_url: z.string().url().max(1024),
   role_name: z.string().min(1).max(80).default("Public"),
-  public_repo_url: z.string().url().regex(/^https:\/\/(www\.)?(github\.com|gitlab\.com)\//).max(500).optional(),
+  public_repo_url: z
+    .string()
+    .url()
+    .regex(/^https:\/\/(www\.)?(github\.com|gitlab\.com)\//)
+    .max(500)
+    .optional(),
   description: z.string().max(2000).optional(),
   thumbnail_url: z.string().url().max(1024).optional(),
   tags: z.array(z.string().min(1).max(50)).max(20).default([]),
@@ -248,7 +292,11 @@ const intakeSchema = z.object({
 });
 
 const slugify = (value: string) =>
-  value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "product";
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "") || "product";
 
 /** Fast intake for the existing Product -> Demo URL relationship. */
 export const createProductWithDemo = createServerFn({ method: "POST" })
@@ -266,30 +314,36 @@ export const createProductWithDemo = createServerFn({ method: "POST" })
     const categorySlug = slugify(data.category);
     const { data: category, error: categoryError } = await (context.supabase as any)
       .from("marketplace_categories")
-      .upsert({ slug: categorySlug, name: data.category, icon: "MonitorPlay", is_hidden: false }, { onConflict: "slug" })
+      .upsert(
+        { slug: categorySlug, name: data.category, icon: "MonitorPlay", is_hidden: false },
+        { onConflict: "slug" },
+      )
       .select("id")
       .single();
     if (categoryError) throw new Error(categoryError.message);
 
     const { data: product, error: productError } = await (context.supabase as any)
       .from("marketplace_products")
-      .upsert({
-        slug: slugify(data.project_name),
-        name: data.project_name,
-        industry_label: data.category,
-        icon: "MonitorPlay",
-        price_label: "Custom",
-        price_period: "lifetime",
-        category_id: category.id,
-        visible: true,
-        description: data.description ?? null,
-        thumbnail_url: data.thumbnail_url ?? null,
-        public_repo_url: data.public_repo_url ?? null,
-        tags: data.tags,
-        tech_stack: data.tech_stack,
-        features: data.features,
-        content_status: "draft",
-      }, { onConflict: "slug" })
+      .upsert(
+        {
+          slug: slugify(data.project_name),
+          name: data.project_name,
+          industry_label: data.category,
+          icon: "MonitorPlay",
+          price_label: "Custom",
+          price_period: "lifetime",
+          category_id: category.id,
+          visible: true,
+          description: data.description ?? null,
+          thumbnail_url: data.thumbnail_url ?? null,
+          public_repo_url: data.public_repo_url ?? null,
+          tags: data.tags,
+          tech_stack: data.tech_stack,
+          features: data.features,
+          content_status: "draft",
+        },
+        { onConflict: "slug" },
+      )
       .select("id")
       .single();
     if (productError) throw new Error(productError.message);
@@ -308,7 +362,11 @@ export const createProductWithDemo = createServerFn({ method: "POST" })
       .select()
       .single();
     if (demoError) throw new Error(demoError.message);
-    await audit(context, "demo_url.intake", demo.id, { product_id: product.id, project_name: data.project_name, category: data.category });
+    await audit(context, "demo_url.intake", demo.id, {
+      product_id: product.id,
+      project_name: data.project_name,
+      category: data.category,
+    });
     return { productId: product.id, demo: mapDemoUrlRecord(demo) };
   });
 
@@ -317,9 +375,14 @@ export const deleteDemoUrl = createServerFn({ method: "POST" })
   .validator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
     const { data: prev } = await (context.supabase as any)
-      .from("product_demo_urls").select("demo_name, url").eq("id", data.id).single();
+      .from("product_demo_urls")
+      .select("demo_name, url")
+      .eq("id", data.id)
+      .single();
     const { error } = await (context.supabase as any)
-      .from("product_demo_urls").delete().eq("id", data.id);
+      .from("product_demo_urls")
+      .delete()
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     await audit(context, "demo_url.delete", data.id, prev ?? {});
     return { ok: true };
@@ -330,12 +393,18 @@ export const duplicateDemoUrl = createServerFn({ method: "POST" })
   .inputValidator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
     const { data: src, error: e1 } = await (context.supabase as any)
-      .from("product_demo_urls").select("*").eq("id", data.id).single();
+      .from("product_demo_urls")
+      .select("*")
+      .eq("id", data.id)
+      .single();
     if (e1 || !src) throw new Error(e1?.message ?? "Not found");
     const { id: _i, created_at: _c, updated_at: _u, ...copy } = src as any;
     copy.demo_name = `${copy.demo_name} (copy)`;
     const { data: row, error } = await (context.supabase as any)
-      .from("product_demo_urls").insert(copy).select().single();
+      .from("product_demo_urls")
+      .insert(copy)
+      .select()
+      .single();
     if (error) throw new Error(error.message);
     await audit(context, "demo_url.duplicate", (row as any).id, {
       source_id: data.id,
@@ -346,10 +415,14 @@ export const duplicateDemoUrl = createServerFn({ method: "POST" })
 
 export const toggleDemoUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((v) => z.object({ id: z.string().uuid(), status: z.enum(["active", "inactive"]) }).parse(v))
+  .inputValidator((v) =>
+    z.object({ id: z.string().uuid(), status: z.enum(["active", "inactive"]) }).parse(v),
+  )
   .handler(async ({ data, context }) => {
     const { error } = await (context.supabase as any)
-      .from("product_demo_urls").update({ status: data.status }).eq("id", data.id);
+      .from("product_demo_urls")
+      .update({ status: data.status })
+      .eq("id", data.id);
     if (error) {
       const platformResult = await (context.supabase as any)
         .from("platform_demos")
@@ -357,12 +430,16 @@ export const toggleDemoUrl = createServerFn({ method: "POST" })
         .eq("id", data.id);
       if (platformResult.error) throw new Error(error.message);
     }
-    await audit(context, data.status === "active" ? "demo_url.enable" : "demo_url.disable", data.id, {
-      status: data.status,
-    });
+    await audit(
+      context,
+      data.status === "active" ? "demo_url.enable" : "demo_url.disable",
+      data.id,
+      {
+        status: data.status,
+      },
+    );
     return { ok: true };
   });
-
 
 async function checkOnce(url: string) {
   const start = Date.now();
@@ -393,13 +470,64 @@ async function checkOnce(url: string) {
   }
 }
 
+export type DemoHealth = {
+  id: string;
+  demo_name: string | null;
+  url: string | null;
+  status: string | null;
+  environment: string | null;
+  product_id: string | null;
+  product_name: string | null;
+  /** Monitor checks inside the window. Null when it has not run. */
+  checks: number | null;
+  uptime_percent: number | null;
+  avg_response_ms: number | null;
+  latest_result: string | null;
+  last_checked_at: string | null;
+  last_http_status: number | null;
+  ssl_valid: boolean | null;
+  ssl_days_left: number | null;
+  clicks: number;
+  /** Figures nothing records against a demo, named rather than filled in. */
+  unavailable: Record<string, string>;
+};
+
+/**
+ * How every demo that still exists has actually behaved.
+ *
+ * Uptime is counted from the monitor's own entries in demo_url_audit_log —
+ * each one carries the result, the HTTP status, the response time and the SSL
+ * days remaining — and visits are counted from demo_clicks. The counting is
+ * done in SQL by mm_demo_health, because 5,723 checks over one demo becomes a
+ * great many more over a catalogue of them, and an average taken from a fetched
+ * page of rows is wrong as soon as there is a second page.
+ *
+ * A demo the monitor has not checked inside the window comes back with nulls
+ * rather than a hundred per cent, which is a different fact and reads as one.
+ */
+export const listDemoHealth = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((v) => z.object({ days: z.number().int().min(1).max(365).optional() }).parse(v ?? {}))
+  .handler(async ({ data, context }): Promise<DemoHealth[]> => {
+    const { data: rows, error } = await (
+      await demoConsoleReader("Reading demo health")
+    ).rpc("mm_demo_health", {
+      p_days: data.days ?? 30,
+    });
+    if (error) throw new Error(error.message);
+    return Array.isArray(rows) ? (rows as DemoHealth[]) : [];
+  });
+
 export const testDemoUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
     // NOTE: overrides earlier declaration was replaced above; keep single testDemoUrl block
     const { data: row, error } = await (context.supabase as any)
-      .from("product_demo_urls").select("id, url").eq("id", data.id).single();
+      .from("product_demo_urls")
+      .select("id, url")
+      .eq("id", data.id)
+      .single();
     if (error || !row) throw new Error(error?.message ?? "Not found");
     const r = await checkOnce(row.url);
     const patch = {
@@ -423,7 +551,9 @@ export const testAllDemoUrls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { data: rows, error } = await (context.supabase as any)
-      .from("product_demo_urls").select("id, url").eq("status", "active");
+      .from("product_demo_urls")
+      .select("id, url")
+      .eq("status", "active");
     if (error) throw new Error(error.message);
     const results = await Promise.all(
       ((rows ?? []) as { id: string; url: string }[]).map(async (r) => {
@@ -444,7 +574,7 @@ export const testAllDemoUrls = createServerFn({ method: "POST" })
           batch: true,
         });
         return { id: r.id, ...patch };
-      })
+      }),
     );
     await audit(context, "demo_url.test_all", null, { count: results.length });
     return results;
@@ -453,10 +583,12 @@ export const testAllDemoUrls = createServerFn({ method: "POST" })
 export const listDemoAuditLog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((v) =>
-    z.object({
-      demo_url_id: z.string().uuid().optional(),
-      limit: z.number().int().min(1).max(500).default(100),
-    }).parse(v ?? {}),
+    z
+      .object({
+        demo_url_id: z.string().uuid().optional(),
+        limit: z.number().int().min(1).max(500).default(100),
+      })
+      .parse(v ?? {}),
   )
   .handler(async ({ data, context }) => {
     let q = (context.supabase as any)
@@ -470,3 +602,63 @@ export const listDemoAuditLog = createServerFn({ method: "GET" })
     return (rows ?? []) as DemoAuditEntry[];
   });
 
+/**
+ * Uptime and response time over a window, for the monitor screen.
+ *
+ * DemoUptimeMonitor plotted a hardcoded array - 99.99, 99.98, 99.99 at
+ * four-hour intervals - on an operator screen, so somebody could have judged
+ * the estate healthy from numbers typed into a source file. The monitor has
+ * been writing real checks into demo_health all along; this reads them.
+ *
+ * Bucketed in SQL by mm_demo_uptime_series, because the browser cannot bucket
+ * rows it was never sent, and there are already more than fifteen hundred.
+ */
+export const getDemoUptimeSeries = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((v) => z.object({ hours: z.number().int().min(1).max(720).optional() }).parse(v ?? {}))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await (
+      await demoConsoleReader("Reading demo uptime")
+    ).rpc("mm_demo_uptime_series", {
+      p_hours: data.hours ?? 24,
+    });
+    if (error) throw new Error(error.message);
+    return row as {
+      uptime: { time: string; uptime: number | null; checks: number }[];
+      response: { time: string; avg: number | null; p95: number | null }[];
+      totals: { checks: number; uptime_percent: number | null; avg_response_ms: number | null };
+      window_hours: number;
+    };
+  });
+
+/**
+ * Who opened the demos, for the analytics screen.
+ *
+ * DemoAnalytics drew "E-Commerce Pro" with 5,678 visitors and a 24.5%
+ * conversion - not a product this platform sells, and not a figure anything
+ * recorded. demo_clicks holds the real opens, with device, country and whether
+ * the visit converted.
+ *
+ * Bounce rate comes back named under `unavailable` rather than computed:
+ * nothing records a demo visit ending, so there is no honest number for it.
+ */
+export const getDemoClickAnalytics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((v) => z.object({ days: z.number().int().min(1).max(365).optional() }).parse(v ?? {}))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await (
+      await demoConsoleReader("Reading demo analytics")
+    ).rpc("mm_demo_click_analytics", {
+      p_days: data.days ?? 7,
+    });
+    if (error) throw new Error(error.message);
+    return row as {
+      visitors: { date: string; visitors: number; conversions: number }[];
+      regions: { name: string; value: number }[];
+      devices: { name: string; value: number }[];
+      top_demos: { name: string; visitors: number; conversion: number | null; bounce: null }[];
+      totals: { opens: number; converted: number; avg_session_seconds: number | null };
+      unavailable: Record<string, string>;
+      window_days: number;
+    };
+  });

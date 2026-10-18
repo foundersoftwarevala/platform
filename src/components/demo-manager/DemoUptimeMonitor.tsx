@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { 
   Activity, 
@@ -12,43 +14,101 @@ import {
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { Button } from "@/components/ui/button";
+import { getDemoUptimeSeries, listDemoHealth } from "@/lib/marketplace-demo.functions";
 
-const uptimeData = [
-  { time: "00:00", uptime: 99.99 },
-  { time: "04:00", uptime: 99.98 },
-  { time: "08:00", uptime: 99.99 },
-  { time: "12:00", uptime: 99.97 },
-  { time: "16:00", uptime: 99.99 },
-  { time: "20:00", uptime: 99.98 },
-  { time: "Now", uptime: 99.99 },
-];
-
-const responseTimeData = [
-  { time: "00:00", avg: 1.2, p95: 2.1 },
-  { time: "04:00", avg: 1.1, p95: 1.8 },
-  { time: "08:00", avg: 1.4, p95: 2.5 },
-  { time: "12:00", avg: 1.6, p95: 2.8 },
-  { time: "16:00", avg: 1.3, p95: 2.2 },
-  { time: "20:00", avg: 1.2, p95: 2.0 },
-  { time: "Now", avg: 1.1, p95: 1.9 },
-];
-
-const incidents = [
-  { id: 1, demo: "Restaurant POS", type: "Scheduled Maintenance", start: "2 hours ago", duration: "45 min", status: "ongoing" },
-  { id: 2, demo: "Inventory System", type: "Server Error", start: "3 hours ago", duration: "12 min", status: "resolved" },
-  { id: 3, demo: "Banking Portal", type: "High Load", start: "5 hours ago", duration: "8 min", status: "resolved" },
-];
-
-const healthChecks = [
-  { name: "API Response", status: "healthy", value: "42ms" },
-  { name: "Database", status: "healthy", value: "12ms" },
-  { name: "CDN", status: "healthy", value: "8ms" },
-  { name: "Auth Service", status: "healthy", value: "28ms" },
-  { name: "Storage", status: "warning", value: "156ms" },
-  { name: "Email Service", status: "healthy", value: "95ms" },
-];
+/**
+ * Everything on this screen used to be typed into this file: uptime at 99.99,
+ * response times around 1.2s, an "Active Monitors: 47" that was never 47, and
+ * incidents on demos named Restaurant POS and Banking Portal, which this
+ * platform does not sell. It is an operator screen, so those numbers could have
+ * been read as the state of the estate.
+ *
+ * The monitor has been writing real checks into demo_health all along - 1,538
+ * of them - and mm_demo_uptime_series buckets them in SQL. Per-demo health
+ * comes from mm_demo_health, which the status grid beside this already uses.
+ * Nothing here is drawn unless it was measured.
+ */
+type HealthRow = {
+  id: string;
+  demo_name: string | null;
+  url: string | null;
+  uptime_percent: number | null;
+  avg_response_ms: number | null;
+  latest_result: string | null;
+  last_checked_at: string | null;
+};
 
 const DemoUptimeMonitor = () => {
+  const [hours, setHours] = useState(24);
+
+  const series = useQuery({
+    queryKey: ["demo-uptime-series", hours],
+    queryFn: () => getDemoUptimeSeries({ data: { hours } }),
+    staleTime: 60_000,
+  });
+
+  const health = useQuery<HealthRow[]>({
+    queryKey: ["demo-health", "uptime-panel"],
+    queryFn: () => listDemoHealth({ data: { days: 30 } }) as Promise<HealthRow[]>,
+    staleTime: 60_000,
+  });
+
+  const uptimeData = series.data?.uptime ?? [];
+  const responseTimeData = series.data?.response ?? [];
+  const totals = series.data?.totals;
+  const demos = health.data ?? [];
+
+  /** One line per demo, which is what this platform actually monitors. */
+  const healthChecks = demos.map((d) => ({
+    name: d.demo_name ?? "Demo",
+    status: d.latest_result === "working" ? "healthy" : d.latest_result ? "warning" : "unknown",
+    value: d.avg_response_ms == null ? "—" : `${Math.round(d.avg_response_ms)}ms`,
+  }));
+
+  /** A demo whose last check did not come back clean. */
+  const incidents = demos
+    .filter((d) => d.latest_result && d.latest_result !== "working")
+    .map((d, i) => ({
+      id: d.id ?? String(i),
+      demo: d.demo_name ?? "Demo",
+      type: d.latest_result === "slow" ? "Slow response" : "Unreachable",
+      start: d.last_checked_at ? new Date(d.last_checked_at).toLocaleString() : "unknown",
+      duration: d.uptime_percent == null ? "—" : `${d.uptime_percent}% in 30 days`,
+      status: "ongoing",
+    }));
+
+  const stats = [
+    {
+      label: "Overall Uptime",
+      value: totals?.uptime_percent == null ? "—" : `${totals.uptime_percent}%`,
+      icon: Activity,
+      color: "text-neon-green",
+      subtext: `${totals?.checks ?? 0} checks in ${hours}h`,
+    },
+    {
+      label: "Avg Response",
+      value: totals?.avg_response_ms == null ? "—" : `${(totals.avg_response_ms / 1000).toFixed(2)}s`,
+      icon: Zap,
+      color: "text-neon-cyan",
+      subtext: "Across all demos",
+    },
+    {
+      label: "Active Monitors",
+      value: String(demos.length),
+      icon: Server,
+      color: "text-primary",
+      subtext: "Demos being checked",
+    },
+    {
+      label: "Open Incidents",
+      value: String(incidents.length),
+      icon: AlertTriangle,
+      color: "text-neon-orange",
+      subtext: incidents.length === 0 ? "All clear" : "Last check failed",
+    },
+  ];
+
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -65,12 +125,7 @@ const DemoUptimeMonitor = () => {
 
       {/* Stats Row */}
       <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: "Overall Uptime", value: "99.97%", icon: Activity, color: "text-neon-green", subtext: "30 day average" },
-          { label: "Avg Response", value: "1.2s", icon: Zap, color: "text-neon-cyan", subtext: "Across all demos" },
-          { label: "Active Monitors", value: "47", icon: Server, color: "text-primary", subtext: "All regions" },
-          { label: "Incidents Today", value: "2", icon: AlertTriangle, color: "text-neon-orange", subtext: "1 resolved" },
-        ].map((stat, index) => {
+        {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <motion.div

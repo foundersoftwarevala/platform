@@ -10,7 +10,22 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { useGlobalActions } from '@/hooks/useGlobalActions';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuditLogs } from '@/hooks/useSalesSupportData';
+import { downloadCsv, stampedName } from '@/lib/export/download';
+
+const EVENT_OF = (entity: string, action: string): LogEntry['eventType'] => {
+  const text = `${entity} ${action}`.toLowerCase();
+  if (text.includes('escalat')) return 'escalation';
+  if (text.includes('sla')) return 'sla';
+  if (text.includes('ticket')) return 'ticket';
+  if (text.includes('token')) return 'token';
+  if (text.includes('ai')) return 'ai';
+  if (text.includes('user') || text.includes('login') || text.includes('role')) return 'agent';
+  return 'system';
+};
+const SEVERITY_OF = (value: string): LogEntry['severity'] =>
+  value === 'critical' ? 'critical' : value === 'error' || value === 'high' ? 'error' : value === 'warning' || value === 'medium' ? 'warning' : 'info';
 
 interface LogEntry {
   id: string;
@@ -27,53 +42,60 @@ interface LogEntry {
 }
 
 const SystemLogs = () => {
-  const { executeAction } = useGlobalActions();
+  const queryClient = useQueryClient();
+  const audit = useAuditLogs();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterSeverity, setFilterSeverity] = useState('all');
 
-  const [logs] = useState<LogEntry[]>([
-    { id: '1', timestamp: '2025-01-17 14:32:15', eventType: 'ticket', action: 'status_change', actor: 'John Davis', actorRole: 'L1 Support', targetId: 'TKT-1234', targetType: 'ticket', details: 'Status changed from "Open" to "In Progress"', severity: 'info' },
-    { id: '2', timestamp: '2025-01-17 14:30:45', eventType: 'token', action: 'token_assigned', actor: 'System', actorRole: 'Auto-Assignment', targetId: 'TKN-5678', targetType: 'token', details: 'Token auto-assigned to Sarah Miller based on load balancer', severity: 'info' },
-    { id: '3', timestamp: '2025-01-17 14:28:30', eventType: 'sla', action: 'sla_warning', actor: 'System', actorRole: 'SLA Monitor', targetId: 'TKT-1189', targetType: 'ticket', details: 'SLA breach warning: 15 minutes remaining', severity: 'warning' },
-    { id: '4', timestamp: '2025-01-17 14:25:12', eventType: 'escalation', action: 'escalated', actor: 'Mike Roberts', actorRole: 'L2 Support', targetId: 'TKT-1201', targetType: 'ticket', details: 'Escalated from L1 to L2 - Technical issue requires specialist', severity: 'warning' },
-    { id: '5', timestamp: '2025-01-17 14:22:00', eventType: 'agent', action: 'login', actor: 'Emily Chen', actorRole: 'L1 Support', targetId: 'USR-4567', targetType: 'user', details: 'Agent logged in from 192.168.1.45', severity: 'info' },
-    { id: '6', timestamp: '2025-01-17 14:20:30', eventType: 'ai', action: 'suggestion_accepted', actor: 'John Davis', actorRole: 'L1 Support', targetId: 'AI-SUG-001', targetType: 'ai_suggestion', details: 'AI suggested reply accepted - positive learning signal', severity: 'info' },
-    { id: '7', timestamp: '2025-01-17 14:18:15', eventType: 'sla', action: 'sla_breach', actor: 'System', actorRole: 'SLA Monitor', targetId: 'TKT-2001', targetType: 'ticket', details: 'SLA BREACHED - Response time exceeded by 10 minutes', severity: 'critical' },
-    { id: '8', timestamp: '2025-01-17 14:15:00', eventType: 'system', action: 'fraud_detected', actor: 'Fraud Detection AI', actorRole: 'System', targetId: 'USR-9999', targetType: 'user', details: 'Suspicious activity detected - Multiple refund attempts', severity: 'error' },
-    { id: '9', timestamp: '2025-01-17 14:12:45', eventType: 'ticket', action: 'resolved', actor: 'Sarah Miller', actorRole: 'L1 Support', targetId: 'TKT-1150', targetType: 'ticket', details: 'Ticket resolved - Customer confirmed issue fixed', severity: 'info' },
-    { id: '10', timestamp: '2025-01-17 14:10:00', eventType: 'ai', action: 'suggestion_rejected', actor: 'Mike Roberts', actorRole: 'L2 Support', targetId: 'AI-SUG-002', targetType: 'ai_suggestion', details: 'AI suggested reply rejected - negative learning signal', severity: 'warning' },
-  ]);
+  // The platform audit trail. These ten entries were typed in (dated January
+  // 2025); the trail itself is readable by platform operators.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const logs: LogEntry[] = ((audit.data ?? []) as any[]).map((row) => ({
+    id: String(row.id),
+    timestamp: String(row.occurred_at ?? '').replace('T', ' ').slice(0, 19),
+    eventType: EVENT_OF(String(row.entity_type ?? ''), String(row.action ?? '')),
+    action: String(row.action ?? ''),
+    actor: String(row.actor ?? 'system'),
+    actorRole: String((row.metadata as Record<string, unknown> | null)?.role ?? '—'),
+    targetId: String(row.entity_id ?? '—'),
+    targetType: String(row.entity_type ?? '—'),
+    details: row.metadata && Object.keys(row.metadata).length ? JSON.stringify(row.metadata) : '',
+    severity: SEVERITY_OF(String(row.severity ?? 'info')),
+    metadata: (row.metadata ?? undefined) as Record<string, unknown> | undefined,
+  }));
 
-  const handleExport = useCallback(async (format: 'csv' | 'json' | 'pdf') => {
-    await executeAction({
-      actionId: `export_logs_${format}`,
-      actionType: 'export',
-      entityType: 'log',
-      metadata: { format, filters: { type: filterType, severity: filterSeverity } },
-      successMessage: `Logs exported as ${format.toUpperCase()}`,
-    });
-    toast.success(`Downloading ${format.toUpperCase()} file...`);
-  }, [executeAction, filterType, filterSeverity]);
+  const handleExport = useCallback((format: 'csv' | 'json' | 'pdf') => {
+    if (format === 'pdf') {
+      toast.info('PDF export is not available; use CSV or JSON.');
+      return;
+    }
+    const rows = logs.map(({ metadata: _m, ...rest }) => rest);
+    if (format === 'csv') {
+      const n = downloadCsv(stampedName('system-logs', 'csv'), rows);
+      toast.success(`Exported ${n} entries as CSV`);
+      return;
+    }
+    const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = stampedName('system-logs', 'json');
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => { URL.revokeObjectURL(url); link.remove(); }, 0);
+    toast.success(`Exported ${rows.length} entries as JSON`);
+  }, [logs]);
 
   const handleRefresh = useCallback(async () => {
-    await executeAction({
-      actionId: 'refresh_logs',
-      actionType: 'refresh',
-      entityType: 'log',
-      successMessage: 'Logs refreshed',
-    });
-  }, [executeAction]);
+    await queryClient.invalidateQueries({ queryKey: ['audit_logs'] });
+    toast.success('Logs read again');
+  }, [queryClient]);
 
-  const handleViewDetails = useCallback(async (logId: string, targetId: string) => {
-    await executeAction({
-      actionId: `view_log_${logId}`,
-      actionType: 'read',
-      entityType: 'log',
-      entityId: targetId,
-      successMessage: 'Loading details',
-    });
-  }, [executeAction]);
+  const handleViewDetails = useCallback((logId: string, _targetId: string) => {
+    const entry = logs.find((l) => l.id === logId);
+    toast.info(entry?.action ?? 'Entry', { description: entry?.details || 'No further detail recorded.' });
+  }, [logs]);
 
   const getEventIcon = (eventType: string) => {
     switch (eventType) {
@@ -226,6 +248,11 @@ const SystemLogs = () => {
         </div>
 
         <div className="space-y-2 max-h-[500px] overflow-y-auto">
+          {(audit.isLoading || audit.isError || filteredLogs.length === 0) && (
+            <p className="p-4 text-sm text-muted-foreground">
+              {audit.isLoading ? 'Loading the audit trail…' : audit.isError ? 'The audit trail is readable by platform operators only.' : 'No entry matches.'}
+            </p>
+          )}
           {filteredLogs.map((log, idx) => {
             const EventIcon = getEventIcon(log.eventType);
             return (

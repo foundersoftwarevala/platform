@@ -151,8 +151,7 @@ export const DMBugFixTracker: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled
-                    title={t('devmanager.bugs.verify_info')}
+                    onClick={() => toast.info(t('devmanager.bugs.verify_info'))}
                   >
                     <CheckCircle className="h-4 w-4 mr-1" />
                     {t('devmanager.bugs.verify_fix')}
@@ -160,8 +159,7 @@ export const DMBugFixTracker: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled
-                    title={t('devmanager.bugs.close_info')}
+                    onClick={() => toast.info(t('devmanager.bugs.close_info'))}
                   >
                     <XCircle className="h-4 w-4 mr-1" />
                     {t('devmanager.bugs.close_bug')}

@@ -78,7 +78,7 @@ language with the record while you still have the request, as
 t("orders.count", { count })
   → reviewed dictionary (ui-dictionary.ts)
   → language pack (/api/i18n/pack: one request per language, cached, ETag)
-  → in-page cache (and localStorage)
+  → bounded in-page cache (persistent memory stays in canonical PostgreSQL)
   → otherwise: batched request to /api/marketplace/translate (36 strings, one per context)
        → translation memory (exact source + context; verified before machine)
        → glossary (brand names locked, approved terminology)

@@ -41,6 +41,8 @@ export type RailCard = {
   period: string | null;
   country: string | null;
   href: string;
+  /** The permanent card-slot page this product occupies, when it has one. */
+  slotUrl?: string;
   description: string | null;
   features: string[];
   tech: string[];
@@ -118,12 +120,14 @@ export function railCardToDemo(card: RailCard, shelf: string, color: string): De
   return {
     id: `catalogue-${card.id}`,
     name: card.name,
+    slug: card.slug,
     category: card.subcategory || card.industry || shelf,
     masterCategory: shelf,
     description: card.description ?? "",
     // The product page, which is where a card has always led. A demo is only
     // opened from here when the catalogue records one.
     url: card.href,
+    ...(card.slotUrl ? { slotUrl: card.slotUrl } : {}),
     icon,
     status: card.hasDemo ? "ACTIVE" : "COMING_SOON",
     features: card.features ?? [],

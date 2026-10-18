@@ -31,7 +31,7 @@ export const SCDashboard: React.FC<SCDashboardProps> = ({ onNavigate }) => {
 
   const activeBots = bots.filter((b) => b.status === 'active').length;
   const liveSessions = sessions.filter((s) => s.status === 'active').length;
-  const openTickets = tickets.filter((t) => !['resolved', 'closed'].includes(t.status)).length;
+  const openTickets = tickets.filter((t) => t.status !== 'resolved' && t.status !== 'closed').length;
   const avgResponse = support.length
     ? Math.round(support.reduce((a, m) => a + (m.avg_response_minutes ?? 0), 0) / support.length)
     : 0;

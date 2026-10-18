@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EngineDashboard, StatusChip } from "@/components/ams/shared/EngineDashboard";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { AmsEngineView } from "@/components/ams/shared/AmsEngineView";
+import { decideClaim } from "@/lib/ams/engine-views.functions";
+import { useServerFn } from "@/lib/serverFn";
 
 export const Route = createFileRoute("/ams/claims")({
   head: () => ({
@@ -16,36 +20,82 @@ export const Route = createFileRoute("/ams/claims")({
 });
 
 function Page() {
+  // Decisions are the database's: ams_decide_claim checks the decider is an
+  // administrator and not the claimant, takes the cost from the wallet and the
+  // stock on approval, and needs a reason for a refusal.
+  const decide = useServerFn(decideClaim);
+  const client = useQueryClient();
+  const run = (id: string, decision: "approved" | "rejected" | "fulfilled", note?: string) =>
+    decide({ data: { id, decision, note } }).then(
+      () => {
+        toast.success(`Claim ${decision}`);
+        void client.invalidateQueries({ queryKey: ["ams-view"] });
+      },
+      (e: unknown) => toast.error(e instanceof Error ? e.message : String(e)),
+    );
+  const state = (row: Record<string, unknown>) => String(row.state ?? "");
+
   return (
-    <EngineDashboard
-      kicker="AMS Manager"
+    <AmsEngineView
+      view="claims"
       title="Claims"
       description="Pending, approved, rejected reward claims — verify, dispatch and audit."
-      primaryAction="New Claim"
-      kpis={[
-        { label: "Pending", value: "48", accent: "#fbbf24" },
-        { label: "Approved (7d)", value: "1,204", delta: "+6%", trend: "up" },
-        { label: "Rejected (7d)", value: "18" },
-        { label: "In Dispatch", value: "12" },
-        { label: "Avg Time", value: "4h 12m" },
-        { label: "Fraud Flags", value: "3", accent: "#ef4444" },
+      columns={[
+        {
+          key: "claim",
+          label: "Claim ID"
+        },
+        {
+          key: "user",
+          label: "User"
+        },
+        {
+          key: "reward",
+          label: "Reward"
+        },
+        {
+          key: "value",
+          label: "Value",
+          align: "right"
+        },
+        {
+          key: "requested",
+          label: "Requested"
+        },
+        {
+          key: "status",
+          label: "Status"
+        }
       ]}
       filters={[
-        { label: "Status", values: ["Pending", "Approved", "Rejected", "Dispatched"] },
-        { label: "Type", values: ["Cash", "Bundle", "Physical", "Digital"] },
+        {
+          label: "Status",
+          key: "status",
+          values: []
+        }
       ]}
-      columns={[
-        { key: "id", label: "Claim ID" },
-        { key: "user", label: "User" },
-        { key: "reward", label: "Reward" },
-        { key: "value", label: "Value", align: "right" },
-        { key: "requested", label: "Requested" },
-        { key: "status", label: "Status" },
-      ]}
-      rows={[
-        { id: "CLM-1042", user: "@arjun.k", reward: "Golden Ticket", value: "$500", requested: "12h ago", status: <StatusChip tone="warn">Pending</StatusChip> },
-        { id: "CLM-1041", user: "@meera.s", reward: "Legendary Box", value: "$120", requested: "1d ago", status: <StatusChip tone="success">Approved</StatusChip> },
-        { id: "CLM-1040", user: "@dev.rj", reward: "Commission ×2", value: "+100%", requested: "2d ago", status: <StatusChip tone="info">Dispatched</StatusChip> },
+      rowActions={[
+        {
+          label: "Approve",
+          when: (r) => state(r) === "pending",
+          onSelect: (r) => {
+            if (window.confirm(`Approve ${String(r.claim)}? The cost is taken from the person's wallet.`)) void run(r.id, "approved");
+          },
+        },
+        {
+          label: "Reject",
+          danger: true,
+          when: (r) => state(r) === "pending",
+          onSelect: (r) => {
+            const reason = window.prompt("Why is this claim refused?")?.trim();
+            if (reason) void run(r.id, "rejected", reason);
+          },
+        },
+        {
+          label: "Mark fulfilled",
+          when: (r) => state(r) === "approved",
+          onSelect: (r) => void run(r.id, "fulfilled"),
+        },
       ]}
     />
   );

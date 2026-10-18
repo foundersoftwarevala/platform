@@ -62,7 +62,8 @@ function AwardsListPage() {
 
   const toggle = (id: string) => {
     const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     setSelected(next);
   };
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
@@ -77,6 +78,10 @@ function AwardsListPage() {
       setSelected(new Set());
       invalidate();
       toast.success(`Bulk ${action}: ${n} item(s)`);
+    },
+    onError: (e: Error) => {
+      invalidate();
+      toast.error(e.message);
     },
   });
 

@@ -1,21 +1,17 @@
 // Cinematic WebAudio celebration sounds — no asset files needed.
 // Premium award orchestra, crystal chimes, fanfares, crown stings.
-
-let ctx: AudioContext | null = null;
-function getCtx() {
-  if (typeof window === "undefined") return null;
-  if (!ctx) {
-    const AC = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
-    ctx = new AC();
-  }
-  if (ctx.state === "suspended") void ctx.resume();
-  return ctx;
-}
+//
+// Every voice plays through the shared output in lib/ams/ui-sound, so the one
+// mute and volume setting governs these as it does every other cue. Muted means
+// silent: recognitionOutput() is null and nothing is scheduled.
+import { recognitionOutput } from "@/lib/ams/ui-sound";
 
 type Wave = OscillatorType;
 function tone(freq: number, start: number, dur: number, gain = 0.18, type: Wave = "triangle", detune = 0) {
-  const ac = getCtx();
-  if (!ac) return;
+  const o = recognitionOutput();
+  if (!o) return;
+  const { ac } = o;
+  gain *= o.volume;
   const t0 = ac.currentTime + start;
   const osc = ac.createOscillator();
   const g = ac.createGain();
@@ -25,14 +21,16 @@ function tone(freq: number, start: number, dur: number, gain = 0.18, type: Wave 
   g.gain.setValueAtTime(0, t0);
   g.gain.linearRampToValueAtTime(gain, t0 + 0.012);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  osc.connect(g).connect(ac.destination);
+  osc.connect(g).connect(o.out);
   osc.start(t0);
   osc.stop(t0 + dur + 0.02);
 }
 
 function noise(start: number, dur: number, gain = 0.12, freq = 800, q = 8) {
-  const ac = getCtx();
-  if (!ac) return;
+  const o = recognitionOutput();
+  if (!o) return;
+  const { ac } = o;
+  gain *= o.volume;
   const t0 = ac.currentTime + start;
   const buf = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate);
   const data = buf.getChannelData(0);
@@ -43,7 +41,7 @@ function noise(start: number, dur: number, gain = 0.12, freq = 800, q = 8) {
   g.gain.setValueAtTime(0, t0);
   g.gain.linearRampToValueAtTime(gain, t0 + 0.01);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  src.connect(filt).connect(g).connect(ac.destination);
+  src.connect(filt).connect(g).connect(o.out);
   src.start(t0); src.stop(t0 + dur + 0.02);
 }
 
@@ -78,16 +76,17 @@ export function playUnveil() {
 
 // LEVEL UP — rising sweep + sparkle
 export function playLevelUp() {
-  const ac = getCtx(); if (!ac) return;
+  const o = recognitionOutput(); if (!o) return;
+  const { ac } = o;
   const t0 = ac.currentTime;
   const osc = ac.createOscillator(); const g = ac.createGain();
   osc.type = "sawtooth";
   osc.frequency.setValueAtTime(220, t0);
   osc.frequency.exponentialRampToValueAtTime(1760, t0 + 0.55);
   g.gain.setValueAtTime(0, t0);
-  g.gain.linearRampToValueAtTime(0.12, t0 + 0.05);
+  g.gain.linearRampToValueAtTime(0.12 * o.volume, t0 + 0.05);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.6);
-  osc.connect(g).connect(ac.destination); osc.start(t0); osc.stop(t0 + 0.65);
+  osc.connect(g).connect(o.out); osc.start(t0); osc.stop(t0 + 0.65);
   [1318, 1760, 2093, 2637, 3136].forEach((f, i) => tone(f, 0.45 + i * 0.04, 0.3, 0.07, "sine"));
 }
 
@@ -141,8 +140,3 @@ export function playCertificate() {
   noise(0.26, 0.5, 0.03, 900, 3);
 }
 
-// Random surprise for logo clicks
-export function playRandom() {
-  const fns = [playCoinDrop, playLevelUp, playRankUp, playDiamond, playFireworks];
-  fns[Math.floor(Math.random() * fns.length)]();
-}

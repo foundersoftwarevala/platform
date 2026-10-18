@@ -146,11 +146,19 @@ function mutate(res: { error: { message: string } | null }) {
   if (res.error) throw new Error(res.error.message);
 }
 
+/**
+ * A session, approval, stop or transfer code. These let someone join, approve
+ * or end a remote-assist session, so they come from the browser's
+ * cryptographic generator: Math.random() is predictable enough that a code
+ * made with it can be guessed from the ones before it.
+ */
 function randomCode(prefix: string, length = 6) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  // 256 is a multiple of the alphabet's 32 letters, so every letter is equally likely.
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
   let out = "";
   for (let i = 0; i < length; i += 1) {
-    out += alphabet[Math.floor(Math.random() * alphabet.length)];
+    out += alphabet[bytes[i] % alphabet.length];
   }
   return `${prefix}-${out}`;
 }
@@ -168,10 +176,15 @@ export interface CreateAssistInput {
 
 export async function createAssistSession(input: CreateAssistInput) {
   const sessionCode = randomCode("SVL");
+  // assist_sessions_insert admits a row only when created_by is the signed-in
+  // user; the column has no default, so leaving it out refused every session.
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error("Sign in to start an assist session.");
   const inserted = await supabase
     .from("assist_sessions")
     .insert({
       session_code: sessionCode,
+      created_by: auth.user.id,
       end_user_id: input.endUserId,
       agent_id: input.agentId,
       assist_type: input.assistType,

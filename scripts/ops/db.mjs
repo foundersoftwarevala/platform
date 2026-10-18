@@ -1,16 +1,33 @@
 /**
- * Run SQL against the project's database.
+ * Run SQL against the database the application actually reads.
  *
- * The Management API refuses the keys this machine has, and there is no psql
- * on the server, so a migration had no way to be applied at all. This connects
- * with the database password from .env.ops - which never leaves this machine
- * and is never printed - and runs a file, or a statement given on the command
- * line.
+ * Two databases answer to this project and they are not interchangeable:
+ *
+ *   vps    — PostgreSQL on the VPS, `sv_platform`, reached with psql over the
+ *            existing ssh key. It listens on localhost only, which is how it
+ *            should stay. **This is the source of truth and the default.**
+ *   hosted — the Supabase project named in SUPABASE_URL. Some runtime
+ *            configuration still points at it, and it has to be asked for by
+ *            name.
+ *
+ * The owner has settled which one this work targets: the Founder AI programme
+ * is built and verified on the VPS, no Supabase migration is to be applied for
+ * it, and the database architecture is not to be switched. So the default is
+ * the VPS, and any run against the hosted project is deliberate and typed out
+ * in full.
+ *
+ * The banner exists because getting this wrong is invisible: a migration can
+ * create every table it promised, print "done", and leave the database that
+ * matters untouched. Every run therefore says out loud which one it reached.
  *
  *   node scripts/ops/db.mjs --file supabase/migrations/xxxx.sql
  *   node scripts/ops/db.mjs --sql "select count(*) from marketplace_products"
+ *   node scripts/ops/db.mjs --target hosted --sql "..."   # the Supabase project
  */
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import postgres from "postgres";
 
 function readEnv(file) {
@@ -23,24 +40,78 @@ function readEnv(file) {
 }
 
 const ops = readEnv(".env.ops");
+const args = process.argv.slice(2);
+
+const targetAt = args.indexOf("--target");
+const target = targetAt >= 0 ? args[targetAt + 1] : "vps";
+if (target !== "vps" && target !== "hosted") {
+  console.error("--target takes either vps (the default, and where this work belongs) or hosted");
+  process.exit(1);
+}
+const fileAt = args.indexOf("--file");
+const sqlAt = args.indexOf("--sql");
+const body =
+  fileAt >= 0 ? readFileSync(args[fileAt + 1], "utf8") : sqlAt >= 0 ? args[sqlAt + 1] : null;
+if (!body) {
+  console.error("give either --file <path> or --sql <statement>");
+  process.exit(1);
+}
+
+/**
+ * The VPS route: psql on the server, over the ssh key the other ops scripts
+ * use. The database listens on localhost only — which is how it should stay —
+ * so this runs the statement where the database already is rather than opening
+ * it to the network.
+ */
+if (target === "vps") {
+  const host = ops.SV_SSH_HOST;
+  const keyPath = (ops.SV_SSH_KEY ?? "").replace(
+    /^~/,
+    process.env.HOME ?? process.env.USERPROFILE ?? "~",
+  );
+  const database = ops.SV_DB_NAME ?? "sv_platform";
+  if (!host || !keyPath) {
+    console.error("SV_SSH_HOST and SV_SSH_KEY are needed in .env.ops to reach the VPS database");
+    process.exit(1);
+  }
+
+  const scratch = mkdtempSync(join(tmpdir(), "sv-db-"));
+  const local = join(scratch, "statement.sql");
+  const remote = `/tmp/sv-db-${Date.now().toString(36)}.sql`;
+  writeFileSync(local, body, "utf8");
+
+  const ssh = ["-i", keyPath, "-o", "StrictHostKeyChecking=yes", "-o", "BatchMode=yes"];
+  try {
+    console.log(`target  : VPS ${database} — the source of truth for this work\n`);
+    execFileSync("scp", [...ssh, local, `${host}:${remote}`], { stdio: "pipe" });
+    const out = execFileSync(
+      "ssh",
+      [
+        ...ssh,
+        host,
+        `sudo -u postgres psql -v ON_ERROR_STOP=1 -f ${remote} ${database}; status=$?; rm -f -- ${remote}; exit "$status"`,
+      ],
+      { encoding: "utf8" },
+    );
+    console.log(out.trimEnd() || "done — no rows returned");
+  } catch (error) {
+    const detail =
+      `${error.stdout ?? ""}${error.stderr ?? ""}`.trim() || String(error.message ?? error);
+    console.error("SQL failed:\n" + detail.slice(0, 1200));
+    process.exitCode = 1;
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+  process.exit(process.exitCode ?? 0);
+}
+
 const ref = ops.SUPABASE_PROJECT_REF;
 const password = ops.SUPABASE_DB_PASSWORD;
 if (!ref || !password) {
   console.error("SUPABASE_PROJECT_REF and SUPABASE_DB_PASSWORD are needed in .env.ops");
   process.exit(1);
 }
-
-const args = process.argv.slice(2);
-const fileAt = args.indexOf("--file");
-const sqlAt = args.indexOf("--sql");
-const body =
-  fileAt >= 0 ? readFileSync(args[fileAt + 1], "utf8")
-  : sqlAt >= 0 ? args[sqlAt + 1]
-  : null;
-if (!body) {
-  console.error("give either --file <path> or --sql <statement>");
-  process.exit(1);
-}
+console.log("target  : HOSTED Supabase — asked for by name; the VPS is the default\n");
 
 // Supabase serves the same database on a direct host and through poolers in
 // each region; whichever answers first is the one used.

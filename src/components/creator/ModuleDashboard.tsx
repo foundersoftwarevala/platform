@@ -46,6 +46,18 @@ export interface ModuleConfig {
   walls: [WallDef, WallDef];
   leaderboardEmpty: string;
   suggestions: string[];
+  /*
+   * Optional, for a module whose figures come from its own data. A module that
+   * leaves them out renders exactly as before.
+   */
+  /** Replaces the Team XP card's content. */
+  xp?: { label: string; value: string; caption: string; progress: number };
+  /** Real ranked rows: [name, value]. Placeholder rows are shown when empty. */
+  leaderboardRows?: Array<[string, string]>;
+  /** What a placeholder leaderboard row shows on the right. */
+  leaderboardPlaceholder?: string;
+  /** Heading of the suggestions card, for a module whose lines are not AI-generated. */
+  suggestionsTitle?: string;
 }
 
 /**
@@ -197,16 +209,23 @@ export function ModuleDashboard({
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-xs text-muted-foreground">Team XP</p>
-                    <p className="mt-1 text-3xl font-bold">0 pts</p>
+                    <p className="text-xs text-muted-foreground">{config.xp?.label ?? "Team XP"}</p>
+                    <p className="mt-1 text-3xl font-bold">{config.xp?.value ?? "0 pts"}</p>
                   </div>
                   <Flame className="h-5 w-5 text-accent-pink" />
                 </div>
                 <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-black/30">
-                  <div className="h-full w-[6%] bg-gradient-to-r from-accent-pink to-primary" />
+                  {config.xp ? (
+                    <div
+                      className="h-full bg-gradient-to-r from-accent-pink to-primary"
+                      style={{ width: `${Math.max(0, Math.min(100, config.xp.progress))}%` }}
+                    />
+                  ) : (
+                    <div className="h-full w-[6%] bg-gradient-to-r from-accent-pink to-primary" />
+                  )}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Reach Rookie 100 XP to unlock the next rank
+                  {config.xp?.caption ?? "Reach Rookie 100 XP to unlock the next rank"}
                 </p>
               </div>
 
@@ -235,10 +254,10 @@ export function ModuleDashboard({
               <div className="relative">
                 <p className="text-xs text-muted-foreground">{config.balance.label}</p>
                 <p className="mt-1 text-4xl font-bold tracking-tight">
-                  {connected || balance.value > 0
+                  {!balance.unavailable && (connected || balance.value > 0)
                     ? new Intl.NumberFormat("en-US", {
                         style: "currency",
-                        currency: "USD",
+                        currency: balance.unit && /^[A-Z]{3}$/.test(balance.unit) ? balance.unit : "USD",
                         maximumFractionDigits: 0,
                       }).format(balance.value)
                     : "—"}
@@ -298,23 +317,28 @@ export function ModuleDashboard({
                 </button>
               </div>
               <ul className="divide-y divide-border">
-                {[1, 2, 3, 4, 5].map((r) => (
-                  <li key={r} className="flex items-center gap-3 py-2.5">
-                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-muted text-xs font-semibold">
-                      {r}
-                    </span>
-                    <span className="h-7 w-7 rounded-full bg-gradient-to-br from-accent-pink to-primary" />
-                    <p className="flex-1 text-sm">{config.leaderboardEmpty}</p>
-                    <span className="text-xs text-muted-foreground">— XP</span>
-                  </li>
-                ))}
+                {[1, 2, 3, 4, 5].map((r) => {
+                  const row = config.leaderboardRows?.[r - 1];
+                  return (
+                    <li key={r} className="flex items-center gap-3 py-2.5">
+                      <span className="grid h-7 w-7 place-items-center rounded-lg bg-muted text-xs font-semibold">
+                        {r}
+                      </span>
+                      <span className="h-7 w-7 rounded-full bg-gradient-to-br from-accent-pink to-primary" />
+                      <p className="flex-1 text-sm">{row ? row[0] : config.leaderboardEmpty}</p>
+                      <span className="text-xs text-muted-foreground">
+                        {row ? row[1] : (config.leaderboardPlaceholder ?? "— XP")}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 
             <div className="bento-card">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="flex items-center gap-2 font-semibold">
-                  <Zap className="h-4 w-4 text-accent-emerald" /> AI Suggestions
+                  <Zap className="h-4 w-4 text-accent-emerald" /> {config.suggestionsTitle ?? "AI Suggestions"}
                 </h3>
                 <button
                   onClick={() => selectModule("AI Chat")}

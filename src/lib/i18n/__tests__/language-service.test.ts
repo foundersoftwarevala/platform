@@ -176,13 +176,17 @@ describe("applyDocumentLanguage", () => {
 });
 
 describe("buildLanguageBootScript", () => {
-  function runBootScript(stored: Record<string, string>, languages: string[] = []) {
+  function runBootScript(
+    stored: Record<string, string>,
+    languages: string[] = [],
+    href = "https://softwarevala.net",
+  ) {
     const doc = fakeDocument();
-    const storage = memoryStorage(stored);
+    doc.cookie = `${LANGUAGE_COOKIE}=${stored[LANGUAGE_STORAGE_KEY] ?? stored[LEGACY_LANGUAGE_STORAGE_KEY] ?? ""}`;
     const script = buildLanguageBootScript();
     const nav = { languages, language: languages[0] };
     // The script reads the page's globals; give it stand-ins.
-    new Function("localStorage", "document", "navigator", script)(storage, doc, nav);
+    new Function("document", "navigator", "location", script)(doc, nav, { href });
     return doc;
   }
 
@@ -210,6 +214,15 @@ describe("buildLanguageBootScript", () => {
     expect(doc.documentElement.lang).toBe("hi");
   });
 
+  it("uses an explicit locale URL before a stored cookie and rejects unsupported URLs", () => {
+    const stored = { [LANGUAGE_STORAGE_KEY]: "hi" };
+    expect(
+      runBootScript(stored, ["en"], "https://softwarevala.net/?lang=ar").documentElement.lang,
+    ).toBe("ar");
+    expect(
+      runBootScript(stored, ["en"], "https://softwarevala.net/?lang=unknown").documentElement.lang,
+    ).toBe("hi");
+  });
   it("applies a stored choice before the app loads", () => {
     const doc = runBootScript({ [LANGUAGE_STORAGE_KEY]: "ar-EG" });
     expect(doc.documentElement.lang).toBe("ar-EG");
@@ -238,5 +251,14 @@ describe("buildLanguageBootScript", () => {
 
   it("cannot close the surrounding script element", () => {
     expect(buildLanguageBootScript()).not.toContain("<");
+    expect(buildLanguageBootScript()).not.toContain("localStorage");
+  });
+
+  it("uses the same cookie after reload and ignores malformed preferences", () => {
+    const doc = fakeDocument();
+    doc.cookie = `${LANGUAGE_COOKIE}=ar-EG`;
+    expect(getCurrentLanguage(null, { languages: ["en"] }, doc)).toBe("ar-EG");
+    doc.cookie = `${LANGUAGE_COOKIE}=%ZZ`;
+    expect(getCurrentLanguage(null, { languages: ["hi"] }, doc)).toBe("hi");
   });
 });

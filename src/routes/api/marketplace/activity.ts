@@ -86,7 +86,10 @@ export const Route = createFileRoute("/api/marketplace/activity")({
           const names = new Map<string, string>();
           if (ids.length) {
             const productResponse = await fetch(
-              `${url}/rest/v1/marketplace_products?select=id,name&id=in.(${ids.join(",")})`,
+              // Published products only: /track records any product id it is
+              // sent, and a hidden or draft product's name is not for the home page.
+              `${url}/rest/v1/marketplace_products?select=id,name&visible=eq.true` +
+                `&content_status=eq.published&id=in.(${ids.join(",")})`,
               { headers: admin() },
             );
             if (productResponse.ok) {

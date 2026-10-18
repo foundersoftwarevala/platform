@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BarChart3, Activity } from "lucide-react";
 import { EntityWall, Row, Cell, fmtDate } from "@/components/affiliate/EntityWall";
+import { affiliateAuditSource } from "@/lib/affiliate-audit";
 
 type Log = { id: string; action: string; entity: string | null; entity_id: string | null; created_at: string };
 
@@ -11,7 +12,8 @@ export const Route = createFileRoute("/affiliate-manager/analytics")({
       title="Analytics"
       description="Revenue, commission, campaign, affiliate, sales, traffic, country and growth analytics with forecast."
       crumbLabel="Analytics"
-      table="activity_log"
+      table="marketplace_audit_logs"
+      source={affiliateAuditSource<Log>()}
       searchColumns={["action", "entity"]}
       searchPlaceholder="Search events…"
       filters={["Entity", "Date", "Actor"]}

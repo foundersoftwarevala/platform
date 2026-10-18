@@ -8,7 +8,19 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { useGlobalActions } from '@/hooks/useGlobalActions';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { relativeTime, useCannedResponses } from '@/hooks/useSalesSupportData';
+
+// canned_responses is not in the generated types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const cannedTable = () => (supabase as any).from('canned_responses');
+
+/** An agent's own favourites, kept in their browser: a preference, not shared data. */
+const FAVOURITES_KEY = 'sv.support.canned.favourites';
+function readFavourites(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(FAVOURITES_KEY) ?? '[]') as string[]); } catch { return new Set(); }
+}
 
 interface CannedResponse {
   id: string;
@@ -21,69 +33,80 @@ interface CannedResponse {
   lastUsed: string;
 }
 
+/**
+ * Canned responses, from canned_responses.
+ *
+ * Six invented templates with invented usage counts were kept in the browser;
+ * "New Response" said an editor "would open here", the edit button did nothing
+ * and delete removed the browser's copy. The templates are the table's now:
+ * copying one counts a use, and new, edit and delete change the table.
+ */
 const CannedResponses = () => {
-  const { executeAction } = useGlobalActions();
+  const queryClient = useQueryClient();
+  const { data: rows, isLoading, error } = useCannedResponses();
   const [searchQuery, setSearchQuery] = useState('');
+  const [favourites, setFavourites] = useState<Set<string>>(() => readFavourites());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const responses: CannedResponse[] = ((rows ?? []) as any[]).map((r) => ({
+    id: r.id,
+    title: r.title ?? '',
+    content: r.body ?? '',
+    category: r.category ?? 'General',
+    tags: r.shortcut ? [r.shortcut] : [],
+    usageCount: Number(r.usage_count ?? 0),
+    isFavorite: favourites.has(r.id),
+    lastUsed: relativeTime(r.updated_at),
+  }));
 
-  const [responses, setResponses] = useState<CannedResponse[]>([
-    { id: '1', title: 'Welcome Greeting', content: 'Hello! Thank you for reaching out to our support team. I\'m here to help you with any questions or concerns you may have.', category: 'Greetings', tags: ['welcome', 'intro'], usageCount: 234, isFavorite: true, lastUsed: '2 min ago' },
-    { id: '2', title: 'Password Reset Instructions', content: 'To reset your password, please follow these steps:\n1. Go to the login page\n2. Click "Forgot Password"\n3. Enter your email address\n4. Check your inbox for the reset link', category: 'Account', tags: ['password', 'reset', 'login'], usageCount: 189, isFavorite: true, lastUsed: '15 min ago' },
-    { id: '3', title: 'Refund Processing', content: 'Your refund request has been received and is being processed. Please allow 5-7 business days for the amount to reflect in your account.', category: 'Billing', tags: ['refund', 'billing', 'payment'], usageCount: 156, isFavorite: false, lastUsed: '1 hour ago' },
-    { id: '4', title: 'Order Status Check', content: 'I\'d be happy to check your order status for you. Could you please provide your order number so I can look this up for you?', category: 'Orders', tags: ['order', 'status', 'tracking'], usageCount: 145, isFavorite: false, lastUsed: '30 min ago' },
-    { id: '5', title: 'Closing Message', content: 'Is there anything else I can help you with today? If not, thank you for contacting us and have a wonderful day!', category: 'Closings', tags: ['close', 'end', 'goodbye'], usageCount: 312, isFavorite: true, lastUsed: '5 min ago' },
-    { id: '6', title: 'Technical Issue Escalation', content: 'I understand this is a technical issue that requires specialized attention. I\'m escalating this to our technical team who will contact you within 24 hours.', category: 'Technical', tags: ['escalation', 'technical', 'specialist'], usageCount: 78, isFavorite: false, lastUsed: '2 hours ago' },
-  ]);
-
-  const categories = ['All', 'Greetings', 'Account', 'Billing', 'Orders', 'Technical', 'Closings'];
+  const categories = ['All', ...new Set(responses.map((r) => r.category))];
   const [activeCategory, setActiveCategory] = useState('All');
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['canned_responses'] });
+  const run = async (work: PromiseLike<{ error: { message: string } | null }>, done: string) => {
+    const { error: failed } = await work;
+    if (failed) { toast.error(failed.message); return; }
+    toast.success(done);
+    await refresh();
+  };
 
   const handleCopy = useCallback(async (response: CannedResponse) => {
-    navigator.clipboard.writeText(response.content);
-    await executeAction({
-      actionId: `copy_response_${response.id}`,
-      actionType: 'read',
-      entityType: 'action',
-      entityId: response.id,
-      metadata: { title: response.title },
-      successMessage: 'Response copied to clipboard',
-    });
+    await navigator.clipboard?.writeText(response.content);
     toast.success('Copied to clipboard');
-  }, [executeAction]);
+    // Counting the use is best effort; the copy has already happened.
+    await cannedTable().update({ usage_count: response.usageCount + 1, updated_at: new Date().toISOString() }).eq('id', response.id);
+    await refresh();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleToggleFavorite = useCallback(async (id: string) => {
-    setResponses(prev => prev.map(r => 
-      r.id === id ? { ...r, isFavorite: !r.isFavorite } : r
-    ));
-    await executeAction({
-      actionId: `toggle_favorite_${id}`,
-      actionType: 'toggle',
-      entityType: 'action',
-      entityId: id,
-      successMessage: 'Favorites updated',
+  const handleToggleFavorite = useCallback((id: string) => {
+    setFavourites((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(FAVOURITES_KEY, JSON.stringify([...next])); } catch { /* favourites for this visit only */ }
+      return next;
     });
-  }, [executeAction]);
+  }, []);
 
   const handleCreate = useCallback(async () => {
-    await executeAction({
-      actionId: 'create_canned_response',
-      actionType: 'create',
-      entityType: 'action',
-      successMessage: 'Opening response editor',
-    });
-    toast.info('Response editor would open here');
-  }, [executeAction]);
+    const title = window.prompt('Title of the new response')?.trim();
+    if (!title) return;
+    const body = window.prompt('The response text')?.trim();
+    if (!body) return;
+    const category = window.prompt('Category', activeCategory === 'All' ? 'General' : activeCategory)?.trim() || 'General';
+    await run(cannedTable().insert({ title, body, category }), 'Response saved');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategory]);
+
+  const handleEdit = async (response: CannedResponse) => {
+    const body = window.prompt(`Edit "${response.title}"`, response.content)?.trim();
+    if (!body || body === response.content) return;
+    await run(cannedTable().update({ body, updated_at: new Date().toISOString() }).eq('id', response.id), 'Response updated');
+  };
 
   const handleDelete = useCallback(async (id: string, title: string) => {
-    await executeAction({
-      actionId: `delete_response_${id}`,
-      actionType: 'delete',
-      entityType: 'action',
-      entityId: id,
-      metadata: { title },
-      successMessage: 'Response deleted',
-    });
-    setResponses(prev => prev.filter(r => r.id !== id));
-  }, [executeAction]);
+    if (!window.confirm(`Delete "${title}"?`)) return;
+    await run(cannedTable().delete().eq('id', id), 'Response deleted');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filteredResponses = responses.filter(r => {
     const matchesCategory = activeCategory === 'All' || r.category === activeCategory;
@@ -145,6 +168,11 @@ const CannedResponses = () => {
         animate={{ opacity: 1 }}
         className="grid grid-cols-1 md:grid-cols-2 gap-4"
       >
+        {(isLoading || error || filteredResponses.length === 0) && (
+          <p className="col-span-full text-sm text-muted-foreground">
+            {isLoading ? 'Loading responses…' : error ? `Responses could not be read: ${(error as Error).message}` : 'No saved response here yet.'}
+          </p>
+        )}
         {filteredResponses.map((response, idx) => (
           <motion.div
             key={response.id}
@@ -181,7 +209,7 @@ const CannedResponses = () => {
                 >
                   <Copy className="w-4 h-4" />
                 </Button>
-                <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground">
+                <Button size="sm" variant="ghost" aria-label={`Edit ${response.title}`} onClick={() => void handleEdit(response)} className="text-muted-foreground hover:text-foreground">
                   <Edit2 className="w-4 h-4" />
                 </Button>
                 <Button 
@@ -222,7 +250,7 @@ const CannedResponses = () => {
           { label: 'Total Responses', value: responses.length, icon: FolderOpen, color: 'text-teal-400' },
           { label: 'Favorites', value: responses.filter(r => r.isFavorite).length, icon: Star, color: 'text-yellow-400' },
           { label: 'Categories', value: categories.length - 1, icon: Tag, color: 'text-purple-400' },
-          { label: 'Total Uses Today', value: '847', icon: CheckCircle, color: 'text-emerald-400' },
+          { label: 'Total Uses', value: responses.reduce((sum, r) => sum + r.usageCount, 0), icon: CheckCircle, color: 'text-emerald-400' },
         ].map((stat, idx) => (
           <div
             key={idx}

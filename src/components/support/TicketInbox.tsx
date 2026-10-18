@@ -43,7 +43,7 @@ const TicketInbox = () => {
         id: ticketId,
         values: { status: 'in_progress', first_response_at: new Date().toISOString() },
       });
-      toast.success('Reply logged, ticket marked in progress');
+      toast.success('First response recorded; ticket in progress');
     } catch (e) {
       toast.error('Failed to update ticket');
     }
@@ -169,7 +169,14 @@ const TicketInbox = () => {
                             key={response.id}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
-                            onClick={() => toast.info(response.body)}
+                            onClick={() => {
+                              // Copied for pasting into the reply; a ticket has no
+                              // reply thread here to insert it into.
+                              void navigator.clipboard?.writeText(String(response.body ?? '')).then(
+                                () => toast.success(`Copied "${response.title}"`),
+                                () => toast.info(String(response.body ?? '')),
+                              );
+                            }}
                             className="px-3 py-2 rounded-lg bg-muted/40 border border-border text-xs text-muted-foreground hover:border-teal-500/20 hover:text-teal-400 transition-all text-left"
                           >
                             {response.title}
@@ -190,7 +197,7 @@ const TicketInbox = () => {
                         className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 hover:bg-teal-500/20 transition-all text-sm font-medium"
                       >
                         <MessageCircle className="w-4 h-4" />
-                        Reply
+                        Mark responded
                       </motion.button>
                       <motion.button
                         whileHover={{ scale: 1.02 }}

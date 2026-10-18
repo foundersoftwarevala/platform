@@ -35,7 +35,7 @@ export function catalogueSlug(name: string): string {
   );
 }
 
-function toEntry(demo: Demo): CatalogueEntry {
+export function toEntry(demo: Demo): CatalogueEntry {
   return {
     slug: catalogueSlug(demo.name),
     name: demo.name,

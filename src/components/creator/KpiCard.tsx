@@ -5,10 +5,12 @@ import type { MetricSnapshot } from "@/lib/creator/types";
 import { Sparkline } from "./Sparkline";
 
 function formatValue(snap: MetricSnapshot): string {
-  if (snap.unit === "USD") {
+  if (snap.unavailable) return "—";
+  // Any ISO currency code, so an amount in rupees is not shown with a dollar sign.
+  if (snap.unit && /^[A-Z]{3}$/.test(snap.unit)) {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency: snap.unit,
       maximumFractionDigits: snap.value >= 1000 ? 0 : 2,
     }).format(snap.value);
   }

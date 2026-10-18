@@ -1,5 +1,30 @@
 import { motion } from "framer-motion";
-import { PageBanner, PageShell, SeedNotice } from "@/components/ai-ceo/PageShell";
+import { PageBanner, PageShell } from "@/components/ai-ceo/PageShell";
+import { useCEOOps } from "@/hooks/useCEOOps";
+
+/**
+ * Predictions, from the one prediction source the platform has.
+ *
+ * Five predictions ("Revenue Growth Expected", 89% confidence, "Client #456"
+ * and so on) and nine 7-day/30-day/quarter forecasts were written into this
+ * file. None came from anywhere. The platform's only forward-looking records
+ * are the Promise Tracker's AI insights (promise_ai_insights): for each
+ * delivery promise, the probability it will be missed and what to do about
+ * it. Those are the predictions listed here, read through the same
+ * loadCeoOps() the Insights screen uses.
+ *
+ * Revenue, lead, support-load, churn and market forecasts have no model and no
+ * table behind them, so those three panels say so and show no figure.
+ */
+const FORECAST_PANELS = [
+  { key: "sevenDays", title: "Next 7 Days" },
+  { key: "thirtyDays", title: "Next 30 Days" },
+  { key: "quarter", title: "Next Quarter" },
+] as const;
+
+/** A promise's delay risk, in this screen's positive / warning / negative. */
+const typeOf = (risk: string) =>
+  /critical|high|severe/i.test(risk) ? "negative" : /low|none|on[_ ]?track/i.test(risk) ? "positive" : "warning";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -9,79 +34,8 @@ import {
   TrendingUp, 
   TrendingDown, 
   Clock,
-  AlertTriangle,
-  DollarSign,
-  Users,
-  Server,
-  Zap
+  AlertTriangle
 } from "lucide-react";
-
-// Mock prediction data
-const predictions = [
-  {
-    id: 1,
-    title: "Revenue Growth Expected",
-    type: "positive",
-    timeline: "Next 7 days",
-    confidence: 89,
-    detail: "Based on current lead pipeline and conversion rates, expect 15% revenue increase",
-    icon: DollarSign
-  },
-  {
-    id: 2,
-    title: "System Overload Risk",
-    type: "warning",
-    timeline: "Next 30 days",
-    confidence: 72,
-    detail: "Traffic patterns suggest server capacity may reach 85% during peak hours",
-    icon: Server
-  },
-  {
-    id: 3,
-    title: "Staff Burnout Detected",
-    type: "negative",
-    timeline: "Next quarter",
-    confidence: 68,
-    detail: "Support team overtime hours trending 40% above healthy threshold",
-    icon: Users
-  },
-  {
-    id: 4,
-    title: "High-Risk Deal Identified",
-    type: "warning",
-    timeline: "Next 7 days",
-    confidence: 81,
-    detail: "Client #456 showing payment delay patterns similar to past defaults",
-    icon: AlertTriangle
-  },
-  {
-    id: 5,
-    title: "Feature Adoption Surge",
-    type: "positive",
-    timeline: "Next 30 days",
-    confidence: 85,
-    detail: "New reporting module adoption trending 3x higher than projected",
-    icon: Zap
-  },
-];
-
-const timelineData = {
-  sevenDays: [
-    { label: "Revenue", prediction: "+12%", confidence: 89 },
-    { label: "New Leads", prediction: "+45", confidence: 78 },
-    { label: "Support Load", prediction: "Normal", confidence: 92 },
-  ],
-  thirtyDays: [
-    { label: "Churn Risk", prediction: "2 clients", confidence: 71 },
-    { label: "Expansion", prediction: "3 regions", confidence: 65 },
-    { label: "Hiring Need", prediction: "+5 support", confidence: 82 },
-  ],
-  quarter: [
-    { label: "Market Share", prediction: "+2.3%", confidence: 58 },
-    { label: "Infrastructure", prediction: "Upgrade needed", confidence: 76 },
-    { label: "Compliance", prediction: "Audit due", confidence: 95 },
-  ],
-};
 
 const getTypeStyle = (type: string) => {
   switch (type) {
@@ -93,21 +47,31 @@ const getTypeStyle = (type: string) => {
 };
 
 const AICEOPredictions = () => {
+  const { insights, isLoading, failed, degraded } = useCEOOps();
+  const promiseFailed = failed || degraded.includes("promise_ai_insights");
+  const predictions = insights
+    .filter((i) => i.source === "promise_ai_insights")
+    .map((i) => ({
+      id: i.id,
+      title: i.title,
+      type: typeOf(i.severity),
+      timeline: i.createdAt ? `Predicted ${new Date(i.createdAt).toLocaleDateString()}` : "Prediction date not recorded",
+      confidence: i.confidence,
+      detail: [i.detail, i.recommendation && `Suggested: ${i.recommendation}`].filter(Boolean).join(" "),
+      icon: AlertTriangle,
+    }));
   return (
     <PageShell>
       <PageBanner
         icon={Lightbulb}
         title="Predictive Insights"
         subtitle="Forward-looking forecasts, opportunity detection and risk projections from the AI models."
-        status="Forecast horizon · 90 days"
+        status="Delivery-promise predictions"
       />
-
-      <SeedNotice waitingFor="a forecasting model — no prediction engine is connected" />
 
       {/* Timeline Predictions */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        {Object.entries(timelineData).map(([key, items], i) => {
-          const titles = { sevenDays: "Next 7 Days", thirtyDays: "Next 30 Days", quarter: "Next Quarter" };
+        {FORECAST_PANELS.map(({ key, title }, i) => {
           return (
             <motion.div
               key={key}
@@ -119,19 +83,13 @@ const AICEOPredictions = () => {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-foreground text-sm flex items-center gap-2">
                     <Clock className="w-4 h-4 text-primary-glow" />
-                    {titles[key as keyof typeof titles]}
+                    {title}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {items.map((item, j) => (
-                    <div key={j} className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">{item.label}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">{item.prediction}</span>
-                        <Badge variant="outline" className="text-xs">{item.confidence}%</Badge>
-                      </div>
-                    </div>
-                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    No forecasting model is connected, so no revenue, lead, load or growth forecast is shown.
+                  </p>
                 </CardContent>
               </Card>
             </motion.div>
@@ -150,6 +108,15 @@ const AICEOPredictions = () => {
         <CardContent>
           <ScrollArea className="h-[400px]">
             <div className="space-y-4">
+              {(isLoading || promiseFailed || predictions.length === 0) && (
+                <p className="text-sm text-muted-foreground">
+                  {isLoading
+                    ? "Loading predictions…"
+                    : promiseFailed
+                      ? "The Promise Tracker's predictions could not be read."
+                      : "No prediction yet. They appear when the Promise Tracker's AI assesses a delivery promise."}
+                </p>
+              )}
               {predictions.map((prediction, i) => {
                 const style = getTypeStyle(prediction.type);
                 return (
@@ -185,8 +152,10 @@ const AICEOPredictions = () => {
 
                     <div className="flex items-center gap-4">
                       <span className="text-xs text-muted-foreground">AI Confidence:</span>
-                      <Progress value={prediction.confidence} className="h-1.5 flex-1" />
-                      <span className={`text-sm font-medium ${style.text}`}>{prediction.confidence}%</span>
+                      <Progress value={prediction.confidence ?? 0} className="h-1.5 flex-1" />
+                      <span className={`text-sm font-medium ${style.text}`}>
+                        {prediction.confidence == null ? "—" : `${prediction.confidence}%`}
+                      </span>
                     </div>
                   </motion.div>
                 );
@@ -201,7 +170,7 @@ const AICEOPredictions = () => {
         <div className="flex items-center gap-3">
           <Lightbulb className="w-5 h-5 text-accent-amber" />
           <p className="text-sm text-accent-amber/80">
-            <strong>Predictive Notice:</strong> These are AI-generated forecasts based on historical patterns. Actual outcomes may vary.
+            <strong>Predictive Notice:</strong> These are AI assessments of whether delivery promises will be missed. Actual outcomes may vary.
           </p>
         </div>
       </div>

@@ -1,7 +1,10 @@
 /**
- * Vala TV video content — editable from Marketplace Manager -> Growth -> Vala TV.
+ * Vala TV helpers. The videos themselves live in vala_tv_videos: the storefront
+ * reads them through the storefront chrome and Marketplace Manager -> Growth ->
+ * Vala TV edits them (sections/ValaTvLive). The browser-side list of seeded
+ * videos that used to live here, which the editor wrote to and nothing on the
+ * site read, is gone.
  */
-import { createTable, uid } from "@/lib/marketplace-manager/store";
 
 export type ValaVideo = {
   id: string;
@@ -38,54 +41,6 @@ export function hasPlayableVideo(url: string): boolean {
   if (!value) return false;
   return !PLACEHOLDER_IDS.some((id) => value.includes(id));
 }
-
-const seed: Array<[string, string, string, string, string]> = [
-  // Real film from the Software Vala channel. The rows below it are still
-  // placeholders and are shown as unpublished until real URLs are set from
-  // Marketplace Manager -> Growth -> Vala TV.
-  ["MLM Software — Grow Your Network. Manage Your Business.", "https://youtu.be/faWCyXVBurY", "", "", "Product Demo"],
-  ["How MediCore 360 powers 42 hospitals", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "4:12", "12k", "Customer Film"],
-  ["Inside ShopEngine — multi-vendor at scale", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "7:48", "8.3k", "Product Demo"],
-  ["Build a school OS with EduFlow", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "5:21", "15k", "Walkthrough"],
-  ["Launch a white-label storefront in 24 hours", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "6:02", "9.4k", "White Label"],
-  ["Turn any product into multi-tenant SaaS", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "8:15", "6.7k", "SaaS"],
-  ["Reseller playbook — first 10 clients", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "9:03", "5.2k", "Academy"],
-];
-
-/** YouTube publishes a poster for every video at a predictable address. */
-function youtubeThumbnail(url: string): string {
-  const match = url.match(/(?:youtu\.be\/|v=|embed\/)([\w-]{6,})/);
-  return match?.[1] ? `https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg` : "";
-}
-
-export const VIDEO_SEED: ValaVideo[] = seed.map(([title, url, duration, views, category], i) => ({
-  id: `vtv-${i + 1}`,
-  title,
-  url,
-  thumbnail: hasPlayableVideo(url) ? youtubeThumbnail(url) : "",
-  duration,
-  views,
-  category,
-  published: true,
-  order: i + 1,
-}));
-
-export const videoTable = createTable<ValaVideo>("vala-tv", VIDEO_SEED);
-
-export const listVideos = () => videoTable.all().sort((a, b) => a.order - b.order);
-export const listPublishedVideos = () => listVideos().filter((v) => v.published);
-
-export const newVideo = (): ValaVideo => ({
-  id: uid(),
-  title: "",
-  url: "",
-  thumbnail: "",
-  duration: "",
-  views: "0",
-  category: "Product Demo",
-  published: false,
-  order: listVideos().length + 1,
-});
 
 /** Best-effort embed URL for YouTube/Vimeo links, else the raw url. */
 export function embedUrl(url: string): string {

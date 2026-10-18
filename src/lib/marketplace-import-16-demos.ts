@@ -214,9 +214,19 @@ const CATEGORIES_NEEDED = [
   { slug: "event-services", name: "Event Services", icon: "Sparkles", tone: "from-fuchsia-600 to-purple-600" },
 ];
 
-// Use Supabase client from auth context OR service role (for dev/localhost)
+/**
+ * Imports the sixteen supplied demos. Operator only.
+ *
+ * This ran with the service-role key and no caller check, so anyone who found
+ * its id in the /admin/import chunk could set sixteen products' prices, make
+ * them visible and upsert their demo URLs on the live storefront. The route gate
+ * on /admin/import hides the screen; it never guarded the function.
+ */
 export const importSupplied16Demos = createServerFn({ method: "POST" })
   .handler(async (ctx) => {
+    const { requireOperator } = await import("@/lib/auth/require-operator.server");
+    await requireOperator("Importing the supplied demos");
+
     console.log("[import-16] Starting import of 16 supplied demos...");
 
     try {
@@ -238,7 +248,8 @@ export const importSupplied16Demos = createServerFn({ method: "POST" })
 
       const { error: catError, data: upsertedCats } = await sb
         .from("marketplace_categories")
-        .upsert(categoryData, { onConflict: "slug" });
+        .upsert(categoryData, { onConflict: "slug" })
+        .select("id");
 
       if (catError) throw new Error(`Category upsert failed: ${catError.message}`);
       console.log(`[import-16] ✓ ${upsertedCats?.length || 0} categories ready`);
@@ -267,17 +278,20 @@ export const importSupplied16Demos = createServerFn({ method: "POST" })
 
       const { error: prodError, data: upsertedProds } = await sb
         .from("marketplace_products")
-        .upsert(productData, { onConflict: "slug" });
+        .upsert(productData, { onConflict: "slug" })
+        .select("id,slug");
 
       if (prodError) throw new Error(`Product upsert failed: ${prodError.message}`);
       console.log(`[import-16] ✓ ${upsertedProds?.length || 0} products created/linked`);
 
       // 3. Create demo URL mappings
       console.log("[import-16] Creating demo URL mappings...");
-      const demoData = DEMO_CATALOG.map((demo, idx) => {
-        const prod = upsertedProds?.[idx];
+      const productBySlug = new Map((upsertedProds ?? []).map((product) => [product.slug, product]));
+      const demoData = DEMO_CATALOG.map((demo) => {
+        const prod = productBySlug.get(demo.slug);
+        if (!prod) throw new Error(`Imported product not returned: ${demo.slug}`);
         return {
-          product_id: prod?.id || null,
+          product_id: prod.id,
           demo_name: demo.demo_name,
           role_name: "Public",
           url: demo.demo_url,
@@ -292,7 +306,8 @@ export const importSupplied16Demos = createServerFn({ method: "POST" })
 
       const { error: demoError, data: upsertedDemos } = await sb
         .from("product_demo_urls")
-        .upsert(demoData, { onConflict: "product_id,url" });
+        .upsert(demoData, { onConflict: "product_id,url" })
+        .select("id");
 
       if (demoError) throw new Error(`Demo URL upsert failed: ${demoError.message}`);
       console.log(`[import-16] ✓ ${upsertedDemos?.length || 0} demo URLs created/linked`);

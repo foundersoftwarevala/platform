@@ -110,3 +110,50 @@ export const influencerDashboardQueryOptions = () => queryOptions({
     };
   },
 });
+/**
+ * The programme as an operator sees it: every influencer, not the caller's own.
+ *
+ * Influencer Manager used influencerDashboardQueryOptions above, which is the
+ * creator's own view - it looks the caller up in influencer_profiles by
+ * user_id and returns an empty dashboard when there is no row. Only two of the
+ * ten profiles carry a user_id, and the owner's account is not one of them, so
+ * the console showed an empty programme to the person who runs it. Nothing had
+ * failed; it was answering a different question.
+ *
+ * The numbers here are counted in SQL by influencer_programme_summary() and read
+ * through the server against the VPS, so they cannot drift from a list that
+ * happened to be capped at two thousand rows.
+ */
+export const influencerProgrammeQueryOptions = () =>
+  queryOptions({
+    queryKey: ["influencer-programme", "operator"],
+    staleTime: 30_000,
+    queryFn: async (): Promise<DashboardAnalytics> => {
+      const { getInfluencerProgramme } = await import("@/lib/influencer/programme.functions");
+      const summary = await getInfluencerProgramme();
+
+      const base = emptyDashboardAnalytics("7d");
+      const metrics = { ...base.metrics };
+      metrics.influencers = metric("influencers", Number(summary.influencers ?? 0));
+      metrics.followers = metric("followers", Number(summary.followers_total ?? 0));
+      // Reach is only claimable for accounts whose ownership has been verified.
+      metrics.reach = metric("reach", Number(summary.followers_verified ?? 0));
+      metrics.campaigns = metric("campaigns", Number(summary.assignments_active ?? 0));
+      metrics.applications = metric("applications", Number(summary.applications_pending ?? 0));
+      metrics.commissions = metric("commissions", Number(summary.earnings_net ?? 0));
+      metrics.payouts = metric("payouts", Number(summary.payouts_total ?? 0));
+      // Left at zero on purpose: the referral chain that would attribute a sale
+      // or a lead to an influencer is not written to yet, and the summary says
+      // so in its own `unattributable` field rather than borrowing a number.
+      metrics.sales = metric("sales", 0);
+      metrics.leads = metric("leads", 0);
+
+      return {
+        ...base,
+        connected: true,
+        source: "supabase:influencer-programme",
+        generatedAt: new Date().toISOString(),
+        metrics,
+      };
+    },
+  });

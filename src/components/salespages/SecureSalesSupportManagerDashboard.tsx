@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Shield, 
+import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Shield,
   Users,
   UserPlus,
   TrendingUp,
@@ -16,40 +16,39 @@ import {
   Clock,
   Lock,
   Target,
-  MessageSquare
-} from 'lucide-react';
+  MessageSquare,
+} from "lucide-react";
 
-import { SSMAssignedLeads } from '@/components/sales-support-manager/SSMAssignedLeads';
-import { SSMSalesPipeline } from '@/components/sales-support-manager/SSMSalesPipeline';
-import { SSMSupportTickets } from '@/components/sales-support-manager/SSMSupportTickets';
-import { SSMSLAAlerts } from '@/components/sales-support-manager/SSMSLAAlerts';
-import { SSMTeamPerformance } from '@/components/sales-support-manager/SSMTeamPerformance';
-import { SSMEscalations } from '@/components/sales-support-manager/SSMEscalations';
-import { SSMReportsAudit } from '@/components/sales-support-manager/SSMReportsAudit';
-import { toast } from 'sonner';
-import { useNavigate } from '@/lib/navigation';
+import { SSMAssignedLeads } from "@/components/sales-support-manager/SSMAssignedLeads";
+import { SSMSalesPipeline } from "@/components/sales-support-manager/SSMSalesPipeline";
+import { SSMSupportTickets } from "@/components/sales-support-manager/SSMSupportTickets";
+import { SSMSLAAlerts } from "@/components/sales-support-manager/SSMSLAAlerts";
+import { SSMTeamPerformance } from "@/components/sales-support-manager/SSMTeamPerformance";
+import { SSMEscalations } from "@/components/sales-support-manager/SSMEscalations";
+import { SSMReportsAudit } from "@/components/sales-support-manager/SSMReportsAudit";
+import { toast } from "sonner";
+import { useNavigate } from "@/lib/navigation";
+import { useAuth } from "@/hooks/useAuth";
 
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
 export const SecureSalesSupportManagerDashboard: React.FC = () => {
   const navigate = useNavigate();
-  
-  
-  const [activeTab, setActiveTab] = useState('leads');
-  const [sessionTime, setSessionTime] = useState(SESSION_TIMEOUT);
-  const [valaId, setValaId] = useState('VL-SSM-XXXXXX');
 
-  useEffect(() => {
-    setValaId('VL-SSM-' + Math.random().toString(36).substring(2, 8).toUpperCase());
-  }, []);
+  const [activeTab, setActiveTab] = useState("leads");
+  const [sessionTime, setSessionTime] = useState(SESSION_TIMEOUT);
+  // The session's Vala ID is derived from the signed-in account, so it is the
+  // same on every visit and identifies who is working this console.
+  const { user } = useAuth();
+  const valaId = user ? "VL-SSM-" + user.id.replace(/-/g, "").slice(0, 6).toUpperCase() : "VL-SSM-";
 
   // Session timeout management
   useEffect(() => {
     const interval = setInterval(() => {
-      setSessionTime(prev => {
+      setSessionTime((prev) => {
         if (prev <= 1000) {
-          toast.error('Session expired - logging out');
-          navigate('/');
+          toast.error("Session expired - logging out");
+          navigate("/");
           return 0;
         }
         return prev - 1000;
@@ -62,33 +61,33 @@ export const SecureSalesSupportManagerDashboard: React.FC = () => {
   // Reset session on activity
   useEffect(() => {
     const resetSession = () => setSessionTime(SESSION_TIMEOUT);
-    window.addEventListener('click', resetSession);
-    window.addEventListener('keydown', resetSession);
+    window.addEventListener("click", resetSession);
+    window.addEventListener("keydown", resetSession);
     return () => {
-      window.removeEventListener('click', resetSession);
-      window.removeEventListener('keydown', resetSession);
+      window.removeEventListener("click", resetSession);
+      window.removeEventListener("keydown", resetSession);
     };
   }, []);
 
   const handleLogout = () => {
-    toast.success('Session cleared securely');
-    navigate('/');
+    toast.success("Session cleared securely");
+    navigate("/");
   };
 
   const formatTime = (ms: number) => {
     const minutes = Math.floor(ms / 60000);
     const seconds = Math.floor((ms % 60000) / 1000);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
   const tabItems = [
-    { id: 'leads', label: 'New Leads', icon: UserPlus },
-    { id: 'pipeline', label: 'Sales Pipeline', icon: TrendingUp },
-    { id: 'tickets', label: 'Support Tickets', icon: Headphones },
-    { id: 'sla', label: 'SLA Alerts', icon: Bell },
-    { id: 'team', label: 'Team Performance', icon: Users },
-    { id: 'escalations', label: 'Escalations', icon: ArrowUpRight },
-    { id: 'audit', label: 'Reports & Audit', icon: FileText },
+    { id: "leads", label: "New Leads", icon: UserPlus },
+    { id: "pipeline", label: "Sales Pipeline", icon: TrendingUp },
+    { id: "tickets", label: "Support Tickets", icon: Headphones },
+    { id: "sla", label: "SLA Alerts", icon: Bell },
+    { id: "team", label: "Team Performance", icon: Users },
+    { id: "escalations", label: "Escalations", icon: ArrowUpRight },
+    { id: "audit", label: "Reports & Audit", icon: FileText },
   ];
 
   return (
@@ -105,18 +104,26 @@ export const SecureSalesSupportManagerDashboard: React.FC = () => {
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+              <Badge
+                variant="outline"
+                className="bg-destructive/10 text-destructive border-destructive/30"
+              >
                 <Lock className="h-3 w-3 mr-1" />
                 Finance BLOCKED
               </Badge>
-              <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+              <Badge
+                variant="outline"
+                className="bg-destructive/10 text-destructive border-destructive/30"
+              >
                 <Lock className="h-3 w-3 mr-1" />
                 Admin BLOCKED
               </Badge>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className={`font-mono ${sessionTime < 300000 ? 'text-destructive' : 'text-muted-foreground'}`}>
+              <span
+                className={`font-mono ${sessionTime < 300000 ? "text-destructive" : "text-muted-foreground"}`}
+              >
                 {formatTime(sessionTime)}
               </span>
             </div>
@@ -130,11 +137,7 @@ export const SecureSalesSupportManagerDashboard: React.FC = () => {
 
       {/* Main Content */}
       <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <h1 className="text-2xl font-bold text-foreground mb-2">
             Sales & Support Manager Dashboard
           </h1>

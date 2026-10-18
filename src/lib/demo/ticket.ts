@@ -1,23 +1,29 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
- * The pass that lets a signed-in visitor open a demo.
+ * The short-lived pass that lets a visitor open one demo.
  *
  * Demos are the catalogue's only public thread: the products are hosted
- * elsewhere and the live URL is the whole of what there is to steal. So the
- * proxy must not serve a demo to whoever asks for it. A visitor signs in and is
- * verified, the server issues one of these, and the proxy accepts nothing else.
+ * elsewhere and the live URL is the only source detail to protect. The server
+ * issues a scoped pass only after checking the product and active demo.
  *
  * The pass is signed rather than stored, so checking one costs no database
  * round trip; it names the single product it opens and expires on its own, so a
  * leaked pass opens one demo for a short while and nothing more. The demo's
- * real address never appears in it.
+ * real address never appears in it. Signed-in visitors are identified for lead
+ * attribution; guests receive a non-identifying public pass.
  */
 
 const TTL_MS = 30 * 60 * 1000;
 
 /** The cookie the proxy reads for the asset requests an iframe makes itself. */
 export const DEMO_COOKIE = "sv_demo_pass";
+export const PUBLIC_DEMO_VISITOR = "public-guest";
+
+/** Keep each iframe's pass independent when several products are open. */
+export function demoCookiePath(slug: string): string {
+  return `/api/proxy/demo/${encodeURIComponent(slug)}`;
+}
 
 export type DemoTicket = { slug: string; userId: string; expiresAt: number };
 
@@ -39,7 +45,7 @@ function sign(payload: string, key: string): string {
 }
 
 /**
- * Issue a pass for one product to one signed-in person.
+ * Issue a pass for one product to one visitor.
  * Returns null on a server with no secret configured, so a misconfigured
  * deployment refuses demos rather than handing them out unsigned.
  */
@@ -79,15 +85,19 @@ export function readDemoTicket(value: string | null | undefined): DemoTicket | n
 }
 
 /** The pass carried on a request, from the query string or the cookie. */
-export function ticketFromRequest(request: Request): DemoTicket | null {
+export function ticketFromRequest(request: Request, slug: string): DemoTicket | null {
   const fromQuery = new URL(request.url).searchParams.get("t");
   const direct = readDemoTicket(fromQuery);
-  if (direct) return direct;
+  if (direct) return direct.slug === slug ? direct : null;
 
   const cookies = request.headers.get("cookie") ?? "";
   for (const part of cookies.split(";")) {
     const [name, ...rest] = part.trim().split("=");
-    if (name === DEMO_COOKIE) return readDemoTicket(decodeURIComponent(rest.join("=")));
+    if (name === DEMO_COOKIE) {
+      // Signed tokens contain only base64url and a dot, so no URI decoding is needed.
+      const pass = readDemoTicket(rest.join("="));
+      if (pass?.slug === slug) return pass;
+    }
   }
   return null;
 }

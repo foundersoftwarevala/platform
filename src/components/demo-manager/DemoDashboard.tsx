@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { listDemoHealth, type DemoHealth } from "@/lib/marketplace-demo.functions";
 import { useAuth } from "@/hooks/useAuth";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import DataStateNotice from "./DataStateNotice";
 import {
   Monitor,
@@ -25,7 +27,7 @@ interface TopDemo {
   id: string;
   name: string;
   clicks: number;
-  uptime: number;
+  uptime: number | null;
   tech: string;
   status: string;
 }
@@ -42,9 +44,8 @@ interface DashboardData {
   maintenance: number;
   down: number;
   totalClicks: number;
-  uniqueVisitors: number;
-  avgUptime: number;
-  overallHealth: number;
+  uniqueVisitors: number | null;
+  avgUptime: number | null;
   topDemos: TopDemo[];
   regions: DistributionItem[];
   devices: DistributionItem[];
@@ -52,7 +53,11 @@ interface DashboardData {
 
 const CLICK_WINDOW_DAYS = 30;
 
-const toDistribution = (counts: Map<string, number>, total: number, limit: number): DistributionItem[] =>
+const toDistribution = (
+  counts: Map<string, number>,
+  total: number,
+  limit: number,
+): DistributionItem[] =>
   [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
@@ -64,68 +69,79 @@ const toDistribution = (counts: Map<string, number>, total: number, limit: numbe
 
 const DemoDashboard = () => {
   const { session } = useAuth();
+  const { t } = useTranslation();
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["demo-manager", "dashboard"],
     queryFn: async (): Promise<DashboardData> => {
-      const { data: demos, error: demosError } = await supabase
-        .from("demos")
-        .select("id, title, status, uptime_percentage, health_score, tech_stack")
-        .limit(500);
-      if (demosError) throw demosError;
-
-      const rows = demos ?? [];
+      const rows = (await listDemoHealth({ data: { days: CLICK_WINDOW_DAYS } })) as DemoHealth[];
       const since = new Date(Date.now() - CLICK_WINDOW_DAYS * 86_400_000).toISOString();
-      const { data: clicks, error: clicksError } = await supabase
-        .from("demo_clicks")
-        .select("demo_id, region, country, device_type, user_id")
-        .gte("clicked_at", since)
-        .limit(10_000);
-      if (clicksError) throw clicksError;
+      const clickRows: {
+        region: string | null;
+        country: string | null;
+        device_type: string | null;
+        user_id: string | null;
+      }[] = [];
+      const pageSize = 1000;
 
-      const clickRows = clicks ?? [];
-      const perDemo = new Map<string, number>();
+      for (let from = 0; ; from += pageSize) {
+        const { data: page, error: clicksError } = await supabase
+          .from("demo_clicks")
+          .select("region, country, device_type, user_id")
+          .gte("clicked_at", since)
+          .order("clicked_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (clicksError) throw clicksError;
+
+        const currentPage = page ?? [];
+        clickRows.push(...currentPage);
+        if (currentPage.length < pageSize) break;
+      }
+
       const regionCounts = new Map<string, number>();
       const deviceCounts = new Map<string, number>();
       const visitors = new Set<string>();
 
-      clickRows.forEach((c) => {
-        perDemo.set(c.demo_id, (perDemo.get(c.demo_id) ?? 0) + 1);
-        const region = c.region ?? c.country ?? "Unknown";
+      clickRows.forEach((click) => {
+        const region = click.region ?? click.country ?? "Unknown";
         regionCounts.set(region, (regionCounts.get(region) ?? 0) + 1);
-        const device = c.device_type ?? "Unknown";
+        const device = click.device_type ?? "Unknown";
         deviceCounts.set(device, (deviceCounts.get(device) ?? 0) + 1);
-        if (c.user_id) visitors.add(c.user_id);
+        if (click.user_id) visitors.add(click.user_id);
       });
 
-      const uptimes = rows.map((d) => Number(d.uptime_percentage ?? 0)).filter((n) => n > 0);
-      const healthScores = rows.map((d) => Number(d.health_score ?? 0)).filter((n) => n > 0);
-
+      const uptimes = rows.flatMap((demo) =>
+        typeof demo.uptime_percent === "number" ? [demo.uptime_percent] : [],
+      );
       const topDemos: TopDemo[] = rows
-        .map((d) => ({
-          id: d.id,
-          name: d.title ?? "Untitled",
-          clicks: perDemo.get(d.id) ?? 0,
-          uptime: Number(d.uptime_percentage ?? 0),
-          tech: Array.isArray(d.tech_stack) ? String(d.tech_stack[0]) : String(d.tech_stack ?? "—"),
-          status: d.status ?? "inactive",
+        .map((demo) => ({
+          id: demo.id,
+          name: demo.demo_name ?? demo.product_name ?? "Untitled",
+          clicks: demo.clicks,
+          uptime: demo.uptime_percent,
+          tech: demo.unavailable?.stack ?? "Not recorded",
+          status: demo.status ?? "unknown",
         }))
-        .sort((a, b) => b.clicks - a.clicks || b.uptime - a.uptime)
+        .sort((a, b) => b.clicks - a.clicks || (b.uptime ?? -1) - (a.uptime ?? -1))
         .slice(0, 5);
 
       return {
         total: rows.length,
-        active: rows.filter((d) => d.status === "active").length,
-        maintenance: rows.filter((d) => d.status === "maintenance").length,
-        down: rows.filter((d) => d.status === "down" || d.status === "inactive").length,
+        active: rows.filter((demo) => demo.status === "active" && demo.latest_result !== "offline")
+          .length,
+        maintenance: rows.filter((demo) => demo.status === "maintenance").length,
+        down: rows.filter(
+          (demo) =>
+            demo.status === "down" ||
+            demo.status === "inactive" ||
+            (demo.status === "active" && demo.latest_result === "offline"),
+        ).length,
         totalClicks: clickRows.length,
-        uniqueVisitors: visitors.size,
-        avgUptime: uptimes.length ? uptimes.reduce((a, b) => a + b, 0) / uptimes.length : 0,
-        overallHealth: healthScores.length
-          ? Math.round(healthScores.reduce((a, b) => a + b, 0) / healthScores.length)
-          : rows.length
-            ? Math.round((rows.filter((d) => d.status === "active").length / rows.length) * 100)
-            : 0,
+        uniqueVisitors: visitors.size > 0 ? visitors.size : null,
+        avgUptime: uptimes.length
+          ? uptimes.reduce((total, uptime) => total + uptime, 0) / uptimes.length
+          : null,
         topDemos,
         regions: toDistribution(regionCounts, clickRows.length, 5),
         devices: toDistribution(deviceCounts, clickRows.length, 3),
@@ -138,20 +154,68 @@ const DemoDashboard = () => {
   const metrics = useMemo(() => {
     if (!stats) return [];
     return [
-      { label: "Total Demos", value: stats.total.toLocaleString(), sub: "registered", icon: Monitor, color: "text-neon-teal" },
-      { label: "Active", value: stats.active.toLocaleString(), sub: "running", icon: Activity, color: "text-neon-green" },
-      { label: `Clicks (${CLICK_WINDOW_DAYS}d)`, value: stats.totalClicks.toLocaleString(), sub: "tracked", icon: TrendingUp, color: "text-primary" },
-      { label: "Signed-in Visitors", value: stats.uniqueVisitors.toLocaleString(), sub: `${CLICK_WINDOW_DAYS}d`, icon: Users, color: "text-neon-cyan" },
-      { label: "Avg Uptime", value: stats.avgUptime ? `${stats.avgUptime.toFixed(1)}%` : "—", sub: "reported", icon: Clock, color: "text-emerald-400" },
-      { label: "Down / Inactive", value: stats.down.toLocaleString(), sub: "needs action", icon: AlertTriangle, color: "text-orange-400" },
+      {
+        label: "Total Demos",
+        value: stats.total.toLocaleString(),
+        sub: "registered",
+        icon: Monitor,
+        color: "text-neon-teal",
+      },
+      {
+        label: "Active",
+        value: stats.active.toLocaleString(),
+        sub: "enabled",
+        icon: Activity,
+        color: "text-neon-green",
+      },
+      {
+        label: "Clicks (" + CLICK_WINDOW_DAYS + "d)",
+        value: stats.totalClicks.toLocaleString(),
+        sub: "tracked",
+        icon: TrendingUp,
+        color: "text-primary",
+      },
+      {
+        label: "Signed-in Visitors",
+        value: stats.uniqueVisitors === null ? "—" : stats.uniqueVisitors.toLocaleString(),
+        sub: stats.uniqueVisitors === null ? "not linked" : CLICK_WINDOW_DAYS + "d",
+        icon: Users,
+        color: "text-neon-cyan",
+      },
+      {
+        label: "Avg Uptime",
+        value: stats.avgUptime === null ? "—" : stats.avgUptime.toFixed(1) + "%",
+        sub: stats.avgUptime === null ? "not measured" : CLICK_WINDOW_DAYS + "d",
+        icon: Clock,
+        color: "text-emerald-400",
+      },
+      {
+        label: "Down / Inactive",
+        value: stats.down.toLocaleString(),
+        sub: "needs action",
+        icon: AlertTriangle,
+        color: "text-orange-400",
+      },
     ];
   }, [stats]);
 
   const demosByStatus = stats
     ? [
-        { status: "Active", count: stats.active, color: "bg-neon-green/20 text-neon-green border-neon-green/30" },
-        { status: "Maintenance", count: stats.maintenance, color: "bg-orange-500/20 text-orange-400 border-orange-500/30" },
-        { status: "Down", count: stats.down, color: "bg-red-500/20 text-red-400 border-red-500/30" },
+        {
+          status: "Active",
+          count: stats.active,
+          color: "bg-neon-green/20 text-neon-green border-neon-green/30",
+        },
+        {
+          status: "Maintenance",
+          count: stats.maintenance,
+          color: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+        },
+        {
+          status: "Down",
+          count: stats.down,
+          color: "bg-red-500/20 text-red-400 border-red-500/30",
+        },
       ]
     : [];
 
@@ -161,12 +225,14 @@ const DemoDashboard = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Demo Dashboard</h1>
-          <p className="text-muted-foreground">Real-time demo performance overview</p>
+          <p className="text-muted-foreground">
+            {t("demo.dashboard.description", { days: CLICK_WINDOW_DAYS })}
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge className="bg-neon-green/20 text-neon-green border border-neon-green/30 animate-pulse">
-            <Activity className="w-3 h-3 mr-1" />
-            LIVE
+          <Badge className="bg-neon-green/20 text-neon-green border border-neon-green/30">
+            <Clock className="w-3 h-3 mr-1" />
+            {t("demo.dashboard.window", { days: CLICK_WINDOW_DAYS })}
           </Badge>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -216,7 +282,11 @@ const DemoDashboard = () => {
 
             {/* Status Overview & Top Demos */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+              >
                 <Card className="glass-card border-border/50 h-full">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -243,13 +313,17 @@ const DemoDashboard = () => {
 
                     <div className="pt-4 border-t border-border/50">
                       <div className="flex justify-between text-xs text-muted-foreground mb-2">
-                        <span>Overall Health</span>
-                        <span>{stats.overallHealth}%</span>
+                        <span>Measured Uptime</span>
+                        <span>
+                          {stats.avgUptime === null
+                            ? "Not measured"
+                            : stats.avgUptime.toFixed(1) + "%"}
+                        </span>
                       </div>
                       <div className="h-2 bg-background rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-neon-green to-neon-teal rounded-full"
-                          style={{ width: `${stats.overallHealth}%` }}
+                          style={{ width: (stats.avgUptime ?? 0) + "%" }}
                         />
                       </div>
                     </div>
@@ -289,7 +363,9 @@ const DemoDashboard = () => {
                           </div>
                           <div className="flex items-center gap-4">
                             <div className="text-right">
-                              <p className="text-sm font-medium text-foreground">{demo.clicks.toLocaleString()}</p>
+                              <p className="text-sm font-medium text-foreground">
+                                {demo.clicks.toLocaleString()}
+                              </p>
                               <p className="text-xs text-muted-foreground">clicks</p>
                             </div>
                             <Badge
@@ -299,7 +375,7 @@ const DemoDashboard = () => {
                                   : "bg-orange-500/20 text-orange-400"
                               }
                             >
-                              {demo.uptime ? `${demo.uptime}%` : demo.status}
+                              {demo.uptime !== null ? demo.uptime.toFixed(1) + "%" : demo.status}
                             </Badge>
                           </div>
                         </div>
@@ -312,7 +388,11 @@ const DemoDashboard = () => {
 
             {/* Region & Device Stats */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+              >
                 <Card className="glass-card border-border/50">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -351,7 +431,11 @@ const DemoDashboard = () => {
                 </Card>
               </motion.div>
 
-              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+              >
                 <Card className="glass-card border-border/50">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -376,8 +460,12 @@ const DemoDashboard = () => {
                               className="text-center p-4 rounded-lg bg-background/30"
                             >
                               <Monitor className="w-8 h-8 mx-auto mb-2 text-primary" />
-                              <p className="text-2xl font-bold text-foreground">{device.percentage}%</p>
-                              <p className="text-xs text-muted-foreground capitalize">{device.label}</p>
+                              <p className="text-2xl font-bold text-foreground">
+                                {device.percentage}%
+                              </p>
+                              <p className="text-xs text-muted-foreground capitalize">
+                                {device.label}
+                              </p>
                             </motion.div>
                           ))}
                         </div>
@@ -387,7 +475,11 @@ const DemoDashboard = () => {
                             <div
                               key={device.label}
                               className={
-                                i === 0 ? "bg-primary h-full" : i === 1 ? "bg-neon-teal h-full" : "bg-neon-green h-full"
+                                i === 0
+                                  ? "bg-primary h-full"
+                                  : i === 1
+                                    ? "bg-neon-teal h-full"
+                                    : "bg-neon-green h-full"
                               }
                               style={{ width: `${device.percentage}%` }}
                             />

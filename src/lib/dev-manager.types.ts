@@ -30,7 +30,7 @@ export interface TaskDTO {
   status: UiStatus;
   dueDate: string | null;
   slaHoursRemaining: number;
-  promiseId: string | null;
+  promiseIds: string[];
 }
 
 export interface SLARiskDTO {
@@ -38,7 +38,7 @@ export interface SLARiskDTO {
   code: string;
   title: string;
   assignee: string;
-  promiseId: string | null;
+  promiseIds: string[];
   hoursRemaining: number;
   riskLevel: RiskLevel;
   escalatedAt: string | null;
@@ -50,8 +50,8 @@ export interface BlockedTaskDTO {
   title: string;
   assignee: string;
   blockedReason: string;
-  blockedSince: string;
-  blockedHours: number;
+  blockedSince: string | null;
+  blockedHours: number | null;
   autoEscalateThreshold: number;
   escalated: boolean;
 }

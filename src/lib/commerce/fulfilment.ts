@@ -100,6 +100,7 @@ export async function logPaymentEvent(
  * payment succeeded, it only acts on one that did.
  */
 type OrderLine = {
+  id: string;
   product_id: string | null;
   product_name: string | null;
   seller_id: string | null;
@@ -111,7 +112,7 @@ type OrderLine = {
  */
 async function orderLines(orderId: string): Promise<OrderLine[]> {
   const response = await rest(
-    `marketplace_order_items?select=product_id,product_name,seller_id` +
+    `marketplace_order_items?select=id,product_id,product_name,seller_id` +
       `&order_id=eq.${encodeURIComponent(orderId)}`,
   );
   if (!response.ok) return [];
@@ -193,7 +194,19 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
     };
   }
 
-  const licenceKey = generateLicenceKey();
+  // One key per purchase. When the order became paid, the database already
+  // issued a marketplace licence for each line (mm_order_paid_issue), and that
+  // is the key every dashboard shows. Minting a second, different key here
+  // gave the buyer one key by e-mail and the dashboards another.
+  let licenceKey = generateLicenceKey();
+  if (lines.length) {
+    const issued = await rest(
+      `marketplace_licenses?select=license_key&order_item_id=in.(${lines.map((line) => line.id).join(",")})` +
+        `&license_key=not.is.null&order=created_at.asc&limit=1`,
+    );
+    const rows = issued.ok ? ((await issued.json()) as { license_key: string }[]) : [];
+    if (rows[0]?.license_key) licenceKey = rows[0].license_key;
+  }
   const licenceResponse = await rest("licenses", {
     method: "POST",
     headers: { Prefer: "return=representation" },

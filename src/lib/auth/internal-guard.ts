@@ -1,3 +1,4 @@
+import { DEMO_OPERATOR_ROLES } from "./demo-roles";
 /**
  * Gate for the /api/internal/* endpoints.
  *
@@ -18,7 +19,13 @@
  * refused rather than left open: a misconfigured server must fail closed.
  */
 
-const OPERATOR_ROLES = new Set(["boss", "admin", "super_admin", "owner", "developer"]);
+/**
+ * Who may publish a demo. The list itself lives in demo-roles.ts, which holds no
+ * logic, so the route gate in the browser can read it without pulling this
+ * guard - and its env access and service key - into the client bundle.
+ */
+export const OPERATOR_ROLES = new Set<string>(DEMO_OPERATOR_ROLES);
+export { DEMO_ROUTE_ROLES } from "./demo-roles";
 
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -85,8 +92,8 @@ export async function requireInternalOperator(input: RequestLike): Promise<Guard
     // never existed there: PostgREST answered 400, the list came back empty and
     // every signed-in operator was refused. Only the shared token worked, which
     // is why the refusal went unnoticed. `user_roles` is the authoritative
-    // table and is asked first; the profile column is still consulted after it,
-    // so a deployment that does carry one keeps working.
+    // table and the only one asked: profiles has no role column, and a role
+    // that cannot be read is a refusal, never a guess.
     const service = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
     const held: string[] = [];
 
@@ -94,29 +101,25 @@ export async function requireInternalOperator(input: RequestLike): Promise<Guard
       `${url}/rest/v1/user_roles?select=role&user_id=eq.${encodeURIComponent(user.id)}`,
       { headers: service },
     );
-    if (rolesResponse.ok) {
-      const rows = (await rolesResponse.json()) as { role?: string }[];
-      for (const row of rows) {
-        const value = String(row?.role ?? "").toLowerCase().trim();
-        if (value) held.push(value);
-      }
+    if (!rolesResponse.ok) {
+      console.error("[internal guard] user_roles lookup failed", rolesResponse.status);
+      return deny("Could not verify your access.", 503);
     }
-
-    if (held.length === 0) {
-      const profileResponse = await fetch(
-        `${url}/rest/v1/profiles?select=role&id=eq.${encodeURIComponent(user.id)}&limit=1`,
-        { headers: service },
-      );
-      if (profileResponse.ok) {
-        const profiles = (await profileResponse.json()) as { role?: string }[];
-        const value = String(profiles[0]?.role ?? "").toLowerCase().trim();
-        if (value) held.push(value);
-      }
+    const rows = (await rolesResponse.json()) as { role?: string }[];
+    for (const row of rows) {
+      const value = String(row?.role ?? "").toLowerCase().trim();
+      if (value) held.push(value);
     }
 
     const role = held.find((value) => OPERATOR_ROLES.has(value));
     if (!role) {
-      return deny("This endpoint is restricted to operators.", 403);
+      // Names who can, because the screens in front of this are opened by
+      // support as well as developers - RouteAccessGate admits both - and a
+      // refusal that does not say who to ask reads as a fault in the product.
+      return deny(
+        "Publishing a demo is restricted to operators (" + [...OPERATOR_ROLES].join(", ") + "). Ask one of them to run it.",
+        403,
+      );
     }
     return { ok: true, via: `operator:${role}` };
   } catch (error) {

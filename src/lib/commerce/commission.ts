@@ -95,6 +95,16 @@ async function sellerForProduct(productId: string | null): Promise<string | null
   return rows[0]?.seller_id ?? null;
 }
 
+/** The account behind a seller record, to recognise someone buying their own product. */
+async function ownerOfSeller(sellerId: string): Promise<string | null> {
+  const response = await rest(
+    `marketplace_sellers?select=owner_user_id&id=eq.${encodeURIComponent(sellerId)}&limit=1`,
+  );
+  if (!response.ok) return null;
+  const rows = (await response.json()) as { owner_user_id: string | null }[];
+  return rows[0]?.owner_user_id ?? null;
+}
+
 async function categoryForProduct(productId: string | null): Promise<string | null> {
   if (!productId) return null;
   const response = await rest(
@@ -158,6 +168,23 @@ export async function recordCommissionsForOrder(orderId: string): Promise<Commis
     return { ok: false, created: 0, skipped: 0, unattributed: 0, error: "Supabase is not configured" };
   }
 
+  // Commission is earned by a sale that happened: the order must be paid.
+  // The caller used to be trusted on that, and this is also reachable from
+  // the operator replay route.
+  const orderResponse = await rest(
+    `marketplace_orders?select=status,buyer_id,user_id&id=eq.${encodeURIComponent(orderId)}&limit=1`,
+  );
+  const order = orderResponse.ok
+    ? ((await orderResponse.json()) as { status: string; buyer_id: string | null; user_id: string | null }[])[0]
+    : undefined;
+  if (!order) {
+    return { ok: false, created: 0, skipped: 0, unattributed: 0, error: "Order not found" };
+  }
+  if (order.status !== "paid") {
+    return { ok: false, created: 0, skipped: 0, unattributed: 0, error: `Order is ${order.status}, not paid` };
+  }
+  const buyer = order.user_id ?? order.buyer_id;
+
   const itemsResponse = await rest(
     `marketplace_order_items?select=id,order_id,product_id,seller_id,product_name,line_total,unit_amount,quantity,currency&order_id=eq.${encodeURIComponent(orderId)}`,
   );
@@ -194,6 +221,12 @@ export async function recordCommissionsForOrder(orderId: string): Promise<Commis
       // A platform-owned product. There is no author to credit, and inventing
       // one would be worse than recording nothing.
       unattributed += 1;
+      continue;
+    }
+
+    // Someone buying their own product earns nothing from it.
+    if (buyer && (await ownerOfSeller(sellerId)) === buyer) {
+      skipped += 1;
       continue;
     }
 

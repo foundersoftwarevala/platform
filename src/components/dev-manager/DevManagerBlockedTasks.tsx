@@ -16,7 +16,7 @@ export default function DevManagerBlockedTasks() {
   const handleEscalate = (task: BlockedTaskDTO) => {
     escalate.mutate({
       taskId: task.taskId,
-      reason: `Manual escalation: ${task.code} blocked ${task.blockedHours}h — ${task.blockedReason}`,
+      reason: `Manual escalation: ${task.code} blocked ${task.blockedHours === null ? '(duration unavailable)' : `${task.blockedHours}h`} — ${task.blockedReason}`,
     });
   };
 
@@ -27,7 +27,7 @@ export default function DevManagerBlockedTasks() {
           <CardTitle className="text-sm font-mono tracking-wider text-muted-foreground flex items-center gap-2">
             <AlertOctagon className="w-4 h-4 text-red-400" />
             BLOCKED TASKS
-            <InfoHint text="A blocked task auto-escalates to the area manager once it passes its escalation threshold." />
+            <InfoHint text="On overview refresh, a verified blocked episode escalates after 24 hours. Missing history requires manual review; deadline escalation remains active." />
           </CardTitle>
           <Badge variant="outline" className="font-mono text-red-400 border-red-500/30">
             {blockedTasks.length} Blocked
@@ -42,7 +42,7 @@ export default function DevManagerBlockedTasks() {
           </p>
         )}
         {blockedTasks.map((task, idx) => {
-          const isAutoEscalated = task.escalated || task.blockedHours >= task.autoEscalateThreshold;
+          const isEscalated = task.escalated;
 
           return (
             <motion.div
@@ -51,7 +51,7 @@ export default function DevManagerBlockedTasks() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.05 }}
               className={`p-4 rounded-lg border ${
-                isAutoEscalated
+                isEscalated
                   ? 'border-red-500/50 bg-red-500/10'
                   : 'border-amber-500/30 bg-amber-500/5'
               }`}
@@ -60,7 +60,7 @@ export default function DevManagerBlockedTasks() {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-mono text-xs">{task.code}</span>
-                    {isAutoEscalated && (
+                    {isEscalated && (
                       <Badge className="text-xs bg-red-500/20 text-red-400">
                         ESCALATED
                       </Badge>
@@ -72,19 +72,23 @@ export default function DevManagerBlockedTasks() {
                 <div className="text-right">
                   <div className="flex items-center gap-1 text-sm text-amber-400">
                     <Clock className="w-3.5 h-3.5" />
-                    <span>{task.blockedHours}h blocked</span>
+                    <span>{task.blockedHours === null ? 'Blocked duration unavailable' : `${task.blockedHours}h blocked`}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 tabular-nums">
                     Threshold: {task.autoEscalateThreshold}h
                   </p>
                   <p
                     className={`text-xs mt-0.5 tabular-nums ${
-                      isAutoEscalated ? 'text-red-400' : 'text-muted-foreground'
+                      isEscalated ? 'text-red-400' : 'text-muted-foreground'
                     }`}
                   >
-                    {isAutoEscalated
-                      ? 'Auto-escalation triggered'
-                      : `Auto-escalates in ${Math.max(
+                    {isEscalated
+                      ? 'Open escalation recorded'
+                      : task.blockedHours === null
+                        ? 'No verified blocked history; manual review required'
+                        : task.blockedHours >= task.autoEscalateThreshold
+                          ? 'Escalation due; refresh to verify'
+                          : `Auto-escalates in ${Math.max(
                           0,
                           task.autoEscalateThreshold - task.blockedHours,
                         )}h`}

@@ -1,8 +1,32 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Banknote, CheckCircle2, Clock, XCircle } from "lucide-react";
-import { EntityWall, Row, Cell, StatusCell, fmtMoney, fmtDate } from "@/components/affiliate/EntityWall";
+import { EntityWall, Row, Cell, StatusCell, fmtMoney, fmtDate, type EntitySource } from "@/components/affiliate/EntityWall";
 
 type Payout = { id: string; affiliate_id: string; amount_cents: number; currency: string; status: string; method: string; requested_at: string };
+
+// Payouts are the affiliate rows of partner_payouts. Its statuses are
+// requested / processing / completed / failed, so "pending" is "requested" and
+// "paid" is "completed". Amounts are stored in major units.
+const STATUS: Record<string, string> = { pending: "requested", processing: "processing", paid: "completed", failed: "failed" };
+const source: EntitySource<Payout> = {
+  table: "partner_payouts",
+  select: "id, partner_id, amount, currency, status, payment_method, requested_at",
+  fixed: [{ column: "partner_kind", value: "affiliate" }],
+  filter: (f) =>
+    f.column === "status" && STATUS[String(f.value)] ? [{ ...f, value: STATUS[String(f.value)] }] : null,
+  sortColumn: (field) => (field === "requested_at" ? field : null),
+  order: { column: "requested_at", ascending: false },
+  toRows: (rows) =>
+    rows.map((r) => ({
+      id: String(r.id),
+      affiliate_id: String(r.partner_id ?? ""),
+      amount_cents: Math.round(Number(r.amount ?? 0) * 100),
+      currency: String(r.currency ?? ""),
+      status: String(r.status ?? ""),
+      method: String(r.payment_method ?? ""),
+      requested_at: String(r.requested_at ?? ""),
+    })),
+};
 
 export const Route = createFileRoute("/affiliate-manager/payouts")({
   head: () => ({ meta: [{ title: "Payouts — Affiliate Manager" }] }),
@@ -11,7 +35,8 @@ export const Route = createFileRoute("/affiliate-manager/payouts")({
       title="Payouts"
       description="Withdraw requests, settlements and bank/UPI/PayPal/Wise transfers with audit."
       crumbLabel="Payouts"
-      table="payouts"
+      table="partner_payouts"
+      source={source}
       searchColumns={[]}
       searchPlaceholder="Search payouts…"
       filters={["Status", "Method", "Currency", "Date"]}

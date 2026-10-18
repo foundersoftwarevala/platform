@@ -1,77 +1,60 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
-import { 
-  X, Bell, Inbox, Globe, CheckCircle2, 
-  ArrowUpRight, Volume2
+import {
+  X, Bell, Inbox, Volume2,
 } from 'lucide-react';
 
 interface SupportNotificationsProps {
   onClose: () => void;
 }
 
-const notifications = [
-  {
-    id: 1,
-    type: 'ticket',
-    icon: Inbox,
-    title: 'New ticket assigned',
-    message: 'POS System - Invoice generation issue',
-    time: '2 min ago',
-    read: false,
-    sound: 'chime'
-  },
-  {
-    id: 2,
-    type: 'language',
-    icon: Globe,
-    title: 'Language auto-detected',
-    message: 'Ticket #1247 detected as Hindi → translated',
-    time: '5 min ago',
-    read: false,
-    sound: 'soft'
-  },
-  {
-    id: 3,
-    type: 'resolved',
-    icon: CheckCircle2,
-    title: 'Resolution confirmed',
-    message: 'Ticket #1245 marked as resolved by client',
-    time: '12 min ago',
-    read: true,
-    sound: 'success'
-  },
-  {
-    id: 4,
-    type: 'escalation',
-    icon: ArrowUpRight,
-    title: 'Escalation requested',
-    message: 'Ticket #1240 needs developer attention',
-    time: '18 min ago',
-    read: true,
-    sound: 'alert'
-  },
-  {
-    id: 5,
-    type: 'resolved',
-    icon: CheckCircle2,
-    title: 'Resolution confirmed',
-    message: 'Ticket #1243 - Client satisfaction: 5★',
-    time: '25 min ago',
-    read: true,
-    sound: 'success'
-  },
-];
+type Item = { id: string; type: string; icon: typeof Inbox; title: string; message: string; time: string; read: boolean };
+
+function timeAgo(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 1440) return `${Math.floor(mins / 60)} h ago`;
+  return `${Math.floor(mins / 1440)} d ago`;
+}
 
 const SupportNotifications = ({ onClose }: SupportNotificationsProps) => {
-  // The list is static sample data, so read state lives here rather than
-  // in a store that does not exist yet. Marking all as read is then a real
-  // change the person can see, which is what the button claims to do.
-  const items = notifications;
-  const [readIds, setReadIds] = useState<Set<number>>(new Set());
-  const unreadCount = useMemo(
-    () => items.filter((n) => !n.read && !readIds.has(n.id)).length,
-    [items, readIds],
+  // The signed-in agent's own notifications, the same ones the bell shows
+  // (user_notifications, through mm_notifications). This panel used to list
+  // six invented ones.
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ['support-notifications'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('mm_notifications' as never, { p_limit: 50 } as never);
+      if (error) throw new Error(error.message);
+      return data as unknown as { notifications?: { id: string; severity: string | null; message: string; event: string | null; read: boolean | null; created_at: string }[] };
+    },
+    refetchInterval: 60_000,
+  });
+  const items: Item[] = useMemo(
+    () => (query.data?.notifications ?? []).map((n) => ({
+      id: n.id,
+      type: String(n.event ?? '').includes('escalat') ? 'escalation' : String(n.event ?? '').includes('resolv') ? 'resolved' : 'ticket',
+      icon: Inbox,
+      title: String(n.event ?? 'Notification').replace(/[._]/g, ' '),
+      message: n.message,
+      time: timeAgo(n.created_at),
+      read: Boolean(n.read),
+    })),
+    [query.data],
   );
+  const notifications = items;
+  const readIds = new Set<string>();
+  const unreadCount = items.filter((n) => !n.read).length;
+  const markAllRead = async () => {
+    for (const n of items.filter((x) => !x.read)) {
+      await supabase.rpc('mm_notification_read' as never, { p_id: n.id, p_dismiss: false } as never);
+    }
+    await queryClient.invalidateQueries({ queryKey: ['support-notifications'] });
+  };
 
   const getTypeStyles = (type: string) => {
     const styles: Record<string, { bg: string; border: string; text: string }> = {
@@ -114,12 +97,17 @@ const SupportNotifications = ({ onClose }: SupportNotificationsProps) => {
             <Volume2 className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">Notification sounds</span>
           </div>
-          <span className="text-xs text-teal-400">Calm mode enabled</span>
+          <span className="text-xs text-muted-foreground">Sounds off</span>
         </div>
       </div>
 
       {/* Notifications List */}
       <div className="overflow-auto max-h-[calc(100vh-180px)]">
+        {(query.isLoading || query.isError || notifications.length === 0) && (
+          <p className="p-4 text-sm text-muted-foreground">
+            {query.isLoading ? 'Loading…' : query.isError ? 'Notifications could not be read.' : 'No notification yet.'}
+          </p>
+        )}
         {notifications.map((notification, index) => {
           const styles = getTypeStyles(notification.type);
           const isRead = notification.read || readIds.has(notification.id);
@@ -166,7 +154,7 @@ const SupportNotifications = ({ onClose }: SupportNotificationsProps) => {
         <button
           type="button"
           disabled={!unreadCount}
-          onClick={() => setReadIds(new Set(items.map((n) => n.id)))}
+          onClick={() => void markAllRead()}
           className="w-full py-2.5 rounded-xl bg-card/60 border border-border text-muted-foreground text-sm transition-all hover:border-teal-500/20 hover:text-teal-400 disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground"
         >
           {unreadCount ? `Mark all as read (${unreadCount})` : "All caught up"}

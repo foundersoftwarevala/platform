@@ -27,14 +27,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { leadApi } from "@/lib/lead-manager/api";
+import { OpenLinkedConversation } from "@/components/chat/user/ConversationLinks";
 import {
   leadKeys,
   useAgents,
+  useCurrentAgent,
   useLeadCommunications,
   useLeadNotes,
 } from "@/lib/lead-manager/queries";
-import { PIPELINE_STAGES, type Lead, type LeadStatus } from "@/lib/lead-manager/types";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import {
+  PIPELINE_STAGES,
+  type AttributedLead,
+  type Lead,
+  type LeadStatus,
+} from "@/lib/lead-manager/types";
+import {
+  maskEmail,
+  maskPhone,
   PriorityBadge,
   ScoreBar,
   StatusBadge,
@@ -54,7 +64,15 @@ export function LeadDetailSheet({
   onOpenChange: (open: boolean) => void;
 }) {
   const qc = useQueryClient();
+  const { t } = useTranslation();
   const { data: agents = [] } = useAgents();
+  // Same rule as the lead table: an agent whose Unmask switch is off reads a
+  // masked address here too, or the mask on the table would be worth nothing -
+  // one click on the row would undo it. The Call, WhatsApp and Email buttons
+  // below still use the real values, because withholding the number from an
+  // agent is not the same as stopping them ringing the lead.
+  const { data: viewer } = useCurrentAgent();
+  const reveal = viewer ? viewer.can_unmask : true;
   const { data: notes = [] } = useLeadNotes(lead?.id ?? null);
   const { data: comms = [] } = useLeadCommunications(lead?.id ?? null);
 
@@ -72,7 +90,7 @@ export function LeadDetailSheet({
   const run = async <T,>(fn: () => Promise<T>, success: string) => {
     try {
       const result = await fn();
-        toast.success(success);
+      toast.success(success);
       await qc.invalidateQueries({ queryKey: ["lm"] });
       return result;
     } catch (error) {
@@ -118,6 +136,7 @@ export function LeadDetailSheet({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <OpenLinkedConversation entityType="lead" entityId={lead.id} />
             <Button
               size="sm"
               onClick={() =>
@@ -126,9 +145,9 @@ export function LeadDetailSheet({
                     leadApi.logCommunication({
                       lead_id: lead.id,
                       type: "call",
-                      content: `Outbound call placed to ${lead.phone}`,
+                      content: `Call opened to ${lead.phone} from the console.`,
                     }),
-                  "Call logged",
+                  "Call opened and logged",
                 ).then((result) => result && window.open(`tel:${lead.phone}`, "_self"))
               }
             >
@@ -145,12 +164,14 @@ export function LeadDetailSheet({
                       type: "whatsapp",
                       content: message || `WhatsApp conversation opened with ${lead.name}`,
                     }),
-                  "WhatsApp logged",
-                ).then((result) =>
-                  result && window.open(
-                    `https://wa.me/${lead.phone.replace(/\D/g, "")}?text=${encodeURIComponent(message || `Hi ${lead.name}, following up on your enquiry.`)}`,
-                    "_blank",
-                  ),
+                  "WhatsApp opened and logged",
+                ).then(
+                  (result) =>
+                    result &&
+                    window.open(
+                      `https://wa.me/${lead.phone.replace(/\D/g, "")}?text=${encodeURIComponent(message || `Hi ${lead.name}, following up on your enquiry.`)}`,
+                      "_blank",
+                    ),
                 )
               }
             >
@@ -166,9 +187,9 @@ export function LeadDetailSheet({
                       lead_id: lead.id,
                       type: "email",
                       subject: "Following up on your enquiry",
-                      content: message || `Email sent to ${lead.email}`,
+                      content: message || `Email composer opened for ${lead.email}.`,
                     }),
-                  "Email logged",
+                  "Email composer opened and logged",
                 ).then((result) => result && window.open(`mailto:${lead.email}`, "_self"))
               }
             >
@@ -177,14 +198,14 @@ export function LeadDetailSheet({
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => run(() => leadApi.rescoreLead(lead.id), "Lead re-scored by AI")}
+              onClick={() => run(() => leadApi.rescoreLead(lead.id), "Lead re-scored")}
             >
               <Brain className="size-4" /> Re-score
             </Button>
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => run(() => leadApi.changeStatus(lead.id, "won"), "Converted to client")}
+              onClick={() => run(() => leadApi.changeStatus(lead.id, "won"), "Marked won")}
             >
               <UserCheck className="size-4" /> Convert
             </Button>
@@ -199,8 +220,8 @@ export function LeadDetailSheet({
             </TabsList>
 
             <TabsContent value="details" className="mt-4 space-y-3 text-sm">
-              <Field label="Email" value={lead.email} />
-              <Field label="Phone" value={lead.phone} />
+              <Field label="Email" value={maskEmail(lead.email, reveal)} />
+              <Field label="Phone" value={maskPhone(lead.phone, reveal)} />
               <Field label="Company" value={lead.company ?? "—"} />
               <Field label="Industry / Category" value={`${lead.industry} • ${lead.category}`} />
               <Field
@@ -208,10 +229,59 @@ export function LeadDetailSheet({
                 value={[lead.city, lead.state, lead.country].filter(Boolean).join(", ")}
               />
               <Field label="Source" value={`${lead.source} • ${lead.sub_source}`} />
+              {/*
+                Section 2: the questions Lead Manager has to be able to answer
+                about a lead - which page, which card, which country, which
+                campaign, which CTA, which source. They were recorded nowhere
+                and so could be answered for no lead at all. What was actually
+                captured is shown; what was not is said plainly rather than
+                left blank, because "direct visit" and "we failed to record it"
+                are different answers and an operator needs to tell them apart.
+              */}
+              {(() => {
+                const a = lead as AttributedLead;
+                const captured = [
+                  ["Landing page", a.landing_page],
+                  ["Converted on", a.source_page],
+                  ["Search engine", a.search_engine],
+                  ["Referrer", a.referrer],
+                  ["Campaign", a.utm_campaign ?? a.campaign],
+                  ["utm_source / medium", [a.utm_source, a.utm_medium].filter(Boolean).join(" / ")],
+                  ["Keyword (utm_term)", a.utm_term],
+                  ["Creative (utm_content)", a.utm_content],
+                  ["Card slot", a.card_slot_id],
+                  ["Region", a.region],
+                ].filter(([, value]) => Boolean(value)) as [string, string][];
+
+                return (
+                  <div className="rounded-md border border-border bg-surface-2 p-3">
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {t("manager.lead.attribution")}
+                    </p>
+                    {captured.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t("manager.lead.attribution_none")}
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {captured.map(([label, value]) => (
+                          <div key={label} className="flex justify-between gap-3 text-xs">
+                            <span className="text-muted-foreground">{label}</span>
+                            <span className="truncate text-right font-mono">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <Field label="Campaign" value={lead.campaign ?? "—"} />
               <Field label="Budget" value={lead.budget_range ?? "—"} />
               <Field label="Deal value" value={inr(lead.deal_value)} />
-              <Field label="Assigned to" value={agent ? `${agent.name} (${agent.team})` : "Unassigned"} />
+              <Field
+                label="Assigned to"
+                value={agent ? `${agent.name} (${agent.team})` : "Unassigned"}
+              />
               <Field label="Last contact" value={dateTime(lead.last_contact_at)} />
               <Field label="Next follow-up" value={dateTime(lead.next_follow_up)} />
               <Field label="Device / language" value={`${lead.device} • ${lead.language}`} />
@@ -234,7 +304,9 @@ export function LeadDetailSheet({
                   size="sm"
                   disabled={!note.trim()}
                   onClick={() =>
-                    run(() => leadApi.addNote(lead.id, note), "Note saved").then((result) => result && setNote(""))
+                    run(() => leadApi.addNote(lead.id, note), "Note saved").then(
+                      (result) => result && setNote(""),
+                    )
                   }
                 >
                   Save note
@@ -273,9 +345,7 @@ export function LeadDetailSheet({
                 <Label>Assign / reassign</Label>
                 <Select
                   value={lead.assigned_agent_id ?? ""}
-                  onValueChange={(v) =>
-                    run(() => leadApi.assignLead(lead.id, v), "Lead assigned")
-                  }
+                  onValueChange={(v) => run(() => leadApi.assignLead(lead.id, v), "Lead assigned")}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Choose an agent" />
@@ -390,9 +460,11 @@ export function LeadDetailSheet({
                 size="sm"
                 variant="destructive"
                 onClick={() =>
-                  run(() => leadApi.deleteLead(lead.id, lead.name), "Lead deleted").then((result) => {
-                    if (result !== undefined) onOpenChange(false);
-                  })
+                  run(() => leadApi.deleteLead(lead.id, lead.name), "Lead deleted").then(
+                    (result) => {
+                      if (result !== undefined) onOpenChange(false);
+                    },
+                  )
                 }
               >
                 <Trash2 className="size-4" /> Delete lead
@@ -432,7 +504,9 @@ export function LeadDetailSheet({
                 size="sm"
                 disabled={Object.keys(edit).length === 0 || mutation.isPending}
                 onClick={() =>
-                  run(() => leadApi.updateLead(lead.id, edit), "Lead updated").then((result) => result && setEdit({}))
+                  run(() => leadApi.updateLead(lead.id, edit), "Lead updated").then(
+                    (result) => result && setEdit({}),
+                  )
                 }
               >
                 <UserCog className="size-4" /> Save changes

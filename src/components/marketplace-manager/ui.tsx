@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export function PageHeader({
   eyebrow,
@@ -48,9 +49,7 @@ export function SubNav({
             key={it}
             onClick={() => onChange(it)}
             className={`relative whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
-              isActive
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+              isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {it}
@@ -64,16 +63,8 @@ export function SubNav({
   );
 }
 
-export function Card({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`glass rounded-2xl p-5 ${className}`}>{children}</div>
-  );
+export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`glass min-w-0 rounded-2xl p-5 ${className}`}>{children}</div>;
 }
 
 export function StatCard({
@@ -82,12 +73,19 @@ export function StatCard({
   delta,
   tone = "default",
   icon,
+  href,
 }: {
   label: string;
   value: string;
   delta?: string;
   tone?: "default" | "success" | "warning" | "premium" | "destructive";
   icon?: ReactNode;
+  /**
+   * Where the records behind this number live. Optional, and a card without
+   * one renders exactly as it always did — a figure a reader cannot open is
+   * still better than a link that goes nowhere.
+   */
+  href?: string;
 }) {
   const toneMap: Record<string, string> = {
     default: "text-accent",
@@ -103,18 +101,28 @@ export function StatCard({
     premium: "bg-premium",
     destructive: "bg-destructive",
   };
+  // An anchor only when there is somewhere to go, so every existing caller
+  // renders the same element it always did.
+  const Shell = (href ? "a" : "div") as "a" | "div";
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border bg-[oklch(0.22_0.04_235/0.35)] p-5 transition-all duration-500 hover:-translate-y-0.5 hover:border-[oklch(0.80_0.13_192/0.45)] hover:bg-[oklch(0.24_0.045_230/0.55)] hover:shadow-[0_18px_40px_-20px_oklch(0_0_0/0.7)]">
+    <Shell
+      {...(href ? { href } : {})}
+      className="group relative block overflow-hidden rounded-2xl border border-border bg-[oklch(0.22_0.04_235/0.35)] p-5 transition-all duration-500 hover:-translate-y-0.5 hover:border-[oklch(0.80_0.13_192/0.45)] hover:bg-[oklch(0.24_0.045_230/0.55)] hover:shadow-[0_18px_40px_-20px_oklch(0_0_0/0.7)]"
+    >
       <span
         className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-        style={{ background: "linear-gradient(135deg, oklch(0.80 0.13 192 / 0.16), transparent 45%)" }}
+        style={{
+          background: "linear-gradient(135deg, oklch(0.80 0.13 192 / 0.16), transparent 45%)",
+        }}
       />
       <div className="relative flex items-start justify-between">
         <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
           {label}
         </div>
         {icon && (
-          <div className={`flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-background/60 ${toneMap[tone]} transition-shadow group-hover:shadow-[0_0_14px_-2px_currentColor]`}>
+          <div
+            className={`flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-background/60 ${toneMap[tone]} transition-shadow group-hover:shadow-[0_0_14px_-2px_currentColor]`}
+          >
             {icon}
           </div>
         )}
@@ -123,12 +131,14 @@ export function StatCard({
         {value}
       </div>
       {delta && (
-        <div className={`relative mt-2 text-[10px] font-medium tracking-wide ${toneMap[tone]}`}>{delta}</div>
+        <div className={`relative mt-2 text-[10px] font-medium tracking-wide ${toneMap[tone]}`}>
+          {delta}
+        </div>
       )}
       <span className="relative mt-3 block h-px w-full overflow-hidden bg-border">
         <span className={`block h-full w-1/3 ${barMap[tone]} opacity-70`} />
       </span>
-    </div>
+    </Shell>
   );
 }
 
@@ -219,32 +229,72 @@ export function SectionRow({
   );
 }
 
+/**
+ * A pill button.
+ *
+ * A PillButton with neither onClick nor href used to render as a live button
+ * that did nothing when pressed - dozens of them across the Manager's static
+ * screens. It now renders disabled and says why on hover (its own `title`, or
+ * the shared "not connected" reason). A link that looks like a pill passes
+ * `href` and renders as an anchor with the same look, instead of wrapping a
+ * dead button in an <a>.
+ */
 export function PillButton({
   children,
   variant = "ghost",
   onClick,
   disabled = false,
+  title,
+  href,
+  target,
 }: {
   children: ReactNode;
   variant?: "primary" | "ghost" | "premium";
   onClick?: () => void;
   /** Optional, so every existing caller keeps working unchanged. */
   disabled?: boolean;
+  /** Why the button cannot act when it is disabled; shown on hover. */
+  title?: string;
+  /** Render as a link with the pill's look. */
+  href?: string;
+  target?: string;
 }) {
+  const { t } = useTranslation();
   const map = {
     primary:
       "bg-accent text-accent-foreground hover:brightness-110 shadow-[0_8px_24px_-8px_oklch(0.80_0.13_192/0.6),inset_0_1px_0_oklch(1_0_0/0.25)]",
     ghost:
       "border border-border bg-white/[0.03] text-foreground hover:bg-white/[0.06] hover:border-[oklch(1_0_0/0.14)] ring-rim",
-    premium:
-      "text-primary-foreground hover:brightness-110",
+    premium: "text-primary-foreground hover:brightness-110",
   };
+  const style =
+    variant === "premium"
+      ? { background: "var(--gradient-premium)", boxShadow: "var(--shadow-premium)" }
+      : undefined;
+  const className = `rounded-full px-5 py-2 text-[12px] font-bold tracking-tight transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${map[variant]}`;
+  if (href && !disabled) {
+    return (
+      <a
+        href={href}
+        target={target}
+        rel={target === "_blank" ? "noreferrer" : undefined}
+        title={title}
+        style={style}
+        className={`inline-block ${className}`}
+      >
+        {children}
+      </a>
+    );
+  }
+  const unwired = !onClick;
   return (
     <button
+      type="button"
       onClick={onClick}
-      disabled={disabled}
-      style={variant === "premium" ? { background: "var(--gradient-premium)", boxShadow: "var(--shadow-premium)" } : undefined}
-      className={`rounded-full px-5 py-2 text-[12px] font-bold tracking-tight transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${map[variant]}`}
+      disabled={disabled || unwired}
+      title={title ?? (unwired ? t("manager.module.action_not_connected") : undefined)}
+      style={style}
+      className={className}
     >
       {children}
     </button>

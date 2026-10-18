@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { requireJsonObject } from "@/lib/json";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 
 /**
  * The platform's task service.
@@ -33,25 +35,57 @@ const admin = async () => {
 };
 
 /** The signed-in account, or a refusal. Never optional. */
-async function requireUser(): Promise<{ userId: string; isOperator: boolean }> {
+async function requireUser(): Promise<{ userId: string; isOperator: boolean; roles: string[] }> {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) throw new Error("Unauthorized: sign in required");
 
   const db = await admin();
-  const { data, error } = await db.auth.getUser(token);
-  if (error || !data.user) throw new Error("Unauthorized: sign in required");
+  // Asked with the publishable key: auth.getUser() on the service-role client
+  // is refused by the auth service with "Invalid API key", which turned every
+  // caller away. See lib/auth/bearer-user.server.ts.
+  const { userFromBearerToken } = await import("@/lib/auth/bearer-user.server");
+  const caller = await userFromBearerToken(token);
+  if (!caller) throw new Error("Unauthorized: sign in required");
 
-  const { data: roles } = await db
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", data.user.id);
+  const { data: roles } = await db.from("user_roles").select("role").eq("user_id", caller.id);
   const operator = new Set(["admin", "boss", "founder", "super_admin", "boss_owner"]);
   return {
-    userId: data.user.id,
+    userId: caller.id,
     isOperator: (roles ?? []).some((r) => operator.has(String(r.role))),
+    roles: (roles ?? []).map((r) => String(r.role)),
   };
 }
+
+/**
+ * Staff who work tasks: the platform operators, the roles RouteAccessGate lets
+ * into /task-manager, or anyone on the task roster.
+ *
+ * requireUser alone only proved somebody was signed in, and every verb below
+ * reads or writes tm_tasks with the service role - so a signed-in customer
+ * could start, block, escalate, route or read any task, billing included.
+ */
+const TASK_STAFF_ROLES = new Set([
+  "admin",
+  "boss",
+  "founder",
+  "super_admin",
+  "boss_owner",
+  "employee",
+  "developer",
+  "support",
+  "sales",
+  "finance",
+  "sales_support_manager",
+]);
+
+async function requireTaskStaff(): Promise<{ userId: string; isOperator: boolean } | null> {
+  const caller = await requireUser();
+  if (caller.isOperator || caller.roles.some((r) => TASK_STAFF_ROLES.has(r))) return caller;
+  return (await memberIdFor(caller.userId)) ? caller : null;
+}
+
+const FORBIDDEN = { ok: false as const, reason: "forbidden" };
 
 /** The caller's row on the task roster, if they have one. */
 async function memberIdFor(userId: string): Promise<string | null> {
@@ -83,10 +117,26 @@ async function record(
 }
 
 const STATUSES = [
-  "new", "routed", "available_for_claim", "claimed", "assigned", "accepted",
-  "in_progress", "on_hold", "blocked", "waiting_client", "ai_review", "testing",
-  "submitted", "under_review", "approved", "rejected",
-  "completed", "cancelled", "failed", "closed",
+  "new",
+  "routed",
+  "available_for_claim",
+  "claimed",
+  "assigned",
+  "accepted",
+  "in_progress",
+  "on_hold",
+  "blocked",
+  "waiting_client",
+  "ai_review",
+  "testing",
+  "submitted",
+  "under_review",
+  "approved",
+  "rejected",
+  "completed",
+  "cancelled",
+  "failed",
+  "closed",
 ] as const;
 
 /**
@@ -122,8 +172,8 @@ async function transition(taskId: string, to: string, note?: string) {
 
   const db = await admin();
   const now = new Date().toISOString();
-  const patch: Record<string, unknown> = { status: to, updated_at: now };
-  if (to === "in_progress" ) patch.started_at = now;
+  const patch: TablesUpdate<"tm_tasks"> = { status: to, updated_at: now };
+  if (to === "in_progress") patch.started_at = now;
   if (to === "completed") {
     patch.completed_at = now;
     patch.progress = 100;
@@ -142,19 +192,21 @@ async function transition(taskId: string, to: string, note?: string) {
 
 export const openTask = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({
-      title: z.string().trim().min(3).max(300),
-      description: z.string().trim().max(5000).default(""),
-      module: z.string().trim().max(60).default("platform"),
-      priority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
-      category: z.string().trim().max(60).default("development"),
-      deadline: z.string().datetime().optional(),
-      slaHours: z.number().min(0).max(2000).optional(),
-      billable: z.boolean().default(false),
-      amount: z.number().min(0).optional(),
-      /** Leave unset to route the task to whoever claims it first. */
-      assignToMemberId: z.string().uuid().optional(),
-    }).parse(input),
+    z
+      .object({
+        title: z.string().trim().min(3).max(300),
+        description: z.string().trim().max(5000).default(""),
+        module: z.string().trim().max(60).default("platform"),
+        priority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
+        category: z.string().trim().max(60).default("development"),
+        deadline: z.string().datetime().optional(),
+        slaHours: z.number().min(0).max(2000).optional(),
+        billable: z.boolean().default(false),
+        amount: z.number().min(0).optional(),
+        /** Leave unset to route the task to whoever claims it first. */
+        assignToMemberId: z.string().uuid().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
     const { isOperator } = await requireUser();
@@ -184,18 +236,19 @@ export const openTask = createServerFn({ method: "POST" })
       .single();
 
     if (error || !row) return { ok: false as const, reason: error?.message ?? "insert failed" };
-    await record(row.id, "Task opened", "create", null, row.status,
-                 `Raised by ${data.module}`);
+    await record(row.id, "Task opened", "create", null, row.status, `Raised by ${data.module}`);
     return { ok: true as const, taskId: row.id, code: row.code, status: row.status };
   });
 
 export const assignTask = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({
-      taskId: z.string().uuid(),
-      memberId: z.string().uuid(),
-      reason: z.string().trim().max(500).optional(),
-    }).parse(input),
+    z
+      .object({
+        taskId: z.string().uuid(),
+        memberId: z.string().uuid(),
+        reason: z.string().trim().max(500).optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
     const { isOperator } = await requireUser();
@@ -203,7 +256,10 @@ export const assignTask = createServerFn({ method: "POST" })
 
     const db = await admin();
     const { data: before } = await db
-      .from("tm_tasks").select("assigned_to,status").eq("id", data.taskId).maybeSingle();
+      .from("tm_tasks")
+      .select("assigned_to,status")
+      .eq("id", data.taskId)
+      .maybeSingle();
     if (!before) return { ok: false as const, reason: "no_such_task" };
 
     const { error } = await db
@@ -217,8 +273,14 @@ export const assignTask = createServerFn({ method: "POST" })
       .eq("id", data.taskId);
     if (error) return { ok: false as const, reason: error.message };
 
-    await record(data.taskId, before.assigned_to ? "Task reassigned" : "Task assigned",
-                 "assignment", before.assigned_to, data.memberId, data.reason);
+    await record(
+      data.taskId,
+      before.assigned_to ? "Task reassigned" : "Task assigned",
+      "assignment",
+      before.assigned_to,
+      data.memberId,
+      data.reason,
+    );
     return { ok: true as const };
   });
 
@@ -232,12 +294,15 @@ export const assignTask = createServerFn({ method: "POST" })
 export const claimTask = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
     const { data: result, error } = await db.rpc("tm_claim_task", { p_task_id: data.taskId });
     if (error) return { ok: false as const, reason: error.message };
-    return (result ?? { ok: false, reason: "not_claimable" }) as
-      { ok: boolean; reason?: string; claimed_by?: string };
+    return (result ?? { ok: false, reason: "not_claimable" }) as {
+      ok: boolean;
+      reason?: string;
+      claimed_by?: string;
+    };
   });
 
 const taskOnly = (input: unknown) =>
@@ -246,40 +311,42 @@ const taskOnly = (input: unknown) =>
 export const acceptTask = createServerFn({ method: "POST" })
   .inputValidator(taskOnly)
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     return transition(data.taskId, "accepted", data.note);
   });
 
 export const startTask = createServerFn({ method: "POST" })
   .inputValidator(taskOnly)
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     return transition(data.taskId, "in_progress", data.note);
   });
 
 export const pauseTask = createServerFn({ method: "POST" })
   .inputValidator(taskOnly)
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     return transition(data.taskId, "on_hold", data.note);
   });
 
 export const resumeTask = createServerFn({ method: "POST" })
   .inputValidator(taskOnly)
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     return transition(data.taskId, "in_progress", data.note);
   });
 
 export const blockTask = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({
-      taskId: z.string().uuid(),
-      reason: z.string().trim().min(3).max(500),
-    }).parse(input),
+    z
+      .object({
+        taskId: z.string().uuid(),
+        reason: z.string().trim().min(3).max(500),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
     await db.from("tm_tasks").update({ blocked_reason: data.reason }).eq("id", data.taskId);
     return transition(data.taskId, "blocked", data.reason);
@@ -288,9 +355,10 @@ export const blockTask = createServerFn({ method: "POST" })
 export const submitTask = createServerFn({ method: "POST" })
   .inputValidator(taskOnly)
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
-    await db.from("tm_tasks")
+    await db
+      .from("tm_tasks")
       .update({ approval_status: "pending", progress: 100 })
       .eq("id", data.taskId);
     // Submission is its own state now. An AI pass is a separate step that may
@@ -300,25 +368,33 @@ export const submitTask = createServerFn({ method: "POST" })
 
 export const reviewTask = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({
-      taskId: z.string().uuid(),
-      decision: z.enum(["approved", "rejected", "changes_requested"]),
-      comment: z.string().trim().max(2000).optional(),
-      qualityScore: z.number().int().min(0).max(100).optional(),
-    }).parse(input),
+    z
+      .object({
+        taskId: z.string().uuid(),
+        decision: z.enum(["approved", "rejected", "changes_requested"]),
+        comment: z.string().trim().max(2000).optional(),
+        qualityScore: z.number().int().min(0).max(100).optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
     const { isOperator } = await requireUser();
     if (!isOperator) return { ok: false as const, reason: "forbidden" };
 
     const db = await admin();
-    const patch: Record<string, unknown> = { approval_status: data.decision };
+    const patch: TablesUpdate<"tm_tasks"> = { approval_status: data.decision };
     if (data.qualityScore !== undefined) patch.quality_score = data.qualityScore;
     const { error } = await db.from("tm_tasks").update(patch).eq("id", data.taskId);
     if (error) return { ok: false as const, reason: error.message };
 
-    await record(data.taskId, `Review ${data.decision}`, "review", null, data.decision,
-                 data.comment);
+    await record(
+      data.taskId,
+      `Review ${data.decision}`,
+      "review",
+      null,
+      data.decision,
+      data.comment,
+    );
 
     // The lifecycle moves with the decision, not only the approval flag: a
     // reviewed task that still reads "submitted" tells the next person nothing.
@@ -344,10 +420,12 @@ export const completeTask = createServerFn({ method: "POST" })
 
 export const cancelTask = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({
-      taskId: z.string().uuid(),
-      reason: z.string().trim().min(3).max(500),
-    }).parse(input),
+    z
+      .object({
+        taskId: z.string().uuid(),
+        reason: z.string().trim().min(3).max(500),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
     const { isOperator } = await requireUser();
@@ -357,15 +435,17 @@ export const cancelTask = createServerFn({ method: "POST" })
 
 export const escalateTask = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({
-      taskId: z.string().uuid(),
-      level: z.number().int().min(1).max(4).default(1),
-      reason: z.string().trim().min(3).max(1000),
-      raisedTo: z.string().trim().max(120).default("task_manager"),
-    }).parse(input),
+    z
+      .object({
+        taskId: z.string().uuid(),
+        level: z.number().int().min(1).max(4).default(1),
+        reason: z.string().trim().min(3).max(1000),
+        raisedTo: z.string().trim().max(120).default("task_manager"),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
     const { error } = await db.from("tm_escalations").insert({
       task_id: data.taskId,
@@ -376,11 +456,18 @@ export const escalateTask = createServerFn({ method: "POST" })
     });
     if (error) return { ok: false as const, reason: error.message };
 
-    await db.from("tm_tasks")
+    await db
+      .from("tm_tasks")
       .update({ escalation_level: data.level, buzzer_active: data.level >= 2 })
       .eq("id", data.taskId);
-    await record(data.taskId, `Escalated to level ${data.level}`, "escalation",
-                 null, String(data.level), data.reason);
+    await record(
+      data.taskId,
+      `Escalated to level ${data.level}`,
+      "escalation",
+      null,
+      String(data.level),
+      data.reason,
+    );
     return { ok: true as const, level: data.level };
   });
 
@@ -389,7 +476,7 @@ export const escalateTask = createServerFn({ method: "POST" })
 export const getTask = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
     const { data: row } = await db.from("tm_tasks").select("*").eq("id", data.taskId).maybeSingle();
     return { ok: Boolean(row), task: row ?? null };
@@ -398,10 +485,11 @@ export const getTask = createServerFn({ method: "GET" })
 export const getTaskAudit = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
     const { data: rows } = await db
-      .from("tm_activity").select("*")
+      .from("tm_activity")
+      .select("*")
       .eq("task_id", data.taskId)
       .order("created_at", { ascending: false });
     return { entries: rows ?? [] };
@@ -410,25 +498,28 @@ export const getTaskAudit = createServerFn({ method: "GET" })
 export const getTaskSLA = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
     const { data: row } = await db.rpc("tm_sla_state", { p_task_id: data.taskId });
-    return (row ?? { state: "unknown" }) as Record<string, unknown>;
+    return requireJsonObject(row ?? { state: "unknown" }, "Task SLA response");
   });
 
 /** Tasks raised by one module, so a caller can show its own work. */
 export const listModuleTasks = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) =>
-    z.object({
-      module: z.string().trim().max(60),
-      limit: z.number().int().min(1).max(200).default(50),
-    }).parse(input),
+    z
+      .object({
+        module: z.string().trim().max(60),
+        limit: z.number().int().min(1).max(200).default(50),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
     const { data: rows } = await db
-      .from("tm_tasks").select("*")
+      .from("tm_tasks")
+      .select("*")
       .eq("module", data.module)
       .order("created_at", { ascending: false })
       .limit(data.limit);
@@ -437,17 +528,19 @@ export const listModuleTasks = createServerFn({ method: "GET" })
 
 export const approveTask = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({
-      taskId: z.string().uuid(),
-      comment: z.string().trim().max(2000).optional(),
-      qualityScore: z.number().int().min(0).max(100).optional(),
-    }).parse(input),
+    z
+      .object({
+        taskId: z.string().uuid(),
+        comment: z.string().trim().max(2000).optional(),
+        qualityScore: z.number().int().min(0).max(100).optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
     const { isOperator } = await requireUser();
     if (!isOperator) return { ok: false as const, reason: "forbidden" };
     const db = await admin();
-    const patch: Record<string, unknown> = { approval_status: "approved" };
+    const patch: TablesUpdate<"tm_tasks"> = { approval_status: "approved" };
     if (data.qualityScore !== undefined) patch.quality_score = data.qualityScore;
     await db.from("tm_tasks").update(patch).eq("id", data.taskId);
     await record(data.taskId, "Approved", "approval", null, "approved", data.comment);
@@ -456,10 +549,12 @@ export const approveTask = createServerFn({ method: "POST" })
 
 export const rejectTask = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({
-      taskId: z.string().uuid(),
-      reason: z.string().trim().min(3).max(2000),
-    }).parse(input),
+    z
+      .object({
+        taskId: z.string().uuid(),
+        reason: z.string().trim().min(3).max(2000),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
     const { isOperator } = await requireUser();
@@ -473,20 +568,22 @@ export const rejectTask = createServerFn({ method: "POST" })
 /** Routes work to a role before any individual is chosen. */
 export const routeTask = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({
-      taskId: z.string().uuid(),
-      role: z.string().trim().min(2).max(60),
-    }).parse(input),
+    z
+      .object({
+        taskId: z.string().uuid(),
+        role: z.string().trim().min(2).max(60),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
     const { data: result, error } = await db.rpc("tm_route_task", {
       p_task_id: data.taskId,
       p_role: data.role,
     });
     if (error) return { ok: false as const, reason: error.message };
-    return result as Record<string, unknown>;
+    return requireJsonObject(result, "Task routing response");
   });
 
 /**
@@ -497,25 +594,37 @@ export const routeTask = createServerFn({ method: "POST" })
  */
 export const holdTask = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({
-      taskId: z.string().uuid(),
-      reason: z.string().trim().min(3).max(500),
-      minutes: z.number().int().min(1).max(24 * 60).optional(),
-    }).parse(input),
+    z
+      .object({
+        taskId: z.string().uuid(),
+        reason: z.string().trim().min(3).max(500),
+        minutes: z
+          .number()
+          .int()
+          .min(1)
+          .max(24 * 60)
+          .optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
-    const { userId } = await requireUser();
+    const staff = await requireTaskStaff();
+    if (!staff) return FORBIDDEN;
+    const { userId } = staff;
     const memberId = await memberIdFor(userId);
     const db = await admin();
     const until = new Date(Date.now() + (data.minutes ?? 30) * 60_000).toISOString();
 
-    const { error } = await db.from("tm_tasks").update({
-      buzzer_active: false,
-      buzzer_acknowledged_at: new Date().toISOString(),
-      acknowledged_by: memberId,
-      hold_reason: data.reason,
-      hold_until: until,
-    }).eq("id", data.taskId);
+    const { error } = await db
+      .from("tm_tasks")
+      .update({
+        buzzer_active: false,
+        buzzer_acknowledged_at: new Date().toISOString(),
+        acknowledged_by: memberId,
+        hold_reason: data.reason,
+        hold_until: until,
+      })
+      .eq("id", data.taskId);
     if (error) return { ok: false as const, reason: error.message };
 
     await record(data.taskId, "Buzzer held", "buzzer", "ringing", "held", data.reason);
@@ -526,7 +635,7 @@ export const holdTask = createServerFn({ method: "POST" })
 export const getTaskHistory = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
     const [task, activity, reviews, escalations, timeLogs] = await Promise.all([
       db.from("tm_tasks").select("*").eq("id", data.taskId).maybeSingle(),
@@ -556,21 +665,45 @@ export const getTaskHistory = createServerFn({ method: "GET" })
 export const getTaskWallet = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
-    await requireUser();
+    if (!(await requireTaskStaff())) return FORBIDDEN;
     const db = await admin();
-    const { data: task } = await db
+    const { data: task, error: taskError } = await db
       .from("tm_tasks")
-      .select("id, code, title, billable, cost, currency, billing_status, invoice_reference, payment_reference, settled_at, actual_minutes, estimated_hours, client_name, project_name")
+      .select(
+        "id, code, title, billable, cost, currency, billing_status, invoice_reference, payment_reference, settled_at, actual_minutes, estimated_hours, client_name, project_name",
+      )
       .eq("id", data.taskId)
       .maybeSingle();
+    if (taskError) throw new Error(`Task wallet read failed: ${taskError.message}`);
     if (!task) return { ok: false as const, reason: "no_such_task" };
 
-    const { data: logs } = await db
-      .from("tm_time_logs").select("minutes").eq("task_id", data.taskId);
-    const loggedMinutes = (logs ?? []).reduce(
-      (sum, l) => sum + (Number((l as { minutes?: number }).minutes) || 0), 0);
+    let loggedSeconds = 0;
+    let offset = 0;
+    for (;;) {
+      const { data: logs, error, count } = await db
+        .from("tm_time_logs")
+        .select("id, seconds", { count: "exact" })
+        .eq("task_id", data.taskId)
+        .order("id", { ascending: true })
+        .range(offset, offset + 499);
+      if (error) throw new Error(`Task time logs read failed: ${error.message}`);
+      if (!logs || count === null || (logs.length === 0 && offset < count)) {
+        throw new Error("Task time logs read failed: incomplete time logs");
+      }
+      for (const log of logs) {
+        if (!Number.isSafeInteger(log.seconds) || log.seconds < 0) {
+          throw new Error(`Task time logs contain invalid seconds: ${log.id}`);
+        }
+        loggedSeconds += log.seconds;
+        if (!Number.isSafeInteger(loggedSeconds)) {
+          throw new Error("Task time logs total exceeds safe integer precision");
+        }
+      }
+      offset += logs.length;
+      if (offset >= count) break;
+    }
 
-    return { ok: true as const, wallet: { ...task, logged_minutes: loggedMinutes } };
+    return { ok: true as const, wallet: { ...task, logged_minutes: loggedSeconds / 60 } };
   });
 
 /** Section 22 names this createTask; openTask is the same call. */

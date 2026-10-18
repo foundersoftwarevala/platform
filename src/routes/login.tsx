@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { internalPath } from "@/lib/auth/internal-path";
 import { CanonicalLogin } from "@/components/auth/CanonicalLogin";
 
 /**
@@ -10,7 +11,7 @@ import { CanonicalLogin } from "@/components/auth/CanonicalLogin";
 function destination(): string | undefined {
   if (typeof window === "undefined") return undefined;
   const asked = new URLSearchParams(window.location.search).get("redirect") ?? "";
-  return asked.startsWith("/") && !asked.startsWith("//") ? asked : undefined;
+  return internalPath(asked);
 }
 
 export const Route = createFileRoute("/login")({

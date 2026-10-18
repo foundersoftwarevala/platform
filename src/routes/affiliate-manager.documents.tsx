@@ -12,6 +12,7 @@ export const Route = createFileRoute("/affiliate-manager/documents")({
       description="Agreements, NDAs, invoices, certificates, tax and KYC documents with digital signature."
       crumbLabel="Documents"
       table="affiliate_documents"
+      unavailable="Affiliate documents are not stored on the platform yet."
       searchColumns={["title"]}
       searchPlaceholder="Search documents…"
       filters={["Type", "Signed", "Expiring", "Affiliate"]}

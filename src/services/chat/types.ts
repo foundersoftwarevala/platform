@@ -36,7 +36,13 @@ export interface ConversationSummary {
   department: string | null;
   participants: Participant[];
   membership: Participant | null;
-  lastMessage: { id: string; body: string; kind: string; created_at: string; sender_id: string } | null;
+  lastMessage: {
+    id: string;
+    body: string;
+    kind: string;
+    created_at: string;
+    sender_id: string;
+  } | null;
   unreadCount: number;
 }
 
@@ -70,6 +76,15 @@ export interface Receipt {
 
 export type DeliveryState = "pending" | "sent" | "delivered" | "read" | "failed";
 
+export interface MessageModeration {
+  message_id: string;
+  action: "hidden" | "corrected";
+  corrected_body: string | null;
+  /** Internal: present only for Chat managers. */
+  reason: string | null;
+  acted_at: string;
+}
+
 export interface ChatMessage {
   id: string;
   conversation_id: string;
@@ -86,6 +101,8 @@ export interface ChatMessage {
   bookmarked: boolean;
   pinned: boolean;
   replyCount: number;
+  /** Chat Manager's recorded correction/removal; the original row is never changed. */
+  moderation?: MessageModeration | null | undefined;
   /** Present only for optimistic rows that have not been persisted yet. */
   optimistic?: { state: DeliveryState; error?: string | undefined } | undefined;
 }

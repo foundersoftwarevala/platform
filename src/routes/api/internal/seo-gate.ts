@@ -1,0 +1,649 @@
+﻿import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
+
+import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { RAIL_COUNTRY_BY_MARKER } from "@/lib/marketplace/rail-countries";
+import { isPublicProduct } from "@/lib/marketplace/product-safety";
+import {
+  allDecisionStates,
+  gateRunSnapshot,
+  saveGateRun,
+  upsertDecisions,
+  upsertFingerprints,
+} from "@/lib/seo/seo-store.server";
+import { expectedSlotHreflang } from "@/lib/seo/gate-run";
+import {
+  applyCrossPageFindings,
+  evaluatePage,
+  type Decision,
+  type PageFacts,
+} from "@/lib/seo/indexing-gate";
+
+/**
+ * Run the SEO safety gate over the site's own pages, and record what it found.
+ *
+ * The gate itself lives in src/lib/seo/indexing-gate.ts and is pure. This is
+ * the job that feeds it: it builds the inventory of URLs from the catalogue,
+ * asks this same server for each page, judges what comes back and writes one
+ * decision per URL into seo_indexing_decisions, plus the content fingerprints
+ * into seo_fingerprints.
+ *
+ * It runs in slices because 7,280 slots and 7,347 products is not one request.
+ * The caller pages through with ?kind=&offset=&limit=, which keeps memory flat
+ * however large the catalogue grows.
+ *
+ * The cross-page pass is separate and runs in SQL. Finding every page whose
+ * only difference from another is a country name means grouping by the masked
+ * fingerprint, and a database does that over fifteen thousand rows far better
+ * than a process holding fifteen thousand page bodies.
+ *
+ *   POST /api/internal/seo-gate?kind=slot&offset=0&limit=200   evaluate a slice
+ *   POST /api/internal/seo-gate?phase=cross                    the duplicate pass
+ *   GET  /api/internal/seo-gate                                what the gate decided
+ */
+
+const AUDIT_VERSION = "v1";
+/**
+ * How many pages the audit asks for at once.
+ *
+ * Deliberately small. This job reads the site it is auditing, from the same
+ * server that is serving visitors, and eight at a time alongside live traffic
+ * was enough to push response times from under a second into the tens of
+ * seconds. An audit that degrades the pages it is measuring is measuring
+ * something it caused. Three is slower and leaves the site alone.
+ */
+const CONCURRENCY = 3;
+
+function supabaseUrl(): string {
+  return process.env.SUPABASE_URL?.trim() ?? "";
+}
+
+function admin(): Record<string, string> {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+  return { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+}
+
+async function rest(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${supabaseUrl()}/rest/v1/${path}`, {
+    ...init,
+    headers: { ...admin(), ...(init.headers as Record<string, string> | undefined) },
+  });
+}
+
+async function rows<T>(path: string): Promise<T[]> {
+  const response = await rest(path);
+  if (!response.ok) throw new Error(`${path} -> HTTP ${response.status}`);
+  return (await response.json()) as T[];
+}
+
+/**
+ * Where to ask for the pages.
+ *
+ * The server asks itself, over the loopback interface, so an audit of fifteen
+ * thousand pages never leaves the machine and never depends on the internet
+ * being up. The canonical check still uses the public site name, because that
+ * is what the page must claim.
+ */
+function origin(): string {
+  const port = process.env.PORT?.trim() || "3000";
+  return process.env.SEO_GATE_ORIGIN?.trim() || `http://127.0.0.1:${port}`;
+}
+
+function site(): string {
+  const configured = process.env.SITE_URL?.trim() || "https://softwarevala.net";
+  try {
+    return new URL(configured).host;
+  } catch {
+    return "softwarevala.net";
+  }
+}
+
+type Work = { facts: PageFacts; url: string };
+
+/**
+ * A slice of the inventory, and how many rows the underlying query returned.
+ *
+ * The two are not the same: a product with no slug has no URL, so it is not
+ * work, but the query did return it. Deciding the walk is finished from the
+ * work count rather than the row count would stop the whole pass at the first
+ * slice that held one, and every page after it would be skipped in silence.
+ */
+type Slice = { work: Work[]; rows: number; warnings?: string[]; hreflangFallbackPages?: number };
+
+const kinds = z.enum(["slot", "product", "category", "country", "blog"]);
+const runInput = z
+  .object({
+    kinds: z.array(kinds).min(1),
+    expectedSignature: z.string().regex(/^[a-f0-9]{32}$/),
+    maxDropPercent: z.number().min(0).max(100),
+    crossOnly: z.boolean(),
+    decisions: z.array(
+      z
+        .object({
+          url: z.string().min(1),
+          entity_type: kinds,
+          state: z.string(),
+          indexable: z.boolean(),
+          sitemap_eligible: z.boolean(),
+          fingerprint_class: z.string().nullable(),
+          blocking_reason: z.string().nullable(),
+        })
+        .passthrough(),
+    ),
+    fingerprints: z.array(
+      z
+        .object({
+          url: z.string().min(1),
+          layer: z.string().min(1),
+          hash: z.string().regex(/^[a-f0-9]{64}$/),
+        })
+        .passthrough(),
+    ),
+  })
+  .refine(
+    (input) => !input.crossOnly || (!input.decisions.length && !input.fingerprints.length),
+    "Cross-only runs must not include evaluations",
+  );
+
+/**
+ * Category names, by id, read once and held for a minute.
+ *
+ * The product inventory used to reach them through an embedded join. With a
+ * large offset that query took three seconds where the same query without the
+ * embed took one, and under the load of the audit itself it eventually took
+ * long enough for PostgREST to answer 500 - which ended a walk of 7,347
+ * products at 5,400, twice. There are ninety-one categories. Reading them once
+ * is cheaper than joining them onto every slice, and it cannot time out.
+ */
+let categoryNames: { at: number; byId: Map<string, string> } | null = null;
+
+async function categoryNameMap(): Promise<Map<string, string>> {
+  const now = Date.now();
+  if (categoryNames && now - categoryNames.at < 60_000) return categoryNames.byId;
+  const list = await rows<{ id: string; name: string }>(
+    "marketplace_categories?select=id,name&limit=1000",
+  );
+  const byId = new Map(list.map((row) => [row.id, row.name]));
+  categoryNames = { at: now, byId };
+  return byId;
+}
+
+const countrySlug = (country: string): string =>
+  country
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+/** Which pages of one kind this slice covers. */
+async function inventory(
+  kind: string,
+  offset: number,
+  limit: number,
+  expectedHreflangFallback?: number,
+): Promise<Slice> {
+  const host = site();
+
+  if (kind === "slot") {
+    const slots = await rows<{
+      id: string;
+      category_id: string;
+      slot_url: string;
+      country_marker: string;
+      status: string;
+      current_product_id: string | null;
+      marketplace_categories: { name: string } | null;
+    }>(
+      `marketplace_card_slots?select=id,category_id,slot_url,country_marker,status,current_product_id,` +
+        `marketplace_categories(name)&order=slot_url.asc&limit=${limit}&offset=${offset}`,
+    );
+    if (!slots.length) return { work: [], rows: 0 };
+
+    // One query for the tenants of this slice, rather than one per slot.
+    const ids = slots.map((slot) => slot.current_product_id).filter(Boolean) as string[];
+    const products = ids.length
+      ? await rows<{ id: string; name: string; visible: boolean; content_status: string }>(
+          `marketplace_products?select=id,name,visible,content_status&id=in.(${ids.join(",")})`,
+        )
+      : [];
+    const byId = new Map(products.map((product) => [product.id, product]));
+    const siblingCounts = new Map<string, number>();
+    const fallbackReasons = new Map<string, string>();
+    await Promise.all(
+      [...new Set(slots.map((slot) => slot.category_id))].map(async (categoryId) => {
+        try {
+          const siblings = await rows<{ status: string; country_code: string | null }>(
+            `marketplace_card_slots?select=status,country_code&category_id=eq.${encodeURIComponent(categoryId)}&limit=1000`,
+          );
+          siblingCounts.set(categoryId, expectedSlotHreflang(siblings));
+        } catch (error) {
+          if (expectedHreflangFallback === undefined) throw error;
+          const reason = `category ${categoryId}: sibling query failed (${String(error).slice(0, 200)}); configured expectation ${expectedHreflangFallback}.`;
+          console.warn("[seo gate] hreflang fallback", reason);
+          fallbackReasons.set(categoryId, reason);
+          siblingCounts.set(categoryId, expectedHreflangFallback);
+        }
+      }),
+    );
+
+    const work: Work[] = slots.map((slot) => {
+      const tenant = slot.current_product_id ? byId.get(slot.current_product_id) : undefined;
+      return {
+        url: slot.slot_url,
+        facts: {
+          url: slot.slot_url,
+          entityType: "slot",
+          entityId: slot.id,
+          site: host,
+          // A vacant slot is a real record that is simply not ready to be
+          // shown to a crawler. It is not a draft and not an error.
+          publication:
+            slot.status === "occupied" && isPublicProduct(tenant) ? "published" : "unknown",
+          entityExists: true,
+          terms: {
+            country: slot.country_marker,
+            category: slot.marketplace_categories?.name ?? null,
+            product: tenant?.name ?? null,
+          },
+          countryKnown: true,
+          categoryKnown: Boolean(slot.marketplace_categories?.name),
+          expectedHreflang: siblingCounts.get(slot.category_id),
+          hreflangFallbackReason: fallbackReasons.get(slot.category_id),
+          minInternalLinks: 20,
+        },
+      };
+    });
+    return {
+      work,
+      rows: slots.length,
+      warnings: [...fallbackReasons.values()],
+      hreflangFallbackPages: slots.filter((slot) => fallbackReasons.has(slot.category_id)).length,
+    };
+  }
+
+  if (kind === "product") {
+    const byCategory = await categoryNameMap();
+    const products = await rows<{
+      id: string;
+      slug: string;
+      name: string;
+      visible: boolean;
+      content_status: string;
+      search_keywords: string[] | null;
+      category_id: string | null;
+    }>(
+      `marketplace_products?select=id,slug,name,visible,content_status,search_keywords,` +
+        `category_id&order=id.asc&limit=${limit}&offset=${offset}`,
+    );
+    const work: Work[] = products
+      .filter((product) => product.slug)
+      .map((product) => {
+        const marker = (product.search_keywords ?? []).find((k) => k.startsWith("country:"));
+        const country = marker ? marker.slice("country:".length) : null;
+        const published = product.visible === true && product.content_status === "published";
+        return {
+          url: `/marketplace/product/${product.slug}`,
+          facts: {
+            url: `/marketplace/product/${product.slug}`,
+            entityType: "product",
+            entityId: product.id,
+            site: host,
+            publication: published
+              ? "published"
+              : product.content_status === "archived"
+                ? "archived"
+                : product.content_status === "draft"
+                  ? "draft"
+                  : "unknown",
+            entityExists: true,
+            terms: {
+              country,
+              category: product.category_id ? (byCategory.get(product.category_id) ?? null) : null,
+              product: product.name,
+            },
+            // Told, rather than left unknown. These were omitted, so the gate
+            // had no answer and returned UNVERIFIED - which is not indexable,
+            // and 1,312 products were held back on a question the gate could
+            // have answered from data it already had. Failing closed is right;
+            // failing closed because nobody asked is not.
+            countryKnown: country ? RAIL_COUNTRY_BY_MARKER.has(country) : undefined,
+            categoryKnown: product.category_id ? byCategory.has(product.category_id) : undefined,
+            expectedHreflang: null,
+            minInternalLinks: 3,
+          },
+        } satisfies Work;
+      });
+    return { work, rows: products.length };
+  }
+
+  if (kind === "category") {
+    const categories = await rows<{ id: string; slug: string; name: string; is_hidden: boolean }>(
+      `marketplace_categories?select=id,slug,name,is_hidden&order=sort_order.asc&limit=${limit}&offset=${offset}`,
+    );
+    const work: Work[] = categories.map((category) => ({
+      url: `/marketplace/category/${category.slug}`,
+      facts: {
+        url: `/marketplace/category/${category.slug}`,
+        entityType: "category",
+        entityId: category.id,
+        site: host,
+        publication: category.is_hidden ? "unknown" : "published",
+        entityExists: true,
+        terms: { category: category.name },
+        categoryKnown: true,
+        expectedHreflang: null,
+        minInternalLinks: 3,
+      },
+    }));
+    return { work, rows: categories.length };
+  }
+
+  if (kind === "country") {
+    const countries = await rows<{ country_marker: string }>(
+      `marketplace_card_slots?select=country_marker&order=slot_no.asc&limit=${limit}&offset=${offset}`,
+    );
+    const seen = new Set<string>();
+    const out: Work[] = [];
+    for (const row of countries) {
+      if (seen.has(row.country_marker)) continue;
+      seen.add(row.country_marker);
+      const url = `/marketplace/country/${countrySlug(row.country_marker)}`;
+      out.push({
+        url,
+        facts: {
+          url,
+          entityType: "country",
+          entityId: null,
+          site: host,
+          publication: "published",
+          entityExists: true,
+          terms: { country: row.country_marker },
+          countryKnown: true,
+          expectedHreflang: null,
+          minInternalLinks: 3,
+        },
+      });
+    }
+    return { work: out, rows: countries.length };
+  }
+
+  if (kind === "blog") {
+    const posts = await rows<{
+      id: string;
+      url: string | null;
+      title: string;
+      status: string;
+      body: string | null;
+    }>(
+      `seo_content_items?select=id,url,title,status,body&order=created_at.desc&limit=${limit}&offset=${offset}`,
+    );
+    const work: Work[] = posts
+      .filter((post) => post.url)
+      .map((post) => ({
+        url: String(post.url),
+        facts: {
+          url: String(post.url),
+          entityType: "blog",
+          entityId: post.id,
+          site: host,
+          // A published row with nothing stored in it is not published in any
+          // sense a reader would recognise.
+          publication:
+            post.status === "published" && post.body && post.body.trim()
+              ? "published"
+              : post.status === "published"
+                ? "unknown"
+                : "draft",
+          entityExists: true,
+          terms: { product: post.title },
+          expectedHreflang: null,
+          minInternalLinks: 1,
+        },
+      }));
+    return { work, rows: posts.length };
+  }
+
+  throw new Error(`unknown kind "${kind}"`);
+}
+
+/** Ask this server for a page, and say plainly when the asking failed. */
+async function render(
+  url: string,
+): Promise<{ status: number | null; html: string | null; error?: string }> {
+  try {
+    const response = await fetch(new URL(url, origin()).toString(), {
+      redirect: "manual",
+      headers: { "user-agent": "SoftwareVala-SEO-Gate" },
+    });
+    return { status: response.status, html: await response.text() };
+  } catch (error) {
+    return { status: null, html: null, error: String(error).slice(0, 200) };
+  }
+}
+
+function decisionRow(decision: Decision) {
+  return {
+    url: decision.url,
+    entity_type: decision.entityType,
+    entity_id: decision.entityId,
+    state: decision.state,
+    indexable: decision.indexable,
+    sitemap_eligible: decision.sitemapEligible,
+    quality_status: decision.qualityStatus,
+    quality_score: decision.qualityScore,
+    fingerprint_class: decision.fingerprintClass,
+    canonical_status: decision.canonicalStatus,
+    schema_status: decision.schemaStatus,
+    hreflang_status: decision.hreflangStatus,
+    content_status: decision.contentStatus,
+    http_status: decision.httpStatus,
+    blocking_reason: decision.blockingReason,
+    checks: decision.checks,
+    duplicate_of: decision.duplicateOf,
+    audit_version: AUDIT_VERSION,
+    evaluated_at: new Date().toISOString(),
+  };
+}
+
+export const Route = createFileRoute("/api/internal/seo-gate")({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        const gate = await requireInternalOperator(request);
+        if (!gate.ok) return gate.response;
+        if (new URL(request.url).searchParams.get("phase") === "preflight") {
+          try {
+            return Response.json({
+              protocol: 2,
+              dryRun: true,
+              atomicCommit: true,
+              detailedReport: true,
+              hreflangFallback: true,
+              ...(await gateRunSnapshot()),
+            });
+          } catch (error) {
+            console.error("[seo gate] preflight failed", error);
+            return Response.json({ error: "Gate preflight failed" }, { status: 502 });
+          }
+        }
+        let all: { state: string; sitemap_eligible: boolean }[];
+        try {
+          all = await allDecisionStates();
+        } catch (error) {
+          console.error("[seo gate] could not read decisions", error);
+          return Response.json({ error: "Could not read decisions" }, { status: 502 });
+        }
+        const byState: Record<string, number> = {};
+        for (const row of all) byState[row.state] = (byState[row.state] ?? 0) + 1;
+        return Response.json({
+          decisions: all.length,
+          sitemapEligible: all.filter((row) => row.sitemap_eligible).length,
+          byState,
+        });
+      },
+
+      POST: async ({ request }) => {
+        const auth = await requireInternalOperator(request);
+        if (!auth.ok) return auth.response;
+        if (!supabaseUrl()) {
+          return Response.json({ error: "Supabase is not configured" }, { status: 503 });
+        }
+
+        const params = new URL(request.url).searchParams;
+        const dryFlag = params.get("dry_run");
+        if (dryFlag !== null && !["1", "0", "true", "false"].includes(dryFlag))
+          return Response.json({ error: "Invalid dry_run flag" }, { status: 400 });
+        const dryRun = dryFlag === "1" || dryFlag === "true";
+        if (["plan", "commit"].includes(params.get("phase") ?? "")) {
+          try {
+            const parsed = runInput.safeParse(await request.json());
+            if (!parsed.success) {
+              console.error("[seo gate] invalid run input", parsed.error.issues);
+              return Response.json({ error: "Invalid gate run input" }, { status: 400 });
+            }
+            const result = await saveGateRun(parsed.data, params.get("phase") === "plan" || dryRun);
+            return Response.json(
+              { protocol: 2, ...result },
+              { status: result.stopped ? 409 : 200 },
+            );
+          } catch (error) {
+            console.error("[seo gate] guarded run failed", error);
+            return Response.json({ error: String(error).slice(0, 300) }, { status: 502 });
+          }
+        }
+
+        const kind = String(params.get("kind") ?? "slot");
+        const fallbackFlag = params.get("expected_hreflang");
+        const fallback = z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(Number.MAX_SAFE_INTEGER)
+          .safeParse(fallbackFlag);
+        if (fallbackFlag !== null && (kind !== "slot" || !fallback.success)) {
+          console.warn("[seo gate] invalid expected_hreflang fallback");
+          return Response.json(
+            { error: "expected_hreflang must be a positive integer for slot evaluations" },
+            { status: 400 },
+          );
+        }
+        const offset = Math.max(0, Number(params.get("offset") ?? 0) || 0);
+        const limit = Math.min(500, Math.max(1, Number(params.get("limit") ?? 100) || 100));
+
+        let slice: Slice;
+        try {
+          slice = await inventory(
+            kind,
+            offset,
+            limit,
+            fallbackFlag !== null && fallback.success ? fallback.data : undefined,
+          );
+        } catch (error) {
+          console.error("[seo gate] inventory failed", error);
+          return Response.json({ error: String(error).slice(0, 200) }, { status: 400 });
+        }
+        const work = slice.work;
+        if (!slice.rows) {
+          return Response.json({
+            ok: true,
+            protocol: 2,
+            dryRun,
+            kind,
+            offset,
+            evaluated: 0,
+            rows: [],
+            fingerprints: [],
+            warnings: [],
+            hreflangFallbackPages: 0,
+            done: true,
+          });
+        }
+
+        const decisions: Decision[] = [];
+        const queue = [...work];
+        await Promise.all(
+          Array.from({ length: CONCURRENCY }, async () => {
+            for (;;) {
+              const item = queue.shift();
+              if (!item) return;
+              const rendered = await render(item.url);
+              decisions.push(evaluatePage(item.facts, rendered));
+            }
+          }),
+        );
+
+        // Within a slice the pages are compared with each other by hash, which
+        // catches an exact duplicate and a country swap cheaply. The bodies are
+        // deliberately not passed: only the truncated samples are still in
+        // memory, and comparing those would be comparing the first hundred and
+        // sixty characters of two pages and calling it a verdict. The wider
+        // comparison, across every slice, is the SQL pass in
+        // scripts/ops/seo-gate-run.mjs.
+        const settled = applyCrossPageFindings(decisions.map((decision) => ({ decision })));
+
+        const decisionRows = settled.map(decisionRow);
+        try {
+          if (!dryRun) await upsertDecisions(decisionRows);
+        } catch (error) {
+          return Response.json(
+            { error: "Could not record the decisions", detail: String(error).slice(0, 300) },
+            { status: 502 },
+          );
+        }
+
+        const prints = settled.flatMap((decision) =>
+          decision.fingerprints.map((print) => ({
+            url: decision.url,
+            entity_type: decision.entityType,
+            entity_id: decision.entityId,
+            layer: print.layer,
+            hash: print.hash,
+            simhash: print.simhash,
+            token_count: print.tokens,
+            sample: print.sample,
+            audit_version: AUDIT_VERSION,
+            computed_at: new Date().toISOString(),
+          })),
+        );
+        if (prints.length && !dryRun) {
+          try {
+            await upsertFingerprints(prints);
+          } catch (error) {
+            return Response.json(
+              { error: "Could not record the fingerprints", detail: String(error).slice(0, 300) },
+              { status: 502 },
+            );
+          }
+        }
+
+        const byState: Record<string, number> = {};
+        for (const decision of settled)
+          byState[decision.state] = (byState[decision.state] ?? 0) + 1;
+
+        return Response.json({
+          ok: true,
+          protocol: 2,
+          dryRun,
+          ...(dryRun ? { rows: decisionRows, fingerprints: prints } : {}),
+          kind,
+          offset,
+          evaluated: settled.length,
+          warnings: slice.warnings ?? [],
+          hreflangFallbackPages: slice.hreflangFallbackPages ?? 0,
+          eligible: settled.filter((decision) => decision.sitemapEligible).length,
+          byState,
+          blocked: settled
+            .filter((decision) => !decision.sitemapEligible)
+            .slice(0, 5)
+            .map((decision) => ({
+              url: decision.url,
+              state: decision.state,
+              reason: decision.blockingReason,
+            })),
+          done: slice.rows < limit,
+        });
+      },
+    },
+  },
+});

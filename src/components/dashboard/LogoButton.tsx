@@ -1,5 +1,14 @@
 import { useRef, useState } from "react";
 import roundLogoAsset from "@/assets/dashboardLogoAsset";
+import { playSound } from "@/lib/ams/ui-sound";
+import { prefersReducedMotion } from "@/hooks/use-reduced-motion";
+
+/*
+ * The logo's click flourish: a pulse and a burst of glyphs. It is decoration,
+ * not recognition - it used to announce a random "+XP" and a made-up
+ * achievement ("Lucky click - bonus XP!") that AMS never granted. XP and
+ * achievements come only from the engine now, so the flourish claims nothing.
+ */
 
 type Reward =
   | "gold"      // Gold Particle Rain
@@ -15,79 +24,24 @@ const GLYPH: Record<Reward, string> = {
   sparkles: "✦", hearts: "❤", money: "💵",
 };
 
-const COLORS: Record<Reward, string> = {
-  gold: "oklch(0.85 0.18 85)",
-  confetti: "oklch(0.78 0.2 350)",
-  spark: "oklch(0.85 0.18 200)",
-  coins: "oklch(0.85 0.18 85)",
-  stars: "oklch(0.85 0.18 75)",
-  diamonds: "oklch(0.85 0.16 200)",
-  crowns: "oklch(0.85 0.18 60)",
-  sparkles: "oklch(0.78 0.18 290)",
-  hearts: "oklch(0.7 0.22 25)",
-  money: "oklch(0.78 0.16 145)",
-};
-
-const ACHIEVEMENTS = [
-  "Daily streak +1!",
-  "Lucky click — bonus XP!",
-  "Achievement unlocked!",
-  "Combo +5",
-  "Rare drop!",
-  "Power up!",
-];
-
 type Particle = { id: number; x: number; y: number; r: number; s: number; g: string };
-type Burst = { id: number; particles: Particle[]; reward: Reward; xp: number; label: string };
+type Burst = { id: number; particles: Particle[]; reward: Reward };
 
 export function LogoButton({ size = 36 }: { size?: number }) {
   const [pulses, setPulses] = useState<number[]>([]);
   const [bursts, setBursts] = useState<Burst[]>([]);
-  const [popups, setPopups] = useState<{ id: number; xp: number; label: string; color: string }[]>([]);
   const id = useRef(0);
-  const lastDaily = useRef<string | null>(null);
-
-  function playSound(reward: Reward) {
-    try {
-      const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = new Ctx();
-      const now = ctx.currentTime;
-      // Achievement chime: two-note arpeggio
-      const notes = reward === "gold" || reward === "confetti" ? [880, 1318.5, 1760] : [659.25, 987.77];
-      notes.forEach((freq, i) => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.type = "triangle";
-        o.frequency.value = freq;
-        g.gain.setValueAtTime(0.0001, now + i * 0.08);
-        g.gain.exponentialRampToValueAtTime(0.12, now + i * 0.08 + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.08 + 0.28);
-        o.connect(g).connect(ctx.destination);
-        o.start(now + i * 0.08);
-        o.stop(now + i * 0.08 + 0.3);
-      });
-      setTimeout(() => ctx.close(), 1200);
-    } catch {
-      /* sound is best-effort */
-    }
-  }
 
   function onClick() {
     const myId = ++id.current;
+    // One soft cue, under the same mute and volume as every other sound.
+    playSound("toggle");
+    if (prefersReducedMotion()) return;
+
     setPulses((p) => [...p, myId]);
     setTimeout(() => setPulses((p) => p.filter((x) => x !== myId)), 900);
 
-    // Daily reward check — once per day
-    const today = new Date().toISOString().slice(0, 10);
-    const isDaily = lastDaily.current !== today;
-    lastDaily.current = today;
-
-    const reward = isDaily ? "gold" : REWARDS[Math.floor(Math.random() * REWARDS.length)];
-    const xp = isDaily ? 50 : 5 + Math.floor(Math.random() * 20);
-    const label = isDaily ? "Daily Reward!" : ACHIEVEMENTS[Math.floor(Math.random() * ACHIEVEMENTS.length)];
-
-    playSound(reward);
+    const reward = REWARDS[Math.floor(Math.random() * REWARDS.length)];
 
     // Particle burst
     const count = reward === "gold" ? 28 : reward === "confetti" ? 26 : 16 + Math.floor(Math.random() * 8);
@@ -103,12 +57,8 @@ export function LogoButton({ size = 36 }: { size?: number }) {
         g: GLYPH[reward],
       };
     });
-    setBursts((b) => [...b, { id: myId, particles, reward, xp, label }]);
+    setBursts((b) => [...b, { id: myId, particles, reward }]);
     setTimeout(() => setBursts((b) => b.filter((x) => x.id !== myId)), 1400);
-
-    // XP popup
-    setPopups((p) => [...p, { id: myId, xp, label, color: COLORS[reward] }]);
-    setTimeout(() => setPopups((p) => p.filter((x) => x.id !== myId)), 1600);
   }
 
   return (
@@ -117,8 +67,8 @@ export function LogoButton({ size = 36 }: { size?: number }) {
       type="button"
       className="logo-3d focus-ring shrink-0"
       style={{ width: size, height: size }}
-      aria-label="Software Vala — click for a reward"
-      title="Click me ✦"
+      aria-label="Software Vala"
+      title="Software Vala"
     >
       <img
         src={roundLogoAsset.url}
@@ -151,20 +101,6 @@ export function LogoButton({ size = 36 }: { size?: number }) {
               {pt.g}
             </span>
           ))}
-        </span>
-      ))}
-      {/* XP popups */}
-      {popups.map((p) => (
-        <span
-          key={p.id}
-          className="pointer-events-none absolute left-1/2 -top-2 z-[60] -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold shadow-glow"
-          style={{
-            background: `linear-gradient(135deg, ${p.color}, oklch(0.55 0.22 290))`,
-            color: "white",
-            animation: "svXp 1500ms cubic-bezier(0.18, 0.7, 0.25, 1) forwards",
-          }}
-        >
-          +{p.xp} XP · {p.label}
         </span>
       ))}
     </button>

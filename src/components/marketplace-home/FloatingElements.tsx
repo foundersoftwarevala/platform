@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useHomeRouteData } from "@/lib/marketplace/home-route-data";
 import { Bot, MessageCircle, Plus, Sparkles, X } from "lucide-react";
 import type { FloatingElement, FloatingSnapshot } from "@/lib/storefront/chrome.functions";
+import { currentAttribution } from "@/lib/marketplace/attribution";
 
 /**
  * The floating elements on the public storefront.
@@ -90,6 +91,7 @@ function useTriggered(element: FloatingElement): boolean {
       document.addEventListener("mouseout", onLeave);
       return () => document.removeEventListener("mouseout", onLeave);
     }
+    return undefined;
   }, [element.trigger, element.trigger_value, immediate]);
 
   return shown;
@@ -169,6 +171,10 @@ export function DemoForm({
                   // is a /marketplace/product/<slug> path.
                   sourcePage:
                     typeof window === "undefined" ? "" : window.location.pathname,
+                  // Where this visit came from, read once on the first page
+                  // of it. Without this the endpoint files every capture as
+                  // a marketplace walk-in.
+                  attribution: currentAttribution(),
                 }),
               });
               if (!res.ok) {

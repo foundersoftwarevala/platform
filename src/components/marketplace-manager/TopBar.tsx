@@ -1,3 +1,4 @@
+import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/lib/language-catalog";
 import { SVLogo } from "./SVLogo";
@@ -370,6 +371,8 @@ export function MarketplaceTopBar({
             )}
           </div>
 
+          <ChatAppButton className="relative rounded-full border border-border bg-white/[0.04] p-2 text-muted-foreground transition-colors hover:bg-white/[0.08] hover:text-foreground" />
+
           {/* Notifications */}
           <div data-menu-root className="relative">
             <button
@@ -664,6 +667,8 @@ function CommandPalette({
   onClose: () => void;
   onPick: (id: SectionId) => void;
 }) {
+  // The palette used `t` without taking it, so opening it crashed the page.
+  const { translate: t } = useLanguage();
   const [q, setQ] = useState("");
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();

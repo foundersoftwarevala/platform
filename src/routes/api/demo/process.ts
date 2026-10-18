@@ -3,9 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import {
   activateDemo,
+  intakeDemo,
   investigateDemo,
   listProcessedDemos,
-  moveDemo,
+  publishDemo,
   searchProducts,
   type Actor,
 } from "@/lib/demo/process.server";
@@ -16,9 +17,10 @@ import { assertPublicUrl, UnsafeUrlError } from "@/lib/demo/safe-fetch.server";
  *
  *   GET  ?products=<name>            products to attach a demo to
  *   GET                              demos processed so far
+ *   POST {action:"intake", productId, url}      take the address in, do not scan
+ *   POST {action:"publish", productId, url}     investigate, verify and publish
  *   POST {action:"investigate", productId, url}
  *   POST {action:"activate", id}
- *   POST {action:"move", id, productId}   put it on a product suggested in its row
  *
  * Operators only (boss, admin, super_admin, owner, developer): the address is
  * fetched from this server, and processing spends AI Manager credit.
@@ -30,7 +32,9 @@ async function actorOf(request: Request): Promise<Actor> {
   const authorization = request.headers.get("authorization");
   if (!url || !key || !authorization) return { id: null, email: null };
   try {
-    const r = await fetch(`${url}/auth/v1/user`, { headers: { apikey: key, Authorization: authorization } });
+    const r = await fetch(`${url}/auth/v1/user`, {
+      headers: { apikey: key, Authorization: authorization },
+    });
     const user = (await r.json()) as { id?: string; email?: string };
     return { id: user.id ?? null, email: user.email ?? null };
   } catch {
@@ -70,24 +74,42 @@ export const Route = createFileRoute("/api/demo/process")({
         }
         const actor = await actorOf(request);
         try {
-          if (body.action === "investigate") {
+          if (body.action === "investigate" || body.action === "publish") {
             const productId = String(body.productId ?? "");
             if (!UUID.test(productId)) return refuse("Choose the product this demo belongs to.");
             const raw = String(body.url ?? "").trim();
             if (raw.length > 2048) return refuse("That address is too long.");
             const url = assertPublicUrl(raw).toString();
+            if (body.action === "publish") {
+              return Response.json(await publishDemo({ productId, url, actor }));
+            }
             return Response.json({ demo: await investigateDemo({ productId, url, actor }) });
+          }
+          // The same address checks as "investigate", and deliberately the
+          // same ones: intake does not fetch the address, but it stores it,
+          // and an address that would be refused at the fetch is not one to
+          // keep a row for either.
+          if (body.action === "intake") {
+            const productId = String(body.productId ?? "");
+            if (!UUID.test(productId)) return refuse("Choose the product this demo belongs to.");
+            const raw = String(body.url ?? "").trim();
+            if (raw.length > 2048) return refuse("That address is too long.");
+            const url = assertPublicUrl(raw).toString();
+            return Response.json(await intakeDemo({ productId, url, actor }));
           }
           if (body.action === "activate") {
             const id = String(body.id ?? "");
             if (!UUID.test(id)) return refuse("Unknown demo.");
-            return Response.json({ demo: await activateDemo({ id, actor }) });
-          }
-          if (body.action === "move") {
-            const id = String(body.id ?? "");
-            const productId = String(body.productId ?? "");
-            if (!UUID.test(id) || !UUID.test(productId)) return refuse("Unknown demo or product.");
-            return Response.json({ demo: await moveDemo({ id, productId, actor }) });
+            // An operator may publish a demo whose detected category is not the
+            // product's, and saying so is explicit. The refusal it overrides,
+            // and this confirmation, are both written to the audit trail.
+            return Response.json({
+              demo: await activateDemo({
+                id,
+                actor,
+                confirmCategoryMismatch: body.confirmCategoryMismatch === true,
+              }),
+            });
           }
           return refuse("Unknown action.");
         } catch (error) {

@@ -48,46 +48,41 @@ const ENTRIES: Entry[] = [...SUPPORTED_LANGUAGES]
     ),
   }));
 
-/* ---------------------------------------------------- operator overrides */
+/* ------------------------------------------------------ switched-off list */
 
-/**
- * Languages an operator switched off in the Language Manager
- * (i18n_languages.enabled, readable by everyone). The server refuses them, so
- * offering one would leave the page in English with no explanation. Read once
- * per page load, the first time a picker opens; until then, and if the read
- * fails, every registry language is offered.
- */
-let disabledRead: Promise<Set<string>> | null = null;
+// Languages an operator has switched off (GET /api/i18n/languages). Fetched
+// once per page load and shared by every selector on the page; until it
+// arrives, or if it cannot be read, every language is offered as before.
+let disabledCodes: ReadonlySet<string> = new Set();
+let disabledRequested = false;
+const disabledListeners = new Set<() => void>();
 
-function readDisabledLanguages(): Promise<Set<string>> {
-  disabledRead ??= import("@/integrations/supabase/client")
-    .then(async ({ supabase }) => {
-      // i18n_languages is not in the generated types.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from("i18n_languages")
-        .select("code")
-        .eq("enabled", false);
-      if (error) throw error;
-      return new Set(((data ?? []) as { code: string }[]).map((row) => row.code));
+function loadDisabledLanguages() {
+  if (disabledRequested || typeof window === "undefined") return;
+  disabledRequested = true;
+  void fetch("/api/i18n/languages", { headers: { Accept: "application/json" } })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((payload: { disabled?: unknown } | null) => {
+      const list = Array.isArray(payload?.disabled)
+        ? payload.disabled.filter((code): code is string => typeof code === "string")
+        : [];
+      if (list.length === 0) return;
+      disabledCodes = new Set(list);
+      disabledListeners.forEach((listener) => listener());
     })
-    .catch(() => new Set<string>());
-  return disabledRead;
+    .catch(() => undefined);
 }
 
-function useDisabledLanguages(active: boolean): Set<string> {
-  const [disabled, setDisabled] = useState<Set<string>>(() => new Set());
-  useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    void readDisabledLanguages().then((codes) => {
-      if (!cancelled && codes.size > 0) setDisabled(codes);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [active]);
-  return disabled;
+function useDisabledLanguages(): ReadonlySet<string> {
+  return useSyncExternalStore(
+    (listener) => {
+      disabledListeners.add(listener);
+      loadDisabledLanguages();
+      return () => disabledListeners.delete(listener);
+    },
+    () => disabledCodes,
+    () => disabledCodes,
+  );
 }
 
 /* ------------------------------------------------------------ registration */
@@ -147,7 +142,12 @@ export function LanguageSelector({
   side = "bottom",
   register = true,
 }: LanguageSelectorProps) {
-  const { t, lang, language, setLanguage } = useTranslation();
+  const { t, lang, language, setLanguage, serviceReady, translationState } = useTranslation();
+  const disabled = useDisabledLanguages();
+  const offered = useMemo(
+    () => (disabled.size ? ENTRIES.filter((entry) => !disabled.has(entry.code)) : ENTRIES),
+    [disabled],
+  );
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -170,11 +170,6 @@ export function LanguageSelector({
     [],
   );
 
-  const disabled = useDisabledLanguages(open);
-  const offered = useMemo(
-    () => (disabled.size ? ENTRIES.filter((entry) => !disabled.has(entry.code)) : ENTRIES),
-    [disabled],
-  );
   const folded = fold(query.trim());
   const matches = useMemo(
     () => (folded ? offered.filter((entry) => entry.haystack.includes(folded)) : offered),
@@ -359,6 +354,18 @@ export function LanguageSelector({
               spellCheck={false}
             />
           </label>
+          {!serviceReady && (
+            // The engine did not answer the last request: the page stays in
+            // English (or the language's fallback) until it does, and says so.
+            <p role="status" className="mt-2 text-xs text-muted-foreground">
+              {t("common.translation_paused")}
+            </p>
+          )}
+          {serviceReady && translationState.fallback > 0 && (
+            <p role="status" className="mt-2 text-xs text-muted-foreground">
+              {t("common.language_partial")}
+            </p>
+          )}
           {letters.length > 1 && (
             <div className="mt-2 flex flex-wrap gap-0.5" aria-label={t("common.language_jump")}>
               {letters.map((letter) => (

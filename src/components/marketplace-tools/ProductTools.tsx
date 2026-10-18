@@ -642,7 +642,7 @@ export const SalesAssistant = ({ faqs }: { faqs: { question: string; answer: str
             We will reply on the details you leave here.
           </p>
           <a
-            href="/support"
+            href="/contact"
             className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-gray-900"
           >
             Contact support <ArrowRight className="h-3.5 w-3.5" />

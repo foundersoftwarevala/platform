@@ -83,10 +83,15 @@ const VOICES: Record<UiSound, Voice> = {
 /* Preferences                                                      */
 /* ---------------------------------------------------------------- */
 
-export type SoundPrefs = { enabled: boolean; volume: number };
+/**
+ * `celebrations` decides how a recognition is presented: the full celebration,
+ * or a quiet notice. It is kept with the sound settings because it is the same
+ * person's choice about the same moments, and one place to store them is enough.
+ */
+export type SoundPrefs = { enabled: boolean; volume: number; celebrations: boolean };
 
 const STORAGE_KEY = "ams.sound.prefs";
-const DEFAULTS: SoundPrefs = { enabled: true, volume: 0.6 };
+const DEFAULTS: SoundPrefs = { enabled: true, volume: 0.6, celebrations: true };
 
 let prefs: SoundPrefs = { ...DEFAULTS };
 let loaded = false;
@@ -102,6 +107,7 @@ function load(): SoundPrefs {
       prefs = {
         enabled: typeof parsed.enabled === "boolean" ? parsed.enabled : DEFAULTS.enabled,
         volume: typeof parsed.volume === "number" ? Math.min(1, Math.max(0, parsed.volume)) : DEFAULTS.volume,
+        celebrations: typeof parsed.celebrations === "boolean" ? parsed.celebrations : DEFAULTS.celebrations,
       };
     }
   } catch {
@@ -157,6 +163,42 @@ function audio(): { ac: AudioContext; out: GainNode } | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The shared output for recognition sounds (lib/celebrate, trophy-sounds), so
+ * every sound AMS makes goes through one context, one bus and the one mute and
+ * volume setting. Null when muted or when audio is unavailable.
+ */
+export function recognitionOutput(): { ac: AudioContext; out: GainNode; volume: number } | null {
+  const p = load();
+  if (!p.enabled || p.volume <= 0) return null;
+  const a = audio();
+  if (!a) return null;
+  a.out.gain.setTargetAtTime(1, a.ac.currentTime, 0.01);
+  return { ...a, volume: p.volume };
+}
+
+let unlockArmed = false;
+/**
+ * Browsers, and mobile Safari above all, keep audio suspended until the person
+ * touches the page. A recognition arrives from the server, not from a tap, so
+ * the context is started on the first gesture of the visit and is ready by the
+ * time anything needs to sound. Nothing is played here.
+ */
+export function unlockAudioOnFirstGesture() {
+  if (unlockArmed || typeof window === "undefined") return;
+  unlockArmed = true;
+  const events = ["pointerdown", "keydown", "touchstart"] as const;
+  const unlock = () => {
+    events.forEach((e) => window.removeEventListener(e, unlock, true));
+    try {
+      audio();
+    } catch {
+      /* audio unavailable; recognition still shows */
+    }
+  };
+  events.forEach((e) => window.addEventListener(e, unlock, { capture: true, passive: true }));
 }
 
 /** Play a UI cue. Silent when muted, unsupported or reduced-motion-quiet. */

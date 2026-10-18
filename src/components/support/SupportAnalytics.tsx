@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   BarChart3, Clock, Users, MessageSquare, TrendingUp, TrendingDown,
@@ -7,7 +7,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { useGlobalActions } from '@/hooks/useGlobalActions';
+import { useQueryClient } from '@tanstack/react-query';
+import { useTeamMembers, useTickets } from '@/hooks/useSalesSupportData';
+import { downloadCsv, stampedName } from '@/lib/export/download';
+
+const DAY = 86_400_000;
+const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+/** Percentage change, or 0 where the earlier period has nothing to compare with. */
+const changeOf = (now: number | null, before: number | null) =>
+  now == null || before == null || before === 0 ? 0 : Math.round(((now - before) / before) * 1000) / 10;
+const minutes = (m: number | null) => (m == null ? '—' : m >= 90 ? `${(m / 60).toFixed(1)} hrs` : `${Math.round(m)} min`);
 
 interface MetricCard {
   id: string;
@@ -26,52 +35,71 @@ interface ChannelStat {
   satisfaction: number;
 }
 
+/**
+ * Support analytics, counted from the support tickets over the last seven days
+ * and compared with the seven before. Every figure, channel row and hourly bar
+ * here was typed in, and Export and Refresh only announced themselves.
+ */
 const SupportAnalytics = () => {
-  const { executeAction } = useGlobalActions();
+  const queryClient = useQueryClient();
+  const { data: ticketRows } = useTickets();
+  const { data: members } = useTeamMembers('support');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const all = (ticketRows ?? []) as any[];
+  const now = Date.now();
+  const inWindow = (t: { created_at: string }, from: number, to: number) => {
+    const at = new Date(t.created_at).getTime();
+    return at >= from && at < to;
+  };
+  const week = all.filter((t) => inWindow(t, now - 7 * DAY, now + 1));
+  const prior = all.filter((t) => inWindow(t, now - 14 * DAY, now - 7 * DAY));
+  const resolution = (list: typeof all) => mean(list.filter((t) => t.resolved_at).map((t) => (new Date(t.resolved_at).getTime() - new Date(t.created_at).getTime()) / 60_000));
+  const response = (list: typeof all) => mean(list.filter((t) => t.first_response_at).map((t) => (new Date(t.first_response_at).getTime() - new Date(t.created_at).getTime()) / 60_000));
+  const csat = (list: typeof all) => mean(list.filter((t) => t.csat != null).map((t) => Number(t.csat)));
+  const open = all.filter((t) => t.status !== 'resolved' && t.status !== 'closed');
+  const agents = (members ?? []).length;
 
-  const [metrics] = useState<MetricCard[]>([
-    { id: '1', label: 'Avg Resolution Time', value: '2.4 hrs', change: -12, trend: 'down', icon: Clock, color: 'text-emerald-400' },
-    { id: '2', label: 'Agent Load', value: '68%', change: 5, trend: 'up', icon: Users, color: 'text-orange-400' },
-    { id: '3', label: 'CSAT Score', value: '94.2%', change: 2.3, trend: 'up', icon: TrendingUp, color: 'text-teal-400' },
-    { id: '4', label: 'First Response Time', value: '4.2 min', change: -18, trend: 'down', icon: MessageSquare, color: 'text-purple-400' },
-  ]);
+  const metrics: MetricCard[] = [
+    { id: '1', label: 'Avg Resolution Time', value: minutes(resolution(week)), change: changeOf(resolution(week), resolution(prior)), trend: (resolution(week) ?? 0) <= (resolution(prior) ?? Infinity) ? 'down' : 'up', icon: Clock, color: 'text-emerald-400' },
+    { id: '2', label: 'Open Tickets per Agent', value: agents ? (open.length / agents).toFixed(1) : '—', change: 0, trend: 'up', icon: Users, color: 'text-orange-400' },
+    { id: '3', label: 'CSAT Score', value: csat(week) == null ? '—' : `${csat(week)!.toFixed(1)}/5`, change: changeOf(csat(week), csat(prior)), trend: (csat(week) ?? 0) >= (csat(prior) ?? 0) ? 'up' : 'down', icon: TrendingUp, color: 'text-teal-400' },
+    { id: '4', label: 'First Response Time', value: minutes(response(week)), change: changeOf(response(week), response(prior)), trend: (response(week) ?? 0) <= (response(prior) ?? Infinity) ? 'down' : 'up', icon: MessageSquare, color: 'text-purple-400' },
+  ];
 
-  const [channelStats] = useState<ChannelStat[]>([
-    { channel: 'Email', tickets: 456, avgResponse: '15 min', satisfaction: 92 },
-    { channel: 'Live Chat', tickets: 324, avgResponse: '2 min', satisfaction: 96 },
-    { channel: 'WhatsApp', tickets: 189, avgResponse: '5 min', satisfaction: 94 },
-    { channel: 'Phone', tickets: 87, avgResponse: '1 min', satisfaction: 89 },
-    { channel: 'In-App', tickets: 234, avgResponse: '8 min', satisfaction: 91 },
-  ]);
+  const channels = [...new Set(week.map((t) => String(t.channel ?? 'other')))];
+  const channelStats: ChannelStat[] = channels.map((channel) => {
+    const list = week.filter((t) => String(t.channel ?? 'other') === channel);
+    const c = csat(list);
+    return {
+      channel: channel.charAt(0).toUpperCase() + channel.slice(1),
+      tickets: list.length,
+      avgResponse: minutes(response(list)),
+      satisfaction: c == null ? 0 : Math.round((c / 5) * 100),
+    };
+  });
 
-  const [hourlyData] = useState([
-    { hour: '00', tickets: 12 }, { hour: '02', tickets: 8 }, { hour: '04', tickets: 5 },
-    { hour: '06', tickets: 15 }, { hour: '08', tickets: 45 }, { hour: '10', tickets: 78 },
-    { hour: '12', tickets: 65 }, { hour: '14', tickets: 82 }, { hour: '16', tickets: 90 },
-    { hour: '18', tickets: 55 }, { hour: '20', tickets: 35 }, { hour: '22', tickets: 20 },
-  ]);
+  // Tickets opened in each two-hour slot of the day, over the week.
+  const hourlyData = Array.from({ length: 12 }, (_, i) => ({
+    hour: String(i * 2).padStart(2, '0'),
+    tickets: week.filter((t) => Math.floor(new Date(t.created_at).getHours() / 2) === i).length,
+  }));
 
-  const handleExport = useCallback(async (format: string) => {
-    await executeAction({
-      actionId: `export_analytics_${format}`,
-      actionType: 'export',
-      entityType: 'report',
-      metadata: { format, type: 'support_analytics' },
-      successMessage: `Analytics exported as ${format.toUpperCase()}`,
-    });
-  }, [executeAction]);
+  const handleExport = useCallback((_format: string) => {
+    const rows = [
+      ...metrics.map((m) => ({ section: 'metric', name: m.label, value: m.value, change_percent: m.change })),
+      ...channelStats.map((c) => ({ section: 'channel', name: c.channel, value: c.tickets, change_percent: '' , avg_response: c.avgResponse, satisfaction_percent: c.satisfaction })),
+    ];
+    const n = downloadCsv(stampedName('support-analytics', 'csv'), rows);
+    toast.success(`Exported ${n} rows as CSV`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketRows, members]);
 
   const handleRefresh = useCallback(async () => {
-    await executeAction({
-      actionId: 'refresh_analytics',
-      actionType: 'refresh',
-      entityType: 'report',
-      successMessage: 'Analytics data refreshed',
-    });
-    toast.success('Data refreshed');
-  }, [executeAction]);
+    await queryClient.invalidateQueries({ queryKey: ['support_tickets'] });
+    toast.success('Figures counted again');
+  }, [queryClient]);
 
-  const maxTickets = Math.max(...hourlyData.map(d => d.tickets));
+  const maxTickets = Math.max(1, ...hourlyData.map(d => d.tickets));
 
   return (
     <div className="space-y-6">
@@ -85,10 +113,11 @@ const SupportAnalytics = () => {
           <p className="text-muted-foreground text-sm">Real-time performance metrics and insights</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="border-border text-muted-foreground">
+          {/* The period these figures cover; not a picker. */}
+          <span className="inline-flex items-center rounded-md border border-border px-3 py-2 text-sm text-muted-foreground">
             <Calendar className="w-4 h-4 mr-2" />
             Last 7 Days
-          </Button>
+          </span>
           <Button variant="outline" onClick={handleRefresh} className="border-border text-muted-foreground">
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh

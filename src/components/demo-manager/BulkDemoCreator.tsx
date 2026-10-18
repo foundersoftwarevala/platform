@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,6 +29,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useDemoManagerAccess } from '@/hooks/useDemoManagerAccess';
 import { DemoAccessGate } from './DemoAccessGate';
+import { richText, useTranslation } from '@/lib/i18n/use-translation';
 
 // Demo types available
 const DEMO_TYPES = [
@@ -77,11 +79,52 @@ interface DemoEntry {
   name: string;
   login_url: string;
   demo_type: string;
+  /**
+   * Which marketplace category this demo is filed under.
+   *
+   * It used to not exist, and the insert wrote `category: demo.demo_type` - so
+   * every bulk-created demo was filed under its *type* (School, Hospital, ERP)
+   * out of a list of fourteen written into this file, while the marketplace
+   * carries ninety categories. A demo could not be put in the category of the
+   * card it belongs to. The type still drives the login-role template, which is
+   * what it is actually for.
+   */
+  category: string;
   login_roles: LoginRole[];
 }
 
 function BulkDemoCreatorContent() {
+  const { t } = useTranslation();
   const [demos, setDemos] = useState<DemoEntry[]>([]);
+  /** The real categories, from demo_categories, seeded from the marketplace. */
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  /** Applied to every row a paste or a quick-add creates, and by "apply to all". */
+  const [defaultCategory, setDefaultCategory] = useState<string>('');
+  const [pasteText, setPasteText] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from('demo_categories')
+        .select('name, display_order')
+        .eq('is_active', true)
+        .order('display_order');
+      if (cancelled) return;
+      if (error) {
+        setCategoriesError(error.message);
+        return;
+      }
+      const names = (data ?? []).map((row) => String(row.name)).filter(Boolean);
+      setCategoriesError(null);
+      setCategories(names);
+      setDefaultCategory((current) => current || names[0] || '');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [isCreating, setIsCreating] = useState(false);
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [currentDemo, setCurrentDemo] = useState<DemoEntry | null>(null);
@@ -95,10 +138,100 @@ function BulkDemoCreatorContent() {
       name: '',
       login_url: '',
       demo_type: 'School',
+      category: defaultCategory,
       login_roles: []
     };
     setDemos(prev => [...prev, newDemo]);
-  }, []);
+  }, [defaultCategory]);
+
+  /**
+   * Turns a pasted list of URLs into rows.
+   *
+   * There are twelve thousand demo URLs to put in. Adding them a row at a time
+   * and typing each one is not a way anybody would finish, so a paste of the
+   * list is the way in. One demo per line, and the separator may be a pipe, a
+   * tab or a comma:
+   *
+   *     https://demo.example.com/login
+   *     https://demo.example.com/login | School ERP Demo
+   *     https://demo.example.com/login | School ERP Demo | School Management
+   *
+   * A missing title is taken from the URL's host, and a missing or unknown
+   * category falls back to the one chosen above - unknown rather than silently
+   * accepted, because a category that is not in the list would file the demo
+   * somewhere the marketplace cannot see.
+   */
+  const importPastedUrls = useCallback(() => {
+    const lines = pasteText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    if (lines.length === 0) {
+      toast.error(t('demo.bulk_creator.nothing_to_import'));
+      return;
+    }
+
+    const known = new Map(categories.map((c) => [c.toLowerCase(), c]));
+    const rows: DemoEntry[] = [];
+    const rejected: string[] = [];
+    let unknownCategories = 0;
+
+    for (const line of lines) {
+      const parts = line.split(/\s*[|\t]\s*|\s*,\s(?=[^,]*$)/).map((p) => p.trim());
+      const url = parts[0] ?? '';
+      if (!/^https?:\/\//i.test(url)) {
+        rejected.push(line.slice(0, 60));
+        continue;
+      }
+      let name = parts[1] ?? '';
+      if (!name) {
+        try {
+          name = new URL(url).hostname.replace(/^www\./i, '');
+        } catch {
+          name = url;
+        }
+      }
+      const askedFor = parts[2] ?? '';
+      const matched = askedFor ? known.get(askedFor.toLowerCase()) : undefined;
+      if (askedFor && !matched) unknownCategories += 1;
+
+      rows.push({
+        id: crypto.randomUUID(),
+        name,
+        login_url: url,
+        demo_type: 'School',
+        category: matched ?? defaultCategory,
+        login_roles: ROLE_TEMPLATES.School.slice(0, 4).map((roleName) => ({
+          id: crypto.randomUUID(),
+          role_name: roleName,
+          username: `${roleName.toLowerCase().replace(/\s+/g, '_')}_demo`,
+          password: `Demo@${roleName.replace(/\s+/g, '')}123`
+        }))
+      });
+    }
+
+    if (rows.length === 0) {
+      toast.error(t('demo.bulk_creator.no_url_lines'));
+      return;
+    }
+    setDemos((prev) => [...prev, ...rows]);
+    setPasteText('');
+    toast.success(
+      `Imported ${rows.length} demo${rows.length === 1 ? '' : 's'}` +
+        (rejected.length ? ` — ${rejected.length} line(s) had no URL and were skipped` : '') +
+        (unknownCategories ? ` — ${unknownCategories} unknown categor${unknownCategories === 1 ? 'y' : 'ies'} fell back to ${defaultCategory}` : '')
+    );
+  }, [pasteText, categories, defaultCategory, t]);
+
+  /** Files every row under the chosen category, for a batch that all belongs together. */
+  const applyCategoryToAll = useCallback(() => {
+    if (!defaultCategory) {
+      toast.error(t('demo.bulk_creator.choose_category'));
+      return;
+    }
+    setDemos((prev) => prev.map((d) => ({ ...d, category: defaultCategory })));
+    toast.success(`All ${demos.length} demo(s) filed under ${defaultCategory}`);
+  }, [defaultCategory, demos.length, t]);
 
   // Remove demo
   const removeDemo = useCallback((demoId: string) => {
@@ -132,7 +265,7 @@ function BulkDemoCreatorContent() {
     if (!demo) return;
     
     if (demo.login_roles.length >= 9) {
-      toast.error('Maximum 9 login roles per demo');
+      toast.error(t('demo.bulk_creator.max_roles'));
       return;
     }
 
@@ -144,7 +277,7 @@ function BulkDemoCreatorContent() {
     };
 
     updateDemo(demoId, 'login_roles', [...demo.login_roles, newRole]);
-  }, [demos, updateDemo]);
+  }, [demos, updateDemo, t]);
 
   // Remove login role
   const removeLoginRole = useCallback((demoId: string, roleId: string) => {
@@ -152,12 +285,12 @@ function BulkDemoCreatorContent() {
     if (!demo) return;
 
     if (demo.login_roles.length <= 4) {
-      toast.error('Minimum 4 login roles required per demo');
+      toast.error(t('demo.bulk_creator.min_roles'));
       return;
     }
 
     updateDemo(demoId, 'login_roles', demo.login_roles.filter(r => r.id !== roleId));
-  }, [demos, updateDemo]);
+  }, [demos, updateDemo, t]);
 
   // Update login role
   const updateLoginRole = useCallback((demoId: string, roleId: string, field: keyof LoginRole, value: string) => {
@@ -180,11 +313,15 @@ function BulkDemoCreatorContent() {
   const validateDemos = useCallback((): boolean => {
     for (const demo of demos) {
       if (!demo.name.trim()) {
-        toast.error(`Demo name is required for all demos`);
+        toast.error(t('demo.bulk_creator.name_required'));
         return false;
       }
       if (!demo.login_url.trim()) {
         toast.error(`Login URL is required for "${demo.name}"`);
+        return false;
+      }
+      if (!demo.category.trim()) {
+        toast.error(`Category is required for "${demo.name}" — a demo with no category cannot be found in the marketplace`);
         return false;
       }
       if (demo.login_roles.length < 4) {
@@ -199,17 +336,17 @@ function BulkDemoCreatorContent() {
       }
     }
     return true;
-  }, [demos]);
+  }, [demos, t]);
 
   // Bulk create demos
   const bulkCreateDemos = async () => {
     if (!isDemoManager) {
-      toast.error('Only Demo Manager can create demos');
+      toast.error(t('demo.bulk_creator.manager_only'));
       return;
     }
 
     if (demos.length === 0) {
-      toast.error('Add at least one demo');
+      toast.error(t('demo.bulk_creator.add_one'));
       return;
     }
 
@@ -235,7 +372,10 @@ function BulkDemoCreatorContent() {
                 url: demo.login_url,
                 login_url: demo.login_url,
                 demo_type: demo.demo_type,
-                category: demo.demo_type,
+                // The category the operator chose, not the demo type. These are
+                // different things: the type picks the login-role template, the
+                // category is where the marketplace looks for it.
+                category: demo.category,
                 lifecycle_status: 'pending',
                 is_bulk_created: true,
                 status: 'maintenance'
@@ -245,17 +385,18 @@ function BulkDemoCreatorContent() {
 
             if (demoError) throw demoError;
 
-            // Insert login roles
-            const loginRolesData = demo.login_roles.map((role, idx) => ({
+            // Insert login roles into demo_login_credentials (demo_login_roles was never created)
+            const loginRolesData = demo.login_roles.map((role) => ({
               demo_id: demoData.id,
-              role_name: role.role_name,
+              role_type: role.role_name,
               username: role.username,
-              password_encrypted: role.password, // In production, encrypt this
-              display_order: idx + 1
+              password: role.password,
+              login_url: demo.login_url,
+              is_active: true
             }));
 
             const { error: rolesError } = await supabase
-              .from('demo_login_roles')
+              .from('demo_login_credentials')
               .insert(loginRolesData);
 
             if (rolesError) throw rolesError;
@@ -302,6 +443,7 @@ function BulkDemoCreatorContent() {
       name: '',
       login_url: '',
       demo_type: 'School',
+      category: defaultCategory,
       login_roles: ROLE_TEMPLATES.School.slice(0, 4).map(roleName => ({
         id: crypto.randomUUID(),
         role_name: roleName,
@@ -311,7 +453,7 @@ function BulkDemoCreatorContent() {
     }));
     setDemos(prev => [...prev, ...newDemos]);
     toast.success(`Added ${count} demo templates`);
-  }, []);
+  }, [defaultCategory]);
 
   return (
     <div className="space-y-6">
@@ -320,18 +462,80 @@ function BulkDemoCreatorContent() {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
             <FileSpreadsheet className="w-7 h-7 text-primary" />
-            Bulk Demo Creator
+            {t('demo.bulk_creator.title')}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Create thousands of demos with multiple login roles - Demo Manager Only
+            {t('demo.bulk_creator.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge className="bg-primary/20 text-primary">
-            {demos.length} Demos Ready
+            {t('demo.bulk_creator.ready_count', { count: demos.length })}
           </Badge>
         </div>
       </div>
+
+      {/* Paste the list in. Typing twelve thousand URLs is not a way to finish. */}
+      <Card className="bg-card/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Upload className="w-4 h-4 text-primary" />
+            {t('demo.bulk_creator.import_title')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1 min-w-[260px]">
+              <Label className="text-xs">{t('demo.bulk_creator.import_category')}</Label>
+              <Select value={defaultCategory} onValueChange={setDefaultCategory}>
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      categoriesError
+                        ? t('demo.bulk_creator.categories_unloaded')
+                        : categories.length === 0
+                          ? t('demo.bulk_creator.categories_loading')
+                          : t('demo.bulk_creator.select_one_of', { count: categories.length })
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {categories.map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={importPastedUrls} disabled={!pasteText.trim() || !defaultCategory}>
+              <Upload className="w-4 h-4 mr-2" />
+              {t('demo.bulk_creator.import_pasted')}
+            </Button>
+            <Button onClick={applyCategoryToAll} variant="outline" disabled={demos.length === 0 || !defaultCategory}>
+              {t('demo.bulk_creator.apply_all')} {demos.length || ''}
+            </Button>
+          </div>
+
+          <Textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            rows={6}
+            spellCheck={false}
+            placeholder={
+              'One demo per line. The URL is required; a title and a category are optional.\n' +
+              'https://demo.example.com/login\n' +
+              'https://demo.example.com/login | School ERP Demo\n' +
+              'https://demo.example.com/login | School ERP Demo | School Management'
+            }
+            className="font-mono text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            {richText(t('demo.bulk_creator.paste_help'), { pipe: <code>|</code> })}
+            {categoriesError && (
+              <span className="text-destructive"> {t('demo.bulk_creator.categories_failed')} {categoriesError}</span>
+            )}
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Quick Actions */}
       <Card className="bg-card/50">
@@ -339,19 +543,19 @@ function BulkDemoCreatorContent() {
           <div className="flex items-center gap-4 flex-wrap">
             <Button onClick={addDemo} variant="outline">
               <Plus className="w-4 h-4 mr-2" />
-              Add Single Demo
+              {t('demo.bulk_creator.add_single')}
             </Button>
             <Button onClick={() => quickAddDemos(10)} variant="outline">
               <Plus className="w-4 h-4 mr-2" />
-              Add 10 Demos
+              {t('demo.bulk_creator.add_n', { count: 10 })}
             </Button>
             <Button onClick={() => quickAddDemos(50)} variant="outline">
               <Plus className="w-4 h-4 mr-2" />
-              Add 50 Demos
+              {t('demo.bulk_creator.add_n', { count: 50 })}
             </Button>
             <Button onClick={() => quickAddDemos(100)} variant="outline">
               <Plus className="w-4 h-4 mr-2" />
-              Add 100 Demos
+              {t('demo.bulk_creator.add_n', { count: 100 })}
             </Button>
             <div className="ml-auto">
               <Button 
@@ -362,12 +566,12 @@ function BulkDemoCreatorContent() {
                 {isCreating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
+                    {t('demo.bulk_creator.creating')}
                   </>
                 ) : (
                   <>
                     <Save className="w-4 h-4 mr-2" />
-                    Create All ({demos.length}) Demos
+                    {t('demo.bulk_creator.create_all', { count: demos.length })}
                   </>
                 )}
               </Button>
@@ -383,9 +587,9 @@ function BulkDemoCreatorContent() {
             <Card className="bg-card/30 border-dashed">
               <CardContent className="py-12 text-center">
                 <FileSpreadsheet className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No demos added yet</p>
+                <p className="text-muted-foreground">{t('demo.bulk_creator.empty')}</p>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Click "Add Demo" to start creating demos with login roles
+                  {t('demo.bulk_creator.empty_hint')}
                 </p>
               </CardContent>
             </Card>
@@ -398,12 +602,12 @@ function BulkDemoCreatorContent() {
                       #{idx + 1}
                     </div>
                     
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                       {/* Demo Name */}
                       <div className="space-y-1">
-                        <Label className="text-xs">Demo Name *</Label>
+                        <Label className="text-xs">{t('demo.bulk_creator.demo_name')}</Label>
                         <Input
-                          placeholder="Enter demo name"
+                          placeholder={t('demo.bulk_creator.demo_name_placeholder')}
                           value={demo.name}
                           onChange={(e) => updateDemo(demo.id, 'name', e.target.value)}
                         />
@@ -411,17 +615,18 @@ function BulkDemoCreatorContent() {
                       
                       {/* Login URL */}
                       <div className="space-y-1">
-                        <Label className="text-xs">Login URL *</Label>
+                        <Label className="text-xs">{t('demo.bulk_creator.login_url')}</Label>
                         <Input
+                          // i18n-ignore: sample URL
                           placeholder="https://demo.example.com/login"
                           value={demo.login_url}
                           onChange={(e) => updateDemo(demo.id, 'login_url', e.target.value)}
                         />
                       </div>
                       
-                      {/* Demo Type */}
+                      {/* Demo Type — this is what picks the login-role template */}
                       <div className="space-y-1">
-                        <Label className="text-xs">Demo Type *</Label>
+                        <Label className="text-xs">{t('demo.bulk_creator.demo_type')}</Label>
                         <Select
                           value={demo.demo_type}
                           onValueChange={(value) => applyRoleTemplate(demo.id, value)}
@@ -432,6 +637,28 @@ function BulkDemoCreatorContent() {
                           <SelectContent>
                             {DEMO_TYPES.map(type => (
                               <SelectItem key={type} value={type}>{type}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Category — where the marketplace looks for this demo */}
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t('demo.bulk_creator.category')}</Label>
+                        <Select
+                          value={demo.category}
+                          onValueChange={(value) => updateDemo(demo.id, 'category', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                categories.length === 0 ? t('demo.bulk_creator.loading') : t('demo.bulk_creator.select_one_of', { count: categories.length })
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72">
+                            {categories.map(cat => (
+                              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -447,7 +674,7 @@ function BulkDemoCreatorContent() {
                         className="gap-1"
                       >
                         <Users className="w-4 h-4" />
-                        {demo.login_roles.length} Roles
+                        {t('demo.bulk_creator.roles_count', { count: demo.login_roles.length })}
                       </Button>
                       <Button
                         variant="ghost"
@@ -465,16 +692,16 @@ function BulkDemoCreatorContent() {
                     {demo.name && demo.login_url && demo.login_roles.length >= 4 ? (
                       <Badge className="bg-green-500/20 text-green-400 gap-1">
                         <CheckCircle className="w-3 h-3" />
-                        Ready
+                        {t('demo.bulk_creator.ready')}
                       </Badge>
                     ) : (
                       <Badge className="bg-yellow-500/20 text-yellow-400 gap-1">
                         <AlertCircle className="w-3 h-3" />
-                        Incomplete
+                        {t('demo.bulk_creator.incomplete')}
                       </Badge>
                     )}
                     <span className="text-xs text-muted-foreground">
-                      {demo.login_roles.length}/4+ roles • Status: PENDING
+                      {t('demo.bulk_creator.roles_status', { count: demo.login_roles.length })}
                     </span>
                   </div>
                 </CardContent>
@@ -490,7 +717,7 @@ function BulkDemoCreatorContent() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Lock className="w-5 h-5" />
-              Login Roles for "{currentDemo?.name || 'Demo'}"
+              {t('demo.bulk_creator.roles_for', { name: currentDemo?.name || t('demo.bulk_creator.demo_fallback') })}
             </DialogTitle>
           </DialogHeader>
           
@@ -498,7 +725,7 @@ function BulkDemoCreatorContent() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Min 4, Max 9 login roles per demo
+                  {t('demo.bulk_creator.roles_limits')}
                 </p>
                 <Button
                   size="sm"
@@ -507,7 +734,7 @@ function BulkDemoCreatorContent() {
                   disabled={currentDemo.login_roles.length >= 9}
                 >
                   <Plus className="w-4 h-4 mr-1" />
-                  Add Role
+                  {t('demo.bulk_creator.add_role')}
                 </Button>
               </div>
 
@@ -520,19 +747,19 @@ function BulkDemoCreatorContent() {
                         
                         <div className="flex-1 grid grid-cols-3 gap-2">
                           <Input
-                            placeholder="Role Name"
+                            placeholder={t('demo.bulk_creator.role_name')}
                             value={role.role_name}
                             onChange={(e) => updateLoginRole(currentDemo.id, role.id, 'role_name', e.target.value)}
                           />
                           <Input
-                            placeholder="Username"
+                            placeholder={t('demo.bulk_creator.username')}
                             value={role.username}
                             onChange={(e) => updateLoginRole(currentDemo.id, role.id, 'username', e.target.value)}
                           />
                           <div className="relative">
                             <Input
                               type={showPasswords[role.id] ? 'text' : 'password'}
-                              placeholder="Password"
+                              placeholder={t('demo.bulk_creator.password')}
                               value={role.password}
                               onChange={(e) => updateLoginRole(currentDemo.id, role.id, 'password', e.target.value)}
                               className="pr-10"
@@ -570,7 +797,7 @@ function BulkDemoCreatorContent() {
 
               <div className="flex justify-end">
                 <Button onClick={() => setShowRolesDialog(false)}>
-                  Done
+                  {t('demo.bulk_creator.done')}
                 </Button>
               </div>
             </div>

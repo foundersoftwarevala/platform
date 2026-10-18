@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Ticket, User, Clock, AlertTriangle, MessageCircle, Phone, Mail,
@@ -13,10 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { useSystemActions } from '@/hooks/useSystemActions';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  relativeTime, useEscalations, useInsertRow, useTeamMembers, useTickets, useUpdateRow,
+} from '@/hooks/useSalesSupportData';
 
 type TokenStatus = 'open' | 'in_progress' | 'on_hold' | 'closed' | 'breached';
 type TokenPriority = 'low' | 'medium' | 'high' | 'critical';
-type TokenChannel = 'email' | 'chat' | 'call' | 'whatsapp';
+type TokenChannel = 'email' | 'chat' | 'call' | 'whatsapp' | 'portal';
 type EscalationLevel = 'L1' | 'L2' | 'L3' | 'admin';
 
 interface Token {
@@ -34,26 +38,61 @@ interface Token {
   createdAt: string;
 }
 
-const initialTokens: Token[] = [
-  { id: 'TKN-001', ticketId: 'TKT-1247', customerId: 'C001', customerName: 'Tech Solutions Ltd', channel: 'chat', priority: 'critical', slaTimer: 8, assignedAgent: 'Sarah Chen', status: 'in_progress', escalationLevel: 'L2', subject: 'Payment gateway failure', createdAt: '5 min ago' },
-  { id: 'TKN-002', ticketId: 'TKT-1248', customerId: 'C002', customerName: 'Healthcare Plus', channel: 'email', priority: 'high', slaTimer: 25, assignedAgent: 'Mike Johnson', status: 'open', escalationLevel: 'L1', subject: 'Login issues', createdAt: '12 min ago' },
-  { id: 'TKN-003', ticketId: 'TKT-1249', customerId: 'C003', customerName: 'EduLearn Academy', channel: 'call', priority: 'medium', slaTimer: 45, assignedAgent: null, status: 'open', escalationLevel: 'L1', subject: 'Feature request', createdAt: '28 min ago' },
-  { id: 'TKN-004', ticketId: 'TKT-1250', customerId: 'C004', customerName: 'Retail Mart', channel: 'whatsapp', priority: 'high', slaTimer: 5, assignedAgent: 'Lisa Park', status: 'on_hold', escalationLevel: 'L1', subject: 'Invoice discrepancy', createdAt: '45 min ago' },
-  { id: 'TKN-005', ticketId: 'TKT-1251', customerId: 'C005', customerName: 'Global Logistics', channel: 'email', priority: 'low', slaTimer: 120, assignedAgent: 'Emma Davis', status: 'in_progress', escalationLevel: 'L1', subject: 'Data export help', createdAt: '1 hour ago' },
-];
-
-const agents = ['Sarah Chen', 'Mike Johnson', 'Lisa Park', 'Emma Davis', 'James Wilson'];
+/**
+ * A support ticket, as the token board shows it.
+ *
+ * The board carried five invented tokens and five invented agents, and its
+ * buttons changed only the browser's copy while announcing success. It shows
+ * the support tickets now, the support team from the team directory, and each
+ * button changes the ticket (and records an escalation in support_escalations).
+ */
+const STATUS_OF: Record<string, TokenStatus> = {
+  new: 'open', assigned: 'open', open: 'open', in_progress: 'in_progress',
+  waiting: 'on_hold', on_hold: 'on_hold', resolved: 'closed', closed: 'closed',
+};
+const CHANNEL_OF: Record<string, TokenChannel> = { email: 'email', chat: 'chat', phone: 'call', call: 'call', whatsapp: 'whatsapp', portal: 'portal' };
+const LEVELS: EscalationLevel[] = ['L1', 'L2', 'L3', 'admin'];
 
 const TokenSystem = () => {
   const { executeAction } = useSystemActions();
-  const [tokens, setTokens] = useState<Token[]>(initialTokens);
+  const { data: ticketRows } = useTickets();
+  const { data: escalationRows } = useEscalations();
+  const { data: members } = useTeamMembers('support');
+  const updateTicket = useUpdateRow('support_tickets');
+  const insertEscalation = useInsertRow('support_escalations');
+  const agents = (members ?? []).map((m) => m.full_name);
+  const agentId = (name: string) => (members ?? []).find((m) => m.full_name === name)?.id ?? null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const levelOf = (ticketId: string) => ((escalationRows ?? []) as any[])
+    .filter((e) => e.ticket_id === ticketId)
+    .reduce((max, e) => Math.max(max, Number(e.level ?? 0)), 0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tokens: Token[] = ((ticketRows ?? []) as any[]).map((t) => {
+    const open = t.status !== 'resolved' && t.status !== 'closed';
+    return {
+      id: t.id,
+      ticketId: t.reference ?? t.id.slice(0, 8),
+      customerId: t.customer_id ?? '',
+      customerName: t.customer_name ?? '—',
+      channel: CHANNEL_OF[String(t.channel)] ?? 'email',
+      priority: (['low', 'medium', 'high', 'critical'].includes(t.priority) ? t.priority : 'medium') as TokenPriority,
+      slaTimer: t.sla_breached ? 0 : Number(t.sla_minutes_remaining ?? 0),
+      assignedAgent: (members ?? []).find((m) => m.id === t.assigned_to)?.full_name ?? null,
+      status: open && t.sla_breached ? 'breached' : STATUS_OF[String(t.status)] ?? 'open',
+      escalationLevel: LEVELS[Math.min(levelOf(t.id), LEVELS.length - 1)],
+      subject: t.subject ?? '',
+      createdAt: relativeTime(t.created_at),
+    };
+  });
+  const change = (id: string, values: Record<string, unknown>) =>
+    updateTicket.mutateAsync({ id, values: { ...values, updated_at: new Date().toISOString() } });
   const [selectedTokens, setSelectedTokens] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const handleAssign = useCallback(async (tokenId: string, agent: string) => {
-    setTokens(prev => prev.map(t => t.id === tokenId ? { ...t, assignedAgent: agent, status: 'in_progress' } : t));
+  const handleAssign = async (tokenId: string, agent: string) => {
     await executeAction({
       module: 'customer_support',
       action: 'assign',
@@ -61,11 +100,10 @@ const TokenSystem = () => {
       entityId: tokenId,
       entityName: agent,
       successMessage: `Token assigned to ${agent}`
-    });
-  }, [executeAction]);
+    }, () => change(tokenId, { assigned_to: agentId(agent), status: 'in_progress' }));
+  };
 
-  const handleReassign = useCallback(async (tokenId: string, agent: string) => {
-    setTokens(prev => prev.map(t => t.id === tokenId ? { ...t, assignedAgent: agent } : t));
+  const handleReassign = async (tokenId: string, agent: string) => {
     await executeAction({
       module: 'customer_support',
       action: 'reassign',
@@ -73,57 +111,57 @@ const TokenSystem = () => {
       entityId: tokenId,
       entityName: agent,
       successMessage: `Token reassigned to ${agent}`
-    });
-  }, [executeAction]);
+    }, () => change(tokenId, { assigned_to: agentId(agent) }));
+  };
 
-  const handlePause = useCallback(async (tokenId: string) => {
-    setTokens(prev => prev.map(t => t.id === tokenId ? { ...t, status: 'on_hold' } : t));
+  const handlePause = async (tokenId: string) => {
     await executeAction({
       module: 'customer_support',
       action: 'pause',
       entityType: 'token',
       entityId: tokenId,
       successMessage: 'Token paused'
-    });
-  }, [executeAction]);
+    }, () => change(tokenId, { status: 'waiting' }));
+  };
 
-  const handleResume = useCallback(async (tokenId: string) => {
-    setTokens(prev => prev.map(t => t.id === tokenId ? { ...t, status: 'in_progress' } : t));
+  const handleResume = async (tokenId: string) => {
     await executeAction({
       module: 'customer_support',
       action: 'resume',
       entityType: 'token',
       entityId: tokenId,
       successMessage: 'Token resumed'
-    });
-  }, [executeAction]);
+    }, () => change(tokenId, { status: 'in_progress' }));
+  };
 
-  const handleEscalate = useCallback(async (tokenId: string) => {
-    setTokens(prev => prev.map(t => {
-      if (t.id === tokenId) {
-        const levels: EscalationLevel[] = ['L1', 'L2', 'L3', 'admin'];
-        const currentIdx = levels.indexOf(t.escalationLevel);
-        const nextLevel = levels[Math.min(currentIdx + 1, levels.length - 1)];
-        return { ...t, escalationLevel: nextLevel, priority: 'critical' };
-      }
-      return t;
-    }));
+  const handleEscalate = async (tokenId: string) => {
     await executeAction({
       module: 'customer_support',
       action: 'escalate',
       entityType: 'token',
       entityId: tokenId,
       successMessage: 'Token escalated to next level'
+    }, async () => {
+      const token = tokens.find((t) => t.id === tokenId);
+      const { data } = await supabase.auth.getUser();
+      await insertEscalation.mutateAsync({
+        ticket_id: tokenId,
+        reference: token?.ticketId ?? null,
+        reason: 'Escalated from the token board',
+        level: levelOf(tokenId) + 1,
+        status: 'open',
+        raised_by: data.user?.id ?? null,
+      });
+      await change(tokenId, { priority: 'critical' });
     });
-  }, [executeAction]);
+  };
 
-  const handleMerge = useCallback(async () => {
+  const handleMerge = async () => {
     if (selectedTokens.length < 2) {
       toast.warning('Select at least 2 tokens to merge');
       return;
     }
     const primaryToken = selectedTokens[0];
-    setTokens(prev => prev.filter(t => !selectedTokens.slice(1).includes(t.id)));
     setSelectedTokens([]);
     await executeAction({
       module: 'customer_support',
@@ -131,11 +169,17 @@ const TokenSystem = () => {
       entityType: 'tokens',
       entityId: primaryToken,
       successMessage: `${selectedTokens.length} tokens merged`
+    }, async () => {
+      // Tickets have no merge column; the duplicates are closed and say where
+      // they went, and the first one stays open.
+      const primary = tokens.find((t) => t.id === primaryToken);
+      for (const id of selectedTokens.slice(1)) {
+        await change(id, { status: 'closed', resolved_at: new Date().toISOString(), description: `Merged into ${primary?.ticketId ?? primaryToken}.` });
+      }
     });
-  }, [selectedTokens, executeAction]);
+  };
 
-  const handleClose = useCallback(async (tokenId: string) => {
-    setTokens(prev => prev.map(t => t.id === tokenId ? { ...t, status: 'closed' } : t));
+  const handleClose = async (tokenId: string) => {
     await executeAction({
       module: 'customer_support',
       action: 'update',
@@ -143,11 +187,10 @@ const TokenSystem = () => {
       entityId: tokenId,
       data: { status: 'closed' },
       successMessage: 'Token closed'
-    });
-  }, [executeAction]);
+    }, () => change(tokenId, { status: 'closed', resolved_at: new Date().toISOString() }));
+  };
 
-  const handleReopen = useCallback(async (tokenId: string) => {
-    setTokens(prev => prev.map(t => t.id === tokenId ? { ...t, status: 'open', slaTimer: 60 } : t));
+  const handleReopen = async (tokenId: string) => {
     await executeAction({
       module: 'customer_support',
       action: 'update',
@@ -155,8 +198,8 @@ const TokenSystem = () => {
       entityId: tokenId,
       data: { status: 'open' },
       successMessage: 'Token reopened'
-    });
-  }, [executeAction]);
+    }, () => change(tokenId, { status: 'new', resolved_at: null }));
+  };
 
   const getChannelIcon = (channel: TokenChannel) => {
     switch (channel) {
@@ -164,6 +207,7 @@ const TokenSystem = () => {
       case 'chat': return <MessageCircle className="w-4 h-4 text-emerald-400" />;
       case 'call': return <Phone className="w-4 h-4 text-amber-400" />;
       case 'whatsapp': return <MessageCircle className="w-4 h-4 text-green-400" />;
+      case 'portal': return <Hash className="w-4 h-4 text-sky-400" />;
     }
   };
 

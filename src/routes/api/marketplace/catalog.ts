@@ -8,6 +8,7 @@ import {
   readCountryRow,
 } from "@/lib/marketplace/catalog.server";
 import { SingleFlightCache } from "@/lib/server/single-flight-cache";
+import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
 
 /**
  * The marketplace catalogue, a page at a time, for the home page as the
@@ -28,6 +29,8 @@ import { SingleFlightCache } from "@/lib/server/single-flight-cache";
 // A minute, and each key built once however many visitors ask at the same
 // moment (src/lib/server/single-flight-cache.ts).
 const cache = new SingleFlightCache<unknown>(60_000);
+// Emptied by a Manager write to the catalogue (catalogue-invalidation.ts).
+onCatalogueChange(() => cache.clear());
 
 class UnknownCategory extends Error {}
 
@@ -49,20 +52,21 @@ export const Route = createFileRoute("/api/marketplace/catalog")({
 
         const params = new URL(request.url).searchParams;
         const category = (params.get("category") ?? "").trim();
-        const offset = Math.max(Number(params.get("offset") ?? 0) || 0, 0);
-        const perRow = Math.min(Math.max(Number(params.get("perRow") ?? 12) || 12, 1), 60);
-        const rowCount = Math.min(Math.max(Number(params.get("rows") ?? 8) || 8, 1), 30);
-        const rowOffset = Math.max(Number(params.get("rowOffset") ?? 0) || 0, 0);
+        // Whole numbers only: offset=1.5&limit=2.7 used to return an empty page
+        // that still said there was more.
+        const whole = (name: string, fallback: number) =>
+          Math.trunc(Number(params.get(name) ?? fallback)) || fallback;
+        const offset = Math.max(whole("offset", 0), 0);
+        const perRow = Math.min(Math.max(whole("perRow", 12), 1), 60);
+        const rowCount = Math.min(Math.max(whole("rows", 8), 1), 30);
+        const rowOffset = Math.max(whole("rowOffset", 0), 0);
         // A row asked for at twelve and again at sixty is two different
         // answers, so the limit is part of the cache key.
         // A country row is as long as the country list, which grows; every
         // other read keeps the sixty it has always had.
         const order = params.get("order") === "country" ? "country" : "catalogue";
         const ceiling = order === "country" ? 400 : 60;
-        const limit = Math.min(
-          Math.max(Number(params.get("limit") ?? perRow) || perRow, 1),
-          ceiling,
-        );
+        const limit = Math.min(Math.max(whole("limit", perRow), 1), ceiling);
         const key = `${category}|${offset}|${perRow}|${limit}|${rowCount}|${rowOffset}|${order}`;
         try {
           const payload = await cache.get(key, async () => {

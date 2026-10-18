@@ -337,6 +337,13 @@
   scroll-snap-align: start;
 }
 
+/* The country cards' empty observer anchor. As a grid item it took a whole
+   card-wide column, leaving a blank slot in the rail; out of flow it takes none. */
+.mpc-home .sv-product-rail > span[aria-hidden="true"]:empty {
+  position: absolute;
+  scroll-snap-align: none;
+}
+
 .mpc-home .sv-product-placeholder {
   width: min(300px, 82vw);
   height: 430px;
@@ -437,6 +444,19 @@
   font-size: 12px;
   font-weight: 800;
   animation: sv-login-breathe 2.4s ease-in-out infinite;
+}
+
+/* On a touch screen it has to be reachable, and it has to stay the larger one.
+   The strip's other pills grow to 44px on a coarse pointer; this one kept its
+   fixed 28px and so became the smallest control in the bar — the opposite of
+   what the rule above intends, and under the 44px both Apple and WCAG ask for.
+   Only the height changes; the gradient, border and breathing animation that
+   make it the primary action are untouched. */
+@media (pointer: coarse) {
+  .feature-clone .tb-pill.sv-login-cta {
+    height: auto;
+    min-height: 44px;
+  }
 }
 .feature-clone .tb-pill.sv-login-cta:hover {
   color: #fff !important;

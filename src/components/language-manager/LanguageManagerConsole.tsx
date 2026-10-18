@@ -10,11 +10,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
 import { pluralCategories } from "@/lib/i18n/format";
-import { useTranslation, type Translate } from "@/lib/i18n/use-translation";
 import { allMessages } from "@/lib/i18n/messages";
 import { SUPPORTED_LANGUAGE_COUNT } from "@/lib/i18n/registry";
+import { useTranslation } from "@/lib/i18n/use-translation";
+import { LANGUAGE_SESSION_CHANGE_EVENT } from "@/lib/i18n/session-contract";
+import type { CallerTier } from "@/lib/i18n/limits";
 
 /**
  * Language Manager.
@@ -97,47 +98,42 @@ type GlossaryRow = {
   namespace: string | null;
 };
 
+/** A refusal from /api/i18n/admin, with the HTTP status it came with. */
+class AdminRequestError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+const isAccessError = (error: unknown) =>
+  error instanceof AdminRequestError && (error.status === 401 || error.status === 403);
+
+/** Retrying a refusal only delays the message by several seconds; retry anything else. */
+const retryUnlessRefused = (failures: number, error: unknown) =>
+  !isAccessError(error) && failures < 3;
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
   const response = await fetch(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
   const body = (await response.json().catch(() => ({}))) as T & { error?: string };
-  if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
+  if (!response.ok) {
+    throw new AdminRequestError(
+      body.error ?? `Request failed (${response.status})`,
+      response.status,
+    );
+  }
   return body;
 }
 
 const act = (body: unknown) =>
   call<Record<string, unknown>>("/api/i18n/admin", { method: "POST", body: JSON.stringify(body) });
-
-type FailedJob = {
-  id: string;
-  source_text: string;
-  target_language: string;
-  namespace: string;
-  attempts: number;
-  last_error: string | null;
-  updated_at: string;
-};
-
-/** Rows on one page of the review queue (the API's default). */
-const REVIEW_PAGE = 50;
-/** Short strings the engine finishes per second in quality mode (README, measured). */
-const ENGINE_STRINGS_PER_SECOND = 0.5;
-
-/** An action's answer, readable: "queued 120 · languages 3". */
-function summarize(data: Record<string, unknown>, t: Translate): string {
-  const parts = Object.entries(data)
-    .filter(([, value]) => typeof value === "number" || typeof value === "string")
-    .map(([key, value]) => `${key.replace(/_/g, " ")} ${value}`);
-  return parts.length ? parts.join(" · ") : t("languages.done");
-}
 
 function Stat({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
   return (
@@ -151,42 +147,73 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 export function LanguageManagerConsole() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const nativeSession = useQuery({
+    queryKey: ["i18n-session"],
+    queryFn: () => call<{ authenticated: boolean; tier: CallerTier }>("/api/i18n/session"),
+    refetchInterval: 60_000,
+  });
   const [reviewLanguage, setReviewLanguage] = useState("");
   const [reviewStatus, setReviewStatus] = useState("needs_review");
   const [edits, setEdits] = useState<Record<string, string>>({});
-  const [reviewPage, setReviewPage] = useState(0);
-  const [confirmAll, setConfirmAll] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const nativeSignIn = useMutation({
+    mutationFn: () =>
+      call("/api/i18n/session", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      }),
+    onSuccess: () => {
+      setPassword("");
+      window.dispatchEvent(new Event(LANGUAGE_SESSION_CHANGE_EVENT));
+      void queryClient.resetQueries({
+        predicate: (query) => String(query.queryKey[0]).startsWith("i18n-"),
+      });
+    },
+  });
+  const nativeSignOut = useMutation({
+    mutationFn: () => call("/api/i18n/session", { method: "DELETE" }),
+    onSuccess: () => {
+      setEdits({});
+      setPassword("");
+      window.dispatchEvent(new Event(LANGUAGE_SESSION_CHANGE_EVENT));
+      void queryClient.resetQueries({
+        predicate: (query) => String(query.queryKey[0]).startsWith("i18n-"),
+      });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const overview = useQuery({
     queryKey: ["i18n-overview"],
     queryFn: () => call<Overview>("/api/i18n/admin?view=overview"),
-    refetchInterval: 30_000,
+    refetchInterval: (query) => (isAccessError(query.state.error) ? false : 30_000),
+    retry: retryUnlessRefused,
   });
+  const refused = isAccessError(overview.error);
 
   const review = useQuery({
-    queryKey: ["i18n-review", reviewLanguage, reviewStatus, reviewPage],
+    queryKey: ["i18n-review", reviewLanguage, reviewStatus],
     queryFn: () =>
       call<{ rows: ReviewRow[]; total: number }>(
-        `/api/i18n/admin?view=review&status=${reviewStatus}&limit=${REVIEW_PAGE}&offset=${reviewPage * REVIEW_PAGE}${reviewLanguage ? `&language=${encodeURIComponent(reviewLanguage)}` : ""}`,
+        `/api/i18n/admin?view=review&status=${reviewStatus}${reviewLanguage ? `&language=${reviewLanguage}` : ""}`,
       ),
-  });
-
-  const failed = useQuery({
-    queryKey: ["i18n-failed-jobs"],
-    queryFn: () => call<{ rows: FailedJob[]; total: number }>("/api/i18n/admin?view=failed_jobs"),
+    retry: retryUnlessRefused,
+    enabled: !refused,
   });
 
   const glossary = useQuery({
     queryKey: ["i18n-glossary"],
     queryFn: () => call<{ terms: GlossaryRow[] }>("/api/i18n/admin?view=glossary"),
+    retry: retryUnlessRefused,
+    enabled: !refused,
   });
 
   const run = useMutation({
     mutationFn: act,
     onSuccess: (data) => {
-      toast.success(summarize(data, t));
+      toast.success(`Done: ${JSON.stringify(data)}`);
       void queryClient.invalidateQueries({ queryKey: ["i18n-overview"] });
-      void queryClient.invalidateQueries({ queryKey: ["i18n-failed-jobs"] });
       void queryClient.invalidateQueries({ queryKey: ["i18n-review"] });
       void queryClient.invalidateQueries({ queryKey: ["i18n-glossary"] });
     },
@@ -210,9 +237,6 @@ export function LanguageManagerConsole() {
     acc[row.status] = (acc[row.status] ?? 0) + Number(row.jobs);
     return acc;
   }, {});
-  const translatableCount = languages.filter((l) => l.translatable && l.enabled).length;
-  const catalogueJobs = (overview.data?.catalogueSize ?? 0) * translatableCount;
-  const catalogueHours = Math.round(catalogueJobs / ENGINE_STRINGS_PER_SECOND / 3600);
   const withMemory = languages.filter(
     (l) => (l.memory?.verified ?? 0) + (l.memory?.machine ?? 0) > 0,
   ).length;
@@ -228,6 +252,15 @@ export function LanguageManagerConsole() {
           </p>
         </div>
         <div className="flex gap-2">
+          {nativeSession.data?.authenticated && (
+            <Button
+              variant="outline"
+              onClick={() => nativeSignOut.mutate()}
+              disabled={nativeSignOut.isPending}
+            >
+              {t("common.language_sign_out")}
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => overview.refetch()}
@@ -244,503 +277,456 @@ export function LanguageManagerConsole() {
         </div>
       </header>
 
-      {overview.error && (
-        <Card className="border-destructive p-3 text-sm">{(overview.error as Error).message}</Card>
+      {nativeSession.data?.authenticated && nativeSession.data?.tier === "user" && (
+        <Card className="p-3 text-sm" role="status">
+          {t("common.language_native_user_session")}
+        </Card>
       )}
-      {overview.data?.errors?.length ? (
+      {Boolean(overview.error) && (
+        <Card className="border-destructive p-3 text-sm" role="alert">
+          {refused
+            ? t("common.language_manager_refused", { reason: (overview.error as Error).message })
+            : (overview.error as Error).message}
+        </Card>
+      )}
+      {refused && (
+        <Card className="space-y-3 p-4">
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              nativeSignIn.mutate();
+            }}
+          >
+            <p>{t("common.language_native_note")}</p>
+            <label className="block space-y-1">
+              <span>{t("common.language_native_email")}</span>
+              <Input
+                type="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span>{t("common.language_native_password")}</span>
+              <Input
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+            <Button type="submit" disabled={nativeSignIn.isPending}>
+              {t("common.language_native_sign_in")}
+            </Button>
+            {nativeSignIn.error && <p role="alert">{nativeSignIn.error.message}</p>}
+          </form>
+        </Card>
+      )}
+      {!refused && overview.data?.errors?.length ? (
         <Card className="border-amber-500/50 p-3 text-xs">
           Database reported: {overview.data.errors.join("; ")}
         </Card>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-        <Stat label="Languages" value={languages.length} />
-        <Stat label="With memory" value={withMemory} />
-        <Stat label="Catalogue strings" value={overview.data?.catalogueSize ?? "—"} />
-        <Stat label="Glossary terms" value={overview.data?.glossaryTerms ?? "—"} />
-        <Stat label="Queued jobs" value={jobTotals.queued ?? 0} />
-        <Stat
-          label="Engine"
-          value={engine.ready ? "ready" : engine.configured ? "not ready" : "not configured"}
-          tone={engine.ready ? "text-emerald-500" : "text-amber-500"}
-        />
-      </div>
-
-      <Tabs defaultValue="languages">
-        <TabsList>
-          <TabsTrigger value="languages">Languages</TabsTrigger>
-          <TabsTrigger value="review">
-            Review {review.data?.total ? `(${review.data.total})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="glossary">Glossary</TabsTrigger>
-          <TabsTrigger value="engine">Engine &amp; jobs</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="languages" className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {confirmAll ? (
-              <>
-                <span className="text-sm">
-                  {t("languages.pretranslate_confirm", {
-                    count: catalogueJobs.toLocaleString(),
-                    hours: catalogueHours,
-                  })}
-                </span>
-                <Button
-                  onClick={() => {
-                    setConfirmAll(false);
-                    run.mutate({ action: "enqueue_catalogue", languages: "all", refresh: false });
-                  }}
-                  disabled={run.isPending}
-                >
-                  {t("languages.queue_them")}
-                </Button>
-                <Button variant="ghost" onClick={() => setConfirmAll(false)}>
-                  {t("languages.cancel")}
-                </Button>
-              </>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => setConfirmAll(true)}
-                disabled={run.isPending}
-              >
-                {t("languages.pretranslate_all")}
-              </Button>
-            )}
-          </div>
-          <Card className="overflow-hidden">
-            <ScrollArea className="h-[60vh]">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-muted/80 text-left text-xs uppercase tracking-wide">
-                  <tr>
-                    <th className="p-2">Code</th>
-                    <th className="p-2">Language</th>
-                    <th className="p-2">Script</th>
-                    <th className="p-2">Dir</th>
-                    <th className="p-2">Plural</th>
-                    <th className="p-2">Status</th>
-                    <th className="p-2 text-right">Dictionary</th>
-                    <th className="p-2 text-right">Verified</th>
-                    <th className="p-2 text-right">Machine</th>
-                    <th className="p-2 text-right">Review</th>
-                    <th className="p-2">Enabled</th>
-                    <th className="p-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {languages.map((language) => (
-                    <tr key={language.code} className="border-t border-border/60">
-                      <td className="p-2 font-mono text-xs" data-no-translate>
-                        {language.code}
-                      </td>
-                      <td className="p-2" data-no-translate>
-                        {language.name}{" "}
-                        <span className="text-muted-foreground">{language.nativeName}</span>
-                      </td>
-                      <td className="p-2 text-xs">{language.script}</td>
-                      <td className="p-2 text-xs uppercase">{language.direction}</td>
-                      <td className="p-2 text-xs">{pluralCategories(language.code).join("/")}</td>
-                      <td className="p-2">
-                        <Badge variant="outline">{language.translationStatus}</Badge>
-                      </td>
-                      <td className="p-2 text-right tabular-nums">
-                        {language.dictionaryEntries || "—"}
-                      </td>
-                      <td className="p-2 text-right tabular-nums">
-                        {language.memory?.verified ?? 0}
-                      </td>
-                      <td className="p-2 text-right tabular-nums">
-                        {language.memory?.machine ?? 0}
-                      </td>
-                      <td className="p-2 text-right tabular-nums">
-                        {language.memory?.needs_review ?? 0}
-                      </td>
-                      <td className="p-2">
-                        <Switch
-                          checked={language.enabled}
-                          disabled={language.code === "en" || run.isPending}
-                          onCheckedChange={(enabled) =>
-                            run.mutate({
-                              action: "set_language_enabled",
-                              code: language.code,
-                              enabled,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="p-2 text-right">
-                        {language.translatable && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              run.mutate({
-                                action: "enqueue_catalogue",
-                                languages: [language.code],
-                              })
-                            }
-                            disabled={run.isPending}
-                          >
-                            Pre-translate
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </ScrollArea>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="review" className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              placeholder="Language code (e.g. hi)"
-              value={reviewLanguage}
-              onChange={(event) => {
-                setReviewLanguage(event.target.value.trim());
-                setReviewPage(0);
-              }}
-              className="w-56"
+      {!refused && (
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+            <Stat label="Languages" value={overview.data ? languages.length : "—"} />
+            <Stat label="With memory" value={overview.data ? withMemory : "—"} />
+            <Stat label="Catalogue strings" value={overview.data?.catalogueSize ?? "—"} />
+            <Stat label="Glossary terms" value={overview.data?.glossaryTerms ?? "—"} />
+            <Stat label="Queued jobs" value={overview.data ? (jobTotals.queued ?? 0) : "—"} />
+            <Stat
+              label="Engine"
+              value={
+                !overview.data
+                  ? "—"
+                  : engine.ready
+                    ? "ready"
+                    : engine.configured
+                      ? "not ready"
+                      : "not configured"
+              }
+              tone={engine.ready ? "text-emerald-500" : "text-amber-500"}
             />
-            {["needs_review", "machine", "verified", "rejected"].map((status) => (
-              <Button
-                key={status}
-                size="sm"
-                variant={reviewStatus === status ? "default" : "outline"}
-                onClick={() => {
-                  setReviewStatus(status);
-                  setReviewPage(0);
-                }}
-              >
-                {status.replace("_", " ")}
-              </Button>
-            ))}
           </div>
-          {review.error && (
-            <Card className="border-destructive p-3 text-sm">
-              {(review.error as Error).message}
-            </Card>
-          )}
-          <div className="space-y-3">
-            {(review.data?.rows ?? []).map((row) => (
-              <Card key={row.id} className="space-y-2 p-3">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <Badge variant="outline">{row.target_language}</Badge>
-                  <Badge variant="outline">{row.status}</Badge>
-                  <span>quality {row.quality_score ?? "—"}</span>
-                  <span>v{row.version}</span>
-                  <span>{row.engine ?? "—"}</span>
-                  <span>{row.namespace}</span>
-                  {row.context && <span>context: {row.context}</span>}
-                  <span>origin: {originOf(row)}</span>
-                  {row.quality_flags?.length ? (
-                    <span className="text-amber-500">{row.quality_flags.join(", ")}</span>
-                  ) : null}
-                </div>
-                <div className="text-sm" data-no-translate>
-                  {row.source_text}
-                </div>
-                {descriptionOf(row) && (
-                  <div className="text-xs text-muted-foreground" data-no-translate>
-                    {descriptionOf(row)}
-                  </div>
-                )}
-                <Textarea
-                  value={edits[row.id] ?? row.translated_text}
-                  onChange={(event) =>
-                    setEdits((prev) => ({ ...prev, [row.id]: event.target.value }))
-                  }
-                  rows={2}
-                />
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      run.mutate({
-                        action: "review",
-                        id: row.id,
-                        decision: "verify",
-                        ...(edits[row.id] && edits[row.id] !== row.translated_text
-                          ? { text: edits[row.id] }
-                          : {}),
-                      })
-                    }
-                    disabled={run.isPending}
-                  >
-                    Verify
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => run.mutate({ action: "review", id: row.id, decision: "reject" })}
-                    disabled={run.isPending}
-                  >
-                    Reject
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => run.mutate({ action: "review", id: row.id, decision: "reopen" })}
-                    disabled={run.isPending}
-                  >
-                    Reopen
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    title="Mark it stale and translate it again (not for verified rows)"
-                    onClick={() =>
-                      run.mutate({ action: "review", id: row.id, decision: "retranslate" })
-                    }
-                    disabled={run.isPending || row.status === "verified"}
-                  >
-                    Re-translate
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    title="Approve and make it this language's required term wherever the English appears"
-                    onClick={() =>
-                      run.mutate({
-                        action: "review",
-                        id: row.id,
-                        decision: "lock",
-                        ...(edits[row.id] && edits[row.id] !== row.translated_text
-                          ? { text: edits[row.id] }
-                          : {}),
-                      })
-                    }
-                    disabled={run.isPending || row.source_text.length > 200}
-                  >
-                    Lock
-                  </Button>
-                </div>
-              </Card>
-            ))}
-            {review.data && review.data.rows.length === 0 && (
-              <Card className="p-4 text-sm text-muted-foreground">
-                Nothing waiting with this status.
-              </Card>
-            )}
-          </div>
-          {review.data && review.data.total > REVIEW_PAGE && (
-            <div className="flex items-center gap-2 text-sm">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setReviewPage((page) => Math.max(0, page - 1))}
-                disabled={reviewPage === 0 || review.isFetching}
-              >
-                {t("common.previous")}
-              </Button>
-              <span className="tabular-nums text-muted-foreground">
-                {t("languages.page_range", {
-                  from: reviewPage * REVIEW_PAGE + 1,
-                  to: Math.min((reviewPage + 1) * REVIEW_PAGE, review.data.total),
-                  total: review.data.total,
-                })}
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setReviewPage((page) => page + 1)}
-                disabled={(reviewPage + 1) * REVIEW_PAGE >= review.data.total || review.isFetching}
-              >
-                {t("common.next")}
-              </Button>
-            </div>
-          )}
-        </TabsContent>
 
-        <TabsContent value="glossary" className="space-y-3">
-          <GlossaryForm
-            onSave={(term) => run.mutate({ action: "glossary_save", term })}
-            busy={run.isPending}
-          />
-          <Card className="overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/80 text-left text-xs uppercase tracking-wide">
-                <tr>
-                  <th className="p-2">Term</th>
-                  <th className="p-2">Rendering</th>
-                  <th className="p-2">Language</th>
-                  <th className="p-2">Rule</th>
-                  <th className="p-2">Status</th>
-                  <th className="p-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {(glossary.data?.terms ?? []).map((term) => (
-                  <tr key={term.id} className="border-t border-border/60">
-                    <td className="p-2">{term.source_term}</td>
-                    <td className="p-2">
-                      {term.target_term ?? (
-                        <span className="text-muted-foreground">kept as is</span>
-                      )}
-                    </td>
-                    <td className="p-2 font-mono text-xs">{term.target_language ?? "all"}</td>
-                    <td className="p-2">{term.rule}</td>
-                    <td className="p-2">
-                      <Badge variant="outline">{term.status}</Badge>
-                    </td>
-                    <td className="p-2 text-right">
-                      {term.status !== "approved" ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() =>
-                            run.mutate({
-                              action: "glossary_save",
-                              term: { ...term, status: "approved" },
-                            })
-                          }
-                          disabled={run.isPending}
-                        >
-                          Approve
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() =>
-                            run.mutate({
-                              action: "glossary_save",
-                              term: { ...term, status: "deprecated" },
-                            })
-                          }
-                          disabled={run.isPending}
-                        >
-                          Deprecate
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        </TabsContent>
+          <Tabs defaultValue="languages">
+            <TabsList>
+              <TabsTrigger value="languages">Languages</TabsTrigger>
+              <TabsTrigger value="review">
+                Review {review.data?.total ? `(${review.data.total})` : ""}
+              </TabsTrigger>
+              <TabsTrigger value="glossary">Glossary</TabsTrigger>
+              <TabsTrigger value="engine">Engine &amp; jobs</TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="engine" className="space-y-3">
-          <Card className="space-y-2 p-4 text-sm">
-            <div className="font-semibold">Providers</div>
-            {(engine.providers ?? []).map((provider) => (
-              <div key={provider.id} className="flex items-center gap-2">
-                <Badge variant={provider.kind === "owned" ? "default" : "outline"}>
-                  {provider.kind}
-                </Badge>
-                <span className="font-mono text-xs">{provider.id}</span>
-                <span className="text-muted-foreground">
-                  {provider.usable
-                    ? "in use"
-                    : provider.configured
-                      ? "configured, not used"
-                      : "not configured"}
-                </span>
-              </div>
-            ))}
-            <div className="pt-2 font-semibold">Engine</div>
-            <pre className="max-h-64 overflow-auto rounded bg-muted p-2 text-xs" data-no-translate>
-              {JSON.stringify(engine.status ?? engine, null, 1)}
-            </pre>
-          </Card>
-          <Card className="space-y-2 p-4 text-sm">
-            <div className="font-semibold">Job queue</div>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(jobTotals).map(([status, count]) => (
-                <Badge key={status} variant="outline">
-                  {status}: {count}
-                </Badge>
-              ))}
-              {jobs.length === 0 && (
-                <span className="text-muted-foreground">The queue is empty.</span>
-              )}
-            </div>
-            <ScrollArea className="max-h-48">
-              <table className="w-full text-xs">
-                <tbody>
-                  {jobs.map((row) => (
-                    <tr
-                      key={`${row.status}-${row.target_language}`}
-                      className="border-t border-border/60"
-                    >
-                      <td className="p-1 font-mono">{row.target_language}</td>
-                      <td className="p-1">{row.status}</td>
-                      <td className="p-1 text-right tabular-nums">{row.jobs}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </ScrollArea>
-          </Card>
-          <Card className="space-y-2 p-4 text-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="font-semibold">
-                {t("languages.failed_jobs")} {failed.data?.total ? `(${failed.data.total})` : ""}
-              </div>
+            <TabsContent value="languages" className="space-y-3">
               <div className="flex flex-wrap gap-2">
                 <Button
-                  size="sm"
                   variant="outline"
-                  onClick={() => run.mutate({ action: "sync_messages" })}
+                  onClick={() =>
+                    run.mutate({ action: "enqueue_catalogue", languages: "all", refresh: false })
+                  }
                   disabled={run.isPending}
                 >
-                  {t("languages.sync_messages")}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => run.mutate({ action: "requeue_failed", error_prefix: null })}
-                  disabled={run.isPending || !failed.data?.total}
-                >
-                  {t("languages.requeue_failed")}
+                  Pre-translate the catalogue into every language
                 </Button>
               </div>
-            </div>
-            <p className="text-xs text-muted-foreground">{t("languages.failed_help")}</p>
-            {failed.error && (
-              <div className="text-destructive">{(failed.error as Error).message}</div>
-            )}
-            {failed.data && failed.data.rows.length === 0 && (
-              <span className="text-muted-foreground">{t("languages.no_failed_jobs")}</span>
-            )}
-            {failed.data && failed.data.rows.length > 0 && (
-              <ScrollArea className="max-h-64">
-                <table className="w-full text-xs">
-                  <thead className="text-left text-muted-foreground">
+              <p className="text-xs text-muted-foreground" role="note">
+                {t("common.language_change_delay")}
+              </p>
+              <Card className="overflow-hidden">
+                <ScrollArea className="h-[60vh]">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-muted/80 text-left text-xs uppercase tracking-wide">
+                      <tr>
+                        <th className="p-2">Code</th>
+                        <th className="p-2">Language</th>
+                        <th className="p-2">Script</th>
+                        <th className="p-2">Dir</th>
+                        <th className="p-2">Plural</th>
+                        <th className="p-2">Status</th>
+                        <th className="p-2 text-right">Dictionary</th>
+                        <th className="p-2 text-right">Verified</th>
+                        <th className="p-2 text-right">Machine</th>
+                        <th className="p-2 text-right">Review</th>
+                        <th className="p-2">Enabled</th>
+                        <th className="p-2" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {languages.map((language) => (
+                        <tr key={language.code} className="border-t border-border/60">
+                          <td className="p-2 font-mono text-xs" data-no-translate>
+                            {language.code}
+                          </td>
+                          <td className="p-2" data-no-translate>
+                            {language.name}{" "}
+                            <span className="text-muted-foreground">{language.nativeName}</span>
+                          </td>
+                          <td className="p-2 text-xs">{language.script}</td>
+                          <td className="p-2 text-xs uppercase">{language.direction}</td>
+                          <td className="p-2 text-xs">
+                            {pluralCategories(language.code).join("/")}
+                          </td>
+                          <td className="p-2">
+                            <Badge variant="outline">{language.translationStatus}</Badge>
+                          </td>
+                          <td className="p-2 text-right tabular-nums">
+                            {language.dictionaryEntries || "—"}
+                          </td>
+                          <td className="p-2 text-right tabular-nums">
+                            {language.memory?.verified ?? 0}
+                          </td>
+                          <td className="p-2 text-right tabular-nums">
+                            {language.memory?.machine ?? 0}
+                          </td>
+                          <td className="p-2 text-right tabular-nums">
+                            {language.memory?.needs_review ?? 0}
+                          </td>
+                          <td className="p-2">
+                            <Switch
+                              checked={language.enabled}
+                              disabled={language.code === "en" || run.isPending}
+                              onCheckedChange={(enabled) =>
+                                run.mutate({
+                                  action: "set_language_enabled",
+                                  code: language.code,
+                                  enabled,
+                                })
+                              }
+                            />
+                          </td>
+                          <td className="p-2 text-right">
+                            {language.translatable && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  run.mutate({
+                                    action: "enqueue_catalogue",
+                                    languages: [language.code],
+                                  })
+                                }
+                                disabled={run.isPending}
+                              >
+                                Pre-translate
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </ScrollArea>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="review" className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  placeholder="Language code (e.g. hi)"
+                  value={reviewLanguage}
+                  onChange={(event) => setReviewLanguage(event.target.value.trim())}
+                  className="w-56"
+                />
+                {["needs_review", "machine", "verified", "rejected"].map((status) => (
+                  <Button
+                    key={status}
+                    size="sm"
+                    variant={reviewStatus === status ? "default" : "outline"}
+                    onClick={() => setReviewStatus(status)}
+                  >
+                    {status.replace("_", " ")}
+                  </Button>
+                ))}
+              </div>
+              {Boolean(review.error) && (
+                <Card className="border-destructive p-3 text-sm">
+                  {(review.error as Error).message}
+                </Card>
+              )}
+              <div className="space-y-3">
+                {(review.data?.rows ?? []).map((row) => (
+                  <Card key={row.id} className="space-y-2 p-3">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline">{row.target_language}</Badge>
+                      <Badge variant="outline">{row.status}</Badge>
+                      <span>quality {row.quality_score ?? "—"}</span>
+                      <span>v{row.version}</span>
+                      <span>{row.engine ?? "—"}</span>
+                      <span>{row.namespace}</span>
+                      {row.context && <span>context: {row.context}</span>}
+                      <span>origin: {originOf(row)}</span>
+                      {row.quality_flags?.length ? (
+                        <span className="text-amber-500">{row.quality_flags.join(", ")}</span>
+                      ) : null}
+                    </div>
+                    <div className="text-sm" data-no-translate>
+                      {row.source_text}
+                    </div>
+                    {descriptionOf(row) && (
+                      <div className="text-xs text-muted-foreground" data-no-translate>
+                        {descriptionOf(row)}
+                      </div>
+                    )}
+                    <Textarea
+                      value={edits[row.id] ?? row.translated_text}
+                      onChange={(event) =>
+                        setEdits((prev) => ({ ...prev, [row.id]: event.target.value }))
+                      }
+                      rows={2}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          run.mutate({
+                            action: "review",
+                            id: row.id,
+                            decision: "verify",
+                            ...(edits[row.id] && edits[row.id] !== row.translated_text
+                              ? { text: edits[row.id] }
+                              : {}),
+                          })
+                        }
+                        disabled={run.isPending}
+                      >
+                        Verify
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          run.mutate({ action: "review", id: row.id, decision: "reject" })
+                        }
+                        disabled={run.isPending}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          run.mutate({ action: "review", id: row.id, decision: "reopen" })
+                        }
+                        disabled={run.isPending}
+                      >
+                        Reopen
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        title="Mark it stale and translate it again (not for verified rows)"
+                        onClick={() =>
+                          run.mutate({ action: "review", id: row.id, decision: "retranslate" })
+                        }
+                        disabled={run.isPending || row.status === "verified"}
+                      >
+                        Re-translate
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Approve and make it this language's required term wherever the English appears"
+                        onClick={() =>
+                          run.mutate({
+                            action: "review",
+                            id: row.id,
+                            decision: "lock",
+                            ...(edits[row.id] && edits[row.id] !== row.translated_text
+                              ? { text: edits[row.id] }
+                              : {}),
+                          })
+                        }
+                        disabled={run.isPending || row.source_text.length > 200}
+                      >
+                        Lock
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+                {review.data && review.data.rows.length === 0 && (
+                  <Card className="p-4 text-sm text-muted-foreground">
+                    Nothing waiting with this status.
+                  </Card>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="glossary" className="space-y-3">
+              <GlossaryForm
+                onSave={(term) => run.mutate({ action: "glossary_save", term })}
+                busy={run.isPending}
+              />
+              <Card className="overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/80 text-left text-xs uppercase tracking-wide">
                     <tr>
-                      <th className="p-1">{t("languages.column_language")}</th>
-                      <th className="p-1">{t("languages.column_text")}</th>
-                      <th className="p-1">{t("languages.column_attempts")}</th>
-                      <th className="p-1">{t("languages.column_error")}</th>
+                      <th className="p-2">Term</th>
+                      <th className="p-2">Rendering</th>
+                      <th className="p-2">Language</th>
+                      <th className="p-2">Rule</th>
+                      <th className="p-2">Status</th>
+                      <th className="p-2" />
                     </tr>
                   </thead>
                   <tbody>
-                    {failed.data.rows.map((job) => (
-                      <tr key={job.id} className="border-t border-border/60 align-top">
-                        <td className="p-1 font-mono">{job.target_language}</td>
-                        <td
-                          className="max-w-xs truncate p-1"
-                          title={job.source_text}
-                          data-no-translate
-                        >
-                          {job.source_text}
+                    {(glossary.data?.terms ?? []).map((term) => (
+                      <tr key={term.id} className="border-t border-border/60">
+                        <td className="p-2">{term.source_term}</td>
+                        <td className="p-2">
+                          {term.target_term ?? (
+                            <span className="text-muted-foreground">kept as is</span>
+                          )}
                         </td>
-                        <td className="p-1 tabular-nums">{job.attempts}</td>
-                        <td className="p-1 text-muted-foreground" data-no-translate>
-                          {job.last_error ?? "—"}
+                        <td className="p-2 font-mono text-xs">{term.target_language ?? "all"}</td>
+                        <td className="p-2">{term.rule}</td>
+                        <td className="p-2">
+                          <Badge variant="outline">{term.status}</Badge>
+                        </td>
+                        <td className="p-2 text-right">
+                          {term.status !== "approved" ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                run.mutate({
+                                  action: "glossary_save",
+                                  term: { ...term, status: "approved" },
+                                })
+                              }
+                              disabled={run.isPending}
+                            >
+                              Approve
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                run.mutate({
+                                  action: "glossary_save",
+                                  term: { ...term, status: "deprecated" },
+                                })
+                              }
+                              disabled={run.isPending}
+                            >
+                              Deprecate
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </ScrollArea>
-            )}
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="engine" className="space-y-3">
+              <Card className="space-y-2 p-4 text-sm">
+                <div className="font-semibold">Providers</div>
+                {(engine.providers ?? []).map((provider) => (
+                  <div key={provider.id} className="flex items-center gap-2">
+                    <Badge variant={provider.kind === "owned" ? "default" : "outline"}>
+                      {provider.kind}
+                    </Badge>
+                    <span className="font-mono text-xs">{provider.id}</span>
+                    <span className="text-muted-foreground">
+                      {provider.usable
+                        ? "in use"
+                        : provider.configured
+                          ? "configured, not used"
+                          : "not configured"}
+                    </span>
+                  </div>
+                ))}
+                <div className="pt-2 font-semibold">Engine</div>
+                <pre
+                  className="max-h-64 overflow-auto rounded bg-muted p-2 text-xs"
+                  data-no-translate
+                >
+                  {JSON.stringify(engine.status ?? engine, null, 1)}
+                </pre>
+              </Card>
+              <Card className="space-y-2 p-4 text-sm">
+                <div className="font-semibold">Job queue</div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(jobTotals).map(([status, count]) => (
+                    <Badge key={status} variant="outline">
+                      {status}: {count}
+                    </Badge>
+                  ))}
+                  {jobs.length === 0 && (
+                    <span className="text-muted-foreground">The queue is empty.</span>
+                  )}
+                </div>
+                <ScrollArea className="max-h-48">
+                  <table className="w-full text-xs">
+                    <tbody>
+                      {jobs.map((row) => (
+                        <tr
+                          key={`${row.status}-${row.target_language}`}
+                          className="border-t border-border/60"
+                        >
+                          <td className="p-1 font-mono">{row.target_language}</td>
+                          <td className="p-1">{row.status}</td>
+                          <td className="p-1 text-right tabular-nums">{row.jobs}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </ScrollArea>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
     </div>
   );
 }

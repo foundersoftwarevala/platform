@@ -45,3 +45,24 @@ describe("SingleFlightCache", () => {
     expect([a, b]).toEqual(["A", "B"]);
   });
 });
+
+describe("SingleFlightCache.clear", () => {
+  it("forgets stored answers so the next read computes again", async () => {
+    const cache = new SingleFlightCache<number>(60_000);
+    let n = 0;
+    const compute = () => Promise.resolve(++n);
+    expect(await cache.get("k", compute)).toBe(1);
+    cache.clear();
+    expect(await cache.get("k", compute)).toBe(2);
+  });
+
+  it("does not store an answer that was being computed when it was cleared", async () => {
+    const cache = new SingleFlightCache<string>(60_000);
+    let release!: (v: string) => void;
+    const slow = cache.get("k", () => new Promise<string>((r) => (release = r)));
+    cache.clear();
+    release("stale");
+    expect(await slow).toBe("stale");
+    expect(await cache.get("k", () => Promise.resolve("fresh"))).toBe("fresh");
+  });
+});

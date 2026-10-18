@@ -8,9 +8,8 @@
  * operator: admin and boss. Any namespace (catalogue content), everything
  *   they translate is written to memory.
  *
- * Request-rate limits are enforced per server instance. Engine work (measured
- * in source characters) is enforced in the database, so it holds across
- * instances; see public.i18n_consume_quota.
+ * Request-rate and engine-character limits use transactional PostgreSQL
+ * windows shared across instances; see quota.server.ts.
  */
 
 export type CallerTier = "anonymous" | "user" | "operator";
@@ -28,7 +27,7 @@ export type TierLimits = {
 export const TIER_LIMITS: Record<CallerTier, TierLimits> = {
   anonymous: {
     maxItems: 40,
-    maxItemChars: 300,
+    maxItemChars: 2_000,
     maxTotalChars: 6_000,
     // A page sends its strings in batches (src/lib/language-catalog.ts), about
     // eighteen requests for the homepage, so this leaves room for a visitor to
@@ -109,12 +108,68 @@ export class SlidingWindowLimiter {
   }
 }
 
-/** Client address from the usual proxy headers. */
-export function clientAddress(headers: Headers): string {
-  return (
-    headers.get("cf-connecting-ip") ??
-    headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    headers.get("x-real-ip") ??
-    "unknown"
+/**
+ * Proxies whose forwarding headers are believed: by default the reverse proxy
+ * on this host (nginx on loopback), which sets CF-Connecting-IP and X-Real-IP
+ * itself from the address Cloudflare vouched for, overwriting anything the
+ * visitor sent. TRANSLATION_TRUSTED_PROXIES (comma list of addresses) replaces
+ * the default.
+ */
+export function trustedProxies(): Set<string> {
+  const raw = process.env.TRANSLATION_TRUSTED_PROXIES ?? "127.0.0.1,::1";
+  return new Set(
+    raw
+      .split(",")
+      .map((value) => normalizeAddress(value))
+      .filter(Boolean),
   );
+}
+
+function normalizeAddress(value: string): string {
+  const trimmed = value.trim();
+  // IPv4 seen through an IPv6 socket: "::ffff:127.0.0.1" is 127.0.0.1.
+  return trimmed.toLowerCase().startsWith("::ffff:") ? trimmed.slice(7) : trimmed;
+}
+
+/**
+ * The client's address, for per-visitor limits.
+ *
+ * `peer` is the address the request's socket came from. Forwarding headers are
+ * read only when that peer is a trusted proxy; from anyone else they are the
+ * visitor's own words and are ignored, so a visitor cannot pick a fresh address
+ * for every request and escape the per-visitor allowance. Behind the trusted
+ * proxy the address is the one it set (CF-Connecting-IP, then X-Real-IP), or
+ * the last X-Forwarded-For entry, which is the one it appended.
+ *
+ * Called without `peer` (a caller that cannot see the socket) it reads the
+ * headers as before.
+ */
+export function clientAddress(
+  headers: Headers,
+  peer?: string | null,
+  trusted: Set<string> = trustedProxies(),
+): string {
+  if (peer === undefined) {
+    return (
+      headers.get("cf-connecting-ip") ??
+      headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      headers.get("x-real-ip") ??
+      "unknown"
+    );
+  }
+  const socket = peer ? normalizeAddress(peer) : null;
+  if (socket && trusted.has(socket)) {
+    const forwarded = headers
+      .get("x-forwarded-for")
+      ?.split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    return (
+      headers.get("cf-connecting-ip")?.trim() ||
+      headers.get("x-real-ip")?.trim() ||
+      forwarded?.[forwarded.length - 1] ||
+      socket
+    );
+  }
+  return socket ?? "unknown";
 }

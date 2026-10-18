@@ -22,7 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { useInsertRecord, useManyRecords, useUpdateRecord, type Row } from "@/lib/manager-queries";
+import { useCreditWallet, useInsertRecord, useManyRecords, useUpdateRecord, type Row } from "@/lib/manager-queries";
 import {
   day,
   downloadRows,
@@ -294,26 +294,14 @@ function Card_Alert({ wallet }: { wallet: Row }) {
 }
 
 function AddMoneyPanel({ wallet }: { wallet: Row | undefined }) {
-  const insert = useInsertRecord("Money added");
-  const update = useUpdateRecord("Wallet balance updated");
+  const credit = useCreditWallet("Money added");
   const [open, setOpen] = useState(false);
   const [customAmount, setCustomAmount] = useState("");
 
   const addMoney = (amount: number) => {
     if (!wallet || amount <= 0) return;
-    const newBalance = n(wallet, "balance") + amount;
-    insert.mutate({
-      table: "wallet_transactions",
-      values: {
-        wallet_id: wallet['id'],
-        type: "credit",
-        amount,
-        balance_after: newBalance,
-        description: "UPI Add Money",
-        reference: `UPI-${Date.now()}`,
-      },
-    });
-    update.mutate({ table: "wallets", id: wallet['id'] as string, values: { balance: newBalance } });
+    // The server adds to the balance it holds, with the transaction, at once.
+    credit.mutate({ walletId: wallet['id'] as string, amount, description: "UPI Add Money" });
     setOpen(false);
     setCustomAmount("");
   };

@@ -7,11 +7,22 @@ import {
   batchKey,
   joinOrStart,
   retryAfterFor,
+  translationSource,
   withinBudget,
 } from "../realtime-budget";
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("automatic source contract", () => {
+  it("preserves explicit detection while defaulting omitted source to English", () => {
+    expect(translationSource(undefined)).toBe("en");
+    expect(translationSource(null)).toBeNull();
+    expect(translationSource("auto")).toBeNull();
+    expect(translationSource("hi")).toBe("hi");
+    expect(translationSource("invalid")).toBe("invalid");
+  });
 });
 
 function deferred<T>() {
@@ -30,7 +41,10 @@ describe("request budget", () => {
   });
 
   it("returns the result when the engine answers in time", async () => {
-    await expect(withinBudget(Promise.resolve("done"), 1000)).resolves.toEqual({ done: true, value: "done" });
+    await expect(withinBudget(Promise.resolve("done"), 1000)).resolves.toEqual({
+      done: true,
+      value: "done",
+    });
   });
 
   it("answers at the budget while the engine keeps working, and does not cancel it", async () => {
@@ -82,6 +96,18 @@ describe("one translation run per batch", () => {
     expect(batchKey("am", "ui", "marketplace", ["Buy Now"])).not.toBe(base);
     expect(batchKey("am", "ui", null, ["Buy Now", "Live Demo"])).not.toBe(base);
     expect(batchKey("am", "ui", undefined, ["Buy Now"])).toBe(base);
+  });
+
+  it("isolates language pairs, callers and delimiter-bearing text", () => {
+    expect(batchKey("hi", "ui", null, ["Open"], "fr", "user:a")).not.toBe(
+      batchKey("hi", "ui", null, ["Open"], "en", "user:a"),
+    );
+    expect(batchKey("hi", "chat", null, ["Private"], "en", "user:a")).not.toBe(
+      batchKey("hi", "chat", null, ["Private"], "en", "user:b"),
+    );
+    expect(batchKey("hi", "ui", null, ["A\u0002B"])).not.toBe(
+      batchKey("hi", "ui", null, ["A", "B"]),
+    );
   });
 });
 

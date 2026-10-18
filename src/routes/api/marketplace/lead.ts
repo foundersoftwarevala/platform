@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { clientAddress } from "@/lib/i18n/limits";
 
 import {
   leadAcknowledgementEmail,
@@ -26,9 +27,19 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // of these keeps its own identity, so the source analytics in section 44 can
 // tell a WhatsApp lead from a brochure download.
 const ALLOWED_ACTIONS = new Set([
-  "request_demo", "notify_me", "enquiry", "callback", "buy_intent",
-  "whatsapp", "email_lead", "contact_sales", "brochure",
-  "meeting", "live_demo", "consultation", "enterprise",
+  "request_demo",
+  "notify_me",
+  "enquiry",
+  "callback",
+  "buy_intent",
+  "whatsapp",
+  "email_lead",
+  "contact_sales",
+  "brochure",
+  "meeting",
+  "live_demo",
+  "consultation",
+  "enterprise",
 ]);
 
 const RATE_WINDOW_MS = 60_000;
@@ -63,7 +74,11 @@ async function resolveProduct(
     try {
       const response = await fetch(`${base}/rest/v1/marketplace_products?${query}`, { headers });
       if (!response.ok) return [];
-      return (await response.json()) as { id: string; category_id: string | null; industry_label: string | null }[];
+      return (await response.json()) as {
+        id: string;
+        category_id: string | null;
+        industry_label: string | null;
+      }[];
     } catch {
       return [];
     }
@@ -118,12 +133,15 @@ export const Route = createFileRoute("/api/marketplace/lead")({
           return Response.json({ error: "Lead service is not configured" }, { status: 503 });
         }
 
-        const sourceIp =
-          request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-          request.headers.get("x-real-ip") ??
-          "unknown";
+        // The address nginx vouches for (CF-Connecting-IP, overwritten at the
+        // edge), not the first X-Forwarded-For entry, which the caller writes:
+        // a fresh value per request walked straight past this limit.
+        const sourceIp = clientAddress(request.headers);
         if (rateLimited(sourceIp)) {
-          return Response.json({ error: "Too many requests. Please wait a moment." }, { status: 429 });
+          return Response.json(
+            { error: "Too many requests. Please wait a moment." },
+            { status: 429 },
+          );
         }
 
         let body: Record<string, unknown>;
@@ -134,7 +152,9 @@ export const Route = createFileRoute("/api/marketplace/lead")({
         }
 
         const name = String(body.name ?? "").trim();
-        const email = String(body.email ?? "").trim().toLowerCase();
+        const email = String(body.email ?? "")
+          .trim()
+          .toLowerCase();
         const phone = String(body.phone ?? "").trim();
         const productName = String(body.productName ?? "").trim();
         const productIdRaw = String(body.productId ?? "").trim();
@@ -175,14 +195,127 @@ export const Route = createFileRoute("/api/marketplace/lead")({
           status: "new",
           ip_address: sourceIp === "unknown" ? null : sourceIp,
         };
-        const resolved = await resolveProduct(url, {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-        }, {
-          id: productIdRaw,
-          sourcePage,
-          name: productName,
-        });
+        // Section 1 and 2: where this visitor actually came from.
+        //
+        // `source` was the literal "marketplace" for every capture, so a
+        // visitor who searched on Google, landed on a card slot and asked for
+        // a demo was filed as a walk-in, and the SEO programme could not show
+        // a single lead for its work. The browser reported the referrer and
+        // the campaign parameters on the first page of the visit; the page
+        // kept them, and they arrive here.
+        //
+        // Nothing is invented. An envelope with no external signal leaves the
+        // source exactly as the caller stated it.
+        const sent = (body.attribution ?? {}) as Record<string, unknown>;
+        const str = (key: string, max = 500) => {
+          const value = typeof sent[key] === "string" ? (sent[key] as string).trim() : "";
+          return value ? value.slice(0, max) : null;
+        };
+        const attribution = {
+          landing_page: str("landing_page"),
+          referrer: str("referrer"),
+          search_engine: str("search_engine", 40),
+          utm_source: str("utm_source", 200),
+          utm_medium: str("utm_medium", 200),
+          utm_campaign: str("utm_campaign", 200),
+          utm_term: str("utm_term", 200),
+          utm_content: str("utm_content", 200),
+          captured_at: str("captured_at", 40),
+        };
+
+        const { deriveSource, slotPathFrom } = await import("@/lib/marketplace/lead-attribution");
+        const derived = deriveSource(attribution, "marketplace");
+
+        row.source = derived.source;
+        row.referrer = attribution.referrer;
+        row.search_engine = attribution.search_engine;
+        row.utm_source = attribution.utm_source;
+        row.utm_medium = attribution.utm_medium;
+        row.utm_campaign = attribution.utm_campaign;
+        row.utm_term = attribution.utm_term;
+        row.utm_content = attribution.utm_content;
+        row.landing_page = attribution.landing_page;
+        // `campaign` is the operator-facing name and already existed; it is
+        // only filled from the URL when nothing else has set it.
+        if (attribution.utm_campaign && !row.campaign) row.campaign = attribution.utm_campaign;
+        // Kept whole beside the named columns, with the reason the source was
+        // chosen, so an operator can see why a lead is filed where it is.
+        row.attribution = { ...attribution, source_reason: derived.why };
+
+        /**
+         * Which partner's link brought this person in.
+         *
+         * A lead that arrived through an influencer's referral link could not be
+         * told from any other lead: the utm fields say which campaign, never who
+         * sent it. This resolves it on the server from the visitor's own
+         * referral cookie and the session stored against it - never from
+         * anything the browser claims, because whoever gets credited is
+         * eventually paid.
+         */
+        try {
+          const { REFERRAL_COOKIE, attributionForSession, readCookie } =
+            await import("@/lib/affiliate/core");
+          const sessionKey = readCookie(request, REFERRAL_COOKIE);
+          if (sessionKey) {
+            const partner = await attributionForSession(sessionKey);
+            if (partner?.influencerProfileId) {
+              row.influencer_profile_id = partner.influencerProfileId;
+              row.referral_code_id = partner.referralCodeId;
+              row.attribution = {
+                ...(row.attribution as Record<string, unknown>),
+                partner: "influencer",
+                attributed_from_session: partner.sessionId,
+              };
+            }
+          }
+        } catch (error) {
+          // A lead is worth more than its attribution: if the referral lookup
+          // fails the lead is still saved, unattributed and visibly so.
+          console.error("[lead] referral attribution skipped", error);
+        }
+
+        // Which card slot earned the visit. A slot is a fixed
+        // category-by-country position that outlives the product occupying it,
+        // so this attribution survives a rotation in a way product_id does not.
+        const slotPath = slotPathFrom(attribution.landing_page, sourcePage);
+        if (slotPath) {
+          try {
+            const slotResponse = await fetch(
+              `${url}/rest/v1/marketplace_card_slots` +
+                `?select=id,country_marker,region&slot_url=eq.${encodeURIComponent(slotPath)}&limit=1`,
+              { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+            );
+            if (slotResponse.ok) {
+              const slots = (await slotResponse.json()) as {
+                id: string;
+                country_marker: string | null;
+                region: string | null;
+              }[];
+              if (slots[0]) {
+                row.card_slot_id = slots[0].id;
+                if (!row.country && slots[0].country_marker) row.country = slots[0].country_marker;
+                if (slots[0].region) row.region = slots[0].region;
+              }
+            }
+          } catch (error) {
+            // A slot lookup is attribution detail, not the lead. Losing it
+            // must never lose the enquiry.
+            console.error("[lead] slot lookup failed", error);
+          }
+        }
+
+        const resolved = await resolveProduct(
+          url,
+          {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          {
+            id: productIdRaw,
+            sourcePage,
+            name: productName,
+          },
+        );
         if (resolved.id) {
           row.product_id = resolved.id;
           // The product's own category is not copied here. `leads.category`
@@ -211,7 +344,10 @@ export const Route = createFileRoute("/api/marketplace/lead")({
           });
           if (!response.ok) {
             console.error("[lead] insert failed", response.status, await response.text());
-            return Response.json({ error: "We could not save that. Please try again." }, { status: 502 });
+            return Response.json(
+              { error: "We could not save that. Please try again." },
+              { status: 502 },
+            );
           }
 
           const saved = (await response.json().catch(() => [])) as { id?: string }[];
@@ -252,7 +388,12 @@ export const Route = createFileRoute("/api/marketplace/lead")({
                 { t, lang },
               ),
               to: email,
-              context: { kind: "lead_acknowledgement", lead_id: leadId, action: ctaAction, language: lang },
+              context: {
+                kind: "lead_acknowledgement",
+                lead_id: leadId,
+                action: ctaAction,
+                language: lang,
+              },
             });
 
             const operators = await operatorRecipients();
@@ -264,9 +405,14 @@ export const Route = createFileRoute("/api/marketplace/lead")({
             for (const operator of operators) {
               await sendMail({
                 ...leadNotificationEmail({
-                  name, email, phone, productName: productName || null,
-                  action: ctaAction, sourcePage: sourcePage || null,
-                  requirements: String(row.requirements ?? ""), leadId,
+                  name,
+                  email,
+                  phone,
+                  productName: productName || null,
+                  action: ctaAction,
+                  sourcePage: sourcePage || null,
+                  requirements: String(row.requirements ?? ""),
+                  leadId,
                 }),
                 to: operator,
                 context: { kind: "lead_notification", lead_id: leadId },

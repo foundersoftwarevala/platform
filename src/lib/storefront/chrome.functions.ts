@@ -1,5 +1,8 @@
+import { callAsUser } from "@/lib/supabase-rpc.server";
+import type { Json, JsonObject } from "@/lib/json";
+import { requireJson } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+
 import { z } from "zod";
 
 /**
@@ -83,7 +86,7 @@ export type StorefrontChrome = {
   /** Published FAQs, in category then position order. */
   faqs: StorefrontFaq[];
   /** schema.org FAQPage built from those same rows. Null when there are none. */
-  faqSchema: unknown | null;
+  faqSchema: Json;
 };
 
 export type StorefrontFaq = {
@@ -106,6 +109,17 @@ export type StorefrontVideo = {
   product_slug: string | null;
   /** Counted from recorded views. Null when nothing has been recorded. */
   views: number | null;
+  /**
+   * The one country this film is placed in, from the owner's published
+   * geographic batch, so two films never compete for the same geography in
+   * search. Null on a film created by hand that has not been placed.
+   */
+  country: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  /** 'youtube' when it arrived from the channel feed, 'manual' when an operator made it. */
+  source: string | null;
+  published_at: string | null;
 };
 
 /* ------------------------------------------------------------- public read */
@@ -126,7 +140,7 @@ function admin() {
 }
 
 /** The FAQ structured data, built from the same published rows. */
-async function liveFaqSchema(): Promise<unknown | null> {
+async function liveFaqSchema(): Promise<Json> {
   const base = url();
   if (!base) return null;
   try {
@@ -136,14 +150,15 @@ async function liveFaqSchema(): Promise<unknown | null> {
       body: "{}",
     });
     if (!res.ok) return null;
-    return (await res.json()) as unknown;
-  } catch {
+    return requireJson(await res.json(), "Storefront FAQ schema");
+  } catch (error) {
+    console.error("[storefront chrome] FAQ schema could not load", error);
     return null;
   }
 }
 
 /** Published FAQs. Empty on any failure, which leaves the section unrendered. */
-async function liveFaqs(): Promise<unknown[]> {
+async function liveFaqs(): Promise<Json[]> {
   const base = url();
   if (!base) return [];
   try {
@@ -161,7 +176,7 @@ async function liveFaqs(): Promise<unknown[]> {
 }
 
 /** Published Vala TV videos. Empty on any failure. */
-async function liveVideos(): Promise<unknown[]> {
+async function liveVideos(): Promise<Json[]> {
   const base = url();
   if (!base) return [];
   try {
@@ -179,7 +194,7 @@ async function liveVideos(): Promise<unknown[]> {
 }
 
 /** Published, in-window, non-seed offers. Empty on any failure. */
-async function liveOffers(): Promise<unknown[]> {
+async function liveOffers(): Promise<Json[]> {
   const base = url();
   if (!base) return [];
   try {
@@ -196,7 +211,7 @@ async function liveOffers(): Promise<unknown[]> {
   }
 }
 
-async function liveConfig(kind: "footer" | "floating"): Promise<Record<string, unknown>> {
+async function liveConfig(kind: "footer" | "floating"): Promise<JsonObject> {
   const base = url();
   if (!base) return { published: false };
   try {
@@ -206,7 +221,7 @@ async function liveConfig(kind: "footer" | "floating"): Promise<Record<string, u
       body: JSON.stringify({ p_kind: kind }),
     });
     if (!res.ok) return { published: false };
-    const data = (await res.json()) as Record<string, unknown>;
+    const data = (await res.json()) as JsonObject;
     return data && typeof data === "object" ? data : { published: false };
   } catch {
     // `published: false` is the storefront's instruction to fall back to what
@@ -263,25 +278,8 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
  * Using the service role here would make every caller an operator, which is
  * exactly the mistake that let mm_is_operator pass for everybody.
  */
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
 
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
-
-type Outcome = { ok?: boolean; reason?: string; message?: string; [k: string]: unknown };
+type Outcome = { ok?: boolean; reason?: string; message?: string; version?: number; [k: string]: Json | undefined };
 
 /** Turn a refusal into a sentence the manager can act on. */
 function settle(result: Outcome | null, whenOk: string) {
@@ -300,7 +298,7 @@ const KIND = z.enum(["footer", "floating"]);
 export const getChromeDraft = createServerFn({ method: "GET" })
   .inputValidator((i: unknown) => z.object({ kind: KIND }).parse(i))
   .handler(async ({ data }) =>
-    callAsUser<Record<string, unknown>>("sf_config_draft", { p_kind: data.kind }),
+    callAsUser<JsonObject>("sf_config_draft", { p_kind: data.kind }),
   );
 
 export const validateChrome = createServerFn({ method: "GET" })

@@ -60,7 +60,7 @@ export const DMTaskManagement: React.FC = () => {
     id: t.code,
     uuid: t.id,
     project: t.title,
-    module: t.promiseId ? 'promise' : '',
+    module: t.promiseIds.length > 0 ? 'promise' : '',
     priority: t.priority,
     deadline: t.dueDate ? formatDate(t.dueDate, DAY) : '—',
     dependency: 'None',
@@ -220,7 +220,7 @@ export const DMTaskManagement: React.FC = () => {
                         <RefreshCw className="h-4 w-4 mr-1" />
                         {t('devmanager.tasks.reassign')}
                       </Button>
-                      <Button size="sm" variant="outline" disabled title={t('devmanager.tasks.pause_info')}>
+                      <Button size="sm" variant="outline" onClick={() => toast.info(t('devmanager.tasks.pause_info'))}>
                         <Pause className="h-4 w-4 mr-1" />
                         {t('devmanager.tasks.pause')}
                       </Button>
@@ -228,7 +228,7 @@ export const DMTaskManagement: React.FC = () => {
                         <AlertTriangle className="h-4 w-4 mr-1" />
                         {t('devmanager.common.escalate')}
                       </Button>
-                      <Button size="sm" variant="outline" disabled title={t('devmanager.tasks.close_info')}>
+                      <Button size="sm" variant="outline" onClick={() => toast.info(t('devmanager.tasks.close_info'))}>
                         <CheckCircle className="h-4 w-4 mr-1" />
                         {t('devmanager.tasks.close')}
                       </Button>

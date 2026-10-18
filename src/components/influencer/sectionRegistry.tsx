@@ -10,6 +10,13 @@ import { influencerGroups } from "@/components/influencer/navigation";
 const statuses = ["active", "pending", "paused", "completed", "draft"] as const;
 
 const influencerWall: WallConfig = {
+  // A wall builds its local store from `seed`, and createTable iterates it, so a
+  // config without one throws "n is not iterable" the moment the section opens.
+  // These four were written without it and were never rendered, so it never
+  // showed. Empty is correct: the rows come from the resource above.
+  seed: [],
+  // The profiles table, through /api/manager/resource.
+  resource: "influencer",
   scope: "influencer-influencers", entity: "influencer", eyebrow: "Influencer Manager",
   title: "Master Influencer Directory", subtitle: "Search, segment and operate on the connected influencer network.", icon: Users,
   primaryLabel: "Add Influencer",
@@ -43,6 +50,11 @@ const influencerWall: WallConfig = {
 };
 
 const campaignWall: WallConfig = {
+  // A wall builds its local store from `seed`, and createTable iterates it, so a
+  // config without one throws "n is not iterable" the moment the section opens.
+  // These four were written without it and were never rendered, so it never
+  // showed. Empty is correct: the rows come from the resource above.
+  seed: [],
   scope: "influencer-campaigns", entity: "campaign", eyebrow: "Campaigns", title: "Campaign Management",
   subtitle: "Plan and govern real campaigns with budgets, dates and performance fields.", icon: Megaphone, primaryLabel: "Create Campaign",
   filters: [{ key: "status", label: "Status", options: statuses }],
@@ -69,6 +81,11 @@ const campaignWall: WallConfig = {
 };
 
 const leadWall: WallConfig = {
+  // A wall builds its local store from `seed`, and createTable iterates it, so a
+  // config without one throws "n is not iterable" the moment the section opens.
+  // These four were written without it and were never rendered, so it never
+  // showed. Empty is correct: the rows come from the resource above.
+  seed: [],
   scope: "influencer-leads", entity: "lead", eyebrow: "Growth", title: "Creator-Generated Leads",
   subtitle: "Track real leads attributed to creator campaigns.", icon: Target, primaryLabel: "New Lead",
   filters: [{ key: "status", label: "Status", options: ["open", "won", "lost"] }, { key: "stage", label: "Stage", options: ["new", "qualified", "contacted"] }],
@@ -89,6 +106,13 @@ const leadWall: WallConfig = {
 };
 
 const applicationWall: WallConfig = {
+  // A wall builds its local store from `seed`, and createTable iterates it, so a
+  // config without one throws "n is not iterable" the moment the section opens.
+  // These four were written without it and were never rendered, so it never
+  // showed. Empty is correct: the rows come from the resource above.
+  seed: [],
+  // The applications table, through /api/manager/resource.
+  resource: "influencer_applications",
   scope: "influencer-approvals", entity: "application", eyebrow: "Creator Lifecycle", title: "Influencer Applications",
   subtitle: "Review real applications, verify fit and approve onboarding into the creator network.", icon: Target, primaryLabel: "New Application",
   filters: [{ key: "status", label: "Status", options: ["pending", "in_review", "approved", "rejected"] }],
@@ -118,7 +142,7 @@ function existingMarketingWall(scope: string, title: string, icon: typeof Target
   return {
     scope, entity: title.toLowerCase(), eyebrow: "Influencer Manager", title,
     subtitle: `Live ${title.toLowerCase()} records from the connected marketing workspace.`, icon,
-    primaryLabel: `New ${title.replace(/s$/, "")}`, canCreate: false, seed: [],
+    primaryLabel: `New ${title.replace(/s$/, "")}`, creatable: false, seed: [],
     columns, filters: [], kpis: [{ label: "Records", icon, compute: (rows) => rows.length }],
     bulkActions: [], formFields: [], searchFields, primaryField: searchFields[0] ?? "id",
   };
@@ -130,10 +154,47 @@ const simpleColumns = (key: string, label: string, dateKey?: string): WallConfig
   ...(dateKey ? [{ key: dateKey, header: "Updated" }] : []),
 ];
 
+/**
+ * The influencer tables that /api/manager/resource can actually serve.
+ *
+ * A ManagerWall reads a real table only when its config names a `resource`;
+ * without one it falls back to `seed`, which for these walls is an empty array.
+ * That is why every list section in Influencer Manager rendered nothing at all
+ * - not an error, just an empty table - while the programme held ten profiles,
+ * seven applications, two assignments and six payouts.
+ *
+ * Only tables with a resource are named here. A wall whose table has none keeps
+ * its old behaviour and shows its empty state, which is honest; pointing it at
+ * a resource that does not exist would turn a quiet blank into a 404.
+ */
+const INFLUENCER_RESOURCES = new Set([
+  "influencer_profiles",
+  "influencer_applications",
+  "influencer_social_accounts",
+  "influencer_campaign_assignments",
+  "influencer_earnings",
+  "influencer_payouts",
+  "influencer_invoices",
+  "influencer_compensation_rules",
+  // The shared partner ledger, scoped to influencers by the endpoint itself.
+  "influencer_order_commissions",
+  "influencer_order_payouts",
+  "influencer_tiers",
+]);
+
+/** The resource name for a table, or undefined when it has none. */
+const resourceFor = (table: string): string | undefined =>
+  table === "influencer_profiles"
+    ? "influencer"
+    : INFLUENCER_RESOURCES.has(table)
+      ? table
+      : undefined;
+
 const workflowWall = (scope: string, title: string, table: string, key: string, label: string, dateKey?: string): WallConfig => ({
+  resource: resourceFor(table),
   scope, entity: title.toLowerCase(), eyebrow: "Influencer Operations", title,
   subtitle: `Live ${title.toLowerCase()} records from the influencer workflow.`, icon: Target,
-  primaryLabel: `New ${title.replace(/s$/, "")}`, canCreate: false, seed: [], columns: simpleColumns(key, label, dateKey), filters: [],
+  primaryLabel: `New ${title.replace(/s$/, "")}`, creatable: false, seed: [], columns: simpleColumns(key, label, dateKey), filters: [],
   kpis: [{ label: "Records", icon: Target, compute: (rows) => rows.length }], bulkActions: [], formFields: [], searchFields: [key], primaryField: key,
 });
 
@@ -142,7 +203,7 @@ function Dashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
 }
 
 export const influencerRegistry: Record<string, SectionEntry> = {
-  Dashboard, "Manager Console": Dashboard, Influencers: influencerWall, "Creator Profiles": influencerWall, "Social Accounts": influencerWall, Performance: influencerWall,
+  Dashboard, "Manager Console": Dashboard, Influencers: influencerWall, "Creator Profiles": influencerWall, "Social Accounts": workflowWall("influencer-social-accounts", "Social Accounts", "influencer_social_accounts", "handle", "Handle", "verified_at"), Performance: influencerWall,
   Campaigns: campaignWall, Collaborations: campaignWall, Leads: leadWall,
   Applications: applicationWall,
   Verification: workflowWall("influencer-verification", "Verification", "influencer_social_accounts", "handle", "Handle", "verified_at"),
@@ -159,13 +220,22 @@ export const influencerRegistry: Record<string, SectionEntry> = {
   "AI Studio": workflowWall("influencer-ai-risk", "AI Studio", "influencer_risk_reviews", "entity_id", "Entity", "created_at"),
   Activity: workflowWall("influencer-activity", "Activity", "influencer_activity", "external_event_id", "Event", "occurred_at"),
   Commissions: workflowWall("influencer-earnings", "Commissions", "influencer_earnings", "campaign_id", "Campaign", "created_at"),
-  "Commission Rules": workflowWall("influencer-commission-rules", "Commission Rules", "influencer_compensation_rule_versions", "campaign_id", "Campaign", "created_at"),
+  // influencer_compensation_rule_versions does not exist in this database; the
+  // rules themselves are in influencer_compensation_rules, which does.
+  "Commission Rules": workflowWall("influencer-commission-rules", "Commission Rules", "influencer_compensation_rules", "metric", "Metric", "created_at"),
   Wallet: workflowWall("influencer-earnings-wallet", "Wallet", "influencer_earnings", "profile_id", "Profile", "created_at"),
   Payouts: workflowWall("influencer-payouts", "Payouts", "influencer_payouts", "idempotency_key", "Payout", "created_at"),
   Withdrawals: workflowWall("influencer-payouts-withdrawals", "Withdrawals", "influencer_payouts", "idempotency_key", "Request", "created_at"),
   Invoices: workflowWall("influencer-invoices", "Invoices", "influencer_invoices", "invoice_number", "Invoice", "created_at"),
   Agreements: workflowWall("influencer-agreements", "Agreements", "influencer_agreements", "version", "Version", "created_at"),
   Documents: workflowWall("influencer-documents", "Documents", "influencer_agreements", "version", "Agreement", "created_at"),
+  // What a referred sale paid. partner_commissions is the canonical ledger for
+  // every partner kind; the endpoint scopes this view to influencers.
+  // Tiers & Levels has been in the navigation since the console was built with
+  // nothing behind it. Each row is what a tier pays and what it takes to reach it.
+  "Tiers & Levels": workflowWall("influencer-tiers", "Tiers & Levels", "influencer_tiers", "name", "Tier", "created_at"),
+  "Order Commissions": workflowWall("influencer-order-commissions", "Order Commissions", "influencer_order_commissions", "order_id", "Order", "earned_at"),
+  "Order Payouts": workflowWall("influencer-order-payouts", "Order Payouts", "influencer_order_payouts", "provider_reference", "Reference", "requested_at"),
   "Audit Trail": workflowWall("influencer-audit", "Audit Trail", "influencer_audit_logs", "action", "Action", "created_at"),
 };
 
@@ -173,7 +243,7 @@ for (const group of influencerGroups) {
   for (const item of group.items) {
     if (!influencerRegistry[item.label]) influencerRegistry[item.label] = {
       scope: `influencer-${item.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, entity: item.label.toLowerCase(), eyebrow: group.label, title: item.label,
-      subtitle: `${item.label} has no connected resource in the current database schema.`, icon: item.icon, primaryLabel: `New ${item.label}`, canCreate: false, seed: [], columns: [{ key: "name", header: "Name" }], filters: [], kpis: [], bulkActions: [], formFields: [], searchFields: ["name"], primaryField: "name",
+      subtitle: `${item.label} has no connected resource in the current database schema.`, icon: item.icon, primaryLabel: `New ${item.label}`, creatable: false, seed: [], columns: [{ key: "name", header: "Name" }], filters: [], kpis: [], bulkActions: [], formFields: [], searchFields: ["name"], primaryField: "name",
     };
   }
 }

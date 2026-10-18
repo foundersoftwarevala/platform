@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { UserPlus, Clock, ShieldCheck, ShieldX, ClipboardList } from "lucide-react";
 import { EntityWall, Row, Cell, StatusCell, fmtDate } from "@/components/affiliate/EntityWall";
 
@@ -10,7 +10,17 @@ type Application = {
 
 export const Route = createFileRoute("/affiliate-manager/applications")({
   head: () => ({ meta: [{ title: "Applications — Affiliate Manager" }] }),
-  component: () => (
+  component: AffiliateApplications,
+});
+
+/**
+ * Read from the affiliate_applications view over marketplace_affiliate_partners.
+ * Decisions are taken in the Control Panel's Application Manager; "New
+ * Application" opens the real affiliate application form.
+ */
+function AffiliateApplications() {
+  const navigate = useNavigate();
+  return (
     <EntityWall<Application>
       title="Applications"
       description="Every affiliate application with KYC status, risk score, and approval workflow."
@@ -53,6 +63,7 @@ export const Route = createFileRoute("/affiliate-manager/applications")({
       emptyTitle="No applications yet"
       emptyDescription="New affiliate applications appear here with KYC, risk score, and approval workflow."
       primaryActionLabel="New Application"
+      onPrimaryAction={() => void navigate({ to: "/apply/$role", params: { role: "affiliate" } })}
     />
-  ),
-});
+  );
+}

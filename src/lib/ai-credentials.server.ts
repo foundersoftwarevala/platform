@@ -50,6 +50,19 @@ export function decryptAiCredential(value: string): string {
   ]).toString("utf8");
 }
 
+export function readStoredCredential(value: string): string {
+  if (value.startsWith(PREFIX)) return decryptAiCredential(value);
+
+  // Existing SEO and Cloudflare rows are re-encrypted by their first reader.
+  const decoded = Buffer.from(value, "base64");
+  const canonicalInput = value.replace(/=+$/, "");
+  const canonicalDecoded = decoded.toString("base64").replace(/=+$/, "");
+  if (decoded.length === 0 || canonicalInput !== canonicalDecoded) return value;
+
+  const plaintext = decoded.toString("utf8");
+  return Buffer.from(plaintext, "utf8").equals(decoded) ? plaintext : value;
+}
+
 export function credentialFingerprint(secret: string): string {
   return createHash("sha256").update(secret).digest("hex");
 }

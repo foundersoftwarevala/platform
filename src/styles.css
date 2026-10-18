@@ -1,6 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@import "./components/vala-ai/studio/studio.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -79,6 +80,9 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-red: var(--brand-red);
   --color-surface-2: var(--surface-2);
+  --color-brand-2: var(--brand-2);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
 }
 
 
@@ -658,3 +662,226 @@
 .bidi-isolate { unicode-bidi: isolate; }
 .ltr-content { direction: ltr; unicode-bidi: isolate; }
 :root[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
+
+/* ==========================================================================
+   The project fits the screen it is opened on
+   ==========================================================================
+
+   Every page in this project is laid out against a fixed ruler: the storefront
+   containers stop at 1280px, a card is 328px wide whatever the monitor is, and
+   the root font size is 16px on a phone and 16px on a forty-inch television.
+   Measured on the live site:
+
+     window 1366px  content 1280px   94% of the screen used
+     window 1920px  content 1280px   67%
+     window 2560px  content 1280px   50%
+     window 3840px  content 1280px   33%
+
+   So two thirds of a large monitor is margin, and the text and cards on it are
+   the size they would be on a laptop - which is why the site looks small on a
+   big screen. Below 1600px nothing is wrong: a phone, a tablet and a window on
+   half a screen all use the full width already and none of them scrolls
+   sideways.
+
+   This scales the whole interface up on screens larger than that, and does
+   nothing at all below it. The design does not change - no layout is rewritten,
+   no container is widened, no breakpoint moves, nothing is hidden or dropped.
+   Everything simply becomes larger together, in proportion, so a forty-inch
+   monitor shows the same page at a size a person can read from where they sit.
+
+   It is done with `zoom` rather than a root font size because this project
+   holds nearly three thousand fixed pixel sizes (text-[11px] and the like)
+   that a font-size change would leave behind, which would pull the design
+   apart. `zoom` scales layout, so text, spacing, cards, icons and borders all
+   grow together and the page still reflows; a window resized to half a screen
+   drops straight back to its ordinary size.
+
+   The steps are deliberately gentle and stop at 1.6. Anything more starts to
+   feel like a magnifying glass rather than a comfortable screen.
+   ------------------------------------------------------------------------ */
+
+@media (min-width: 1600px) {
+  :root { zoom: 1.1; }
+}
+
+@media (min-width: 1920px) {
+  :root { zoom: 1.2; }
+}
+
+@media (min-width: 2300px) {
+  :root { zoom: 1.35; }
+}
+
+@media (min-width: 2800px) {
+  :root { zoom: 1.5; }
+}
+
+@media (min-width: 3400px) {
+  :root { zoom: 1.6; }
+}
+
+
+/* ------------------------------------------------------------------------
+   Using a wide screen, instead of leaving it empty.
+
+   Every storefront container is `max-w-7xl`, which is 1280px and stops there
+   whatever the screen is. Measured on the live site, that leaves:
+
+       1280  content 1248px   98% of the window
+       1440  content 1280px   89%
+       1536  content 1280px   83%   <- 128px of empty margin each side
+       1728  content 1408px   81%
+
+   The zoom ladder above was the compensation for this, but it does not start
+   until 1600px, so 1366-1599 - which is where most large laptops sit - gets
+   the widest empty margins and no compensation at all. That is the "does not
+   fit the screen" complaint: nothing overflows, the page simply refuses to use
+   the width it has.
+
+   So the cap grows on wide screens rather than stopping dead. Nothing else
+   changes: same containers, same grid columns, same breakpoints, same design -
+   the column is allowed to be wider, and the cards inside it fill it.
+
+   94vw rather than a fixed pixel ladder, because vw is measured in the layout
+   viewport and therefore already accounts for the zoom above; a fixed pixel
+   cap would overflow once zoom multiplied it. min() keeps it from growing
+   without limit on a very large monitor, where the zoom ladder is the right
+   tool instead.
+
+   Scoped to .sv-wide, which is on the two storefront roots only, so no manager
+   console or dashboard layout is touched.
+   ------------------------------------------------------------------------ */
+
+@media (min-width: 1360px) {
+  .sv-wide .max-w-7xl {
+    max-width: min(1560px, 94vw);
+  }
+}
+
+/* ------------------------------------------------------------------------
+   The storefront top bar on a touch screen.
+
+   These live here, in the global sheet, rather than in marketplace-home.css.
+   That file is imported per route and is not loaded on /marketplace, which
+   renders the same top bar — a rule written there fixes one page and silently
+   leaves the other alone, which is what happened the first time.
+
+   Two separate things, both measured on the live site at 360px:
+
+   The wrapper has to grow with the button it holds. Each pill sits inside a
+   .kr-stagger div. The 44px minimum was on the button only, so the wrapper
+   stayed at its natural 17px; in the wrapping row the flex lines were then
+   laid out 17px apart while the buttons rendered 44px tall. Row one occupied
+   y 84-128 and row two began at y 105 — a 23px overlap. That is the "buttons
+   mixing": nothing overflowed the page and nothing was off-screen, the rows
+   simply sat on top of one another.
+
+   And /marketplace never had the minimum at all, so every control in its bar
+   was 17px on a phone.
+
+   :has keeps this to the top-bar pills, so no other staggered list is touched.
+   ------------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------------
+   Rendering only the catalogue rows a visitor can see.
+
+   /marketplace arrives as 1.2MB of HTML and 12,500 nodes, and one section —
+   the catalogue rows — accounts for 8,610 of those nodes and 1.06MB of the
+   markup on its own. Each row is about 760 nodes and 540px tall. Expanding
+   the page with "Show more" reaches 42,954 nodes, and by the ninth click each
+   press took 5.8 seconds to settle, up from 3.4 on the first.
+
+   The rows are not the problem; rendering all of them at once is. Nothing is
+   removed, nothing is virtualised away, and the HTML the server sends is
+   unchanged — so a crawler still reads every card. content-visibility lets the
+   browser skip the layout and paint of a row that is off-screen and do it when
+   it scrolls in, which is what makes the difference between a page that has a
+   large DOM and a page that is slow.
+
+   contain-intrinsic-size: auto 560px is the measured row height, so the
+   scrollbar is right before a row has been rendered and stays right after,
+   because `auto` remembers the real size once it has been measured. Without
+   it the page would jump as rows resolved.
+
+   find-in-page and anchor links still work: content-visibility: auto renders a
+   skipped subtree when the browser needs to reach into it.
+   ------------------------------------------------------------------------ */
+
+.sv-wide .group\/row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 560px;
+}
+
+@media (pointer: coarse) {
+  .sv-wide button,
+  .sv-wide a[role="button"],
+  .sv-wide [role="tab"],
+  /* Some pills in this bar are anchors rather than buttons and carry no
+     role, so a selector written around `button` missed them — the Login
+     control on /marketplace stayed a 14x17px tap target while every pill
+     beside it grew. .tb-pill is what the bar actually marks its controls
+     with, whichever element they are. */
+  .sv-wide .tb-pill {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .sv-wide input,
+  .sv-wide select,
+  .sv-wide textarea {
+    min-height: 44px;
+    font-size: 16px; /* stops iOS zooming the page on focus */
+  }
+
+  .kr-stagger:has(> .tb-pill) {
+    min-height: 44px;
+  }
+}
+
+/* A person who has asked their browser to zoom, or who is on a screen this
+   does not know about, is left exactly as they are. */
+@media (min-width: 1600px) and (max-height: 700px) {
+  /* A short, wide window - a projector, or a browser with many toolbars - has
+     no room to spare vertically, so it keeps its ordinary size. */
+  :root { zoom: 1; }
+}
+
+/* --------------------------------------------------------------------------
+   The home page's shelves use the width a large screen actually has
+   --------------------------------------------------------------------------
+
+   Scaling everything up makes a big screen readable, but the storefront's
+   containers still stop at 1280px, so a 3840px monitor was still showing half
+   its width as margin after the scale above. On a marketplace that width is
+   worth having: it is more of the shelf visible at once, not a bigger picture
+   of less.
+
+   So on very wide screens the home page's containers are allowed to grow. The
+   cap is raised, never removed, and only above widths no laptop reaches, so
+   every screen below this is exactly as it was. Nothing inside the container
+   changes: the same cards, the same rails, the same spacing - there is simply
+   more room for them.
+
+   This was first written against the home page's own wrapper, on the belief
+   that scoping it there kept it away from the managers. It did not: the
+   vendor manager sets that same wrapper on itself, so it was already
+   included, while /marketplace and the product pages - which are the same
+   shelves under a different route - were left out. The owner asked for the
+   whole project, so the cap is raised wherever it is used.
+
+   It is only ever raised, never removed, and only above widths no laptop
+   reaches. The manager consoles mostly cap at 1600px already and are
+   untouched by this.
+   ------------------------------------------------------------------------ */
+
+@media (min-width: 2300px) {
+  .max-w-7xl { max-width: 1536px; }
+}
+
+@media (min-width: 2800px) {
+  .max-w-7xl { max-width: 1728px; }
+}
+
+@media (min-width: 3400px) {
+  .max-w-7xl { max-width: 1920px; }
+}

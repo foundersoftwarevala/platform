@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { mergedInto } from "@/lib/marketplace/merged-categories";
 import { siteUrl } from "@/lib/seo/site-url";
 import { CategoryDetail } from "@/components/marketplace-home/CategoryDetail";
 import { getPublicProductsByCategory } from "@/lib/marketplace.functions";
@@ -14,8 +15,6 @@ import { getCategorySeo, type CategorySeo } from "@/lib/seo/category-seo";
  * If the category cannot be loaded the page still renders with the generic copy
  * rather than the route failing.
  */
-
-
 
 const GENERIC = {
   title: "Category — Software Vala Marketplace",
@@ -32,6 +31,17 @@ function countryPhrase(countries: string[]): string {
 }
 
 export const Route = createFileRoute("/marketplace/category/$slug")({
+  // A merged category's page is the page of the category it joined.
+  beforeLoad: ({ params }) => {
+    const target = mergedInto(params.slug);
+    if (target) {
+      throw redirect({
+        to: "/marketplace/category/$slug",
+        params: { slug: target },
+        statusCode: 301,
+      });
+    }
+  },
   component: () => (
     <>
       <CategoryDetail />
@@ -45,7 +55,7 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
    * the other. The products are fetched here so the page renders on the server
    * instead of shipping a spinner to a search engine.
    */
-  loader: async ({ params }): Promise<{ seo: CategorySeo | null; products: unknown }> => {
+  loader: async ({ params }): Promise<{ seo: CategorySeo | null; products: unknown; missing: boolean }> => {
     const [seo, products] = await Promise.allSettled([
       getCategorySeo({ data: { slug: params.slug } }),
       getPublicProductsByCategory({ data: { category_slug: params.slug } }),
@@ -53,17 +63,71 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
     if (seo.status === "rejected") {
       console.error("[category head] could not load", params.slug, seo.reason);
     }
+    // A slug with no category is a 404 as well as noindex, not a soft 200.
+    if (seo.status === "fulfilled" && !seo.value && typeof window === "undefined") {
+      (await import("@/lib/seo/not-found.server")).respondNotFound();
+    }
     return {
       seo: seo.status === "fulfilled" ? seo.value : null,
+      /**
+       * A lookup that failed and a category that does not exist arrive here
+       * looking identical, and they need opposite answers.
+       *
+       * A failure should keep the page's identity, which is what the fallback
+       * below is for. A slug with no category behind it should not be indexed
+       * at all: /marketplace/category/not-a-row answered 200 with the title
+       * "Not A Row Software" and no robots tag, so every wrong slug anyone ever
+       * linked was a page Google could index, without limit.
+       *
+       * Fulfilled-but-empty is the difference: the lookup worked and found
+       * nothing.
+       */
+      missing: seo.status === "fulfilled" && !seo.value,
       products: products.status === "fulfilled" ? products.value : null,
     };
   },
 
   head: ({ loaderData, params }) => {
-    const data = (loaderData as { seo?: CategorySeo | null } | null)?.seo ?? null;
+    const loaded = loaderData as { seo?: CategorySeo | null; missing?: boolean } | null;
+    const data = loaded?.seo ?? null;
     if (!data) {
+      if (loaded?.missing) {
+        // There is no such category. The page still renders, so a visitor who
+        // followed a stale link sees the storefront rather than a dead end, but
+        // it is kept out of the index and points at the marketplace instead of
+        // claiming to be a category of its own.
+        return {
+          meta: [
+            { title: "Category not found | Software Vala" },
+            { name: "robots", content: "noindex, follow" },
+            { name: "description", content: GENERIC.description },
+          ],
+          links: [{ rel: "canonical", href: `${siteUrl()}/marketplace` }],
+        };
+      }
+      // The SEO lookup can fail on a loaded server, and when it did this page
+      // used to lose its canonical, its OpenGraph and its structured data all
+      // at once - and take the same generic title as every other page in the
+      // same position, so two categories advertised themselves as one. A
+      // sample of ten caught three of them.
+      //
+      // None of that needs the lookup. The canonical is the slug, which is in
+      // hand whatever the database is doing, and the slug also names the
+      // category well enough to keep two pages apart. A momentary failure now
+      // costs the page its description, not its identity.
+      const canonical = `${siteUrl()}/marketplace/category/${params.slug}`;
+      const named = params.slug
+        .split("-")
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
       return {
-        meta: [{ title: GENERIC.title }, { name: "description", content: GENERIC.description }],
+        meta: [
+          { title: named ? `${named} Software | Software Vala` : GENERIC.title },
+          { name: "description", content: GENERIC.description },
+          { property: "og:url", content: canonical },
+        ],
+        links: [{ rel: "canonical", href: canonical }],
       };
     }
 
@@ -113,7 +177,13 @@ export const Route = createFileRoute("/marketplace/category/$slug")({
       url: canonical,
       isPartOf: { "@type": "WebSite", name: "Software Vala", url: siteUrl() },
       ...(count > 0
-        ? { mainEntity: { "@type": "ItemList", numberOfItems: count, name: `${data.name} software` } }
+        ? {
+            mainEntity: {
+              "@type": "ItemList",
+              numberOfItems: count,
+              name: `${data.name} software`,
+            },
+          }
         : {}),
     };
 

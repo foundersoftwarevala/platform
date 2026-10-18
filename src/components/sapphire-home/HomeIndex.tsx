@@ -123,8 +123,11 @@ import {
 } from "@/components/sapphire-home/RefSections";
 import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { catalogueSlugForShelf } from "@/lib/marketplace/home-category-map";
+import { demoNumbersForCards, marketplaceDemoHref } from "@/lib/marketplace/demo-link";
 import { fetchCountryRail, railCardToDemo, shelfColour } from "@/lib/marketplace/country-rail";
 import { RAIL_COUNTRIES } from "@/lib/marketplace/rail-countries";
+import { useTranslation } from "@/lib/i18n/use-translation";
+import { useCatalogueCounts } from "@/components/sapphire-home/useCatalogueCounts";
 import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE } from "@/lib/site-content/constants";
 
 interface Demo {
@@ -148,9 +151,15 @@ interface Demo {
   softwareType?: string;
   relatedDetails?: string;
   disclaimer?: string;
+  /** The catalogue row's own slug, when the card comes from one. */
+  slug?: string;
+  /** The permanent card-slot page the catalogue product occupies, when it has one. */
+  slotUrl?: string;
 }
 
-const allDemos: Demo[] = [
+// Exported so a card's product page can be built from it on the server
+// (lib/marketplace/home-catalogue.server.ts).
+export const allDemos: Demo[] = [
   // ============= FEATURED ACTIVE DEMOS (First 20 with Live Routes) =============
   {
     id: "school-management",
@@ -160,6 +169,7 @@ const allDemos: Demo[] = [
     description:
       "Complete school management with student records, attendance, timetable, and parent communication.",
     url: "/demo/school-erp",
+    slug: "school-management",
     icon: GraduationCap,
     status: "ACTIVE",
     features: ["Student Records", "Attendance", "Timetable", "Parent Portal"],
@@ -1764,6 +1774,7 @@ const allDemos: Demo[] = [
     description:
       "Complete HMS with reservations, front desk, housekeeping, and revenue management.",
     url: "/demo/hotel-booking",
+    slug: "hotel-management",
     icon: Hotel,
     status: "ACTIVE",
     features: ["Reservations", "Front Desk", "Housekeeping", "Revenue"],
@@ -3434,7 +3445,7 @@ const allDemos: Demo[] = [
     discountPrice: "\u20b947,999",
   },
   {
-    id: "manufacturing-erp",
+    id: "manufacturing-erp-production",
     name: "Manufacturing ERP",
     category: "ERP",
     masterCategory: "Manufacturing",
@@ -3470,6 +3481,31 @@ const allDemos: Demo[] = [
 
 // Master Categories for filtering (55 rows — matches actual data values)
 const masterCategories = ["All", ...allMasterCategories55];
+
+/**
+ * The gradient for a shelf that has no static entries to take one from: the
+ * catalogue's country cards are the whole shelf, so they need a colour of
+ * their own, in the same two-stop style as every other shelf.
+ */
+const CATALOGUE_SHELF_COLOUR: Record<string, string> = {
+  Childcare: "from-pink-400 to-rose-500",
+  Coaching: "from-amber-500 to-orange-600",
+  "College ERP": "from-indigo-500 to-blue-600",
+  "Cultural & Arts": "from-fuchsia-500 to-purple-600",
+  "Digital Wallet": "from-emerald-500 to-teal-600",
+  "Entertainment & Media": "from-red-500 to-rose-600",
+  "Fleet Management": "from-slate-500 to-blue-700",
+  "Hospital HMS": "from-cyan-500 to-blue-600",
+  "Hotel HMS": "from-amber-600 to-yellow-700",
+  "Learning Management": "from-violet-500 to-indigo-600",
+  "Marketplace & Super Apps": "from-orange-500 to-pink-600",
+  "Pet Care & Services": "from-lime-500 to-green-600",
+  "Property Management": "from-stone-500 to-amber-700",
+  "Public Transport": "from-sky-500 to-indigo-600",
+  "Research & Analytics": "from-blue-500 to-violet-600",
+  "Restaurant POS": "from-orange-600 to-red-600",
+  "School Management": "from-teal-500 to-cyan-600",
+};
 const PRODUCTS_PER_ROW = 80;
 
 /**
@@ -3482,7 +3518,6 @@ const fillProductRail = (products: Demo[], target = PRODUCTS_PER_ROW) => {
   const length = Math.max(target, products.length);
   return Array.from({ length }, (_, index) => products[index % products.length] as Demo);
 };
-
 
 /**
  * The real catalogue products for one shelf, added after the shelf's own cards.
@@ -3502,6 +3537,7 @@ const CountryRailCards = memo(function CountryRailCards({
   shelf,
   colour,
   already,
+  demoNumberOffset,
   favorites,
   onToggleFavorite,
   onLoaded,
@@ -3510,6 +3546,7 @@ const CountryRailCards = memo(function CountryRailCards({
   colour: string;
   /** The slugs the shelf already shows, joined, so the memo around this holds. */
   already: string;
+  demoNumberOffset: number;
   favorites: string[];
   onToggleFavorite: (slug: string) => void;
   onLoaded: (shelf: string, count: number) => void;
@@ -3547,6 +3584,8 @@ const CountryRailCards = memo(function CountryRailCards({
     };
   }, [slug, shelf, colour, onLoaded, skip]);
 
+  const demoNumbers = demoNumbersForCards(cards, demoNumberOffset);
+
   return (
     <>
       <span ref={anchor} aria-hidden className="block w-0 shrink-0" />
@@ -3554,7 +3593,7 @@ const CountryRailCards = memo(function CountryRailCards({
         <DemoCard
           key={`${shelf}-country-${demo.id}`}
           demo={demo}
-          index={index}
+          demoNumber={demoNumbers[index]}
           isFavorite={favorites.includes(catalogueSlug(demo.name))}
           onToggleFavorite={() => onToggleFavorite(catalogueSlug(demo.name))}
         />
@@ -3564,6 +3603,8 @@ const CountryRailCards = memo(function CountryRailCards({
 });
 
 const Index = () => {
+  const { t } = useTranslation();
+  const counts = useCatalogueCounts();
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   // How many real catalogue products each shelf has added. A shelf that has
@@ -3571,7 +3612,9 @@ const Index = () => {
   // catalogue cannot be reached is the page that shipped yesterday.
   const [addedByShelf, setAddedByShelf] = useState<Record<string, number>>({});
   const noteAdded = useCallback((shelf: string, count: number) => {
-    setAddedByShelf((current) => (current[shelf] === count ? current : { ...current, [shelf]: count }));
+    setAddedByShelf((current) =>
+      current[shelf] === count ? current : { ...current, [shelf]: count },
+    );
   }, []);
   // Saved products belong to the person, not to one browser. Signed out,
   // they are kept in this browser as before and carried up on the next sign-in.
@@ -3621,109 +3664,139 @@ const Index = () => {
 
       <FeatureStrip />
 
-      <HeroCarousel />
+      {/* The page's content, as a landmark the skip link and screen readers can reach. */}
+      <main id="main-content" tabIndex={-1} className="focus:outline-none">
+        <HeroCarousel />
 
-      {/* Industry Grid */}
-      <div className="max-w-7xl mx-auto">
-        <IndustryGrid />
-      </div>
-
-      {/* Category Slider (auto-scroll) */}
-      <CategorySlider />
-
-      {/* Category Filter - Master Categories */}
-      <div className="bg-[#0d1e36]/80 backdrop-blur-sm border-b border-cyan-500/20 py-4 px-4 sticky top-0 z-40">
+        {/* Industry Grid */}
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Search software..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-[#1a2d4a] border-cyan-500/30 text-white placeholder:text-gray-400"
-              />
+          <IndustryGrid />
+        </div>
+
+        {/* Category Slider (auto-scroll) */}
+        <CategorySlider />
+
+        {/* Category Filter - Master Categories */}
+        <div className="bg-[#0d1e36]/80 backdrop-blur-sm border-b border-cyan-500/20 py-4 px-4 sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <Input
+                  placeholder="Search software..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-[#1a2d4a] border-cyan-500/30 text-white placeholder:text-gray-400"
+                />
+              </div>
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                {filteredDemos.length} Products
+              </Badge>
             </div>
-            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-              {filteredDemos.length} Products
-            </Badge>
           </div>
         </div>
-      </div>
 
-      {/* Netflix-style product rows */}
-      <section className="py-8 px-4">
-        <div className="max-w-7xl mx-auto">
-          {/* Group by Master Category when "All" is selected */}
-          {activeCategory === "All" ? (
-            masterCategories.slice(1).map((masterCat) => {
-              const categoryDemos = filteredDemos.filter((d) => d.masterCategory === masterCat);
-              if (categoryDemos.length === 0) return null;
-              // The shelf's own cards are repeated only as far as the real
-              // catalogue cards do not already fill the rail: a country card
-              // takes the place of a duplicate, never of a real one.
-              const added = addedByShelf[masterCat] ?? 0;
-              const rowDemos = searchQuery.trim()
-                ? categoryDemos
-                : fillProductRail(categoryDemos, Math.max(PRODUCTS_PER_ROW - added, 0));
+        {/* Netflix-style product rows */}
+        <section className="py-8 px-4">
+          <div className="max-w-7xl mx-auto">
+            {/* Group by Master Category when "All" is selected */}
+            {activeCategory === "All" ? (
+              masterCategories.slice(1).map((masterCat) => {
+                const categoryDemos = filteredDemos.filter((d) => d.masterCategory === masterCat);
+                // A shelf with no static entries is shown only when the
+                // catalogue fills it: not while searching (the country cards
+                // are not searched), not without a catalogue row, and not once
+                // its row has come back empty.
+                if (
+                  categoryDemos.length === 0 &&
+                  (searchQuery.trim() ||
+                    !catalogueSlugForShelf(masterCat) ||
+                    addedByShelf[masterCat] === 0)
+                ) {
+                  return null;
+                }
+                // The shelf's own cards are repeated only as far as the real
+                // catalogue cards do not already fill the rail: a country card
+                // takes the place of a duplicate, never of a real one.
+                const added = addedByShelf[masterCat] ?? 0;
+                const rowDemos = searchQuery.trim()
+                  ? categoryDemos
+                  : fillProductRail(categoryDemos, Math.max(PRODUCTS_PER_ROW - added, 0));
+                const demoNumbers = demoNumbersForCards(rowDemos);
 
-              return (
-                <ProductCarouselRow key={masterCat} title={masterCat} count={rowDemos.length + added}>
-                  {rowDemos.map((demo, index) => (
+                return (
+                  // The rail repeats its cards to fill the row; the count says
+                  // how many different products it holds, not how many tiles.
+                  <ProductCarouselRow
+                    key={masterCat}
+                    title={masterCat}
+                    count={new Set(rowDemos.map((d) => d.id)).size + added}
+                  >
+                    {rowDemos.map((demo, index) => (
+                      <DemoCard
+                        key={`${masterCat}-${demo.id}-${index}`}
+                        demo={demo}
+                        demoNumber={demoNumbers[index]}
+                        isFavorite={favorites.includes(catalogueSlug(demo.name))}
+                        onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
+                      />
+                    ))}
+                    {!searchQuery.trim() && (
+                      <CountryRailCards
+                        shelf={masterCat}
+                        colour={
+                          categoryDemos.length
+                            ? shelfColour(categoryDemos)
+                            : (CATALOGUE_SHELF_COLOUR[masterCat] ?? shelfColour(undefined))
+                        }
+                        already={categoryDemos.map((d) => catalogueSlug(d.name)).join(",")}
+                        demoNumberOffset={demoNumbers.filter((number) => number !== null).length}
+                        favorites={favorites}
+                        onToggleFavorite={toggleFavorite}
+                        onLoaded={noteAdded}
+                      />
+                    )}
+                  </ProductCarouselRow>
+                );
+              })
+            ) : (
+              <ProductCarouselRow
+                title={activeCategory}
+                count={new Set(filteredDemos.map((d) => d.id)).size}
+              >
+                {(() => {
+                  const rowDemos = searchQuery.trim()
+                    ? filteredDemos
+                    : fillProductRail(filteredDemos);
+                  const demoNumbers = demoNumbersForCards(rowDemos);
+                  return rowDemos.map((demo, index) => (
                     <DemoCard
-                      key={`${masterCat}-${demo.id}-${index}`}
+                      key={`${activeCategory}-${demo.id}-${index}`}
                       demo={demo}
-                      index={index}
+                      demoNumber={demoNumbers[index]}
                       isFavorite={favorites.includes(catalogueSlug(demo.name))}
                       onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
                     />
-                  ))}
-                  {!searchQuery.trim() && (
-                    <CountryRailCards
-                      shelf={masterCat}
-                      colour={shelfColour(categoryDemos)}
-                      already={categoryDemos.map((d) => catalogueSlug(d.name)).join(",")}
-                      favorites={favorites}
-                      onToggleFavorite={toggleFavorite}
-                      onLoaded={noteAdded}
-                    />
-                  )}
-                </ProductCarouselRow>
-              );
-            })
-          ) : (
-            <ProductCarouselRow
-              title={activeCategory}
-              count={(searchQuery.trim() ? filteredDemos : fillProductRail(filteredDemos)).length}
-            >
-              {(searchQuery.trim() ? filteredDemos : fillProductRail(filteredDemos)).map(
-                (demo, index) => (
-                  <DemoCard
-                    key={`${activeCategory}-${demo.id}-${index}`}
-                    demo={demo}
-                    index={index}
-                    isFavorite={favorites.includes(catalogueSlug(demo.name))}
-                    onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
-                  />
-                ),
-              )}
-            </ProductCarouselRow>
-          )}
-        </div>
-      </section>
+                  ));
+                })()}
+              </ProductCarouselRow>
+            )}
+          </div>
+        </section>
 
-      {/* Reference marketplace sections (added below product grid, keeping design intact) */}
-      <div className="max-w-7xl mx-auto">
-        <AIZone />
-        <SuccessStories />
-        <AwardsRow />
-        <LiveActivity />
-        <ValaTV />
-        <ValaAcademy />
-        <PartnerEcosystem />
-        <FaqSection />
-        <EnterpriseCTA />
-      </div>
+        {/* Reference marketplace sections (added below product grid, keeping design intact) */}
+        <div className="max-w-7xl mx-auto">
+          <AIZone />
+          <SuccessStories />
+          <AwardsRow />
+          <LiveActivity />
+          <ValaTV />
+          <ValaAcademy />
+          <PartnerEcosystem />
+          <FaqSection />
+          <EnterpriseCTA />
+        </div>
+      </main>
 
       {/* Footer */}
       <footer className="bg-[#0a1628] border-t border-cyan-500/20 py-8 px-4">
@@ -3732,8 +3805,29 @@ const Index = () => {
             © {new Date().getFullYear()} Software Vala - The Name of Trust. All rights reserved.
           </p>
           <p className="text-cyan-400 mt-2">
-            {allMasterCategories55.length} Master Categories • {allDemos.length} Software Solutions •{" "}
-            {allDemos.filter((d) => d.status === "ACTIVE").length} Live Demos Ready
+            {/* Was "55 Master Categories • {allDemos.length} Software Solutions •
+                20 Live Demos Ready" - the length of a hand-written list and two
+                fixed numbers. The catalogue's real counts, each left out when
+                it could not be read. */}
+            {[
+              counts.categories
+                ? t("marketplace.home.footer_categories", {
+                    count: counts.format(counts.categories),
+                  })
+                : null,
+              counts.products
+                ? t("marketplace.home.footer_solutions_count", {
+                    count: counts.format(counts.products),
+                  })
+                : t("marketplace.home.solutions"),
+              counts.liveDemos
+                ? t("marketplace.home.footer_live_demos_count", {
+                    count: counts.format(counts.liveDemos),
+                  })
+                : t("marketplace.home.footer_live_demos"),
+            ]
+              .filter(Boolean)
+              .join(" • ")}
           </p>
         </div>
       </footer>
@@ -3745,11 +3839,11 @@ const Index = () => {
       */}
       <Link
         to="/chat"
-        aria-label="Open Connect Chat"
+        aria-label={t("manager.home.open_chat")}
         className="sv-chat-fab fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_-12px_rgba(8,145,178,0.8)] transition hover:-translate-y-0.5"
       >
         <MessageCircle className="h-5 w-5" />
-        <span className="hidden sm:inline">Chat with us</span>
+        <span className="hidden sm:inline">{t("manager.home.chat_with_us")}</span>
       </Link>
     </div>
   );
@@ -3795,23 +3889,40 @@ const shareNatively = async (demo: Demo) => {
   toast.success("Product link copied");
 };
 
+/**
+ * The category and country of a card-slot address, /marketplace/<category>/<country>,
+ * or null when the card has no slot. The marketplace's own fixed paths that share
+ * that shape are not slots.
+ */
+const slotParams = (slotUrl: string | undefined) => {
+  const match = slotUrl?.match(/^\/marketplace\/([^/?#]+)\/([^/?#]+)$/);
+  if (!match || ["product", "category", "country"].includes(match[1])) return null;
+  return { category: match[1], country: match[2] };
+};
+
 const DemoCard = memo(
   ({
     demo,
-    index,
+    demoNumber,
     isFavorite,
     onToggleFavorite,
   }: {
     demo: Demo;
-    index: number;
+    demoNumber: number | null;
     isFavorite: boolean;
     onToggleFavorite: () => void;
   }) => {
     const Icon = demo.icon;
     const navigate = useNavigate();
+    const { t } = useTranslation();
+    const demoHref = marketplaceDemoHref({
+      hasDemo: demo.status === "ACTIVE",
+      slug: demo.slug,
+      url: demo.url,
+    });
     // The page this card opens. An author's upload takes the same address, so
     // the card keeps working when the real product arrives behind it.
-    const productSlug = catalogueSlug(demo.name);
+    const productSlug = demo.slug ?? catalogueSlug(demo.name);
     const productHref = `/marketplace/product/${productSlug}`;
     // The router writes search values as JSON, so a string arrives quoted -
     // ?buy=%221%22 - and the product page, which looks for exactly "1", never
@@ -3822,6 +3933,13 @@ const DemoCard = memo(
         params: { slug: productSlug },
         ...(search ? { search } : {}),
       });
+    // A catalogue card opens the permanent slot it occupies; Buy and Live Demo
+    // still go to the product and its demo.
+    const slot = slotParams(demo.slotUrl);
+    const openCard = () =>
+      slot
+        ? void navigate({ to: "/marketplace/$category/$country", params: slot })
+        : openProduct();
     const [activeTab, setActiveTab] = useState<"features" | "tech">("features");
     const [leadAction, setLeadAction] = useState<LeadAction | null>(null);
 
@@ -3839,7 +3957,7 @@ const DemoCard = memo(
           onClick={(event) => {
             // Anything with its own destination keeps it.
             if ((event.target as HTMLElement).closest("a,button")) return;
-            openProduct();
+            openCard();
           }}
         >
           <CardContent className="p-0 flex flex-col h-full">
@@ -3883,7 +4001,7 @@ const DemoCard = memo(
                   />
                 </button>
                 <a
-                  href={demo.url && demo.url !== "#" ? demo.url : productHref}
+                  href={demoHref ?? productHref}
                   onClick={(e) => e.stopPropagation()}
                   aria-label={`Preview ${demo.name}`}
                   className="sv-icon-btn"
@@ -3896,18 +4014,31 @@ const DemoCard = memo(
             {/* Content */}
             <div className="sv-card-body p-5 flex-1 flex flex-col">
               <div className="sv-card-title-row flex items-start justify-between mb-1">
-                <Link
-                  to="/marketplace/product/$slug"
-                  params={{ slug: productSlug }}
-                  className="min-w-0"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <h3 className="sv-card-title text-[17px] font-extrabold tracking-normal leading-snug">
-                    {demo.name}
-                  </h3>
-                </Link>
-                {demo.status === "ACTIVE" && (
-                  <Badge className="sv-card-rank text-[10px] shrink-0 ml-2">#{index + 1}</Badge>
+                {slot ? (
+                  <Link
+                    to="/marketplace/$category/$country"
+                    params={slot}
+                    className="min-w-0"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <h3 className="sv-card-title text-[17px] font-extrabold tracking-normal leading-snug">
+                      {demo.name}
+                    </h3>
+                  </Link>
+                ) : (
+                  <Link
+                    to="/marketplace/product/$slug"
+                    params={{ slug: productSlug }}
+                    className="min-w-0"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <h3 className="sv-card-title text-[17px] font-extrabold tracking-normal leading-snug">
+                      {demo.name}
+                    </h3>
+                  </Link>
+                )}
+                {demo.status === "ACTIVE" && demoNumber !== null && (
+                  <Badge className="sv-card-rank text-[10px] shrink-0 ml-2">#{demoNumber}</Badge>
                 )}
               </div>
               <p className="sv-card-category text-[11px] font-semibold uppercase tracking-normal mb-2 flex items-center gap-1">
@@ -3990,8 +4121,8 @@ const DemoCard = memo(
                     <Button
                       className="sv-btn sv-btn-cyan flex-1"
                       onClick={() => {
-                        if (demo.url && demo.url !== "#") {
-                          window.open(demo.url, "_blank", "noopener,noreferrer");
+                        if (demoHref) {
+                          window.open(demoHref, "_blank", "noopener,noreferrer");
                           return;
                         }
                         openProduct();
@@ -4097,25 +4228,35 @@ const DemoCard = memo(
                 </DropdownMenu>
               </div>
 
-              {/* Quick Stats on hover */}
+              {/* Quick Stats on hover. These were "50-99+ Clients", a "4.7-4.9"
+                  rating and "5-14h" delivery, hashed from the card id - numbers
+                  no client, review or order ever produced. They now state what
+                  the card itself knows: its feature count, whether its demo is
+                  live, and the site's stated 2-hour delivery. */}
               <div className="sv-card-stats mt-3 grid grid-cols-3">
                 <div className="sv-card-stat text-center">
-                  <p className="sv-card-stat-value text-lg font-bold">
-                    {50 + (stableSeed(demo.id) % 50)}+
+                  <p className="sv-card-stat-value text-lg font-bold">{demo.features.length}</p>
+                  <p className="sv-card-stat-label text-[10px]">
+                    {t("marketplace.home.card_features")}
                   </p>
-                  <p className="sv-card-stat-label text-[10px]">Clients</p>
                 </div>
                 <div className="sv-card-stat text-center">
                   <p className="sv-card-stat-value text-lg font-bold">
-                    4.{7 + (stableSeed(demo.id + "r") % 3)}
+                    {demo.status === "ACTIVE"
+                      ? t("marketplace.home.card_demo_live")
+                      : t("marketplace.home.card_demo_soon")}
                   </p>
-                  <p className="sv-card-stat-label text-[10px]">Rating</p>
+                  <p className="sv-card-stat-label text-[10px]">
+                    {t("marketplace.home.card_demo")}
+                  </p>
                 </div>
                 <div className="sv-card-stat text-center">
                   <p className="sv-card-stat-value text-lg font-bold">
-                    {5 + (stableSeed(demo.id + "d") % 10)}h
+                    {t("marketplace.home.card_delivery_value")}
                   </p>
-                  <p className="sv-card-stat-label text-[10px]">Delivery</p>
+                  <p className="sv-card-stat-label text-[10px]">
+                    {t("marketplace.home.card_delivery")}
+                  </p>
                 </div>
               </div>
             </div>

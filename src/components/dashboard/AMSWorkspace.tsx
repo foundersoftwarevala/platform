@@ -7,17 +7,16 @@ import {
   RefreshCcw, Wrench, CreditCard, FileText, Inbox, Trash2,
 } from "lucide-react";
 import type { RoleConfig } from "@/lib/roles";
-import { useCrud, type CrudRecord } from "@/lib/crud-store";
+import type { CrudRecord } from "@/lib/crud-store";
+import { deskToAms, useMyTicket, useMyTickets, type DeskStatus } from "@/lib/ams/use-my-tickets";
+import { requesterMayMove, type AmsStatus } from "@/lib/ams/tickets.types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/dashboard/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-type Status =
-  | "new" | "assigned" | "under-review" | "in-progress"
-  | "waiting-customer" | "waiting-developer" | "waiting-qa"
-  | "testing" | "resolved" | "closed" | "reopened";
+type Status = DeskStatus;
 
 type Priority = "low" | "medium" | "high" | "critical";
 
@@ -54,11 +53,6 @@ const PRIORITY_TONE: Record<Priority, string> = {
   critical: "bg-danger/15 text-danger",
 };
 
-function genAmsId() {
-  const n = Math.floor(100000 + Math.random() * 900000);
-  return `AMS-${n}`;
-}
-
 function statusOf(r: CrudRecord): Status {
   return (String(r.extra.status ?? "new") as Status);
 }
@@ -67,11 +61,12 @@ function priorityOf(r: CrudRecord): Priority {
 }
 
 export function AMSWorkspace({ role, onBack }: { role: RoleConfig; onBack: () => void }) {
-  const crud = useCrud(role.key, "ams");
+  // The requests are real AMS tickets, raised by this person; the support
+  // team works them from the AMS Manager.
+  const crud = useMyTickets();
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const active = activeId ? crud.records.find(r => r.id === activeId) ?? null : null;
 
   const counts = useMemo(() => {
     const out = { open: 0, pending: 0, resolved: 0, closed: 0, critical: 0 };
@@ -96,16 +91,8 @@ export function AMSWorkspace({ role, onBack }: { role: RoleConfig; onBack: () =>
     );
   }, [crud.records, query]);
 
-  if (active) {
-    return (
-      <AMSDetail
-        record={active}
-        onBack={() => setActiveId(null)}
-        onUpdate={(patch) => crud.update(active.id, patch)}
-        onComment={(text) => crud.addComment(active.id, text)}
-        onDelete={() => { crud.remove(active.id); setActiveId(null); toast.success("AMS deleted."); }}
-      />
-    );
+  if (activeId) {
+    return <AMSDetailLoader id={activeId} onBack={() => setActiveId(null)} />;
   }
 
   return (
@@ -136,7 +123,18 @@ export function AMSWorkspace({ role, onBack }: { role: RoleConfig; onBack: () =>
         <Button onClick={() => setCreating(true)}><Plus className="h-4 w-4 mr-1" /> New AMS</Button>
       </div>
 
-      {filtered.length === 0 ? (
+      {crud.loading ? (
+        <div className="rounded-2xl border border-dashed border-border bg-surface-1 p-12 text-center text-sm text-muted-foreground">
+          Loading your support requests…
+        </div>
+      ) : crud.error ? (
+        <div className="rounded-2xl border border-dashed border-border bg-surface-1 p-12 text-center">
+          <AlertTriangle className="h-10 w-10 mx-auto text-muted-foreground" />
+          <div className="mt-3 font-medium">Your support requests could not be read</div>
+          <div className="text-sm text-muted-foreground">{crud.error}</div>
+          <Button className="mt-4" variant="outline" onClick={crud.refresh}>Try again</Button>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface-1 p-12 text-center">
           <LifeBuoy className="h-10 w-10 mx-auto text-muted-foreground" />
           <div className="mt-3 font-medium">No support requests yet</div>
@@ -183,27 +181,22 @@ export function AMSWorkspace({ role, onBack }: { role: RoleConfig; onBack: () =>
       {creating && (
         <CreateAMS
           onClose={() => setCreating(false)}
-          onCreate={(input) => {
-            const amsId = genAmsId();
-            const rec = crud.create({
-              name: input.title,
-              status: "pending",
-              category: input.category,
-              notes: input.description,
-              extra: {
-                amsId,
+          onCreate={async (input) => {
+            try {
+              const rec = await crud.create({
+                subject: input.title,
+                description: [input.description, input.notesExtra].filter((t) => t.trim()).join("\n\n"),
                 product: input.product,
                 category: input.category,
                 priority: input.priority,
-                status: "new",
                 expected: input.expected,
-                notesExtra: input.notesExtra,
-                department: "Support",
-              },
-            });
-            setCreating(false);
-            setActiveId(rec.id);
-            toast.success(`Created ${amsId}`);
+              });
+              setCreating(false);
+              setActiveId(rec.id);
+              toast.success(`Created ${String(rec.extra.amsId)}`);
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : String(error));
+            }
           }}
         />
       )}
@@ -239,7 +232,7 @@ function CreateAMS({
   onClose, onCreate,
 }: {
   onClose: () => void;
-  onCreate: (data: { title: string; description: string; product: string; category: string; priority: Priority; expected: string; notesExtra: string }) => void;
+  onCreate: (data: { title: string; description: string; product: string; category: string; priority: Priority; expected: string; notesExtra: string }) => void | Promise<void>;
 }) {
   const [step, setStep] = useState<1|2|3>(1);
   const [product, setProduct] = useState("");
@@ -363,13 +356,46 @@ function Row({ k, v }: { k: string; v: string }) {
 
 // ─────────────────────────────── DETAIL ───────────────────────────────
 
+function AMSDetailLoader({ id, onBack }: { id: string; onBack: () => void }) {
+  const ticket = useMyTicket(id);
+  if (!ticket.record) {
+    return (
+      <div className="space-y-4">
+        <button onClick={onBack} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition">
+          <ArrowLeft className="h-4 w-4" /> Back to AMS list
+        </button>
+        <div className="rounded-2xl border border-dashed border-border bg-surface-1 p-12 text-center text-sm text-muted-foreground">
+          {ticket.loading ? "Loading the request…" : ticket.error ?? "This request could not be found."}
+        </div>
+      </div>
+    );
+  }
+  const run = (work: Promise<unknown>, done: string) =>
+    work.then(
+      () => toast.success(done),
+      (error: unknown) => toast.error(error instanceof Error ? error.message : String(error)),
+    );
+  return (
+    <AMSDetail
+      record={ticket.record}
+      onBack={onBack}
+      onStatus={(to) => void run(ticket.setStatus(to), `Status → ${to.replace(/_/g, " ")}`)}
+      onSend={(channel, text) => ticket.send(channel, text)}
+      onDelete={() => {
+        if (!window.confirm("Archive this request? The support team will no longer see it as open.")) return;
+        void run(ticket.archive().then(onBack), "Request archived");
+      }}
+    />
+  );
+}
+
 function AMSDetail({
-  record, onBack, onUpdate, onComment, onDelete,
+  record, onBack, onStatus, onSend, onDelete,
 }: {
   record: CrudRecord;
   onBack: () => void;
-  onUpdate: (patch: Partial<CrudRecord>) => void;
-  onComment: (text: string) => void;
+  onStatus: (to: AmsStatus) => void;
+  onSend: (channel: "support" | "developer" | "qa" | "boss" | "ai", text: string) => Promise<void>;
   onDelete: () => void;
 }) {
   const [tab, setTab] = useState<"chat"|"details"|"ai"|"history">("chat");
@@ -379,16 +405,22 @@ function AMSDetail({
   const status = statusOf(record);
   const priority = priorityOf(record);
 
+  // The ticket system's own status, and what the person who raised it may move
+  // it to; the rest belongs to the support team.
+  const current = String(record.extra.amsStatus ?? "submitted") as AmsStatus;
+  const mayMoveTo = (s: Status) => requesterMayMove(current, deskToAms(s));
+
   function setStatus(s: Status) {
-    onUpdate({ extra: { ...record.extra, status: s } });
-    toast.success(`Status → ${s}`);
+    onStatus(deskToAms(s));
   }
 
   function send() {
     const text = draft.trim();
     if (!text) return;
-    onComment(`[${channel}] ${text}`);
-    setDraft("");
+    onSend(channel, text).then(
+      () => setDraft(""),
+      (error: unknown) => toast.error(error instanceof Error ? error.message : String(error)),
+    );
   }
 
   return (
@@ -401,12 +433,12 @@ function AMSDetail({
           <Button
             variant="outline"
             size="sm"
-            disabled={status === "reopened"}
+            disabled={!mayMoveTo("reopened")}
             onClick={() => setStatus("reopened")}
           >
             <RefreshCcw className="h-4 w-4 mr-1" />Reopen
           </Button>
-          <Button variant="outline" size="sm" onClick={onDelete}><Trash2 className="h-4 w-4 mr-1" />Delete</Button>
+          <Button variant="outline" size="sm" onClick={onDelete}><Trash2 className="h-4 w-4 mr-1" />Archive</Button>
         </div>
       </div>
 
@@ -425,8 +457,10 @@ function AMSDetail({
           <div className="flex flex-wrap gap-1.5">
             {STATUSES.slice(0,8).map((s) => (
               <button key={s.key} onClick={() => setStatus(s.key)}
-                className={cn("text-[10px] px-2 py-1 rounded-full border transition",
-                  status === s.key ? "border-brand bg-brand/10" : "border-border bg-surface-1 hover:bg-surface-2")}>
+                disabled={status === s.key || !mayMoveTo(s.key)}
+                title={mayMoveTo(s.key) || status === s.key ? undefined : "Set by the support team"}
+                className={cn("text-[10px] px-2 py-1 rounded-full border transition disabled:opacity-40 disabled:cursor-not-allowed",
+                  status === s.key ? "border-brand bg-brand/10 disabled:opacity-100" : "border-border bg-surface-1 hover:bg-surface-2")}>
                 {s.label}
               </button>
             ))}
@@ -455,13 +489,18 @@ function AMSDetail({
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {record.comments.length === 0 ? (
+              {channel === "ai" && (
+                <div className="rounded-xl border border-dashed border-border bg-surface-2 px-3 py-2 text-xs text-muted-foreground">
+                  No AI assistant answers on tickets yet. Messages here are kept on the ticket for the support team.
+                </div>
+              )}
+              {record.comments.filter((c) => c.author === channel).length === 0 ? (
                 <div className="text-center text-sm text-muted-foreground pt-12">
                   No messages yet. Start the conversation with the {channel} team.
                 </div>
-              ) : record.comments.map((c) => (
+              ) : record.comments.filter((c) => c.author === channel).map((c) => (
                 <div key={c.id} className="max-w-[80%] rounded-2xl bg-surface-2 px-3 py-2 text-sm">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{c.author} • {new Date(c.date).toLocaleTimeString()}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{c.author} • {new Date(c.date).toLocaleString()}</div>
                   <div>{c.text}</div>
                 </div>
               ))}
@@ -512,7 +551,7 @@ function AMSDetail({
             <Detail k="Status"        v={status} />
             <Detail k="Assigned Team" v={String(record.extra.department ?? "Support")} />
             <Detail k="Created"       v={new Date(record.date).toLocaleString()} />
-            <Detail k="Last Updated"  v={record.audit[0] ? new Date(record.audit[0].date).toLocaleString() : "—"} />
+            <Detail k="Last Updated"  v={record.extra.updated ? new Date(String(record.extra.updated)).toLocaleString() : "—"} />
             <Detail k="Expected"      v={String(record.extra.expected ?? "—")} />
             <div className="md:col-span-2">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Description</div>

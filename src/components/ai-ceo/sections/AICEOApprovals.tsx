@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCEOSuggestions, type CEOSuggestion } from "@/hooks/useCEOSuggestions";
+import { GovernedApprovals } from "./GovernedApprovals";
 
 /**
  * The Boss approval queue, and the place a decision is actually made.
@@ -233,6 +234,8 @@ const AICEOApprovals = () => {
           )}
         </CardContent>
       </Card>
+
+      <GovernedApprovals />
 
       <div className="rounded-lg border border-accent-emerald/20 bg-accent-emerald/5 p-4">
         <div className="flex items-center gap-3">

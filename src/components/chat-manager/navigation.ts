@@ -24,7 +24,7 @@ export const chatGroups: NavGroup[] = [
   {
     label: "Chat Manager",
     items: [
-      { label: "Command Console", icon: Gauge },
+      { label: "Dashboard", icon: Gauge },
       { label: "Live Conversations", icon: MessagesSquare },
       { label: "Handoff Queue", icon: UserCheck },
       { label: "AI Governance", icon: Bot },

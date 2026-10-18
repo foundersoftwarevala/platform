@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
+import type { Json } from "@/integrations/supabase/types";
 
-import { isManagerTable, MANAGER_TABLES } from "./manager-tables";
+import { isManagerTable, MANAGER_TABLES, type ManagerTable } from "./manager-tables";
 import {
   credentialFingerprint,
   encryptAiCredential,
@@ -12,16 +13,25 @@ import { assertManagedProviderEndpoint } from "./managed-api-endpoints.server";
 import { aiComplete } from "./ai-gateway.server";
 import { randomUUID } from "node:crypto";
 
+/**
+ * A plain column name. The list endpoints run with the service role, so a
+ * select, filter or order string is the caller reaching into the table: an
+ * alias ("s:secret_encrypted") slipped past the server-only column redaction,
+ * and an embed ("*,other_table(*)") read tables outside the allow-list.
+ */
+const COLUMN = /^[a-z_][a-z0-9_]*$/;
+const SELECT_LIST = /^\s*(\*|[a-z_][a-z0-9_]*)(\s*,\s*(\*|[a-z_][a-z0-9_]*))*\s*$/;
+
 const filterSchema = z.object({
-  column: z.string().min(1).max(64),
+  column: z.string().min(1).max(64).regex(COLUMN, "Unknown column"),
   op: z.enum(["eq", "neq", "gt", "gte", "lt", "lte", "in", "is"]).default("eq"),
   value: z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())]),
 });
 
 const listSchema = z.object({
   table: z.string().refine(isManagerTable, "Unknown table"),
-  select: z.string().max(600).default("*"),
-  orderBy: z.string().max(64).optional(),
+  select: z.string().max(600).regex(SELECT_LIST, "Select must be a list of columns").default("*"),
+  orderBy: z.string().max(64).regex(COLUMN, "Unknown column").optional(),
   ascending: z.boolean().default(false),
   limit: z.number().int().min(1).max(2000).default(200),
   filters: z.array(filterSchema).max(8).default([]),
@@ -43,6 +53,13 @@ const mutateSchema = z.object({
 const insertSchema = z.object({
   table: z.string().refine(isManagerTable, "Unknown table"),
   values: z.record(z.string(), z.unknown()),
+  accessToken: z.string().min(1),
+});
+
+const creditWalletSchema = z.object({
+  walletId: z.string().uuid(),
+  amount: z.number().positive().max(10_000_000),
+  description: z.string().min(1).max(200),
   accessToken: z.string().min(1),
 });
 
@@ -72,22 +89,27 @@ async function requireManager(accessToken?: string) {
   const token = accessToken ?? (header?.startsWith("Bearer ") ? header.slice(7) : null);
   if (!token) throw new Error("Manager authentication required");
   const db = await admin();
-  const { data: user, error: userError } = await db.auth.getUser(token);
-  if (userError || !user.user) throw new Error("Manager authentication required");
+  // Resolved through the shared bearer check: auth.getUser() on a
+  // service-role client sends the service key as apikey, which the auth
+  // service refuses with "Invalid API key", so this guard used to turn
+  // every valid operator away. See lib/auth/bearer-user.server.ts.
+  const { userFromBearerToken } = await import("@/lib/auth/bearer-user.server");
+  const caller = await userFromBearerToken(token);
+  if (!caller) throw new Error("Manager authentication required");
   // The Control Panel gates the Finance Manager on the `finance` role, so a
   // finance operator has to be able to use the data layer behind it. Without
   // this they passed the door and were refused here, and the console loaded
   // empty with nothing to explain why. Admin and boss keep what they had.
   const [{ data: isAdmin }, { data: isBoss }, { data: isFinance }] = await Promise.all([
-    db.rpc("has_role", { _user_id: user.user.id, _role: "admin" }),
-    db.rpc("has_role", { _user_id: user.user.id, _role: "boss" }),
-    db.rpc("has_role", { _user_id: user.user.id, _role: "finance" }),
+    db.rpc("has_role", { _user_id: caller.id, _role: "admin" }),
+    db.rpc("has_role", { _user_id: caller.id, _role: "boss" }),
+    db.rpc("has_role", { _user_id: caller.id, _role: "finance" }),
   ]);
   if (!isAdmin && !isBoss && !isFinance) throw new Error("Manager permission required");
   const role = isBoss ? "boss" : isAdmin ? "admin" : "finance";
   return {
     client: db,
-    actor: { id: user.user.id, email: user.user.email ?? null, role },
+    actor: { id: caller.id, email: caller.email ?? null, role },
   };
 }
 
@@ -124,6 +146,59 @@ function requireCentralAiManager(context: ManagerContext, tables: Iterable<strin
   }
 }
 
+// Order money has workflows of its own: a refund is requested through
+// mm_refund_request and settled by the provider, commission is recorded and
+// reversed by the settlement code, payouts move through their own steps. A
+// row written here by hand would skip all of that - an order "refunded" with
+// no request, a commission that never existed, a payout removed from the
+// ledger. These tables stay readable for Finance, and are never written here.
+const WORKFLOW_ONLY_TABLES = new Set([
+  "marketplace_orders",
+  "marketplace_order_items",
+  "marketplace_payment_intents",
+  "marketplace_payment_events",
+  "marketplace_order_refunds",
+  "marketplace_commissions",
+  "marketplace_commission_reversals",
+  "marketplace_payouts",
+]);
+
+async function refuseWorkflowTable(
+  context: ManagerContext,
+  table: string,
+  action: string,
+  id: string | null,
+) {
+  if (!WORKFLOW_ONLY_TABLES.has(table)) return;
+  await writeAudit(context, `${table}.direct_${action}_refused`, table, id, {}, "warning");
+  throw new Error(
+    `${table} is changed only through its own workflow (orders, refunds and payouts), not edited directly.`,
+  );
+}
+
+// Trails and ledgers are append-only: an audit row or a ledger entry edited or
+// removed through a generic console is the record of what happened rewritten.
+const APPEND_ONLY_TABLES = new Set([
+  "audit_logs",
+  "finance_audit_logs",
+  "finance_ledger_entries",
+  "finance_payment_events",
+  "finance_payment_webhooks",
+]);
+
+async function refuseAppendOnly(
+  context: ManagerContext,
+  table: string,
+  action: string,
+  id: string | null,
+) {
+  if (!APPEND_ONLY_TABLES.has(table)) return;
+  await writeAudit(context, `${table}.direct_${action}_refused`, table, id, {}, "warning");
+  throw new Error(
+    `${table} is an append-only record and cannot be ${action === "delete" ? "deleted" : "edited"}.`,
+  );
+}
+
 type ListInput = z.infer<typeof listSchema>;
 
 // Rows are dynamic across 32 tables; the shape is validated at the table layer.
@@ -155,9 +230,35 @@ function redactValues(table: string, values: Record<string, unknown>): Record<st
   return safe;
 }
 
+function queryableManagerTable(table: ManagerTable) {
+  switch (table) {
+    case "finance_bank_transfers":
+    case "finance_currency_rates":
+    case "customer_finance_profiles":
+    case "reseller_payment_intents":
+      throw new Error(`${table}: no table exists in the current database schema.`);
+    default:
+      return table;
+  }
+}
+
 async function runList(db: Awaited<ReturnType<typeof admin>>, input: ListInput) {
+  // Server-only columns are never selected, filtered or ordered on: a range
+  // filter on a secret is a way of reading it one comparison at a time.
+  const hidden = SERVER_ONLY_COLUMNS[input.table] ?? [];
+  const named = [
+    ...input.select.split(",").map((c) => c.trim()),
+    ...input.filters.map((f) => f.column),
+    ...(input.orderBy ? [input.orderBy] : []),
+  ];
+  if (named.some((c) => hidden.includes(c))) {
+    throw new Error(`${input.table}: that column is not available here.`);
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query: any = db.from(input.table).select(input.select).limit(input.limit);
+  let query: any = db
+    .from(queryableManagerTable(input.table))
+    .select(input.select)
+    .limit(input.limit);
 
   for (const f of input.filters) {
     if (f.op === "in" && Array.isArray(f.value)) query = query.in(f.column, f.value);
@@ -267,6 +368,8 @@ export const updateRecord = createServerFn({ method: "POST" })
     const context = await requireManager(data.accessToken);
     const db = context.client;
     requireCentralAiManager(context, [data.table]);
+    await refuseWorkflowTable(context, data.table, "update", data.id);
+    await refuseAppendOnly(context, data.table, "update", data.id);
     if (
       (data.table === "api_services" || data.table === "ai_providers") &&
       "credential_env" in data.values
@@ -279,16 +382,18 @@ export const updateRecord = createServerFn({ method: "POST" })
       assertManagedProviderEndpoint(data.values["endpoint_url"]);
     }
     if (data.table === "api_keys" && "secret_encrypted" in data.values) {
-      throw new Error("Replace credentials through Configure Key; stored secrets cannot be updated directly.");
+      throw new Error(
+        "Replace credentials through Configure Key; stored secrets cannot be updated directly.",
+      );
     }
     if (data.table === "api_services") {
       await validateApiServiceActivation(db, data.id, data.values);
     }
     const { data: row, error } = await db
-      .from(data.table)
+      .from(queryableManagerTable(data.table))
       .update(data.values as never)
-      .eq("id", data.id)
-      .select()
+      .match({ id: data.id })
+      .select<"*", Record<string, Json>>()
       .single();
     if (error) throw new Error(error.message);
     await writeAudit(
@@ -299,6 +404,35 @@ export const updateRecord = createServerFn({ method: "POST" })
       redactValues(data.table, data.values),
     );
     return redactRows(data.table, [row as Row])[0] as Row;
+  });
+
+/**
+ * Add money to a wallet in one atomic step: the database adds the amount to
+ * the balance it holds and records the transaction with the resulting
+ * balance, together (wallet_credit_atomic). The browser used to compute the
+ * new balance from its own copy and write it separately, so concurrent
+ * top-ups lost money and a half-failed pair left the two out of step.
+ */
+export const creditWallet = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => creditWalletSchema.parse(data))
+  .handler(async ({ data }) => {
+    const context = await requireManager(data.accessToken);
+    const reference = `TOPUP-${Date.now()}`;
+    const { data: wallet, error } = await context.client.rpc(
+      "wallet_credit_atomic" as never,
+      {
+        p_wallet_id: data.walletId,
+        p_amount: data.amount,
+        p_description: data.description,
+        p_reference: reference,
+      } as never,
+    );
+    if (error) throw new Error(error.message);
+    await writeAudit(context, "wallets.credited", "wallets", data.walletId, {
+      amount: data.amount,
+      reference,
+    });
+    return wallet as unknown as Row;
   });
 
 export const checkApiServiceHealth = createServerFn({ method: "POST" })
@@ -459,6 +593,7 @@ export const insertRecord = createServerFn({ method: "POST" })
     const context = await requireManager(data.accessToken);
     const db = context.client;
     requireCentralAiManager(context, [data.table]);
+    await refuseWorkflowTable(context, data.table, "insert", null);
     if (
       (data.table === "api_services" || data.table === "ai_providers") &&
       "credential_env" in values
@@ -471,9 +606,9 @@ export const insertRecord = createServerFn({ method: "POST" })
       assertManagedProviderEndpoint(values["endpoint_url"]);
     }
     const { data: row, error } = await db
-      .from(data.table)
+      .from(queryableManagerTable(data.table))
       .insert(values as never)
-      .select()
+      .select<"*", Record<string, Json>>()
       .single();
     if (error) throw new Error(error.message);
     await writeAudit(
@@ -492,7 +627,12 @@ export const deleteRecord = createServerFn({ method: "POST" })
     const context = await requireManager(data.accessToken);
     const db = context.client;
     requireCentralAiManager(context, [data.table]);
-    const { error } = await db.from(data.table).delete().eq("id", data.id);
+    await refuseWorkflowTable(context, data.table, "delete", data.id);
+    await refuseAppendOnly(context, data.table, "delete", data.id);
+    const { error } = await db
+      .from(queryableManagerTable(data.table))
+      .delete()
+      .match({ id: data.id });
     if (error) throw new Error(error.message);
     await writeAudit(context, `${data.table}.deleted`, data.table, data.id, {}, "warning");
     return { ok: true };

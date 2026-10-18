@@ -337,7 +337,7 @@ const LeadManagement = () => {
                     </div>
 
                     <Select
-                      value={lead.stage}
+                      value={lead.stage ?? ""}
                       onValueChange={async (v) => {
                         try {
                           await updateLead.mutateAsync({ id: lead.id, values: { stage: v } });

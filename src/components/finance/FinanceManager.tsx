@@ -24,7 +24,7 @@ export function FinanceManager({ view = "billing" }: { view?: string }) {
           The three screens beside this one read the API-billing tables, which
           are empty. The ledger reads the finance tables, which are not.
         */}
-        <Button type="button" variant={activeView === "ledger" ? "default" : "outline"} onClick={() => setActiveView("ledger")}>Ledger</Button>
+        <Button type="button" variant={activeView === "ledger" ? "default" : "outline"} onClick={() => setActiveView("ledger")}>{t("manager.finance.ledger")}</Button>
       </div>
       {activeView === "memberships" ? (
         <ResellerMembershipQueue />

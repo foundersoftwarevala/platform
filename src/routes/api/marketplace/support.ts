@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { csvCell, orSearchTerm } from "@/lib/postgrest-safe";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { resolveAction } from "@/lib/marketplace/permission-guard";
 import { loadMatrix, recordDenial, rolesOf } from "@/lib/marketplace/permission-store.server";
@@ -48,6 +49,28 @@ async function rows<T = Record<string, unknown>>(path: string): Promise<T[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Every row an export covers, a thousand at a time, or an error. rows() turns a
+ * failed read into an empty list, which for an export became a header-only
+ * file reported as "exported"; and one read of 5,000 cut off the rest without
+ * saying so.
+ */
+async function exportRows(path: string): Promise<{ rows: Record<string, unknown>[]; truncated: boolean }> {
+  const PAGE = 1000;
+  const CAP = 100_000;
+  const out: Record<string, unknown>[] = [];
+  for (let offset = 0; offset < CAP; offset += PAGE) {
+    const response = await fetch(`${url()}/rest/v1/${path}&offset=${offset}&limit=${PAGE}`, {
+      headers: admin(),
+    });
+    if (!response.ok) throw new Error(`The export read failed (${response.status}).`);
+    const page = (await response.json()) as Record<string, unknown>[];
+    out.push(...page);
+    if (page.length < PAGE) return { rows: out, truncated: false };
+  }
+  return { rows: out, truncated: true };
 }
 
 async function count(path: string): Promise<number | null> {
@@ -131,9 +154,10 @@ export const Route = createFileRoute("/api/marketplace/support")({
         let filter = "";
         if (status !== "all") filter += `&status=eq.${encodeURIComponent(status)}`;
         if (priority !== "all") filter += `&priority=eq.${encodeURIComponent(priority)}`;
-        if (q) {
-          filter += `&or=(subject.ilike.*${encodeURIComponent(q)}*,description.ilike.*${encodeURIComponent(q)}*,` +
-            `customer_name.ilike.*${encodeURIComponent(q)}*,reference.ilike.*${encodeURIComponent(q)}*)`;
+        const term = orSearchTerm(q);
+        if (term) {
+          filter += `&or=(subject.ilike.*${term}*,description.ilike.*${term}*,` +
+            `customer_name.ilike.*${term}*,reference.ilike.*${term}*)`;
         }
         const allowedSort = new Set([
           "created_at.desc", "created_at.asc", "updated_at.desc",
@@ -326,13 +350,20 @@ export const Route = createFileRoute("/api/marketplace/support")({
           );
         }
 
-        const list = await rows<Record<string, unknown>>(
-          "support_tickets?select=reference,subject,status,priority,category,channel,customer_name,assigned_to,created_at,resolved_at,sla_breached,csat&order=created_at.desc&limit=5000",
-        );
-        const cell = (v: unknown) => {
-          const t = v === null || v === undefined ? "" : String(v);
-          return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
-        };
+        let list: Record<string, unknown>[];
+        let truncated: boolean;
+        try {
+          ({ rows: list, truncated } = await exportRows(
+            "support_tickets?select=reference,subject,status,priority,category,channel,customer_name,assigned_to,created_at,resolved_at,sla_breached,csat&order=created_at.desc,id.desc",
+          ));
+        } catch (error) {
+          return Response.json(
+            { ok: false, reason: "read_failed", message: error instanceof Error ? error.message : String(error) },
+            { status: 502 },
+          );
+        }
+        // Subjects and customer names are typed by customers: never formulas.
+        const cell = csvCell;
         const lines = ["reference,subject,status,priority,category,channel,customer,assigned_to,created_at,resolved_at,sla_breached,csat"];
         for (const r of list) {
           lines.push([
@@ -342,10 +373,12 @@ export const Route = createFileRoute("/api/marketplace/support")({
         }
         // Descriptions and conversation bodies are left out deliberately: an
         // export is the easiest way for customer text to leave the building.
-        await audit(request, "Support tickets exported", { rows: list.length },
-          `${list.length} tickets exported. Descriptions and message bodies were not included.`);
+        await audit(request, "Support tickets exported", { rows: list.length, truncated },
+          `${list.length} tickets exported${truncated ? " (stopped at the export ceiling)" : ""}. Descriptions and message bodies were not included.`);
         return new Response(lines.join("\n"), {
           headers: {
+            "X-Export-Rows": String(list.length),
+            "X-Export-Truncated": String(truncated),
             "Content-Type": "text/csv; charset=utf-8",
             "Content-Disposition": `attachment; filename="support-tickets-${new Date().toISOString().slice(0, 10)}.csv"`,
           },
