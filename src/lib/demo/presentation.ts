@@ -38,7 +38,12 @@ export type Evidence = {
 };
 
 export type PresentationRules = {
-  /** Literal text removed wherever it appears (contact details). */
+  /**
+   * The demo's own contact details (e-mail, phone, WhatsApp), shown as
+   * Software Vala's instead. Absent on demos investigated before this existed.
+   */
+  replace?: string[];
+  /** Literal text removed wherever it appears (contact details, addresses). */
   remove: string[];
   /** Literal developer names/credits shown as "Software Vala" instead. */
   rebrand: string[];
@@ -50,7 +55,9 @@ export type PresentationRules = {
 
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)*\.[A-Z]{2,24}/gi;
 // A number worth a second look: at least 8 digits, allowing the usual separators.
-const PHONE = /(?:\+|\b00)?\d[\d\s().-]{6,18}\d/g;
+// Spaces only between the digits, never a line break: evidence is a list of
+// strings joined by newlines, and a number must not run into the next one.
+const PHONE = /(?:\+|\b00)?\d[\d \t().-]{6,18}\d/g;
 const WHATSAPP = /(?:https?:)?\/\/(?:wa\.me|api\.whatsapp\.com|chat\.whatsapp\.com|web\.whatsapp\.com)\/[^\s"'<>)]*|whatsapp:\/\/[^\s"'<>)]*/gi;
 const CREDIT = /\b(?:developed|designed|powered|created|built|made|crafted|maintained)\s+(?:with\s+\S+\s+)?by\s*:?\s*([^<>"'\n|©]{2,60})/gi;
 const ASSET_EMAIL = /\.(?:png|jpe?g|gif|svg|webp|avif|js|css|woff2?)$/i;
@@ -93,20 +100,41 @@ function phonesIn(text: string): string[] {
  * A single-page app ships its words in its bundle, not in its HTML.
  */
 export function bundleStrings(js: string, limit = 600): string[] {
-  const out: string[] = [];
-  const re = /(["'`])((?:(?!\1)[^\\\n]|\\.){3,160})\1/g;
+  // A Lovable or Vercel app ships one bundle of a megabyte or more, framework
+  // first: taken in order, the first few hundred strings are React's and the
+  // app's own contact section is never reached. So the whole bundle is read,
+  // and what can be a contact or a credit comes first, then text the app
+  // draws (a JSX child, a label, a title), then the rest.
+  //
+  // Literals are found one quote kind at a time, never by pairing quotes
+  // across the file: a quote inside a regular expression or a multi-line
+  // template in the framework would pair every later string the wrong way.
+  const contact: string[] = [];
+  const drawn: string[] = [];
+  const rest: string[] = [];
+  const keep = (s: string, list: string[]) => {
+    const isContact =
+      /[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)*\.[A-Z]{2,24}/i.test(s) ||
+      /wa\.me|whatsapp|\+\d|©|\b(?:developed|powered|designed|created|made|built)\s+by\b/i.test(s) ||
+      /\d+\s+[\w .'-]{2,40}\b(?:street|st|road|rd|lane|ln|avenue|ave|marg|nagar|sector|block)\b/i.test(s);
+    if (isContact) return contact.push(s.trim());
+    if (!/[a-z]{2,}\s+[a-z]{2,}/i.test(s)) return;
+    if (/[{};=<>]|function|return |\bvar |\bconst |\\u/.test(s)) return;
+    list.push(s.trim());
+  };
+  // What the app draws: the value of a JSX child, a label, a title and the like.
+  const DRAWN =
+    /\b(?:children|title|label|placeholder|description|value|defaultValue|alt|text|subtitle|heading|name|email|phone|address|content)\s*:\s*(?:"((?:[^"\\\n]|\\.){2,200})"|'((?:[^'\\\n]|\\.){2,200})'|`((?:[^`\\\n$]|\\.){2,200})`)/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(js)) && out.length < limit * 4) {
-    const s = m[2];
-    if (!/[a-z]{2,}\s+[a-z]{2,}/i.test(s) && !EMAIL.test(s) && !/wa\.me|whatsapp|\+\d/i.test(s)) {
-      EMAIL.lastIndex = 0;
-      continue;
-    }
-    EMAIL.lastIndex = 0;
-    if (/[{};=<>]|function|return |\bvar |\bconst |\\u/.test(s)) continue;
-    out.push(s.trim());
+  while ((m = DRAWN.exec(js))) {
+    keep(m[1] ?? m[2] ?? m[3], drawn);
+    // A literal the pattern misread must not hide the key inside it.
+    DRAWN.lastIndex = m.index + m[0].indexOf(":") + 1;
   }
-  return unique(out).slice(0, limit);
+  for (const re of [/"((?:[^"\\\n]|\\.){3,160})"/g, /'((?:[^'\\\n]|\\.){3,160})'/g]) {
+    while ((m = re.exec(js))) keep(m[1], rest);
+  }
+  return unique([...contact, ...drawn, ...rest]).slice(0, limit);
 }
 
 export function extractEvidence(
@@ -219,6 +247,80 @@ function escapeHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
+export type PresentationBrand = {
+  favicon: string;
+  logo: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+};
+
+/**
+ * Software Vala's contact detail of the same kind as `value`: its e-mail for an
+ * e-mail address, its WhatsApp link for a WhatsApp link, its phone number for a
+ * phone number. Null when there is no counterpart (a website), in which case
+ * the value is removed instead.
+ */
+export function contactReplacement(value: string, brand: PresentationBrand): string | null {
+  const key = contactKey(value);
+  if (!key) return null;
+  if (key.startsWith("e:")) return brand.email ?? null;
+  if (key.startsWith("d:")) return (/wa\.me|whatsapp/i.test(value) ? brand.whatsapp : brand.phone) ?? null;
+  return null;
+}
+
+/** An href pointing at Software Vala's contact of the same kind as `href`. */
+function contactHref(href: string, brand: PresentationBrand): string | null {
+  const key = contactKey(href);
+  if (!key) return null;
+  if (key.startsWith("e:")) return brand.email ? `mailto:${brand.email}` : null;
+  if (!key.startsWith("d:")) return null;
+  if (/wa\.me|whatsapp/i.test(href)) return brand.whatsapp ?? null;
+  return brand.phone ? `tel:${brand.phone.replace(/[^\d+]/g, "")}` : null;
+}
+
+/**
+ * What the hosting platform adds to every page it serves, whoever built the
+ * software: Lovable's "Edit with Lovable" badge (which links to the developer's
+ * project), its analytics script and its default title and share tags, and
+ * Vercel's analytics and preview toolbar. None of it is the software, and the
+ * badge link leads a visitor straight to the developer, so it goes from every
+ * demo, investigated or not.
+ */
+const HOST_SCRIPT =
+  /<script\b[^>]*\bsrc\s*=\s*["'][^"']*(?:~flock\.js|gpteng\.co|lovable\.(?:dev|app)|_vercel\/(?:insights|speed-insights)|vercel\.live|vercel-scripts\.com)[^"']*["'][^>]*>\s*<\/script>\s*/gi;
+const HOST_META =
+  /<meta\b[^>]*\b(?:name|property)\s*=\s*["']?(?:author|generator|description|og:[\w:]+|twitter:[\w:]+)["']?[^>]*>\s*/gi;
+const HOST_PHRASES = [
+  /Edit with Lovable/gi,
+  /(?:Built|Made|Created|Powered) (?:with|by|on) (?:Lovable|Vercel)/gi,
+  /Lovable Generated Project/gi,
+];
+
+export function stripHostBranding(html: string, brand: PresentationBrand): string {
+  let out = html
+    .replace(/<aside\b[^>]*\bid\s*=\s*["']lovable-badge["'][\s\S]*?<\/aside>\s*/gi, "")
+    .replace(/<(style|script)\b(?![^>]*\bsrc\s*=)[^>]*>(?:(?!<\/\1>)[\s\S])*?lovable-badge[\s\S]*?<\/\1>\s*/gi, "")
+    .replace(HOST_SCRIPT, "")
+    .replace(/<!--[\s\S]*?-->/g, (c) => (/lovable|vercel/i.test(c) ? "" : c))
+    .replace(HOST_META, "");
+  for (const phrase of HOST_PHRASES) out = out.replace(phrase, "");
+  out = out.replace(/Lovable App/g, brand.name);
+  const meta =
+    `<meta name="author" content="${escapeHtml(brand.name)}">` +
+    `<meta property="og:site_name" content="${escapeHtml(brand.name)}">`;
+  return /<head[^>]*>/i.test(out) ? out.replace(/<head([^>]*)>/i, `<head$1>${meta}`) : out;
+}
+
+/** Platform branding still in a presented page (outside the rules script). */
+export function hostBrandingLeft(presented: string): string[] {
+  const body = presented.replace(/<script data-sv-presentation>[\s\S]*?<\/script>/i, "");
+  return ["lovable-badge", "lovable.dev/projects", "~flock.js", "gpteng.co", "_vercel/insights", "vercel.live"].filter(
+    (marker) => body.includes(marker),
+  );
+}
+
 /**
  * The proxy's rewrite of one HTML page. `brand` holds absolute addresses on
  * softwarevala.net, so the proxy's own asset rewriting leaves them alone.
@@ -226,9 +328,9 @@ function escapeHtml(value: string) {
 export function applyPresentation(
   html: string,
   rules: PresentationRules,
-  brand: { favicon: string; logo: string; name: string },
+  brand: PresentationBrand,
 ): string {
-  let out = html;
+  let out = stripHostBranding(html, brand);
 
   // 1. Favicon: every icon the page declares goes; Software Vala's is added.
   out = out.replace(/<link\b[^>]*\brel\s*=\s*["']?[^"'>]*icon[^>]*>\s*/gi, "");
@@ -244,23 +346,27 @@ export function applyPresentation(
     );
   }
 
-  // 3. Links to the developer (mail, phone, WhatsApp, their site) are removed.
+  // 3. Links to the demo's own contact (mail, phone, WhatsApp) now reach
+  //    Software Vala; links to the developer's site are removed.
+  const matches = (href: string, n: string) =>
+    href.includes(n) || (digits(n).length >= 8 && digits(href).includes(digits(n)));
+  const replaceNeedles = (rules.replace ?? []).filter((n) => n.length >= 4);
   const linkNeedles = unique([...rules.links, ...rules.remove]).filter((n) => n.length >= 4);
-  if (linkNeedles.length) {
+  if (linkNeedles.length || replaceNeedles.length) {
     out = out.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (whole, attrs: string) => {
       const href = attr(`<a ${attrs}>`, "href") ?? "";
-      const hrefDigits = digits(href);
-      const hit = linkNeedles.some(
-        (n) => href.includes(n) || (digits(n).length >= 8 && hrefDigits.includes(digits(n))),
-      );
-      return hit ? "" : whole;
+      if (replaceNeedles.some((n) => matches(href, n))) {
+        const next = contactHref(href, brand);
+        if (next) return whole.replace(href, escapeHtml(next));
+      }
+      return [...linkNeedles, ...replaceNeedles].some((n) => matches(href, n)) ? "" : whole;
     });
   }
 
-  // 4. Contact details left in the text are removed; developer credits read
-  //    "Software Vala". Longest first, so a number is not half-removed by a
-  //    shorter one inside it.
-  out = cleanText(out, rules, brand.name);
+  // 4. Contact details left in the text read as Software Vala's (or go);
+  //    developer credits read "Software Vala". Longest first, so a number is
+  //    not half-replaced by a shorter one inside it.
+  out = cleanText(out, rules, brand);
 
   // 5. The same rules for what a single-page app draws after it loads.
   const script = `<script data-sv-presentation>${presentationScript(rules, brand)}</script>`;
@@ -275,13 +381,17 @@ export function applyPresentation(
  * replaced, inside what are string literals in practice (e-mail addresses,
  * phone numbers, names), so the code around them is untouched.
  */
-export function cleanText(text: string, rules: PresentationRules, brandName: string): string {
+export function cleanText(text: string, rules: PresentationRules, brand: PresentationBrand): string {
   let out = text;
-  for (const value of unique([...rules.remove, ...rules.links]).sort((a, b) => b.length - a.length)) {
-    if (value.length >= 4) out = out.split(value).join("");
+  const edits = [
+    ...(rules.replace ?? []).map((value) => ({ value, next: contactReplacement(value, brand) ?? "" })),
+    ...unique([...rules.remove, ...rules.links]).map((value) => ({ value, next: "" })),
+  ].sort((a, b) => b.value.length - a.value.length);
+  for (const { value, next } of edits) {
+    if (value.length >= 4) out = out.split(value).join(next);
   }
   for (const value of [...rules.rebrand].sort((a, b) => b.length - a.length)) {
-    if (value.length >= 3) out = out.split(value).join(brandName);
+    if (value.length >= 3) out = out.split(value).join(brand.name);
   }
   return out;
 }
@@ -318,26 +428,36 @@ export function keyHash(key: string): string {
 }
 
 /** Browser half: applies the rules to the live document and keeps applying them. */
-export function presentationScript(
-  rules: PresentationRules,
-  brand: { favicon: string; logo: string; name: string },
-): string {
-  const hashes = unique(
-    [...rules.remove, ...rules.links].map(contactKey).filter((k): k is string => Boolean(k)).map(keyHash),
-  );
-  const payload = JSON.stringify({ h: hashes, b: rules.rebrand, l: rules.logos, brand }).replace(/</g, "\\u003c");
-  return `(function(){var R=${payload};var H={};R.h.forEach(function(x){H[x]=1});
+export function presentationScript(rules: PresentationRules, brand: PresentationBrand): string {
+  // Per contact, only a hash and what to do with it: "r" shows Software Vala's
+  // contact of the same kind, "x" removes it.
+  const actions: Record<string, "r" | "x"> = {};
+  for (const value of [...rules.remove, ...rules.links]) {
+    const k = contactKey(value);
+    if (k) actions[keyHash(k)] = "x";
+  }
+  for (const value of rules.replace ?? []) {
+    const k = contactKey(value);
+    if (k) actions[keyHash(k)] = contactReplacement(value, brand) ? "r" : "x";
+  }
+  const payload = JSON.stringify({ h: actions, b: rules.rebrand, l: rules.logos, brand }).replace(/</g, "\\u003c");
+  return `(function(){var R=${payload};var H=R.h,B=R.brand;
 function hash(k){var h=0x811c9dc5;for(var i=0;i<k.length;i++){h^=k.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h.toString(16);}
 function key(v){v=String(v||"").trim().toLowerCase().replace(/^(mailto|tel):/,"");var d=v.replace(/\\D/g,"");
 if(/wa\\.me|whatsapp/.test(v))return d.length>=8?"d:"+d:null;if(v.indexOf("@")>=0)return "e:"+v.split("?")[0];
 if(/^https?:\\/\\//.test(v)){try{return "h:"+new URL(v).hostname.replace(/^www\\./,"")}catch(e){return null}}return d.length>=8?"d:"+d:null;}
-function hit(v){var k=key(v);return !!(k&&H[hash(k)]);}
+function act(v){var k=key(v);return k?H[hash(k)]:undefined;}
+function hit(v){return !!act(v);}
 var EM=/[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\\.[A-Z0-9-]+)*\\.[A-Z]{2,24}/gi,PH=/(?:\\+|\\b00)?\\d[\\d\\s().-]{6,18}\\d/g;
 function fixText(node){var v=node.nodeValue,o=v;
-v=v.replace(EM,function(m){return hit(m)?"":m}).replace(PH,function(m){return hit(m)?"":m});
-R.b.slice().sort(function(a,b){return b.length-a.length}).forEach(function(n){if(n.length>=3&&v.indexOf(n)>=0)v=v.split(n).join(R.brand.name)});
+v=v.replace(EM,function(m){var a=act(m);return a==="r"?B.email||"":a?"":m}).replace(PH,function(m){var a=act(m);return a==="r"?B.phone||"":a?"":m});
+R.b.slice().sort(function(a,b){return b.length-a.length}).forEach(function(n){if(n.length>=3&&v.indexOf(n)>=0)v=v.split(n).join(B.name)});
 if(v!==o)node.nodeValue=v;}
-function fixEl(el){if(el.tagName==="A"&&hit(el.getAttribute("href"))){el.remove();return;}
+function fixEl(el){if(el.id==="lovable-badge"){el.remove();return;}
+if(el.tagName==="A"){var href=el.getAttribute("href")||"",a=act(href);
+if(a==="r"){var k=key(href),n=k.indexOf("e:")===0?"mailto:"+B.email:/wa\\.me|whatsapp/i.test(href)?B.whatsapp:"tel:"+String(B.phone||"").replace(/[^\\d+]/g,"");if(n!==href)el.setAttribute("href",n);}
+else if(a){el.remove();return;}}
+if((el.tagName==="INPUT"||el.tagName==="TEXTAREA")&&el.value){var w=el.value.replace(EM,function(m){var a=act(m);return a==="r"?B.email||"":a?"":m}).replace(PH,function(m){var a=act(m);return a==="r"?B.phone||"":a?"":m});if(w!==el.value)el.value=w;}
 if(el.tagName==="IMG"){var s=el.getAttribute("src")||"";for(var j=0;j<R.l.length;j++){var l=R.l[j];if(l&&(s===l||s.slice(-l.length)===l||l.slice(-s.length)===s&&s.length>4)){el.setAttribute("src",R.brand.logo);break;}}}
 if(el.tagName==="LINK"&&/icon/i.test(el.getAttribute("rel")||"")&&el.getAttribute("href")!==R.brand.favicon)el.setAttribute("href",R.brand.favicon);}
 function walk(root){if(!root)return;if(root.nodeType===3){fixText(root);return;}if(root.nodeType!==1)return;fixEl(root);
@@ -357,7 +477,7 @@ if(document.readyState!=="loading")run();else document.addEventListener("DOMCont
 export function remainingViolations(presented: string, rules: PresentationRules): string[] {
   const body = presented.replace(/<script data-sv-presentation>[\s\S]*?<\/script>/i, "");
   const left: string[] = [];
-  for (const value of unique([...rules.remove, ...rules.links])) {
+  for (const value of unique([...(rules.replace ?? []), ...rules.remove, ...rules.links])) {
     if (value.length >= 4 && presented.includes(value)) left.push(value);
   }
   for (const value of rules.rebrand) {

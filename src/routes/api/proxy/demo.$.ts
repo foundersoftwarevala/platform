@@ -38,10 +38,13 @@ async function getOriginalDemo(slug: string): Promise<OriginalDemo | null> {
   if (!product) return null;
   const { data: demo } = await supabase.from("product_demo_urls").select("url, demo_name, processing_status, processing").eq("product_id", product.id).eq("status", "active").order("sort_order").limit(1).maybeSingle();
   if (!demo?.url) return null;
-  // A demo the Demo Manager processed and verified is shown with its Software
-  // Vala presentation; one added before that is served as it always was.
-  const processed = demo as { processing_status?: string; processing?: { rules?: PresentationRules } | null };
-  const rules = processed.processing_status === "live" ? processed.processing?.rules ?? null : null;
+  // The Demo Manager's rules for this demo - the developer's contact shown as
+  // Software Vala's, their credits and logo replaced - whenever it has made
+  // them, including while a live demo is being re-processed. A demo it has not
+  // processed still gets the Software Vala favicon, and loses the hosting
+  // platform's badge and tags (see applyPresentation).
+  const processed = demo as { processing?: { rules?: PresentationRules } | null };
+  const rules = processed.processing?.rules ?? null;
   return { url: demo.url, name: demo.demo_name || product.name, rules };
 }
 
@@ -186,7 +189,13 @@ export const Route = createFileRoute('/api/proxy/demo/$')({
           
           // Extract the asset path (everything after /api/proxy/demo/{slug})
           const assetPath = extractAssetPath(pathname, slug);
-          
+
+          // A page that declares no icon gets /favicon.ico from its host -
+          // the hosting platform's. It is Software Vala's here.
+          if (assetPath === '/favicon.ico') {
+            return Response.redirect(new URL(DEMO_BRAND.favicon, url.origin).toString(), 302);
+          }
+
           const originalDemoUrl = originalDemo.url;
           console.log(`[demo-proxy] Proxying ${slug}: ${pathname} → ${originalDemoUrl}${assetPath}`);
           
@@ -217,20 +226,20 @@ export const Route = createFileRoute('/api/proxy/demo/$')({
             html = html.replace(/Powered by Lovable/gi, '');
             html = html.replace(/Built on Lovable/gi, '');
             
-            // The Software Vala presentation: favicon, logo, and the developer's
-            // contact details and credits removed (src/lib/demo/presentation.ts).
-            if (originalDemo.rules) {
-              const rules = originalDemo.rules;
-              html = applyPresentation(
-                html,
-                {
-                  ...rules,
-                  // Root-relative logos were just moved under the proxy path.
-                  logos: rules.logos.flatMap((l) => (l.startsWith('/') ? [l, `/api/proxy/demo/${slug}${l}`] : [l])),
-                },
-                DEMO_BRAND,
-              );
-            }
+            // The Software Vala presentation: favicon, logo, the hosting
+            // platform's badge gone, and the developer's contact details shown
+            // as Software Vala's (src/lib/demo/presentation.ts). Every demo gets
+            // it; the contact and credit rules come from the Demo Manager.
+            const rules = originalDemo.rules ?? { remove: [], rebrand: [], logos: [], links: [] };
+            html = applyPresentation(
+              html,
+              {
+                ...rules,
+                // Root-relative logos were just moved under the proxy path.
+                logos: rules.logos.flatMap((l) => (l.startsWith('/') ? [l, `/api/proxy/demo/${slug}${l}`] : [l])),
+              },
+              DEMO_BRAND,
+            );
 
             // Update title
             const demoName = originalDemo.name || 'Demo';
@@ -270,7 +279,7 @@ export const Route = createFileRoute('/api/proxy/demo/$')({
           // A single-page app carries its words, and the developer's contact
           // details, in its scripts and data files: clean those as well.
           if (originalDemo.rules && /javascript|json|css|text\//i.test(contentType)) {
-            const cleaned = cleanText(new TextDecoder().decode(responseBuffer), originalDemo.rules, DEMO_BRAND.name);
+            const cleaned = cleanText(new TextDecoder().decode(responseBuffer), originalDemo.rules, DEMO_BRAND);
             responseBuffer = new TextEncoder().encode(cleaned).buffer as ArrayBuffer;
           }
           console.log(`[demo-proxy] >>> Buffer size: ${responseBuffer.byteLength}`);

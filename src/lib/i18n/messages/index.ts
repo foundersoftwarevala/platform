@@ -31,6 +31,8 @@ import { AUTH_MESSAGES } from "./auth";
 import { CHAT_MESSAGES } from "./chat";
 import { CHECKOUT_MESSAGES } from "./checkout";
 import { COMMON_MESSAGES } from "./common";
+import { DEVMANAGER_MESSAGES } from "./devmanager";
+import { DEVELOPER_MESSAGES } from "./developer";
 import { EMAIL_MESSAGES } from "./email";
 import { LANGUAGES_MESSAGES } from "./languages";
 import { MARKETPLACE_MESSAGES } from "./marketplace";
@@ -47,6 +49,8 @@ export const MODULES = {
   chat: CHAT_MESSAGES,
   checkout: CHECKOUT_MESSAGES,
   common: COMMON_MESSAGES,
+  devmanager: DEVMANAGER_MESSAGES,
+  developer: DEVELOPER_MESSAGES,
   email: EMAIL_MESSAGES,
   languages: LANGUAGES_MESSAGES,
   marketplace: MARKETPLACE_MESSAGES,

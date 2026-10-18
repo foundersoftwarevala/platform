@@ -5,6 +5,7 @@ import {
   activateDemo,
   investigateDemo,
   listProcessedDemos,
+  moveDemo,
   searchProducts,
   type Actor,
 } from "@/lib/demo/process.server";
@@ -17,6 +18,7 @@ import { assertPublicUrl, UnsafeUrlError } from "@/lib/demo/safe-fetch.server";
  *   GET                              demos processed so far
  *   POST {action:"investigate", productId, url}
  *   POST {action:"activate", id}
+ *   POST {action:"move", id, productId}   put it on a product suggested in its row
  *
  * Operators only (boss, admin, super_admin, owner, developer): the address is
  * fetched from this server, and processing spends AI Manager credit.
@@ -80,6 +82,12 @@ export const Route = createFileRoute("/api/demo/process")({
             const id = String(body.id ?? "");
             if (!UUID.test(id)) return refuse("Unknown demo.");
             return Response.json({ demo: await activateDemo({ id, actor }) });
+          }
+          if (body.action === "move") {
+            const id = String(body.id ?? "");
+            const productId = String(body.productId ?? "");
+            if (!UUID.test(id) || !UUID.test(productId)) return refuse("Unknown demo or product.");
+            return Response.json({ demo: await moveDemo({ id, productId, actor }) });
           }
           return refuse("Unknown action.");
         } catch (error) {

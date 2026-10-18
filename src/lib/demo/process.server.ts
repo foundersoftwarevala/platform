@@ -5,12 +5,14 @@ import {
   evidenceCorpus,
   extractEvidence,
   hasBrandFavicon,
+  hostBrandingLeft,
   remainingViolations,
   type Evidence,
   type PresentationRules,
 } from "./presentation";
 import { safeFetch, UnsafeUrlError } from "./safe-fetch.server";
 import { DEMO_BRAND } from "./brand";
+import { isPlacementRow, mainRowOf } from "./rows";
 
 /**
  * The Demo Manager's processing of a submitted demo address.
@@ -86,6 +88,42 @@ async function audit(demoUrlId: string, action: string, actor: Actor, metadata: 
 
 export type Actor = { id: string | null; email: string | null };
 
+type Store = ReturnType<typeof db>;
+
+async function categorySlug(store: Store, id: unknown): Promise<string | null> {
+  if (!id) return null;
+  const [row] = await store.get<{ slug: string }[]>(
+    `marketplace_categories?select=slug&id=eq.${encodeURIComponent(String(id))}&limit=1`,
+  );
+  return row?.slug ?? null;
+}
+
+const words = (text: string) =>
+  new Set((text.toLowerCase().match(/[a-z]{4,}/g) ?? []).filter((w) => !STOP.has(w)));
+const STOP = new Set(["management", "system", "software", "with", "your", "from", "that", "this", "and", "demo", "platform", "app"]);
+
+/**
+ * Products in the demo's row it could go on: shown on the home page, ranked by
+ * how many of the demo's words their name and description share. A suggestion
+ * only - the operator chooses.
+ */
+async function suggestProducts(store: Store, categoryId: string, about: string) {
+  const wanted = words(about);
+  const rows = await store.get<{ id: string; name: string; slug: string; description: string | null }[]>(
+    `marketplace_products?select=id,name,slug,description&category_id=eq.${encodeURIComponent(categoryId)}` +
+      `&visible=eq.true&content_status=eq.published&limit=400`,
+  );
+  return rows
+    .map((p) => {
+      const have = words(`${p.name} ${p.description ?? ""}`);
+      let score = 0;
+      for (const w of wanted) if (have.has(w)) score += 1;
+      return { id: p.id, name: p.name, slug: p.slug, score };
+    })
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .slice(0, 6);
+}
+
 /** The page and the scripts it loads from its own host (a single-page app's words live there). */
 async function fetchDemo(url: string) {
   const page = await safeFetch(url);
@@ -125,13 +163,22 @@ WhatsApp links, outside links, "developed by" credits and interface strings. You
 
 Decide:
 1. What the software is: its product name as shown in the demo, and a one-sentence summary.
-2. The single best marketplace category, as a slug from the list. Never invent a slug.
-3. Which evidence is the DEVELOPER's or a third party's presence that would let a buyer bypass Software Vala:
-   the developer's or agency's own phone, WhatsApp, e-mail, website or social links, "developed by / powered by" credits,
-   developer or agency names, and the developer's logo images.
+2. The single best marketplace category (home page row), as a slug from the list. Never invent a slug.
+3. What in the demo is the BUSINESS or DEVELOPER behind it, which Software Vala replaces with its own brand:
+   - contacts_to_replace: every e-mail address, phone number and WhatsApp link the demo shows as its own contact -
+     in a contact section, header, footer, about page, help or support link, or as the company contact in settings.
+     Software Vala's own e-mail, phone and WhatsApp are shown in their place.
+   - addresses_to_remove: the postal address shown as that business's own address.
+   - developer_links: the developer's or agency's website and social media links.
+   - developer_branding: "developed by / powered by / designed by" credits, developer or agency names, and the brand or
+     company name the demo presents itself under (as in "© 2026 X", "Welcome to X", the name in the header or on the
+     login screen). These read "Software Vala".
+   - logo_images: the brand's or developer's logo images.
+   Do not list the hosting platform's own branding (Lovable, Vercel and the like): it is removed from every demo already.
 4. Which evidence is ORDINARY APPLICATION DATA that belongs to the software's working demo content and must stay:
-   sample customers, sample patients, sample students, sample orders, demo records, the software's own feature text.
-   When unsure whether a value is developer contact or application data, keep it and say why.
+   demo login accounts (their e-mail addresses are how a visitor signs in, so changing them breaks the demo),
+   sample customers, patients, students, staff and orders, demo records, and the software's own feature text.
+   When unsure whether a value is the business's contact or application data, keep it and say why.
 
 Copy every value exactly as it appears in the evidence, character for character. Do not add values that are not in the evidence.
 Answer with one JSON object only:
@@ -141,8 +188,9 @@ Answer with one JSON object only:
   "category_slug": string,
   "category_reason": string,
   "confidence": number between 0 and 1,
-  "contacts_to_remove": [{"value": string, "kind": "email"|"phone"|"whatsapp"|"link", "reason": string}],
-  "developer_branding": [{"value": string, "kind": "name"|"credit", "reason": string}],
+  "contacts_to_replace": [{"value": string, "kind": "email"|"phone"|"whatsapp", "reason": string}],
+  "addresses_to_remove": [{"value": string, "reason": string}],
+  "developer_branding": [{"value": string, "kind": "name"|"credit"|"brand", "reason": string}],
   "developer_links": [{"value": string, "reason": string}],
   "logo_images": [{"value": string, "reason": string}],
   "kept": [{"value": string, "reason": string}]
@@ -212,9 +260,13 @@ export async function investigateDemo(input: { productId: string; url: string; a
     const evidence = extractEvidence(page.body, page.url, bundles);
     const corpus = evidenceCorpus(page.body, bundles);
 
-    const categories = await store.get<{ id: string; slug: string; name: string }[]>(
-      "marketplace_categories?select=id,slug,name&is_hidden=eq.false&order=sort_order.asc",
-    );
+    // Only a field's main row: an education demo is placed in Education, not
+    // in one of the rows beside it (src/lib/demo/rows.ts).
+    const categories = (
+      await store.get<{ id: string; slug: string; name: string }[]>(
+        "marketplace_categories?select=id,slug,name&is_hidden=eq.false&order=sort_order.asc",
+      )
+    ).filter((c) => isPlacementRow(c.slug));
     const ai = await aiComplete({
       module: "demo-manager",
       json: true,
@@ -244,7 +296,8 @@ export async function investigateDemo(input: { productId: string; url: string; a
       dropped.push({ value: f.value, reason: "not found in the demo" });
       return false;
     };
-    const contacts = findings(answer.contacts_to_remove).filter(present);
+    const contacts = findings(answer.contacts_to_replace ?? answer.contacts_to_remove).filter(present);
+    const addresses = findings(answer.addresses_to_remove).filter(present);
     const branding = findings(answer.developer_branding).filter(present);
     const devLinks = findings(answer.developer_links).filter(present);
     const logos = findings(answer.logo_images).filter(
@@ -254,13 +307,20 @@ export async function investigateDemo(input: { productId: string; url: string; a
     const category = categories.find((c) => c.slug === slug) ?? null;
     if (!category) dropped.push({ value: slug, reason: "not a marketplace category" });
 
+    // The demo's own e-mail, phone and WhatsApp show Software Vala's; its
+    // address and the developer's own site go.
     const rules: PresentationRules = {
-      remove: contacts.filter((c) => c.kind !== "link").map((c) => c.value),
+      replace: contacts.filter((c) => c.kind !== "link").map((c) => c.value),
+      remove: addresses.map((a) => a.value),
       rebrand: branding.map((b) => b.value),
       logos: logos.map((l) => l.value),
-      links: [...devLinks.map((l) => l.value), ...contacts.filter((c) => c.kind === "link" || c.kind === "whatsapp").map((c) => c.value)],
+      links: [...devLinks.map((l) => l.value), ...contacts.filter((c) => c.kind === "link").map((c) => c.value)],
     };
     const softwareName = String(answer.software_name ?? "").trim().slice(0, 120);
+    const productRow = categories.find((c) => c.id === product.category_id)?.slug ?? (await categorySlug(store, product.category_id));
+    const suggestions = category
+      ? await suggestProducts(store, category.id, [softwareName, String(answer.summary ?? "")].join(" "))
+      : [];
     const processing = {
       investigated_at: new Date().toISOString(),
       source: { url: input.url, final_url: page.url, http_status: page.status, redirects: page.redirects, bundles: bundles.length },
@@ -272,9 +332,10 @@ export async function investigateDemo(input: { productId: string; url: string; a
         category_name: category?.name ?? null,
         category_reason: String(answer.category_reason ?? "").slice(0, 300) || null,
         confidence: Number(answer.confidence) || null,
-        product_category_matches: category ? category.id === product.category_id : null,
+        product_category_matches: category ? mainRowOf(productRow) === category.slug : null,
       },
-      findings: { contacts, branding, developer_links: devLinks, logos, kept: findings(answer.kept).slice(0, 30), dropped },
+      suggestions,
+      findings: { contacts, addresses, branding, developer_links: devLinks, logos, kept: findings(answer.kept).slice(0, 30), dropped },
       evidence: {
         title: evidence.title,
         favicons: evidence.favicons,
@@ -291,11 +352,17 @@ export async function investigateDemo(input: { productId: string; url: string; a
       processing_status: "review",
       processing,
       detected_category_id: category?.id ?? null,
-      demo_name: softwareName || String(product.name ?? "Demo"),
+      // The name the gateway and the tab show. A name that is the brand being
+      // replaced would carry it past the rebranding, so the product's is used.
+      demo_name:
+        softwareName && !rules.rebrand.some((b) => softwareName.includes(b))
+          ? softwareName
+          : String(product.name ?? "Demo"),
     });
     await audit(String(row.id), "demo_url.investigate", input.actor, {
       ai: processing.ai,
       category: processing.identity.category_slug,
+      replaced: rules.replace?.length ?? 0,
       removed: rules.remove.length + rules.links.length,
       rebranded: rules.rebrand.length,
       logos: rules.logos.length,
@@ -303,9 +370,17 @@ export async function investigateDemo(input: { productId: string; url: string; a
     return row;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    // A live demo that is re-investigated keeps the presentation it had, so a
+    // failed attempt does not put the developer's details back on show.
+    const previous = (same?.processing ?? null) as { rules?: PresentationRules } | null;
     row = await store.patch(`product_demo_urls?id=eq.${row.id}`, {
       processing_status: "failed",
-      processing: { failed_at: new Date().toISOString(), stage: "investigate", error: message },
+      processing: {
+        failed_at: new Date().toISOString(),
+        stage: "investigate",
+        error: message,
+        ...(previous?.rules ? { rules: previous.rules } : {}),
+      },
       ...(same?.status === "active" ? {} : { status: "inactive" }),
     });
     await audit(String(row.id), "demo_url.investigate.failed", input.actor, { error: message });
@@ -341,9 +416,41 @@ export async function activateDemo(input: { id: string; actor: Actor }) {
     });
     const script = presented.includes("data-sv-presentation");
     checks.push({ check: "presentation script installed", ok: script });
-    ok = checks.every((c) => c.ok);
+    const platform = hostBrandingLeft(presented);
+    checks.push({
+      check: "hosting platform branding removed (Lovable, Vercel)",
+      ok: platform.length === 0,
+      detail: platform.length ? `still present: ${platform.join(", ")}` : undefined,
+    });
   } catch (error) {
     checks.push({ check: "demo answers", ok: false, detail: error instanceof Error ? error.message : String(error) });
+  }
+
+  // The LIVE DEMO badge is only seen if the product is on the home page, in
+  // the row the demo belongs to.
+  try {
+    const [product] = await store.get<{ name: string; visible: boolean; content_status: string; category_id: string | null }[]>(
+      `marketplace_products?select=name,visible,content_status,category_id&id=eq.${encodeURIComponent(String(row.product_id))}&limit=1`,
+    );
+    const shown = Boolean(product?.visible) && product?.content_status === "published";
+    checks.push({
+      check: "product is shown on the home page",
+      ok: shown,
+      detail: shown ? undefined : `${product?.name ?? "product"} is ${product?.visible ? product?.content_status : "hidden"}`,
+    });
+    const demoRow = mainRowOf(await categorySlug(store, row.detected_category_id));
+    if (demoRow) {
+      const productRow = mainRowOf(await categorySlug(store, product?.category_id));
+      checks.push({
+        check: `product is in the ${demoRow} row`,
+        ok: productRow === demoRow,
+        detail: productRow === demoRow ? undefined : `${product?.name ?? "product"} is in the ${productRow ?? "no"} row`,
+      });
+    }
+    ok = checks.every((c) => c.ok);
+  } catch (error) {
+    ok = false;
+    checks.push({ check: "product checked", ok: false, detail: error instanceof Error ? error.message : String(error) });
   }
 
   const verification = { verified_at: new Date().toISOString(), ok, checks };
@@ -375,11 +482,40 @@ export async function activateDemo(input: { id: string; actor: Actor }) {
   return updated;
 }
 
-/** Demos the Demo Manager has processed or is processing, newest first. */
+/**
+ * Put an investigated demo on another product - one of the suggestions in its
+ * row. It has to be verified and activated again there, so it leaves the old
+ * product's card inactive rather than live on the wrong one.
+ */
+export async function moveDemo(input: { id: string; productId: string; actor: Actor }) {
+  const store = db();
+  const [row] = await store.get<Row[]>(
+    `product_demo_urls?select=${DEMO_ROW_FIELDS}&id=eq.${encodeURIComponent(input.id)}&limit=1`,
+  );
+  if (!row) throw new UnsafeUrlError("That demo does not exist.");
+  const [product] = await store.get<Row[]>(
+    `marketplace_products?select=id,name&id=eq.${encodeURIComponent(input.productId)}&limit=1`,
+  );
+  if (!product) throw new UnsafeUrlError("That product does not exist.");
+  const processing = (row.processing ?? {}) as { rules?: PresentationRules };
+  const updated = await store.patch(`product_demo_urls?id=eq.${row.id}`, {
+    product_id: product.id,
+    status: "inactive",
+    processing_status: processing.rules ? "review" : "failed",
+  });
+  await audit(String(row.id), "demo_url.move", input.actor, { from: row.product_id, to: product.id });
+  return updated;
+}
+
+/**
+ * Demos the Demo Manager has processed or is processing, newest first, and
+ * every demo that is live on a card but has not been through it yet, so it
+ * can be re-processed the same way.
+ */
 export async function listProcessedDemos() {
   const rows = await db().get<Row[]>(
     `product_demo_urls?select=${DEMO_ROW_FIELDS},marketplace_products(name,slug)` +
-      `&processing_status=neq.unprocessed&order=updated_at.desc&limit=50`,
+      `&or=(processing_status.neq.unprocessed,status.eq.active)&order=updated_at.desc&limit=100`,
   );
   // Operators see the source address (they submitted it); visitors never do.
   return rows;

@@ -1,21 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, ExternalLink, Loader2, Search, ShieldCheck, Sparkles, XCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2, RefreshCw, Search, ShieldCheck, Sparkles, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authHeaders } from "@/lib/auth/operator-fetch";
+import { DEMO_BRAND } from "@/lib/demo/brand";
 
 /**
  * Demo Manager → Add Demo.
  *
- * An operator names the product and the address of its demo. The server
- * (/api/demo/process) fetches the demo safely, asks the AI Manager what the
- * software is, which marketplace category it belongs to and which contact
- * details and branding are the developer's, and records the answer on the
- * product's demo. Activating re-checks the Software Vala presentation of the
- * demo and only then makes it the product's live demo - the LIVE DEMO badge
- * on its marketplace card.
+ * An operator names the product and the address of its demo (a Lovable or
+ * Vercel app, say). The server (/api/demo/process) fetches the demo safely,
+ * asks the AI Manager what the software is, which home page row it belongs in
+ * and which contact details and branding are the business's, and records the
+ * answer on the product's demo, with the products in that row it fits best.
+ * Activating re-checks the Software Vala presentation - its contact details in
+ * place of the developer's, the hosting platform's badge gone - and that the
+ * product is on the home page in that row, and only then makes it the
+ * product's live demo: the LIVE DEMO badge on its card.
+ *
+ * Demos already live go through the same steps with Re-process.
  */
 
 type Finding = { value: string; kind?: string; reason?: string };
@@ -31,8 +36,10 @@ type Processing = {
     confidence?: number | null;
     product_category_matches?: boolean | null;
   };
+  suggestions?: { id: string; name: string; slug: string; score: number }[];
   findings?: {
     contacts?: Finding[];
+    addresses?: Finding[];
     branding?: Finding[];
     developer_links?: Finding[];
     logos?: Finding[];
@@ -44,6 +51,7 @@ type Processing = {
 };
 type DemoRow = {
   id: string;
+  product_id: string;
   url: string;
   demo_name: string;
   status: string;
@@ -70,6 +78,7 @@ const STATE_STYLE: Record<string, string> = {
   investigating: "bg-sky-500/20 text-sky-300",
   review: "bg-amber-500/20 text-amber-300",
   live: "bg-emerald-500/20 text-emerald-300",
+  unprocessed: "bg-muted text-muted-foreground",
   failed: "bg-red-500/20 text-red-300",
 };
 
@@ -90,7 +99,19 @@ function List({ title, items, tone }: { title: string; items?: Finding[]; tone: 
   );
 }
 
-function DemoResult({ demo, onActivate, busy }: { demo: DemoRow; onActivate: () => void; busy: boolean }) {
+function DemoResult({
+  demo,
+  onActivate,
+  onReprocess,
+  onMove,
+  busy,
+}: {
+  demo: DemoRow;
+  onActivate: () => void;
+  onReprocess: () => void;
+  onMove: (productId: string) => void;
+  busy: boolean;
+}) {
   const p = demo.processing ?? {};
   const slug = demo.marketplace_products?.slug;
   return (
@@ -129,7 +150,8 @@ function DemoResult({ demo, onActivate, busy }: { demo: DemoRow; onActivate: () 
 
       {p.findings && (
         <div className="grid gap-4 md:grid-cols-2">
-          <List title="Developer contact removed" items={p.findings.contacts} tone="bg-red-500/15" />
+          <List title={`Shown as Software Vala's contact (${DEMO_BRAND.email}, ${DEMO_BRAND.phone})`} items={p.findings.contacts} tone="bg-sky-500/15" />
+          <List title="Address removed" items={p.findings.addresses} tone="bg-red-500/15" />
           <List title="Developer links removed" items={p.findings.developer_links} tone="bg-red-500/15" />
           <List title="Shown as Software Vala" items={p.findings.branding} tone="bg-sky-500/15" />
           <List title="Logo replaced with Software Vala logo" items={p.findings.logos} tone="bg-sky-500/15" />
@@ -138,6 +160,28 @@ function DemoResult({ demo, onActivate, busy }: { demo: DemoRow; onActivate: () 
           <p className="text-xs text-muted-foreground md:col-span-2">
             Favicon: {p.evidence?.favicons?.length ?? 0} → Software Vala favicon.
           </p>
+        </div>
+      )}
+
+      {p.suggestions && p.suggestions.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">
+            Products in the {p.identity?.category_name ?? "demo's"} row this demo fits
+          </p>
+          <ul className="space-y-1 text-sm">
+            {p.suggestions.map((s) => (
+              <li key={s.id} className="flex flex-wrap items-center gap-2" data-suggestion={s.slug}>
+                <span>{s.name}</span>
+                {s.id === demo.product_id ? (
+                  <Badge variant="outline">current</Badge>
+                ) : (
+                  <Button variant="ghost" size="sm" disabled={busy} onClick={() => onMove(s.id)} data-action="move">
+                    Use this product
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -153,6 +197,12 @@ function DemoResult({ demo, onActivate, busy }: { demo: DemoRow; onActivate: () 
       )}
 
       <div className="flex flex-wrap gap-2">
+        {demo.processing_status !== "investigating" && (
+          <Button variant="outline" onClick={onReprocess} disabled={busy} data-action="reprocess">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Re-process
+          </Button>
+        )}
         {demo.processing_status === "review" && (
           <Button onClick={onActivate} disabled={busy} data-action="activate">
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
@@ -223,7 +273,7 @@ const DemoCreator = () => {
       <div>
         <h1 className="text-2xl font-mono font-bold text-foreground">Add Demo</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Submit a demo address. It is investigated with the AI Manager, shown with Software Vala branding, and goes live only after it is verified.
+          Submit a demo address (Lovable, Vercel or any web app). The AI Manager finds its row and the business's branding and contact details; it is shown as Software Vala and goes live on a product in that row only after it is verified.
         </p>
       </div>
 
@@ -276,6 +326,8 @@ const DemoCreator = () => {
             demo={demo}
             busy={busy === demo.id}
             onActivate={() => void act(demo.id, { action: "activate", id: demo.id })}
+            onReprocess={() => void act(demo.id, { action: "investigate", productId: demo.product_id, url: demo.url })}
+            onMove={(productId) => void act(demo.id, { action: "move", id: demo.id, productId })}
           />
         ))}
       </div>

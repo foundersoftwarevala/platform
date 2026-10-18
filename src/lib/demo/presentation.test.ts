@@ -4,6 +4,7 @@ import {
   applyPresentation,
   cleanText,
   contactKey,
+  hostBrandingLeft,
   extractEvidence,
   keyHash,
   hasBrandFavicon,
@@ -50,6 +51,18 @@ describe("demo evidence", () => {
     expect(e.whatsapp).toContain("https://wa.me/447700900123");
     expect(e.strings).toContain("Book an appointment today");
   });
+
+  it("reaches the app's contact section past a megabyte of framework code", () => {
+    // A quote inside a regular expression, then hundreds of framework strings,
+    // then the app's own contact section - the order a Vite bundle has.
+    const framework =
+      `var q=/["']/g;` + Array.from({ length: 900 }, (_, i) => `f${i}("Minified React error number ${i}");`).join("");
+    const app = `[{label:"Email",value:"info@musicacademy.com"},{label:"Phone",value:"+1 (555) 123-4567"},{label:"Address",value:"123 Music Lane, NYC"}];`;
+    const e = extractEvidence("<html><head></head><body><div id=root></div></body></html>", "https://x.lovable.app/", [framework + app]);
+    expect(e.emails).toContain("info@musicacademy.com");
+    expect(e.phones).toContain("+1 (555) 123-4567");
+    expect(e.strings.slice(0, 200)).toContain("123 Music Lane, NYC");
+  });
 });
 
 describe("Software Vala presentation", () => {
@@ -90,13 +103,82 @@ describe("Software Vala presentation", () => {
 
   it("cleans a single-page app bundle without touching its code", () => {
     const js = `var a={email:"sales@acme-devs.example",by:"Acme Devs",n:1};`;
-    expect(cleanText(js, RULES, BRAND.name)).toBe(`var a={email:"",by:"Software Vala",n:1};`);
+    expect(cleanText(js, RULES, BRAND)).toBe(`var a={email:"",by:"Software Vala",n:1};`);
   });
 
   it("keys contact details the same way however they are written", () => {
     expect(contactKey("tel:+91 98765 43210")).toBe(contactKey("https://wa.me/919876543210"));
     expect(contactKey("mailto:Sales@Acme-Devs.example")).toBe("e:sales@acme-devs.example");
     expect(contactKey("https://www.acme-devs.example/about")).toBe("h:acme-devs.example");
+  });
+});
+
+// The shape of a Lovable app as it is served (virtuoso-track.lovable.app):
+// the platform's badge and tags in the page, the business's contact details
+// and name in the bundle, the demo's login accounts beside them.
+const LOVABLE_PAGE = `<!doctype html><html lang="en"><head><meta charset="UTF-8" />
+<!-- TODO: Set the document title to the name of your application -->
+<title>Lovable App</title><meta name="description" content="Lovable Generated Project" />
+<meta name="author" content="Lovable" /><meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+<meta name="twitter:site" content="@Lovable" /><script type="module" crossorigin src="/assets/index-GB_HiC2t.js"></script>
+<style>#lovable-badge { position: fixed; }</style>
+<script defer src="/~flock.js" data-proxy-url="/~api/analytics"></script></head><body><div id="root"></div>
+<aside id="lovable-badge" aria-label="Edit with Lovable"><a id="lovable-badge-cta" href="https://lovable.dev/projects/lovp_5z2q?utm_source=lovable-badge"><span>Edit with</span></a></aside>
+<script>var badge = document.getElementById('lovable-badge');</script></body></html>`;
+const LOVABLE_BUNDLE = `[{label:"Email",value:"info@musicacademy.com"},{label:"Phone",value:"+1 (555) 123-4567"},{label:"Address",value:"123 Music Lane, NYC"}];
+u.jsx("p",{children:"© 2026 Music Academy. Powered by Software Vala™"});const logins=["student@musicacademy.com","admin@musicacademy.com"];`;
+const SV = { ...BRAND, email: "support@softwarevala.net", phone: "+91 83488 38383", whatsapp: "https://wa.me/918348838383" };
+const LOVABLE_RULES: PresentationRules = {
+  replace: ["info@musicacademy.com", "+1 (555) 123-4567"],
+  remove: ["123 Music Lane, NYC"],
+  rebrand: ["Music Academy"],
+  logos: [],
+  links: [],
+};
+
+describe("a Lovable demo shown as Software Vala", () => {
+  const out = applyPresentation(LOVABLE_PAGE, LOVABLE_RULES, SV);
+
+  it("removes the platform's badge, its project link, analytics and share tags", () => {
+    expect(hostBrandingLeft(out)).toEqual([]);
+    // Outside the rules script, which names the badge so it can remove one added later.
+    expect(out.replace(/<script data-sv-presentation>[\s\S]*?<\/script>/, "")).not.toMatch(/lovable/i);
+    expect(out).not.toContain("og:image");
+    expect(out).toContain('<meta name="author" content="Software Vala">');
+    // The application itself still loads.
+    expect(out).toContain('src="/assets/index-GB_HiC2t.js"');
+    expect(hasBrandFavicon(out, SV.favicon)).toBe(true);
+  });
+
+  it("strips the platform branding even from a demo with no rules yet", () => {
+    const bare = applyPresentation(LOVABLE_PAGE, { remove: [], rebrand: [], logos: [], links: [] }, SV);
+    expect(hostBrandingLeft(bare)).toEqual([]);
+  });
+
+  it("shows Software Vala's contact in place of the business's, and keeps the login accounts", () => {
+    const js = cleanText(LOVABLE_BUNDLE, LOVABLE_RULES, SV);
+    expect(js).toContain('value:"support@softwarevala.net"');
+    expect(js).toContain('value:"+91 83488 38383"');
+    expect(js).toContain('value:""');
+    expect(js).toContain("© 2026 Software Vala. Powered by Software Vala™");
+    expect(js).toContain("student@musicacademy.com");
+    expect(js).toContain("admin@musicacademy.com");
+    expect(remainingViolations(js, LOVABLE_RULES)).toEqual([]);
+  });
+
+  it("points the business's contact links at Software Vala", () => {
+    const page = `<html><head></head><body><a href="mailto:info@musicacademy.com">Mail</a>
+<a href="tel:+15551234567">Call</a><a href="https://wa.me/15551234567">WhatsApp</a></body></html>`;
+    const html = applyPresentation(page, LOVABLE_RULES, SV);
+    expect(html).toContain('href="mailto:support@softwarevala.net"');
+    expect(html).toContain('href="tel:+918348838383"');
+    expect(html).toContain('href="https://wa.me/918348838383"');
+    expect(html).not.toContain("5551234567");
+  });
+
+  it("gives the browser script only hashes of the business's contact details", () => {
+    expect(out).not.toContain("info@musicacademy.com");
+    expect(out).not.toContain("555");
   });
 });
 
