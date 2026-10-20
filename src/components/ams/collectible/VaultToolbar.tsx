@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Download, Volume2, VolumeX, Zap, ZapOff, Loader2 } from "lucide-react";
 import { useReducedMotion, setReducedMotionOverride } from "@/hooks/use-reduced-motion";
 import { useCelebration } from "@/components/ams/effects/Celebration";
+import { assetDownloadFilename } from "@/lib/ams/role-assets";
 
 export type ExportItem = { src: string; filename: string };
 
@@ -12,7 +13,7 @@ async function downloadOne(item: ExportItem) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = item.filename;
+    a.download = assetDownloadFilename(item.filename, item.src);
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -23,7 +24,7 @@ async function downloadOne(item: ExportItem) {
 }
 
 /**
- * Shared vault controls: export the full image set (PNGs), toggle reduced motion,
+ * Shared vault controls: export the full image set, toggle reduced motion,
  * and mute/unmute unlock sound effects.
  */
 export function VaultToolbar({
@@ -70,7 +71,7 @@ export function VaultToolbar({
         }}
       >
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-        {busy ? `Exporting ${done}/${items.length}` : `${exportLabel} (${items.length} PNG)`}
+        {busy ? `Exporting ${done}/${items.length}` : `${exportLabel} (${items.length} images)`}
       </button>
 
       <button

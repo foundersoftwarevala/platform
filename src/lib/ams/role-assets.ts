@@ -5,7 +5,7 @@ import type { RoleSlug } from "./roles";
 
 type AssetMap = Record<RoleSlug, string>;
 
-const assets = import.meta.glob<string>("/src/assets/**/*.png", {
+const assets = import.meta.glob<string>(["/src/assets/**/*.png", "/src/assets/**/*.webp"], {
   eager: true,
   query: "?url",
   import: "default",
@@ -14,8 +14,19 @@ const assets = import.meta.glob<string>("/src/assets/**/*.png", {
 function collection(directory: string): AssetMap {
   const entries = Object.entries(assets)
     .filter(([path]) => path.startsWith(`/src/assets/${directory}/`))
-    .map(([path, url]) => [path.slice(path.lastIndexOf("/") + 1, -4), url]);
+    .map(([path, url]) => [
+      path.slice(path.lastIndexOf("/") + 1).replace(/\.(png|webp)$/i, ""),
+      url,
+    ]);
   return Object.fromEntries(entries) as AssetMap;
+}
+
+export function assetFileExtension(src: string): "png" | "webp" {
+  return /\.webp(?:$|[?#])/i.test(src) ? "webp" : "png";
+}
+
+export function assetDownloadFilename(filename: string, src: string): string {
+  return filename.replace(/\.(png|webp)$/i, `.${assetFileExtension(src)}`);
 }
 
 export const ROLE_BADGE = collection("badges");

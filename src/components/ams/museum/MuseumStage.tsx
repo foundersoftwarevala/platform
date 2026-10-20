@@ -6,6 +6,7 @@ import {
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { useCelebration, type CelebrateKind } from "@/components/ams/effects/Celebration";
 import { SVMicroMark, SVSeal, svCollectionNumber } from "@/components/ams/brand/SVMark";
+import { assetDownloadFilename } from "@/lib/ams/role-assets";
 import {
   FACE_VIEWS, LIGHTING_PRESETS, PREVIEW_MODES, SCALE_PRESETS,
   type FaceView, type LightingPreset, type MuseumEnvironment, type PreviewMode, type ScalePreset,
@@ -43,7 +44,7 @@ export interface MuseumStageProps {
  * reflection floor with the full premium preview toolkit (auto/manual rotate,
  * zoom, pan, inspect, explosion, wireframe, material preview, face views,
  * lighting + environment switching, scale presets and cinematic reveal).
- * Presentation only: no data, no network beyond fetching the PNG for download.
+ * Presentation only: no data, no network beyond fetching the image for download.
  */
 export function MuseumStage({
   src, filename, accent, label, environment, material,
@@ -130,7 +131,7 @@ export function MuseumStage({
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = filename;
+      a.href = url; a.download = assetDownloadFilename(filename, src);
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
     } catch { window.open(src, "_blank"); }
@@ -300,10 +301,10 @@ export function MuseumStage({
               <Maximize2 className="h-3.5 w-3.5" />
             </StageBtn>
           )}
-          <button type="button" onClick={download} title="Download PNG"
+          <button type="button" onClick={download} title="Download image"
             className="flex h-8 items-center gap-1.5 rounded-md border bg-black/45 px-2.5 text-[11px] font-medium text-white/90 backdrop-blur transition hover:bg-black/65"
             style={{ borderColor: `${accent}66` }}>
-            <Download className="h-3.5 w-3.5" /> PNG
+            <Download className="h-3.5 w-3.5" /> Download
           </button>
         </div>
 

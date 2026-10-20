@@ -3,13 +3,14 @@ import { Download, RotateCw, Pause, Sparkles } from "lucide-react";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { useCelebration, type CelebrateKind } from "@/components/ams/effects/Celebration";
 import { MuseumCase, SVMicroMark, SVSeal, svCollectionNumber } from "@/components/ams/brand/SVMark";
+import { assetDownloadFilename } from "@/lib/ams/role-assets";
 
 /**
  * Ultra-premium 3D collectible viewer with:
  *  - Lazy mount via IntersectionObserver (heavy visuals only when visible)
  *  - Reduced-motion mode (auto from prefers-reduced-motion + local override)
  *  - CSS 3D rotation, animated rim/spot lighting, sparkles, floor reflection
- *  - Download PNG button
+ *  - Download image button
  *  - Optional Unlock button that fires the app-wide Celebration overlay
  */
 export function Collectible3D({
@@ -77,7 +78,7 @@ export function Collectible3D({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = filename;
+      a.download = assetDownloadFilename(filename, src);
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -236,12 +237,12 @@ export function Collectible3D({
         <button
           type="button"
           onClick={handleDownload}
-          title="Download PNG"
+          title="Download image"
           className="h-8 rounded-md border flex items-center gap-1.5 px-2.5 text-[11px] font-medium text-white/90 backdrop-blur bg-black/40 hover:bg-black/60 transition"
           style={{ borderColor: `${accent}66` }}
         >
           <Download className="h-3.5 w-3.5" />
-          PNG
+          Download
         </button>
       </div>
 

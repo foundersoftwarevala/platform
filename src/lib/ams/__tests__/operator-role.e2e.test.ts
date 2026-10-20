@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { ROLES, type RoleSlug } from "@/lib/ams/roles";
 import { ROLE_THEMES } from "@/lib/ams/role-themes";
 import { ROLE_ENVIRONMENT, SHOWCASES } from "@/lib/ams/museum";
+import { assetDownloadFilename } from "@/lib/ams/role-assets";
 
 const ROOT = process.cwd();
 // The AMS routes are flat files under src/routes (ams.<name>.tsx).
@@ -94,14 +95,19 @@ describe("Operator role — vault filters", () => {
 
 describe("Operator role — collection displays", () => {
   it.each(ASSET_DIRS)("collection %s ships an operator 3D asset", (dir) => {
-    expect(existsSync(join(ASSETS, dir, "operator.png"))).toBe(true);
+    expect(
+      existsSync(join(ASSETS, dir, "operator.png")) || existsSync(join(ASSETS, dir, "operator.webp")),
+    ).toBe(true);
   });
 
   it("every asset collection has one file per role", () => {
     for (const dir of ASSET_DIRS) {
-      const files = readdirSync(join(ASSETS, dir)).filter((f) => f.endsWith(".png"));
+      const files = readdirSync(join(ASSETS, dir)).filter((f) => /\.(png|webp)$/i.test(f));
       for (const role of ROLES) {
-        expect(files, `${dir} missing ${role.slug}`).toContain(`${role.slug}.png`);
+        expect(
+          files.some((file) => new RegExp(`^${role.slug}\\.(png|webp)$`, "i").test(file)),
+          `${dir} missing ${role.slug}`,
+        ).toBe(true);
       }
     }
   });
@@ -113,7 +119,7 @@ describe("Operator role — museum showcases", () => {
     (_slug, showcase) => {
       const url = showcase.assets[OPERATOR];
       expect(url, `${showcase.slug} has no operator asset`).toBeTruthy();
-      expect(url).toMatch(/operator\.png/);
+      expect(url).toMatch(/operator\.(png|webp)/);
     },
   );
 
@@ -121,12 +127,24 @@ describe("Operator role — museum showcases", () => {
     for (const showcase of SHOWCASES) {
       const selected = ROLES.filter((r) => r.slug === OPERATOR);
       expect(selected).toHaveLength(1);
-      const items = selected.map((r) => ({
-        src: showcase.assets[r.slug],
-        filename: `${r.slug}-${showcase.suffix}.png`,
-      }));
+      const items = selected.map((r) => {
+        const src = showcase.assets[r.slug];
+        return { src, filename: `${r.slug}-${showcase.suffix}.png` };
+      });
       expect(items[0].src).toContain("operator");
       expect(items[0].filename).toBe(`operator-${showcase.suffix}.png`);
     }
+  });
+
+  describe("asset download filename formats", () => {
+    it("matches the URL extension for converted WebP assets", () => {
+      expect(assetDownloadFilename("operator-award.png", "/assets/operator-award.webp"))
+        .toBe("operator-award.webp");
+    });
+
+    it("preserves PNG filenames for PNG assets", () => {
+      expect(assetDownloadFilename("operator-award.png", "/assets/operator-award.png"))
+        .toBe("operator-award.png");
+    });
   });
 });

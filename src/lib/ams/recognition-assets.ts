@@ -6,18 +6,27 @@ import { stageRender } from "@/lib/ams/trophy-stage-assets";
 
 function keyed(map: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(map).map(([path, url]) => [path.slice(path.lastIndexOf("/") + 1).replace(/\.png$/, ""), url]),
+    Object.entries(map).map(([path, url]) => [
+      path.slice(path.lastIndexOf("/") + 1).replace(/\.(png|webp)$/i, ""),
+      url,
+    ]),
   );
 }
 
 const badges = keyed(
-  import.meta.glob<string>("/src/assets/badges/*.png", { eager: true, query: "?url", import: "default" }),
+  import.meta.glob<string>(["/src/assets/badges/*.png", "/src/assets/badges/*.webp"], {
+    eager: true, query: "?url", import: "default",
+  }),
 );
 const certificates = keyed(
-  import.meta.glob<string>("/src/assets/certificates/*.png", { eager: true, query: "?url", import: "default" }),
+  import.meta.glob<string>(["/src/assets/certificates/*.png", "/src/assets/certificates/*.webp"], {
+    eager: true, query: "?url", import: "default",
+  }),
 );
 const legacyMedals = keyed(
-  import.meta.glob<string>("/src/assets/legacy-medals/*.png", { eager: true, query: "?url", import: "default" }),
+  import.meta.glob<string>(["/src/assets/legacy-medals/*.png", "/src/assets/legacy-medals/*.webp"], {
+    eager: true, query: "?url", import: "default",
+  }),
 );
 
 const two = (n: number) => String(n).padStart(2, "0");

@@ -6,10 +6,10 @@ import { ShieldCheck, ScrollText } from "lucide-react";
 import { SVSeal, SVMicroMark, svCollectionNumber } from "@/components/ams/brand/SVMark";
 import { ROLE_LIST } from "@/lib/ams/trophy-catalog";
 
-const shields = import.meta.glob<string>("/src/assets/shields/*.png", {
+const shields = import.meta.glob<string>(["/src/assets/shields/*.png", "/src/assets/shields/*.webp"], {
   eager: true, query: "?url", import: "default",
 });
-const certificates = import.meta.glob<string>("/src/assets/certificates/*.png", {
+const certificates = import.meta.glob<string>(["/src/assets/certificates/*.png", "/src/assets/certificates/*.webp"], {
   eager: true, query: "?url", import: "default",
 });
 
@@ -18,7 +18,7 @@ function keyed(map: Record<string, string>, suffix: string) {
     Object.entries(map).map(([p, url]) => [
       p
         .slice(p.lastIndexOf("/") + 1)
-        .replace(/\.png$/, "")
+        .replace(/\.(png|webp)$/i, "")
         .replace(new RegExp(`-${suffix}$`), ""),
       url,
     ]),

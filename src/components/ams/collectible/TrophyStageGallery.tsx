@@ -5,6 +5,7 @@ import { SVMicroMark, SVSeal, svCollectionNumber } from "@/components/ams/brand/
 import { TIERS, TROPHIES, ROLE_LIST, type Tier, type TrophyStage } from "@/lib/ams/trophy-catalog";
 import { stageRender, referenceForRole } from "@/lib/ams/trophy-stage-assets";
 import { getRole } from "@/lib/ams/roles";
+import { assetDownloadFilename } from "@/lib/ams/role-assets";
 import { useQuery } from "@tanstack/react-query";
 import { getRoleChain, type AssetState } from "@/lib/ams/chain.functions";
 
@@ -242,8 +243,8 @@ export function TrophyStageGallery() {
                   {src && (
                     <a
                       href={src}
-                      download={`${item.id}.png`}
-                      aria-label="Download PNG"
+                      download={assetDownloadFilename(`${item.id}.png`, src)}
+                      aria-label="Download image"
                       className="rounded-md border bg-black/50 p-1.5 text-white/90 backdrop-blur transition hover:bg-black/70"
                       style={{ borderColor: `${accent}66` }}
                     >
