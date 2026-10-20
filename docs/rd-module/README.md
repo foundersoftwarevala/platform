@@ -31,6 +31,48 @@ live under `rd-module` namespaces. Shared source UI primitives are retained loca
 the global design system, existing Pro Manager entries and homepage are preserved.
 Module CSS variables and helper classes are scoped to `.rd-module`.
 
+## Public software requests
+
+The homepage's **Request Your Software** button opens `/request-software`.
+This separate, minimal page uses the platform's existing email magic-link
+authentication; it has no password, signup form or operator-role requirement.
+The original five R&D routes and every existing operator server-function guard
+remain protected.
+
+`POST /api/rd-request` independently checks the bearer session against Auth and
+requires a confirmed email. It ignores client-supplied email/verification flags.
+It accepts up to 50,000 characters of pasted text, one optional PDF of at most
+10 MiB, or a PDF without text. PDFs require both a PDF filename and signature,
+and remain in the existing private `rd-attachments` bucket. No new schema,
+anonymous table policy, platform role or RLS exception is introduced.
+
+Requests use real `rd_opportunities` columns with `source=homepage_request`,
+`type=SOFTWARE_ON_DEMAND`, and `assigned_to=R&D Team`. Assignment means the
+existing shared R&D inbox, not a fabricated team member or account. The existing
+manager lists these rows and can subsequently assign an individual. Request
+events and team notifications are recorded; secondary notification failures are
+logged without falsely reporting that a saved inquiry was lost.
+
+Client-generated submission UUIDs plus an exact content digest prevent duplicate
+inquiries after network retries. An ID already belonging to another email or
+different content returns a conflict without revealing its reference. At most ten
+requests per confirmed email are accepted in a rolling 24-hour period. This is
+an application-level guard, not a cross-process atomic quota.
+
+Email verification requires operational email delivery in the existing Auth
+service and an allowed same-origin `/request-software` redirect. Confirmation
+uses the existing commerce mailer/outbox. Its response/UI distinguishes actual
+`sent`, durable `queued`, and `unavailable`; queued is not delivery proof.
+Configure the existing Resend or SMTP relay securely before claiming external
+confirmation delivery. Never place provider credentials in source or browser
+configuration. A saved inquiry remains visible even when confirmation is
+unavailable.
+
+Focused regressions live in `public-request.server.test.ts` and
+`RequestSoftwareForm.test.tsx`. Real magic-link delivery, private storage and
+production intake require separate runtime acceptance; mocked transport tests
+must not be described as delivered email or production submissions.
+
 ## Database and runtime prerequisites
 
 `supabase/migrations/20261108T111000_rd_manager_module.sql` combines all seven
