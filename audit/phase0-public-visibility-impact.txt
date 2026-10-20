@@ -1,0 +1,17 @@
+BEGIN
+ visible_unapproved_rows_public_policy_would_allow
+---------------------------------------------------
+                                                 0
+(1 row)
+
+ moderation_status | content_status | visible | row_count
+-------------------+----------------+---------+-----------
+(0 rows)
+
+            policyname            |                                                                                                                      qual
+----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ marketplace_products_public_read | ((visible = true) AND (moderation_status = 'approved'::text) AND ((content_status IS NULL) OR (content_status = 'published'::text)) AND ((publish_at IS NULL) OR (publish_at <= now())) AND ((unpublish_at IS NULL) OR (unpublish_at > now())))
+ products public read             | ((visible = true) AND ((content_status IS NULL) OR (content_status = 'published'::text)) AND ((publish_at IS NULL) OR (publish_at <= now())) AND ((unpublish_at IS NULL) OR (unpublish_at > now())))
+(2 rows)
+
+COMMIT

@@ -1,0 +1,20 @@
+BEGIN
+            policyname            |                                                                                                                      qual
+----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ marketplace_products_public_read | ((visible = true) AND (moderation_status = 'approved'::text) AND ((content_status IS NULL) OR (content_status = 'published'::text)) AND ((publish_at IS NULL) OR (publish_at <= now())) AND ((unpublish_at IS NULL) OR (unpublish_at > now())))
+ products public read             | ((visible = true) AND (moderation_status = 'approved'::text) AND ((content_status IS NULL) OR (content_status = 'published'::text)) AND ((publish_at IS NULL) OR (publish_at <= now())) AND ((unpublish_at IS NULL) OR (unpublish_at > now())))
+(2 rows)
+
+ visible_unapproved_public_candidates
+--------------------------------------
+                                    0
+(1 row)
+
+SET
+ anon_visible_approved_products
+--------------------------------
+                           7528
+(1 row)
+
+RESET
+COMMIT

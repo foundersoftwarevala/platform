@@ -1,0 +1,22 @@
+BEGIN
+           policyname            |  cmd   |      roles      |                                qual                                 | with_check
+---------------------------------+--------+-----------------+---------------------------------------------------------------------+------------
+ marketplace_products_owner_read | SELECT | {authenticated} | (marketplace_is_seller_member(seller_id) OR marketplace_is_admin()) |
+(1 row)
+
+            policyname            |                                                                                                                      qual
+----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ marketplace_products_public_read | ((visible = true) AND (moderation_status = 'approved'::text) AND ((content_status IS NULL) OR (content_status = 'published'::text)) AND ((publish_at IS NULL) OR (publish_at <= now())) AND ((unpublish_at IS NULL) OR (unpublish_at > now())))
+ products public read             | ((visible = true) AND (moderation_status = 'approved'::text) AND ((content_status IS NULL) OR (content_status = 'published'::text)) AND ((publish_at IS NULL) OR (publish_at <= now())) AND ((unpublish_at IS NULL) OR (unpublish_at > now())))
+(2 rows)
+
+ relrowsecurity | relforcerowsecurity
+----------------+---------------------
+ t              | f
+(1 row)
+
+ version | name
+---------+------
+(0 rows)
+
+COMMIT

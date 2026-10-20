@@ -1,0 +1,87 @@
+BEGIN
+  database   | server_address | db_user  |         inspected_at
+-------------+----------------+----------+-------------------------------
+ sv_platform |                | postgres | 2026-10-20 22:54:02.158311+00
+(1 row)
+
+     schemaname      |                  tablename
+---------------------+----------------------------------------------
+ public              | ai_content_reviews
+ public              | ayra_order_steps
+ public              | ayra_orders
+ public              | external_review_summary
+ public              | external_reviews
+ public              | finance_payouts
+ public              | franchise_notifications
+ public              | franchise_product_assignments
+ public              | influencer_notifications
+ public              | influencer_payouts
+ public              | lead_follow_ups
+ public              | legal_product_bindings
+ public              | marketplace_downloads
+ public              | marketplace_order_attributions
+ public              | marketplace_order_items
+ public              | marketplace_order_refunds
+ public              | marketplace_order_status_history
+ public              | marketplace_orders
+ public              | marketplace_payout_schedules
+ public              | marketplace_payouts
+ public              | marketplace_product_country_seo
+ public              | marketplace_product_country_seo_queue_state
+ public              | marketplace_product_country_seo_worker_state
+ public              | marketplace_product_pricing
+ public              | marketplace_product_variants
+ public              | marketplace_product_versions
+ public              | marketplace_products
+ public              | marketplace_reviews
+ public              | marketplace_saved_products
+ public              | notification_rules
+ public              | notification_templates
+ public              | notifications
+ public              | partner_payouts
+ public              | pm_products
+ public              | product_apis
+ public              | product_demo_mappings
+ public              | product_demo_urls
+ public              | product_duplicate_candidates
+ public              | product_merge_operations
+ public              | product_moderation_policy
+ public              | product_purge_requests
+ public              | product_qr_codes
+ public              | product_qr_events
+ public              | product_reports
+ public              | product_share_events
+ public              | product_short_link_events
+ public              | product_short_links
+ public              | product_url_history
+ public              | product_url_jobs
+ public              | product_url_route_prefixes
+ public              | product_url_settings
+ public              | product_urls
+ public              | reseller_membership_orders
+ public              | reseller_notifications
+ public              | reseller_payout_schedules
+ public              | reseller_payouts
+ public              | review_media
+ public              | review_replies
+ public              | review_reports
+ public              | review_votes
+ public              | rnd_notifications
+ public              | safe_assist_notifications
+ public              | seo_product_entries
+ public              | seo_reviews
+ public              | site_notifications
+ public              | tm_notifications
+ public              | tm_reviews
+ public              | user_notifications
+ storage             | buckets
+ storage             | objects
+ supabase_migrations | schema_migrations
+(71 rows)
+
+        migration_history_table
+---------------------------------------
+ supabase_migrations.schema_migrations
+(1 row)
+
+COMMIT

@@ -1,0 +1,47 @@
+BEGIN
+   role_name   | select_table | insert_table | update_table | delete_table
+---------------+--------------+--------------+--------------+--------------
+ anon          | t            | t            | t            | t
+ authenticated | t            | t            | t            | t
+ service_role  | t            | t            | t            | t
+(3 rows)
+
+   role_name   |    column_name    | can_insert | can_update
+---------------+-------------------+------------+------------
+ anon          | content_status    | t          | t
+ anon          | description       | t          | t
+ anon          | id                | t          | t
+ anon          | license           | t          | t
+ anon          | moderation_status | t          | t
+ anon          | name              | t          | t
+ anon          | seller_id         | t          | t
+ anon          | visible           | t          | t
+ authenticated | content_status    | t          | t
+ authenticated | description       | t          | t
+ authenticated | id                | t          | t
+ authenticated | license           | t          | t
+ authenticated | moderation_status | t          | t
+ authenticated | name              | t          | t
+ authenticated | seller_id         | t          | t
+ authenticated | visible           | t          | t
+ service_role  | content_status    | t          | t
+ service_role  | description       | t          | t
+ service_role  | id                | t          | t
+ service_role  | license           | t          | t
+ service_role  | moderation_status | t          | t
+ service_role  | name              | t          | t
+ service_role  | seller_id         | t          | t
+ service_role  | visible           | t          | t
+(24 rows)
+
+                     seller_membership_function
+--------------------------------------------------------------------
+ \r                                                                +
+   SELECT public.marketplace_is_admin() OR EXISTS (\r              +
+     SELECT 1 FROM public.marketplace_seller_users su\r            +
+     WHERE su.seller_id = p_seller_id AND su.user_id = auth.uid()\r+
+   );\r                                                            +
+
+(1 row)
+
+COMMIT

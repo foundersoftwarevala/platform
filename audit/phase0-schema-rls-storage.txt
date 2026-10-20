@@ -1,0 +1,296 @@
+BEGIN
+ column_name | data_type
+-------------+-----------
+ version     | text
+ statements  | ARRAY
+ name        | text
+(3 rows)
+
+       table_name        |    column_name     |        data_type         | is_nullable
+-------------------------+--------------------+--------------------------+-------------
+ marketplace_downloads   | id                 | uuid                     | NO
+ marketplace_downloads   | entitlement_id     | uuid                     | NO
+ marketplace_downloads   | buyer_id           | uuid                     | NO
+ marketplace_downloads   | version_id         | uuid                     | YES
+ marketplace_downloads   | created_at         | timestamp with time zone | NO
+ marketplace_order_items | id                 | uuid                     | NO
+ marketplace_order_items | order_id           | uuid                     | NO
+ marketplace_order_items | product_id         | uuid                     | NO
+ marketplace_order_items | variant_id         | uuid                     | YES
+ marketplace_order_items | seller_id          | uuid                     | YES
+ marketplace_order_items | product_name       | text                     | NO
+ marketplace_order_items | product_version_id | uuid                     | YES
+ marketplace_order_items | quantity           | integer                  | NO
+ marketplace_order_items | unit_amount        | numeric                  | NO
+ marketplace_order_items | line_total         | numeric                  | NO
+ marketplace_order_items | currency           | text                     | NO
+ marketplace_order_items | created_at         | timestamp with time zone | NO
+ marketplace_orders      | id                 | uuid                     | NO
+ marketplace_orders      | order_number       | text                     | NO
+ marketplace_orders      | buyer_id           | uuid                     | NO
+ marketplace_orders      | status             | text                     | NO
+ marketplace_orders      | currency           | text                     | NO
+ marketplace_orders      | subtotal           | numeric                  | NO
+ marketplace_orders      | discount_total     | numeric                  | NO
+ marketplace_orders      | tax_total          | numeric                  | NO
+ marketplace_orders      | total              | numeric                  | NO
+ marketplace_orders      | idempotency_key    | text                     | NO
+ marketplace_orders      | metadata           | jsonb                    | NO
+ marketplace_orders      | created_at         | timestamp with time zone | NO
+ marketplace_orders      | updated_at         | timestamp with time zone | NO
+ marketplace_orders      | user_id            | uuid                     | YES
+ marketplace_orders      | lead_id            | uuid                     | YES
+ marketplace_orders      | order_no           | text                     | YES
+ marketplace_orders      | amount_usd         | numeric                  | YES
+ marketplace_orders      | fx_rate            | numeric                  | YES
+ marketplace_orders      | amount_inr         | numeric                  | YES
+ marketplace_orders      | currency_charged   | text                     | YES
+ marketplace_orders      | txnid              | text                     | YES
+ marketplace_orders      | payu_txn_id        | text                     | YES
+ marketplace_orders      | payu_status        | text                     | YES
+ marketplace_orders      | payment_gateway    | text                     | YES
+ marketplace_orders      | created_by         | uuid                     | YES
+ marketplace_orders      | updated_by         | uuid                     | YES
+ marketplace_orders      | soft_delete_flag   | boolean                  | NO
+ marketplace_payouts     | id                 | uuid                     | NO
+ marketplace_payouts     | seller_id          | uuid                     | NO
+ marketplace_payouts     | amount             | numeric                  | NO
+ marketplace_payouts     | currency           | text                     | NO
+ marketplace_payouts     | status             | text                     | NO
+ marketplace_payouts     | idempotency_key    | text                     | NO
+ marketplace_payouts     | provider_reference | text                     | YES
+ marketplace_payouts     | created_at         | timestamp with time zone | NO
+ marketplace_payouts     | updated_at         | timestamp with time zone | NO
+ marketplace_products    | id                 | uuid                     | NO
+ marketplace_products    | slug               | text                     | NO
+ marketplace_products    | name               | text                     | NO
+ marketplace_products    | industry_label     | text                     | YES
+ marketplace_products    | icon               | text                     | YES
+ marketplace_products    | price_label        | text                     | NO
+ marketplace_products    | price_period       | text                     | YES
+ marketplace_products    | rating             | numeric                  | NO
+ marketplace_products    | downloads          | integer                  | NO
+ marketplace_products    | downloads_label    | text                     | YES
+ marketplace_products    | badge              | text                     | YES
+ marketplace_products    | is_featured        | boolean                  | NO
+ marketplace_products    | is_trending        | boolean                  | NO
+ marketplace_products    | is_new_release     | boolean                  | NO
+ marketplace_products    | is_best_seller     | boolean                  | NO
+ marketplace_products    | is_ai              | boolean                  | NO
+ marketplace_products    | category_id        | uuid                     | YES
+ marketplace_products    | sort_order         | integer                  | NO
+ marketplace_products    | visible            | boolean                  | NO
+ marketplace_products    | publish_at         | timestamp with time zone | YES
+ marketplace_products    | unpublish_at       | timestamp with time zone | YES
+ marketplace_products    | created_at         | timestamp with time zone | NO
+ marketplace_products    | updated_at         | timestamp with time zone | NO
+ marketplace_products    | description        | text                     | YES
+ marketplace_products    | thumbnail_url      | text                     | YES
+ marketplace_products    | public_repo_url    | text                     | YES
+ marketplace_products    | tags               | ARRAY                    | NO
+ marketplace_products    | tech_stack         | ARRAY                    | NO
+ marketplace_products    | features           | jsonb                    | NO
+ marketplace_products    | content_status     | text                     | NO
+ marketplace_products    | software_type      | text                     | YES
+ marketplace_products    | deployment         | text                     | YES
+ marketplace_products    | license            | text                     | YES
+ marketplace_products    | version            | text                     | YES
+ marketplace_products    | technology         | text                     | YES
+ marketplace_products    | frontend           | text                     | YES
+ marketplace_products    | backend            | text                     | YES
+ marketplace_products    | database           | text                     | YES
+ marketplace_products    | authentication     | text                     | YES
+ marketplace_products    | api                | text                     | YES
+ marketplace_products    | mobile             | text                     | YES
+ marketplace_products    | pwa                | text                     | YES
+ marketplace_products    | cloud              | text                     | YES
+ marketplace_products    | offline            | text                     | YES
+ marketplace_products    | multi_branch       | text                     | YES
+ marketplace_products    | multi_company      | text                     | YES
+ marketplace_products    | multi_school       | text                     | YES
+ marketplace_products    | roles              | text                     | YES
+ marketplace_products    | languages          | text                     | YES
+ marketplace_products    | currency           | text                     | YES
+ marketplace_products    | tax                | text                     | YES
+ marketplace_products    | reports            | text                     | YES
+ marketplace_products    | dashboard          | text                     | YES
+ marketplace_products    | analytics          | text                     | YES
+ marketplace_products    | ai                 | text                     | YES
+ marketplace_products    | whatsapp           | text                     | YES
+ marketplace_products    | email              | text                     | YES
+ marketplace_products    | sms                | text                     | YES
+ marketplace_products    | payment_gateway    | text                     | YES
+ marketplace_products    | integrations       | text                     | YES
+ marketplace_products    | modules            | text                     | YES
+ marketplace_products    | benefits           | text                     | YES
+ marketplace_products    | target_audience    | text                     | YES
+ marketplace_products    | related_products   | ARRAY                    | NO
+ marketplace_products    | search_keywords    | ARRAY                    | NO
+ marketplace_products    | logo               | text                     | YES
+ marketplace_products    | favicon            | text                     | YES
+ marketplace_products    | cover_image        | text                     | YES
+ marketplace_products    | demo_url           | text                     | YES
+ marketplace_products    | subcategory        | text                     | YES
+ marketplace_products    | search_text        | text                     | YES
+ marketplace_products    | moderation_status  | text                     | NO
+ marketplace_products    | approved_at        | timestamp with time zone | YES
+ marketplace_products    | approved_by        | uuid                     | YES
+ marketplace_products    | seller_id          | uuid                     | YES
+ marketplace_products    | deleted_at         | timestamp with time zone | YES
+ marketplace_products    | deleted_by         | uuid                     | YES
+ marketplace_products    | delete_reason      | text                     | YES
+ marketplace_products    | purge_after        | timestamp with time zone | YES
+ marketplace_products    | merged_into        | uuid                     | YES
+ marketplace_products    | moderation_lock    | integer                  | NO
+ marketplace_reviews     | id                 | uuid                     | NO
+ marketplace_reviews     | product_id         | uuid                     | NO
+ marketplace_reviews     | buyer_id           | uuid                     | NO
+ marketplace_reviews     | order_item_id      | uuid                     | NO
+ marketplace_reviews     | rating             | integer                  | NO
+ marketplace_reviews     | comment            | text                     | NO
+ marketplace_reviews     | status             | text                     | NO
+ marketplace_reviews     | seller_response    | text                     | YES
+ marketplace_reviews     | created_at         | timestamp with time zone | NO
+ marketplace_reviews     | updated_at         | timestamp with time zone | NO
+ marketplace_reviews     | title              | text                     | YES
+ marketplace_reviews     | review_type        | text                     | NO
+ marketplace_reviews     | helpful_count      | integer                  | NO
+ marketplace_reviews     | report_count       | integer                  | NO
+ marketplace_reviews     | moderated_by       | uuid                     | YES
+ marketplace_reviews     | moderated_at       | timestamp with time zone | YES
+ marketplace_reviews     | moderation_note    | text                     | YES
+ marketplace_reviews     | published_at       | timestamp with time zone | YES
+ notifications           | id                 | uuid                     | NO
+ notifications           | user_id            | uuid                     | NO
+ notifications           | title              | text                     | NO
+ notifications           | body               | text                     | YES
+ notifications           | kind               | text                     | NO
+ notifications           | read_at            | timestamp with time zone | YES
+ notifications           | data               | jsonb                    | YES
+ notifications           | created_at         | timestamp with time zone | NO
+ user_notifications      | id                 | uuid                     | NO
+ user_notifications      | user_id            | uuid                     | NO
+ user_notifications      | type               | text                     | NO
+ user_notifications      | message            | text                     | NO
+ user_notifications      | event_type         | text                     | YES
+ user_notifications      | action_label       | text                     | YES
+ user_notifications      | action_url         | text                     | YES
+ user_notifications      | is_buzzer          | boolean                  | YES
+ user_notifications      | is_read            | boolean                  | YES
+ user_notifications      | is_dismissed       | boolean                  | YES
+ user_notifications      | role_target        | ARRAY                    | YES
+ user_notifications      | created_at         | timestamp with time zone | NO
+ user_notifications      | read_at            | timestamp with time zone | YES
+ user_notifications      | dismissed_at       | timestamp with time zone | YES
+ user_notifications      | dedupe_key         | text                     | YES
+ user_notifications      | data               | jsonb                    | YES
+(176 rows)
+
+ schemaname |        tablename        |             policyname             |  cmd   |      roles      |                                                                                                                      qual                                                                                                                       |                                                                                                                                             with_check
+------------+-------------------------+------------------------------------+--------+-----------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ public     | marketplace_downloads   | anon_write_denied                  | ALL    | {anon}          | false                                                                                                                                                                                                                                           | false
+ public     | marketplace_downloads   | marketplace_download_owner         | SELECT | {authenticated} | ((buyer_id = auth.uid()) OR marketplace_is_admin())                                                                                                                                                                                             |
+ public     | marketplace_order_items | anon_write_denied                  | ALL    | {anon}          | false                                                                                                                                                                                                                                           | false
+ public     | marketplace_order_items | marketplace_order_items_access     | SELECT | {authenticated} | ((EXISTS ( SELECT 1                                                                                                                                                                                                                            +|
+            |                         |                                    |        |                 |    FROM marketplace_orders o                                                                                                                                                                                                                   +|
+            |                         |                                    |        |                 |   WHERE ((o.id = marketplace_order_items.order_id) AND ((o.buyer_id = auth.uid()) OR marketplace_is_admin() OR marketplace_is_finance() OR has_role(auth.uid(), 'support'::app_role))))) OR marketplace_is_seller_member(seller_id))            |
+ public     | marketplace_orders      | anon_write_denied                  | ALL    | {anon}          | false                                                                                                                                                                                                                                           | false
+ public     | marketplace_orders      | marketplace_orders_buyer           | SELECT | {authenticated} | ((buyer_id = auth.uid()) OR marketplace_is_admin() OR marketplace_is_finance() OR has_role(auth.uid(), 'support'::app_role))                                                                                                                    |
+ public     | marketplace_payouts     | anon_write_denied                  | ALL    | {anon}          | false                                                                                                                                                                                                                                           | false
+ public     | marketplace_payouts     | marketplace_payout_access          | SELECT | {authenticated} | (marketplace_is_finance() OR marketplace_is_seller_member(seller_id))                                                                                                                                                                           |
+ public     | marketplace_products    | anon_delete_denied                 | DELETE | {anon}          | false                                                                                                                                                                                                                                           |
+ public     | marketplace_products    | anon_insert_denied                 | INSERT | {anon}          |                                                                                                                                                                                                                                                 | false
+ public     | marketplace_products    | anon_update_denied                 | UPDATE | {anon}          | false                                                                                                                                                                                                                                           | false
+ public     | marketplace_products    | franchise_assigned_products_read   | SELECT | {authenticated} | (EXISTS ( SELECT 1                                                                                                                                                                                                                             +|
+            |                         |                                    |        |                 |    FROM franchise_product_assignments assignment                                                                                                                                                                                               +|
+            |                         |                                    |        |                 |   WHERE ((assignment.product_id = marketplace_products.id) AND assignment.active AND franchise_has_access(assignment.franchise_id))))                                                                                                           |
+ public     | marketplace_products    | marketplace_products_admin_delete  | DELETE | {authenticated} | marketplace_is_admin()                                                                                                                                                                                                                          |
+ public     | marketplace_products    | marketplace_products_owner_read    | SELECT | {authenticated} | (marketplace_is_seller_member(seller_id) OR marketplace_is_admin())                                                                                                                                                                             |
+ public     | marketplace_products    | marketplace_products_owner_update  | UPDATE | {authenticated} | (marketplace_is_seller_member(seller_id) OR marketplace_is_admin())                                                                                                                                                                             | (marketplace_is_seller_member(seller_id) OR marketplace_is_admin())
+ public     | marketplace_products    | marketplace_products_owner_write   | INSERT | {authenticated} |                                                                                                                                                                                                                                                 | (marketplace_is_seller_member(seller_id) OR marketplace_is_admin())
+ public     | marketplace_products    | marketplace_products_public_read   | SELECT | {public}        | ((visible = true) AND (moderation_status = 'approved'::text) AND ((content_status IS NULL) OR (content_status = 'published'::text)) AND ((publish_at IS NULL) OR (publish_at <= now())) AND ((unpublish_at IS NULL) OR (unpublish_at > now()))) |
+ public     | marketplace_products    | products admin read                | SELECT | {authenticated} | (has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'boss'::app_role))                                                                                                                                                             |
+ public     | marketplace_products    | products admin write               | ALL    | {authenticated} | (has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'boss'::app_role))                                                                                                                                                             | (has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'boss'::app_role))
+ public     | marketplace_products    | products public read               | SELECT | {public}        | ((visible = true) AND ((content_status IS NULL) OR (content_status = 'published'::text)) AND ((publish_at IS NULL) OR (publish_at <= now())) AND ((unpublish_at IS NULL) OR (unpublish_at > now())))                                            |
+ public     | marketplace_reviews     | marketplace_reviews_anon_delete    | DELETE | {anon}          | false                                                                                                                                                                                                                                           |
+ public     | marketplace_reviews     | marketplace_reviews_anon_insert    | INSERT | {anon}          |                                                                                                                                                                                                                                                 | false
+ public     | marketplace_reviews     | marketplace_reviews_anon_update    | UPDATE | {anon}          | false                                                                                                                                                                                                                                           | false
+ public     | marketplace_reviews     | marketplace_reviews_operator_read  | SELECT | {authenticated} | (mm_is_operator() OR (buyer_id = auth.uid()))                                                                                                                                                                                                   |
+ public     | marketplace_reviews     | marketplace_reviews_operator_write | ALL    | {authenticated} | mm_is_operator()                                                                                                                                                                                                                                | mm_is_operator()
+ public     | marketplace_reviews     | marketplace_reviews_owner_update   | UPDATE | {authenticated} | ((buyer_id = auth.uid()) OR marketplace_is_admin())                                                                                                                                                                                             | ((buyer_id = auth.uid()) OR marketplace_is_admin())
+ public     | marketplace_reviews     | marketplace_reviews_owner_write    | INSERT | {authenticated} |                                                                                                                                                                                                                                                 | ((buyer_id = auth.uid()) AND (status = 'pending'::text) AND (moderated_by IS NULL) AND (moderated_at IS NULL) AND (published_at IS NULL) AND (seller_response IS NULL) AND (COALESCE(helpful_count, 0) = 0) AND (COALESCE(report_count, 0) = 0) AND ((order_item_id IS NULL) OR (EXISTS ( SELECT 1+
+            |                         |                                    |        |                 |                                                                                                                                                                                                                                                 |    FROM (marketplace_order_items oi                                                                                                                                                                                                                                                               +
+            |                         |                                    |        |                 |                                                                                                                                                                                                                                                 |      JOIN marketplace_orders o ON ((o.id = oi.order_id)))                                                                                                                                                                                                                                         +
+            |                         |                                    |        |                 |                                                                                                                                                                                                                                                 |   WHERE ((oi.id = marketplace_reviews.order_item_id) AND (o.buyer_id = auth.uid()))))))
+ public     | marketplace_reviews     | marketplace_reviews_public_read    | SELECT | {public}        | (status = 'published'::text)                                                                                                                                                                                                                    |
+ public     | notifications           | anon_write_denied                  | ALL    | {anon}          | false                                                                                                                                                                                                                                           | false
+ public     | notifications           | nfy_admin_del                      | DELETE | {authenticated} | is_admin(auth.uid())                                                                                                                                                                                                                            |
+ public     | notifications           | nfy_admin_write                    | INSERT | {authenticated} |                                                                                                                                                                                                                                                 | is_admin(auth.uid())
+ public     | notifications           | nfy_self_read                      | SELECT | {authenticated} | ((user_id = auth.uid()) OR is_admin(auth.uid()))                                                                                                                                                                                                |
+ public     | notifications           | nfy_self_update                    | UPDATE | {authenticated} | (user_id = auth.uid())                                                                                                                                                                                                                          |
+ public     | user_notifications      | Users delete own notifications     | DELETE | {authenticated} | (auth.uid() = user_id)                                                                                                                                                                                                                          |
+ public     | user_notifications      | Users update own notifications     | UPDATE | {authenticated} | (auth.uid() = user_id)                                                                                                                                                                                                                          |
+ public     | user_notifications      | Users view own notifications       | SELECT | {authenticated} | (auth.uid() = user_id)                                                                                                                                                                                                                          |
+ public     | user_notifications      | anon_write_denied                  | ALL    | {anon}          | false                                                                                                                                                                                                                                           | false
+ public     | user_notifications      | user_notifications_anon_ins        | INSERT | {anon}          |                                                                                                                                                                                                                                                 | false
+ public     | user_notifications      | user_notifications_anon_sel        | SELECT | {anon}          | false                                                                                                                                                                                                                                           |
+ public     | user_notifications      | user_notifications_anon_upd        | UPDATE | {anon}          | false                                                                                                                                                                                                                                           | false
+ public     | user_notifications      | user_notifications_insert_own      | INSERT | {authenticated} |                                                                                                                                                                                                                                                 | ((user_id = auth.uid()) OR mm_is_operator())
+ public     | user_notifications      | user_notifications_own             | SELECT | {authenticated} | ((user_id = auth.uid()) OR mm_is_operator() OR ((user_id IS NULL) AND (role_target && COALESCE(( SELECT array_agg((user_roles.role)::text) AS array_agg                                                                                        +|
+            |                         |                                    |        |                 |    FROM user_roles                                                                                                                                                                                                                             +|
+            |                         |                                    |        |                 |   WHERE (user_roles.user_id = auth.uid())), '{}'::text[]))))                                                                                                                                                                                    |
+ public     | user_notifications      | user_notifications_own_update      | UPDATE | {authenticated} | ((user_id = auth.uid()) OR mm_is_operator())                                                                                                                                                                                                    | ((user_id = auth.uid()) OR mm_is_operator())
+(43 rows)
+
+            id             |           name            | public | file_size_limit |                                                                                                                 allowed_mime_types
+---------------------------+---------------------------+--------+-----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ chat-files                | chat-files                | f      |                 |
+ developer-task-files      | developer-task-files      | f      |                 |
+ franchise-documents       | franchise-documents       | f      |                 |
+ legal-documents           | legal-documents           | f      |                 |
+ rd-attachments            | rd-attachments            | f      |        10485760 |
+ reseller-client-documents | reseller-client-documents | f      |        15728640 | {application/pdf,image/jpeg,image/png,image/webp,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet}
+ reseller-kyc-documents    | reseller-kyc-documents    | f      |        10485760 | {application/pdf,image/jpeg,image/png,image/webp}
+(7 rows)
+
+          id_fingerprint          |      bucket_id       | object_name | has_owner | has_owner_id |          created_at
+----------------------------------+----------------------+-------------+-----------+--------------+-------------------------------
+ 89c302e3b7ae94719edec17bf40a8745 | developer-task-files | [redacted]  | t         | t            | 2026-08-29 00:30:33.430306+00
+(1 row)
+
+ schemaname | tablename |            policyname            |  cmd   |                                                                                              qual                                                                                              |                                                                             with_check
+------------+-----------+----------------------------------+--------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ storage    | objects   | developers_read_own_task_files   | SELECT | ((bucket_id = 'developer-task-files'::text) AND (EXISTS ( SELECT 1                                                                                                                            +|
+            |           |                                  |        |    FROM developers d                                                                                                                                                                          +|
+            |           |                                  |        |   WHERE ((d.id = (split_part(objects.name, '/'::text, 1))::uuid) AND (d.user_id = auth.uid())))))                                                                                              |
+ storage    | objects   | developers_upload_own_task_files | INSERT |                                                                                                                                                                                                | ((bucket_id = 'developer-task-files'::text) AND (EXISTS ( SELECT 1                                                                                                +
+            |           |                                  |        |                                                                                                                                                                                                |    FROM developers d                                                                                                                                              +
+            |           |                                  |        |                                                                                                                                                                                                |   WHERE ((d.id = (split_part(objects.name, '/'::text, 1))::uuid) AND (d.user_id = auth.uid())))))
+ storage    | objects   | legal_vault_delete               | DELETE | ((bucket_id = 'legal-documents'::text) AND legal_is_operator())                                                                                                                                |
+ storage    | objects   | legal_vault_read                 | SELECT | ((bucket_id = 'legal-documents'::text) AND legal_is_reviewer())                                                                                                                                |
+ storage    | objects   | legal_vault_update               | UPDATE | ((bucket_id = 'legal-documents'::text) AND legal_is_operator())                                                                                                                                | ((bucket_id = 'legal-documents'::text) AND legal_is_operator())
+ storage    | objects   | legal_vault_write                | INSERT |                                                                                                                                                                                                | ((bucket_id = 'legal-documents'::text) AND legal_is_operator())
+ storage    | objects   | participants read chat files     | SELECT | ((bucket_id = 'chat-files'::text) AND is_participant(((storage.foldername(name))[1])::uuid, auth.uid()))                                                                                       |
+ storage    | objects   | participants upload chat files   | INSERT |                                                                                                                                                                                                | ((bucket_id = 'chat-files'::text) AND is_participant(((storage.foldername(name))[1])::uuid, auth.uid()) AND has_permission(auth.uid(), 'attachment.upload'::text))
+ storage    | objects   | reseller_client_documents_delete | DELETE | ((bucket_id = 'reseller-client-documents'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))                                                                                     |
+ storage    | objects   | reseller_client_documents_read   | SELECT | ((bucket_id = 'reseller-client-documents'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))                                                                                     |
+ storage    | objects   | reseller_client_documents_upload | INSERT |                                                                                                                                                                                                | ((bucket_id = 'reseller-client-documents'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))
+ storage    | objects   | reseller_kyc_documents_delete    | DELETE | ((bucket_id = 'reseller-kyc-documents'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))                                                                                        |
+ storage    | objects   | reseller_kyc_documents_read      | SELECT | ((bucket_id = 'reseller-kyc-documents'::text) AND (((storage.foldername(name))[1] = (auth.uid())::text) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'boss'::app_role))) |
+ storage    | objects   | reseller_kyc_documents_upload    | INSERT |                                                                                                                                                                                                | ((bucket_id = 'reseller-kyc-documents'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))
+ storage    | objects   | reviewers_read_task_files        | SELECT | ((bucket_id = 'developer-task-files'::text) AND (has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'boss'::app_role)))                                                           |
+(15 rows)
+
+         relname         | relrowsecurity | relforcerowsecurity
+-------------------------+----------------+---------------------
+ marketplace_downloads   | t              | f
+ marketplace_order_items | t              | f
+ marketplace_orders      | t              | f
+ marketplace_payouts     | t              | f
+ marketplace_products    | t              | f
+ marketplace_reviews     | t              | f
+ notifications           | t              | f
+ user_notifications      | t              | f
+(8 rows)
+
+COMMIT

@@ -1,0 +1,2 @@
+src\lib\marketplace.seed.ts:8: *   const seedFn = useServerFn(seedMarketplaceData);
+src\lib\marketplace.seed.ts:16:export const seedMarketplaceData = createServerFn({

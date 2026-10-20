@@ -1,0 +1,9 @@
+BEGIN
+DROP POLICY
+DROP POLICY
+           policyname            |  cmd   |      roles
+---------------------------------+--------+-----------------
+ marketplace_products_owner_read | SELECT | {authenticated}
+(1 row)
+
+ROLLBACK

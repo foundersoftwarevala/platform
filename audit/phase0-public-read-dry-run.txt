@@ -1,0 +1,10 @@
+BEGIN
+ALTER POLICY
+ALTER POLICY
+            policyname            |                                                                                                                      qual
+----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ marketplace_products_public_read | ((visible = true) AND (moderation_status = 'approved'::text) AND ((content_status IS NULL) OR (content_status = 'published'::text)) AND ((publish_at IS NULL) OR (publish_at <= now())) AND ((unpublish_at IS NULL) OR (unpublish_at > now())))
+ products public read             | ((visible = true) AND (moderation_status = 'approved'::text) AND ((content_status IS NULL) OR (content_status = 'published'::text)) AND ((publish_at IS NULL) OR (publish_at <= now())) AND ((unpublish_at IS NULL) OR (unpublish_at > now())))
+(2 rows)
+
+ROLLBACK
