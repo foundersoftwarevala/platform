@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { rest as serviceRest } from "@/lib/affiliate/core";
-import { APPLICATION_KINDS, listApplications } from "@/lib/applications/registry.server";
+import { countApplications } from "@/lib/applications/registry.server";
 import { controlPanelCaller } from "@/lib/control-panel/access.server";
 import type { CockpitFigures } from "@/lib/control-panel/cockpit";
 
@@ -25,8 +25,8 @@ export const Route = createFileRoute("/api/control-panel/cockpit")({
 
         const [figures, applications] = await Promise.all([
           serviceRest("rpc/control_panel_cockpit", { method: "POST", body: "{}" }),
-          listApplications([...APPLICATION_KINDS], true).then(
-            (rows) => rows.length,
+          countApplications().then(
+            (counts) => counts.total,
             (error: unknown) => {
               console.error("[cockpit] applications unavailable", error);
               return null;

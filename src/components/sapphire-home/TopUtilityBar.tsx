@@ -1,12 +1,9 @@
 import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage, LANGUAGES } from "@/lib/language-catalog";
+import { useLanguageSelectorRegistration } from "@/components/i18n/LanguageSelector";
 import { Link } from "@tanstack/react-router";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +32,6 @@ import {
   Heart,
   LogIn,
   LayoutDashboard,
-
   Globe2,
   Headphones,
   Loader2,
@@ -64,7 +60,15 @@ const TRIGGER = "kr-btn tb-pill group";
 const PANEL =
   "kr-panel w-[300px] rounded-2xl border border-white/10 bg-[#0b1a30]/95 p-0 text-white shadow-2xl backdrop-blur-xl";
 
-function PanelHead({ icon: Icon, title, note }: { icon: LucideIcon; title: string; note?: string }) {
+function PanelHead({
+  icon: Icon,
+  title,
+  note,
+}: {
+  icon: LucideIcon;
+  title: string;
+  note?: string;
+}) {
   return (
     <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
       <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-cyan-400/25 to-amber-300/20 text-cyan-300">
@@ -100,7 +104,10 @@ function ApplyNow({ t, roles }: { t: (s: string) => string; roles?: BarItem[] })
         {t("Apply Now")}
         <span className="text-[9px] opacity-70">▼</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="kr-panel w-64 border-white/10 bg-[#0b1a30]/95 text-white backdrop-blur-xl">
+      <DropdownMenuContent
+        align="end"
+        className="kr-panel w-64 border-white/10 bg-[#0b1a30]/95 text-white backdrop-blur-xl"
+      >
         <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-white/50">
           {t("Role applications")}
         </DropdownMenuLabel>
@@ -242,7 +249,7 @@ function useBarTranslationLegacy() {
   return { lang, t, apply, busy };
 }
 
-function LanguagePicker({
+export function LanguagePicker({
   lang,
   apply,
   busy,
@@ -253,6 +260,8 @@ function LanguagePicker({
   busy: boolean;
   t: (s: string) => string;
 }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  useLanguageSelectorRegistration(triggerRef);
   // The canonical registry, not a list kept here.
   //
   // LANGS below is seventeen languages. The platform supports 140, and this
@@ -284,7 +293,12 @@ function LanguagePicker({
   const current = options.find((l) => same(l.code, lang)) ?? options[0];
   return (
     <Popover>
-      <PopoverTrigger className={TRIGGER} aria-label={t("Language")}>
+      <PopoverTrigger
+        ref={triggerRef}
+        data-language-selector
+        className={TRIGGER}
+        aria-label={t("Language")}
+      >
         {busy ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
         ) : (
@@ -333,11 +347,20 @@ function LanguagePicker({
 /* ------------------------------------------------------------------ */
 
 const CURRENCIES = [
-  { code: "USD", flag: "🇺🇸" }, { code: "INR", flag: "🇮🇳" }, { code: "EUR", flag: "🇪🇺" },
-  { code: "GBP", flag: "🇬🇧" }, { code: "AED", flag: "🇦🇪" }, { code: "SAR", flag: "🇸🇦" },
-  { code: "SGD", flag: "🇸🇬" }, { code: "AUD", flag: "🇦🇺" }, { code: "CAD", flag: "🇨🇦" },
-  { code: "JPY", flag: "🇯🇵" }, { code: "KRW", flag: "🇰🇷" }, { code: "CNY", flag: "🇨🇳" },
-  { code: "ZAR", flag: "🇿🇦" }, { code: "BRL", flag: "🇧🇷" },
+  { code: "USD", flag: "🇺🇸" },
+  { code: "INR", flag: "🇮🇳" },
+  { code: "EUR", flag: "🇪🇺" },
+  { code: "GBP", flag: "🇬🇧" },
+  { code: "AED", flag: "🇦🇪" },
+  { code: "SAR", flag: "🇸🇦" },
+  { code: "SGD", flag: "🇸🇬" },
+  { code: "AUD", flag: "🇦🇺" },
+  { code: "CAD", flag: "🇨🇦" },
+  { code: "JPY", flag: "🇯🇵" },
+  { code: "KRW", flag: "🇰🇷" },
+  { code: "CNY", flag: "🇨🇳" },
+  { code: "ZAR", flag: "🇿🇦" },
+  { code: "BRL", flag: "🇧🇷" },
 ];
 
 function CurrencyPicker({ t }: { t: (s: string) => string }) {
@@ -374,7 +397,9 @@ function CurrencyPicker({ t }: { t: (s: string) => string }) {
         />
         <div className="space-y-3 p-4">
           <div className="flex items-center gap-2">
-            <span className="rounded-lg border border-white/15 bg-white/5 px-2 py-2 text-[12px] font-bold">USD</span>
+            <span className="rounded-lg border border-white/15 bg-white/5 px-2 py-2 text-[12px] font-bold">
+              USD
+            </span>
             <Input
               value={amount}
               inputMode="decimal"
@@ -445,9 +470,7 @@ function WorldClock({ t }: { t: (s: string) => string }) {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
-  const local = now
-    ? now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : "--:--";
+  const local = now ? now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--:--";
 
   return (
     <Popover>
@@ -456,7 +479,11 @@ function WorldClock({ t }: { t: (s: string) => string }) {
         <span className="tabular-nums">{local}</span>
       </PopoverTrigger>
       <PopoverContent align="end" className={PANEL}>
-        <PanelHead icon={Clock} title={t("World Clock")} note={Intl.DateTimeFormat().resolvedOptions().timeZone} />
+        <PanelHead
+          icon={Clock}
+          title={t("World Clock")}
+          note={Intl.DateTimeFormat().resolvedOptions().timeZone}
+        />
         <div className="p-2">
           {ZONES.map((z, i) => (
             <div
@@ -491,10 +518,26 @@ function WorldClock({ t }: { t: (s: string) => string }) {
 /* ------------------------------------------------------------------ */
 
 const WX: Record<number, string> = {
-  0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fog", 48: "Rime fog",
-  51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle", 61: "Light rain", 63: "Rain",
-  65: "Heavy rain", 71: "Light snow", 73: "Snow", 75: "Heavy snow", 80: "Rain showers",
-  81: "Rain showers", 82: "Violent showers", 95: "Thunderstorm", 96: "Thunderstorm + hail",
+  0: "Clear sky",
+  1: "Mainly clear",
+  2: "Partly cloudy",
+  3: "Overcast",
+  45: "Fog",
+  48: "Rime fog",
+  51: "Light drizzle",
+  53: "Drizzle",
+  55: "Heavy drizzle",
+  61: "Light rain",
+  63: "Rain",
+  65: "Heavy rain",
+  71: "Light snow",
+  73: "Snow",
+  75: "Heavy snow",
+  80: "Rain showers",
+  81: "Rain showers",
+  82: "Violent showers",
+  95: "Thunderstorm",
+  96: "Thunderstorm + hail",
 };
 
 function Weather({ t }: { t: (s: string) => string }) {
@@ -505,7 +548,8 @@ function Weather({ t }: { t: (s: string) => string }) {
 
   const q = useQuery({
     queryKey: ["wx", coords?.lat ?? queryCity, coords?.lon ?? ""],
-    queryFn: () => wx({ data: coords ? { lat: coords.lat, lon: coords.lon } : { city: queryCity } }),
+    queryFn: () =>
+      wx({ data: coords ? { lat: coords.lat, lon: coords.lon } : { city: queryCity } }),
     staleTime: 1000 * 60 * 10,
   });
 
@@ -558,7 +602,9 @@ function Weather({ t }: { t: (s: string) => string }) {
                   {d.country ? `, ${d.country}` : ""}
                 </span>
               </div>
-              <div className="mt-1 text-[12px] text-cyan-200">{WX[d.code] ?? "Current conditions"}</div>
+              <div className="mt-1 text-[12px] text-cyan-200">
+                {WX[d.code] ?? "Current conditions"}
+              </div>
               <div className="mt-2 flex gap-4 text-[11px] text-white/60">
                 <span>💨 {Math.round(d.windKph)} km/h</span>
                 <span>💧 {d.humidity}%</span>
@@ -579,8 +625,12 @@ function Weather({ t }: { t: (s: string) => string }) {
 type Reminder = { id: string; date: string; text: string };
 
 const HOLIDAY_COUNTRIES = [
-  { code: "IN", label: "India 🇮🇳" }, { code: "US", label: "USA 🇺🇸" }, { code: "GB", label: "UK 🇬🇧" },
-  { code: "AE", label: "UAE 🇦🇪" }, { code: "SG", label: "Singapore 🇸🇬" }, { code: "KR", label: "Korea 🇰🇷" },
+  { code: "IN", label: "India 🇮🇳" },
+  { code: "US", label: "USA 🇺🇸" },
+  { code: "GB", label: "UK 🇬🇧" },
+  { code: "AE", label: "UAE 🇦🇪" },
+  { code: "SG", label: "Singapore 🇸🇬" },
+  { code: "KR", label: "Korea 🇰🇷" },
 ];
 
 function CalendarTool({ t }: { t: (s: string) => string }) {
@@ -609,7 +659,9 @@ function CalendarTool({ t }: { t: (s: string) => string }) {
   const iso = date ? date.toISOString().slice(0, 10) : "";
   const dayHolidays = (q.data?.holidays ?? []).filter((h) => h.date === iso);
   const dayReminders = reminders.filter((r) => r.date === iso);
-  const upcoming = (q.data?.holidays ?? []).filter((h) => h.date >= new Date().toISOString().slice(0, 10)).slice(0, 4);
+  const upcoming = (q.data?.holidays ?? [])
+    .filter((h) => h.date >= new Date().toISOString().slice(0, 10))
+    .slice(0, 4);
 
   const save = (next: Reminder[]) => {
     setReminders(next);
@@ -623,7 +675,11 @@ function CalendarTool({ t }: { t: (s: string) => string }) {
         <span className="hidden sm:inline">{t("Calendar")}</span>
       </PopoverTrigger>
       <PopoverContent align="end" className={`${PANEL} w-[340px]`}>
-        <PanelHead icon={CalendarDays} title={t("Calendar")} note="Holidays · reminders · scheduling" />
+        <PanelHead
+          icon={CalendarDays}
+          title={t("Calendar")}
+          note="Holidays · reminders · scheduling"
+        />
         <div className="p-3">
           <div className="mb-2 flex flex-wrap gap-1">
             {HOLIDAY_COUNTRIES.map((c) => (
@@ -648,14 +704,23 @@ function CalendarTool({ t }: { t: (s: string) => string }) {
           />
           <div className="mt-3 space-y-2">
             {dayHolidays.map((h) => (
-              <div key={h.date + h.name} className="rounded-lg border border-amber-300/30 bg-amber-300/10 px-2.5 py-1.5 text-[11.5px] text-amber-200">
+              <div
+                key={h.date + h.name}
+                className="rounded-lg border border-amber-300/30 bg-amber-300/10 px-2.5 py-1.5 text-[11.5px] text-amber-200"
+              >
                 🎉 {h.localName} <span className="text-white/50">({h.name})</span>
               </div>
             ))}
             {dayReminders.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11.5px]">
+              <div
+                key={r.id}
+                className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11.5px]"
+              >
                 <span>🔔 {r.text}</span>
-                <button onClick={() => save(reminders.filter((x) => x.id !== r.id))} className="text-white/40 hover:text-rose-300">
+                <button
+                  onClick={() => save(reminders.filter((x) => x.id !== r.id))}
+                  className="text-white/40 hover:text-rose-300"
+                >
                   <Delete className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -676,7 +741,8 @@ function CalendarTool({ t }: { t: (s: string) => string }) {
             </div>
             {upcoming.length > 0 && (
               <div className="pt-1 text-[10.5px] text-white/45">
-                Next holidays: {upcoming.map((h) => `${h.date.slice(5)} ${h.localName}`).join(" · ")}
+                Next holidays:{" "}
+                {upcoming.map((h) => `${h.date.slice(5)} ${h.localName}`).join(" · ")}
               </div>
             )}
           </div>
@@ -709,7 +775,8 @@ function evaluate(expr: string): number | null {
       ops.pop();
     } else {
       if ((tk === "-" || tk === "+") && (prev === null || prev === "(" || prec[prev])) out.push(0);
-      while (ops.length && (prec[ops[ops.length - 1]!] ?? 0) >= (prec[tk] ?? 0)) out.push(ops.pop()!);
+      while (ops.length && (prec[ops[ops.length - 1]!] ?? 0) >= (prec[tk] ?? 0))
+        out.push(ops.pop()!);
       ops.push(tk);
     }
     prev = tk;
@@ -726,7 +793,9 @@ function evaluate(expr: string): number | null {
       const b = st.pop();
       const a = st.pop();
       if (a === undefined || b === undefined) return null;
-      st.push(tk === "+" ? a + b : tk === "-" ? a - b : tk === "*" ? a * b : tk === "/" ? a / b : a % b);
+      st.push(
+        tk === "+" ? a + b : tk === "-" ? a - b : tk === "*" ? a * b : tk === "/" ? a / b : a % b,
+      );
     }
   }
   const r = st.pop();
@@ -748,21 +817,40 @@ function CalculatorTool({ t }: { t: (s: string) => string }) {
         <PanelHead icon={CalculatorIcon} title={t("Calculator")} />
         <div className="p-3">
           <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-right">
-            <div className="min-h-4 truncate font-mono text-[12px] text-white/50">{expr || "0"}</div>
+            <div className="min-h-4 truncate font-mono text-[12px] text-white/50">
+              {expr || "0"}
+            </div>
             <div className="truncate font-mono text-xl font-bold text-cyan-200">
-              {result != null ? result.toLocaleString(undefined, { maximumFractionDigits: 8 }) : "—"}
+              {result != null
+                ? result.toLocaleString(undefined, { maximumFractionDigits: 8 })
+                : "—"}
             </div>
           </div>
           <div className="mt-2 grid grid-cols-4 gap-1.5">
-            <button onClick={() => setExpr("")} className="kr-key col-span-2 bg-rose-500/20 text-rose-200">AC</button>
-            <button onClick={() => setExpr((e) => e.slice(0, -1))} className="kr-key bg-white/10">⌫</button>
-            <button onClick={() => setExpr((e) => e + "(")} className="kr-key bg-white/10">(</button>
+            <button
+              onClick={() => setExpr("")}
+              className="kr-key col-span-2 bg-rose-500/20 text-rose-200"
+            >
+              AC
+            </button>
+            <button onClick={() => setExpr((e) => e.slice(0, -1))} className="kr-key bg-white/10">
+              ⌫
+            </button>
+            <button onClick={() => setExpr((e) => e + "(")} className="kr-key bg-white/10">
+              (
+            </button>
             {KEYS.map((k) => (
-              <button key={k} onClick={() => setExpr((e) => e + k)} className="kr-key bg-white/[0.07]">
+              <button
+                key={k}
+                onClick={() => setExpr((e) => e + k)}
+                className="kr-key bg-white/[0.07]"
+              >
                 {k}
               </button>
             ))}
-            <button onClick={() => setExpr((e) => e + ")")} className="kr-key bg-white/10">)</button>
+            <button onClick={() => setExpr((e) => e + ")")} className="kr-key bg-white/10">
+              )
+            </button>
             <button
               onClick={() => setExpr(result != null ? String(result) : "")}
               className="kr-key col-span-3 bg-gradient-to-r from-cyan-500/40 to-amber-400/30 font-bold"
@@ -818,7 +906,11 @@ function AiChat({ t }: { t: (s: string) => string }) {
         <span className="kr-dot" />
       </PopoverTrigger>
       <PopoverContent align="end" className={`${PANEL} w-[340px]`}>
-        <PanelHead icon={Sparkles} title={t("AI Chat")} note="Vala Assistant · or talk to a human" />
+        <PanelHead
+          icon={Sparkles}
+          title={t("AI Chat")}
+          note="Vala Assistant · or talk to a human"
+        />
         <div className="flex gap-1 border-b border-white/10 p-2">
           <button
             onClick={() => setMode("ai")}
@@ -889,7 +981,9 @@ function AiChat({ t }: { t: (s: string) => string }) {
             >
               <Send className="h-4 w-4" /> Email support
             </a>
-            <p className="pt-1 text-[11px] text-white/40">Team hours 9:00–21:00 IST · replies within 2 hours.</p>
+            <p className="pt-1 text-[11px] text-white/40">
+              Team hours 9:00–21:00 IST · replies within 2 hours.
+            </p>
           </div>
         )}
       </PopoverContent>
@@ -945,7 +1039,9 @@ function Notifications({ t }: { t: (s: string) => string }) {
     supabase.auth.getUser().then(({ data }) => {
       if (alive) setUserId(data.user?.id ?? null);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => setUserId(session?.user?.id ?? null));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) =>
+      setUserId(session?.user?.id ?? null),
+    );
     return () => {
       alive = false;
       data.subscription.unsubscribe();
@@ -956,11 +1052,21 @@ function Notifications({ t }: { t: (s: string) => string }) {
     queryKey: mineKey,
     enabled: Boolean(userId),
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("mm_notifications" as never, { p_limit: 25 } as never);
+      const { data, error } = await supabase.rpc(
+        "mm_notifications" as never,
+        { p_limit: 25 } as never,
+      );
       if (error) throw new Error(error.message);
       return data as unknown as {
         unread?: number;
-        notifications?: { id: string; message: string; event: string | null; action_url: string | null; read: boolean | null; created_at: string }[];
+        notifications?: {
+          id: string;
+          message: string;
+          event: string | null;
+          action_url: string | null;
+          read: boolean | null;
+          created_at: string;
+        }[];
       };
     },
     refetchInterval: 60_000,
@@ -969,7 +1075,10 @@ function Notifications({ t }: { t: (s: string) => string }) {
     const unreadMine = (mine.data?.notifications ?? []).filter((n) => !n.read);
     if (!unreadMine.length) return;
     for (const n of unreadMine) {
-      await supabase.rpc("mm_notification_read" as never, { p_id: n.id, p_dismiss: false } as never);
+      await supabase.rpc(
+        "mm_notification_read" as never,
+        { p_id: n.id, p_dismiss: false } as never,
+      );
     }
     await qc.invalidateQueries({ queryKey: mineKey });
   };
@@ -982,7 +1091,10 @@ function Notifications({ t }: { t: (s: string) => string }) {
         body: n.message,
         kind: "update",
         // Only links inside this site are followed, as in the dashboard bell.
-        link_url: n.action_url && n.action_url.startsWith("/") && !n.action_url.startsWith("//") ? n.action_url : null,
+        link_url:
+          n.action_url && n.action_url.startsWith("/") && !n.action_url.startsWith("//")
+            ? n.action_url
+            : null,
         published_at: n.created_at,
       })),
       ...(q.data ?? []),
@@ -1014,50 +1126,62 @@ function Notifications({ t }: { t: (s: string) => string }) {
         )}
       </PopoverTrigger>
       <PopoverContent align="end" className={`${PANEL} w-[320px]`}>
-        <PanelHead icon={Bell} title={t("Notifications")} note={`${items.length} live announcements`} />
+        <PanelHead
+          icon={Bell}
+          title={t("Notifications")}
+          note={`${items.length} live announcements`}
+        />
         <ScrollArea className="max-h-72">
           <div className="p-2">
             {q.isLoading && <div className="p-3 text-[12px] text-white/50">Loading…</div>}
-            {q.isError && <div className="p-3 text-[12px] text-rose-300">Could not load notifications.</div>}
+            {q.isError && (
+              <div className="p-3 text-[12px] text-rose-300">Could not load notifications.</div>
+            )}
             {!q.isLoading && items.length === 0 && (
               <div className="p-3 text-[12px] text-white/50">No announcements right now.</div>
             )}
             {items.map((n, i) => {
-              return (
-                n.link_url ? (
-                  <a
-                    key={n.id}
-                    href={n.link_url}
-                    className="kr-item block rounded-xl px-3 py-2 hover:bg-white/5"
-                    style={{ animationDelay: `${i * 30}ms` }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          n.kind === "promo" ? "bg-amber-300" : n.kind === "update" ? "bg-cyan-300" : "bg-white/40"
-                        }`}
-                      />
-                      <span className="text-[12.5px] font-semibold">{n.title}</span>
-                    </div>
-                    <p className="mt-0.5 pl-3.5 text-[11.5px] leading-snug text-white/55">{n.body}</p>
-                  </a>
-                ) : (
-                  <div
-                    key={n.id}
-                    className="kr-item block rounded-xl px-3 py-2 hover:bg-white/5"
-                    style={{ animationDelay: `${i * 30}ms` }}
-                  >
+              return n.link_url ? (
+                <a
+                  key={n.id}
+                  href={n.link_url}
+                  className="kr-item block rounded-xl px-3 py-2 hover:bg-white/5"
+                  style={{ animationDelay: `${i * 30}ms` }}
+                >
                   <div className="flex items-center gap-2">
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${
-                        n.kind === "promo" ? "bg-amber-300" : n.kind === "update" ? "bg-cyan-300" : "bg-white/40"
+                        n.kind === "promo"
+                          ? "bg-amber-300"
+                          : n.kind === "update"
+                            ? "bg-cyan-300"
+                            : "bg-white/40"
                       }`}
                     />
                     <span className="text-[12.5px] font-semibold">{n.title}</span>
                   </div>
                   <p className="mt-0.5 pl-3.5 text-[11.5px] leading-snug text-white/55">{n.body}</p>
+                </a>
+              ) : (
+                <div
+                  key={n.id}
+                  className="kr-item block rounded-xl px-3 py-2 hover:bg-white/5"
+                  style={{ animationDelay: `${i * 30}ms` }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        n.kind === "promo"
+                          ? "bg-amber-300"
+                          : n.kind === "update"
+                            ? "bg-cyan-300"
+                            : "bg-white/40"
+                      }`}
+                    />
+                    <span className="text-[12.5px] font-semibold">{n.title}</span>
                   </div>
-                )
+                  <p className="mt-0.5 pl-3.5 text-[11.5px] leading-snug text-white/55">{n.body}</p>
+                </div>
               );
             })}
           </div>
@@ -1199,8 +1323,6 @@ function DashboardsMenu({ t, roles }: { t: (s: string) => string; roles?: BarIte
   );
 }
 
-
-
 /**
  * Tailwind classes that hide a module on the surfaces it is switched off for.
  *
@@ -1210,7 +1332,11 @@ function DashboardsMenu({ t, roles }: { t: (s: string) => string; roles?: BarIte
  *
  * Breakpoints match the rest of this file: < md mobile, md–lg tablet, lg+ desktop.
  */
-function deviceClass(m?: { desktop_enabled?: boolean; tablet_enabled?: boolean; mobile_enabled?: boolean }): string {
+function deviceClass(m?: {
+  desktop_enabled?: boolean;
+  tablet_enabled?: boolean;
+  mobile_enabled?: boolean;
+}): string {
   if (!m) return "";
   const out: string[] = [];
   // Hidden everywhere it is switched off; shown again at the next breakpoint up
@@ -1224,6 +1350,7 @@ function deviceClass(m?: { desktop_enabled?: boolean; tablet_enabled?: boolean; 
 /** The registry key each rendered module corresponds to. */
 const MODULE_KEYS: Record<string, string> = {
   apply: "apply-now",
+  request: "request-software",
   lang: "language",
   cal: "calendar",
   calc: "calculator",
@@ -1297,7 +1424,9 @@ function useTopBarConfig(): TopBarModule[] | null {
         /* keep the default order — the header must not depend on this call */
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return config;
@@ -1315,18 +1444,21 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
     return map;
   }, [config]);
 
-  const applyRoles = useMemo(
-    () => itemsFor(byKey.get("apply-now"), APPLY_ROLES),
-    [byKey],
-  );
-  const dashboardRoles = useMemo(
-    () => itemsFor(byKey.get("dashboards"), DASHBOARD_ROLES),
-    [byKey],
-  );
+  const applyRoles = useMemo(() => itemsFor(byKey.get("apply-now"), APPLY_ROLES), [byKey]);
+  const dashboardRoles = useMemo(() => itemsFor(byKey.get("dashboards"), DASHBOARD_ROLES), [byKey]);
 
   const items = useMemo(
     () => [
       <ApplyNow key="apply" t={t} roles={applyRoles} />,
+      <Link
+        key="request"
+        to="/rd-manager/start"
+        search={{ type: "SOFTWARE_ON_DEMAND" }}
+        className={TRIGGER}
+      >
+        <Send className="h-3.5 w-3.5 text-cyan-200" />
+        {t("Request Your Software")}
+      </Link>,
       <LanguagePicker key="lang" lang={lang} apply={apply} busy={busy} t={t} />,
       <CalendarTool key="cal" t={t} />,
       <CalculatorTool key="calc" t={t} />,
@@ -1334,7 +1466,12 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
       <DashboardsMenu key="dashboards" t={t} roles={dashboardRoles} />,
       <CurrencyPicker key="cur" t={t} />,
       <Notifications key="notif" t={t} />,
-      <ChatAppButton key="chat" className={`${TRIGGER} relative`} iconClassName="h-3.5 w-3.5" label={t("Chat")} />,
+      <ChatAppButton
+        key="chat"
+        className={`${TRIGGER} relative`}
+        iconClassName="h-3.5 w-3.5"
+        label={t("Chat")}
+      />,
       <Favorites key="fav" count={favoritesCount} t={t} />,
       <AiChat key="ai" t={t} />,
     ],

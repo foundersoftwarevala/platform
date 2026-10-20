@@ -50,6 +50,7 @@ export function useOpportunities() {
   return useQuery({
     queryKey: rdKeys.list,
     queryFn: async () => (await fn()) as unknown as Opportunity[],
+    refetchInterval: 15_000,
   });
 }
 export function useRdProjects() {

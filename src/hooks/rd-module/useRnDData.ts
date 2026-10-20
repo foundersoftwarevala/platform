@@ -140,11 +140,12 @@ export const useNotifications = () =>
         .from("rnd_notifications")
         .select("*")
         .eq("dismissed", false)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(RND_MAX_ROWS);
       if (error) throw new Error(error.message);
       return (data ?? []) as RnDNotification[];
     },
-    refetchInterval: 60_000,
+    refetchInterval: 15_000,
   });
 
 export const useBudget = () =>

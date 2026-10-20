@@ -6,10 +6,12 @@ import {
   getApplication,
   isApplicationKind,
   listApplications,
+  countApplications,
   type ApplicationKind,
 } from "@/lib/applications/registry.server";
 import { bearer, isApplicationStaff, rpcAs } from "@/lib/applications/gateway.server";
 import { applySellerCommissionRule } from "@/lib/commerce/seller-commission.server";
+import { providerConfigured, sendQueued } from "@/lib/commerce/mailer";
 
 /**
  * Every application, managed from one place: the Control Panel's Application
@@ -55,6 +57,23 @@ export const Route = createFileRoute("/api/applications/queue")({
         const url = new URL(request.url);
         const kindParam = url.searchParams.get("kind") ?? "all";
         const id = url.searchParams.get("id");
+        if (url.searchParams.get("counts") === "true") {
+          try {
+            return Response.json(
+              {
+                ...(await countApplications()),
+                emailProviderConfigured: Boolean(providerConfigured()),
+              },
+              { headers: { "Cache-Control": "no-store" } },
+            );
+          } catch (error) {
+            console.error("[applications] counts unavailable", error);
+            return Response.json(
+              { error: "Application counts could not be read." },
+              { status: 502 },
+            );
+          }
+        }
 
         if (id) {
           if (!isApplicationKind(kindParam))
@@ -77,7 +96,7 @@ export const Route = createFileRoute("/api/applications/queue")({
           return Response.json({ error: "Unknown kind of application" }, { status: 400 });
         try {
           const rows = await listApplications(kinds, url.searchParams.get("filter") !== "all");
-          return Response.json({ rows });
+          return Response.json({ rows }, { headers: { "Cache-Control": "no-store" } });
         } catch (error) {
           return Response.json(
             { error: error instanceof Error ? error.message : "The queue could not be read" },
@@ -130,9 +149,21 @@ export const Route = createFileRoute("/api/applications/queue")({
         }
 
         const { fn, args } = definition.review(id, status, reason);
-        const outcome = await rpcAs(allowed.token, fn, args);
+        const outcome = await rpcAs<{ ok?: boolean; reason?: string; message?: string }>(
+          allowed.token,
+          fn,
+          args,
+        );
         if (!outcome.ok)
           return Response.json({ error: outcome.message }, { status: outcome.status });
+        if (outcome.data?.ok === false) {
+          return Response.json(
+            {
+              error: outcome.data.message ?? outcome.data.reason ?? "The decision was refused.",
+            },
+            { status: 409 },
+          );
+        }
 
         // An approved vendor or author carries the commission their agreement
         // promised, exactly as an approval in the Vendor Manager does.
@@ -141,8 +172,20 @@ export const Route = createFileRoute("/api/applications/queue")({
           commissionRate = await applySellerCommissionRule(id, kind);
         }
 
+        let email;
+        if (
+          ["pending", "in_review"].includes(current.status) &&
+          (status === definition.approvedStatus || status === "rejected")
+        ) {
+          try {
+            email = await sendQueued(1, { id, kind });
+          } catch (error) {
+            console.error("[applications] decision saved, email delivery unconfirmed", error);
+            email = { sent: 0, reason: "Decision saved; email delivery could not be confirmed." };
+          }
+        }
         const after = await getApplication(kind, id);
-        return Response.json({ ok: true, application: after, commissionRate });
+        return Response.json({ ok: true, application: after, commissionRate, email });
       },
     },
   },

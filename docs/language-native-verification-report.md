@@ -1,5 +1,20 @@
 # Native 140-language repair: verified evidence and release decision
 
+## 2026-10-15 catalogue enqueue follow-up
+
+An actual-driver, read-only production probe identified a separate queue-binding
+defect: binding an already serialized payload directly as `jsonb` causes
+postgres.js to encode it again, so the enqueue function receives a JSON string
+instead of an array. The enqueue binding now uses `::text::jsonb`. The existing
+2,000-item batches, deduplication, privacy checks and database validator are
+unchanged. Regression tests cover the SQL shape, a 2,001-item batch and explicit
+database-error propagation.
+
+This repairs the enqueue contract; it does not certify complete translated-page
+coverage, model quality, credential-dependent workflows or the historical
+all-surface acceptance criteria below. Production catalogue recovery must be
+verified from the new worker's actual sync result after a scoped deployment.
+
 ## Latest completed production verification
 
 Runtime tested: `e37733e` (native count/hydration repair), on canonical main.

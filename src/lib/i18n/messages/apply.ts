@@ -34,7 +34,21 @@ export const APPLY_MESSAGES = {
   "apply.queue.title_franchise": "Franchise applications",
   "apply.queue.title_influencer": "Influencer applications",
   "apply.queue.subtitle":
-    "Submitted through the website. Decisions are recorded, audited and sent to the applicant.",
+    "Website applications with audited decisions and account notifications. Decision emails are queued for delivery.",
+  "apply.queue.email_unconfigured":
+    "Email delivery is not configured. Decision emails remain queued; they have not been delivered.",
+  "apply.queue.email_pending":
+    "Decision saved. Email delivery has not been confirmed; check the email queue.",
+  "apply.queue.shortlist": "Shortlist",
+  "apply.queue.employee_notice":
+    "Employee approval means shortlisting only. It is not a job offer and does not grant internal access.",
+  "apply.role.reseller": "Reseller",
+  "apply.role.vendor": "Vendor",
+  "apply.role.author": "Author",
+  "apply.role.franchise": "Franchise",
+  "apply.role.influencer": "Influencer",
+  "apply.role.affiliate": "Affiliate",
+  "apply.role.employee": "Employee",
   "apply.queue.search": ["Search", "placeholder of the search box"],
   "apply.queue.filter_open": "Open (pending, in review)",
   "apply.queue.filter_all": "All",
@@ -49,7 +63,7 @@ export const APPLY_MESSAGES = {
   "apply.queue.decided": "Application {status}.",
   "apply.manager.title": "Application Manager",
   "apply.manager.subtitle":
-    "Every partner application in one place - read in full, documents opened, decided with a recorded reason.",
+    "Every partner and employee application in one place - read in full, documents opened, decided with a recorded reason.",
   "apply.manager.back": ["Control Panel", "link back to the Control Panel"],
   "apply.queue.title_all": "All applications",
   "apply.queue.title_role": [

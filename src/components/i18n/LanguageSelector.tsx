@@ -8,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
   type KeyboardEvent,
+  type RefObject,
 } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -119,6 +120,21 @@ function anyInlineVisible(): boolean {
   return false;
 }
 
+export function useLanguageSelectorRegistration(
+  ref: RefObject<HTMLElement | null>,
+  enabled = true,
+) {
+  useEffect(() => {
+    if (!enabled) return;
+    registered.add(ref);
+    notify();
+    return () => {
+      registered.delete(ref);
+      notify();
+    };
+  }, [enabled, ref]);
+}
+
 /* --------------------------------------------------------------- selector */
 
 export type LanguageSelectorProps = {
@@ -155,15 +171,7 @@ export function LanguageSelector({
   const listId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    if (!register) return;
-    registered.add(triggerRef);
-    notify();
-    return () => {
-      registered.delete(triggerRef);
-      notify();
-    };
-  }, [register]);
+  useLanguageSelectorRegistration(triggerRef, register);
 
   const browser = useMemo(
     () => (typeof navigator === "undefined" ? null : detectBrowserLanguage()),

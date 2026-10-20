@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Paperclip, X } from "lucide-react";
-import { supabase } from "@/lib/rd-module/supabase/client";
 import { Button } from "@/components/rd-module/ui/button";
 import { Input } from "@/components/rd-module/ui/input";
 import { Textarea } from "@/components/rd-module/ui/textarea";
@@ -9,6 +8,7 @@ import { Label } from "@/components/rd-module/ui/label";
 import {
   createAttachmentUploads,
   submitOpportunity,
+  uploadOpportunityAttachment,
 } from "@/lib/rd-module/rd-opportunities.functions";
 import {
   IDEA_CATEGORIES,
@@ -198,6 +198,7 @@ export function RequestForm({
   const submit = useServerFn(submitOpportunity);
   const [multi, setMulti] = useState<Record<string, string[]>>({});
   const prepareUploads = useServerFn(createAttachmentUploads);
+  const uploadAttachment = useServerFn(uploadOpportunityAttachment);
   const [files, setFiles] = useState<File[]>([]);
   const [pending, setPending] = useState(false);
 
@@ -241,10 +242,11 @@ export function RequestForm({
         });
         await Promise.all(
           slots.map(async (slot, i) => {
-            const { error: upErr } = await supabase.storage
-              .from("rd-attachments")
-              .uploadToSignedUrl(slot.path, slot.token, files[i]!);
-            if (upErr) throw new Error(`Could not upload ${files[i]!.name}`);
+            const upload = new FormData();
+            upload.set("path", slot.path);
+            upload.set("token", slot.token);
+            upload.set("file", files[i]!);
+            await uploadAttachment({ data: upload });
           }),
         );
         payload["attachments"] = slots.map((slot, i) => ({

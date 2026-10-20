@@ -55,9 +55,6 @@ export async function submitApplication(
   token: string,
   userId: string,
 ): Promise<Submitted | SubmitFailure> {
-  if (role === "employee") {
-    return { error: "Online applications for this role are not open.", status: 403 };
-  }
   if (!isApplicationKind(role)) return { error: "That role does not exist.", status: 404 };
   if (!agreementAccepted) return { error: "Please accept the agreement to continue.", status: 400 };
 
@@ -68,6 +65,11 @@ export async function submitApplication(
 
   let outcome;
   switch (role) {
+    case "employee":
+      outcome = await rpcAs<RpcResult>(token, "submit_employee_application", {
+        p_application: application,
+      });
+      break;
     case "reseller":
       outcome = await rpcAs<RpcResult>(token, "submit_reseller_application", {
         p_application: application,

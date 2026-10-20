@@ -2,50 +2,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Lightbulb, AlertTriangle, TrendingUp, CheckCircle, Zap, X } from "lucide-react";
 import { Card } from "@/components/rd-module/ui/card";
 import { Button } from "@/components/rd-module/ui/button";
-import { useState } from "react";
-
-const notifications = [
-  {
-    id: "1",
-    type: "idea",
-    title: "New Idea Submitted",
-    message: "AI-Powered Code Review has been added to Future Lab",
-    time: "2 min ago",
-    read: false,
-  },
-  {
-    id: "2",
-    type: "trend",
-    title: "Trend Detected",
-    message: "New automation opportunity detected. Revenue impact: Medium.",
-    time: "15 min ago",
-    read: false,
-  },
-  {
-    id: "3",
-    type: "risk",
-    title: "Risk Alert",
-    message: "Prototype 'Holographic Dashboard' performance load exceeds threshold",
-    time: "1 hour ago",
-    read: true,
-  },
-  {
-    id: "4",
-    type: "approval",
-    title: "Decision Required",
-    message: "One-Click Deployment Pipeline awaiting final approval",
-    time: "2 hours ago",
-    read: true,
-  },
-  {
-    id: "5",
-    type: "feedback",
-    title: "Pain Point Threshold",
-    message: "User pain point 'deployment speed' exceeds alert threshold",
-    time: "3 hours ago",
-    read: true,
-  },
-];
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { rndKeys, useNotifications } from "@/hooks/rd-module/useRnDData";
+import { dismissNotification, markNotificationsRead } from "@/lib/rd-module/rnd-data.functions";
 
 const getNotificationIcon = (type: string) => {
   switch (type) {
@@ -82,12 +43,17 @@ const getNotificationColor = (type: string) => {
 };
 
 export const RnDNotifications = () => {
-  const [items, setItems] = useState(notifications);
+  const query = useNotifications();
+  const items = query.data ?? [];
+  const cache = useQueryClient();
+  const dismiss = useServerFn(dismissNotification);
+  const markRead = useServerFn(markNotificationsRead);
+  const action = useMutation({
+    mutationFn: (id: string | null) => (id ? dismiss({ data: { id } }) : markRead({ data: {} })),
+    onSuccess: () => cache.invalidateQueries({ queryKey: rndKeys.notifications }),
+    onError: (error: Error) => toast.error(error.message),
+  });
   const unreadCount = items.filter((n) => !n.read).length;
-
-  const dismissNotification = (id: string) => {
-    setItems((prev) => prev.filter((n) => n.id !== id));
-  };
 
   return (
     <Card className="p-4 bg-slate-900/50 backdrop-blur-xl border-slate-700/50">
@@ -110,11 +76,30 @@ export const RnDNotifications = () => {
             </motion.span>
           )}
         </div>
-        <Button variant="ghost" size="sm" className="text-xs text-slate-400 hover:text-white">
-          Clear All
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={action.isPending || unreadCount === 0}
+          onClick={() => action.mutate(null)}
+          className="text-xs text-slate-400 hover:text-white"
+        >
+          Mark all read
         </Button>
       </div>
 
+      {query.isPending && (
+        <p role="status" className="text-sm text-slate-400">
+          Loading R&amp;D alerts...
+        </p>
+      )}
+      {(query.error || action.error) && (
+        <p role="alert" className="text-sm text-rose-300">
+          {(query.error ?? action.error)?.message}
+        </p>
+      )}
+      {!query.isPending && !query.error && items.length === 0 && (
+        <p className="text-sm text-slate-400">No R&amp;D alerts.</p>
+      )}
       <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
         <AnimatePresence>
           {items.map((notification, index) => (
@@ -145,13 +130,17 @@ export const RnDNotifications = () => {
                   <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">
                     {notification.message}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">{notification.time}</p>
+                  <time className="text-xs text-slate-500 mt-1" dateTime={notification.created_at}>
+                    {new Date(notification.created_at).toLocaleString()}
+                  </time>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:bg-slate-700"
-                  onClick={() => dismissNotification(notification.id)}
+                  aria-label={`Dismiss ${notification.title}`}
+                  disabled={action.isPending}
+                  onClick={() => action.mutate(notification.id)}
                 >
                   <X className="w-3 h-3 text-slate-400" />
                 </Button>
@@ -161,12 +150,8 @@ export const RnDNotifications = () => {
         </AnimatePresence>
       </div>
 
-      {/* Sound indicator */}
       <div className="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between text-xs text-slate-500">
-        <span>🔔 Subtle chime on new alerts</span>
-        <Button variant="ghost" size="sm" className="text-xs h-6">
-          Settings
-        </Button>
+        <span>Latest R&amp;D alerts. Updates automatically every 15 seconds.</span>
       </div>
     </Card>
   );
